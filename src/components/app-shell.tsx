@@ -259,7 +259,6 @@ function OrgSwitcher() {
       </div>
       <div className="grid flex-1 text-left text-sm leading-tight">
         <span className="truncate font-semibold">{organization?.name ?? "AerScheduler"}</span>
-        <span className="truncate text-xs text-sidebar-foreground/60">Console</span>
       </div>
       {multi && <ChevronsUpDown className="ml-auto size-4 opacity-60" />}
     </SidebarMenuButton>

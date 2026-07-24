@@ -8,7 +8,7 @@ export const Route = createFileRoute("/_authed/me/availability")({
 
 function AvailabilityPage() {
   return (
-    <div className="mx-auto max-w-3xl">
+    <div>
       <PageHeader
         title="Availability"
         subtitle="Set the recurring hours students can book you against."

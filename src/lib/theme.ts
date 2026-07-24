@@ -1,17 +1,16 @@
 export type Theme = "light" | "dark";
-const KEY = "aer.theme";
 
+// Dark mode is disabled for now — the console is light-only. These keep the same
+// signatures so the ThemeProvider/useTheme callers still compile, but they always
+// resolve to light and never add the `.dark` class.
 export function getTheme(): Theme {
-  const stored = localStorage.getItem(KEY);
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return "light";
 }
 
-export function applyTheme(t: Theme) {
-  document.documentElement.classList.toggle("dark", t === "dark");
-  localStorage.setItem(KEY, t);
+export function applyTheme(_t: Theme) {
+  document.documentElement.classList.remove("dark");
 }
 
 export function initTheme() {
-  document.documentElement.classList.toggle("dark", getTheme() === "dark");
+  document.documentElement.classList.remove("dark");
 }

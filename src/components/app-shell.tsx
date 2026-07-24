@@ -18,14 +18,12 @@ import {
   LogOut,
   Menu,
   MonitorPlay,
-  Moon,
   MoreHorizontal,
   PlaneTakeoff,
   Receipt,
   Search,
   Settings,
   ShieldCheck,
-  Sun,
   User as UserIcon,
   Users,
   Wallet,
@@ -34,7 +32,6 @@ import {
 import { useAuth } from "@/lib/auth";
 import { canAccess, isAdmin } from "@/lib/permissions";
 import type { Role } from "@/types/api";
-import { useTheme } from "@/components/theme-provider";
 import { CommandMenuProvider, useCommandMenu } from "@/components/command-menu";
 import { ConfirmProvider } from "@/components/confirm-dialog";
 import { LogoMark } from "@/components/logo";
@@ -62,7 +59,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -249,8 +246,16 @@ function OrgSwitcher() {
       size="lg"
       className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
     >
-      <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary p-1.5">
-        <LogoMark onDark className="size-full" />
+      <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg bg-sidebar-primary">
+        {organization?.profileImage ? (
+          <img
+            src={organization.profileImage}
+            alt={organization.name}
+            className="size-full object-cover"
+          />
+        ) : (
+          <LogoMark onDark className="size-full p-1.5" />
+        )}
       </div>
       <div className="grid flex-1 text-left text-sm leading-tight">
         <span className="truncate font-semibold">{organization?.name ?? "AerScheduler"}</span>
@@ -306,9 +311,9 @@ function OrgSwitcher() {
 }
 
 function UserMenu() {
-  const { user, logout } = useAuth();
-  const { theme, toggle } = useTheme();
+  const { user, logout, membership } = useAuth();
   const navigate = useNavigate();
+  const avatarSrc = membership?.profileImage ?? undefined;
   const qc = useQueryClient();
 
   return (
@@ -321,6 +326,13 @@ function UserMenu() {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="size-8 rounded-lg">
+                {avatarSrc && (
+                  <AvatarImage
+                    src={avatarSrc}
+                    alt={user?.name ?? ""}
+                    className="rounded-lg object-cover"
+                  />
+                )}
                 <AvatarFallback className="rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   {initials(user?.name)}
                 </AvatarFallback>
@@ -347,10 +359,6 @@ function UserMenu() {
                 <UserIcon />
                 Account &amp; settings
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={toggle}>
-              {theme === "dark" ? <Sun /> : <Moon />}
-              {theme === "dark" ? "Light mode" : "Dark mode"}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

@@ -1,14 +1,13 @@
 import type { LucideIcon } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { guardRoute } from "@/lib/permissions";
-import { Building2, CreditCard, GraduationCap, Palette, Puzzle } from "lucide-react";
+import { Building2, CreditCard, GraduationCap, Puzzle } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OrganizationTab } from "@/components/settings/organization-tab";
 import { BillingTab } from "@/components/settings/billing-tab";
 import { RatesTab } from "@/components/settings/rates-tab";
 import { IntegrationsTab } from "@/components/settings/integrations-tab";
-import { AppearanceCard } from "@/components/settings/appearance-card";
 
 export const Route = createFileRoute("/_authed/settings")({
   beforeLoad: guardRoute("/settings"),
@@ -20,7 +19,6 @@ const TABS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "billing", label: "Billing", icon: CreditCard },
   { value: "rates", label: "Instruction rates", icon: GraduationCap },
   { value: "integrations", label: "Integrations", icon: Puzzle },
-  { value: "appearance", label: "Appearance", icon: Palette },
 ];
 
 function SettingsPage() {
@@ -58,9 +56,6 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="integrations">
           <IntegrationsTab />
-        </TabsContent>
-        <TabsContent value="appearance">
-          <AppearanceCard />
         </TabsContent>
       </Tabs>
     </div>

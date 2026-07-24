@@ -251,8 +251,12 @@ export function useCreateLocation() {
 export function useCreateRating() {
   const qc = useQueryClient();
   return useMutation({
+    // anyInstructorCanTeach is required by the server; default it so every caller is covered.
     mutationFn: (input: { name: string; defaultInstructorRate: number; anyInstructorCanTeach?: boolean }) =>
-      api<OrganizationRating>("/organizations/ratings", { method: "POST", body: input }),
+      api<OrganizationRating>("/organizations/ratings", {
+        method: "POST",
+        body: { anyInstructorCanTeach: true, ...input },
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ratings"] }),
   });
 }

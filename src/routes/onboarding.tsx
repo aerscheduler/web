@@ -227,6 +227,7 @@ function Onboarding() {
         await createRating.mutateAsync({
           name: ratingName.trim() || "Flight Instruction",
           defaultInstructorRate: instrRate,
+          anyInstructorCanTeach: true,
         });
       }
       if (persona === "flying_club") {

@@ -8,12 +8,12 @@ import { rolesOf, type OrganizationUser } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { DataTable } from "@/components/data-table";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RoleBadges } from "@/components/role-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+import { cn, initials } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/people")({
   component: PeoplePage,
@@ -38,7 +38,10 @@ const columns: ColumnDef<OrganizationUser, unknown>[] = [
       const email = ou.user?.email;
       return (
         <div className="flex items-center gap-3">
-          <Avatar name={name} src={ou.profileImage} />
+          <Avatar className="size-9">
+            {ou.profileImage && <AvatarImage src={ou.profileImage} alt={name} />}
+            <AvatarFallback>{initials(name)}</AvatarFallback>
+          </Avatar>
           <div className="min-w-0">
             <div className="truncate font-medium">{name}</div>
             {email && (

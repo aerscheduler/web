@@ -1,212 +1,314 @@
-import { useState, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
+  Check,
+  ChevronsUpDown,
   LayoutDashboard,
   LogOut,
-  Menu,
   Moon,
   PlaneTakeoff,
   Receipt,
+  Search,
   Settings,
+  ShieldCheck,
   Sun,
+  User as UserIcon,
   Users,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { applyTheme, getTheme, type Theme } from "@/lib/theme";
-import { cn, initials } from "@/lib/utils";
+import { useTheme } from "@/components/theme-provider";
+import { CommandMenuProvider, useCommandMenu } from "@/components/command-menu";
+import { initials } from "@/lib/utils";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/schedule", label: "Schedule", icon: CalendarDays },
-  { to: "/people", label: "People", icon: Users },
-  { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
-  { to: "/billing", label: "Billing", icon: Receipt },
-  { to: "/settings", label: "Settings", icon: Settings },
-] as const;
+type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
+
+const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+  {
+    label: "Operations",
+    items: [
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/schedule", label: "Schedule", icon: CalendarDays },
+      { to: "/people", label: "People", icon: Users },
+      { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
+    ],
+  },
+  { label: "Money", items: [{ to: "/billing", label: "Billing", icon: Receipt }] },
+  { label: "Compliance", items: [{ to: "/compliance", label: "Go / No-Go", icon: ShieldCheck }] },
+  { label: "System", items: [{ to: "/settings", label: "Settings", icon: Settings }] },
+];
+
+const TITLES: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/schedule": "Schedule",
+  "/people": "People",
+  "/aircraft": "Aircraft",
+  "/billing": "Billing",
+  "/compliance": "Go / No-Go",
+  "/settings": "Settings",
+};
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const [mobileOpen, setMobileOpen] = useState(false);
-
   return (
-    <div className="flex min-h-dvh bg-background">
-      {/* mobile overlay */}
-      {mobileOpen && (
-        <button
-          aria-label="Close menu"
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
-          onClick={() => setMobileOpen(false)}
-        />
-      )}
-      <Sidebar
-        className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 transition-transform md:static md:translate-x-0",
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-        onNavigate={() => setMobileOpen(false)}
-      />
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar onMenu={() => setMobileOpen(true)} />
-        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
-          <div className="mx-auto w-full max-w-6xl">{children}</div>
-        </main>
-      </div>
-    </div>
+    <CommandMenuProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset>
+          <Topbar />
+          <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+            <div className="mx-auto w-full max-w-6xl">{children}</div>
+          </main>
+        </SidebarInset>
+      </SidebarProvider>
+    </CommandMenuProvider>
   );
 }
 
-function Sidebar({
-  className,
-  onNavigate,
-}: {
-  className?: string;
-  onNavigate: () => void;
-}) {
-  const { user, organization, organizations, switchOrg } = useAuth();
-  const qc = useQueryClient();
+function AppSidebar() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
-  async function onSwitch(e: React.ChangeEvent<HTMLSelectElement>) {
-    const id = Number(e.target.value);
-    if (!id || id === organization?.id) return;
+  return (
+    <Sidebar collapsible="icon">
+      <SidebarHeader>
+        <OrgSwitcher />
+      </SidebarHeader>
+
+      <SidebarContent>
+        {NAV_GROUPS.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => {
+                  const active =
+                    pathname === item.to || pathname.startsWith(item.to + "/");
+                  return (
+                    <SidebarMenuItem key={item.to}>
+                      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
+                        <Link to={item.to}>
+                          <item.icon />
+                          <span>{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+
+      <SidebarFooter>
+        <UserMenu />
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
+  );
+}
+
+function OrgSwitcher() {
+  const { organization, organizations, switchOrg } = useAuth();
+  const qc = useQueryClient();
+  const multi = organizations.length > 1;
+
+  const button = (
+    <SidebarMenuButton
+      size="lg"
+      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+    >
+      <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+        <PlaneTakeoff className="size-4" />
+      </div>
+      <div className="grid flex-1 text-left text-sm leading-tight">
+        <span className="truncate font-semibold">{organization?.name ?? "AerScheduler"}</span>
+        <span className="truncate text-xs text-sidebar-foreground/60">Console</span>
+      </div>
+      {multi && <ChevronsUpDown className="ml-auto size-4 opacity-60" />}
+    </SidebarMenuButton>
+  );
+
+  if (!multi) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>{button}</SidebarMenuItem>
+      </SidebarMenu>
+    );
+  }
+
+  async function onSwitch(id: number) {
+    if (id === organization?.id) return;
     await switchOrg(id);
     qc.clear();
   }
 
   return (
-    <aside
-      className={cn(
-        "flex flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground",
-        className
-      )}
-    >
-      {/* brand */}
-      <div className="flex h-16 items-center gap-2.5 px-5">
-        <span className="grid size-9 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground shadow-sm">
-          <PlaneTakeoff className="size-5" />
-        </span>
-        <div className="leading-tight">
-          <div className="text-[15px] font-semibold tracking-tight text-white">
-            AerScheduler
-          </div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-sidebar-foreground/55">
-            Console
-          </div>
-        </div>
-      </div>
-
-      {/* org switcher */}
-      <div className="px-3 pb-2">
-        <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/40 px-3 py-2">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-sidebar-foreground/50">
-            Organization
-          </div>
-          {organizations.length > 1 ? (
-            <select
-              value={organization?.id ?? ""}
-              onChange={onSwitch}
-              className="mt-0.5 w-full cursor-pointer bg-transparent text-sm font-medium text-white outline-none"
-            >
-              {organizations.map((o) => (
-                <option key={o.id} value={o.id} className="text-foreground">
-                  {o.name}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <div className="mt-0.5 truncate text-sm font-medium text-white">
-              {organization?.name ?? "—"}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* nav */}
-      <nav className="flex-1 space-y-0.5 px-3 py-2">
-        {NAV.map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            onClick={onNavigate}
-            activeProps={{
-              className:
-                "bg-sidebar-accent text-white shadow-sm before:opacity-100",
-            }}
-            className="group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-sidebar-foreground/80 transition-colors before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-full before:bg-sidebar-primary before:opacity-0 hover:bg-sidebar-accent/50 hover:text-white"
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
+            align="start"
           >
-            <item.icon className="size-[18px] shrink-0" />
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-
-      {/* user */}
-      <UserCard name={user?.name} email={user?.email} />
-    </aside>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              Organizations
+            </DropdownMenuLabel>
+            {organizations.map((o) => (
+              <DropdownMenuItem key={o.id} onClick={() => void onSwitch(o.id)} className="gap-2">
+                <div className="flex size-6 items-center justify-center rounded-md border bg-card text-[10px] font-semibold">
+                  {initials(o.name)}
+                </div>
+                <span className="truncate">{o.name}</span>
+                {o.id === organization?.id && <Check className="ml-auto size-4" />}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 
-function UserCard({ name, email }: { name?: string; email?: string }) {
-  const { logout } = useAuth();
+function UserMenu() {
+  const { user, logout } = useAuth();
+  const { theme, toggle } = useTheme();
   const navigate = useNavigate();
+  const qc = useQueryClient();
 
   return (
-    <div className="border-t border-sidebar-border p-3">
-      <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-sidebar-primary/25 text-xs font-semibold text-white">
-          {initials(name)}
-        </span>
-        <div className="min-w-0 flex-1 leading-tight">
-          <div className="truncate text-[13px] font-medium text-white">
-            {name ?? "Signed in"}
-          </div>
-          <div className="truncate text-[11px] text-sidebar-foreground/55">
-            {email ?? ""}
-          </div>
-        </div>
-        <button
-          aria-label="Sign out"
-          title="Sign out"
-          onClick={() => {
-            logout();
-            navigate({ to: "/login" });
-          }}
-          className="grid size-8 shrink-0 place-items-center rounded-md text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-white"
-        >
-          <LogOut className="size-4" />
-        </button>
-      </div>
-    </div>
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <SidebarMenuButton
+              size="lg"
+              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+            >
+              <Avatar className="size-8 rounded-lg">
+                <AvatarFallback className="rounded-lg bg-sidebar-primary/25 text-sidebar-primary-foreground">
+                  {initials(user?.name)}
+                </AvatarFallback>
+              </Avatar>
+              <div className="grid flex-1 text-left text-sm leading-tight">
+                <span className="truncate font-medium">{user?.name ?? "Signed in"}</span>
+                <span className="truncate text-xs text-sidebar-foreground/60">{user?.email}</span>
+              </div>
+              <ChevronsUpDown className="ml-auto size-4 opacity-60" />
+            </SidebarMenuButton>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
+            side="top"
+            align="start"
+          >
+            <DropdownMenuLabel className="flex flex-col">
+              <span className="text-sm font-medium">{user?.name}</span>
+              <span className="text-xs font-normal text-muted-foreground">{user?.email}</span>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to="/settings">
+                <UserIcon />
+                Account &amp; settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={toggle}>
+              {theme === "dark" ? <Sun /> : <Moon />}
+              {theme === "dark" ? "Light mode" : "Dark mode"}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={() => {
+                logout();
+                qc.clear();
+                navigate({ to: "/login" });
+              }}
+            >
+              <LogOut />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }
 
-function Topbar({ onMenu }: { onMenu: () => void }) {
-  const [theme, setTheme] = useState<Theme>(() => getTheme());
-
-  function toggle() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    applyTheme(next);
-  }
+function Topbar() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { theme, toggle } = useTheme();
+  const { setOpen } = useCommandMenu();
+  const title = TITLES[pathname] ?? "AerScheduler";
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur-md md:px-8">
-      <button
-        aria-label="Open menu"
-        onClick={onMenu}
-        className="grid size-9 place-items-center rounded-md text-muted-foreground hover:bg-accent md:hidden"
-      >
-        <Menu className="size-5" />
-      </button>
+    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur-md md:px-6">
+      <SidebarTrigger className="-ml-1" />
+      <Separator orientation="vertical" className="mr-1 h-5" />
+      <h1 className="text-sm font-semibold tracking-tight">{title}</h1>
+
       <div className="flex-1" />
-      <button
-        aria-label="Toggle theme"
-        onClick={toggle}
-        className="grid size-9 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className="hidden gap-2 text-muted-foreground sm:inline-flex"
       >
-        {theme === "dark" ? <Sun className="size-[18px]" /> : <Moon className="size-[18px]" />}
-      </button>
+        <Search className="size-4" />
+        <span>Search…</span>
+        <kbd className="pointer-events-none ml-2 hidden select-none items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground md:inline-flex">
+          ⌘K
+        </kbd>
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={() => setOpen(true)}
+        aria-label="Search"
+        className="sm:hidden"
+      >
+        <Search className="size-4" />
+      </Button>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
+            {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Toggle theme</TooltipContent>
+      </Tooltip>
     </header>
   );
 }

@@ -48,6 +48,8 @@ interface AuthContextValue extends SessionState {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   switchOrg: (orgId: number) => Promise<void>;
+  /** Create a new org (caller becomes owner+admin). Swaps the active token. */
+  createOrganization: (input: Record<string, unknown>) => Promise<Organization>;
   rehydrate: () => Promise<void>;
 }
 
@@ -93,6 +95,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [apply]
   );
 
+  const createOrganization = useCallback(
+    async (input: Record<string, unknown>) => {
+      const env = await apiRaw<AuthEnvelope>("/organizations/", {
+        method: "POST",
+        body: input,
+      });
+      apply(env);
+      return env.data.organization as Organization;
+    },
+    [apply]
+  );
+
   const rehydrate = useCallback(async () => {
     if (!getToken()) return;
     try {
@@ -111,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext
-      value={{ ...session, login, logout, switchOrg, rehydrate }}
+      value={{ ...session, login, logout, switchOrg, createOrganization, rehydrate }}
     >
       {children}
     </AuthContext>

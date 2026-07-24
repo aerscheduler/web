@@ -14,6 +14,7 @@ import { Route as AuthedRouteImport } from './routes/_authed'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthedAircraftRouteImport } from './routes/_authed/aircraft'
 import { Route as AuthedBillingRouteImport } from './routes/_authed/billing'
+import { Route as AuthedComplianceRouteImport } from './routes/_authed/compliance'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedPeopleRouteImport } from './routes/_authed/people'
 import { Route as AuthedScheduleRouteImport } from './routes/_authed/schedule'
@@ -43,6 +44,11 @@ const AuthedBillingRoute = AuthedBillingRouteImport.update({
   path: '/billing',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedComplianceRoute = AuthedComplianceRouteImport.update({
+  id: '/compliance',
+  path: '/compliance',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedDashboardRoute = AuthedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -69,6 +75,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/aircraft': typeof AuthedAircraftRoute
   '/billing': typeof AuthedBillingRoute
+  '/compliance': typeof AuthedComplianceRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/people': typeof AuthedPeopleRoute
   '/schedule': typeof AuthedScheduleRoute
@@ -79,6 +86,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/aircraft': typeof AuthedAircraftRoute
   '/billing': typeof AuthedBillingRoute
+  '/compliance': typeof AuthedComplianceRoute
   '/dashboard': typeof AuthedDashboardRoute
   '/people': typeof AuthedPeopleRoute
   '/schedule': typeof AuthedScheduleRoute
@@ -91,6 +99,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/_authed/aircraft': typeof AuthedAircraftRoute
   '/_authed/billing': typeof AuthedBillingRoute
+  '/_authed/compliance': typeof AuthedComplianceRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
   '/_authed/people': typeof AuthedPeopleRoute
   '/_authed/schedule': typeof AuthedScheduleRoute
@@ -103,6 +112,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/aircraft'
     | '/billing'
+    | '/compliance'
     | '/dashboard'
     | '/people'
     | '/schedule'
@@ -113,6 +123,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/aircraft'
     | '/billing'
+    | '/compliance'
     | '/dashboard'
     | '/people'
     | '/schedule'
@@ -124,6 +135,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/_authed/aircraft'
     | '/_authed/billing'
+    | '/_authed/compliance'
     | '/_authed/dashboard'
     | '/_authed/people'
     | '/_authed/schedule'
@@ -173,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedBillingRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/compliance': {
+      id: '/_authed/compliance'
+      path: '/compliance'
+      fullPath: '/compliance'
+      preLoaderRoute: typeof AuthedComplianceRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/dashboard': {
       id: '/_authed/dashboard'
       path: '/dashboard'
@@ -207,6 +226,7 @@ declare module '@tanstack/react-router' {
 interface AuthedRouteChildren {
   AuthedAircraftRoute: typeof AuthedAircraftRoute
   AuthedBillingRoute: typeof AuthedBillingRoute
+  AuthedComplianceRoute: typeof AuthedComplianceRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
   AuthedPeopleRoute: typeof AuthedPeopleRoute
   AuthedScheduleRoute: typeof AuthedScheduleRoute
@@ -216,6 +236,7 @@ interface AuthedRouteChildren {
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAircraftRoute: AuthedAircraftRoute,
   AuthedBillingRoute: AuthedBillingRoute,
+  AuthedComplianceRoute: AuthedComplianceRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
   AuthedPeopleRoute: AuthedPeopleRoute,
   AuthedScheduleRoute: AuthedScheduleRoute,

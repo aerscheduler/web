@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 /* Class-based dark mode: <html class="dark"> */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -52,6 +53,23 @@
   --sidebar-accent-foreground: oklch(0.94 0.01 245);
   --sidebar-border: oklch(0.32 0.028 258);
   --sidebar-ring: oklch(0.62 0.14 245);
+  --sidebar-width: 16rem;
+  --sidebar-width-icon: 3rem;
+  --sidebar-width-mobile: 18rem;
+
+  /* reservation / dispatch-lane type hues (consistent across grid, legends, badges) */
+  --res-dual: oklch(0.5 0.13 245); /* instruction — primary blue */
+  --res-solo: oklch(0.6 0.13 155); /* solo — success green */
+  --res-ground: oklch(0.75 0.15 74); /* ground — warning amber */
+  --res-sim: oklch(0.6 0.16 300); /* sim — violet */
+  --res-maintenance: oklch(0.58 0.2 27); /* maintenance — destructive red */
+
+  /* dashboard KPI chart series */
+  --chart-1: oklch(0.5 0.13 245);
+  --chart-2: oklch(0.78 0.14 72);
+  --chart-3: oklch(0.6 0.13 155);
+  --chart-4: oklch(0.6 0.16 300);
+  --chart-5: oklch(0.75 0.15 74);
 }
 
 .dark {
@@ -93,6 +111,18 @@
   --sidebar-accent-foreground: oklch(0.94 0.01 245);
   --sidebar-border: oklch(0.26 0.022 258);
   --sidebar-ring: oklch(0.64 0.14 245);
+
+  --res-dual: oklch(0.64 0.14 245);
+  --res-solo: oklch(0.68 0.14 156);
+  --res-ground: oklch(0.79 0.15 74);
+  --res-sim: oklch(0.66 0.16 300);
+  --res-maintenance: oklch(0.62 0.19 25);
+
+  --chart-1: oklch(0.64 0.14 245);
+  --chart-2: oklch(0.8 0.14 72);
+  --chart-3: oklch(0.68 0.14 156);
+  --chart-4: oklch(0.66 0.16 300);
+  --chart-5: oklch(0.79 0.15 74);
 }
 
 @theme inline {
@@ -128,6 +158,18 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-res-dual: var(--res-dual);
+  --color-res-solo: var(--res-solo);
+  --color-res-ground: var(--res-ground);
+  --color-res-sim: var(--res-sim);
+  --color-res-maintenance: var(--res-maintenance);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -171,5 +213,15 @@
   }
   .tnum {
     font-variant-numeric: tabular-nums;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

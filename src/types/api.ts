@@ -245,6 +245,114 @@ export interface InvoiceItem {
   unitPrice: number;
 }
 
+export interface OrganizationRating {
+  id: number;
+  name: string;
+  defaultInstructorRate: number;
+  anyInstructorCanTeach?: boolean;
+  showInDirectory?: boolean;
+}
+
+export interface CurrencyType {
+  id: number;
+  name: string;
+  description?: string | null;
+  gracePeriodDays?: number | null;
+  active?: boolean;
+}
+
+export interface Announcement {
+  id: number;
+  title: string;
+  message: string;
+  createdAt: string;
+  expireAt: string | null;
+  forRoles?: Role[] | null;
+}
+
+// ---- Mutation input payloads (see insights/api-contract.md §4) ----
+
+export interface CreateOrgInput {
+  name: string;
+  organizationType: string;
+  details?: { phone?: string; email?: string; address?: Partial<UserAddress> };
+}
+
+export interface CreateLocationInput {
+  name: string;
+  address?: Partial<UserAddress>;
+  showInDirectory?: boolean;
+}
+
+export interface CreatePlaneResourceInput {
+  location: { id: number };
+  type: {
+    plane: {
+      tailNumber: string;
+      make?: string;
+      model?: string;
+      year?: string;
+      categoryClass: string;
+      tachTime: number;
+      hobbsTime: number;
+      cost: { wetRate?: number; dryRate?: number; billByHobbsTime: boolean };
+    };
+  };
+}
+
+export interface InviteInput {
+  email: string;
+  admin?: boolean;
+  instructor?: boolean;
+  student?: boolean;
+  renter?: boolean;
+  technician?: boolean;
+  dispatcher?: boolean;
+  orgUserGroupIds?: number[];
+}
+
+export interface PersonRef {
+  id: number;
+}
+
+export interface CreateReservationInput {
+  title: string;
+  type: ReservationType;
+  start: string;
+  end: string;
+  timeZoneName: string;
+  notes?: string;
+  rrule?: string;
+  location?: { id: number };
+  resource?: { id: number };
+  rating?: { id: number };
+  personnel?: {
+    instructors?: PersonRef[];
+    students?: PersonRef[];
+    renters?: PersonRef[];
+    guests?: { id?: number; name: string; email: string; phone?: string }[];
+  };
+}
+
+export interface CreateInvoiceInput {
+  customer?: { id: number };
+  FK_customerOrgUserId?: number;
+  memo?: string;
+  dueAt?: string;
+  items: { name: string; qty: number; unitPrice: number }[];
+}
+
+export type DayBlocks = { start: string; end: string }[];
+export interface AvailabilityInput {
+  monday?: DayBlocks;
+  tuesday?: DayBlocks;
+  wednesday?: DayBlocks;
+  thursday?: DayBlocks;
+  friday?: DayBlocks;
+  saturday?: DayBlocks;
+  sunday?: DayBlocks;
+}
+
 /** Convenience: resolve a resource's display name + kind. */
 export function resourceLabel(r: Resource): { name: string; kind: "Aircraft" | "Simulator" | "Room" | "Resource" } {
   const t = r.type;

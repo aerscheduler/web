@@ -12,6 +12,7 @@ import {
   Home,
   LayoutDashboard,
   LogOut,
+  MonitorPlay,
   Moon,
   PlaneTakeoff,
   Receipt,
@@ -75,6 +76,7 @@ function navForRoles(roles: string[], isStaff: boolean): NavGroup[] {
         { to: "/schedule", label: "Schedule", icon: CalendarDays },
         { to: "/people", label: "People", icon: Users },
         { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
+        { to: "/facilities", label: "Facilities", icon: MonitorPlay },
       ],
     });
     groups.push({ label: "Money", items: [{ to: "/billing", label: "Billing", icon: Receipt }] });
@@ -110,6 +112,7 @@ const TITLES: Record<string, string> = {
   "/schedule": "Schedule",
   "/people": "People",
   "/aircraft": "Aircraft",
+  "/facilities": "Facilities",
   "/billing": "Billing",
   "/compliance": "Go / No-Go",
   "/settings": "Settings",

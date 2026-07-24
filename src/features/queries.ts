@@ -9,6 +9,8 @@ import type {
   ConfirmReviewInput,
   CreatePlaneResourceInput,
   CreateReservationInput,
+  CreateRoomResourceInput,
+  CreateSimulatorResourceInput,
   ConfirmReviewGuestInput,
   Currency,
   CurrencyType,
@@ -77,6 +79,22 @@ export function useResources(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["resources", "all"],
     queryFn: () => api<Resource[]>("/resources"),
+    ...opts,
+  });
+}
+
+export function useSimulators(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["resources", "simulators"],
+    queryFn: () => api<Resource[]>("/resources/simulators"),
+    ...opts,
+  });
+}
+
+export function useRooms(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["resources", "rooms"],
+    queryFn: () => api<Resource[]>("/resources/rooms"),
     ...opts,
   });
 }
@@ -270,6 +288,24 @@ export function useCreatePlane() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreatePlaneResourceInput) =>
+      api<Resource>("/resources", { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["resources"] }),
+  });
+}
+
+export function useCreateSimulator() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateSimulatorResourceInput) =>
+      api<Resource>("/resources", { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["resources"] }),
+  });
+}
+
+export function useCreateRoom() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateRoomResourceInput) =>
       api<Resource>("/resources", { method: "POST", body: input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["resources"] }),
   });

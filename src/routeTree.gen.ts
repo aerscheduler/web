@@ -20,6 +20,7 @@ import { Route as AuthedAircraftRouteImport } from './routes/_authed/aircraft'
 import { Route as AuthedBillingRouteImport } from './routes/_authed/billing'
 import { Route as AuthedComplianceRouteImport } from './routes/_authed/compliance'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
+import { Route as AuthedFacilitiesRouteImport } from './routes/_authed/facilities'
 import { Route as AuthedMaintenanceRouteImport } from './routes/_authed/maintenance'
 import { Route as AuthedNotificationsRouteImport } from './routes/_authed/notifications'
 import { Route as AuthedPeopleRouteImport } from './routes/_authed/people'
@@ -86,6 +87,11 @@ const AuthedComplianceRoute = AuthedComplianceRouteImport.update({
 const AuthedDashboardRoute = AuthedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedFacilitiesRoute = AuthedFacilitiesRouteImport.update({
+  id: '/facilities',
+  path: '/facilities',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedMaintenanceRoute = AuthedMaintenanceRouteImport.update({
@@ -165,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/billing': typeof AuthedBillingRoute
   '/compliance': typeof AuthedComplianceRoute
   '/dashboard': typeof AuthedDashboardRoute
+  '/facilities': typeof AuthedFacilitiesRoute
   '/maintenance': typeof AuthedMaintenanceRoute
   '/notifications': typeof AuthedNotificationsRoute
   '/people': typeof AuthedPeopleRoute
@@ -190,6 +197,7 @@ export interface FileRoutesByTo {
   '/billing': typeof AuthedBillingRoute
   '/compliance': typeof AuthedComplianceRoute
   '/dashboard': typeof AuthedDashboardRoute
+  '/facilities': typeof AuthedFacilitiesRoute
   '/maintenance': typeof AuthedMaintenanceRoute
   '/notifications': typeof AuthedNotificationsRoute
   '/people': typeof AuthedPeopleRoute
@@ -217,6 +225,7 @@ export interface FileRoutesById {
   '/_authed/billing': typeof AuthedBillingRoute
   '/_authed/compliance': typeof AuthedComplianceRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
+  '/_authed/facilities': typeof AuthedFacilitiesRoute
   '/_authed/maintenance': typeof AuthedMaintenanceRoute
   '/_authed/notifications': typeof AuthedNotificationsRoute
   '/_authed/people': typeof AuthedPeopleRoute
@@ -244,6 +253,7 @@ export interface FileRouteTypes {
     | '/billing'
     | '/compliance'
     | '/dashboard'
+    | '/facilities'
     | '/maintenance'
     | '/notifications'
     | '/people'
@@ -269,6 +279,7 @@ export interface FileRouteTypes {
     | '/billing'
     | '/compliance'
     | '/dashboard'
+    | '/facilities'
     | '/maintenance'
     | '/notifications'
     | '/people'
@@ -295,6 +306,7 @@ export interface FileRouteTypes {
     | '/_authed/billing'
     | '/_authed/compliance'
     | '/_authed/dashboard'
+    | '/_authed/facilities'
     | '/_authed/maintenance'
     | '/_authed/notifications'
     | '/_authed/people'
@@ -399,6 +411,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDashboardRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/facilities': {
+      id: '/_authed/facilities'
+      path: '/facilities'
+      fullPath: '/facilities'
+      preLoaderRoute: typeof AuthedFacilitiesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/maintenance': {
       id: '/_authed/maintenance'
       path: '/maintenance'
@@ -498,6 +517,7 @@ interface AuthedRouteChildren {
   AuthedBillingRoute: typeof AuthedBillingRoute
   AuthedComplianceRoute: typeof AuthedComplianceRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
+  AuthedFacilitiesRoute: typeof AuthedFacilitiesRoute
   AuthedMaintenanceRoute: typeof AuthedMaintenanceRoute
   AuthedNotificationsRoute: typeof AuthedNotificationsRoute
   AuthedPeopleRoute: typeof AuthedPeopleRoute
@@ -518,6 +538,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedBillingRoute: AuthedBillingRoute,
   AuthedComplianceRoute: AuthedComplianceRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
+  AuthedFacilitiesRoute: AuthedFacilitiesRoute,
   AuthedMaintenanceRoute: AuthedMaintenanceRoute,
   AuthedNotificationsRoute: AuthedNotificationsRoute,
   AuthedPeopleRoute: AuthedPeopleRoute,

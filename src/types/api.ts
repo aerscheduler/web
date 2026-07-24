@@ -243,6 +243,18 @@ export interface Simulator {
   name: string;
   rampedIn: boolean;
   grounded: boolean;
+  groundedReason?: string | null;
+  /** Deci-hours, like Plane.hobbsTime/tachTime — divide by 10 to display. */
+  tachTime?: number;
+  hobbsTime?: number;
+  cost?: SimulatorCost | null;
+}
+
+export interface SimulatorCost {
+  id: number;
+  /** Cents per hour. */
+  rate: number | null;
+  billByHobbsTime: boolean;
 }
 
 export interface Room {
@@ -379,6 +391,29 @@ export interface CreatePlaneResourceInput {
       /** REQUIRED by the server — "gallons" or "liters". */
       fuelMeasurement: "gallons" | "liters";
       cost: { wetRate?: number; dryRate?: number; billByHobbsTime: boolean };
+    };
+  };
+}
+
+/** Create a simulator resource. tach/hobbs are deci-hours; rate is cents/hour. */
+export interface CreateSimulatorResourceInput {
+  location: { id: number };
+  type: {
+    simulator: {
+      name: string;
+      tachTime: number;
+      hobbsTime: number;
+      cost: { rate?: number; billByHobbsTime: boolean };
+    };
+  };
+}
+
+/** Create a room resource — only a room number is required. */
+export interface CreateRoomResourceInput {
+  location: { id: number };
+  type: {
+    room: {
+      roomNumber: string;
     };
   };
 }

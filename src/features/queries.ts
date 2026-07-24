@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import {
   presignedObjectUrl,
   uploadToPresignedPost,
@@ -804,5 +804,37 @@ export function useMaintenanceReminders(filter?: { resolved?: boolean }, opts?: 
     queryKey: ["reminders", filter ?? {}],
     queryFn: () => api<MaintenanceReminder[]>("/maintenance/reminders", { query: filter }),
     ...opts,
+  });
+}
+
+// ── Google Calendar integration ─────────────────────────────────────────────
+/** Whether the caller has connected Google Calendar. GET /integrations/googleCalendar
+ *  returns { data: true } when connected and 404 when not. */
+export function useGoogleCalendarStatus(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["integration", "googleCalendar"],
+    queryFn: async () => {
+      try {
+        await api("/integrations/googleCalendar");
+        return true;
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return false;
+        throw e;
+      }
+    },
+    ...opts,
+  });
+}
+
+/** Connect Google Calendar with a server auth code from the web popup code flow. */
+export function useConnectGoogleCalendar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (serverAuthCode: string) =>
+      api("/integrations/googleCalendar", {
+        method: "POST",
+        body: { serverAuthCode, web: true },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["integration", "googleCalendar"] }),
   });
 }

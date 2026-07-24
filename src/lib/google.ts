@@ -14,6 +14,8 @@ const GSI_SRC = "https://accounts.google.com/gsi/client";
 
 type TokenResponse = { access_token?: string; error?: string };
 type TokenClient = { requestAccessToken: () => void };
+type CodeResponse = { code?: string; error?: string };
+type CodeClient = { requestCode: () => void };
 type GoogleGsi = {
   accounts: {
     oauth2: {
@@ -23,6 +25,13 @@ type GoogleGsi = {
         callback: (resp: TokenResponse) => void;
         error_callback?: (err: { type?: string; message?: string }) => void;
       }) => TokenClient;
+      initCodeClient: (cfg: {
+        client_id: string;
+        scope: string;
+        ux_mode?: "popup" | "redirect";
+        callback: (resp: CodeResponse) => void;
+        error_callback?: (err: { type?: string; message?: string }) => void;
+      }) => CodeClient;
     };
   };
 };
@@ -87,5 +96,37 @@ export async function signInWithGoogle(): Promise<GoogleProfile> {
       error_callback: (err) => reject(new Error(err?.message || "Google sign-in was cancelled.")),
     });
     client.requestAccessToken();
+  });
+}
+
+/**
+ * Opens Google's consent popup for Calendar access and resolves with a
+ * server auth **code** (offline). The AerScheduler server exchanges it for a
+ * refresh token (POST /integrations/googleCalendar with { serverAuthCode, web:true },
+ * which exchanges against redirect_uri "postmessage").
+ */
+export async function requestGoogleCalendarCode(): Promise<string> {
+  await loadGis();
+  const g = gsi();
+  if (!g?.accounts?.oauth2?.initCodeClient) {
+    throw new Error("Google is unavailable right now.");
+  }
+
+  return new Promise<string>((resolve, reject) => {
+    const client = g.accounts.oauth2.initCodeClient({
+      client_id: GOOGLE_CLIENT_ID,
+      scope: "https://www.googleapis.com/auth/calendar",
+      ux_mode: "popup",
+      callback: (resp) => {
+        if (resp.error || !resp.code) {
+          reject(new Error(resp.error || "Google Calendar connection was cancelled."));
+          return;
+        }
+        resolve(resp.code);
+      },
+      error_callback: (err) =>
+        reject(new Error(err?.message || "Google Calendar connection was cancelled.")),
+    });
+    client.requestCode();
   });
 }

@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { format, parseISO } from "date-fns";
 import { Gauge, MapPin, Wrench } from "lucide-react";
 import type { Resource } from "@/types/api";
 import { planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
@@ -12,7 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { formatMoney } from "@/lib/utils";
+import { formatDate, formatMoney } from "@/lib/utils";
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -77,7 +76,7 @@ export function AircraftDetailSheet({
               <div className="divide-y divide-border">
                 <Row label="Home base">{resource.location?.name ?? "—"}</Row>
                 <Row label="Added">
-                  {format(parseISO(resource.createdAt), "MMM d, yyyy")}
+                  {formatDate(resource.createdAt)}
                 </Row>
               </div>
 

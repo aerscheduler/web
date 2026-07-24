@@ -15,7 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { formatMoney } from "@/lib/utils";
+import { formatDate, formatMoney } from "@/lib/utils";
 import { resourceLabel, type Reservation } from "@/types/api";
 import { hasActiveOrg, isStaffSync } from "@/lib/auth";
 
@@ -155,7 +155,7 @@ function DashboardPage() {
                         {i.customer?.user?.name ?? `Invoice #${i.id}`}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {format(parseISO(i.createdAt), "MMM d")}
+                        {formatDate(i.createdAt, "MMM d")}
                       </div>
                     </div>
                     <div className="flex items-center gap-2.5">

@@ -1,11 +1,10 @@
 import type { ReactNode } from "react";
-import { format, parseISO } from "date-fns";
 import { rolesOf, type OrganizationUser } from "@/types/api";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { RoleBadges } from "@/components/role-badges";
-import { initials } from "@/lib/utils";
+import { formatDate, initials } from "@/lib/utils";
 import { memberName } from "./util";
 
 export function MemberProfileSheet({
@@ -62,7 +61,7 @@ function ProfileBody({ ou }: { ou: OrganizationUser }) {
           <span className="tabular-nums">{ou.identifier || "—"}</span>
         </Row>
         {phone && <Row label="Phone">{phone}</Row>}
-        <Row label="Joined">{format(parseISO(ou.createdAt), "MMMM d, yyyy")}</Row>
+        <Row label="Joined">{formatDate(ou.createdAt, "MMMM d, yyyy")}</Row>
         <Row label="Member ID">
           <span className="tabular-nums text-muted-foreground">#{ou.id}</span>
         </Row>

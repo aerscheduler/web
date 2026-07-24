@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { format, parseISO } from "date-fns";
 import { Search, UserPlus, Users } from "lucide-react";
 import { useMembers, type MemberFilter } from "@/features/queries";
 import { rolesOf, type OrganizationUser } from "@/types/api";
@@ -22,7 +21,7 @@ import { MemberCard } from "@/components/people/member-card";
 import { MemberProfileSheet } from "@/components/people/member-profile-sheet";
 import { MemberRowActions } from "@/components/people/member-row-actions";
 import { memberName } from "@/components/people/util";
-import { initials } from "@/lib/utils";
+import { formatDate, initials } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/people")({
   component: PeoplePage,
@@ -131,7 +130,7 @@ function PeoplePage() {
         accessorFn: (r) => r.createdAt,
         cell: ({ getValue }) => (
           <span className="whitespace-nowrap text-muted-foreground">
-            {format(parseISO(getValue() as string), "MMM d, yyyy")}
+            {formatDate(getValue() as string | undefined)}
           </span>
         ),
       },

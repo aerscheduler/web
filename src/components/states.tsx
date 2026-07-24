@@ -29,16 +29,13 @@ export function EmptyState({
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  const noOrg = error instanceof ApiError && error.status === 400;
   const auth = error instanceof ApiError && error.status === 401;
-  const message =
-    noOrg
-      ? "This view needs an active organization. Pick or join one, then reload."
-      : auth
-        ? "Your session expired. Please sign in again."
-        : error instanceof ApiError
-          ? error.message
-          : "Something went wrong loading this data.";
+  // Show the API's real message (a 400 can mean many things — don't assume "no org").
+  const message = auth
+    ? "Your session expired. Please sign in again."
+    : error instanceof ApiError
+      ? error.message
+      : "Something went wrong loading this data.";
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
       <span className="grid size-12 place-items-center rounded-full bg-destructive/10 text-destructive">

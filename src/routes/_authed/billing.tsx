@@ -42,7 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatMoney } from "@/lib/utils";
+import { formatDate, formatMoney } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/billing")({
   component: BillingPage,
@@ -236,7 +236,7 @@ function unbilledColumns(onBill: (r: Reservation) => void): ColumnDef<Reservatio
       accessorFn: (r) => r.end,
       cell: ({ getValue }) => (
         <span className="tnum whitespace-nowrap text-sm text-muted-foreground">
-          {format(parseISO(getValue() as string), "MMM d, yyyy")}
+          {formatDate(getValue() as string | undefined)}
         </span>
       ),
     },

@@ -25,6 +25,7 @@ import { Route as AuthedFacilitiesRouteImport } from './routes/_authed/facilitie
 import { Route as AuthedMaintenanceRouteImport } from './routes/_authed/maintenance'
 import { Route as AuthedNotificationsRouteImport } from './routes/_authed/notifications'
 import { Route as AuthedPeopleRouteImport } from './routes/_authed/people'
+import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedScheduleRouteImport } from './routes/_authed/schedule'
 import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
 import { Route as AuthedMeIndexRouteImport } from './routes/_authed/me/index'
@@ -115,6 +116,11 @@ const AuthedPeopleRoute = AuthedPeopleRouteImport.update({
   path: '/people',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedReportsRoute = AuthedReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedScheduleRoute = AuthedScheduleRouteImport.update({
   id: '/schedule',
   path: '/schedule',
@@ -182,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/maintenance': typeof AuthedMaintenanceRoute
   '/notifications': typeof AuthedNotificationsRoute
   '/people': typeof AuthedPeopleRoute
+  '/reports': typeof AuthedReportsRoute
   '/schedule': typeof AuthedScheduleRoute
   '/settings': typeof AuthedSettingsRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByTo {
   '/maintenance': typeof AuthedMaintenanceRoute
   '/notifications': typeof AuthedNotificationsRoute
   '/people': typeof AuthedPeopleRoute
+  '/reports': typeof AuthedReportsRoute
   '/schedule': typeof AuthedScheduleRoute
   '/settings': typeof AuthedSettingsRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
@@ -238,6 +246,7 @@ export interface FileRoutesById {
   '/_authed/maintenance': typeof AuthedMaintenanceRoute
   '/_authed/notifications': typeof AuthedNotificationsRoute
   '/_authed/people': typeof AuthedPeopleRoute
+  '/_authed/reports': typeof AuthedReportsRoute
   '/_authed/schedule': typeof AuthedScheduleRoute
   '/_authed/settings': typeof AuthedSettingsRoute
   '/_authed/me/availability': typeof AuthedMeAvailabilityRoute
@@ -267,6 +276,7 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/notifications'
     | '/people'
+    | '/reports'
     | '/schedule'
     | '/settings'
     | '/me/availability'
@@ -294,6 +304,7 @@ export interface FileRouteTypes {
     | '/maintenance'
     | '/notifications'
     | '/people'
+    | '/reports'
     | '/schedule'
     | '/settings'
     | '/me/availability'
@@ -322,6 +333,7 @@ export interface FileRouteTypes {
     | '/_authed/maintenance'
     | '/_authed/notifications'
     | '/_authed/people'
+    | '/_authed/reports'
     | '/_authed/schedule'
     | '/_authed/settings'
     | '/_authed/me/availability'
@@ -459,6 +471,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedPeopleRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/reports': {
+      id: '/_authed/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof AuthedReportsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/schedule': {
       id: '/_authed/schedule'
       path: '/schedule'
@@ -541,6 +560,7 @@ interface AuthedRouteChildren {
   AuthedMaintenanceRoute: typeof AuthedMaintenanceRoute
   AuthedNotificationsRoute: typeof AuthedNotificationsRoute
   AuthedPeopleRoute: typeof AuthedPeopleRoute
+  AuthedReportsRoute: typeof AuthedReportsRoute
   AuthedScheduleRoute: typeof AuthedScheduleRoute
   AuthedSettingsRoute: typeof AuthedSettingsRoute
   AuthedMeAvailabilityRoute: typeof AuthedMeAvailabilityRoute
@@ -562,6 +582,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMaintenanceRoute: AuthedMaintenanceRoute,
   AuthedNotificationsRoute: AuthedNotificationsRoute,
   AuthedPeopleRoute: AuthedPeopleRoute,
+  AuthedReportsRoute: AuthedReportsRoute,
   AuthedScheduleRoute: AuthedScheduleRoute,
   AuthedSettingsRoute: AuthedSettingsRoute,
   AuthedMeAvailabilityRoute: AuthedMeAvailabilityRoute,

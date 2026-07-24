@@ -694,6 +694,31 @@ export function useSetPin() {
   });
 }
 
+// ---------------------------------------------------------------- reports (admin)
+
+export type ReportRange = { startDate: string; endDate: string };
+
+/**
+ * A single org report metric (`GET /reports/organization/:metric`). Date-ranged metrics
+ * (flight time, reservations, payments, members) require a range and are gated on it; the
+ * status metrics (`countUnresolvedSquawks`, `countGroundedResources`) take no range.
+ */
+export function useOrgReport<T>(
+  metric: string,
+  range?: ReportRange,
+  opts?: QueryOpts & { rangeRequired?: boolean }
+) {
+  const rangeRequired = opts?.rangeRequired ?? true;
+  return useQuery({
+    queryKey: ["reports", "org", metric, range ?? {}],
+    queryFn: () =>
+      api<T>(`/reports/organization/${metric}`, {
+        query: range ? { startDate: range.startDate, endDate: range.endDate } : undefined,
+      }),
+    enabled: (opts?.enabled ?? true) && (!rangeRequired || range != null),
+  });
+}
+
 // ---------------------------------------------------------------- maintenance
 
 export function useSquawks(filter?: { resolved?: boolean }, opts?: QueryOpts) {

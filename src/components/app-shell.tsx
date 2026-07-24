@@ -10,6 +10,7 @@ import {
   Clock,
   CreditCard,
   Home,
+  ChartColumnBig,
   LayoutDashboard,
   LogOut,
   MonitorPlay,
@@ -79,7 +80,13 @@ function navForRoles(roles: string[], isStaff: boolean): NavGroup[] {
         { to: "/facilities", label: "Facilities", icon: MonitorPlay },
       ],
     });
-    groups.push({ label: "Money", items: [{ to: "/billing", label: "Billing", icon: Receipt }] });
+    groups.push({
+      label: "Money",
+      items: [
+        { to: "/billing", label: "Billing", icon: Receipt },
+        { to: "/reports", label: "Reports", icon: ChartColumnBig },
+      ],
+    });
     groups.push({ label: "Compliance", items: [{ to: "/compliance", label: "Go / No-Go", icon: ShieldCheck }] });
   }
 
@@ -114,6 +121,7 @@ const TITLES: Record<string, string> = {
   "/aircraft": "Aircraft",
   "/facilities": "Facilities",
   "/billing": "Billing",
+  "/reports": "Reports",
   "/compliance": "Go / No-Go",
   "/settings": "Settings",
   "/maintenance": "Maintenance",

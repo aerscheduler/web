@@ -418,6 +418,20 @@ export interface CreateRoomResourceInput {
   };
 }
 
+// ------------------------------------------------------------------ reports
+
+/** A per-day point in an org report series (count = reservations, or deci-hours for time). */
+export interface ReportPoint {
+  date: string;
+  count: number;
+}
+
+/** Money totals (cents) from `/reports/organization/countPendingAndProcessedPayments`. */
+export interface ReportPayments {
+  pending: number;
+  processed: number;
+}
+
 /** A pending request from a user to join the org (via the org's join code). */
 export interface JoinRequest {
   id: number;

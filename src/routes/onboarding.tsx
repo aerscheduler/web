@@ -91,7 +91,7 @@ function apiErr(e: unknown): string {
 function Onboarding() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { user, organization, createOrganization } = useAuth();
+  const { user, organization, orgUserId, createOrganization } = useAuth();
 
   const createLocation = useCreateLocation();
   const createPlane = useCreatePlane();
@@ -275,20 +275,24 @@ function Onboarding() {
 
   async function finish(withBooking: boolean) {
     await guarded(async () => {
-      if (withBooking && resourceId && locationId) {
+      if (withBooking && resourceId && locationId && orgUserId) {
         const start = new Date();
         start.setHours(start.getHours() + 1, 0, 0, 0);
         const end = new Date(start);
         end.setHours(end.getHours() + 1);
         try {
+          // Book the owner as the pilot so activation never blocks on a second person.
+          // "solo" + 1 instructor + a plane is a valid reservation type (see the server's
+          // validateReservationType); the owner has the instructor role.
           await createReservation.mutateAsync({
-            title: isSolo ? "Intro flight" : "First flight",
-            type: persona === "solo_instructor" || persona === "flight_school" ? "dual" : "solo",
+            title: "First flight",
+            type: "solo",
             start: start.toISOString(),
             end: end.toISOString(),
             timeZoneName: Intl.DateTimeFormat().resolvedOptions().timeZone,
             resource: { id: resourceId },
             location: { id: locationId },
+            personnel: { instructors: [{ id: orgUserId }] },
           });
           toast.success("You're cleared for takeoff — first flight is on the schedule.");
         } catch (e) {

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useInvoices, useReservations, useUpdateInvoice } from "@/features/queries";
+import { guardRoute } from "@/lib/permissions";
 import type { Invoice, Reservation } from "@/types/api";
 import { resourceLabel } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -45,6 +46,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { formatDate, formatMoney } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/billing")({
+  beforeLoad: guardRoute("/billing"),
   component: BillingPage,
 });
 

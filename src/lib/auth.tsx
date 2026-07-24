@@ -47,15 +47,20 @@ export function isAuthenticated(): boolean {
   return Boolean(getToken());
 }
 
-/** Synchronous staff check from the stored session (owner/admin/dispatcher). */
-export function isStaffSync(): boolean {
+/** The caller's roles in the active org, read synchronously from the stored
+ * session — used by router guards before React renders. */
+export function rolesFromSession(): Role[] {
   const s = loadSession();
   const ous = s.user?.orgUsers ?? [];
   const membership =
     (s.organization ? ous.find((o) => o.FK_organizationId === s.organization!.id) : undefined) ??
     ous[0];
-  if (!membership) return false;
-  return rolesOf(membership).some((r) => r === "owner" || r === "admin" || r === "dispatcher");
+  return membership ? rolesOf(membership) : [];
+}
+
+/** Synchronous staff check from the stored session (owner/admin/dispatcher). */
+export function isStaffSync(): boolean {
+  return rolesFromSession().some((r) => r === "owner" || r === "admin" || r === "dispatcher");
 }
 
 /** True if the stored session has an active organization. */

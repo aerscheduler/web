@@ -5,6 +5,8 @@ import { LayoutGrid, List, PlaneTakeoff, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { usePlanes, useLocations } from "@/features/queries";
 import { api } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { canManageResources } from "@/lib/permissions";
 import type { Resource } from "@/types/api";
 import { AircraftCard, type AircraftActions } from "@/components/aircraft/aircraft-card";
 import { AircraftListRow } from "@/components/aircraft/aircraft-list-row";
@@ -28,6 +30,7 @@ function AircraftPage() {
   const locationsQ = useLocations();
   const confirm = useConfirm();
   const qc = useQueryClient();
+  const { roles } = useAuth();
 
   const planes = q.data ?? [];
   const locations = locationsQ.data ?? [];
@@ -74,11 +77,12 @@ function AircraftPage() {
     },
   };
 
-  const addButton = (
+  // Creating aircraft is admin-only on the server; hide the trigger otherwise.
+  const addButton = canManageResources(roles) ? (
     <Button onClick={() => setAddOpen(true)}>
       <Plus className="size-4" /> Add aircraft
     </Button>
-  );
+  ) : null;
 
   return (
     <div>

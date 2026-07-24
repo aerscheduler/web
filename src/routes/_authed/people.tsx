@@ -22,6 +22,8 @@ import { MemberCard } from "@/components/people/member-card";
 import { MemberProfileSheet } from "@/components/people/member-profile-sheet";
 import { MemberRowActions } from "@/components/people/member-row-actions";
 import { memberName } from "@/components/people/util";
+import { useAuth } from "@/lib/auth";
+import { canManageMembers } from "@/lib/permissions";
 import { formatDate, initials } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/people")({
@@ -62,6 +64,7 @@ const EMPTY_COPY: Record<TabKey, { title: string; body: string }> = {
 };
 
 function PeoplePage() {
+  const { roles } = useAuth();
   const [tab, setTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -165,9 +168,11 @@ function PeoplePage() {
           aria-label="Search members"
         />
       </div>
-      <Button onClick={() => setInviteOpen(true)} className="sm:w-auto">
-        <UserPlus className="size-4" /> Invite
-      </Button>
+      {canManageMembers(roles) && (
+        <Button onClick={() => setInviteOpen(true)} className="sm:w-auto">
+          <UserPlus className="size-4" /> Invite
+        </Button>
+      )}
     </div>
   );
 
@@ -183,7 +188,7 @@ function PeoplePage() {
           }
         />
 
-        <JoinRequestsPanel />
+        {canManageMembers(roles) && <JoinRequestsPanel />}
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
           <TabsList>
@@ -211,9 +216,11 @@ function PeoplePage() {
             title={EMPTY_COPY[tab].title}
             body={EMPTY_COPY[tab].body}
             action={
-              <Button onClick={() => setInviteOpen(true)}>
-                <UserPlus className="size-4" /> Invite people
-              </Button>
+              canManageMembers(roles) && (
+                <Button onClick={() => setInviteOpen(true)}>
+                  <UserPlus className="size-4" /> Invite people
+                </Button>
+              )
             }
           />
         </Card>

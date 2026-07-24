@@ -23,6 +23,8 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { useAuth } from "@/lib/auth";
+import { canAccess, isAdmin } from "@/lib/permissions";
+import type { Role } from "@/types/api";
 import { useTheme } from "@/components/theme-provider";
 import { useMembers, usePlanes, useInvoices } from "@/features/queries";
 import { resourceLabel } from "@/types/api";
@@ -56,14 +58,16 @@ export function CommandMenuProvider({ children }: { children: React.ReactNode })
   const [open, setOpen] = React.useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { logout, organization } = useAuth();
+  const { logout, organization, roles } = useAuth();
   const { theme, toggle } = useTheme();
+  const R = roles as Role[];
 
   // Entity search — client-side over cached lists (the API has no server search).
   // `enabled` only when the palette is open, so we don't fetch on every page.
+  // Invoices are admin-only on the server, so only fetch them for admins.
   const members = useMembers(undefined, { enabled: open });
   const planes = usePlanes({ enabled: open });
-  const invoices = useInvoices(undefined, { enabled: open });
+  const invoices = useInvoices(undefined, { enabled: open && isAdmin(R) });
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -95,7 +99,7 @@ export function CommandMenuProvider({ children }: { children: React.ReactNode })
           <CommandEmpty>No results found.</CommandEmpty>
 
           <CommandGroup heading="Go to">
-            {NAV.map((item) => (
+            {NAV.filter((item) => canAccess(item.to, R)).map((item) => (
               <CommandItem
                 key={item.to}
                 value={`nav ${item.label}`}

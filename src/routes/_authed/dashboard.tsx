@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { addDays, endOfDay, format, isToday, parseISO, startOfDay } from "date-fns";
 import {
   ArrowUpRight,
@@ -17,13 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { resourceLabel, type Reservation } from "@/types/api";
-import { hasActiveOrg, isStaffSync } from "@/lib/auth";
+import { guardRoute } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authed/dashboard")({
-  beforeLoad: () => {
-    // Non-staff members belong in their personal view, not the admin dashboard.
-    if (hasActiveOrg() && !isStaffSync()) throw redirect({ to: "/me" });
-  },
+  beforeLoad: guardRoute("/dashboard"),
   component: DashboardPage,
 });
 

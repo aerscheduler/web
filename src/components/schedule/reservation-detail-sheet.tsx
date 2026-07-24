@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { DOT_CLASS, personnelNames, typeLabel } from "./meta";
 import { CloseOutSection } from "./close-out-section";
@@ -30,6 +32,7 @@ export function ReservationDetailSheet({
   onCancel: (r: Reservation) => void;
   onNoShow: (r: Reservation) => void;
 }) {
+  const { roles } = useAuth();
   const r = reservation;
   const res = r?.resource ? resourceLabel(r.resource) : null;
   const names = r ? personnelNames(r) : [];
@@ -94,24 +97,26 @@ export function ReservationDetailSheet({
               <CloseOutSection reservation={r} />
             </div>
 
-            <SheetFooter>
-              <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => onNoShow(r)}
-                >
-                  <UserX className="size-4" /> No-show
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 text-destructive hover:text-destructive"
-                  onClick={() => onCancel(r)}
-                >
-                  <Ban className="size-4" /> Cancel
-                </Button>
-              </div>
-            </SheetFooter>
+            {isStaff(roles) && (
+              <SheetFooter>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => onNoShow(r)}
+                  >
+                    <UserX className="size-4" /> No-show
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="flex-1 text-destructive hover:text-destructive"
+                    onClick={() => onCancel(r)}
+                  >
+                    <Ban className="size-4" /> Cancel
+                  </Button>
+                </div>
+              </SheetFooter>
+            )}
           </>
         )}
       </SheetContent>

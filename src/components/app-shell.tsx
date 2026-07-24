@@ -32,6 +32,8 @@ import {
   Wrench,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { canAccess, isAdmin } from "@/lib/permissions";
+import type { Role } from "@/types/api";
 import { useTheme } from "@/components/theme-provider";
 import { CommandMenuProvider, useCommandMenu } from "@/components/command-menu";
 import { ConfirmProvider } from "@/components/confirm-dialog";
@@ -71,13 +73,18 @@ import {
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
 type NavGroup = { label: string; items: NavItem[] };
 
-/** Build the nav from the caller's roles — staff get the admin console; everyone gets a personal section. */
-function navForRoles(roles: string[], isStaff: boolean): NavGroup[] {
+/**
+ * Build the nav from the caller's roles. Every org item is filtered through the
+ * same `canAccess` (ROUTE_ACCESS) the route guards use, so the sidebar can never
+ * show a link the user can't actually open — and vice-versa. Everyone also gets
+ * the personal "You" section.
+ */
+function navForRoles(roles: string[]): NavGroup[] {
+  const R = roles as Role[];
   const has = (r: string) => roles.includes(r);
-  const groups: NavGroup[] = [];
 
-  if (isStaff) {
-    groups.push({
+  const orgGroups: NavGroup[] = [
+    {
       label: "Operations",
       items: [
         { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -86,20 +93,21 @@ function navForRoles(roles: string[], isStaff: boolean): NavGroup[] {
         { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
         { to: "/facilities", label: "Facilities", icon: MonitorPlay },
       ],
-    });
-    groups.push({
+    },
+    {
       label: "Money",
       items: [
         { to: "/billing", label: "Billing", icon: Receipt },
         { to: "/reports", label: "Reports", icon: ChartColumnBig },
       ],
-    });
-    groups.push({ label: "Compliance", items: [{ to: "/compliance", label: "Go / No-Go", icon: ShieldCheck }] });
-  }
+    },
+    { label: "Compliance", items: [{ to: "/compliance", label: "Go / No-Go", icon: ShieldCheck }] },
+    { label: "Maintenance", items: [{ to: "/maintenance", label: "Maintenance", icon: Wrench }] },
+  ];
 
-  if (isStaff || has("technician")) {
-    groups.push({ label: "Maintenance", items: [{ to: "/maintenance", label: "Maintenance", icon: Wrench }] });
-  }
+  const groups: NavGroup[] = orgGroups
+    .map((g) => ({ ...g, items: g.items.filter((it) => canAccess(it.to, R)) }))
+    .filter((g) => g.items.length > 0);
 
   // Personal section — every member gets this.
   const you: NavItem[] = [
@@ -145,8 +153,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { roles, isStaff } = useAuth();
-  const groups = navForRoles(roles, isStaff);
+  const { roles } = useAuth();
+  const groups = navForRoles(roles);
 
   return (
     <Sidebar collapsible="offcanvas">
@@ -335,7 +343,7 @@ function UserMenu() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/settings">
+              <Link to="/me/profile">
                 <UserIcon />
                 Account &amp; settings
               </Link>
@@ -365,7 +373,7 @@ function UserMenu() {
 
 function Topbar() {
   const { setOpen } = useCommandMenu();
-  const { isStaff } = useAuth();
+  const { roles } = useAuth();
   const { toggleSidebar } = useSidebar();
 
   return (
@@ -404,7 +412,7 @@ function Topbar() {
             <Bell className="size-4" />
           </Link>
         </Button>
-        {isStaff && (
+        {isAdmin(roles) && (
           <Button asChild variant="ghost" size="icon" aria-label="Settings">
             <Link to="/settings">
               <Settings className="size-4" />

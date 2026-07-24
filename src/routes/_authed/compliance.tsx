@@ -9,6 +9,7 @@ import {
   UserX,
 } from "lucide-react";
 import { usePlanes, useMembers, useCurrencyTypes, useCreateCurrencyType } from "@/features/queries";
+import { guardRoute } from "@/lib/permissions";
 import { rolesOf, resourceLabel } from "@/types/api";
 import type { Resource, OrganizationUser } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -26,6 +27,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authed/compliance")({
+  beforeLoad: guardRoute("/compliance"),
   component: CompliancePage,
 });
 

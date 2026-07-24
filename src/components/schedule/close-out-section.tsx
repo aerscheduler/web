@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { Invoice, Reservation } from "@/types/api";
 import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 import { useReservationInvoice } from "@/features/queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,8 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const invoice = invoiceQ.data ?? r.invoice ?? null;
 
   const canConfirm = isReservationPersonnel(r, orgUserId);
+  // Ramp out/in mirrors the server: staff (admin/dispatcher) or crew on this reservation.
+  const canRamp = isStaff(roles) || canConfirm;
   const isAdmin = roles.some((role) => role === "owner" || role === "admin");
   const canConfirmGuest = canReviewGuest(r, orgUserId, isAdmin);
   const guestName = r.personnel?.guests?.[0]?.name ?? "the guest";
@@ -65,9 +68,11 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
             <p className="text-sm text-muted-foreground">
               This flight hasn&rsquo;t been ramped out yet.
             </p>
-            <Button className="w-full" onClick={() => setRampMode("out")}>
-              <PlaneTakeoff className="size-4" /> Ramp out
-            </Button>
+            {canRamp && (
+              <Button className="w-full" onClick={() => setRampMode("out")}>
+                <PlaneTakeoff className="size-4" /> Ramp out
+              </Button>
+            )}
           </div>
         )}
 
@@ -76,9 +81,11 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
             <p className="text-sm text-muted-foreground">
               Ramped out — record the ending readings when the aircraft is back.
             </p>
-            <Button className="w-full" onClick={() => setRampMode("in")}>
-              <PlaneLanding className="size-4" /> Ramp in
-            </Button>
+            {canRamp && (
+              <Button className="w-full" onClick={() => setRampMode("in")}>
+                <PlaneLanding className="size-4" /> Ramp in
+              </Button>
+            )}
           </div>
         )}
 

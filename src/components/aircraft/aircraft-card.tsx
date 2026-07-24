@@ -19,6 +19,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/lib/auth";
+import { canManageResources } from "@/lib/permissions";
 import { formatMoney } from "@/lib/utils";
 
 export type AircraftActions = {
@@ -29,6 +31,7 @@ export type AircraftActions = {
 };
 
 export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftActions }) {
+  const { roles } = useAuth();
   const p = r.type?.plane;
   if (!p) return null;
 
@@ -95,24 +98,28 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
               <TooltipContent>Actions</TooltipContent>
             </Tooltip>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => actions.onEdit(r)}>
-                <Pencil className="size-4" /> Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => actions.onToggleGround(r)}>
-                {p.grounded ? (
-                  <>
-                    <PlaneTakeoff className="size-4" /> Return to service
-                  </>
-                ) : (
-                  <>
-                    <TowerControl className="size-4" /> Ground aircraft
-                  </>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => actions.onApprove(r)}>
-                <ShieldCheck className="size-4" /> Approve renters
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              {canManageResources(roles) && (
+                <>
+                  <DropdownMenuItem onSelect={() => actions.onEdit(r)}>
+                    <Pencil className="size-4" /> Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => actions.onToggleGround(r)}>
+                    {p.grounded ? (
+                      <>
+                        <PlaneTakeoff className="size-4" /> Return to service
+                      </>
+                    ) : (
+                      <>
+                        <TowerControl className="size-4" /> Ground aircraft
+                      </>
+                    )}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => actions.onApprove(r)}>
+                    <ShieldCheck className="size-4" /> Approve renters
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                </>
+              )}
               <DropdownMenuItem onSelect={() => actions.onDetails(r)}>
                 <PlaneIcon className="size-4" /> View details
               </DropdownMenuItem>

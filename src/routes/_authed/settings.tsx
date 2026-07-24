@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { createFileRoute } from "@tanstack/react-router";
+import { guardRoute } from "@/lib/permissions";
 import { Building2, CreditCard, GraduationCap, Palette, Puzzle } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,6 +11,7 @@ import { IntegrationsTab } from "@/components/settings/integrations-tab";
 import { AppearanceCard } from "@/components/settings/appearance-card";
 
 export const Route = createFileRoute("/_authed/settings")({
+  beforeLoad: guardRoute("/settings"),
   component: SettingsPage,
 });
 

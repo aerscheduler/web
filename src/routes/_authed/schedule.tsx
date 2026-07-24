@@ -11,6 +11,8 @@ import {
 import { CalendarClock, Plus } from "lucide-react";
 import { useReservations, useResources } from "@/features/queries";
 import type { Reservation, Resource } from "@/types/api";
+import { useAuth } from "@/lib/auth";
+import { isStaff } from "@/lib/permissions";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { PageHeader } from "@/components/page-header";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
@@ -39,6 +41,11 @@ export const Route = createFileRoute("/_authed/schedule")({
 const REFRESH_MS = 20_000;
 
 function SchedulePage() {
+  const { roles } = useAuth();
+  // Members see the board read-only and book via /me/book; only staff
+  // (owner/admin/dispatcher) get the create-booking entry points. Mirrors the
+  // server's guard on reservation creation.
+  const staff = isStaff(roles);
   const [day, setDay] = React.useState<Date>(() => new Date());
   const [view, setView] = React.useState<ScheduleView>("day");
   const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -88,6 +95,7 @@ function SchedulePage() {
     setFormOpen(true);
   };
   const openCreate = (d: ReservationDraft) => {
+    if (!staff) return; // members are read-only here; they book via /me/book
     setDraft(d);
     setFormOpen(true);
   };
@@ -114,9 +122,11 @@ function SchedulePage() {
         title="The Ramp"
         subtitle="Dispatch board — aircraft, instructors and students at a glance."
         actions={
-          <Button onClick={openNew}>
-            <Plus className="size-4" /> New reservation
-          </Button>
+          staff && (
+            <Button onClick={openNew}>
+              <Plus className="size-4" /> New reservation
+            </Button>
+          )
         }
       />
 
@@ -139,9 +149,11 @@ function SchedulePage() {
             title="Your dispatch board is clear"
             body="Book a flight to see aircraft and instructors line up."
             action={
-              <Button onClick={openNew}>
-                <Plus className="size-4" /> Book a flight
-              </Button>
+              staff && (
+                <Button onClick={openNew}>
+                  <Plus className="size-4" /> Book a flight
+                </Button>
+              )
             }
           />
         ) : view === "month" ? (

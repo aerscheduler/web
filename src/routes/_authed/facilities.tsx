@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { DoorOpen, MonitorPlay, Plus } from "lucide-react";
 import { useLocations, useRooms, useSimulators } from "@/features/queries";
+import { guardRoute } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
 import type { Resource } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/facilities")({
+  beforeLoad: guardRoute("/facilities"),
   component: FacilitiesPage,
 });
 

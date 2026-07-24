@@ -8,6 +8,7 @@ import {
   useMaintenanceReminders,
 } from "@/features/queries";
 import type { Squawk } from "@/types/api";
+import { guardRoute } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_authed/maintenance")({
+  beforeLoad: guardRoute("/maintenance"),
   component: MaintenancePage,
 });
 

@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import type { OrganizationUser } from "@/types/api";
 import { useUpdateMemberOrgUser } from "@/features/queries";
 import { api, ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { canManageMembers } from "@/lib/permissions";
 import { useConfirm } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +36,7 @@ export function MemberRowActions({
 }) {
   const qc = useQueryClient();
   const confirm = useConfirm();
+  const { roles } = useAuth();
   const orgUserMut = useUpdateMemberOrgUser(ou.FK_userId);
   const name = memberName(ou);
 
@@ -93,24 +96,28 @@ export function MemberRowActions({
         <DropdownMenuItem onSelect={() => onView(ou)}>
           <Eye /> View profile
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => onEditRoles(ou)}>
-          <Shield /> Edit roles
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void toggleGround()}>
-          {ou.grounded ? (
-            <>
-              <Undo2 /> Unground
-            </>
-          ) : (
-            <>
-              <Ban /> Ground
-            </>
-          )}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={() => void remove()}>
-          <Trash2 /> Remove
-        </DropdownMenuItem>
+        {canManageMembers(roles) && (
+          <>
+            <DropdownMenuItem onSelect={() => onEditRoles(ou)}>
+              <Shield /> Edit roles
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void toggleGround()}>
+              {ou.grounded ? (
+                <>
+                  <Undo2 /> Unground
+                </>
+              ) : (
+                <>
+                  <Ban /> Ground
+                </>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => void remove()}>
+              <Trash2 /> Remove
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

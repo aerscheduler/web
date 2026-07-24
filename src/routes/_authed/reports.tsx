@@ -15,6 +15,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { useOrgReport, type ReportRange } from "@/features/queries";
+import { guardRoute } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
 import type { ReportPayments, ReportPoint } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -25,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatMoney } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/reports")({
+  beforeLoad: guardRoute("/reports"),
   component: ReportsPage,
 });
 

@@ -75,3 +75,14 @@ export const canManageBilling = isAdmin;
 export const canManageBillingSettings = isOwner;
 /** Org profile / logo / ratings. Server: admin. */
 export const canManageOrg = isAdmin;
+
+/** Can self-book a flight from /me/book (instructor, student, or renter). */
+export const canSelfBook = (r: Role[]) =>
+  isInstructor(r) || r.includes("student") || r.includes("renter");
+/**
+ * Anyone who can create a reservation in *some* form — staff create any on the
+ * dispatch board; instructors/students/renters self-book. Drives the global "+"
+ * quick-create button (the menu item differs by role: staff get the full "New
+ * reservation" modal, others get "Book a flight").
+ */
+export const canCreateReservation = (r: Role[]) => isStaff(r) || canSelfBook(r);

@@ -18,6 +18,7 @@ import {
   MonitorPlay,
   MoreHorizontal,
   PlaneTakeoff,
+  Plus,
   Receipt,
   Search,
   Settings,
@@ -28,10 +29,17 @@ import {
   Wrench,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { canAccess, isAdmin } from "@/lib/permissions";
+import {
+  canAccess,
+  canCreateReservation,
+  canSelfBook,
+  isAdmin,
+  isStaff,
+} from "@/lib/permissions";
 import type { Role } from "@/types/api";
 import { CommandMenuProvider, useCommandMenu } from "@/components/command-menu";
 import { ConfirmProvider } from "@/components/confirm-dialog";
+import { QuickCreateProvider, useQuickCreate } from "@/components/quick-create";
 import { LogoMark } from "@/components/logo";
 import { initials } from "@/lib/utils";
 import {
@@ -126,29 +134,31 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <ConfirmProvider>
       <CommandMenuProvider>
-        <SidebarProvider className="h-svh overflow-hidden">
-          <AppSidebar />
-          <SidebarEdgeToggle />
-          <SidebarInset className="min-h-0">
-            <Topbar />
-            {/* main is the scroll container; the content wrapper adapts per page:
-                • Normal pages → `min-h-full`: fills the viewport when short and
-                  GROWS with tall content, so the py-8 bottom padding is always
-                  honored on overflow (a fixed `h-full` box lets overflowing
-                  content spill past its padding → last section touches the edge).
-                • Full-height table pages → a <TableView>/<DataTable fill> tags
-                  itself `data-fill-page`; the :has() rule then switches the
-                  wrapper to a DEFINITE `h-full` so the flex-1 table is bounded
-                  and its rows scroll internally. (min-height alone is indefinite,
-                  so the table would expand to full content and scroll the whole
-                  page — the regression this rule prevents.) */}
-            <main className="min-h-0 flex-1 overflow-y-auto">
-              <div className="mx-auto flex min-h-full w-full max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 [&:has([data-fill-page])]:h-full">
-                {children}
-              </div>
-            </main>
-          </SidebarInset>
-        </SidebarProvider>
+        <QuickCreateProvider>
+          <SidebarProvider className="h-svh overflow-hidden">
+            <AppSidebar />
+            <SidebarEdgeToggle />
+            <SidebarInset className="min-h-0">
+              <Topbar />
+              {/* main is the scroll container; the content wrapper adapts per page:
+                  • Normal pages → `min-h-full`: fills the viewport when short and
+                    GROWS with tall content, so the py-8 bottom padding is always
+                    honored on overflow (a fixed `h-full` box lets overflowing
+                    content spill past its padding → last section touches the edge).
+                  • Full-height table pages → a <TableView>/<DataTable fill> tags
+                    itself `data-fill-page`; the :has() rule then switches the
+                    wrapper to a DEFINITE `h-full` so the flex-1 table is bounded
+                    and its rows scroll internally. (min-height alone is indefinite,
+                    so the table would expand to full content and scroll the whole
+                    page — the regression this rule prevents.) */}
+              <main className="min-h-0 flex-1 overflow-y-auto">
+                <div className="mx-auto flex min-h-full w-full max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 [&:has([data-fill-page])]:h-full">
+                  {children}
+                </div>
+              </main>
+            </SidebarInset>
+          </SidebarProvider>
+        </QuickCreateProvider>
       </CommandMenuProvider>
     </ConfirmProvider>
   );
@@ -380,6 +390,7 @@ function Topbar() {
   const { setOpen } = useCommandMenu();
   const { roles } = useAuth();
   const { toggleSidebar } = useSidebar();
+  const { openNewReservation } = useQuickCreate();
 
   return (
     <header className="sticky top-0 z-20 shrink-0 bg-background">
@@ -423,6 +434,36 @@ function Topbar() {
               <Settings className="size-4" />
             </Link>
           </Button>
+        )}
+
+        {/* Stripe-style accent quick-create: opens a role-appropriate menu. */}
+        {canCreateReservation(roles) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="icon" aria-label="Create" className="ml-1 rounded-full">
+                <Plus className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Create
+              </DropdownMenuLabel>
+              {isStaff(roles) && (
+                <DropdownMenuItem onClick={openNewReservation}>
+                  <CalendarPlus />
+                  New reservation
+                </DropdownMenuItem>
+              )}
+              {canSelfBook(roles) && (
+                <DropdownMenuItem asChild>
+                  <Link to="/me/book">
+                    <CalendarPlus />
+                    Book a flight
+                  </Link>
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
       </div>
     </header>

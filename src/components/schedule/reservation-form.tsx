@@ -12,6 +12,7 @@ import {
   resourceLabel,
   type CreateReservationInput,
   type OrganizationUser,
+  type Reservation,
   type ReservationType,
 } from "@/types/api";
 import { ApiError } from "@/lib/api";
@@ -53,10 +54,14 @@ export function ReservationForm({
   open,
   onOpenChange,
   draft,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   draft: ReservationDraft;
+  /** Called with the created reservation after a successful booking (e.g. to
+   * navigate to it). The board doesn't pass this; the global "+" does. */
+  onCreated?: (reservation: Reservation) => void;
 }) {
   const resourcesQ = useResources({ enabled: open });
   const instructorsQ = useMembers({ instructor: true }, { enabled: open });
@@ -191,9 +196,10 @@ export function ReservationForm({
     };
 
     try {
-      await create.mutateAsync(input);
+      const created = await create.mutateAsync(input);
       toast.success("Reservation booked");
       onOpenChange(false);
+      onCreated?.(created);
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : "Couldn't book the reservation";
       setError(msg);

@@ -315,17 +315,17 @@ function Onboarding() {
   return (
     <div className="grid min-h-dvh lg:grid-cols-[minmax(0,44%)_minmax(0,56%)]">
       {/* brand / preview panel */}
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-10 text-sidebar-foreground lg:flex">
+      <aside className="relative hidden flex-col justify-between overflow-hidden bg-brand-surface p-10 text-white/75 lg:flex">
         <div
-          className="pointer-events-none absolute inset-0 opacity-[0.5]"
+          className="pointer-events-none absolute inset-0 opacity-[0.6]"
           style={{
             backgroundImage:
-              "radial-gradient(60% 50% at 80% 0%, color-mix(in oklch, var(--sidebar-primary) 30%, transparent), transparent), linear-gradient(color-mix(in oklch,var(--sidebar-border) 60%,transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklch,var(--sidebar-border) 60%,transparent) 1px, transparent 1px)",
+              "radial-gradient(60% 50% at 80% 0%, color-mix(in oklch, var(--primary) 45%, transparent), transparent), linear-gradient(color-mix(in oklch,#ffffff 8%,transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklch,#ffffff 8%,transparent) 1px, transparent 1px)",
             backgroundSize: "auto, 34px 34px, 34px 34px",
           }}
         />
         <div className="relative flex items-center gap-2.5">
-          <span className="grid size-9 place-items-center rounded-lg bg-sidebar-primary p-1.5">
+          <span className="grid size-9 place-items-center rounded-lg bg-primary p-1.5">
             <LogoMark onDark className="size-full" />
           </span>
           <span className="text-[15px] font-semibold tracking-tight text-white">AerScheduler</span>
@@ -334,7 +334,7 @@ function Onboarding() {
           <h2 className="text-3xl font-semibold leading-tight tracking-tight text-white text-balance">
             Two minutes to a bookable aircraft.
           </h2>
-          <p className="mt-3 text-sm text-sidebar-foreground/70">
+          <p className="mt-3 text-sm text-white/70">
             No credit card, no sales call. We'll set up your operation as you go — every step writes
             real data you can use the moment you land on your dashboard.
           </p>
@@ -345,22 +345,22 @@ function Onboarding() {
                   className={cn(
                     "grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold",
                     i < step
-                      ? "bg-sidebar-primary text-sidebar-primary-foreground"
+                      ? "bg-primary text-primary-foreground"
                       : i === step
-                        ? "bg-white text-sidebar"
-                        : "bg-sidebar-accent text-sidebar-foreground/60"
+                        ? "bg-white text-brand-surface"
+                        : "bg-white/10 text-white/50"
                   )}
                 >
                   {i < step ? <Check className="size-3.5" /> : i + 1}
                 </span>
-                <span className={cn(i === step ? "text-white" : "text-sidebar-foreground/60")}>
+                <span className={cn(i === step ? "text-white" : "text-white/55")}>
                   {label}
                 </span>
               </li>
             ))}
           </ol>
         </div>
-        <div className="relative text-xs text-sidebar-foreground/50">
+        <div className="relative text-xs text-white/45">
           Signed in as {user?.email}
         </div>
       </aside>

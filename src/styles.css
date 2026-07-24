@@ -6,128 +6,151 @@
 
 /*
   AerScheduler Console — design system
-  Colors sourced from the production app (app/lib/constants/style.dart):
-  brand blue #1967D2 (the logo), soft charcoal text #363740, a deep navy
-  command rail that echoes the logo's dark mark, and the app's own
-  reservation / status hues. Tokens are shadcn-compatible.
+  A Stripe-inspired system: near-white slate canvas, white cards, hairline
+  borders, a soft layered "lift" shadow, calm 8px radius, and colour reserved
+  for the primary action + active nav. The single accent is the AerScheduler
+  logo blue #1967D2. Money and meter times render in tabular figures.
+  Tokens are shadcn-compatible.
 */
 :root {
-  --radius: 0.625rem;
+  --radius: 0.5rem; /* 8px — cards; controls resolve to 6px */
 
-  --background: #f7f8fb;
-  --foreground: #363740; /* app darkColor — soft charcoal, not harsh black */
+  --background: #f6f9fc; /* Stripe slate canvas */
+  --foreground: #1a1f36; /* deep slate ink */
 
   --card: #ffffff;
-  --card-foreground: #363740;
+  --card-foreground: #1a1f36;
   --popover: #ffffff;
-  --popover-foreground: #363740;
+  --popover-foreground: #1a1f36;
 
-  --primary: #1967d2; /* app primaryColor — the logo blue */
+  --primary: #1967d2; /* AerScheduler logo blue — the single accent */
   --primary-foreground: #ffffff;
 
-  --secondary: #eef1f7;
-  --secondary-foreground: #363740;
-  --muted: #eef1f7;
-  --muted-foreground: #5f6368; /* app secondaryDarkColor */
-  --accent: #e8f0fe; /* app activeColorLight — primary tint */
-  --accent-foreground: #1a4fa0;
+  --secondary: #eef1f6;
+  --secondary-foreground: #1a1f36;
+  --muted: #eef1f6;
+  --muted-foreground: #697386; /* Stripe slate */
+  /* neutral hover/selected — colour is reserved for primary + active nav */
+  --accent: #eef1f6;
+  --accent-foreground: #1a1f36;
 
-  --destructive: #dc2626;
+  --destructive: #df1b41; /* Stripe red */
   --destructive-foreground: #ffffff;
-  --success: #52a35c; /* app invoice paid green, tuned for text contrast */
-  --warning: #e0951f; /* app processing amber, tuned for contrast */
+  --success: #0e9f6e; /* muted green, sits on tinted chips */
+  --warning: #b7791f; /* muted amber */
   --info: #1967d2;
 
   /* signature accent — the logo blue */
   --brand: #1967d2;
 
-  --border: #e4e8ef;
-  --input: #dde2ea;
+  --border: #e6e9ee; /* hairline */
+  --input: #d5dbe1;
   --ring: #1967d2;
 
-  /* command rail — deep navy echoing the logo's dark mark, in both themes */
-  --sidebar: #10233f;
-  --sidebar-foreground: #aeb9cc;
+  /* signature soft "lift" shadow — hairline ring + gentle drop (Stripe-style) */
+  --sh-xs: 0 0 0 1px rgba(60, 66, 87, 0.05);
+  --sh-sm: 0 0 0 1px rgba(60, 66, 87, 0.04), 0 1px 1px 0 rgba(0, 0, 0, 0.04),
+    0 2px 5px -1px rgba(60, 66, 87, 0.08);
+  --sh-md: 0 0 0 1px rgba(60, 66, 87, 0.04), 0 2px 5px -1px rgba(60, 66, 87, 0.1),
+    0 6px 14px -3px rgba(60, 66, 87, 0.1);
+  --sh-lg: 0 0 0 1px rgba(60, 66, 87, 0.04),
+    0 8px 16px -4px rgba(60, 66, 87, 0.12), 0 18px 40px -8px rgba(60, 66, 87, 0.16);
+
+  /* command rail — light, Stripe dashboard style, blue only on the active item */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #4a5568;
   --sidebar-primary: #1967d2;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #1c3355;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #274063;
-  --sidebar-ring: #3d82e6;
+  --sidebar-accent: #eef2fb; /* light blue active/hover fill */
+  --sidebar-accent-foreground: #1967d2; /* blue text on active */
+  --sidebar-border: #e6e9ee;
+  --sidebar-ring: #1967d2;
   --sidebar-width: 16rem;
   --sidebar-width-icon: 3rem;
   --sidebar-width-mobile: 18rem;
 
-  /* reservation / dispatch-lane hues (from the app calendar palette) */
-  --res-dual: #264e6b;
+  /* deep navy brand surface for auth pages (independent of the light rail) */
+  --brand-surface: #10233f;
+  --brand-surface-2: #1a3763;
+
+  /* reservation / dispatch-lane hues — calmer, to sit on white cards */
+  --res-dual: #3556a9;
   --res-solo: #1967d2;
-  --res-ground: #4c515b;
-  --res-sim: #966249;
-  --res-rental: #1f7a6d;
-  --res-guest: #6f5aa8;
-  --res-maintenance: #7a86a8;
+  --res-ground: #5b6472;
+  --res-sim: #9a6a45;
+  --res-rental: #17876f;
+  --res-guest: #7256b0;
+  --res-maintenance: #7f8aa3;
 
   /* dashboard KPI chart series */
   --chart-1: #1967d2;
-  --chart-2: #264e6b;
-  --chart-3: #52a35c;
-  --chart-4: #966249;
-  --chart-5: #e0951f;
+  --chart-2: #3556a9;
+  --chart-3: #0e9f6e;
+  --chart-4: #9a6a45;
+  --chart-5: #b7791f;
 }
 
 .dark {
-  --background: #14161c;
-  --foreground: #e7e9ee;
+  --background: #0a0e1a; /* Stripe deep-slate canvas */
+  --foreground: #f2f4f8;
 
-  --card: #1b1e26;
-  --card-foreground: #e7e9ee;
-  --popover: #1b1e26;
-  --popover-foreground: #e7e9ee;
+  --card: #151b2d;
+  --card-foreground: #f2f4f8;
+  --popover: #151b2d;
+  --popover-foreground: #f2f4f8;
 
-  --primary: #4a8fe7; /* lighter logo-blue for dark-surface legibility */
-  --primary-foreground: #0b1220;
+  --primary: #4a8fe7; /* brightened logo-blue for dark-surface legibility */
+  --primary-foreground: #071022;
 
-  --secondary: #262a33;
-  --secondary-foreground: #e2e5ea;
-  --muted: #242832;
-  --muted-foreground: #9aa2b1;
-  --accent: #24304a;
-  --accent-foreground: #cfe0fb;
+  --secondary: #1e2740;
+  --secondary-foreground: #e6eaf2;
+  --muted: #1b2338;
+  --muted-foreground: #8a94a8;
+  --accent: #1e2740; /* neutral hover on dark */
+  --accent-foreground: #e6eaf2;
 
-  --destructive: #f0605f;
-  --destructive-foreground: #14161c;
-  --success: #69bb72;
-  --warning: #f0b12a;
+  --destructive: #ff6b81;
+  --destructive-foreground: #1a0a10;
+  --success: #34d399;
+  --warning: #f0b955;
   --info: #4a8fe7;
 
   --brand: #4a8fe7;
 
-  --border: #2b2f3a;
-  --input: #30343f;
+  --border: #232b42;
+  --input: #2c3550;
   --ring: #4a8fe7;
 
-  --sidebar: #0b1626;
-  --sidebar-foreground: #a4afc2;
+  --sh-xs: 0 0 0 1px rgba(0, 0, 0, 0.5);
+  --sh-sm: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --sh-md: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 4px 10px -2px rgba(0, 0, 0, 0.55);
+  --sh-lg: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 44px -10px rgba(0, 0, 0, 0.7);
+
+  --sidebar: #0c1220;
+  --sidebar-foreground: #8a94a8;
   --sidebar-primary: #2f7ae4;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #16263f;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #1d3050;
-  --sidebar-ring: #3d82e6;
+  --sidebar-accent: #182339; /* dark blue-slate active fill */
+  --sidebar-accent-foreground: #dbe8fc; /* light blue text on active */
+  --sidebar-border: #1d2740;
+  --sidebar-ring: #4a8fe7;
 
-  --res-dual: #3a6c93;
+  --brand-surface: #0b1626;
+  --brand-surface-2: #16305a;
+
+  --res-dual: #5a86d0;
   --res-solo: #4a8fe7;
-  --res-ground: #6b717d;
-  --res-sim: #b3805f;
-  --res-rental: #35a08f;
-  --res-guest: #8f7bc9;
+  --res-ground: #7f8aa0;
+  --res-sim: #c08a63;
+  --res-rental: #35a891;
+  --res-guest: #a08bd6;
   --res-maintenance: #9aa4c0;
 
   --chart-1: #4a8fe7;
-  --chart-2: #3a6c93;
-  --chart-3: #69bb72;
-  --chart-4: #b3805f;
-  --chart-5: #f0b12a;
+  --chart-2: #5a86d0;
+  --chart-3: #34d399;
+  --chart-4: #c08a63;
+  --chart-5: #f0b955;
 }
 
 @theme inline {
@@ -178,13 +201,28 @@
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
 
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-surface-2: var(--brand-surface-2);
+
+  /* Stripe-style soft shadow scale — every shadow-* utility inherits the lift */
+  --shadow-2xs: var(--sh-xs);
+  --shadow-xs: var(--sh-xs);
+  --shadow-sm: var(--sh-sm);
+  --shadow: var(--sh-sm);
+  --shadow-md: var(--sh-md);
+  --shadow-lg: var(--sh-lg);
+  --shadow-xl: var(--sh-lg);
+  --shadow-2xl: var(--sh-lg);
+
+  /* calm radius — cards cap at 8px, controls at 6px */
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: var(--radius);
 
-  --font-sans: "Inter", ui-sans-serif, -apple-system, "Segoe UI", system-ui,
-    sans-serif;
+  /* system sans (SF Pro / Segoe) — clean and native, Stripe-adjacent */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;
 }
 
@@ -201,7 +239,7 @@
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-sans);
-    font-feature-settings: "cv11", "ss01";
+    letter-spacing: -0.006em; /* subtle tightening, Stripe-like */
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }

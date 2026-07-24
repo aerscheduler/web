@@ -122,13 +122,13 @@ function LoginPage() {
 /** The signature deep-navy brand panel with the checkered grid — shared by auth pages. */
 export function BrandPanel() {
   return (
-    <aside className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-white lg:flex">
+    <aside className="relative hidden flex-col justify-between overflow-hidden bg-brand-surface p-12 text-white lg:flex">
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.55]"
+        className="pointer-events-none absolute inset-0 opacity-[0.6]"
         style={{
           background:
-            "radial-gradient(120% 80% at 15% 0%, color-mix(in oklch, var(--sidebar-primary) 45%, transparent), transparent 60%), radial-gradient(90% 70% at 100% 100%, color-mix(in oklch, var(--sidebar-primary) 30%, transparent), transparent 55%)",
+            "radial-gradient(120% 80% at 15% 0%, color-mix(in oklch, var(--primary) 55%, transparent), transparent 60%), radial-gradient(90% 70% at 100% 100%, color-mix(in oklch, var(--brand-surface-2) 70%, transparent), transparent 55%)",
         }}
       />
       <div

@@ -37,7 +37,7 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
 
   return (
     <Card className="flex flex-col overflow-hidden pt-0">
-      <div className="relative h-28 bg-sidebar">
+      <div className="relative h-28 bg-muted">
         {r.featuredImage ? (
           <img
             src={r.featuredImage}
@@ -45,7 +45,7 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="grid h-full place-items-center text-white/25">
+          <div className="grid h-full place-items-center text-muted-foreground/40">
             <PlaneIcon className="size-10" />
           </div>
         )}

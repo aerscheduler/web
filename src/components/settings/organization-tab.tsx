@@ -1,8 +1,16 @@
-import { useState, type FormEvent } from "react";
-import { Building2, Check, Copy, KeyRound, Loader2, SlidersHorizontal } from "lucide-react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import {
+  Building2,
+  Check,
+  Copy,
+  ImagePlus,
+  KeyRound,
+  Loader2,
+  SlidersHorizontal,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { useUpdateOrganization } from "@/features/queries";
+import { useUpdateOrganization, useUpdateOrgLogo } from "@/features/queries";
 import type { Organization, OrganizationDetails } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import {
@@ -54,6 +62,7 @@ export function OrganizationTab() {
       />
 
       <div className="space-y-6">
+        <LogoCard organization={organization} />
         <IdentityCard organization={organization} />
 
         <Card>
@@ -179,6 +188,79 @@ function OrganizationProfileCard({
   );
 }
 
+function LogoCard({ organization }: { organization: Organization }) {
+  const { rehydrate } = useAuth();
+  const upload = useUpdateOrgLogo();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function onFile(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Pick an image file (PNG, JPG, or SVG).");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("That image is over 5 MB — pick a smaller one.");
+      return;
+    }
+    try {
+      await upload.mutateAsync(file);
+      toast.success("Logo updated");
+      await rehydrate();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't upload the logo");
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Logo</CardTitle>
+        <CardDescription>Shown to members across the app.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-center gap-4">
+        <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-lg border bg-muted">
+          {organization.profileImage ? (
+            <img
+              src={organization.profileImage}
+              alt={`${organization.name} logo`}
+              className="size-full object-cover"
+            />
+          ) : (
+            <Building2 className="size-6 text-muted-foreground" />
+          )}
+        </div>
+        <div className="min-w-0">
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={onFile}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => inputRef.current?.click()}
+            disabled={upload.isPending}
+          >
+            {upload.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <ImagePlus className="size-4" />
+            )}
+            {organization.profileImage ? "Replace logo" : "Upload logo"}
+          </Button>
+          <p className="mt-1.5 text-xs text-muted-foreground">PNG, JPG, or SVG — up to 5 MB.</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function IdentityCard({ organization }: { organization: Organization }) {
   const [copied, setCopied] = useState(false);
 
@@ -238,8 +320,9 @@ function IdentityCard({ organization }: { organization: Organization }) {
       <Separator />
       <CardContent className="pt-4">
         <p className="text-xs text-muted-foreground">
-          Share the join code with instructors and students so they can join your
-          organization from the mobile app.
+          Share the join code with instructors and students so they can join your organization —
+          on the web they enter it at <span className="font-medium">console.aerscheduler.com/join</span>,
+          or from the mobile app. Private schools review each request under People.
         </p>
       </CardContent>
     </Card>

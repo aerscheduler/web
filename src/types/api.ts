@@ -418,6 +418,14 @@ export interface CreateRoomResourceInput {
   };
 }
 
+/** A pending request from a user to join the org (via the org's join code). */
+export interface JoinRequest {
+  id: number;
+  status?: string;
+  createdAt?: string;
+  user: { id: number; name: string; email: string };
+}
+
 export interface InviteInput {
   email: string;
   admin?: boolean;

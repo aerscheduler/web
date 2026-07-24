@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EditRolesModal } from "@/components/people/edit-roles-modal";
 import { InviteModal } from "@/components/people/invite-modal";
+import { JoinRequestsPanel } from "@/components/people/join-requests-panel";
 import { MemberCard } from "@/components/people/member-card";
 import { MemberProfileSheet } from "@/components/people/member-profile-sheet";
 import { MemberRowActions } from "@/components/people/member-row-actions";
@@ -180,6 +181,8 @@ function PeoplePage() {
             : "Your organization roster"
         }
       />
+
+      <JoinRequestsPanel />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mb-4">
         <TabsList>

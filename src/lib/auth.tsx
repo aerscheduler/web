@@ -90,6 +90,11 @@ interface AuthContextValue extends SessionState {
   switchOrg: (orgId: number) => Promise<void>;
   /** Create a new org (caller becomes owner+admin). Swaps the active token. */
   createOrganization: (input: Record<string, unknown>) => Promise<Organization>;
+  /**
+   * Join a school by its code. Returns "joined" (public/invited — token swapped to the new org)
+   * or "requested" (private school — a join request was sent for an admin to approve).
+   */
+  joinByCode: (code: string) => Promise<"joined" | "requested">;
   rehydrate: () => Promise<void>;
 }
 
@@ -180,6 +185,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [apply]
   );
 
+  const joinByCode = useCallback(
+    async (code: string): Promise<"joined" | "requested"> => {
+      const res = await apiRaw<Partial<AuthEnvelope> & { message?: string }>(
+        `/organizations/join/${encodeURIComponent(code.trim())}`,
+        { method: "POST" }
+      );
+      // Public school / pending invite ⇒ we get a fresh token scoped to the org.
+      if (res?.auth?.accessToken && res.data) {
+        apply(res as AuthEnvelope);
+        return "joined";
+      }
+      // Private school ⇒ 201 with just a message; an admin must approve.
+      return "requested";
+    },
+    [apply]
+  );
+
   const rehydrate = useCallback(async () => {
     if (!getToken()) return;
     try {
@@ -227,6 +249,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         switchOrg,
         createOrganization,
+        joinByCode,
         rehydrate,
       }}
     >

@@ -1,5 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import {
+  presignedObjectUrl,
+  uploadToPresignedPost,
+  type PresignedPost,
+} from "@/lib/upload";
 import type {
   Announcement,
   AppNotification,
@@ -17,6 +22,7 @@ import type {
   Invoice,
   InvoicePaymentIntent,
   InviteInput,
+  JoinRequest,
   Location,
   OrgUserBillingSettings,
   PaymentMethod,
@@ -30,6 +36,7 @@ import type {
   RampOutInput,
   Reservation,
   Resource,
+  Role,
   RolesUpdate,
   Squawk,
   User,
@@ -335,6 +342,39 @@ export function useApproveResource(resourceId: number) {
   });
 }
 
+// ---------------------------------------------------------------- join requests
+
+/** Pending requests to join the org (admin). `GET /joinRequests`. */
+export function useJoinRequests(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["joinRequests"],
+    queryFn: () => api<JoinRequest[]>("/joinRequests"),
+    ...opts,
+  });
+}
+
+/** Accept a join request, optionally assigning an initial role. `POST /joinRequests/:id/accept`. */
+export function useAcceptJoinRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, role }: { id: number; role?: Role }) =>
+      api(`/joinRequests/${id}/accept`, { method: "POST", body: role ? { role } : {} }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["joinRequests"] });
+      void qc.invalidateQueries({ queryKey: ["members"] });
+      void qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+}
+
+export function useDeclineJoinRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/joinRequests/${id}/decline`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["joinRequests"] }),
+  });
+}
+
 export function useInviteMember() {
   const qc = useQueryClient();
   return useMutation({
@@ -415,6 +455,27 @@ export function useUpdateAvailability() {
     mutationFn: (input: AvailabilityInput) =>
       api("/users/availability", { method: "PATCH", body: input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["availability"] }),
+  });
+}
+
+/**
+ * Upload a new org logo: presign → PUT the file to S3 → PATCH the org with the public URL.
+ * Returns the stored URL. Caller should `rehydrate()` after so the session picks up the change.
+ */
+export function useUpdateOrgLogo() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const presigned = await api<PresignedPost>("/organizations/orgProfileImage/signedUrl");
+      await uploadToPresignedPost(presigned, file);
+      const profileImageUrl = presignedObjectUrl(presigned);
+      await api<void>("/organizations/orgProfileImage", {
+        method: "PATCH",
+        body: { profileImageUrl },
+      });
+      return profileImageUrl;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["organization"] }),
   });
 }
 

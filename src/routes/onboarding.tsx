@@ -402,6 +402,12 @@ function Onboarding() {
                     ))}
                   </div>
                   <Nav onNext={next} nextDisabled={!persona} />
+                  <p className="pt-2 text-center text-sm text-muted-foreground">
+                    Joining an existing school?{" "}
+                    <Link to="/join" className="font-medium text-primary hover:underline">
+                      Enter a code
+                    </Link>
+                  </p>
                 </Step>
               )}
 

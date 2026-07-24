@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMoney } from "@/lib/utils";
 import { resourceLabel, type Reservation } from "@/types/api";
@@ -240,11 +241,14 @@ function NoOrg() {
         <span className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
           <PlaneTakeoff className="size-6" />
         </span>
-        <h2 className="mt-4 text-lg font-semibold">No organization yet</h2>
+        <h2 className="mt-4 text-lg font-semibold">Let&rsquo;s get your operation flying</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your account isn&rsquo;t attached to a flight school. Create one or ask an
-          admin to invite you, then reload.
+          Your account isn&rsquo;t attached to a flight school yet. Set one up in about two
+          minutes — or ask an admin to invite you, then reload.
         </p>
+        <Button asChild className="mt-6">
+          <Link to="/onboarding">Set up your operation</Link>
+        </Button>
       </div>
     </div>
   );

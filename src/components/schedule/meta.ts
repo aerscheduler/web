@@ -1,0 +1,69 @@
+import type { Reservation, ReservationType } from "@/types/api";
+
+/** Human labels for each reservation type. */
+export const TYPE_LABEL: Record<ReservationType, string> = {
+  dual: "Dual",
+  instructor: "Instruction",
+  solo: "Solo",
+  ground: "Ground",
+  sim: "Sim",
+  maintenance: "Maintenance",
+};
+
+/** Order used for the legend and the type Select. */
+export const TYPE_ORDER: ReservationType[] = [
+  "dual",
+  "solo",
+  "instructor",
+  "ground",
+  "sim",
+  "maintenance",
+];
+
+// Tailwind can only see class names that appear as complete literals, so every
+// variant is written out in full below (never string-concatenated).
+
+/** Solid swatch — legend dots, form select rows. */
+export const DOT_CLASS: Record<ReservationType, string> = {
+  dual: "bg-res-dual",
+  instructor: "bg-res-dual",
+  solo: "bg-res-solo",
+  ground: "bg-res-ground",
+  sim: "bg-res-sim",
+  maintenance: "bg-res-maintenance",
+};
+
+/** Filled block used on the desktop lane grid + week chips. */
+export const BLOCK_CLASS: Record<ReservationType, string> = {
+  dual: "bg-res-dual/12 border-res-dual/40 text-res-dual",
+  instructor: "bg-res-dual/12 border-res-dual/40 text-res-dual",
+  solo: "bg-res-solo/12 border-res-solo/40 text-res-solo",
+  ground: "bg-res-ground/15 border-res-ground/45 text-res-ground",
+  sim: "bg-res-sim/12 border-res-sim/40 text-res-sim",
+  maintenance: "bg-res-maintenance/12 border-res-maintenance/40 text-res-maintenance",
+};
+
+/** Left accent border used by the mobile agenda rows. */
+export const BORDER_L_CLASS: Record<ReservationType, string> = {
+  dual: "border-l-res-dual",
+  instructor: "border-l-res-dual",
+  solo: "border-l-res-solo",
+  ground: "border-l-res-ground",
+  sim: "border-l-res-sim",
+  maintenance: "border-l-res-maintenance",
+};
+
+export function typeLabel(t: ReservationType): string {
+  return TYPE_LABEL[t] ?? t;
+}
+
+/** Collapse a reservation's personnel + guests into display names. */
+export function personnelNames(r: Reservation): string[] {
+  const p = r.personnel;
+  return [
+    ...(p?.instructors ?? []).map((x) => x.user?.name),
+    ...(p?.students ?? []).map((x) => x.user?.name),
+    ...(p?.renters ?? []).map((x) => x.user?.name),
+    ...(p?.guests ?? []).map((g) => g.name),
+  ].filter((n): n is string => Boolean(n));
+}

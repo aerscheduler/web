@@ -288,7 +288,7 @@ export function useUpdateAvailability() {
 export function useUpdateOrganization() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Partial<Organization> & Record<string, unknown>) =>
+    mutationFn: (input: Record<string, unknown>) =>
       api<Organization>("/organizations/", { method: "PATCH", body: input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["organization"] }),
   });

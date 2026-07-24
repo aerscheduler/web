@@ -20,6 +20,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/components/theme-provider";
 import { CommandMenuProvider, useCommandMenu } from "@/components/command-menu";
+import { ConfirmProvider } from "@/components/confirm-dialog";
 import { initials } from "@/lib/utils";
 import {
   Sidebar,
@@ -79,17 +80,19 @@ const TITLES: Record<string, string> = {
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
-    <CommandMenuProvider>
-      <SidebarProvider>
-        <AppSidebar />
-        <SidebarInset>
-          <Topbar />
-          <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
-            <div className="mx-auto w-full max-w-6xl">{children}</div>
-          </main>
-        </SidebarInset>
-      </SidebarProvider>
-    </CommandMenuProvider>
+    <ConfirmProvider>
+      <CommandMenuProvider>
+        <SidebarProvider>
+          <AppSidebar />
+          <SidebarInset>
+            <Topbar />
+            <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+              <div className="mx-auto w-full max-w-6xl">{children}</div>
+            </main>
+          </SidebarInset>
+        </SidebarProvider>
+      </CommandMenuProvider>
+    </ConfirmProvider>
   );
 }
 

@@ -1,14 +1,23 @@
+import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Gauge, Plane, PlaneTakeoff, Plus } from "lucide-react";
-import { usePlanes } from "@/features/queries";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { LayoutGrid, List, PlaneTakeoff, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { usePlanes, useLocations } from "@/features/queries";
+import { api } from "@/lib/api";
 import type { Resource } from "@/types/api";
+import { AircraftCard, type AircraftActions } from "@/components/aircraft/aircraft-card";
+import { AircraftListRow } from "@/components/aircraft/aircraft-list-row";
+import { AircraftFormModal } from "@/components/aircraft/aircraft-form";
+import { GroundModal } from "@/components/aircraft/ground-modal";
+import { ApproveRentersSheet } from "@/components/aircraft/approve-renters-sheet";
+import { AircraftDetailSheet } from "@/components/aircraft/aircraft-detail-sheet";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState, ErrorState } from "@/components/states";
+import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
+import { useConfirm } from "@/components/confirm-dialog";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { formatMoney } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_authed/aircraft")({
   component: AircraftPage,
@@ -16,32 +25,91 @@ export const Route = createFileRoute("/_authed/aircraft")({
 
 function AircraftPage() {
   const q = usePlanes();
+  const locationsQ = useLocations();
+  const confirm = useConfirm();
+  const qc = useQueryClient();
+
   const planes = q.data ?? [];
+  const locations = locationsQ.data ?? [];
+
+  const [view, setView] = React.useState<"grid" | "list">("grid");
+  const [addOpen, setAddOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<Resource | null>(null);
+  const [grounding, setGrounding] = React.useState<Resource | null>(null);
+  const [approving, setApproving] = React.useState<Resource | null>(null);
+  const [detail, setDetail] = React.useState<Resource | null>(null);
+
+  // Ungrounding is a one-shot patch against an arbitrary id (the shared hook is fixed-id).
+  const unground = useMutation({
+    mutationFn: (id: number) =>
+      api<Resource>(`/resources/${id}`, {
+        method: "PATCH",
+        body: { type: { plane: { grounded: false, groundedReason: null } } },
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["resources"] }),
+  });
+
+  const actions: AircraftActions = {
+    onEdit: (r) => setEditing(r),
+    onApprove: (r) => setApproving(r),
+    onDetails: (r) => setDetail(r),
+    onToggleGround: async (r) => {
+      const p = r.type?.plane;
+      if (!p) return;
+      if (p.grounded) {
+        const ok = await confirm({
+          title: `Return ${p.tailNumber} to service?`,
+          description: "This aircraft will be schedulable again.",
+          confirmLabel: "Return to service",
+        });
+        if (!ok) return;
+        unground.mutate(r.id, {
+          onSuccess: () => toast.success(`${p.tailNumber} returned to service`),
+          onError: (err) =>
+            toast.error(err instanceof Error ? err.message : "Couldn't update aircraft"),
+        });
+      } else {
+        setGrounding(r);
+      }
+    },
+  };
+
+  const addButton = (
+    <Button onClick={() => setAddOpen(true)}>
+      <Plus className="size-4" /> Add aircraft
+    </Button>
+  );
 
   return (
     <div>
       <PageHeader
         title="Aircraft"
-        subtitle={q.data ? `${planes.length} in the fleet` : "Your fleet"}
+        subtitle={
+          q.data
+            ? `${planes.length} ${planes.length === 1 ? "tail" : "tails"} in the fleet`
+            : "Your fleet"
+        }
         actions={
-          <Button disabled title="Coming soon">
-            <Plus className="size-4" /> Add aircraft
-          </Button>
+          <>
+            {planes.length > 0 && (
+              <Tabs value={view} onValueChange={(v) => setView(v as "grid" | "list")}>
+                <TabsList>
+                  <TabsTrigger value="grid" aria-label="Grid view">
+                    <LayoutGrid className="size-4" />
+                  </TabsTrigger>
+                  <TabsTrigger value="list" aria-label="List view">
+                    <List className="size-4" />
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            )}
+            {addButton}
+          </>
         }
       />
 
       {q.isLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i} className="overflow-hidden">
-              <Skeleton className="h-28 w-full rounded-none" />
-              <div className="space-y-2 p-4">
-                <Skeleton className="h-5 w-24" />
-                <Skeleton className="h-4 w-32" />
-              </div>
-            </Card>
-          ))}
-        </div>
+        <CardGridSkeleton />
       ) : q.isError ? (
         <Card>
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
@@ -51,72 +119,50 @@ function AircraftPage() {
           <EmptyState
             icon={PlaneTakeoff}
             title="No aircraft yet"
-            body="Add your planes to start scheduling and billing flight time."
+            body="No aircraft yet. Add your first tail to make the schedule real."
+            action={addButton}
           />
         </Card>
-      ) : (
+      ) : view === "grid" ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {planes.map((r) => (
-            <PlaneCard key={r.id} r={r} />
+            <AircraftCard key={r.id} r={r} actions={actions} />
           ))}
         </div>
+      ) : (
+        <Card className="divide-y divide-border overflow-hidden">
+          {planes.map((r) => (
+            <AircraftListRow key={r.id} r={r} actions={actions} />
+          ))}
+        </Card>
       )}
+
+      <AircraftFormModal
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        locations={locations}
+      />
+      <AircraftFormModal
+        open={!!editing}
+        onOpenChange={(o) => !o && setEditing(null)}
+        resource={editing}
+        locations={locations}
+      />
+      <GroundModal
+        open={!!grounding}
+        onOpenChange={(o) => !o && setGrounding(null)}
+        resource={grounding}
+      />
+      <ApproveRentersSheet
+        open={!!approving}
+        onOpenChange={(o) => !o && setApproving(null)}
+        resource={approving}
+      />
+      <AircraftDetailSheet
+        open={!!detail}
+        onOpenChange={(o) => !o && setDetail(null)}
+        resource={detail}
+      />
     </div>
-  );
-}
-
-function PlaneCard({ r }: { r: Resource }) {
-  const p = r.type?.plane;
-  if (!p) return null;
-
-  const status = p.grounded
-    ? { label: "Grounded", variant: "danger" as const }
-    : p.rampedIn
-      ? { label: "Ramped in", variant: "warning" as const }
-      : { label: "Available", variant: "success" as const };
-
-  const rate = p.cost?.wetRate ?? p.cost?.dryRate;
-  const rateLabel = p.cost?.wetRate ? "wet" : p.cost?.dryRate ? "dry" : null;
-
-  return (
-    <Card className="overflow-hidden">
-      <div className="relative h-28 bg-sidebar">
-        {r.featuredImage ? (
-          <img src={r.featuredImage} alt={p.tailNumber} className="h-full w-full object-cover" />
-        ) : (
-          <div className="grid h-full place-items-center text-white/25">
-            <Plane className="size-10" />
-          </div>
-        )}
-        <div className="absolute right-3 top-3">
-          <Badge variant={status.variant}>{status.label}</Badge>
-        </div>
-      </div>
-      <div className="p-4">
-        <div className="flex items-baseline justify-between gap-2">
-          <div className="font-mono text-lg font-semibold tracking-tight">{p.tailNumber}</div>
-          {rate != null && (
-            <div className="text-sm font-medium tabular-nums">
-              {formatMoney(rate)}
-              <span className="text-xs text-muted-foreground">/hr {rateLabel}</span>
-            </div>
-          )}
-        </div>
-        <div className="mt-0.5 truncate text-sm text-muted-foreground">
-          {[p.year, p.make, p.model].filter(Boolean).join(" ") || "Aircraft"}
-        </div>
-        <div className="mt-3 flex items-center gap-4 border-t border-border pt-3 text-xs text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Gauge className="size-3.5" /> {Math.round(p.hobbsTime)} hobbs
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <Gauge className="size-3.5" /> {Math.round(p.tachTime)} tach
-          </span>
-          {p.categoryClass && (
-            <span className="ml-auto truncate capitalize">{p.categoryClass}</span>
-          )}
-        </div>
-      </div>
-    </Card>
   );
 }

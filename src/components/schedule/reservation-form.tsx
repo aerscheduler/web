@@ -151,6 +151,27 @@ export function ReservationForm({
       ];
       if (instructorId) personnel.instructors = [{ id: Number(instructorId) }];
     } else {
+      // The server enforces per-type personnel + resource rules; validate here so
+      // the happy path doesn't 400 with an opaque "Reservation type is not valid".
+      const kind = chosenResource ? resourceLabel(chosenResource).kind : null;
+      if (type === "dual" && !(instructorId && studentId))
+        return setError("Dual flights need both an instructor and a student.");
+      if (type === "solo" && !(instructorId || studentId))
+        return setError("Solo flights need an instructor or a student.");
+      if (type === "rental" && !renterId)
+        return setError("Rentals need a renter.");
+      if (type === "ground") {
+        if (!(instructorId || studentId))
+          return setError("Ground sessions need an instructor or a student.");
+        if (kind !== "Room") return setError("Ground sessions need a room resource.");
+      }
+      if (type === "sim") {
+        if (!(instructorId || studentId))
+          return setError("Sim sessions need an instructor or a student.");
+        if (kind !== "Simulator")
+          return setError("Sim sessions need a simulator resource.");
+      }
+
       if (instructorId) personnel.instructors = [{ id: Number(instructorId) }];
       if (studentId) personnel.students = [{ id: Number(studentId) }];
       if (renterId) personnel.renters = [{ id: Number(renterId) }];

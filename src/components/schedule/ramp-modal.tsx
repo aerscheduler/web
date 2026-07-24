@@ -60,6 +60,8 @@ export function RampModal({
   const [hobbs, setHobbs] = React.useState("");
   const [tach, setTach] = React.useState("");
   const [briefing, setBriefing] = React.useState("");
+  // Surfaced only after a submit attempt, so we don't nag on a freshly opened modal.
+  const [showErrors, setShowErrors] = React.useState(false);
 
   React.useEffect(() => {
     if (!open) return;
@@ -74,6 +76,7 @@ export function RampModal({
       setTach(review?.tachTimeOut != null ? (review.tachTimeOut / 10).toFixed(1) : planeTach);
     }
     setBriefing("");
+    setShowErrors(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, mode, reservation?.id]);
 
@@ -90,18 +93,24 @@ export function RampModal({
   const tachBackwards =
     mode === "in" && tachNum != null && outTachHrs != null && tachNum < outTachHrs;
 
-  const valid =
-    hobbsNum != null &&
-    tachNum != null &&
-    !hobbsBackwards &&
-    !tachBackwards &&
-    (briefing.trim() === "" || briefingNum != null);
+  // Per-field validity, derived every render so inline messages clear as you type.
+  const backwardsMsg = "Ending readings can't be lower than the recorded out readings.";
+  const hobbsErr = hobbsNum == null ? "Enter the Hobbs reading" : hobbsBackwards ? backwardsMsg : null;
+  const tachErr = tachNum == null ? "Enter the tach reading" : tachBackwards ? backwardsMsg : null;
+  const briefingErr = briefing.trim() !== "" && briefingNum == null ? "Enter a valid number" : null;
 
   const hoursFlown =
     mode === "in" && hobbsNum != null && outHobbsHrs != null ? hobbsNum - outHobbsHrs : null;
 
   async function submit() {
-    if (!reservation || !valid || hobbsNum == null || tachNum == null) return;
+    if (!reservation) return;
+    if (hobbsErr || tachErr || briefingErr) {
+      setShowErrors(true);
+      const firstInvalid = hobbsErr ? "ramp-hobbs" : tachErr ? "ramp-tach" : "ramp-briefing";
+      document.getElementById(firstInvalid)?.focus();
+      return;
+    }
+    if (hobbsNum == null || tachNum == null) return;
     try {
       if (mode === "out") {
         await rampOut.mutateAsync({ hobbsTimeOut: toDeci(hobbsNum), tachTimeOut: toDeci(tachNum) });
@@ -162,9 +171,10 @@ export function RampModal({
               placeholder="0.0"
               value={hobbs}
               onChange={(e) => setHobbs(sanitizeDecimal(e.target.value))}
-              aria-invalid={hobbsBackwards}
+              aria-invalid={showErrors && !!hobbsErr}
               className="tnum"
             />
+            {showErrors && hobbsErr && <p className="text-xs text-destructive">{hobbsErr}</p>}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ramp-tach">{mode === "out" ? "Tach out" : "Tach in"}</Label>
@@ -174,17 +184,12 @@ export function RampModal({
               placeholder="0.0"
               value={tach}
               onChange={(e) => setTach(sanitizeDecimal(e.target.value))}
-              aria-invalid={tachBackwards}
+              aria-invalid={showErrors && !!tachErr}
               className="tnum"
             />
+            {showErrors && tachErr && <p className="text-xs text-destructive">{tachErr}</p>}
           </div>
         </div>
-
-        {(hobbsBackwards || tachBackwards) && (
-          <p className="text-xs text-destructive">
-            Ending readings can't be lower than the recorded out readings.
-          </p>
-        )}
 
         {mode === "in" && showBriefing && (
           <div className="space-y-1.5">
@@ -195,8 +200,10 @@ export function RampModal({
               placeholder="0.0"
               value={briefing}
               onChange={(e) => setBriefing(sanitizeDecimal(e.target.value))}
+              aria-invalid={showErrors && !!briefingErr}
               className="tnum"
             />
+            {showErrors && briefingErr && <p className="text-xs text-destructive">{briefingErr}</p>}
             <p className="text-xs text-muted-foreground">Optional — billed at the instructor rate.</p>
           </div>
         )}
@@ -212,7 +219,7 @@ export function RampModal({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
             Cancel
           </Button>
-          <Button type="button" onClick={() => void submit()} disabled={!valid || busy}>
+          <Button type="button" onClick={() => void submit()} disabled={busy}>
             {busy ? "Saving…" : title}
           </Button>
         </div>

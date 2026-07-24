@@ -13,10 +13,11 @@ export const TYPE_LABEL: Record<ReservationType, string> = {
 };
 
 /** Order used for the legend and the type Select. */
+// Note: "instructor" is intentionally omitted — the server has no such
+// reservation type, so offering it would always 400 on submit.
 export const TYPE_ORDER: ReservationType[] = [
   "dual",
   "solo",
-  "instructor",
   "rental",
   "guest",
   "ground",

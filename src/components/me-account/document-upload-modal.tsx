@@ -16,6 +16,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+/** Fields that can block submit, in focus order, mapped to their control ids. */
+const FIELDS = [
+  { key: "type", id: "doc-type" },
+  { key: "expiresAt", id: "doc-expires" },
+  { key: "file", id: "doc-file" },
+] as const;
+
 /**
  * Upload a document against an org-defined type. Members can't upload `restricted` types (an
  * admin does that for them), and types marked `expires` require an expiry date.
@@ -35,6 +42,8 @@ export function DocumentUploadModal({
   const [file, setFile] = React.useState<File | null>(null);
   const [expiresAt, setExpiresAt] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  // Surfaced only after a submit attempt, so we don't nag on a pristine form.
+  const [showErrors, setShowErrors] = React.useState(false);
 
   React.useEffect(() => {
     if (open) {
@@ -42,6 +51,7 @@ export function DocumentUploadModal({
       setFile(null);
       setExpiresAt("");
       setError(null);
+      setShowErrors(false);
     }
   }, [open]);
 
@@ -50,15 +60,25 @@ export function DocumentUploadModal({
   const selectedType: DocumentType | undefined = types.find((t) => String(t.id) === typeId);
   const needsExpiry = selectedType?.expires ?? false;
 
-  const valid = !!selectedType && !!file && (!needsExpiry || !!expiresAt);
+  // Per-field validity, derived every render so inline messages clear as you fix them.
+  const errors: Record<string, string> = {
+    type: !selectedType ? "Pick a document type." : "",
+    expiresAt: needsExpiry && !expiresAt ? "This document needs an expiry date." : "",
+    file: !file ? "Choose a file to upload." : "",
+  };
+  const firstInvalid = FIELDS.find((f) => errors[f.key]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    if (!selectedType) return setError("Pick a document type.");
-    if (!file) return setError("Choose a file to upload.");
-    if (needsExpiry && !expiresAt) return setError("This document needs an expiry date.");
+    if (upload.isPending) return;
+    // Instead of a silently-disabled button, tell the user exactly what's missing.
+    if (firstInvalid || !selectedType || !file) {
+      setShowErrors(true);
+      if (firstInvalid) document.getElementById(firstInvalid.id)?.focus();
+      return;
+    }
 
+    setError(null);
     try {
       await upload.mutateAsync({
         documentTypeId: selectedType.id,
@@ -92,7 +112,11 @@ export function DocumentUploadModal({
             </p>
           ) : (
             <Select value={typeId} onValueChange={setTypeId}>
-              <SelectTrigger id="doc-type" className="w-full">
+              <SelectTrigger
+                id="doc-type"
+                className="w-full"
+                aria-invalid={showErrors && !!errors.type}
+              >
                 <SelectValue placeholder="Select a type" />
               </SelectTrigger>
               <SelectContent>
@@ -107,6 +131,9 @@ export function DocumentUploadModal({
           {selectedType?.description && (
             <p className="text-xs text-muted-foreground">{selectedType.description}</p>
           )}
+          {showErrors && errors.type && (
+            <p className="text-xs text-destructive">{errors.type}</p>
+          )}
         </div>
 
         {needsExpiry && (
@@ -117,7 +144,11 @@ export function DocumentUploadModal({
               type="date"
               value={expiresAt}
               onChange={(e) => setExpiresAt(e.target.value)}
+              aria-invalid={showErrors && !!errors.expiresAt}
             />
+            {showErrors && errors.expiresAt && (
+              <p className="text-xs text-destructive">{errors.expiresAt}</p>
+            )}
           </div>
         )}
 
@@ -128,8 +159,12 @@ export function DocumentUploadModal({
             type="file"
             accept="image/*,application/pdf"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            aria-invalid={showErrors && !!errors.file}
           />
           <p className="text-xs text-muted-foreground">PDF or image, up to 5 MB.</p>
+          {showErrors && errors.file && (
+            <p className="text-xs text-destructive">{errors.file}</p>
+          )}
         </div>
 
         {error && (
@@ -142,7 +177,7 @@ export function DocumentUploadModal({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!valid || upload.isPending}>
+          <Button type="submit" disabled={upload.isPending}>
             {upload.isPending ? "Uploading…" : "Upload"}
           </Button>
         </div>

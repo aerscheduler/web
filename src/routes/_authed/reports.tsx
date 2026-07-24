@@ -60,7 +60,13 @@ function ReportsPage() {
   const activeMembers = useOrgReport<number>("countActiveOrgUsers", reportRange);
   const newMembers = useOrgReport<number>("countNewOrgUsers", reportRange);
   const squawks = useOrgReport<number>("countUnresolvedSquawks", undefined, { rangeRequired: false });
-  const grounded = useOrgReport<number>("countGroundedResources", undefined, { rangeRequired: false });
+  // This endpoint returns an object, not a scalar: { groundableResources, groundedResources }.
+  const grounded = useOrgReport<{ groundableResources: number; groundedResources: number }>(
+    "countGroundedResources",
+    undefined,
+    { rangeRequired: false }
+  );
+  const groundedCount = grounded.data?.groundedResources ?? 0;
 
   const flightHoursTotal = useMemo(() => sumSeries(flightTime.data), [flightTime.data]);
 
@@ -181,9 +187,9 @@ function ReportsPage() {
           />
           <StatCard
             label="Grounded aircraft"
-            value={String(grounded.data ?? 0)}
+            value={String(groundedCount)}
             icon={TowerControl}
-            accent={grounded.data ? "warning" : "primary"}
+            accent={groundedCount ? "warning" : "primary"}
             hint="Currently down"
             loading={grounded.isLoading}
           />

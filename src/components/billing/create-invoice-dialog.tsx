@@ -53,6 +53,8 @@ export function CreateInvoiceDialog({
   const [dueAt, setDueAt] = useState<Date | undefined>(undefined);
   const [rows, setRows] = useState<LineRow[]>([blankRow()]);
   const [duePickerOpen, setDuePickerOpen] = useState(false);
+  // Surfaced only after a submit attempt, so we don't nag on a pristine form.
+  const [showErrors, setShowErrors] = useState(false);
 
   // Reset the form each time the modal opens, applying any draft prefill.
   useEffect(() => {
@@ -70,6 +72,7 @@ export function CreateInvoiceDialog({
           }))
         : [blankRow()]
     );
+    setShowErrors(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -91,19 +94,34 @@ export function CreateInvoiceDialog({
   }, 0);
 
   const validRows = rows.filter((r) => r.name.trim() && Number(r.qty) > 0);
-  const canSubmit =
-    !!customerId && validRows.length > 0 && !create.isPending;
+  // Per-field validity, derived every render so inline messages clear as you fix them.
+  const customerError = !customerId;
+  const itemsError = validRows.length === 0;
 
   function updateRow(key: number, patch: Partial<LineRow>) {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   }
 
   function submit() {
-    if (!canSubmit) return;
+    if (create.isPending) return;
+    // Instead of a silently-disabled button, tell the user exactly what's missing.
+    if (customerError || itemsError) {
+      setShowErrors(true);
+      if (customerError) {
+        document.getElementById("invoice-customer")?.querySelector("button")?.focus();
+      } else {
+        document.getElementById("invoice-item-0")?.focus();
+      }
+      return;
+    }
+    const dueIn = dueAt
+      ? Math.max(1, Math.ceil((dueAt.getTime() - Date.now()) / 86_400_000))
+      : undefined;
     const input: CreateInvoiceInput = {
       customer: { id: Number(customerId) },
       memo: memo.trim() || undefined,
       dueAt: dueAt ? dueAt.toISOString() : undefined,
+      dueIn,
       items: validRows.map((r) => ({
         name: r.name.trim(),
         qty: Number(r.qty),
@@ -131,14 +149,19 @@ export function CreateInvoiceDialog({
       <div className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="invoice-customer">Customer</Label>
-          <Combobox
-            options={options}
-            value={customerId}
-            onChange={setCustomerId}
-            placeholder={members.isLoading ? "Loading members…" : "Select a customer"}
-            searchPlaceholder="Search members…"
-            emptyText="No members found."
-          />
+          <div id="invoice-customer">
+            <Combobox
+              options={options}
+              value={customerId}
+              onChange={setCustomerId}
+              placeholder={members.isLoading ? "Loading members…" : "Select a customer"}
+              searchPlaceholder="Search members…"
+              emptyText="No members found."
+            />
+          </div>
+          {showErrors && customerError && (
+            <p className="text-xs text-destructive">Select a customer.</p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -148,14 +171,16 @@ export function CreateInvoiceDialog({
           </div>
 
           <div className="space-y-2">
-            {rows.map((r) => (
+            {rows.map((r, i) => (
               <div key={r.key} className="flex items-start gap-2">
                 <Input
+                  id={`invoice-item-${i}`}
                   aria-label="Item description"
                   placeholder="Description"
                   value={r.name}
                   onChange={(e) => updateRow(r.key, { name: e.target.value })}
                   className="flex-1"
+                  aria-invalid={showErrors && itemsError}
                 />
                 <Input
                   aria-label="Quantity"
@@ -201,6 +226,12 @@ export function CreateInvoiceDialog({
           >
             <Plus className="size-4" /> Add line item
           </Button>
+
+          {showErrors && itemsError && (
+            <p className="text-xs text-destructive">
+              Add at least one line item with a description and quantity.
+            </p>
+          )}
         </div>
 
         <div className="space-y-1.5">
@@ -269,7 +300,7 @@ export function CreateInvoiceDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!canSubmit}>
+          <Button onClick={submit} disabled={create.isPending}>
             {create.isPending ? "Creating…" : "Create invoice"}
           </Button>
         </div>

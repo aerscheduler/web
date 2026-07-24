@@ -83,6 +83,11 @@ export function ConfirmReviewModal({
             aria-invalid={pin.length > 0 && !valid}
             className="w-28 font-mono tracking-[0.4em]"
           />
+          {pin.length > 0 && !valid && (
+            <p className="text-xs text-destructive">
+              PIN must be exactly {PIN_LENGTH} characters.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Set your {PIN_LENGTH}-character PIN under Account → Security.
           </p>

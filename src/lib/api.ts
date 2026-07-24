@@ -64,7 +64,10 @@ async function raw(path: string, opts: ApiOptions): Promise<{ status: number; bo
     signal: opts.signal,
   });
 
-  if (res.status === 401) {
+  // Only treat a 401 as an expired session when we actually sent a token.
+  // An unauthenticated 401 (e.g. a wrong password on login) must fall through
+  // so the server's real message ("Invalid email or password") is shown.
+  if (res.status === 401 && token) {
     setToken(null);
     onUnauthorized?.();
     throw new ApiError(401, "Your session has expired. Please sign in again.");

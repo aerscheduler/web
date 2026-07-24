@@ -201,14 +201,20 @@ function SidebarEdgeToggle() {
           type="button"
           onClick={toggleSidebar}
           aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-          style={{ left: collapsed ? 0 : "var(--sidebar-width)" }}
-          className="group/edge fixed top-1/2 z-30 hidden h-16 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center transition-[left] duration-200 ease-linear md:flex"
+          style={{
+            left: collapsed ? 0 : "var(--sidebar-width)",
+            // Collapsed: sit flush against the left edge (fully visible so it's
+            // easy to find). Expanded: straddle the rail's divider.
+            transform: collapsed ? "translateY(-50%)" : "translate(-50%, -50%)",
+          }}
+          className="group/edge fixed top-1/2 z-30 hidden h-10 items-center justify-center transition-[left,transform] duration-200 ease-linear md:flex"
         >
-          <span className="flex h-7 w-[18px] items-center justify-center rounded-md border border-border bg-background text-muted-foreground opacity-0 shadow-sm transition-all duration-150 group-hover/edge:-translate-x-px group-hover/edge:text-foreground group-hover/edge:opacity-100 group-focus-visible/edge:opacity-100">
+          {/* Always visible (subtle), emphasised on hover — no hunting for it. */}
+          <span className="flex h-8 w-5 items-center justify-center rounded-md border border-sidebar-border bg-background text-muted-foreground shadow-sm transition-colors group-hover/edge:border-border group-hover/edge:bg-accent group-hover/edge:text-foreground">
             {collapsed ? (
-              <ChevronRight className="size-3.5" />
+              <ChevronRight className="size-4" />
             ) : (
-              <ChevronLeft className="size-3.5" />
+              <ChevronLeft className="size-4" />
             )}
           </span>
         </button>
@@ -253,6 +259,9 @@ function OrgSwitcher() {
     if (id === organization?.id) return;
     await switchOrg(id);
     qc.clear();
+    // Full reload to home — the new org's token drives a clean context, and "/"
+    // routes to the right landing page (dashboard for staff, My day for members).
+    window.location.assign("/");
   }
 
   return (

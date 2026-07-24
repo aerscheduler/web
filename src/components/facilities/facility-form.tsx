@@ -37,6 +37,8 @@ export function FacilityFormModal({
   const [billByHobbs, setBillByHobbs] = React.useState(true);
   const [locationId, setLocationId] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  // Surfaced only after a submit attempt, so we don't nag on a pristine form.
+  const [showErrors, setShowErrors] = React.useState(false);
 
   const wasOpen = React.useRef(false);
   React.useEffect(() => {
@@ -49,6 +51,7 @@ export function FacilityFormModal({
       setBillByHobbs(true);
       setLocationId(locations.length === 1 ? String(locations[0].id) : "");
       setError(null);
+      setShowErrors(false);
     }
     wasOpen.current = open;
   }, [open, locations]);
@@ -59,17 +62,29 @@ export function FacilityFormModal({
   }));
   const noLocations = locations.length === 0;
 
-  const valid =
-    !!locationId && (kind === "simulator" ? name.trim().length > 0 : roomNumber.trim().length > 0);
+  // Per-field validity, derived every render so inline messages clear as you type.
+  const errName = kind === "simulator" && name.trim().length === 0 ? "Give the simulator a name." : "";
+  const errRoom = kind === "room" && roomNumber.trim().length === 0 ? "Enter a room number." : "";
+  const errLocation = !noLocations && !locationId ? "Pick a home base." : "";
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    if (!locationId) return setError("Pick a home base for this resource.");
+    if (pending) return;
+    // Instead of a silently-disabled button, tell the user exactly what's missing.
+    const firstInvalid = [
+      { err: errName, id: "sim-name" },
+      { err: errRoom, id: "room-number" },
+      { err: errLocation, id: "" },
+    ].find((f) => f.err);
+    if (noLocations || firstInvalid) {
+      setShowErrors(true);
+      if (firstInvalid?.id) document.getElementById(firstInvalid.id)?.focus();
+      return;
+    }
 
+    setError(null);
     try {
       if (kind === "simulator") {
-        if (!name.trim()) return setError("Give the simulator a name.");
         await createSim.mutateAsync({
           location: { id: Number(locationId) },
           type: {
@@ -83,7 +98,6 @@ export function FacilityFormModal({
         });
         toast.success("Simulator added");
       } else {
-        if (!roomNumber.trim()) return setError("Enter a room number.");
         await createRoom.mutateAsync({
           location: { id: Number(locationId) },
           type: { room: { roomNumber: roomNumber.trim() } },
@@ -121,7 +135,11 @@ export function FacilityFormModal({
                 placeholder="e.g. Redbird FMX"
                 maxLength={60}
                 autoFocus
+                aria-invalid={showErrors && !!errName}
               />
+              {showErrors && errName && (
+                <p className="text-xs text-destructive">{errName}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -174,7 +192,11 @@ export function FacilityFormModal({
               onChange={(e) => setRoomNumber(e.target.value)}
               placeholder="e.g. Briefing Room 2"
               autoFocus
+              aria-invalid={showErrors && !!errRoom}
             />
+            {showErrors && errRoom && (
+              <p className="text-xs text-destructive">{errRoom}</p>
+            )}
           </div>
         )}
 
@@ -188,6 +210,9 @@ export function FacilityFormModal({
             searchPlaceholder="Search locations…"
             emptyText="No locations."
           />
+          {showErrors && errLocation && (
+            <p className="text-xs text-destructive">{errLocation}</p>
+          )}
           {noLocations && (
             <p className="text-xs text-muted-foreground">
               Add a location under Settings first.
@@ -205,7 +230,7 @@ export function FacilityFormModal({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!valid || pending}>
+          <Button type="submit" disabled={pending}>
             {pending ? "Adding…" : kind === "simulator" ? "Add simulator" : "Add room"}
           </Button>
         </div>

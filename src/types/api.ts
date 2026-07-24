@@ -577,6 +577,7 @@ export interface CreateInvoiceInput {
   FK_customerOrgUserId?: number;
   memo?: string;
   dueAt?: string;
+  dueIn?: number;
   items: { name: string; qty: number; unitPrice: number }[];
 }
 

@@ -102,17 +102,23 @@ function AddRatingModal({
   const create = useCreateRating();
   const [name, setName] = useState("");
   const [rateCents, setRateCents] = useState(0);
-
-  const valid = name.trim().length > 0;
+  const [errors, setErrors] = useState<{ name?: string }>({});
 
   function reset() {
     setName("");
     setRateCents(0);
+    setErrors({});
   }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!valid) return;
+    if (create.isPending) return;
+    // Tell the user what's missing instead of silently disabling the button.
+    if (name.trim().length === 0) {
+      setErrors({ name: "Name is required" });
+      document.getElementById("rating-name")?.focus();
+      return;
+    }
     create.mutate(
       { name: name.trim(), defaultInstructorRate: rateCents },
       {
@@ -142,10 +148,15 @@ function AddRatingModal({
           <Input
             id="rating-name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (errors.name) setErrors({});
+            }}
             placeholder="Private Pilot"
             autoFocus
+            aria-invalid={!!errors.name}
           />
+          {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
         </Field>
         <Field
           label="Default instructor rate"
@@ -165,7 +176,7 @@ function AddRatingModal({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={!valid || create.isPending}>
+          <Button type="submit" disabled={create.isPending}>
             {create.isPending && <Loader2 className="size-4 animate-spin" />}
             Add rating
           </Button>

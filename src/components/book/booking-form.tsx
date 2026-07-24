@@ -71,8 +71,8 @@ const TYPE_LABEL: Record<ReservationType, string> = {
  */
 const TYPE_OPTIONS: Record<BookMode, ReservationType[]> = {
   renter: ["rental"],
-  student: ["dual", "ground", "sim"],
-  instructor: ["dual", "solo", "instructor", "ground", "sim"],
+  student: ["dual"],
+  instructor: ["solo"],
 };
 
 function apiErr(e: unknown): string {

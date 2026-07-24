@@ -79,11 +79,12 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
   const [feeLabel, setFeeLabel] = useState(billing.serviceFeeLabel ?? "");
 
   const nextBps = textToBps(feeText);
+  const effectiveLabel = feeLabel.trim() || "Service Fee";
   const dirty =
     enabled !== billing.enabled ||
     rateCents !== billing.defaultInstructorRate ||
     nextBps !== billing.serviceFeePercent ||
-    feeLabel.trim() !== (billing.serviceFeeLabel ?? "");
+    effectiveLabel !== (billing.serviceFeeLabel ?? "");
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -93,7 +94,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
         enabled,
         defaultInstructorRate: rateCents,
         serviceFeePercent: nextBps,
-        serviceFeeLabel: feeLabel.trim() || "Service Fee",
+        serviceFeeLabel: effectiveLabel,
       },
       {
         onSuccess: () => toast.success("Billing settings saved"),

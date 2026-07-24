@@ -105,6 +105,8 @@ function Onboarding() {
 
   const [step, setStep] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
+  // Surfaced only after a submit attempt, so a pristine step never nags.
+  const [showErrors, setShowErrors] = React.useState(false);
 
   // collected state
   const [persona, setPersona] = React.useState<PersonaKey | null>(null);
@@ -139,6 +141,21 @@ function Onboarding() {
   const isSolo = persona === "solo_instructor";
   const STEPS = ["Persona", "Operation", "Aircraft", "Setup", "Team", "Booking"];
 
+  // Reset the error surface whenever we move to a different step.
+  React.useEffect(() => {
+    setShowErrors(false);
+  }, [step]);
+
+  // Per-field validity for the input-gated steps, derived each render so inline
+  // messages clear as the user types.
+  const orgErrors = {
+    orgName: orgName.trim() ? "" : "Give your operation a name.",
+  };
+  const aircraftErrors = {
+    tail: tail.trim() ? "" : "Enter a tail number.",
+    year: year.trim().length === 4 ? "" : "Enter a 4-digit year.",
+  };
+
   function next() {
     setStep((s) => Math.min(s + 1, STEPS.length));
   }
@@ -161,6 +178,12 @@ function Onboarding() {
   // location as part of org creation — both details.address and location{name,address}
   // are REQUIRED by the create service (empty strings are accepted).
   async function submitOrg() {
+    if (busy) return;
+    if (orgErrors.orgName) {
+      setShowErrors(true);
+      document.getElementById("orgName")?.focus();
+      return;
+    }
     await guarded(async () => {
       const emptyAddr = {
         streetAddress1: "",
@@ -190,6 +213,13 @@ function Onboarding() {
 
   async function submitAircraft(skip = false) {
     if (skip) return next();
+    if (busy) return;
+    const firstInvalid = aircraftErrors.tail ? "tail" : aircraftErrors.year ? "year" : "";
+    if (firstInvalid) {
+      setShowErrors(true);
+      document.getElementById(firstInvalid)?.focus();
+      return;
+    }
     await guarded(async () => {
       let locId = locationId;
       if (!locId) {
@@ -260,15 +290,26 @@ function Onboarding() {
     if (emails.length === 0) return next();
     await guarded(async () => {
       let ok = 0;
+      let fail = 0;
       for (const email of emails) {
         try {
           await inviteMember.mutateAsync({ email, [inviteRole]: true });
           ok++;
         } catch {
-          /* keep going through the list */
+          fail++;
         }
       }
-      toast.success(`${ok} invitation${ok === 1 ? "" : "s"} sent.`);
+      if (ok === 0) {
+        toast.error("No invitations could be sent — those people may already be members.");
+        return;
+      }
+      if (fail > 0) {
+        toast.success(
+          `${ok} invitation${ok === 1 ? "" : "s"} sent — ${fail} couldn't be sent.`
+        );
+      } else {
+        toast.success(`${ok} invitation${ok === 1 ? "" : "s"} sent.`);
+      }
       next();
     });
   }
@@ -413,13 +454,14 @@ function Onboarding() {
 
               {step === 1 && (
                 <Step title="What do we call it?" sub="Name your operation and set a home base.">
-                  <Field id="orgName" label="Operation name">
+                  <Field id="orgName" label="Operation name" error={showErrors ? orgErrors.orgName : ""}>
                     <Input
                       id="orgName"
                       value={orgName}
                       onChange={(e) => setOrgName(e.target.value)}
                       placeholder="Blue Sky Aviation"
                       autoFocus
+                      aria-invalid={showErrors && !!orgErrors.orgName}
                     />
                   </Field>
                   <Field id="airport" label="Home airport" hint="Identifier, e.g. KAPA">
@@ -430,7 +472,7 @@ function Onboarding() {
                       placeholder="KAPA"
                     />
                   </Field>
-                  <Nav onBack={back} onNext={submitOrg} nextLabel="Create operation" nextDisabled={!orgName.trim()} busy={busy} />
+                  <Nav onBack={back} onNext={submitOrg} nextLabel="Create operation" busy={busy} />
                 </Step>
               )}
 
@@ -460,16 +502,17 @@ function Onboarding() {
                       </SelectContent>
                     </Select>
                   </Field>
-                  <Field id="tail" label="Tail number">
+                  <Field id="tail" label="Tail number" error={showErrors ? aircraftErrors.tail : ""}>
                     <Input
                       id="tail"
                       value={tail}
                       onChange={(e) => setTail(e.target.value.toUpperCase())}
                       placeholder="N734X"
+                      aria-invalid={showErrors && !!aircraftErrors.tail}
                     />
                   </Field>
                   <div className="grid grid-cols-3 gap-3">
-                    <Field id="year" label="Year">
+                    <Field id="year" label="Year" error={showErrors ? aircraftErrors.year : ""}>
                       <Input
                         id="year"
                         inputMode="numeric"
@@ -477,6 +520,7 @@ function Onboarding() {
                         value={year}
                         onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ""))}
                         className="tnum"
+                        aria-invalid={showErrors && !!aircraftErrors.year}
                       />
                     </Field>
                     <Field id="hobbs" label="Hobbs">
@@ -493,7 +537,6 @@ function Onboarding() {
                     onBack={back}
                     onNext={() => submitAircraft(false)}
                     nextLabel="Add aircraft"
-                    nextDisabled={!tail.trim() || year.trim().length !== 4}
                     busy={busy}
                     onSkip={isSolo ? () => submitAircraft(true) : undefined}
                   />
@@ -673,11 +716,13 @@ function Field({
   id,
   label,
   hint,
+  error,
   children,
 }: {
   id: string;
   label: string;
   hint?: string;
+  error?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -687,6 +732,7 @@ function Field({
         {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
       </div>
       {children}
+      {error && <p className="text-xs text-destructive">{error}</p>}
     </div>
   );
 }

@@ -1,11 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ShieldCheck, UserRound } from "lucide-react";
+import { Palette, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { ProfileCard } from "@/components/me-account/profile-card";
 import { SecurityCard } from "@/components/me-account/security-card";
 import { SignOutButton } from "@/components/me-account/sign-out-button";
+import { AppearanceCard } from "@/components/settings/appearance-card";
 
 export const Route = createFileRoute("/_authed/me/profile")({
   component: ProfilePage,
@@ -29,6 +30,10 @@ function ProfilePage() {
             <ShieldCheck className="size-4" />
             Security
           </TabsTrigger>
+          <TabsTrigger value="appearance" className="gap-1.5">
+            <Palette className="size-4" />
+            Appearance
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -36,6 +41,9 @@ function ProfilePage() {
         </TabsContent>
         <TabsContent value="security">
           <SecurityCard />
+        </TabsContent>
+        <TabsContent value="appearance">
+          <AppearanceCard />
         </TabsContent>
       </Tabs>
 

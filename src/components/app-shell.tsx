@@ -60,7 +60,6 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
 type NavGroup = { label: string; items: NavItem[] };
@@ -335,7 +334,6 @@ function UserMenu() {
 
 function Topbar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { theme, toggle } = useTheme();
   const { setOpen } = useCommandMenu();
   const title = TITLES[pathname] ?? "AerScheduler";
 
@@ -347,18 +345,19 @@ function Topbar() {
 
       <div className="flex-1" />
 
-      <Button
-        variant="outline"
-        size="sm"
+      {/* Stripe-style search field — opens the ⌘K command palette */}
+      <button
+        type="button"
         onClick={() => setOpen(true)}
-        className="hidden gap-2 text-muted-foreground sm:inline-flex"
+        aria-label="Search"
+        className="hidden h-8 w-full max-w-[280px] items-center gap-2 rounded-md border border-input bg-card px-2.5 text-[13px] text-muted-foreground shadow-[inset_0_1px_1px_rgba(16,24,40,0.03)] transition-colors hover:bg-muted/50 sm:flex"
       >
-        <Search className="size-4" />
-        <span>Search…</span>
-        <kbd className="pointer-events-none ml-2 hidden select-none items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground md:inline-flex">
+        <Search className="size-4 shrink-0" />
+        <span className="flex-1 text-left">Search</span>
+        <kbd className="pointer-events-none flex select-none items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
           ⌘K
         </kbd>
-      </Button>
+      </button>
       <Button
         variant="ghost"
         size="icon"
@@ -368,15 +367,6 @@ function Topbar() {
       >
         <Search className="size-4" />
       </Button>
-
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button variant="ghost" size="icon" onClick={toggle} aria-label="Toggle theme">
-            {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Toggle theme</TooltipContent>
-      </Tooltip>
     </header>
   );
 }

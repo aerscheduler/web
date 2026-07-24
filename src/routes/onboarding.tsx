@@ -24,7 +24,7 @@ import {
   useUpdateBilling,
   useUpdateOrganization,
 } from "@/features/queries";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,23 +155,33 @@ function Onboarding() {
     }
   }
 
-  // Step 1 → create org (token swaps) + silent home-base location
+  // Step 1 → create org (token swaps). The server also provisions a home-base
+  // location as part of org creation — both details.address and location{name,address}
+  // are REQUIRED by the create service (empty strings are accepted).
   async function submitOrg() {
     await guarded(async () => {
+      const emptyAddr = {
+        streetAddress1: "",
+        streetAddress2: "",
+        city: "",
+        state: "",
+        zipCode: "",
+        country: "",
+      };
       await createOrganization({
         name: orgName.trim(),
         organizationType: persona,
-        details: { email: user?.email },
+        details: { email: user?.email ?? "", phone: "", address: { ...emptyAddr } },
+        location: { name: airport.trim() || orgName.trim(), address: { ...emptyAddr } },
       });
+      // grab the home-base location id the create just made, for the aircraft step
       try {
-        const loc = await createLocation.mutateAsync({
-          name: airport.trim() || orgName.trim(),
-        });
-        setLocationId(loc.id);
-        toast.success(`${airport.trim() || "Home base"} is set as your home base.`);
+        const locs = await api<{ id: number }[]>("/locations");
+        if (locs[0]) setLocationId(locs[0].id);
       } catch {
-        /* location is best-effort; the aircraft step will re-check */
+        /* the aircraft step re-checks and can create one if needed */
       }
+      toast.success(`${airport.trim() || "Home base"} is set as your home base.`);
       next();
     });
   }

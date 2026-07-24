@@ -193,6 +193,8 @@ export interface Plane {
   groundedReason: string | null;
   year: string | null;
   categoryClass: string;
+  fuelCapacity?: number | null;
+  fuelMeasurement?: "gallons" | "liters" | null;
   cost?: PlaneCost;
 }
 
@@ -291,10 +293,15 @@ export interface CreatePlaneResourceInput {
       tailNumber: string;
       make?: string;
       model?: string;
-      year?: string;
+      /** REQUIRED by the server — must be exactly 4 digits, e.g. "2018". */
+      year: string;
       categoryClass: string;
       tachTime: number;
       hobbsTime: number;
+      /** REQUIRED by the server — non-negative. */
+      fuelCapacity: number;
+      /** REQUIRED by the server — "gallons" or "liters". */
+      fuelMeasurement: "gallons" | "liters";
       cost: { wetRate?: number; dryRate?: number; billByHobbsTime: boolean };
     };
   };

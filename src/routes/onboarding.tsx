@@ -64,16 +64,16 @@ const PERSONAS: {
   { key: "solo_instructor", icon: UserIcon, title: "Independent instructor", blurb: "Just you (and maybe a club aircraft)." },
 ];
 
-// Aircraft templates → prefill make/model/categoryClass + a suggested wet rate (cents).
+// Aircraft templates → prefill make/model/categoryClass + suggested wet rate (cents) + fuel (gal).
 const AIRCRAFT_TEMPLATES: Record<
   string,
-  { make: string; model: string; categoryClass: string; rate: number } | null
+  { make: string; model: string; categoryClass: string; rate: number; fuel: number } | null
 > = {
-  "Cessna 172": { make: "Cessna", model: "172", categoryClass: "single-engine land", rate: 16500 },
-  "Cessna 152": { make: "Cessna", model: "152", categoryClass: "single-engine land", rate: 13500 },
-  "Piper PA-28": { make: "Piper", model: "PA-28", categoryClass: "single-engine land", rate: 15500 },
-  "Diamond DA40": { make: "Diamond", model: "DA40", categoryClass: "single-engine land", rate: 19500 },
-  "Cirrus SR20": { make: "Cirrus", model: "SR20", categoryClass: "single-engine land", rate: 22500 },
+  "Cessna 172": { make: "Cessna", model: "172", categoryClass: "single-engine land", rate: 16500, fuel: 56 },
+  "Cessna 152": { make: "Cessna", model: "152", categoryClass: "single-engine land", rate: 13500, fuel: 26 },
+  "Piper PA-28": { make: "Piper", model: "PA-28", categoryClass: "single-engine land", rate: 15500, fuel: 50 },
+  "Diamond DA40": { make: "Diamond", model: "DA40", categoryClass: "single-engine land", rate: 19500, fuel: 40 },
+  "Cirrus SR20": { make: "Cirrus", model: "SR20", categoryClass: "single-engine land", rate: 22500, fuel: 56 },
   Other: null,
 };
 
@@ -113,6 +113,7 @@ function Onboarding() {
 
   const [template, setTemplate] = React.useState<string>("Cessna 172");
   const [tail, setTail] = React.useState("");
+  const [year, setYear] = React.useState(String(new Date().getFullYear()));
   const [hobbs, setHobbs] = React.useState("0");
   const [tach, setTach] = React.useState("0");
   const [rate, setRate] = React.useState<number>(16500);
@@ -203,9 +204,12 @@ function Onboarding() {
             tailNumber: tail.trim().toUpperCase(),
             make: tpl?.make,
             model: tpl?.model,
+            year: year.trim(),
             categoryClass: tpl?.categoryClass ?? "single-engine land",
             tachTime: Number(tach) || 0,
             hobbsTime: Number(hobbs) || 0,
+            fuelCapacity: tpl?.fuel ?? 50,
+            fuelMeasurement: "gallons",
             cost: { wetRate: rate, billByHobbsTime: true },
           },
         },
@@ -452,11 +456,21 @@ function Onboarding() {
                       placeholder="N734X"
                     />
                   </Field>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field id="hobbs" label="Current Hobbs">
+                  <div className="grid grid-cols-3 gap-3">
+                    <Field id="year" label="Year">
+                      <Input
+                        id="year"
+                        inputMode="numeric"
+                        maxLength={4}
+                        value={year}
+                        onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ""))}
+                        className="tnum"
+                      />
+                    </Field>
+                    <Field id="hobbs" label="Hobbs">
                       <Input id="hobbs" inputMode="decimal" value={hobbs} onChange={(e) => setHobbs(e.target.value)} className="tnum" />
                     </Field>
-                    <Field id="tach" label="Current tach">
+                    <Field id="tach" label="Tach">
                       <Input id="tach" inputMode="decimal" value={tach} onChange={(e) => setTach(e.target.value)} className="tnum" />
                     </Field>
                   </div>
@@ -467,7 +481,7 @@ function Onboarding() {
                     onBack={back}
                     onNext={() => submitAircraft(false)}
                     nextLabel="Add aircraft"
-                    nextDisabled={!tail.trim()}
+                    nextDisabled={!tail.trim() || year.trim().length !== 4}
                     busy={busy}
                     onSkip={isSolo ? () => submitAircraft(true) : undefined}
                   />

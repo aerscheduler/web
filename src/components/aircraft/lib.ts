@@ -35,14 +35,16 @@ export type PlaneTemplate = {
   categoryClass: string;
   /** Suggested wet rate in integer cents. */
   wetRate: number;
+  /** Typical usable fuel, gallons. */
+  fuelCapacity: number;
 };
 
-/** Quick-start templates that prefill make/model/category + a sensible rate preset. */
+/** Quick-start templates that prefill make/model/category + rate + fuel presets. */
 export const PLANE_TEMPLATES: PlaneTemplate[] = [
-  { value: "C172", label: "Cessna 172", make: "Cessna", model: "172", categoryClass: "single-engine land", wetRate: 16500 },
-  { value: "C152", label: "Cessna 152", make: "Cessna", model: "152", categoryClass: "single-engine land", wetRate: 12500 },
-  { value: "PA-28", label: "Piper PA-28", make: "Piper", model: "PA-28", categoryClass: "single-engine land", wetRate: 15500 },
-  { value: "DA40", label: "Diamond DA40", make: "Diamond", model: "DA40", categoryClass: "single-engine land", wetRate: 19500 },
-  { value: "SR20", label: "Cirrus SR20", make: "Cirrus", model: "SR20", categoryClass: "single-engine land", wetRate: 22500 },
-  { value: "OTHER", label: "Other / custom", make: "", model: "", categoryClass: "", wetRate: 0 },
+  { value: "C172", label: "Cessna 172", make: "Cessna", model: "172", categoryClass: "single-engine land", wetRate: 16500, fuelCapacity: 56 },
+  { value: "C152", label: "Cessna 152", make: "Cessna", model: "152", categoryClass: "single-engine land", wetRate: 12500, fuelCapacity: 26 },
+  { value: "PA-28", label: "Piper PA-28", make: "Piper", model: "PA-28", categoryClass: "single-engine land", wetRate: 15500, fuelCapacity: 50 },
+  { value: "DA40", label: "Diamond DA40", make: "Diamond", model: "DA40", categoryClass: "single-engine land", wetRate: 19500, fuelCapacity: 40 },
+  { value: "SR20", label: "Cirrus SR20", make: "Cirrus", model: "SR20", categoryClass: "single-engine land", wetRate: 22500, fuelCapacity: 56 },
+  { value: "OTHER", label: "Other / custom", make: "", model: "", categoryClass: "", wetRate: 0, fuelCapacity: 50 },
 ];

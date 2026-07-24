@@ -27,6 +27,8 @@ type FormState = {
   categoryClass: string;
   hobbs: string;
   tach: string;
+  fuelCapacity: string;
+  fuelMeasurement: "gallons" | "liters";
   rateCents: number;
   rateBasis: "wet" | "dry";
   billByHobbs: boolean;
@@ -43,6 +45,8 @@ function emptyState(): FormState {
     categoryClass: "",
     hobbs: "",
     tach: "",
+    fuelCapacity: "",
+    fuelMeasurement: "gallons",
     rateCents: 0,
     rateBasis: "wet",
     billByHobbs: true,
@@ -63,6 +67,8 @@ function stateFromResource(r: Resource): FormState {
     categoryClass: p?.categoryClass ?? "",
     hobbs: p ? String(p.hobbsTime) : "",
     tach: p ? String(p.tachTime) : "",
+    fuelCapacity: p?.fuelCapacity != null ? String(p.fuelCapacity) : "",
+    fuelMeasurement: p?.fuelMeasurement ?? "gallons",
     rateCents: (basis === "wet" ? cost?.wetRate : cost?.dryRate) ?? 0,
     rateBasis: basis,
     billByHobbs: cost?.billByHobbsTime ?? true,
@@ -114,6 +120,7 @@ export function AircraftFormModal({
       make: t.value === "OTHER" ? f.make : t.make,
       model: t.value === "OTHER" ? f.model : t.model,
       categoryClass: t.value === "OTHER" ? f.categoryClass : t.categoryClass,
+      fuelCapacity: t.value === "OTHER" ? f.fuelCapacity : String(t.fuelCapacity),
       rateBasis: "wet",
       rateCents: t.value === "OTHER" ? f.rateCents : t.wetRate,
     }));
@@ -131,6 +138,8 @@ export function AircraftFormModal({
     !pending &&
     tail.length > 0 &&
     form.categoryClass.trim().length > 0 &&
+    form.year.trim().length === 4 &&
+    form.fuelCapacity.trim().length > 0 &&
     !!form.locationId &&
     !noLocations;
 
@@ -156,10 +165,12 @@ export function AircraftFormModal({
               tailNumber: tail,
               make: form.make.trim() || null,
               model: form.model.trim() || null,
-              year: form.year.trim() || null,
+              year: form.year.trim(),
               categoryClass: form.categoryClass.trim(),
               hobbsTime,
               tachTime,
+              fuelCapacity: Number(form.fuelCapacity) || 0,
+              fuelMeasurement: form.fuelMeasurement,
               cost: {
                 billByHobbsTime: form.billByHobbs,
                 wetRate: form.rateBasis === "wet" ? form.rateCents : null,
@@ -187,10 +198,12 @@ export function AircraftFormModal({
           tailNumber: tail,
           make: form.make.trim() || undefined,
           model: form.model.trim() || undefined,
-          year: form.year.trim() || undefined,
+          year: form.year.trim(),
           categoryClass: form.categoryClass.trim(),
           hobbsTime,
           tachTime,
+          fuelCapacity: Number(form.fuelCapacity) || 0,
+          fuelMeasurement: form.fuelMeasurement,
           cost,
         },
       },
@@ -310,6 +323,35 @@ export function AircraftFormModal({
               onChange={(e) => set("tach", e.target.value.replace(/[^0-9.]/g, ""))}
               className="tnum"
             />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="ac-fuel">Fuel capacity</Label>
+            <Input
+              id="ac-fuel"
+              inputMode="decimal"
+              placeholder="56"
+              value={form.fuelCapacity}
+              onChange={(e) => set("fuelCapacity", e.target.value.replace(/[^0-9.]/g, ""))}
+              className="tnum"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ac-fuel-unit">Fuel unit</Label>
+            <Select
+              value={form.fuelMeasurement}
+              onValueChange={(v) => set("fuelMeasurement", v as "gallons" | "liters")}
+            >
+              <SelectTrigger id="ac-fuel-unit" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="gallons">Gallons</SelectItem>
+                <SelectItem value="liters">Liters</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

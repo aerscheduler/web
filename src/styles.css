@@ -13,26 +13,26 @@
   Tokens are shadcn-compatible.
 */
 :root {
-  --radius: 0.5rem; /* 8px — cards; controls resolve to 6px */
+  --radius: 5px; /* Stripe-tight — cards ~5px, controls 4px */
 
-  --background: #f6f9fc; /* Stripe slate canvas */
-  --foreground: #1a1f36; /* deep slate ink */
+  --background: #f6f7f9; /* neutral light canvas (not bluish) */
+  --foreground: #30313d; /* Stripe dashboard ink */
 
   --card: #ffffff;
-  --card-foreground: #1a1f36;
+  --card-foreground: #30313d;
   --popover: #ffffff;
-  --popover-foreground: #1a1f36;
+  --popover-foreground: #30313d;
 
   --primary: #1967d2; /* AerScheduler logo blue — the single accent */
   --primary-foreground: #ffffff;
 
-  --secondary: #eef1f6;
-  --secondary-foreground: #1a1f36;
-  --muted: #eef1f6;
-  --muted-foreground: #636e82; /* Stripe slate — AA on solid muted fills */
+  --secondary: #f0f2f5;
+  --secondary-foreground: #30313d;
+  --muted: #f0f2f5;
+  --muted-foreground: #5b6472; /* Stripe body slate — AA on solid muted fills */
   /* neutral hover/selected — colour is reserved for primary + active nav */
-  --accent: #eef1f6;
-  --accent-foreground: #1a1f36;
+  --accent: #f0f2f5;
+  --accent-foreground: #30313d;
 
   --destructive: #c4142f; /* Stripe red — AA as text on its tint chips */
   --destructive-foreground: #ffffff;
@@ -43,18 +43,16 @@
   /* signature accent — the logo blue */
   --brand: #1967d2;
 
-  --border: #e6e9ee; /* hairline */
-  --input: #d5dbe1;
+  --border: #e3e5ea; /* defined hairline — Stripe cards are border-first */
+  --input: #d7dae0;
   --ring: #1967d2;
 
-  /* signature soft "lift" shadow — hairline ring + gentle drop (Stripe-style) */
-  --sh-xs: 0 0 0 1px rgba(60, 66, 87, 0.05);
-  --sh-sm: 0 0 0 1px rgba(60, 66, 87, 0.04), 0 1px 1px 0 rgba(0, 0, 0, 0.04),
-    0 2px 5px -1px rgba(60, 66, 87, 0.08);
-  --sh-md: 0 0 0 1px rgba(60, 66, 87, 0.04), 0 2px 5px -1px rgba(60, 66, 87, 0.1),
-    0 6px 14px -3px rgba(60, 66, 87, 0.1);
-  --sh-lg: 0 0 0 1px rgba(60, 66, 87, 0.04),
-    0 8px 16px -4px rgba(60, 66, 87, 0.12), 0 18px 40px -8px rgba(60, 66, 87, 0.16);
+  /* flat Stripe card treatment — border does the work, shadow is a whisper */
+  --sh-xs: 0 0 0 1px rgba(60, 66, 87, 0.04);
+  --sh-sm: 0 1px 1px 0 rgba(16, 24, 40, 0.04), 0 1px 3px 0 rgba(16, 24, 40, 0.05);
+  --sh-md: 0 1px 2px 0 rgba(16, 24, 40, 0.06), 0 4px 8px -2px rgba(16, 24, 40, 0.08);
+  --sh-lg: 0 4px 8px -2px rgba(16, 24, 40, 0.1),
+    0 12px 28px -6px rgba(16, 24, 40, 0.16), 0 0 0 1px rgba(60, 66, 87, 0.04);
 
   /* command rail — light, Stripe dashboard style, blue only on the active item */
   --sidebar: #ffffff;
@@ -63,11 +61,11 @@
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #eef2fb; /* light blue active/hover fill */
   --sidebar-accent-foreground: #1967d2; /* blue text on active */
-  --sidebar-border: #e6e9ee;
+  --sidebar-border: #e3e5ea;
   --sidebar-ring: #1967d2;
-  --sidebar-width: 16rem;
+  --sidebar-width: 12.5rem; /* narrow Stripe rail (~200px) */
   --sidebar-width-icon: 3rem;
-  --sidebar-width-mobile: 18rem;
+  --sidebar-width-mobile: 17rem;
 
   /* deep navy brand surface for auth pages (independent of the light rail) */
   --brand-surface: #10233f;
@@ -214,11 +212,11 @@
   --shadow-xl: var(--sh-lg);
   --shadow-2xl: var(--sh-lg);
 
-  /* calm radius — cards cap at 8px, controls at 6px */
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: var(--radius);
+  /* Stripe-tight radius — cards ~5-6px, controls 4-5px */
+  --radius-sm: 3px;
+  --radius-md: 5px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
 
   /* system sans (SF Pro / Segoe) — clean and native, Stripe-adjacent */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",

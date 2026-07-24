@@ -26,14 +26,14 @@ export function StatCard({
         : "bg-primary/10 text-primary";
 
   return (
-    <Card className="p-5">
+    <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="text-sm font-medium text-muted-foreground">{label}</div>
+          <div className="text-[13px] font-medium text-muted-foreground">{label}</div>
           {loading ? (
-            <Skeleton className="mt-2.5 h-7 w-24" />
+            <Skeleton className="mt-2 h-6 w-24" />
           ) : (
-            <div className="mt-1.5 text-[26px] font-semibold leading-none tracking-tight tabular-nums">
+            <div className="mt-1.5 text-[22px] font-semibold leading-none tracking-[-0.01em] tabular-nums">
               {value}
             </div>
           )}
@@ -41,8 +41,8 @@ export function StatCard({
             <div className="mt-1.5 text-xs text-muted-foreground">{hint}</div>
           )}
         </div>
-        <span className={cn("grid size-10 shrink-0 place-items-center rounded-lg", tone)}>
-          <Icon className="size-5" />
+        <span className={cn("grid size-8 shrink-0 place-items-center rounded-md", tone)}>
+          <Icon className="size-4" />
         </span>
       </div>
     </Card>

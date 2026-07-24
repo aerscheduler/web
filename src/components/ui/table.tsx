@@ -33,7 +33,7 @@ export function TH({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       className={cn(
-        "h-10 px-4 text-left align-middle text-xs font-semibold uppercase tracking-wide text-muted-foreground whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "h-9 px-3 text-left align-middle text-[13px] font-medium text-muted-foreground whitespace-nowrap [&:has([role=checkbox])]:pr-0",
         className
       )}
       {...props}
@@ -44,7 +44,7 @@ export function TH({ className, ...props }: React.ComponentProps<"th">) {
 export function TD({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
-      className={cn("px-4 py-3 align-middle", className)}
+      className={cn("px-3 py-2.5 align-middle", className)}
       {...props}
     />
   );

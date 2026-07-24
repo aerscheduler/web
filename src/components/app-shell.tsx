@@ -147,7 +147,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <AppSidebar />
           <SidebarInset>
             <Topbar />
-            <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+            <main className="flex-1 px-4 py-5 md:px-8 md:py-6">
               <div className="mx-auto w-full max-w-6xl">{children}</div>
             </main>
           </SidebarInset>
@@ -340,7 +340,7 @@ function Topbar() {
   const title = TITLES[pathname] ?? "AerScheduler";
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 shrink-0 items-center gap-2 border-b bg-background/80 px-4 backdrop-blur-md md:px-6">
+    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-card/85 px-4 backdrop-blur-md md:px-6">
       <SidebarTrigger className="-ml-1" />
       <Separator orientation="vertical" className="mr-1 h-5" />
       <h1 className="text-sm font-semibold tracking-tight">{title}</h1>

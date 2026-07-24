@@ -14,8 +14,10 @@ import {
   ChartColumnBig,
   LayoutDashboard,
   LogOut,
+  Menu,
   MonitorPlay,
   Moon,
+  MoreHorizontal,
   PlaneTakeoff,
   Receipt,
   Search,
@@ -46,8 +48,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarProvider,
-  SidebarRail,
-  SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import {
   DropdownMenu,
@@ -59,7 +60,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
 type NavGroup = { label: string; items: NavItem[] };
@@ -108,35 +108,9 @@ function navForRoles(roles: string[], isStaff: boolean): NavGroup[] {
   you.push({ to: "/me/profile", label: "Profile", icon: UserIcon });
   groups.push({ label: "You", items: you });
 
-  const system: NavItem[] = [{ to: "/notifications", label: "Notifications", icon: Bell }];
-  if (isStaff) system.push({ to: "/settings", label: "Settings", icon: Settings });
-  groups.push({ label: "System", items: system });
-
+  // Notifications + Settings live in the top bar (Stripe-style), not the left nav.
   return groups;
 }
-
-const TITLES: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/schedule": "Schedule",
-  "/people": "People",
-  "/aircraft": "Aircraft",
-  "/facilities": "Facilities",
-  "/billing": "Billing",
-  "/reports": "Reports",
-  "/compliance": "Go / No-Go",
-  "/settings": "Settings",
-  "/maintenance": "Maintenance",
-  "/notifications": "Notifications",
-  "/me": "My day",
-  "/me/schedule": "My schedule",
-  "/me/book": "Book",
-  "/me/invoices": "My invoices",
-  "/me/payment-methods": "Payment methods",
-  "/me/currencies": "My currencies",
-  "/me/documents": "My documents",
-  "/me/availability": "Availability",
-  "/me/profile": "Profile",
-};
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -162,7 +136,7 @@ function AppSidebar() {
   const groups = navForRoles(roles, isStaff);
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="offcanvas">
       <SidebarHeader>
         <OrgSwitcher />
       </SidebarHeader>
@@ -198,7 +172,6 @@ function AppSidebar() {
       <SidebarFooter>
         <UserMenu />
       </SidebarFooter>
-      <SidebarRail />
     </Sidebar>
   );
 }
@@ -290,7 +263,7 @@ function UserMenu() {
                 <span className="truncate font-medium">{user?.name ?? "Signed in"}</span>
                 <span className="truncate text-xs text-sidebar-foreground/60">{user?.email}</span>
               </div>
-              <ChevronsUpDown className="ml-auto size-4 opacity-60" />
+              <MoreHorizontal className="ml-auto size-4 opacity-60" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
@@ -333,40 +306,50 @@ function UserMenu() {
 }
 
 function Topbar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { setOpen } = useCommandMenu();
-  const title = TITLES[pathname] ?? "AerScheduler";
+  const { isStaff } = useAuth();
+  const { toggleSidebar } = useSidebar();
 
   return (
-    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-card/85 px-4 backdrop-blur-md md:px-6">
-      <SidebarTrigger className="-ml-1" />
-      <Separator orientation="vertical" className="mr-1 h-5" />
-      <h1 className="text-sm font-semibold tracking-tight">{title}</h1>
+    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background px-3 md:px-6">
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={toggleSidebar}
+        aria-label="Open navigation"
+        className="md:hidden"
+      >
+        <Menu className="size-4" />
+      </Button>
 
-      <div className="flex-1" />
-
-      {/* Stripe-style search field — opens the ⌘K command palette */}
+      {/* Stripe-style search — borderless subtle fill; opens the ⌘K palette */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Search"
-        className="hidden h-8 w-full max-w-[280px] items-center gap-2 rounded-md border border-input bg-card px-2.5 text-[13px] text-muted-foreground shadow-[inset_0_1px_1px_rgba(16,24,40,0.03)] transition-colors hover:bg-muted/50 sm:flex"
+        className="flex h-8 w-full max-w-xs items-center gap-2 rounded-md bg-muted/70 px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted"
       >
         <Search className="size-4 shrink-0" />
         <span className="flex-1 text-left">Search</span>
-        <kbd className="pointer-events-none flex select-none items-center gap-0.5 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+        <kbd className="pointer-events-none hidden select-none items-center rounded bg-card px-1.5 font-mono text-[10px] font-medium text-muted-foreground shadow-sm sm:flex">
           ⌘K
         </kbd>
       </button>
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setOpen(true)}
-        aria-label="Search"
-        className="sm:hidden"
-      >
-        <Search className="size-4" />
+
+      <div className="flex-1" />
+
+      <Button asChild variant="ghost" size="icon" aria-label="Notifications">
+        <Link to="/notifications">
+          <Bell className="size-4" />
+        </Link>
       </Button>
+      {isStaff && (
+        <Button asChild variant="ghost" size="icon" aria-label="Settings">
+          <Link to="/settings">
+            <Settings className="size-4" />
+          </Link>
+        </Button>
+      )}
     </header>
   );
 }

@@ -15,7 +15,7 @@
 :root {
   --radius: 5px; /* Stripe-tight — cards ~5px, controls 4px */
 
-  --background: #f6f7f9; /* neutral light canvas (not bluish) */
+  --background: #ffffff; /* Stripe dashboard is pure white */
   --foreground: #30313d; /* Stripe dashboard ink */
 
   --card: #ffffff;
@@ -56,11 +56,11 @@
 
   /* command rail — light, Stripe dashboard style, blue only on the active item */
   --sidebar: #ffffff;
-  --sidebar-foreground: #4a5568;
+  --sidebar-foreground: #414552; /* Stripe nav text — mid slate */
   --sidebar-primary: #1967d2;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #eef2fb; /* light blue active/hover fill */
-  --sidebar-accent-foreground: #1967d2; /* blue text on active */
+  --sidebar-accent: #f2f3f5; /* subtle neutral hover fill (no colour) */
+  --sidebar-accent-foreground: #1967d2; /* accent text+icon on the ACTIVE item */
   --sidebar-border: #e3e5ea;
   --sidebar-ring: #1967d2;
   --sidebar-width: 12.5rem; /* narrow Stripe rail (~200px) */
@@ -124,12 +124,12 @@
   --sh-md: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 4px 10px -2px rgba(0, 0, 0, 0.55);
   --sh-lg: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 44px -10px rgba(0, 0, 0, 0.7);
 
-  --sidebar: #0c1220;
-  --sidebar-foreground: #8a94a8;
+  --sidebar: #0a0e1a;
+  --sidebar-foreground: #9aa4b8;
   --sidebar-primary: #2f7ae4;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #182339; /* dark blue-slate active fill */
-  --sidebar-accent-foreground: #dbe8fc; /* light blue text on active */
+  --sidebar-accent: #171d2b; /* subtle neutral hover fill */
+  --sidebar-accent-foreground: #6aa0ee; /* accent text+icon on the ACTIVE item */
   --sidebar-border: #1d2740;
   --sidebar-ring: #4a8fe7;
 

@@ -79,7 +79,7 @@ export function DataTable<T>({
                       <button
                         type="button"
                         onClick={h.column.getToggleSortingHandler()}
-                        className="inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-foreground"
+                        className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
                       >
                         {flexRender(h.column.columnDef.header, h.getContext())}
                         {sortIcon(h.column.getIsSorted())}

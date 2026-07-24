@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogoLockup } from "@/components/logo";
-import { GoogleButton, OrDivider } from "@/components/google-button";
+import { GoogleButton, AppleButton, OrDivider } from "@/components/google-button";
 import { BrandPanel } from "./login";
 
 export const Route = createFileRoute("/signup")({
@@ -51,8 +51,9 @@ function SignupPage() {
             Two minutes to a bookable aircraft. No credit card, no sales call.
           </p>
 
-          <div className="mt-8 space-y-4">
+          <div className="mt-8 space-y-3">
             <GoogleButton label="Sign up with Google" />
+            <AppleButton label="Sign up with Apple" />
             <OrDivider />
           </div>
 

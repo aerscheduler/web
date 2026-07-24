@@ -8,6 +8,7 @@ import {
 } from "react";
 import { apiRaw, getToken, setToken } from "./api";
 import { signInWithGoogle } from "./google";
+import { signInWithApple } from "./apple";
 import { rolesOf, type Organization, type OrganizationUser, type Role, type User } from "@/types/api";
 
 interface AuthEnvelope {
@@ -83,6 +84,8 @@ interface AuthContextValue extends SessionState {
   register: (name: string, email: string, password: string) => Promise<void>;
   /** Sign in / sign up with Google (opens the Google account chooser). */
   googleLogin: () => Promise<void>;
+  /** Sign in / sign up with Apple (opens the Apple popup). */
+  appleLogin: () => Promise<void>;
   logout: () => void;
   switchOrg: (orgId: number) => Promise<void>;
   /** Create a new org (caller becomes owner+admin). Swaps the active token. */
@@ -142,6 +145,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         name: profile.name,
         profileImage: profile.profileImage,
       },
+    });
+    apply(env);
+  }, [apply]);
+
+  const appleLogin = useCallback(async () => {
+    const profile = await signInWithApple();
+    const env = await apiRaw<AuthEnvelope>("/auth/apple", {
+      method: "POST",
+      body: { authCode: profile.authCode, name: profile.name, web: true },
     });
     apply(env);
   }, [apply]);
@@ -211,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         googleLogin,
+        appleLogin,
         logout,
         switchOrg,
         createOrganization,

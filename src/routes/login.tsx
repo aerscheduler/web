@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogoLockup, LogoMark } from "@/components/logo";
-import { GoogleButton, OrDivider } from "@/components/google-button";
+import { GoogleButton, AppleButton, OrDivider } from "@/components/google-button";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -55,8 +55,9 @@ function LoginPage() {
             Welcome back. Enter your credentials to reach your console.
           </p>
 
-          <div className="mt-8 space-y-4">
+          <div className="mt-8 space-y-3">
             <GoogleButton />
+            <AppleButton />
             <OrDivider />
           </div>
 

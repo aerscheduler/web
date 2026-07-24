@@ -2,15 +2,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type {
   Announcement,
+  AppNotification,
   AvailabilityInput,
   CreateInvoiceInput,
   CreateLocationInput,
   CreatePlaneResourceInput,
   CreateReservationInput,
+  Currency,
   CurrencyType,
   Invoice,
   InviteInput,
   Location,
+  MaintenanceReminder,
   Organization,
   OrganizationBillingSettings,
   OrganizationRating,
@@ -18,6 +21,7 @@ import type {
   Reservation,
   Resource,
   RolesUpdate,
+  Squawk,
   User,
 } from "@/types/api";
 
@@ -314,5 +318,147 @@ export function useUpdateMemberOrgUser(userId: number) {
 export function useConnectStripe() {
   return useMutation({
     mutationFn: () => api<{ url: string }>("/stripe/account/seller", { method: "POST" }),
+  });
+}
+
+// ---------------------------------------------------------------- personal / self-service
+
+/** The caller's (or any user's) reservations in a date range. */
+export function useUserReservations(userId: number | null, startDate: string, endDate: string, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["reservations", "user", userId, startDate, endDate],
+    queryFn: () =>
+      api<Reservation[]>(`/reservations/user/${userId}`, {
+        query: { startDate, endDate, orderBy: "asc", includeCanceled: false },
+      }),
+    enabled: (opts?.enabled ?? true) && userId != null,
+  });
+}
+
+/** Invoices for one member (self, or admin viewing another). */
+export function useMemberInvoices(
+  orgUserId: number | null,
+  filter?: { paid?: boolean; startDate?: string; endDate?: string },
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["invoices", "member", orgUserId, filter ?? {}],
+    queryFn: () => api<Invoice[]>(`/invoices/orgUsers/${orgUserId}`, { query: filter }),
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
+  });
+}
+
+/** The caller's currencies (medicals, flight reviews, checkouts…). */
+export function useMyCurrencies(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["currencies", "me"],
+    queryFn: () => api<Currency[]>("/currencies"),
+    ...opts,
+  });
+}
+
+/** Resources the caller (or a user) is approved to fly. */
+export function useApprovedResources(userId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["approvedResources", userId],
+    queryFn: () => api<Resource[]>(`/users/${userId}/approvedResources`),
+    enabled: (opts?.enabled ?? true) && userId != null,
+  });
+}
+
+/** The caller's recurring weekly availability. */
+export function useMyAvailability(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["availability", "me"],
+    queryFn: () => api<AvailabilityInput>("/users/availability"),
+    ...opts,
+  });
+}
+
+/** The caller's notifications. */
+export function useNotifications(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => api<AppNotification[]>("/notifications"),
+    ...opts,
+  });
+}
+
+export function useMarkNotificationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/notifications/${id}`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+}
+
+export function useClearNotifications() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api("/notifications", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["notifications"] }),
+  });
+}
+
+/** Update the caller's own name. */
+export function useUpdateProfile() {
+  return useMutation({
+    mutationFn: (input: { name: string }) => api("/users/", { method: "PATCH", body: input }),
+  });
+}
+
+/** Caller's 4-char confirmation PIN. */
+export function usePin(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["pin"],
+    queryFn: () => api<{ pin: string | null }>("/users/pin"),
+    ...opts,
+  });
+}
+
+export function useSetPin() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (pin: string) => api("/users/pin", { method: "PATCH", body: { pin } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["pin"] }),
+  });
+}
+
+// ---------------------------------------------------------------- maintenance
+
+export function useSquawks(filter?: { resolved?: boolean }, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["squawks", filter ?? {}],
+    queryFn: () => api<Squawk[]>("/maintenance/squawks", { query: filter }),
+    ...opts,
+  });
+}
+
+export function useCreateSquawk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { title: string; description?: string; resourceId?: number; grounding?: boolean }) =>
+      api("/maintenance/squawks", { method: "POST", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["squawks"] });
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+    },
+  });
+}
+
+export function useResolveSquawk() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "resolve" | "verify" }) =>
+      api(`/maintenance/squawks/${id}`, { method: "POST", body: { action } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["squawks"] }),
+  });
+}
+
+export function useMaintenanceReminders(filter?: { resolved?: boolean }, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["reminders", filter ?? {}],
+    queryFn: () => api<MaintenanceReminder[]>("/maintenance/reminders", { query: filter }),
+    ...opts,
   });
 }

@@ -2,11 +2,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { apiRaw, getToken, setToken } from "./api";
-import type { Organization, User } from "@/types/api";
+import { rolesOf, type Organization, type OrganizationUser, type Role, type User } from "@/types/api";
 
 interface AuthEnvelope {
   auth: { accessToken: string };
@@ -44,7 +45,33 @@ export function isAuthenticated(): boolean {
   return Boolean(getToken());
 }
 
+/** Synchronous staff check from the stored session (owner/admin/dispatcher). */
+export function isStaffSync(): boolean {
+  const s = loadSession();
+  const ous = s.user?.orgUsers ?? [];
+  const membership =
+    (s.organization ? ous.find((o) => o.FK_organizationId === s.organization!.id) : undefined) ??
+    ous[0];
+  if (!membership) return false;
+  return rolesOf(membership).some((r) => r === "owner" || r === "admin" || r === "dispatcher");
+}
+
+/** True if the stored session has an active organization. */
+export function hasActiveOrg(): boolean {
+  return loadSession().organization != null;
+}
+
 interface AuthContextValue extends SessionState {
+  /** The caller's membership row (OrganizationUser) in the active org. */
+  membership: OrganizationUser | null;
+  /** The caller's roles in the active org. */
+  roles: Role[];
+  /** OrganizationUser.id in the active org (personnel/invoices id space). */
+  orgUserId: number | null;
+  /** User.id (person id space). */
+  userId: number | null;
+  /** True if the caller can manage the org (owner/admin/dispatcher). */
+  isStaff: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -135,9 +162,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession({ user: null, organization: null, organizations: [] });
   }, []);
 
+  const derived = useMemo(() => {
+    const ous = session.user?.orgUsers ?? [];
+    const membership =
+      (session.organization
+        ? ous.find((o) => o.FK_organizationId === session.organization!.id)
+        : undefined) ??
+      ous[0] ??
+      null;
+    const roles = membership ? rolesOf(membership) : [];
+    const isStaff = roles.some((r) => r === "owner" || r === "admin" || r === "dispatcher");
+    return {
+      membership,
+      roles,
+      orgUserId: membership?.id ?? null,
+      userId: session.user?.id ?? null,
+      isStaff,
+    };
+  }, [session]);
+
   return (
     <AuthContext
-      value={{ ...session, login, register, logout, switchOrg, createOrganization, rehydrate }}
+      value={{
+        ...session,
+        ...derived,
+        login,
+        register,
+        logout,
+        switchOrg,
+        createOrganization,
+        rehydrate,
+      }}
     >
       {children}
     </AuthContext>

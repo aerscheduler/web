@@ -20,9 +20,18 @@ import { Route as AuthedAircraftRouteImport } from './routes/_authed/aircraft'
 import { Route as AuthedBillingRouteImport } from './routes/_authed/billing'
 import { Route as AuthedComplianceRouteImport } from './routes/_authed/compliance'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
+import { Route as AuthedMaintenanceRouteImport } from './routes/_authed/maintenance'
+import { Route as AuthedNotificationsRouteImport } from './routes/_authed/notifications'
 import { Route as AuthedPeopleRouteImport } from './routes/_authed/people'
 import { Route as AuthedScheduleRouteImport } from './routes/_authed/schedule'
 import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
+import { Route as AuthedMeIndexRouteImport } from './routes/_authed/me/index'
+import { Route as AuthedMeAvailabilityRouteImport } from './routes/_authed/me/availability'
+import { Route as AuthedMeBookRouteImport } from './routes/_authed/me/book'
+import { Route as AuthedMeCurrenciesRouteImport } from './routes/_authed/me/currencies'
+import { Route as AuthedMeInvoicesRouteImport } from './routes/_authed/me/invoices'
+import { Route as AuthedMeProfileRouteImport } from './routes/_authed/me/profile'
+import { Route as AuthedMeScheduleRouteImport } from './routes/_authed/me/schedule'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -78,6 +87,16 @@ const AuthedDashboardRoute = AuthedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMaintenanceRoute = AuthedMaintenanceRouteImport.update({
+  id: '/maintenance',
+  path: '/maintenance',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedNotificationsRoute = AuthedNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedPeopleRoute = AuthedPeopleRouteImport.update({
   id: '/people',
   path: '/people',
@@ -93,6 +112,41 @@ const AuthedSettingsRoute = AuthedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMeIndexRoute = AuthedMeIndexRouteImport.update({
+  id: '/me/',
+  path: '/me/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedMeAvailabilityRoute = AuthedMeAvailabilityRouteImport.update({
+  id: '/me/availability',
+  path: '/me/availability',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedMeBookRoute = AuthedMeBookRouteImport.update({
+  id: '/me/book',
+  path: '/me/book',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedMeCurrenciesRoute = AuthedMeCurrenciesRouteImport.update({
+  id: '/me/currencies',
+  path: '/me/currencies',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedMeInvoicesRoute = AuthedMeInvoicesRouteImport.update({
+  id: '/me/invoices',
+  path: '/me/invoices',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedMeProfileRoute = AuthedMeProfileRouteImport.update({
+  id: '/me/profile',
+  path: '/me/profile',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedMeScheduleRoute = AuthedMeScheduleRouteImport.update({
+  id: '/me/schedule',
+  path: '/me/schedule',
+  getParentRoute: () => AuthedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -105,9 +159,18 @@ export interface FileRoutesByFullPath {
   '/billing': typeof AuthedBillingRoute
   '/compliance': typeof AuthedComplianceRoute
   '/dashboard': typeof AuthedDashboardRoute
+  '/maintenance': typeof AuthedMaintenanceRoute
+  '/notifications': typeof AuthedNotificationsRoute
   '/people': typeof AuthedPeopleRoute
   '/schedule': typeof AuthedScheduleRoute
   '/settings': typeof AuthedSettingsRoute
+  '/me/availability': typeof AuthedMeAvailabilityRoute
+  '/me/book': typeof AuthedMeBookRoute
+  '/me/currencies': typeof AuthedMeCurrenciesRoute
+  '/me/invoices': typeof AuthedMeInvoicesRoute
+  '/me/profile': typeof AuthedMeProfileRoute
+  '/me/schedule': typeof AuthedMeScheduleRoute
+  '/me/': typeof AuthedMeIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -120,9 +183,18 @@ export interface FileRoutesByTo {
   '/billing': typeof AuthedBillingRoute
   '/compliance': typeof AuthedComplianceRoute
   '/dashboard': typeof AuthedDashboardRoute
+  '/maintenance': typeof AuthedMaintenanceRoute
+  '/notifications': typeof AuthedNotificationsRoute
   '/people': typeof AuthedPeopleRoute
   '/schedule': typeof AuthedScheduleRoute
   '/settings': typeof AuthedSettingsRoute
+  '/me/availability': typeof AuthedMeAvailabilityRoute
+  '/me/book': typeof AuthedMeBookRoute
+  '/me/currencies': typeof AuthedMeCurrenciesRoute
+  '/me/invoices': typeof AuthedMeInvoicesRoute
+  '/me/profile': typeof AuthedMeProfileRoute
+  '/me/schedule': typeof AuthedMeScheduleRoute
+  '/me': typeof AuthedMeIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -137,9 +209,18 @@ export interface FileRoutesById {
   '/_authed/billing': typeof AuthedBillingRoute
   '/_authed/compliance': typeof AuthedComplianceRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
+  '/_authed/maintenance': typeof AuthedMaintenanceRoute
+  '/_authed/notifications': typeof AuthedNotificationsRoute
   '/_authed/people': typeof AuthedPeopleRoute
   '/_authed/schedule': typeof AuthedScheduleRoute
   '/_authed/settings': typeof AuthedSettingsRoute
+  '/_authed/me/availability': typeof AuthedMeAvailabilityRoute
+  '/_authed/me/book': typeof AuthedMeBookRoute
+  '/_authed/me/currencies': typeof AuthedMeCurrenciesRoute
+  '/_authed/me/invoices': typeof AuthedMeInvoicesRoute
+  '/_authed/me/profile': typeof AuthedMeProfileRoute
+  '/_authed/me/schedule': typeof AuthedMeScheduleRoute
+  '/_authed/me/': typeof AuthedMeIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -154,9 +235,18 @@ export interface FileRouteTypes {
     | '/billing'
     | '/compliance'
     | '/dashboard'
+    | '/maintenance'
+    | '/notifications'
     | '/people'
     | '/schedule'
     | '/settings'
+    | '/me/availability'
+    | '/me/book'
+    | '/me/currencies'
+    | '/me/invoices'
+    | '/me/profile'
+    | '/me/schedule'
+    | '/me/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -169,9 +259,18 @@ export interface FileRouteTypes {
     | '/billing'
     | '/compliance'
     | '/dashboard'
+    | '/maintenance'
+    | '/notifications'
     | '/people'
     | '/schedule'
     | '/settings'
+    | '/me/availability'
+    | '/me/book'
+    | '/me/currencies'
+    | '/me/invoices'
+    | '/me/profile'
+    | '/me/schedule'
+    | '/me'
   id:
     | '__root__'
     | '/'
@@ -185,9 +284,18 @@ export interface FileRouteTypes {
     | '/_authed/billing'
     | '/_authed/compliance'
     | '/_authed/dashboard'
+    | '/_authed/maintenance'
+    | '/_authed/notifications'
     | '/_authed/people'
     | '/_authed/schedule'
     | '/_authed/settings'
+    | '/_authed/me/availability'
+    | '/_authed/me/book'
+    | '/_authed/me/currencies'
+    | '/_authed/me/invoices'
+    | '/_authed/me/profile'
+    | '/_authed/me/schedule'
+    | '/_authed/me/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -279,6 +387,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDashboardRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/maintenance': {
+      id: '/_authed/maintenance'
+      path: '/maintenance'
+      fullPath: '/maintenance'
+      preLoaderRoute: typeof AuthedMaintenanceRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/notifications': {
+      id: '/_authed/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthedNotificationsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/people': {
       id: '/_authed/people'
       path: '/people'
@@ -300,6 +422,55 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/me/': {
+      id: '/_authed/me/'
+      path: '/me'
+      fullPath: '/me/'
+      preLoaderRoute: typeof AuthedMeIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/me/availability': {
+      id: '/_authed/me/availability'
+      path: '/me/availability'
+      fullPath: '/me/availability'
+      preLoaderRoute: typeof AuthedMeAvailabilityRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/me/book': {
+      id: '/_authed/me/book'
+      path: '/me/book'
+      fullPath: '/me/book'
+      preLoaderRoute: typeof AuthedMeBookRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/me/currencies': {
+      id: '/_authed/me/currencies'
+      path: '/me/currencies'
+      fullPath: '/me/currencies'
+      preLoaderRoute: typeof AuthedMeCurrenciesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/me/invoices': {
+      id: '/_authed/me/invoices'
+      path: '/me/invoices'
+      fullPath: '/me/invoices'
+      preLoaderRoute: typeof AuthedMeInvoicesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/me/profile': {
+      id: '/_authed/me/profile'
+      path: '/me/profile'
+      fullPath: '/me/profile'
+      preLoaderRoute: typeof AuthedMeProfileRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/me/schedule': {
+      id: '/_authed/me/schedule'
+      path: '/me/schedule'
+      fullPath: '/me/schedule'
+      preLoaderRoute: typeof AuthedMeScheduleRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -308,9 +479,18 @@ interface AuthedRouteChildren {
   AuthedBillingRoute: typeof AuthedBillingRoute
   AuthedComplianceRoute: typeof AuthedComplianceRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
+  AuthedMaintenanceRoute: typeof AuthedMaintenanceRoute
+  AuthedNotificationsRoute: typeof AuthedNotificationsRoute
   AuthedPeopleRoute: typeof AuthedPeopleRoute
   AuthedScheduleRoute: typeof AuthedScheduleRoute
   AuthedSettingsRoute: typeof AuthedSettingsRoute
+  AuthedMeAvailabilityRoute: typeof AuthedMeAvailabilityRoute
+  AuthedMeBookRoute: typeof AuthedMeBookRoute
+  AuthedMeCurrenciesRoute: typeof AuthedMeCurrenciesRoute
+  AuthedMeInvoicesRoute: typeof AuthedMeInvoicesRoute
+  AuthedMeProfileRoute: typeof AuthedMeProfileRoute
+  AuthedMeScheduleRoute: typeof AuthedMeScheduleRoute
+  AuthedMeIndexRoute: typeof AuthedMeIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -318,9 +498,18 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedBillingRoute: AuthedBillingRoute,
   AuthedComplianceRoute: AuthedComplianceRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
+  AuthedMaintenanceRoute: AuthedMaintenanceRoute,
+  AuthedNotificationsRoute: AuthedNotificationsRoute,
   AuthedPeopleRoute: AuthedPeopleRoute,
   AuthedScheduleRoute: AuthedScheduleRoute,
   AuthedSettingsRoute: AuthedSettingsRoute,
+  AuthedMeAvailabilityRoute: AuthedMeAvailabilityRoute,
+  AuthedMeBookRoute: AuthedMeBookRoute,
+  AuthedMeCurrenciesRoute: AuthedMeCurrenciesRoute,
+  AuthedMeInvoicesRoute: AuthedMeInvoicesRoute,
+  AuthedMeProfileRoute: AuthedMeProfileRoute,
+  AuthedMeScheduleRoute: AuthedMeScheduleRoute,
+  AuthedMeIndexRoute: AuthedMeIndexRoute,
 }
 
 const AuthedRouteWithChildren =

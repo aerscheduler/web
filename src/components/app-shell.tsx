@@ -2,9 +2,13 @@ import type { ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  Bell,
   CalendarDays,
+  CalendarPlus,
   Check,
   ChevronsUpDown,
+  Clock,
+  Home,
   LayoutDashboard,
   LogOut,
   Moon,
@@ -16,6 +20,8 @@ import {
   Sun,
   User as UserIcon,
   Users,
+  Wallet,
+  Wrench,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/components/theme-provider";
@@ -53,21 +59,49 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
+type NavGroup = { label: string; items: NavItem[] };
 
-const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
-  {
-    label: "Operations",
-    items: [
-      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { to: "/schedule", label: "Schedule", icon: CalendarDays },
-      { to: "/people", label: "People", icon: Users },
-      { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
-    ],
-  },
-  { label: "Money", items: [{ to: "/billing", label: "Billing", icon: Receipt }] },
-  { label: "Compliance", items: [{ to: "/compliance", label: "Go / No-Go", icon: ShieldCheck }] },
-  { label: "System", items: [{ to: "/settings", label: "Settings", icon: Settings }] },
-];
+/** Build the nav from the caller's roles — staff get the admin console; everyone gets a personal section. */
+function navForRoles(roles: string[], isStaff: boolean): NavGroup[] {
+  const has = (r: string) => roles.includes(r);
+  const groups: NavGroup[] = [];
+
+  if (isStaff) {
+    groups.push({
+      label: "Operations",
+      items: [
+        { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { to: "/schedule", label: "Schedule", icon: CalendarDays },
+        { to: "/people", label: "People", icon: Users },
+        { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
+      ],
+    });
+    groups.push({ label: "Money", items: [{ to: "/billing", label: "Billing", icon: Receipt }] });
+    groups.push({ label: "Compliance", items: [{ to: "/compliance", label: "Go / No-Go", icon: ShieldCheck }] });
+  }
+
+  if (isStaff || has("technician")) {
+    groups.push({ label: "Maintenance", items: [{ to: "/maintenance", label: "Maintenance", icon: Wrench }] });
+  }
+
+  // Personal section — every member gets this.
+  const you: NavItem[] = [
+    { to: "/me", label: "My day", icon: Home },
+    { to: "/me/schedule", label: "My schedule", icon: CalendarDays },
+    { to: "/me/book", label: "Book", icon: CalendarPlus },
+    { to: "/me/invoices", label: "My invoices", icon: Wallet },
+    { to: "/me/currencies", label: "My currencies", icon: ShieldCheck },
+  ];
+  if (has("instructor")) you.push({ to: "/me/availability", label: "Availability", icon: Clock });
+  you.push({ to: "/me/profile", label: "Profile", icon: UserIcon });
+  groups.push({ label: "You", items: you });
+
+  const system: NavItem[] = [{ to: "/notifications", label: "Notifications", icon: Bell }];
+  if (isStaff) system.push({ to: "/settings", label: "Settings", icon: Settings });
+  groups.push({ label: "System", items: system });
+
+  return groups;
+}
 
 const TITLES: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -77,6 +111,15 @@ const TITLES: Record<string, string> = {
   "/billing": "Billing",
   "/compliance": "Go / No-Go",
   "/settings": "Settings",
+  "/maintenance": "Maintenance",
+  "/notifications": "Notifications",
+  "/me": "My day",
+  "/me/schedule": "My schedule",
+  "/me/book": "Book",
+  "/me/invoices": "My invoices",
+  "/me/currencies": "My currencies",
+  "/me/availability": "Availability",
+  "/me/profile": "Profile",
 };
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -99,6 +142,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function AppSidebar() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { roles, isStaff } = useAuth();
+  const groups = navForRoles(roles, isStaff);
 
   return (
     <Sidebar collapsible="icon">
@@ -107,14 +152,16 @@ function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {NAV_GROUPS.map((group) => (
+        {groups.map((group) => (
           <SidebarGroup key={group.label}>
             <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
                   const active =
-                    pathname === item.to || pathname.startsWith(item.to + "/");
+                    item.to === "/me"
+                      ? pathname === "/me"
+                      : pathname === item.to || pathname.startsWith(item.to + "/");
                   return (
                     <SidebarMenuItem key={item.to}>
                       <SidebarMenuButton asChild isActive={active} tooltip={item.label}>

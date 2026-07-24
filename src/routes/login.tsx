@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useAuth } from "@/lib/auth";
+import { useAuth, isStaffSync } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +26,7 @@ function LoginPage() {
     setBusy(true);
     try {
       await login(email.trim(), password);
-      await navigate({ to: "/dashboard" });
+      await navigate({ to: isStaffSync() ? "/dashboard" : "/me" });
     } catch (err) {
       setError(
         err instanceof ApiError

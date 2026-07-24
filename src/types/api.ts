@@ -272,6 +272,49 @@ export interface Announcement {
   forRoles?: Role[] | null;
 }
 
+export interface Currency {
+  id: number;
+  startedAt: string | null;
+  expiresAt: string | null;
+  archivedAt: string | null;
+  currencyType?: CurrencyType;
+  orgUser?: OrganizationUser;
+}
+
+export interface AppNotification {
+  id: number;
+  createdAt: string;
+  readAt: string | null;
+  title: string | null;
+  body: string | null;
+  message?: string | null;
+  type?: string | null;
+}
+
+export interface Squawk {
+  id: number;
+  createdAt: string;
+  resolvedAt: string | null;
+  verifiedAt: string | null;
+  title: string | null;
+  description: string | null;
+  grounding?: boolean;
+  FK_resourceId: number | null;
+  resource?: Resource;
+  reportedBy?: OrganizationUser;
+}
+
+export interface MaintenanceReminder {
+  id: number;
+  createdAt: string;
+  resolvedAt: string | null;
+  dueAt: string | null;
+  name: string | null;
+  description: string | null;
+  FK_resourceId: number | null;
+  resource?: Resource;
+}
+
 // ---- Mutation input payloads (see insights/api-contract.md §4) ----
 
 export interface CreateOrgInput {

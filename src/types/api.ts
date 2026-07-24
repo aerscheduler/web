@@ -147,6 +147,10 @@ export interface Reservation {
   personnel?: ReservationPersonnel;
   resource?: Resource;
   invoice?: Invoice;
+  /** Ramp/close-out readings + sign-offs. Present on the retrieve include set. */
+  review?: ReservationReview | null;
+  /** Set when a guest reservation has been closed out (guests never confirm). */
+  completedByForGuest?: number | null;
 }
 
 export interface ReservationPersonnel {
@@ -155,6 +159,29 @@ export interface ReservationPersonnel {
   students?: OrganizationUser[];
   renters?: OrganizationUser[];
   guests?: Guest[];
+}
+
+/**
+ * Close-out record for a reservation. Hobbs/tach/briefing are meter readings in
+ * decimal hours (round-tripped verbatim, the same representation as `Plane.hobbsTime`).
+ * A null `*Out` pair means "not ramped out yet"; a null `*In` pair means "not ramped in yet".
+ */
+export interface ReservationReview {
+  id: number;
+  briefing: number | null;
+  hobbsTimeOut: number | null;
+  hobbsTimeIn: number | null;
+  tachTimeOut: number | null;
+  tachTimeIn: number | null;
+  comments?: string[];
+  /** One row per pilot who has signed off; length === personnel count ⇒ fully reviewed. */
+  reviewConfirmations?: ReservationReviewConfirmation[];
+}
+
+export interface ReservationReviewConfirmation {
+  id: number;
+  FK_reviewedByOrgUserId?: number | null;
+  reviewedBy?: OrganizationUser;
 }
 
 export interface Guest {
@@ -382,6 +409,32 @@ export interface CreateReservationInput {
     renters?: PersonRef[];
     guests?: { id?: number; name: string; email: string; phone?: string }[];
   };
+}
+
+/**
+ * Ramp-out readings — `hobbsTimeOut` and `tachTimeOut` are both required by the server
+ * (decimal-hour meter readings, sent verbatim). `comments[0]` is appended to the review.
+ */
+export interface RampOutInput {
+  hobbsTimeOut: number;
+  tachTimeOut: number;
+  comments?: string[];
+}
+
+/**
+ * Ramp-in readings — `hobbsTimeIn`/`tachTimeIn` are the ending meter readings; `briefing`
+ * is optional instruction time (decimal hours). `comments[0]` is appended to the review.
+ */
+export interface RampInInput {
+  hobbsTimeIn: number;
+  tachTimeIn: number;
+  briefing?: number;
+  comments?: string[];
+}
+
+/** Sign off a flight review with the caller's 4-character PIN. */
+export interface ConfirmReviewInput {
+  pin: string;
 }
 
 export interface CreateInvoiceInput {

@@ -74,6 +74,13 @@ function SchedulePage() {
   const [detailOpen, setDetailOpen] = React.useState(false);
   const [detailRes, setDetailRes] = React.useState<Reservation | null>(null);
 
+  // Keep the open detail sheet in sync with the live list so the close-out flow
+  // (ramp out → ramp in → confirm → invoice) advances as mutations invalidate/refetch.
+  const detail = React.useMemo(
+    () => reservations.find((x) => x.id === detailRes?.id) ?? detailRes,
+    [reservations, detailRes]
+  );
+
   const actions = useReservationActions();
 
   const openNew = () => {
@@ -194,7 +201,7 @@ function SchedulePage() {
       <ReservationForm open={formOpen} onOpenChange={setFormOpen} draft={draft} />
 
       <ReservationDetailSheet
-        reservation={detailRes}
+        reservation={detail}
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onCancel={handleCancel}

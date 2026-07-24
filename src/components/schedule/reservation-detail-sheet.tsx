@@ -12,9 +12,9 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
-import { cn, formatMoney } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { DOT_CLASS, personnelNames, typeLabel } from "./meta";
+import { CloseOutSection } from "./close-out-section";
 
 /** Slide-over with the full reservation record + destructive actions. */
 export function ReservationDetailSheet({
@@ -33,7 +33,6 @@ export function ReservationDetailSheet({
   const r = reservation;
   const res = r?.resource ? resourceLabel(r.resource) : null;
   const names = r ? personnelNames(r) : [];
-  const invoice = r?.invoice;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -92,26 +91,7 @@ export function ReservationDetailSheet({
                 </Field>
               )}
 
-              {invoice && (
-                <>
-                  <Separator />
-                  <div className="rounded-lg border border-border bg-muted/40 p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium">Invoice</span>
-                      {invoice.paidAt ? (
-                        <Badge variant="success">Paid</Badge>
-                      ) : invoice.voidedAt ? (
-                        <Badge variant="outline">Void</Badge>
-                      ) : (
-                        <Badge variant="warning">Unbilled</Badge>
-                      )}
-                    </div>
-                    <div className="mt-1 text-2xl font-semibold tabular-nums">
-                      {formatMoney(invoice.total)}
-                    </div>
-                  </div>
-                </>
-              )}
+              <CloseOutSection reservation={r} />
             </div>
 
             <SheetFooter>

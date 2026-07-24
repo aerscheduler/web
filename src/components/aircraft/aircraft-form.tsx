@@ -65,8 +65,8 @@ function stateFromResource(r: Resource): FormState {
     model: p?.model ?? "",
     year: p?.year ?? "",
     categoryClass: p?.categoryClass ?? "",
-    hobbs: p ? String(p.hobbsTime) : "",
-    tach: p ? String(p.tachTime) : "",
+    hobbs: p ? (p.hobbsTime / 10).toFixed(1) : "",
+    tach: p ? (p.tachTime / 10).toFixed(1) : "",
     fuelCapacity: p?.fuelCapacity != null ? String(p.fuelCapacity) : "",
     fuelMeasurement: p?.fuelMeasurement ?? "gallons",
     rateCents: (basis === "wet" ? cost?.wetRate : cost?.dryRate) ?? 0,
@@ -147,8 +147,9 @@ export function AircraftFormModal({
     e.preventDefault();
     if (!canSubmit) return;
 
-    const hobbsTime = Number(form.hobbs) || 0;
-    const tachTime = Number(form.tach) || 0;
+    // Meters are stored as integer deci-hours (server divides by 10 for billing).
+    const hobbsTime = Math.round((Number(form.hobbs) || 0) * 10);
+    const tachTime = Math.round((Number(form.tach) || 0) * 10);
     const cost = {
       billByHobbsTime: form.billByHobbs,
       ...(form.rateBasis === "wet"

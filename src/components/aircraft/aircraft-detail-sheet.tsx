@@ -57,10 +57,10 @@ export function AircraftDetailSheet({
               <SectionTitle icon={Gauge}>Times &amp; rate</SectionTitle>
               <div className="divide-y divide-border">
                 <Row label="Hobbs">
-                  <span className="tnum">{p.hobbsTime.toFixed(1)}</span>
+                  <span className="tnum">{(p.hobbsTime / 10).toFixed(1)}</span>
                 </Row>
                 <Row label="Tach">
-                  <span className="tnum">{p.tachTime.toFixed(1)}</span>
+                  <span className="tnum">{(p.tachTime / 10).toFixed(1)}</span>
                 </Row>
                 <Row label="Rate">
                   <RateValue resource={resource} />

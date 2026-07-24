@@ -64,7 +64,7 @@ export function AircraftListRow({
           <TooltipTrigger asChild>
             <span className="inline-flex items-center gap-1">
               <span className="tnum font-medium text-foreground">
-                {p.hobbsTime.toFixed(1)}
+                {(p.hobbsTime / 10).toFixed(1)}
               </span>
               Hobbs
             </span>
@@ -75,7 +75,7 @@ export function AircraftListRow({
           <TooltipTrigger asChild>
             <span className="inline-flex items-center gap-1">
               <span className="tnum font-medium text-foreground">
-                {p.tachTime.toFixed(1)}
+                {(p.tachTime / 10).toFixed(1)}
               </span>
               tach
             </span>

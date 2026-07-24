@@ -6,6 +6,7 @@ import type {
   AvailabilityInput,
   CreateInvoiceInput,
   CreateLocationInput,
+  ConfirmReviewInput,
   CreatePlaneResourceInput,
   CreateReservationInput,
   Currency,
@@ -18,6 +19,8 @@ import type {
   OrganizationBillingSettings,
   OrganizationRating,
   OrganizationUser,
+  RampInInput,
+  RampOutInput,
   Reservation,
   Resource,
   RolesUpdate,
@@ -92,6 +95,19 @@ export function useInvoices(
     queryKey: ["invoices", filter ?? {}],
     queryFn: () => api<Invoice[]>("/invoices", { query: filter }),
     ...opts,
+  });
+}
+
+/**
+ * The stored invoice for a single reservation (`GET /invoices/reservation/:id`).
+ * 404s when the reservation hasn't been invoiced, so only enable it once you know
+ * an invoice exists (e.g. the close-out flow reached the `invoiced` step).
+ */
+export function useReservationInvoice(reservationId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["invoices", "reservation", reservationId],
+    queryFn: () => api<Invoice>(`/invoices/reservation/${reservationId}`),
+    enabled: (opts?.enabled ?? true) && reservationId != null,
   });
 }
 
@@ -173,6 +189,58 @@ export function useCancelReservation() {
     mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
       api<void>(`/reservations/${id}`, { method: "DELETE", body: reason ? { reason } : undefined }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["reservations"] }),
+  });
+}
+
+/**
+ * Ramp a reservation out — records the starting Hobbs/tach and marks the aircraft off the ramp.
+ * `POST /reservations/:id/rampOut` with `{ hobbsTimeOut, tachTimeOut, comments? }`.
+ */
+export function useRampOut(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RampOutInput) =>
+      api<Reservation>(`/reservations/${id}/rampOut`, { method: "POST", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+/**
+ * Ramp a reservation in — records the ending Hobbs/tach (+ optional instruction time) and
+ * marks the aircraft back on the ramp. `POST /reservations/:id/rampIn` with
+ * `{ hobbsTimeIn, tachTimeIn, briefing?, comments? }`.
+ */
+export function useRampIn(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: RampInInput) =>
+      api<Reservation>(`/reservations/${id}/rampIn`, { method: "POST", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+/**
+ * Sign off a reservation's flight review with the caller's PIN.
+ * `POST /reservations/:id/confirmReview` with `{ pin }`. When the final required pilot
+ * confirms, the server auto-generates the invoice — so we invalidate invoices too.
+ */
+export function useConfirmReview(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ConfirmReviewInput) =>
+      api<Reservation>(`/reservations/${id}/confirmReview`, { method: "POST", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
   });
 }
 

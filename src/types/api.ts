@@ -418,6 +418,30 @@ export interface CreateRoomResourceInput {
   };
 }
 
+// ------------------------------------------------------------------ documents
+
+/** An org-defined document category (medical, photo ID, renter agreement…). */
+export interface DocumentType {
+  id: number;
+  name: string;
+  description?: string | null;
+  /** Only admins may upload this type on a member's behalf. */
+  restricted: boolean;
+  /** When true, an `expiresAt` is required at upload. */
+  expires: boolean;
+  warningPeriod?: number | null;
+}
+
+/** A member's uploaded document. `fileUrls` are short-lived signed URLs (view/download). */
+export interface UserDocument {
+  id: number;
+  createdAt: string;
+  expiresAt: string | null;
+  archivedAt: string | null;
+  fileUrls: string[];
+  documentType: DocumentType;
+}
+
 // ------------------------------------------------------------------ reports
 
 /** A per-day point in an org report series (count = reservations, or deci-hours for time). */

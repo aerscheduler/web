@@ -9,6 +9,7 @@ import {
   ChevronsUpDown,
   Clock,
   CreditCard,
+  FileText,
   Home,
   ChartColumnBig,
   LayoutDashboard,
@@ -102,6 +103,7 @@ function navForRoles(roles: string[], isStaff: boolean): NavGroup[] {
     { to: "/me/invoices", label: "My invoices", icon: Wallet },
     { to: "/me/payment-methods", label: "Payment methods", icon: CreditCard },
     { to: "/me/currencies", label: "My currencies", icon: ShieldCheck },
+    { to: "/me/documents", label: "My documents", icon: FileText },
   ];
   if (has("instructor")) you.push({ to: "/me/availability", label: "Availability", icon: Clock });
   you.push({ to: "/me/profile", label: "Profile", icon: UserIcon });
@@ -132,6 +134,7 @@ const TITLES: Record<string, string> = {
   "/me/invoices": "My invoices",
   "/me/payment-methods": "Payment methods",
   "/me/currencies": "My currencies",
+  "/me/documents": "My documents",
   "/me/availability": "Availability",
   "/me/profile": "Profile",
 };

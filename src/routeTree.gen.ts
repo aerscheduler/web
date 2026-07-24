@@ -32,6 +32,7 @@ import { Route as AuthedMeIndexRouteImport } from './routes/_authed/me/index'
 import { Route as AuthedMeAvailabilityRouteImport } from './routes/_authed/me/availability'
 import { Route as AuthedMeBookRouteImport } from './routes/_authed/me/book'
 import { Route as AuthedMeCurrenciesRouteImport } from './routes/_authed/me/currencies'
+import { Route as AuthedMeDocumentsRouteImport } from './routes/_authed/me/documents'
 import { Route as AuthedMeInvoicesRouteImport } from './routes/_authed/me/invoices'
 import { Route as AuthedMePaymentMethodsRouteImport } from './routes/_authed/me/payment-methods'
 import { Route as AuthedMeProfileRouteImport } from './routes/_authed/me/profile'
@@ -151,6 +152,11 @@ const AuthedMeCurrenciesRoute = AuthedMeCurrenciesRouteImport.update({
   path: '/me/currencies',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMeDocumentsRoute = AuthedMeDocumentsRouteImport.update({
+  id: '/me/documents',
+  path: '/me/documents',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedMeInvoicesRoute = AuthedMeInvoicesRouteImport.update({
   id: '/me/invoices',
   path: '/me/invoices',
@@ -194,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/me/availability': typeof AuthedMeAvailabilityRoute
   '/me/book': typeof AuthedMeBookRoute
   '/me/currencies': typeof AuthedMeCurrenciesRoute
+  '/me/documents': typeof AuthedMeDocumentsRoute
   '/me/invoices': typeof AuthedMeInvoicesRoute
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
@@ -222,6 +229,7 @@ export interface FileRoutesByTo {
   '/me/availability': typeof AuthedMeAvailabilityRoute
   '/me/book': typeof AuthedMeBookRoute
   '/me/currencies': typeof AuthedMeCurrenciesRoute
+  '/me/documents': typeof AuthedMeDocumentsRoute
   '/me/invoices': typeof AuthedMeInvoicesRoute
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
@@ -252,6 +260,7 @@ export interface FileRoutesById {
   '/_authed/me/availability': typeof AuthedMeAvailabilityRoute
   '/_authed/me/book': typeof AuthedMeBookRoute
   '/_authed/me/currencies': typeof AuthedMeCurrenciesRoute
+  '/_authed/me/documents': typeof AuthedMeDocumentsRoute
   '/_authed/me/invoices': typeof AuthedMeInvoicesRoute
   '/_authed/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/_authed/me/profile': typeof AuthedMeProfileRoute
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/me/availability'
     | '/me/book'
     | '/me/currencies'
+    | '/me/documents'
     | '/me/invoices'
     | '/me/payment-methods'
     | '/me/profile'
@@ -310,6 +320,7 @@ export interface FileRouteTypes {
     | '/me/availability'
     | '/me/book'
     | '/me/currencies'
+    | '/me/documents'
     | '/me/invoices'
     | '/me/payment-methods'
     | '/me/profile'
@@ -339,6 +350,7 @@ export interface FileRouteTypes {
     | '/_authed/me/availability'
     | '/_authed/me/book'
     | '/_authed/me/currencies'
+    | '/_authed/me/documents'
     | '/_authed/me/invoices'
     | '/_authed/me/payment-methods'
     | '/_authed/me/profile'
@@ -520,6 +532,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedMeCurrenciesRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/me/documents': {
+      id: '/_authed/me/documents'
+      path: '/me/documents'
+      fullPath: '/me/documents'
+      preLoaderRoute: typeof AuthedMeDocumentsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/me/invoices': {
       id: '/_authed/me/invoices'
       path: '/me/invoices'
@@ -566,6 +585,7 @@ interface AuthedRouteChildren {
   AuthedMeAvailabilityRoute: typeof AuthedMeAvailabilityRoute
   AuthedMeBookRoute: typeof AuthedMeBookRoute
   AuthedMeCurrenciesRoute: typeof AuthedMeCurrenciesRoute
+  AuthedMeDocumentsRoute: typeof AuthedMeDocumentsRoute
   AuthedMeInvoicesRoute: typeof AuthedMeInvoicesRoute
   AuthedMePaymentMethodsRoute: typeof AuthedMePaymentMethodsRoute
   AuthedMeProfileRoute: typeof AuthedMeProfileRoute
@@ -588,6 +608,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMeAvailabilityRoute: AuthedMeAvailabilityRoute,
   AuthedMeBookRoute: AuthedMeBookRoute,
   AuthedMeCurrenciesRoute: AuthedMeCurrenciesRoute,
+  AuthedMeDocumentsRoute: AuthedMeDocumentsRoute,
   AuthedMeInvoicesRoute: AuthedMeInvoicesRoute,
   AuthedMePaymentMethodsRoute: AuthedMePaymentMethodsRoute,
   AuthedMeProfileRoute: AuthedMeProfileRoute,

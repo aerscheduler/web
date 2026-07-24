@@ -19,6 +19,8 @@ import type {
   ConfirmReviewGuestInput,
   Currency,
   CurrencyType,
+  DocumentType,
+  UserDocument,
   Invoice,
   InvoicePaymentIntent,
   InviteInput,
@@ -716,6 +718,53 @@ export function useOrgReport<T>(
         query: range ? { startDate: range.startDate, endDate: range.endDate } : undefined,
       }),
     enabled: (opts?.enabled ?? true) && (!rangeRequired || range != null),
+  });
+}
+
+// ---------------------------------------------------------------- documents
+
+/** Org-defined document categories (`GET /userDocuments/types`). */
+export function useDocumentTypes(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["documentTypes"],
+    queryFn: () => api<DocumentType[]>("/userDocuments/types"),
+    ...opts,
+  });
+}
+
+/** A member's documents (self, or admin viewing another) — `GET /userDocuments/orgUsers/:id`. */
+export function useMemberDocuments(orgUserId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["documents", orgUserId],
+    queryFn: () => api<UserDocument[]>(`/userDocuments/orgUsers/${orgUserId}`),
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
+  });
+}
+
+/**
+ * Upload a document: create the record (`POST /userDocuments/`) to get the presigned target,
+ * then PUT the file to S3. Replaces any current document of the same type by default.
+ */
+export function useUploadDocument() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { documentTypeId: number; file: File; expiresAt?: string }) => {
+      const res = await api<{ document: UserDocument; signedUrlData: PresignedPost }>(
+        "/userDocuments/",
+        {
+          method: "POST",
+          body: {
+            documentTypeId: input.documentTypeId,
+            fileName: input.file.name,
+            ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+            archiveExistingDocumentsOfThisType: true,
+          },
+        }
+      );
+      await uploadToPresignedPost(res.signedUrlData, input.file);
+      return res.document;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["documents"] }),
   });
 }
 

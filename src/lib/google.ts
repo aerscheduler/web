@@ -115,7 +115,12 @@ export async function requestGoogleCalendarCode(): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const client = g.accounts.oauth2.initCodeClient({
       client_id: GOOGLE_CLIENT_ID,
-      scope: "https://www.googleapis.com/auth/calendar",
+      // Must match the scope Google has already verified on the OAuth consent
+      // screen (Data Access → sensitive scopes = calendar.events). Requesting the
+      // broader ".../auth/calendar" here is an *unapproved* scope, which is what
+      // triggers the "Google hasn't verified this app" screen. calendar.events is
+      // sufficient — the server only does events.insert/update/delete on "primary".
+      scope: "https://www.googleapis.com/auth/calendar.events",
       ux_mode: "popup",
       callback: (resp) => {
         if (resp.error || !resp.code) {

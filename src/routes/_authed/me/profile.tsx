@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ShieldCheck, UserRound } from "lucide-react";
+import { CalendarClock, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { ProfileCard } from "@/components/me-account/profile-card";
 import { SecurityCard } from "@/components/me-account/security-card";
+import { GoogleCalendarCard } from "@/components/me-account/google-calendar-card";
 import { SignOutButton } from "@/components/me-account/sign-out-button";
 
 export const Route = createFileRoute("/_authed/me/profile")({
@@ -29,6 +30,10 @@ function ProfilePage() {
             <ShieldCheck className="size-4" />
             Security
           </TabsTrigger>
+          <TabsTrigger value="calendar" className="gap-1.5">
+            <CalendarClock className="size-4" />
+            Calendar
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -36,6 +41,9 @@ function ProfilePage() {
         </TabsContent>
         <TabsContent value="security">
           <SecurityCard />
+        </TabsContent>
+        <TabsContent value="calendar">
+          <GoogleCalendarCard />
         </TabsContent>
       </Tabs>
 

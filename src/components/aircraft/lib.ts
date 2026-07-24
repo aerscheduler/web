@@ -39,12 +39,21 @@ export type PlaneTemplate = {
   fuelCapacity: number;
 };
 
-/** Quick-start templates that prefill make/model/category + rate + fuel presets. */
+/**
+ * Quick-start templates that prefill make/model/category + a suggested rate + fuel.
+ * A convenience only — every value stays editable, and none of these set the
+ * tail number, year, or home base. Rates/fuel are typical ballparks in cents/gallons.
+ */
 export const PLANE_TEMPLATES: PlaneTemplate[] = [
-  { value: "C172", label: "Cessna 172", make: "Cessna", model: "172", categoryClass: "single-engine land", wetRate: 16500, fuelCapacity: 56 },
+  { value: "C172", label: "Cessna 172 Skyhawk", make: "Cessna", model: "172", categoryClass: "single-engine land", wetRate: 16500, fuelCapacity: 56 },
   { value: "C152", label: "Cessna 152", make: "Cessna", model: "152", categoryClass: "single-engine land", wetRate: 12500, fuelCapacity: 26 },
-  { value: "PA-28", label: "Piper PA-28", make: "Piper", model: "PA-28", categoryClass: "single-engine land", wetRate: 15500, fuelCapacity: 50 },
+  { value: "C182", label: "Cessna 182 Skylane", make: "Cessna", model: "182", categoryClass: "single-engine land", wetRate: 21500, fuelCapacity: 87 },
+  { value: "PA-28", label: "Piper PA-28 (Cherokee/Warrior)", make: "Piper", model: "PA-28", categoryClass: "single-engine land", wetRate: 15500, fuelCapacity: 50 },
+  { value: "PA-44", label: "Piper PA-44 Seminole", make: "Piper", model: "PA-44", categoryClass: "multi-engine land", wetRate: 32000, fuelCapacity: 108 },
   { value: "DA40", label: "Diamond DA40", make: "Diamond", model: "DA40", categoryClass: "single-engine land", wetRate: 19500, fuelCapacity: 40 },
+  { value: "DA42", label: "Diamond DA42 Twin Star", make: "Diamond", model: "DA42", categoryClass: "multi-engine land", wetRate: 34000, fuelCapacity: 76 },
   { value: "SR20", label: "Cirrus SR20", make: "Cirrus", model: "SR20", categoryClass: "single-engine land", wetRate: 22500, fuelCapacity: 56 },
+  { value: "SR22", label: "Cirrus SR22", make: "Cirrus", model: "SR22", categoryClass: "single-engine land", wetRate: 29500, fuelCapacity: 92 },
+  { value: "BE-A36", label: "Beechcraft A36 Bonanza", make: "Beechcraft", model: "A36", categoryClass: "single-engine land", wetRate: 27500, fuelCapacity: 74 },
   { value: "OTHER", label: "Other / custom", make: "", model: "", categoryClass: "", wetRate: 0, fuelCapacity: 50 },
 ];

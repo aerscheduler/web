@@ -35,7 +35,7 @@ function PinCard() {
   const setPin = useSetPin();
   const [value, setValue] = useState("");
 
-  const isSet = Boolean(pinQuery.data?.pin);
+  const isSet = Boolean(pinQuery.data);
   const valid = value.length === PIN_LENGTH;
 
   function handleSubmit(e: FormEvent) {

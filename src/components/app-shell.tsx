@@ -128,8 +128,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SidebarEdgeToggle />
           <SidebarInset>
             <Topbar />
-            <main className="flex-1 px-4 py-5 md:px-10 md:py-8">
-              <div className="mx-auto w-full max-w-[1280px]">{children}</div>
+            <main className="flex-1 py-5 md:py-8">
+              <div className="mx-auto w-full max-w-[1280px] px-4 md:px-10">{children}</div>
             </main>
           </SidebarInset>
         </SidebarProvider>
@@ -355,45 +355,49 @@ function Topbar() {
   const { toggleSidebar } = useSidebar();
 
   return (
-    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 bg-background px-3 md:px-6">
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        onClick={toggleSidebar}
-        aria-label="Open navigation"
-        className="md:hidden"
-      >
-        <Menu className="size-4" />
-      </Button>
+    <header className="sticky top-0 z-20 shrink-0 bg-background">
+      {/* Inner row shares the content's max-width + gutters so the search aligns
+          with the page's left edge and the icons with its right edge. */}
+      <div className="mx-auto flex h-12 w-full max-w-[1280px] items-center gap-2 px-4 md:px-10">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={toggleSidebar}
+          aria-label="Open navigation"
+          className="md:hidden"
+        >
+          <Menu className="size-4" />
+        </Button>
 
-      {/* Stripe-style search — borderless subtle fill; opens the ⌘K palette */}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Search"
-        className="flex h-8 w-full max-w-xs items-center gap-2 rounded-md bg-muted/70 px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted"
-      >
-        <Search className="size-4 shrink-0" />
-        <span className="flex-1 text-left">Search</span>
-        <kbd className="pointer-events-none hidden select-none items-center rounded bg-card px-1.5 font-mono text-[10px] font-medium text-muted-foreground shadow-sm sm:flex">
-          ⌘K
-        </kbd>
-      </button>
+        {/* Stripe-style search — borderless subtle fill; opens the ⌘K palette */}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Search"
+          className="flex h-8 w-full max-w-xs items-center gap-2 rounded-md bg-muted/70 px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted"
+        >
+          <Search className="size-4 shrink-0" />
+          <span className="flex-1 text-left">Search</span>
+          <kbd className="pointer-events-none hidden select-none items-center rounded bg-card px-1.5 font-mono text-[10px] font-medium text-muted-foreground shadow-sm sm:flex">
+            ⌘K
+          </kbd>
+        </button>
 
-      <div className="flex-1" />
+        <div className="flex-1" />
 
-      <Button asChild variant="ghost" size="icon" aria-label="Notifications">
-        <Link to="/notifications">
-          <Bell className="size-4" />
-        </Link>
-      </Button>
-      {isStaff && (
-        <Button asChild variant="ghost" size="icon" aria-label="Settings">
-          <Link to="/settings">
-            <Settings className="size-4" />
+        <Button asChild variant="ghost" size="icon" aria-label="Notifications">
+          <Link to="/notifications">
+            <Bell className="size-4" />
           </Link>
         </Button>
-      )}
+        {isStaff && (
+          <Button asChild variant="ghost" size="icon" aria-label="Settings">
+            <Link to="/settings">
+              <Settings className="size-4" />
+            </Link>
+          </Button>
+        )}
+      </div>
     </header>
   );
 }

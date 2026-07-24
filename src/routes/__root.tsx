@@ -1,4 +1,5 @@
-import { Outlet, createRootRoute, Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { Outlet, createRootRoute, Link, useRouterState } from "@tanstack/react-router";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
@@ -9,12 +10,53 @@ export const Route = createRootRoute({
   notFoundComponent: NotFound,
 });
 
+/** Browser-tab titles per route, most-specific first (prefix match). */
+const TITLES: Array<[string, string]> = [
+  ["/me/schedule", "My schedule"],
+  ["/me/book", "Book"],
+  ["/me/invoices", "My invoices"],
+  ["/me/payment-methods", "Payment methods"],
+  ["/me/currencies", "My currencies"],
+  ["/me/documents", "My documents"],
+  ["/me/availability", "Availability"],
+  ["/me/profile", "Profile"],
+  ["/me", "My day"],
+  ["/dashboard", "Dashboard"],
+  ["/schedule", "Schedule"],
+  ["/people", "People"],
+  ["/aircraft", "Aircraft"],
+  ["/facilities", "Facilities"],
+  ["/billing", "Billing"],
+  ["/reports", "Reports"],
+  ["/compliance", "Go / No-Go"],
+  ["/maintenance", "Maintenance"],
+  ["/notifications", "Notifications"],
+  ["/settings", "Settings"],
+  ["/onboarding", "Get started"],
+  ["/join", "Join a school"],
+  ["/login", "Sign in"],
+  ["/signup", "Create account"],
+  ["/forgot-password", "Reset password"],
+  ["/reset-password", "Reset password"],
+];
+
+/** Keeps the browser-tab title in sync as the route changes. */
+function RouteTitle() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  useEffect(() => {
+    const match = TITLES.find(([p]) => pathname === p || pathname.startsWith(p + "/"));
+    document.title = match ? `${match[1]} · AerScheduler` : "AerScheduler";
+  }, [pathname]);
+  return null;
+}
+
 function RootLayout() {
   return (
     <ThemeProvider>
       <TooltipProvider delayDuration={200}>
+        <RouteTitle />
         <Outlet />
-        <Toaster richColors closeButton position="bottom-right" />
+        <Toaster closeButton position="bottom-right" />
       </TooltipProvider>
     </ThemeProvider>
   );

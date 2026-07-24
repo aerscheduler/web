@@ -679,11 +679,11 @@ export function useUpdateProfile() {
   });
 }
 
-/** Caller's 4-char confirmation PIN. */
+/** Caller's 4-char confirmation PIN. The endpoint returns the PIN string (or null) directly. */
 export function usePin(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["pin"],
-    queryFn: () => api<{ pin: string | null }>("/users/pin"),
+    queryFn: () => api<string | null>("/users/pin"),
     ...opts,
   });
 }

@@ -35,6 +35,15 @@ type FormState = {
   locationId: string;
 };
 
+/** Required fields, in focus order, mapped to their input ids for error focus. */
+const REQUIRED_FIELDS = [
+  { key: "tailNumber", id: "ac-tail" },
+  { key: "year", id: "ac-year" },
+  { key: "categoryClass", id: "ac-cat" },
+  { key: "fuelCapacity", id: "ac-fuel" },
+  { key: "locationId", id: "" },
+] as const;
+
 function emptyState(): FormState {
   return {
     tailNumber: "",
@@ -100,12 +109,15 @@ export function AircraftFormModal({
   // MoneyInput keeps its own text state and only re-syncs across undefined⇄number.
   // Bump this key to remount it whenever we set the rate programmatically.
   const [rateKey, setRateKey] = React.useState(0);
+  // Surfaced only after a submit attempt, so we don't nag on a pristine form.
+  const [showErrors, setShowErrors] = React.useState(false);
 
   // Reset the form whenever the modal opens (fresh add, or prefilled edit).
   React.useEffect(() => {
     if (!open) return;
     setForm(resource ? stateFromResource(resource) : emptyState());
     setRateKey((k) => k + 1);
+    setShowErrors(false);
   }, [open, resource]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -134,18 +146,26 @@ export function AircraftFormModal({
   const noLocations = locations.length === 0;
 
   const tail = form.tailNumber.trim();
-  const canSubmit =
-    !pending &&
-    tail.length > 0 &&
-    form.categoryClass.trim().length > 0 &&
-    form.year.trim().length === 4 &&
-    form.fuelCapacity.trim().length > 0 &&
-    !!form.locationId &&
-    !noLocations;
+  // Per-field validity, derived every render so inline messages clear as you type.
+  const errors: Record<string, string> = {
+    tailNumber: tail.length === 0 ? "Enter a tail number." : "",
+    year: form.year.trim().length !== 4 ? "Enter a 4-digit year." : "",
+    categoryClass:
+      form.categoryClass.trim().length === 0 ? "Enter the category & class." : "",
+    fuelCapacity: form.fuelCapacity.trim().length === 0 ? "Enter the fuel capacity." : "",
+    locationId: !noLocations && !form.locationId ? "Select a home base." : "",
+  };
+  const firstInvalid = REQUIRED_FIELDS.find((f) => errors[f.key]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (pending) return;
+    // Instead of a silently-disabled button, tell the user exactly what's missing.
+    if (noLocations || firstInvalid) {
+      setShowErrors(true);
+      if (firstInvalid?.id) document.getElementById(firstInvalid.id)?.focus();
+      return;
+    }
 
     // Meters are stored as integer deci-hours (server divides by 10 for billing).
     const hobbsTime = Math.round((Number(form.hobbs) || 0) * 10);
@@ -242,7 +262,11 @@ export function AircraftFormModal({
               value={form.tailNumber}
               onChange={(e) => set("tailNumber", e.target.value.toUpperCase())}
               className="font-mono"
+              aria-invalid={showErrors && !!errors.tailNumber}
             />
+            {showErrors && errors.tailNumber && (
+              <p className="text-xs text-destructive">{errors.tailNumber}</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ac-template">Type template</Label>
@@ -288,7 +312,11 @@ export function AircraftFormModal({
               placeholder="2004"
               value={form.year}
               onChange={(e) => set("year", e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}
+              aria-invalid={showErrors && !!errors.year}
             />
+            {showErrors && errors.year && (
+              <p className="text-xs text-destructive">{errors.year}</p>
+            )}
           </div>
         </div>
 
@@ -299,7 +327,11 @@ export function AircraftFormModal({
             placeholder="single-engine land"
             value={form.categoryClass}
             onChange={(e) => set("categoryClass", e.target.value)}
+            aria-invalid={showErrors && !!errors.categoryClass}
           />
+          {showErrors && errors.categoryClass && (
+            <p className="text-xs text-destructive">{errors.categoryClass}</p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -337,7 +369,11 @@ export function AircraftFormModal({
               value={form.fuelCapacity}
               onChange={(e) => set("fuelCapacity", e.target.value.replace(/[^0-9.]/g, ""))}
               className="tnum"
+              aria-invalid={showErrors && !!errors.fuelCapacity}
             />
+            {showErrors && errors.fuelCapacity && (
+              <p className="text-xs text-destructive">{errors.fuelCapacity}</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ac-fuel-unit">Fuel unit</Label>
@@ -410,6 +446,9 @@ export function AircraftFormModal({
             emptyText="No locations."
             disabled={noLocations}
           />
+          {showErrors && errors.locationId && (
+            <p className="text-xs text-destructive">{errors.locationId}</p>
+          )}
           {noLocations && (
             <p className="text-xs text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
               Add a home base location first — every aircraft needs one before it can be
@@ -422,7 +461,7 @@ export function AircraftFormModal({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={!canSubmit}>
+          <Button type="submit" disabled={pending}>
             {pending ? "Saving…" : isEdit ? "Save changes" : "Add aircraft"}
           </Button>
         </div>

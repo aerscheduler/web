@@ -19,7 +19,7 @@ function ProfilePage() {
         subtitle="Manage your personal details and account security."
       />
 
-      <Tabs defaultValue="profile" className="gap-6">
+      <Tabs defaultValue="profile" className="gap-4">
         <TabsList className="w-full justify-start sm:w-fit">
           <TabsTrigger value="profile" className="gap-1.5">
             <UserRound className="size-4" />
@@ -39,7 +39,7 @@ function ProfilePage() {
         </TabsContent>
       </Tabs>
 
-      <Separator className="my-8" />
+      <Separator className="my-5" />
 
       <div className="flex items-center justify-between gap-4">
         <div>

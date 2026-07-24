@@ -27,7 +27,7 @@ function SettingsPage() {
         subtitle="Manage your organization, billing, and integrations"
       />
 
-      <Tabs defaultValue="organization" className="gap-6">
+      <Tabs defaultValue="organization" className="gap-4">
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
           <TabsList className="w-full justify-start sm:w-fit">
             {TABS.map((t) => {

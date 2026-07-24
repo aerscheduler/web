@@ -43,15 +43,15 @@ function SignupPage() {
       <BrandPanel />
       <main className="flex items-center justify-center bg-background px-6 py-12">
         <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
+          <div className="mb-5 lg:hidden">
             <LogoLockup />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight">Create your account</h1>
+          <h1 className="text-[22px] font-semibold tracking-tight">Create your account</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Two minutes to a bookable aircraft. No credit card, no sales call.
           </p>
 
-          <div className="mt-8 space-y-3">
+          <div className="mt-5 space-y-3">
             <GoogleButton label="Sign up with Google" />
             <AppleButton label="Sign up with Apple" />
             <OrDivider />
@@ -107,7 +107,7 @@ function SignupPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
+          <p className="mt-5 text-center text-sm text-muted-foreground">
             Already have an account?{" "}
             <Link to="/login" className="font-medium text-primary hover:underline">
               Sign in

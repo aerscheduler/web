@@ -23,7 +23,7 @@ const PIN_LENGTH = 4;
 
 export function SecurityCard() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PinCard />
       <PasswordCard />
     </div>

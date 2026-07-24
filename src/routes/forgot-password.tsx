@@ -38,7 +38,7 @@ function ForgotPasswordPage() {
       <BrandPanel />
       <main className="flex items-center justify-center bg-background px-6 py-12">
         <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
+          <div className="mb-5 lg:hidden">
             <LogoLockup />
           </div>
 
@@ -47,12 +47,12 @@ function ForgotPasswordPage() {
               <span className="mx-auto grid size-12 place-items-center rounded-full bg-success/12 text-success">
                 <MailCheck className="size-6" />
               </span>
-              <h1 className="mt-4 text-2xl font-semibold tracking-tight">Check your email</h1>
+              <h1 className="mt-4 text-[22px] font-semibold tracking-tight">Check your email</h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 If an account exists for <span className="font-medium text-foreground">{email}</span>,
                 we&rsquo;ve sent a link to reset your password. It expires shortly, so use it soon.
               </p>
-              <Button asChild variant="outline" className="mt-6">
+              <Button asChild variant="outline" className="mt-5">
                 <Link to="/login">
                   <ArrowLeft className="size-4" /> Back to sign in
                 </Link>
@@ -60,12 +60,12 @@ function ForgotPasswordPage() {
             </div>
           ) : (
             <>
-              <h1 className="text-2xl font-semibold tracking-tight">Reset your password</h1>
+              <h1 className="text-[22px] font-semibold tracking-tight">Reset your password</h1>
               <p className="mt-1.5 text-sm text-muted-foreground">
                 Enter your email and we&rsquo;ll send you a link to get back in.
               </p>
 
-              <form onSubmit={onSubmit} className="mt-8 space-y-4">
+              <form onSubmit={onSubmit} className="mt-5 space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="email">Email</Label>
                   <Input
@@ -91,7 +91,7 @@ function ForgotPasswordPage() {
                 </Button>
               </form>
 
-              <p className="mt-6 text-center text-sm text-muted-foreground">
+              <p className="mt-5 text-center text-sm text-muted-foreground">
                 <Link to="/login" className="font-medium text-primary hover:underline">
                   Back to sign in
                 </Link>

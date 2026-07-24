@@ -55,7 +55,7 @@ export function MemberInvoiceSheet({
         </SheetHeader>
 
         {inv && (
-          <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 pb-6">
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-6">
             {inv.memo && <p className="text-sm text-muted-foreground">{inv.memo}</p>}
 
             {inv.dueAt && (

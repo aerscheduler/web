@@ -42,7 +42,7 @@ export function JoinRequestsPanel() {
 
   return (
     <Card className="mb-4 overflow-hidden border-[color-mix(in_oklch,var(--warning)_35%,transparent)]">
-      <div className="flex items-center gap-2 border-b bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-4 py-3">
+      <div className="flex items-center gap-2 border-b bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-4 py-2.5">
         <UserPlus className="size-4 text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]" />
         <h2 className="text-sm font-semibold">
           Join requests
@@ -84,7 +84,7 @@ function JoinRequestRow({ request }: { request: JoinRequest }) {
   }
 
   return (
-    <li className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center">
+    <li className="flex flex-col gap-3 px-4 py-2.5 sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Avatar className="size-9">
           <AvatarFallback>{initials(request.user.name)}</AvatarFallback>

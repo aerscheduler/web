@@ -47,7 +47,7 @@ export function AircraftDetailSheet({
               <SheetDescription>{planeTitle(p)}</SheetDescription>
             </SheetHeader>
 
-            <div className="px-4 pb-6">
+            <div className="px-4 pb-5">
               {p.grounded && p.groundedReason && (
                 <div className="mb-4 rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3 py-2 text-sm text-destructive">
                   <span className="font-medium">Grounded:</span> {p.groundedReason}

@@ -58,7 +58,7 @@ export function ProfileCard() {
             <CardDescription>Your name and account details.</CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-5">
           <div className="flex items-center gap-4">
             <Avatar className="size-14">
               {user?.publicProfileImage && (

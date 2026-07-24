@@ -80,7 +80,7 @@ function ReportsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Reports"
         subtitle="How the school is flying — over your selected window."
@@ -143,7 +143,7 @@ function ReportsPage() {
       {/* Daily flight hours */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Flight hours by day</CardTitle>
+          <CardTitle className="text-sm">Flight hours by day</CardTitle>
         </CardHeader>
         <CardContent>
           <DailyBars points={flightTime.data} loading={flightTime.isLoading} />

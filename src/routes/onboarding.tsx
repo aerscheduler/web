@@ -370,11 +370,11 @@ function Onboarding() {
         <div className="w-full max-w-lg">
           {alreadySetUp && step === 0 ? (
             <div className="text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">You're all set up</h1>
+              <h1 className="text-[22px] font-semibold tracking-tight">You're all set up</h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 {organization?.name} is already configured.
               </p>
-              <Button asChild className="mt-6">
+              <Button asChild className="mt-5">
                 <Link to="/dashboard">Go to dashboard</Link>
               </Button>
             </div>
@@ -533,7 +533,7 @@ function Onboarding() {
 
               {step === 5 && (
                 <Step title="Put something on the schedule" sub="One booking makes the whole thing real — ramp it in when the flight's done and we'll draft the invoice.">
-                  <div className="rounded-xl border bg-card p-5">
+                  <div className="rounded-xl border bg-card p-4">
                     <div className="flex items-center gap-3">
                       <span className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
                         <PlaneTakeoff className="size-5" />
@@ -662,9 +662,9 @@ function Onboarding() {
 function Step({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
   return (
     <div>
-      <h1 className="text-2xl font-semibold tracking-tight text-balance">{title}</h1>
+      <h1 className="text-[22px] font-semibold tracking-tight text-balance">{title}</h1>
       {sub && <p className="mt-1.5 text-sm text-muted-foreground">{sub}</p>}
-      <div className="mt-6 space-y-4">{children}</div>
+      <div className="mt-5 space-y-4">{children}</div>
     </div>
   );
 }

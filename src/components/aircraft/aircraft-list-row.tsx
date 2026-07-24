@@ -35,7 +35,7 @@ export function AircraftListRow({
   const rate = planeRate(p);
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
+    <div className="flex items-center gap-3 px-3 py-2.5">
       <button
         type="button"
         onClick={() => actions.onDetails(r)}

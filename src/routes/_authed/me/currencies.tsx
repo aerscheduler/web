@@ -82,7 +82,7 @@ function MyCurrenciesPage() {
         </div>
       )}
 
-      <div className="mt-6">
+      <div className="mt-5">
         {currenciesQ.isLoading ? (
           <CardGridSkeleton count={6} />
         ) : currenciesQ.isError ? (

@@ -27,16 +27,16 @@ export function CurrencyCard({ currency }: { currency: Currency }) {
     : null;
 
   return (
-    <Card className="flex flex-col gap-4 p-5">
+    <Card className="flex flex-col gap-4 p-4">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <span
             className={cn(
-              "grid size-10 shrink-0 place-items-center rounded-lg",
+              "grid size-9 shrink-0 place-items-center rounded-lg",
               TONE[status.key]
             )}
           >
-            <ShieldCheck className="size-5" />
+            <ShieldCheck className="size-4" />
           </span>
           <div className="min-w-0">
             <div className="truncate font-medium">{name}</div>

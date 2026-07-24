@@ -46,16 +46,16 @@ function LoginPage() {
       {/* Form */}
       <main className="flex items-center justify-center bg-background px-6 py-12">
         <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
+          <div className="mb-5 lg:hidden">
             <LogoLockup />
           </div>
 
-          <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
+          <h1 className="text-[22px] font-semibold tracking-tight">Sign in</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
             Welcome back. Enter your credentials to reach your console.
           </p>
 
-          <div className="mt-8 space-y-3">
+          <div className="mt-5 space-y-3">
             <GoogleButton />
             <AppleButton />
             <OrDivider />
@@ -107,7 +107,7 @@ function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-muted-foreground">
+          <p className="mt-5 text-center text-sm text-muted-foreground">
             New to AerScheduler?{" "}
             <Link to="/signup" className="font-medium text-primary hover:underline">
               Create an account

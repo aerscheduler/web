@@ -44,7 +44,7 @@ export function ResponsiveModal({
             <DrawerTitle>{title}</DrawerTitle>
             {description && <DrawerDescription>{description}</DrawerDescription>}
           </DrawerHeader>
-          <div className="overflow-y-auto px-4 pb-6">{children}</div>
+          <div className="overflow-y-auto px-4 pb-5">{children}</div>
         </DrawerContent>
       </Drawer>
     );

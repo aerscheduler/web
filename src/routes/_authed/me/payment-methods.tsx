@@ -132,7 +132,7 @@ function PaymentMethodsPage() {
           />
         </Card>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-5">
           {/* Autopay */}
           <Card>
             <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
@@ -185,7 +185,7 @@ function PaymentMethodsPage() {
                     return (
                       <li
                         key={m.id}
-                        className="flex items-center gap-3 bg-card px-4 py-3"
+                        className="flex items-center gap-3 bg-card px-3 py-2.5"
                       >
                         <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
                           <CreditCard className="size-4" />

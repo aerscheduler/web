@@ -83,7 +83,7 @@ function FacilitiesPage() {
   const [addKind, setAddKind] = useState<FacilityKind | null>(null);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
         title="Facilities"
         subtitle="Simulators and ground-school rooms — bookable for sim and ground lessons."
@@ -164,7 +164,7 @@ function FacilitiesPage() {
               const room = r.type?.room;
               if (!room) return null;
               return (
-                <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+                <div key={r.id} className="flex items-center gap-3 px-3 py-2.5">
                   <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
                     <DoorOpen className="size-4" />
                   </span>

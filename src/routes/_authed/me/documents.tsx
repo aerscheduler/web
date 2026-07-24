@@ -35,7 +35,7 @@ function ExpiryBadge({ doc }: { doc: UserDocument }) {
 function DocumentRow({ doc }: { doc: UserDocument }) {
   const href = doc.fileUrls?.[0];
   return (
-    <div className="flex items-center gap-3 px-4 py-3">
+    <div className="flex items-center gap-3 px-3 py-2.5">
       <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
         <FileText className="size-4" />
       </span>
@@ -100,7 +100,7 @@ function MyDocumentsPage() {
       {q.isLoading ? (
         <Card className="divide-y divide-border overflow-hidden">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="px-4 py-3">
+            <div key={i} className="px-3 py-2.5">
               <Skeleton className="h-10 w-full" />
             </div>
           ))}

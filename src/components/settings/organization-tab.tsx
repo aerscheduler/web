@@ -43,7 +43,7 @@ export function OrganizationTab() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+    <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
       <OrganizationProfileCard
         organization={organization}
         saving={update.isPending}
@@ -61,7 +61,7 @@ export function OrganizationTab() {
         }
       />
 
-      <div className="space-y-6">
+      <div className="space-y-5">
         <LogoCard organization={organization} />
         <IdentityCard organization={organization} />
 

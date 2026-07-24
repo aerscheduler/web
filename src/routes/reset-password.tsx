@@ -51,7 +51,7 @@ function ResetPasswordPage() {
       <BrandPanel />
       <main className="flex items-center justify-center bg-background px-6 py-12">
         <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
+          <div className="mb-5 lg:hidden">
             <LogoLockup />
           </div>
 
@@ -60,32 +60,32 @@ function ResetPasswordPage() {
               <span className="mx-auto grid size-12 place-items-center rounded-full bg-success/12 text-success">
                 <CheckCircle2 className="size-6" />
               </span>
-              <h1 className="mt-4 text-2xl font-semibold tracking-tight">Password updated</h1>
+              <h1 className="mt-4 text-[22px] font-semibold tracking-tight">Password updated</h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 You can now sign in with your new password.
               </p>
-              <Button className="mt-6" onClick={() => navigate({ to: "/login" })}>
+              <Button className="mt-5" onClick={() => navigate({ to: "/login" })}>
                 Go to sign in
               </Button>
             </div>
           ) : !token ? (
             <div className="text-center">
-              <h1 className="text-2xl font-semibold tracking-tight">Invalid reset link</h1>
+              <h1 className="text-[22px] font-semibold tracking-tight">Invalid reset link</h1>
               <p className="mt-2 text-sm text-muted-foreground">
                 This link is missing its token. Request a fresh one and try again.
               </p>
-              <Button asChild variant="outline" className="mt-6">
+              <Button asChild variant="outline" className="mt-5">
                 <Link to="/forgot-password">Request a new link</Link>
               </Button>
             </div>
           ) : (
             <>
-              <h1 className="text-2xl font-semibold tracking-tight">Set a new password</h1>
+              <h1 className="text-[22px] font-semibold tracking-tight">Set a new password</h1>
               <p className="mt-1.5 text-sm text-muted-foreground">
                 Choose a strong password you don&rsquo;t use anywhere else.
               </p>
 
-              <form onSubmit={onSubmit} className="mt-8 space-y-4">
+              <form onSubmit={onSubmit} className="mt-5 space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="password">New password</Label>
                   <Input

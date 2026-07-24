@@ -124,7 +124,7 @@ function MyDayPage() {
       </div>
 
       {announcements.length > 0 && (
-        <div className="mt-6 space-y-3">
+        <div className="mt-5 space-y-3">
           {announcements.map((a) => (
             <Card
               key={a.id}
@@ -144,7 +144,7 @@ function MyDayPage() {
         </div>
       )}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Today &amp; upcoming</CardTitle>

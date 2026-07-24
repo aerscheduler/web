@@ -45,7 +45,7 @@ export function RatesTab() {
       </CardHeader>
       <CardContent className="p-0">
         {q.isLoading ? (
-          <div className="space-y-3 p-5">
+          <div className="space-y-3 p-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center justify-between">
                 <Skeleton className="h-5 w-40" />
@@ -82,7 +82,7 @@ export function RatesTab() {
 
 function RatingRow({ rating }: { rating: OrganizationRating }) {
   return (
-    <li className="flex items-center justify-between gap-4 px-5 py-3.5">
+    <li className="flex items-center justify-between gap-4 px-4 py-2.5">
       <span className="min-w-0 truncate text-sm font-medium">{rating.name}</span>
       <span className="shrink-0 text-sm font-medium tnum">
         {formatMoney(rating.defaultInstructorRate)}

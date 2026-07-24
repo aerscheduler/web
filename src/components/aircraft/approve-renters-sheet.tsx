@@ -70,7 +70,7 @@ export function ApproveRentersSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-6">
+        <div className="flex-1 overflow-y-auto px-4 pb-5">
           {q.isLoading ? (
             <TableSkeleton rows={6} cols={2} />
           ) : q.isError ? (

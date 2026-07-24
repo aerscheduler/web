@@ -474,7 +474,7 @@ function BillingPage() {
         </div>
       )}
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mt-6">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mt-5">
         <TabsList>
           <TabsTrigger value="all">All</TabsTrigger>
           <TabsTrigger value="outstanding">Outstanding</TabsTrigger>

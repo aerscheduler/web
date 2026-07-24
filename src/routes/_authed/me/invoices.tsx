@@ -229,7 +229,7 @@ function MyInvoicesPage() {
         </div>
       )}
 
-      <Card className="mt-6 overflow-hidden p-4">
+      <Card className="mt-5 overflow-hidden p-4">
         {invoicesQ.isLoading ? (
           <TableSkeleton rows={6} cols={5} />
         ) : invoicesQ.isError ? (

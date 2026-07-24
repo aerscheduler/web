@@ -48,8 +48,8 @@ function IntegrationCard({ integration }: { integration: Integration }) {
   return (
     <Card className="flex flex-col">
       <CardHeader className="flex-row items-start gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-          <Icon className="size-5" />
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+          <Icon className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

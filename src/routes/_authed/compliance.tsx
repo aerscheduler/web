@@ -58,7 +58,7 @@ function CompliancePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
         title="Go / No-Go"
         subtitle="Who and what can't fly right now — grounded aircraft, grounded members, and the currencies you track."
@@ -101,7 +101,7 @@ function CompliancePage() {
           />
         </Card>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2">
           {groundedAircraft.length > 0 && (
             <section className="space-y-2.5">
               <h2 className="text-sm font-semibold text-muted-foreground">Grounded aircraft</h2>

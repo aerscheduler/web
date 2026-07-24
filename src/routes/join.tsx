@@ -49,7 +49,7 @@ function JoinPage() {
   return (
     <div className="grid min-h-svh place-items-center bg-muted/30 px-4 py-10">
       <div className="w-full max-w-md">
-        <div className="mb-6 flex justify-center">
+        <div className="mb-5 flex justify-center">
           <LogoMark className="h-9" />
         </div>
 
@@ -63,7 +63,7 @@ function JoinPage() {
               This is a private school, so an admin needs to approve you. You&rsquo;ll get access
               as soon as they do.
             </p>
-            <Button asChild variant="outline" className="mt-6">
+            <Button asChild variant="outline" className="mt-5">
               <Link to="/onboarding">
                 <ArrowLeft className="size-4" /> Back
               </Link>
@@ -81,7 +81,7 @@ function JoinPage() {
               </p>
             </div>
 
-            <form onSubmit={submit} className="mt-6 space-y-4">
+            <form onSubmit={submit} className="mt-5 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="join-code">School code</Label>
                 <Input
@@ -112,7 +112,7 @@ function JoinPage() {
               </Button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-muted-foreground">
+            <p className="mt-5 text-center text-sm text-muted-foreground">
               Starting your own?{" "}
               <Link to="/onboarding" className="font-medium text-primary hover:underline">
                 Set up a school

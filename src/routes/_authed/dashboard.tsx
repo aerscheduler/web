@@ -99,7 +99,7 @@ function DashboardPage() {
         />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      <div className="mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
         {/* Today's schedule */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">

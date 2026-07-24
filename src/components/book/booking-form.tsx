@@ -250,7 +250,7 @@ export function BookingForm({
   if (aircraftQuery.isPending) {
     return (
       <Card>
-        <CardContent className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
+        <CardContent className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading your aircraft…
         </CardContent>
       </Card>
@@ -293,7 +293,7 @@ export function BookingForm({
         <CardHeader>
           <CardTitle>Book a reservation</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="space-y-5">
           {modes.length > 1 && (
             <div className="space-y-2">
               <Label>How are you flying?</Label>

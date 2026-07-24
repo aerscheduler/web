@@ -116,7 +116,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+    <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
       <Card>
         <form onSubmit={handleSubmit}>
           <CardHeader className="flex-row items-center gap-2.5">
@@ -130,7 +130,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
               </CardDescription>
             </div>
           </CardHeader>
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-5">
             <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-3">
               <div className="min-w-0">
                 <Label htmlFor="billing-enabled" className="text-sm">

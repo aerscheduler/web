@@ -29,7 +29,8 @@ export function EditRolesModal({
   onOpenChange: (open: boolean) => void;
 }) {
   const [roles, setRoles] = useState<RolesUpdate>(EMPTY);
-  const mut = useUpdateRoles(member?.FK_userId ?? 0);
+  // The /orgUsers list returns user.id but not FK_userId, so prefer user.id.
+  const mut = useUpdateRoles(member?.user?.id ?? member?.FK_userId ?? 0);
 
   useEffect(() => {
     if (member) setRoles(rolesUpdateFrom(member));

@@ -38,6 +38,8 @@ type FormState = {
 /** Required fields, in focus order, mapped to their input ids for error focus. */
 const REQUIRED_FIELDS = [
   { key: "tailNumber", id: "ac-tail" },
+  { key: "make", id: "ac-make" },
+  { key: "model", id: "ac-model" },
   { key: "year", id: "ac-year" },
   { key: "categoryClass", id: "ac-cat" },
   { key: "fuelCapacity", id: "ac-fuel" },
@@ -149,6 +151,8 @@ export function AircraftFormModal({
   // Per-field validity, derived every render so inline messages clear as you type.
   const errors: Record<string, string> = {
     tailNumber: tail.length === 0 ? "Enter a tail number." : "",
+    make: form.make.trim().length === 0 ? "Enter the make." : "",
+    model: form.model.trim().length === 0 ? "Enter the model." : "",
     year: form.year.trim().length !== 4 ? "Enter a 4-digit year." : "",
     categoryClass:
       form.categoryClass.trim().length === 0 ? "Enter the category & class." : "",
@@ -293,7 +297,11 @@ export function AircraftFormModal({
               placeholder="Cessna"
               value={form.make}
               onChange={(e) => set("make", e.target.value)}
+              aria-invalid={showErrors && !!errors.make}
             />
+            {showErrors && errors.make && (
+              <p className="text-xs text-destructive">{errors.make}</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ac-model">Model</Label>
@@ -302,7 +310,11 @@ export function AircraftFormModal({
               placeholder="172"
               value={form.model}
               onChange={(e) => set("model", e.target.value)}
+              aria-invalid={showErrors && !!errors.model}
             />
+            {showErrors && errors.model && (
+              <p className="text-xs text-destructive">{errors.model}</p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ac-year">Year</Label>

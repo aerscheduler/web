@@ -6,6 +6,8 @@ import {
   CalendarDays,
   CalendarPlus,
   Check,
+  ChevronLeft,
+  ChevronRight,
   ChevronsUpDown,
   Clock,
   CreditCard,
@@ -60,6 +62,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
 type NavGroup = { label: string; items: NavItem[] };
@@ -118,10 +125,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       <CommandMenuProvider>
         <SidebarProvider>
           <AppSidebar />
+          <SidebarEdgeToggle />
           <SidebarInset>
             <Topbar />
-            <main className="flex-1 px-4 py-5 md:px-8 md:py-6">
-              <div className="mx-auto w-full max-w-6xl">{children}</div>
+            <main className="flex-1 px-4 py-5 md:px-10 md:py-8">
+              <div className="mx-auto w-full max-w-[1280px]">{children}</div>
             </main>
           </SidebarInset>
         </SidebarProvider>
@@ -173,6 +181,42 @@ function AppSidebar() {
         <UserMenu />
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+/**
+ * Stripe-style collapse handle — a subtle chevron that lives on the rail's right
+ * divider. It reveals on hover with a "Collapse" tooltip, and slides to the far
+ * left edge (flipping to "Expand") when the rail is collapsed so it stays
+ * reachable. Desktop only; mobile uses the topbar hamburger.
+ */
+function SidebarEdgeToggle() {
+  const { state, toggleSidebar } = useSidebar();
+  const collapsed = state === "collapsed";
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          style={{ left: collapsed ? 0 : "var(--sidebar-width)" }}
+          className="group/edge fixed top-1/2 z-30 hidden h-16 w-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center transition-[left] duration-200 ease-linear md:flex"
+        >
+          <span className="flex h-7 w-[18px] items-center justify-center rounded-md border border-border bg-background text-muted-foreground opacity-0 shadow-sm transition-all duration-150 group-hover/edge:-translate-x-px group-hover/edge:text-foreground group-hover/edge:opacity-100 group-focus-visible/edge:opacity-100">
+            {collapsed ? (
+              <ChevronRight className="size-3.5" />
+            ) : (
+              <ChevronLeft className="size-3.5" />
+            )}
+          </span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="right">
+        {collapsed ? "Expand" : "Collapse"}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -311,7 +355,7 @@ function Topbar() {
   const { toggleSidebar } = useSidebar();
 
   return (
-    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 border-b bg-background px-3 md:px-6">
+    <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-2 bg-background px-3 md:px-6">
       <Button
         variant="ghost"
         size="icon-sm"

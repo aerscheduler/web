@@ -54,7 +54,7 @@ function JoinPage() {
         </div>
 
         {requested ? (
-          <div className="rounded-xl border bg-card p-8 text-center shadow-sm">
+          <div className="rounded-xl border bg-card p-8 text-center">
             <div className="mx-auto grid size-12 place-items-center rounded-full bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-success">
               <CheckCircle2 className="size-6" />
             </div>
@@ -70,7 +70,7 @@ function JoinPage() {
             </Button>
           </div>
         ) : (
-          <div className="rounded-xl border bg-card p-8 shadow-sm">
+          <div className="rounded-xl border bg-card p-8">
             <div className="text-center">
               <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
                 <Ticket className="size-6" />

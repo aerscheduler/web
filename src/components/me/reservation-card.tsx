@@ -34,7 +34,7 @@ export function ReservationCard({
   return (
     <div
       className={cn(
-        "flex items-stretch gap-3 rounded-lg border border-l-4 border-border bg-card p-3 shadow-sm",
+        "flex items-stretch gap-3 rounded-lg border border-l-4 border-border bg-card p-3",
         BORDER_L_CLASS[r.type],
         className
       )}

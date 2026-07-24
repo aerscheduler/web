@@ -46,7 +46,7 @@ export function ScheduleControls({
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
-      <div className="flex items-center rounded-lg border border-border bg-card shadow-sm">
+      <div className="flex items-center rounded-lg border border-border bg-card">
         <Tooltip>
           <TooltipTrigger asChild>
             <button

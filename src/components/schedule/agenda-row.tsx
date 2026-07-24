@@ -26,7 +26,7 @@ export function AgendaRow({
   return (
     <li
       className={cn(
-        "flex items-stretch gap-3 rounded-lg border border-l-4 border-border bg-card p-3 text-left shadow-sm transition-colors hover:bg-accent/40",
+        "flex items-stretch gap-3 rounded-lg border border-l-4 border-border bg-card p-3 text-left transition-colors hover:bg-accent/40",
         BORDER_L_CLASS[r.type]
       )}
     >

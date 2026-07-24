@@ -6,8 +6,6 @@ import {
   CalendarDays,
   CalendarPlus,
   Check,
-  ChevronLeft,
-  ChevronRight,
   ChevronsUpDown,
   Clock,
   CreditCard,
@@ -135,9 +133,17 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Topbar />
             {/* main is the scroll container: normal pages scroll here while the
                 topbar stays put; full-height table pages fill it and scroll
-                their rows internally (see TableView / <DataTable fill />). */}
+                their rows internally (see TableView / <DataTable fill />).
+
+                The wrapper is `min-h-full` (NOT `h-full`): it fills the viewport
+                when content is short, and GROWS with tall content so the `py-8`
+                bottom padding is always honored on overflow (a `h-full` box lets
+                overflowing content spill past its padding → last section touches
+                the window edge). Table pages stay viewport-bounded anyway because
+                their <TableView> is `flex-1` (flex-basis 0), so it never inflates
+                this wrapper's intrinsic height and its rows scroll internally. */}
             <main className="min-h-0 flex-1 overflow-y-auto">
-              <div className="mx-auto flex h-full min-h-full w-full max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8">
+              <div className="mx-auto flex min-h-full w-full max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8">
                 {children}
               </div>
             </main>
@@ -195,10 +201,12 @@ function AppSidebar() {
 }
 
 /**
- * Stripe-style collapse handle — a subtle chevron that lives on the rail's right
- * divider. It reveals on hover with a "Collapse" tooltip, and slides to the far
- * left edge (flipping to "Expand") when the rail is collapsed so it stays
- * reachable. Desktop only; mobile uses the topbar hamburger.
+ * Stripe-style collapse handle — a slim floating vertical line sitting a few px
+ * to the right of the rail's border. Faintly visible at rest; on hover it tints
+ * and grows a little, with a "Collapse" tooltip. When collapsed it sits flush at
+ * the screen's left edge (flipping to "Expand") so it stays reachable. The hit
+ * area is wider than the line for easy clicking. Desktop only; mobile uses the
+ * topbar hamburger.
  */
 function SidebarEdgeToggle() {
   const { state, toggleSidebar } = useSidebar();
@@ -211,22 +219,12 @@ function SidebarEdgeToggle() {
           type="button"
           onClick={toggleSidebar}
           aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-          style={{
-            left: collapsed ? 0 : "var(--sidebar-width)",
-            // Collapsed: sit flush against the left edge (fully visible so it's
-            // easy to find). Expanded: straddle the rail's divider.
-            transform: collapsed ? "translateY(-50%)" : "translate(-50%, -50%)",
-          }}
-          className="group/edge fixed top-1/2 z-30 hidden h-10 items-center justify-center transition-[left,transform] duration-200 ease-linear md:flex"
+          // Left edge of the (invisible, wider) hit area sits on the rail border;
+          // pl-[3px] floats the visible line a few px into the content area.
+          style={{ left: collapsed ? 0 : "var(--sidebar-width)" }}
+          className="group/edge fixed top-1/2 z-30 hidden h-16 w-4 -translate-y-1/2 items-center justify-start pl-[3px] transition-[left] duration-200 ease-linear md:flex"
         >
-          {/* Always visible (subtle), emphasised on hover — no hunting for it. */}
-          <span className="flex h-8 w-5 items-center justify-center rounded-md border border-sidebar-border bg-background text-muted-foreground shadow-sm transition-colors group-hover/edge:border-border group-hover/edge:bg-accent group-hover/edge:text-foreground">
-            {collapsed ? (
-              <ChevronRight className="size-4" />
-            ) : (
-              <ChevronLeft className="size-4" />
-            )}
-          </span>
+          <span className="h-7 w-[3px] rounded-full bg-border transition-all duration-150 group-hover/edge:h-9 group-hover/edge:bg-muted-foreground/70" />
         </button>
       </TooltipTrigger>
       <TooltipContent side="right">

@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   Building2,
   Check,
@@ -23,10 +23,9 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Field, ComingSoonToggle } from "@/components/settings/parts";
+import { Field, PreferenceToggle } from "@/components/settings/parts";
 
 export function OrganizationTab() {
   const { organization, rehydrate } = useAuth();
@@ -65,35 +64,97 @@ export function OrganizationTab() {
         <LogoCard organization={organization} />
         <IdentityCard organization={organization} />
 
-        <Card>
-          <CardHeader className="flex-row items-center gap-2.5">
-            <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
-              <SlidersHorizontal className="size-4" />
-            </span>
-            <div>
-              <CardTitle>Booking preferences</CardTitle>
-              <CardDescription>Coming soon to the web console</CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="divide-y divide-border">
-            <ComingSoonToggle
-              label="Instructors can override reservation prices"
-              description="Let instructors adjust the rate when booking dual time."
-            />
-            <ComingSoonToggle
-              label="Members can only book approved resources"
-              description="Restrict bookings to aircraft a member is checked out on."
-            />
-            <ComingSoonToggle
-              label="Private organization"
-              description="Hide this school from the public directory."
-            />
-          </CardContent>
-        </Card>
+        <BookingPreferencesCard organization={organization} />
       </div>
     </div>
   );
 }
+
+function BookingPreferencesCard({ organization }: { organization: Organization }) {
+  const { rehydrate } = useAuth();
+  const update = useUpdateOrganization();
+  const prefs = organization.preferences;
+
+  // Local mirror so the switch flips instantly; reconciled from the server on rehydrate.
+  const [overridePrices, setOverridePrices] = useState(
+    prefs?.instructorsCanOverrideReservationPrices ?? false
+  );
+  const [approvedOnly, setApprovedOnly] = useState(
+    prefs?.personnelCanOnlyUseApprovedResources ?? false
+  );
+  const [pending, setPending] = useState<PrefField | null>(null);
+
+  // Keep local state honest if the org changes underneath us (org switch, rehydrate).
+  useEffect(() => {
+    setOverridePrices(prefs?.instructorsCanOverrideReservationPrices ?? false);
+    setApprovedOnly(prefs?.personnelCanOnlyUseApprovedResources ?? false);
+  }, [
+    prefs?.instructorsCanOverrideReservationPrices,
+    prefs?.personnelCanOnlyUseApprovedResources,
+  ]);
+
+  function save(field: PrefField, value: boolean, apply: (v: boolean) => void) {
+    const previous = field === "instructorsCanOverrideReservationPrices" ? overridePrices : approvedOnly;
+    apply(value); // optimistic
+    setPending(field);
+    update.mutate(
+      { preferences: { [field]: value } },
+      {
+        onSuccess: async () => {
+          await rehydrate();
+          toast.success("Booking preferences updated");
+        },
+        onError: (err) => {
+          apply(previous); // revert on failure
+          toast.error(
+            err instanceof ApiError ? err.message : "Couldn't save that preference"
+          );
+        },
+        onSettled: () => setPending(null),
+      }
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center gap-2.5">
+        <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+          <SlidersHorizontal className="size-4" />
+        </span>
+        <div>
+          <CardTitle>Booking preferences</CardTitle>
+          <CardDescription>Control how members book and price reservations.</CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="divide-y divide-border">
+        <PreferenceToggle
+          label="Instructors can override reservation prices"
+          description="Let instructors adjust the resource and instruction rate on their own reservations. Admins and dispatchers can always override prices."
+          checked={overridePrices}
+          disabled={pending !== null}
+          saving={pending === "instructorsCanOverrideReservationPrices"}
+          onCheckedChange={(v) =>
+            save("instructorsCanOverrideReservationPrices", v, setOverridePrices)
+          }
+        />
+        <PreferenceToggle
+          label="Members can only book approved resources"
+          description="Restrict members to aircraft they're approved on. Admins and dispatchers can still assign anyone to any resource; rooms are unaffected."
+          checked={approvedOnly}
+          disabled={pending !== null}
+          saving={pending === "personnelCanOnlyUseApprovedResources"}
+          onCheckedChange={(v) =>
+            save("personnelCanOnlyUseApprovedResources", v, setApprovedOnly)
+          }
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+type PrefField =
+  | "instructorsCanOverrideReservationPrices"
+  | "personnelCanOnlyUseApprovedResources";
 
 function OrganizationProfileCard({
   organization,
@@ -283,13 +344,7 @@ function IdentityCard({ organization }: { organization: Organization }) {
         <CardDescription>Read-only details managed by AerScheduler.</CardDescription>
       </CardHeader>
       <CardContent className="divide-y divide-border">
-        <div className="flex items-center justify-between gap-4 py-3 first:pt-0">
-          <span className="text-sm text-muted-foreground">Type</span>
-          <Badge variant="secondary" className="capitalize">
-            {organization.organizationType?.replace(/[_-]/g, " ") ?? "Flight school"}
-          </Badge>
-        </div>
-        <div className="flex items-center justify-between gap-4 py-3 last:pb-0">
+        <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
           <span className="text-sm text-muted-foreground">Join code</span>
           {organization.code ? (
             <span className="inline-flex items-center gap-1.5">

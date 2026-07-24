@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
+import { Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 /** A labelled vertical field wrapper for settings forms. */
@@ -38,44 +38,45 @@ export function ReadOnlyRow({ label, children }: { label: string; children: Reac
 }
 
 /**
- * A preference toggle for a capability that isn't wired up yet: a disabled
- * `Switch` plus a "Coming soon" tooltip — surfaced rather than hidden so admins
- * can see what's on the roadmap.
+ * A live preference toggle: a labelled, controlled `Switch` with an optional
+ * description and an inline spinner while a save is in flight.
  */
-export function ComingSoonToggle({
+export function PreferenceToggle({
   label,
   description,
-  defaultOn = false,
+  checked,
+  disabled = false,
+  saving = false,
+  onCheckedChange,
 }: {
   label: string;
   description?: string;
-  defaultOn?: boolean;
+  checked: boolean;
+  disabled?: boolean;
+  saving?: boolean;
+  onCheckedChange: (checked: boolean) => void;
 }) {
+  const id = useId();
   return (
     <div className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0">
       <div className="min-w-0">
-        <div className="flex items-center gap-2 text-sm font-medium">
+        <Label htmlFor={id} className="text-sm font-medium">
           {label}
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Soon
-          </span>
-        </div>
+        </Label>
         {description && (
           <div className="mt-0.5 text-xs text-muted-foreground">{description}</div>
         )}
       </div>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span tabIndex={0} className="inline-flex shrink-0 cursor-not-allowed">
-            <Switch
-              disabled
-              defaultChecked={defaultOn}
-              aria-label={`${label} (coming soon)`}
-            />
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>Coming soon</TooltipContent>
-      </Tooltip>
+      <div className="flex shrink-0 items-center gap-2">
+        {saving && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
+        <Switch
+          id={id}
+          checked={checked}
+          disabled={disabled}
+          onCheckedChange={onCheckedChange}
+          aria-label={label}
+        />
+      </div>
     </div>
   );
 }

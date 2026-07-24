@@ -67,6 +67,7 @@ export interface OrganizationPreferences {
   private: boolean;
   newOrgOnboardingComplete: boolean;
   instructorsCanOverrideReservationPrices: boolean;
+  personnelCanOnlyUseApprovedResources: boolean;
 }
 
 export interface OrganizationBillingSettings {

@@ -1,9 +1,13 @@
 import type * as React from "react";
 import { cn } from "@/lib/utils";
 
-export function Table({ className, ...props }: React.ComponentProps<"table">) {
+export function Table({
+  className,
+  containerClassName,
+  ...props
+}: React.ComponentProps<"table"> & { containerClassName?: string }) {
   return (
-    <div className="w-full overflow-x-auto">
+    <div className={cn("w-full overflow-x-auto", containerClassName)}>
       <table className={cn("w-full caption-bottom text-sm", className)} {...props} />
     </div>
   );

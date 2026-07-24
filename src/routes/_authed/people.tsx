@@ -5,6 +5,7 @@ import { Search, UserPlus, Users } from "lucide-react";
 import { useMembers, type MemberFilter } from "@/features/queries";
 import { rolesOf, type OrganizationUser } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -171,30 +172,32 @@ function PeoplePage() {
   );
 
   return (
-    <div>
-      <PageHeader
-        title="People"
-        subtitle={
-          q.data
-            ? `${members.length} member${members.length === 1 ? "" : "s"}`
-            : "Your organization roster"
-        }
-      />
+    <TableView>
+      <TableView.Header>
+        <PageHeader
+          title="People"
+          subtitle={
+            q.data
+              ? `${members.length} member${members.length === 1 ? "" : "s"}`
+              : "Your organization roster"
+          }
+        />
 
-      <JoinRequestsPanel />
+        <JoinRequestsPanel />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mb-4">
-        <TabsList>
-          {FILTERS.map((f) => (
-            <TabsTrigger key={f.key} value={f.key}>
-              {f.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
+          <TabsList>
+            {FILTERS.map((f) => (
+              <TabsTrigger key={f.key} value={f.key}>
+                {f.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+      </TableView.Header>
 
       {q.isLoading ? (
-        <Card className="overflow-hidden">
+        <Card className="min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={8} cols={5} />
         </Card>
       ) : q.isError ? (
@@ -216,6 +219,7 @@ function PeoplePage() {
         </Card>
       ) : (
         <DataTable
+          fill
           columns={columns}
           data={members}
           toolbar={toolbar}
@@ -239,6 +243,6 @@ function PeoplePage() {
         open={!!viewing}
         onOpenChange={(o) => !o && setViewing(null)}
       />
-    </div>
+    </TableView>
   );
 }

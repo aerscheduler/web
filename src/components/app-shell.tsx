@@ -123,13 +123,18 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <ConfirmProvider>
       <CommandMenuProvider>
-        <SidebarProvider>
+        <SidebarProvider className="h-svh overflow-hidden">
           <AppSidebar />
           <SidebarEdgeToggle />
-          <SidebarInset>
+          <SidebarInset className="min-h-0">
             <Topbar />
-            <main className="flex-1 py-5 md:py-8">
-              <div className="mx-auto w-full max-w-[1280px] px-4 md:px-10">{children}</div>
+            {/* main is the scroll container: normal pages scroll here while the
+                topbar stays put; full-height table pages fill it and scroll
+                their rows internally (see TableView / <DataTable fill />). */}
+            <main className="min-h-0 flex-1 overflow-y-auto">
+              <div className="mx-auto flex h-full min-h-full w-full max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8">
+                {children}
+              </div>
             </main>
           </SidebarInset>
         </SidebarProvider>

@@ -26,6 +26,7 @@ export function DataTable<T>({
   onGlobalFilterChange,
   mobileCard,
   emptyMessage = "Nothing here yet.",
+  fill = false,
 }: {
   columns: ColumnDef<T, unknown>[];
   data: T[];
@@ -37,6 +38,12 @@ export function DataTable<T>({
   /** When provided and on a phone, rows render as stacked cards instead of a table. */
   mobileCard?: (row: T) => ReactNode;
   emptyMessage?: ReactNode;
+  /**
+   * Fill the available height and scroll only the rows — the toolbar and column
+   * headers stay put. Use inside a <TableView> (or any `flex min-h-0 flex-1` column)
+   * so table pages don't scroll the whole page. Off by default (inline table).
+   */
+  fill?: boolean;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const isMobile = useIsMobile();
@@ -55,11 +62,15 @@ export function DataTable<T>({
   const rows = table.getRowModel().rows;
 
   return (
-    <div className="space-y-3">
-      {toolbar}
+    <div className={fill ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
+      {toolbar ? <div className={fill ? "shrink-0" : undefined}>{toolbar}</div> : null}
 
       {isMobile && mobileCard ? (
-        <div className="space-y-2.5">
+        <div
+          className={
+            fill ? "min-h-0 flex-1 space-y-2.5 overflow-auto" : "space-y-2.5"
+          }
+        >
           {rows.length === 0 ? (
             <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
               {emptyMessage}
@@ -69,8 +80,14 @@ export function DataTable<T>({
           )}
         </div>
       ) : (
-        <Table>
-          <THead>
+        <Table
+          containerClassName={
+            fill
+              ? "min-h-0 flex-1 overflow-auto rounded-md border border-border"
+              : undefined
+          }
+        >
+          <THead className={fill ? "sticky top-0 z-10 bg-background" : undefined}>
             {table.getHeaderGroups().map((hg) => (
               <TR key={hg.id} className="hover:bg-transparent">
                 {hg.headers.map((h) => (

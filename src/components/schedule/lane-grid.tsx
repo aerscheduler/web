@@ -4,11 +4,13 @@ import { resourceLabel, type Reservation, type Resource } from "@/types/api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { BLOCK_CLASS, personnelNames, typeLabel } from "./meta";
+import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
 import type { ReservationDraft } from "./reservation-form";
 
-const START_HOUR = 6;
-const END_HOUR = 22;
+// The visible window is shared with the vertical week time-grid.
+export const START_HOUR = 6;
+export const END_HOUR = 22;
 const HOURS = END_HOUR - START_HOUR;
 const HOUR_WIDTH = 68; // px
 const LABEL_WIDTH = 176; // px
@@ -17,51 +19,27 @@ const TRACK_GAP = 4; // px
 const LANE_PAD_Y = 8; // px
 const TOTAL_MIN = HOURS * 60;
 
-type Placed = { r: Reservation; track: number; leftPx: number; widthPx: number };
-
-/** Minutes past START_HOUR, clamped to the visible window. */
+/** Minutes past START_HOUR (unclamped). */
 function minutesInWindow(iso: string) {
   const d = parseISO(iso);
   return (d.getHours() - START_HOUR) * 60 + d.getMinutes();
 }
 
-/** Greedy interval partition: assign each reservation to the first free track. */
-function packLane(items: Reservation[]): { placed: Placed[]; tracks: number } {
-  const sorted = [...items].sort((a, b) => a.start.localeCompare(b.start));
-  const trackEnds: number[] = [];
-  const placed: Placed[] = [];
-
-  for (const r of sorted) {
-    const s = minutesInWindow(r.start);
-    const e = minutesInWindow(r.end);
-    const cs = Math.max(0, Math.min(TOTAL_MIN, s));
-    const ce = Math.max(0, Math.min(TOTAL_MIN, e));
-    if (ce <= 0 || cs >= TOTAL_MIN || ce <= cs) {
-      // Outside the visible window — still show it pinned to the nearest edge.
-      const left = cs >= TOTAL_MIN ? TOTAL_MIN - 30 : 0;
-      let track = trackEnds.findIndex((end) => end <= s);
-      if (track === -1) {
-        track = trackEnds.length;
-        trackEnds.push(e);
-      } else trackEnds[track] = e;
-      placed.push({ r, track, leftPx: (left / 60) * HOUR_WIDTH, widthPx: 28 });
-      continue;
-    }
-    let track = trackEnds.findIndex((end) => end <= s);
-    if (track === -1) {
-      track = trackEnds.length;
-      trackEnds.push(e);
-    } else {
-      trackEnds[track] = e;
-    }
-    placed.push({
-      r,
-      track,
-      leftPx: (cs / 60) * HOUR_WIDTH,
-      widthPx: Math.max(28, ((ce - cs) / 60) * HOUR_WIDTH),
-    });
+/** Horizontal geometry for one block: left + width in px along the hour ruler. */
+function laneBlockGeometry(r: Reservation): { leftPx: number; widthPx: number } {
+  const s = minutesInWindow(r.start);
+  const e = minutesInWindow(r.end);
+  const cs = Math.max(0, Math.min(TOTAL_MIN, s));
+  const ce = Math.max(0, Math.min(TOTAL_MIN, e));
+  if (ce <= 0 || cs >= TOTAL_MIN || ce <= cs) {
+    // Outside the visible window — still show it pinned to the nearest edge.
+    const left = cs >= TOTAL_MIN ? TOTAL_MIN - 30 : 0;
+    return { leftPx: (left / 60) * HOUR_WIDTH, widthPx: 28 };
   }
-  return { placed, tracks: Math.max(1, trackEnds.length) };
+  return {
+    leftPx: (cs / 60) * HOUR_WIDTH,
+    widthPx: Math.max(28, ((ce - cs) / 60) * HOUR_WIDTH),
+  };
 }
 
 function laneHeight(tracks: number) {
@@ -158,7 +136,7 @@ export function LaneGrid({
             </div>
           )}
           {rows.map((row) => {
-            const { placed, tracks } = packLane(row.items);
+            const { placed, tracks } = packTracks(row.items);
             const h = laneHeight(tracks);
             const label = row.resource ? resourceLabel(row.resource) : null;
             return (
@@ -226,20 +204,23 @@ export function LaneGrid({
                     });
                   }}
                 >
-                  {placed.map(({ r, track, leftPx, widthPx }) => (
-                    <div
-                      key={r.id}
-                      className="absolute"
-                      style={{
-                        left: leftPx,
-                        width: widthPx,
-                        top: LANE_PAD_Y + track * (TRACK_HEIGHT + TRACK_GAP),
-                        height: TRACK_HEIGHT,
-                      }}
-                    >
-                      <LaneBlock r={r} onView={onView} onCancel={onCancel} onNoShow={onNoShow} />
-                    </div>
-                  ))}
+                  {placed.map(({ r, track }) => {
+                    const { leftPx, widthPx } = laneBlockGeometry(r);
+                    return (
+                      <div
+                        key={r.id}
+                        className="absolute"
+                        style={{
+                          left: leftPx,
+                          width: widthPx,
+                          top: LANE_PAD_Y + track * (TRACK_HEIGHT + TRACK_GAP),
+                          height: TRACK_HEIGHT,
+                        }}
+                      >
+                        <LaneBlock r={r} onView={onView} onCancel={onCancel} onNoShow={onNoShow} />
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );

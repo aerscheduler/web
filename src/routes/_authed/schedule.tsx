@@ -1,6 +1,13 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { endOfDay, endOfWeek, startOfDay, startOfWeek } from "date-fns";
+import {
+  endOfDay,
+  endOfMonth,
+  endOfWeek,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
 import { CalendarClock, Plus } from "lucide-react";
 import { useReservations, useResources } from "@/features/queries";
 import type { Reservation, Resource } from "@/types/api";
@@ -14,7 +21,9 @@ import {
   type ScheduleView,
 } from "@/components/schedule/schedule-controls";
 import { LaneGrid } from "@/components/schedule/lane-grid";
-import { WeekView } from "@/components/schedule/week-view";
+import { WeekTimeGrid } from "@/components/schedule/week-time-grid";
+import { MonthGrid } from "@/components/schedule/month-grid";
+import { MonthAgenda } from "@/components/schedule/month-agenda";
 import { AgendaList } from "@/components/schedule/agenda-list";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
 import {
@@ -35,9 +44,14 @@ function SchedulePage() {
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   const [startISO, endISO] =
-    view === "week"
-      ? [startOfWeek(day).toISOString(), endOfWeek(day).toISOString()]
-      : [startOfDay(day).toISOString(), endOfDay(day).toISOString()];
+    view === "month"
+      ? [
+          startOfWeek(startOfMonth(day)).toISOString(),
+          endOfWeek(endOfMonth(day)).toISOString(),
+        ]
+      : view === "week"
+        ? [startOfWeek(day).toISOString(), endOfWeek(day).toISOString()]
+        : [startOfDay(day).toISOString(), endOfDay(day).toISOString()];
 
   const q = useReservations(startISO, endISO);
   const resourcesQ = useResources();
@@ -74,6 +88,10 @@ function SchedulePage() {
     setDetailRes(r);
     setDetailOpen(true);
   };
+  const selectDay = (d: Date) => {
+    setDay(d);
+    setView("day");
+  };
   const handleCancel = async (r: Reservation) => {
     if (await actions.cancelReservation(r)) setDetailOpen(false);
   };
@@ -108,7 +126,7 @@ function SchedulePage() {
           <CalendarGridSkeleton />
         ) : q.isError ? (
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        ) : reservations.length === 0 ? (
+        ) : view === "day" && reservations.length === 0 ? (
           <EmptyState
             icon={CalendarClock}
             title="Your dispatch board is clear"
@@ -119,16 +137,40 @@ function SchedulePage() {
               </Button>
             }
           />
+        ) : view === "month" ? (
+          isDesktop ? (
+            <MonthGrid
+              month={day}
+              reservations={reservations}
+              onView={openDetail}
+              onCreate={openCreate}
+              onSelectDay={selectDay}
+            />
+          ) : (
+            <MonthAgenda
+              reservations={reservations}
+              onView={openDetail}
+              onCancel={handleCancel}
+              onNoShow={handleNoShow}
+            />
+          )
         ) : view === "week" ? (
-          <WeekView
-            weekStart={startOfWeek(day)}
-            reservations={reservations}
-            onView={openDetail}
-            onSelectDay={(d) => {
-              setDay(d);
-              setView("day");
-            }}
-          />
+          isDesktop ? (
+            <WeekTimeGrid
+              weekStart={startOfWeek(day)}
+              reservations={reservations}
+              onView={openDetail}
+              onCreate={openCreate}
+              onSelectDay={selectDay}
+            />
+          ) : (
+            <AgendaList
+              reservations={reservations}
+              onView={openDetail}
+              onCancel={handleCancel}
+              onNoShow={handleNoShow}
+            />
+          )
         ) : isDesktop ? (
           <LaneGrid
             day={day}

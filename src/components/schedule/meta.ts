@@ -53,6 +53,16 @@ export const BORDER_L_CLASS: Record<ReservationType, string> = {
   maintenance: "border-l-res-maintenance",
 };
 
+/** Tinted chip (soft fill + colored text) used by the month grid cells. */
+export const CHIP_CLASS: Record<ReservationType, string> = {
+  dual: "bg-res-dual/15 text-res-dual",
+  instructor: "bg-res-dual/15 text-res-dual",
+  solo: "bg-res-solo/15 text-res-solo",
+  ground: "bg-res-ground/15 text-res-ground",
+  sim: "bg-res-sim/15 text-res-sim",
+  maintenance: "bg-res-maintenance/15 text-res-maintenance",
+};
+
 export function typeLabel(t: ReservationType): string {
   return TYPE_LABEL[t] ?? t;
 }

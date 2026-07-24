@@ -1,5 +1,5 @@
 import * as React from "react";
-import { addDays, endOfWeek, format, isToday, startOfWeek } from "date-fns";
+import { addDays, addMonths, endOfWeek, format, isToday, startOfWeek } from "date-fns";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -8,7 +8,16 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
-export type ScheduleView = "day" | "week";
+export type ScheduleView = "month" | "week" | "day";
+
+const NOUN: Record<ScheduleView, string> = { month: "month", week: "week", day: "day" };
+
+/** Step the anchor date by one unit of the active view. */
+function stepDate(day: Date, view: ScheduleView, dir: number): Date {
+  if (view === "month") return addMonths(day, dir);
+  if (view === "week") return addDays(day, dir * 7);
+  return addDays(day, dir);
+}
 
 /** The dispatch board control bar: date stepper, jump, view toggle, count. */
 export function ScheduleControls({
@@ -25,14 +34,15 @@ export function ScheduleControls({
   count: number | null;
 }) {
   const [calOpen, setCalOpen] = React.useState(false);
-  const step = view === "week" ? 7 : 1;
 
   const rangeLabel =
-    view === "week"
-      ? `${format(startOfWeek(day), "MMM d")} – ${format(endOfWeek(day), "MMM d")}`
-      : isToday(day)
-        ? "Today"
-        : format(day, "EEE, MMM d");
+    view === "month"
+      ? format(day, "MMMM yyyy")
+      : view === "week"
+        ? `${format(startOfWeek(day), "MMM d")} – ${format(endOfWeek(day), "MMM d")}`
+        : isToday(day)
+          ? "Today"
+          : format(day, "EEE, MMM d");
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -40,14 +50,14 @@ export function ScheduleControls({
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              aria-label={view === "week" ? "Previous week" : "Previous day"}
-              onClick={() => onDayChange(addDays(day, -step))}
+              aria-label={`Previous ${NOUN[view]}`}
+              onClick={() => onDayChange(stepDate(day, view, -1))}
               className="grid size-9 place-items-center rounded-l-lg text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <ChevronLeft className="size-4" />
             </button>
           </TooltipTrigger>
-          <TooltipContent>{view === "week" ? "Previous week" : "Previous day"}</TooltipContent>
+          <TooltipContent>{`Previous ${NOUN[view]}`}</TooltipContent>
         </Tooltip>
 
         <Popover open={calOpen} onOpenChange={setCalOpen}>
@@ -55,7 +65,9 @@ export function ScheduleControls({
             <button className="flex min-w-40 items-center justify-center gap-1.5 border-x border-border px-3 py-2 text-sm font-medium hover:bg-accent">
               <CalendarDays className="size-4 text-muted-foreground" />
               <span>{rangeLabel}</span>
-              <span className="text-muted-foreground">{format(day, "yyyy")}</span>
+              {view !== "month" && (
+                <span className="text-muted-foreground">{format(day, "yyyy")}</span>
+              )}
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
@@ -74,14 +86,14 @@ export function ScheduleControls({
         <Tooltip>
           <TooltipTrigger asChild>
             <button
-              aria-label={view === "week" ? "Next week" : "Next day"}
-              onClick={() => onDayChange(addDays(day, step))}
+              aria-label={`Next ${NOUN[view]}`}
+              onClick={() => onDayChange(stepDate(day, view, 1))}
               className="grid size-9 place-items-center rounded-r-lg text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <ChevronRight className="size-4" />
             </button>
           </TooltipTrigger>
-          <TooltipContent>{view === "week" ? "Next week" : "Next day"}</TooltipContent>
+          <TooltipContent>{`Next ${NOUN[view]}`}</TooltipContent>
         </Tooltip>
       </div>
 
@@ -91,8 +103,9 @@ export function ScheduleControls({
 
       <Tabs value={view} onValueChange={(v) => onViewChange(v as ScheduleView)}>
         <TabsList>
-          <TabsTrigger value="day">Day</TabsTrigger>
+          <TabsTrigger value="month">Month</TabsTrigger>
           <TabsTrigger value="week">Week</TabsTrigger>
+          <TabsTrigger value="day">Day</TabsTrigger>
         </TabsList>
       </Tabs>
 

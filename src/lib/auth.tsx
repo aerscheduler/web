@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { apiRaw, getToken, setToken } from "./api";
+import { signInWithGoogle } from "./google";
 import { rolesOf, type Organization, type OrganizationUser, type Role, type User } from "@/types/api";
 
 interface AuthEnvelope {
@@ -61,6 +62,12 @@ export function hasActiveOrg(): boolean {
   return loadSession().organization != null;
 }
 
+/** Where to send a user right after authenticating, based on the fresh session. */
+export function postLoginPath(): "/onboarding" | "/dashboard" | "/me" {
+  if (!hasActiveOrg()) return "/onboarding";
+  return isStaffSync() ? "/dashboard" : "/me";
+}
+
 interface AuthContextValue extends SessionState {
   /** The caller's membership row (OrganizationUser) in the active org. */
   membership: OrganizationUser | null;
@@ -74,6 +81,8 @@ interface AuthContextValue extends SessionState {
   isStaff: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
+  /** Sign in / sign up with Google (opens the Google account chooser). */
+  googleLogin: () => Promise<void>;
   logout: () => void;
   switchOrg: (orgId: number) => Promise<void>;
   /** Create a new org (caller becomes owner+admin). Swaps the active token. */
@@ -123,6 +132,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [apply]
   );
+
+  const googleLogin = useCallback(async () => {
+    const profile = await signInWithGoogle();
+    const env = await apiRaw<AuthEnvelope>("/auth/google", {
+      method: "POST",
+      body: {
+        accessToken: profile.accessToken,
+        name: profile.name,
+        profileImage: profile.profileImage,
+      },
+    });
+    apply(env);
+  }, [apply]);
 
   const switchOrg = useCallback(
     async (orgId: number) => {
@@ -188,6 +210,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...derived,
         login,
         register,
+        googleLogin,
         logout,
         switchOrg,
         createOrganization,

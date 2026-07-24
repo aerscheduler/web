@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogoLockup } from "@/components/logo";
+import { GoogleButton, OrDivider } from "@/components/google-button";
 import { BrandPanel } from "./login";
 
 export const Route = createFileRoute("/signup")({
@@ -50,7 +51,12 @@ function SignupPage() {
             Two minutes to a bookable aircraft. No credit card, no sales call.
           </p>
 
-          <form onSubmit={onSubmit} className="mt-8 space-y-4">
+          <div className="mt-8 space-y-4">
+            <GoogleButton label="Sign up with Google" />
+            <OrDivider />
+          </div>
+
+          <form onSubmit={onSubmit} className="mt-4 space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="name">Your name</Label>
               <Input

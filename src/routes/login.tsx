@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
-import { useAuth, isStaffSync } from "@/lib/auth";
+import { useAuth, postLoginPath } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogoLockup, LogoMark } from "@/components/logo";
+import { GoogleButton, OrDivider } from "@/components/google-button";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -26,7 +27,7 @@ function LoginPage() {
     setBusy(true);
     try {
       await login(email.trim(), password);
-      await navigate({ to: isStaffSync() ? "/dashboard" : "/me" });
+      await navigate({ to: postLoginPath() });
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -54,7 +55,12 @@ function LoginPage() {
             Welcome back. Enter your credentials to reach your console.
           </p>
 
-          <form onSubmit={onSubmit} className="mt-8 space-y-4">
+          <div className="mt-8 space-y-4">
+            <GoogleButton />
+            <OrDivider />
+          </div>
+
+          <form onSubmit={onSubmit} className="mt-4 space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email">Email</Label>
               <Input

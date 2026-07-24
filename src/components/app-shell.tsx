@@ -283,7 +283,7 @@ function UserMenu() {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <Avatar className="size-8 rounded-lg">
-                <AvatarFallback className="rounded-lg bg-sidebar-primary/25 text-sidebar-primary-foreground">
+                <AvatarFallback className="rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   {initials(user?.name)}
                 </AvatarFallback>
               </Avatar>

@@ -29,14 +29,14 @@
   --secondary: #eef1f6;
   --secondary-foreground: #1a1f36;
   --muted: #eef1f6;
-  --muted-foreground: #697386; /* Stripe slate */
+  --muted-foreground: #636e82; /* Stripe slate — AA on solid muted fills */
   /* neutral hover/selected — colour is reserved for primary + active nav */
   --accent: #eef1f6;
   --accent-foreground: #1a1f36;
 
-  --destructive: #df1b41; /* Stripe red */
+  --destructive: #c4142f; /* Stripe red — AA as text on its tint chips */
   --destructive-foreground: #ffffff;
-  --success: #0e9f6e; /* muted green, sits on tinted chips */
+  --success: #0a7047; /* deep green — AA as text on its tint chips */
   --warning: #b7791f; /* muted amber */
   --info: #1967d2;
 
@@ -74,18 +74,18 @@
   --brand-surface-2: #1a3763;
 
   /* reservation / dispatch-lane hues — calmer, to sit on white cards */
-  --res-dual: #3556a9;
+  --res-dual: #2c4589; /* deeper indigo — separates from solo azure */
   --res-solo: #1967d2;
   --res-ground: #5b6472;
   --res-sim: #9a6a45;
   --res-rental: #17876f;
   --res-guest: #7256b0;
-  --res-maintenance: #7f8aa3;
+  --res-maintenance: #5e7290; /* steel-blue — legible + distinct from ground */
 
   /* dashboard KPI chart series */
   --chart-1: #1967d2;
-  --chart-2: #3556a9;
-  --chart-3: #0e9f6e;
+  --chart-2: #2c4589;
+  --chart-3: #0a7047;
   --chart-4: #9a6a45;
   --chart-5: #b7791f;
 }

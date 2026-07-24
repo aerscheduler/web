@@ -63,6 +63,8 @@
   --res-solo: #1967d2;
   --res-ground: #4c515b;
   --res-sim: #966249;
+  --res-rental: #1f7a6d;
+  --res-guest: #6f5aa8;
   --res-maintenance: #7a86a8;
 
   /* dashboard KPI chart series */
@@ -117,6 +119,8 @@
   --res-solo: #4a8fe7;
   --res-ground: #6b717d;
   --res-sim: #b3805f;
+  --res-rental: #35a08f;
+  --res-guest: #8f7bc9;
   --res-maintenance: #9aa4c0;
 
   --chart-1: #4a8fe7;
@@ -164,6 +168,8 @@
   --color-res-solo: var(--res-solo);
   --color-res-ground: var(--res-ground);
   --color-res-sim: var(--res-sim);
+  --color-res-rental: var(--res-rental);
+  --color-res-guest: var(--res-guest);
   --color-res-maintenance: var(--res-maintenance);
 
   --color-chart-1: var(--chart-1);

@@ -9,11 +9,16 @@ import type {
   ConfirmReviewInput,
   CreatePlaneResourceInput,
   CreateReservationInput,
+  ConfirmReviewGuestInput,
   Currency,
   CurrencyType,
   Invoice,
+  InvoicePaymentIntent,
   InviteInput,
   Location,
+  OrgUserBillingSettings,
+  PaymentMethod,
+  SetupIntentResponse,
   MaintenanceReminder,
   Organization,
   OrganizationBillingSettings,
@@ -244,6 +249,23 @@ export function useConfirmReview(id: number) {
   });
 }
 
+/**
+ * Close out a guest reservation — `POST /reservations/:id/confirmReviewGuest`. No PIN: an
+ * admin, the instructor, or the creator reviews it and the server generates the guest invoice.
+ * `guestOverrides` optionally corrects the guest's contact details before the invoice is emailed.
+ */
+export function useConfirmReviewGuest(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ConfirmReviewGuestInput) =>
+      api<Reservation>(`/reservations/${id}/confirmReviewGuest`, { method: "POST", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
 export function useCreatePlane() {
   const qc = useQueryClient();
   return useMutation({
@@ -386,6 +408,89 @@ export function useUpdateMemberOrgUser(userId: number) {
 export function useConnectStripe() {
   return useMutation({
     mutationFn: () => api<{ url: string }>("/stripe/account/seller", { method: "POST" }),
+  });
+}
+
+// ---------------------------------------------------------------- member self-pay (Stripe)
+
+/**
+ * Everything the Payment Element needs to charge one invoice (`GET /stripe/invoice/:id`):
+ * a PaymentIntent client secret + the connected account it lives on. Errors (org not billing-
+ * enabled, already paid, no Stripe intent) surface as ApiError for the caller to show.
+ * Not cached — a fresh client secret per open, and never retried (a 4xx here is terminal).
+ */
+export function useInvoicePaymentIntent(invoiceId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["stripe", "invoice", invoiceId],
+    queryFn: () => api<InvoicePaymentIntent>(`/stripe/invoice/${invoiceId}`),
+    enabled: (opts?.enabled ?? true) && invoiceId != null,
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+    // Don't refetch while the member is entering their card — that would swap the client
+    // secret and remount the Payment Element out from under them.
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** The caller's saved cards on this org's connected account (`GET /stripe/paymentMethods`). */
+export function usePaymentMethods(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["stripe", "paymentMethods"],
+    queryFn: () => api<PaymentMethod[]>("/stripe/paymentMethods"),
+    retry: false,
+    ...opts,
+  });
+}
+
+/**
+ * The member's own billing settings — autopay + Stripe customer (`GET /orgUsers/billing`).
+ * 404s when the org isn't billing-enabled yet; don't retry that.
+ */
+export function useMyBillingSettings(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["orgUsers", "billing"],
+    queryFn: () => api<OrgUserBillingSettings>("/orgUsers/billing"),
+    retry: false,
+    ...opts,
+  });
+}
+
+/** Start a card SetupIntent so the member can save a card (`POST /stripe/setupIntent`). */
+export function useCreateSetupIntent() {
+  return useMutation({
+    mutationFn: () => api<SetupIntentResponse>("/stripe/setupIntent", { method: "POST" }),
+  });
+}
+
+export function useRemovePaymentMethod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (paymentMethodId: string) =>
+      api<void>(`/stripe/paymentMethods/${paymentMethodId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["stripe", "paymentMethods"] }),
+  });
+}
+
+export function useSetDefaultPaymentMethod() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (defaultPaymentMethodId: string) =>
+      api("/stripe/setDefaultPaymentMethod", { method: "POST", body: { defaultPaymentMethodId } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["stripe", "paymentMethods"] }),
+  });
+}
+
+/** Toggle autopay (server requires a default payment method to enable it). */
+export function useSetAutoPay() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (autoPay: boolean) =>
+      api("/stripe/setAutoPay", { method: "POST", body: { autoPay } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["stripe", "paymentMethods"] });
+      void qc.invalidateQueries({ queryKey: ["orgUsers", "billing"] });
+    },
   });
 }
 

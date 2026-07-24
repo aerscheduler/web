@@ -30,6 +30,7 @@ import { Route as AuthedMeAvailabilityRouteImport } from './routes/_authed/me/av
 import { Route as AuthedMeBookRouteImport } from './routes/_authed/me/book'
 import { Route as AuthedMeCurrenciesRouteImport } from './routes/_authed/me/currencies'
 import { Route as AuthedMeInvoicesRouteImport } from './routes/_authed/me/invoices'
+import { Route as AuthedMePaymentMethodsRouteImport } from './routes/_authed/me/payment-methods'
 import { Route as AuthedMeProfileRouteImport } from './routes/_authed/me/profile'
 import { Route as AuthedMeScheduleRouteImport } from './routes/_authed/me/schedule'
 
@@ -137,6 +138,11 @@ const AuthedMeInvoicesRoute = AuthedMeInvoicesRouteImport.update({
   path: '/me/invoices',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMePaymentMethodsRoute = AuthedMePaymentMethodsRouteImport.update({
+  id: '/me/payment-methods',
+  path: '/me/payment-methods',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedMeProfileRoute = AuthedMeProfileRouteImport.update({
   id: '/me/profile',
   path: '/me/profile',
@@ -168,6 +174,7 @@ export interface FileRoutesByFullPath {
   '/me/book': typeof AuthedMeBookRoute
   '/me/currencies': typeof AuthedMeCurrenciesRoute
   '/me/invoices': typeof AuthedMeInvoicesRoute
+  '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
   '/me/': typeof AuthedMeIndexRoute
@@ -192,6 +199,7 @@ export interface FileRoutesByTo {
   '/me/book': typeof AuthedMeBookRoute
   '/me/currencies': typeof AuthedMeCurrenciesRoute
   '/me/invoices': typeof AuthedMeInvoicesRoute
+  '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
   '/me': typeof AuthedMeIndexRoute
@@ -218,6 +226,7 @@ export interface FileRoutesById {
   '/_authed/me/book': typeof AuthedMeBookRoute
   '/_authed/me/currencies': typeof AuthedMeCurrenciesRoute
   '/_authed/me/invoices': typeof AuthedMeInvoicesRoute
+  '/_authed/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/_authed/me/profile': typeof AuthedMeProfileRoute
   '/_authed/me/schedule': typeof AuthedMeScheduleRoute
   '/_authed/me/': typeof AuthedMeIndexRoute
@@ -244,6 +253,7 @@ export interface FileRouteTypes {
     | '/me/book'
     | '/me/currencies'
     | '/me/invoices'
+    | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
     | '/me/'
@@ -268,6 +278,7 @@ export interface FileRouteTypes {
     | '/me/book'
     | '/me/currencies'
     | '/me/invoices'
+    | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
     | '/me'
@@ -293,6 +304,7 @@ export interface FileRouteTypes {
     | '/_authed/me/book'
     | '/_authed/me/currencies'
     | '/_authed/me/invoices'
+    | '/_authed/me/payment-methods'
     | '/_authed/me/profile'
     | '/_authed/me/schedule'
     | '/_authed/me/'
@@ -457,6 +469,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedMeInvoicesRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/me/payment-methods': {
+      id: '/_authed/me/payment-methods'
+      path: '/me/payment-methods'
+      fullPath: '/me/payment-methods'
+      preLoaderRoute: typeof AuthedMePaymentMethodsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/me/profile': {
       id: '/_authed/me/profile'
       path: '/me/profile'
@@ -488,6 +507,7 @@ interface AuthedRouteChildren {
   AuthedMeBookRoute: typeof AuthedMeBookRoute
   AuthedMeCurrenciesRoute: typeof AuthedMeCurrenciesRoute
   AuthedMeInvoicesRoute: typeof AuthedMeInvoicesRoute
+  AuthedMePaymentMethodsRoute: typeof AuthedMePaymentMethodsRoute
   AuthedMeProfileRoute: typeof AuthedMeProfileRoute
   AuthedMeScheduleRoute: typeof AuthedMeScheduleRoute
   AuthedMeIndexRoute: typeof AuthedMeIndexRoute
@@ -507,6 +527,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMeBookRoute: AuthedMeBookRoute,
   AuthedMeCurrenciesRoute: AuthedMeCurrenciesRoute,
   AuthedMeInvoicesRoute: AuthedMeInvoicesRoute,
+  AuthedMePaymentMethodsRoute: AuthedMePaymentMethodsRoute,
   AuthedMeProfileRoute: AuthedMeProfileRoute,
   AuthedMeScheduleRoute: AuthedMeScheduleRoute,
   AuthedMeIndexRoute: AuthedMeIndexRoute,

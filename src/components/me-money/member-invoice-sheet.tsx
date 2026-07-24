@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns";
-import { CalendarClock, Info } from "lucide-react";
+import { CalendarClock, CreditCard } from "lucide-react";
 import type { Invoice } from "@/types/api";
 import {
   Sheet,
@@ -8,6 +8,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
@@ -18,17 +19,20 @@ function fmtDate(iso: string | null | undefined) {
 }
 
 /**
- * Read-only invoice drawer for the member's own invoices. Payment is out of
- * scope: outstanding invoices show a "contact your school" note, not a Pay button.
+ * Invoice drawer for the member's own invoices. Outstanding invoices get a "Pay now" button
+ * that hands off to the page-level pay dialog (via `onPay`) so we never nest Radix overlays.
  */
 export function MemberInvoiceSheet({
   invoice,
   open,
   onOpenChange,
+  onPay,
 }: {
   invoice: Invoice | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called when the member taps "Pay now"; the page closes the sheet and opens the pay dialog. */
+  onPay?: (invoice: Invoice) => void;
 }) {
   const inv = invoice;
   const items = inv?.items ?? [];
@@ -123,10 +127,14 @@ export function MemberInvoiceSheet({
             </section>
 
             {outstanding && (
-              <div className="flex items-start gap-2.5 rounded-lg border border-[color-mix(in_oklch,var(--warning)_35%,transparent)] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] p-3 text-sm">
-                <Info className="mt-0.5 size-4 shrink-0 text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]" />
-                <p className="text-muted-foreground">
-                  Contact your school to settle this invoice.
+              <div className="space-y-2">
+                {onPay && (
+                  <Button className="w-full" onClick={() => onPay(inv)}>
+                    <CreditCard className="size-4" /> Pay {formatMoney(inv.total)}
+                  </Button>
+                )}
+                <p className="text-center text-xs text-muted-foreground">
+                  Pay securely by card, or contact your school to settle another way.
                 </p>
               </div>
             )}

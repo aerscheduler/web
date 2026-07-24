@@ -130,6 +130,8 @@ export type ReservationType =
   | "instructor"
   | "solo"
   | "sim"
+  | "rental"
+  | "guest"
   | "maintenance";
 
 export interface Reservation {
@@ -149,8 +151,12 @@ export interface Reservation {
   invoice?: Invoice;
   /** Ramp/close-out readings + sign-offs. Present on the retrieve include set. */
   review?: ReservationReview | null;
-  /** Set when a guest reservation has been closed out (guests never confirm). */
-  completedByForGuest?: number | null;
+  /**
+   * The staff member who closed out a guest reservation (guests never confirm with a PIN —
+   * an admin, the instructor, or the creator reviews it via `confirmReviewGuest`). Non-null
+   * ⇒ the guest reservation has been reviewed and its invoice generated.
+   */
+  completedByForGuest?: { id: number } | null;
 }
 
 export interface ReservationPersonnel {
@@ -435,6 +441,54 @@ export interface RampInInput {
 /** Sign off a flight review with the caller's 4-character PIN. */
 export interface ConfirmReviewInput {
   pin: string;
+}
+
+/**
+ * Close out a guest reservation (no PIN — guests never confirm). An admin, the instructor,
+ * or the creator reviews it; `guestOverrides` optionally corrects the guest's contact details
+ * before the invoice is emailed to them.
+ */
+export interface ConfirmReviewGuestInput {
+  guestOverrides?: { id?: number; name?: string; email?: string; phone?: string };
+}
+
+// ------------------------------------------------------------------ billing / Stripe
+
+/** A card saved on the member's Stripe customer (as returned by GET /stripe/paymentMethods). */
+export interface PaymentMethod {
+  id: string;
+  type: string;
+  card?: {
+    brand: string;
+    last4: string;
+    exp_month: number;
+    exp_year: number;
+  } | null;
+  /** Flagged by the server when this is the customer's default (autopay) method. */
+  defaultPaymentMethod?: boolean;
+}
+
+/**
+ * Everything the web Payment Element needs to charge an invoice on the org's connected
+ * account (GET /stripe/invoice/:invoiceId). The PaymentIntent lives on `orgStripeAccountId`.
+ */
+export interface InvoicePaymentIntent {
+  paymentIntentClientSecret: string;
+  ephemeralKey: string;
+  customerId: string;
+  orgStripeAccountId: string;
+}
+
+/** Client secret + connected account for a card SetupIntent (POST /stripe/setupIntent). */
+export interface SetupIntentResponse {
+  clientSecret: string;
+  orgStripeAccountId: string;
+}
+
+/** The member's own billing settings (GET /orgUsers/billing). */
+export interface OrgUserBillingSettings {
+  stripeCustomerId: string;
+  autoPay: boolean;
 }
 
 export interface CreateInvoiceInput {

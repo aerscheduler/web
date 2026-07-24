@@ -8,6 +8,7 @@ import {
   Check,
   ChevronsUpDown,
   Clock,
+  CreditCard,
   Home,
   LayoutDashboard,
   LogOut,
@@ -90,6 +91,7 @@ function navForRoles(roles: string[], isStaff: boolean): NavGroup[] {
     { to: "/me/schedule", label: "My schedule", icon: CalendarDays },
     { to: "/me/book", label: "Book", icon: CalendarPlus },
     { to: "/me/invoices", label: "My invoices", icon: Wallet },
+    { to: "/me/payment-methods", label: "Payment methods", icon: CreditCard },
     { to: "/me/currencies", label: "My currencies", icon: ShieldCheck },
   ];
   if (has("instructor")) you.push({ to: "/me/availability", label: "Availability", icon: Clock });
@@ -117,6 +119,7 @@ const TITLES: Record<string, string> = {
   "/me/schedule": "My schedule",
   "/me/book": "Book",
   "/me/invoices": "My invoices",
+  "/me/payment-methods": "Payment methods",
   "/me/currencies": "My currencies",
   "/me/availability": "Availability",
   "/me/profile": "Profile",

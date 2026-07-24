@@ -76,8 +76,13 @@ export function ReservationForm({
   const [studentId, setStudentId] = React.useState("");
   const [renterId, setRenterId] = React.useState("");
   const [ratingId, setRatingId] = React.useState("");
+  const [guestName, setGuestName] = React.useState("");
+  const [guestEmail, setGuestEmail] = React.useState("");
+  const [guestPhone, setGuestPhone] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+
+  const isGuest = type === "guest";
 
   // Re-seed the form each time it opens (from the draft the board handed us).
   const wasOpen = React.useRef(false);
@@ -93,6 +98,9 @@ export function ReservationForm({
       setStudentId("");
       setRenterId("");
       setRatingId("");
+      setGuestName("");
+      setGuestEmail("");
+      setGuestPhone("");
       setNotes("");
       setError(null);
     }
@@ -128,9 +136,25 @@ export function ReservationForm({
     const locationId = chosenResource?.FK_locationId ?? locationsQ.data?.[0]?.id;
 
     const personnel: NonNullable<CreateReservationInput["personnel"]> = {};
-    if (instructorId) personnel.instructors = [{ id: Number(instructorId) }];
-    if (studentId) personnel.students = [{ id: Number(studentId) }];
-    if (renterId) personnel.renters = [{ id: Number(renterId) }];
+    if (isGuest) {
+      // Guest flights bill an outside pilot: needs guest name + email + a plane, optional instructor.
+      if (!guestName.trim()) return setError("Enter the guest's name.");
+      if (!/.+@.+\..+/.test(guestEmail.trim()))
+        return setError("Enter a valid email — the guest's invoice is sent there.");
+      if (!resourceId) return setError("Guest flights need an aircraft.");
+      personnel.guests = [
+        {
+          name: guestName.trim(),
+          email: guestEmail.trim(),
+          ...(guestPhone.trim() ? { phone: guestPhone.trim() } : {}),
+        },
+      ];
+      if (instructorId) personnel.instructors = [{ id: Number(instructorId) }];
+    } else {
+      if (instructorId) personnel.instructors = [{ id: Number(instructorId) }];
+      if (studentId) personnel.students = [{ id: Number(studentId) }];
+      if (renterId) personnel.renters = [{ id: Number(renterId) }];
+    }
 
     const input: CreateReservationInput = {
       title: title.trim(),
@@ -237,52 +261,104 @@ export function ReservationForm({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label>Instructor</Label>
-            <Combobox
-              options={memberOptions(instructorsQ.data)}
-              value={instructorId}
-              onChange={setInstructorId}
-              placeholder="Assign instructor"
-              searchPlaceholder="Search instructors…"
-              emptyText="No instructors."
-            />
+        {isGuest ? (
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="guest-name">Guest name</Label>
+                <Input
+                  id="guest-name"
+                  value={guestName}
+                  onChange={(e) => setGuestName(e.target.value)}
+                  placeholder="Jane Aviator"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="guest-email">Guest email</Label>
+                <Input
+                  id="guest-email"
+                  type="email"
+                  value={guestEmail}
+                  onChange={(e) => setGuestEmail(e.target.value)}
+                  placeholder="jane@example.com"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="guest-phone">Guest phone (optional)</Label>
+                <Input
+                  id="guest-phone"
+                  value={guestPhone}
+                  onChange={(e) => setGuestPhone(e.target.value)}
+                  placeholder="(555) 555-5555"
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Instructor (optional)</Label>
+                <Combobox
+                  options={memberOptions(instructorsQ.data)}
+                  value={instructorId}
+                  onChange={setInstructorId}
+                  placeholder="Assign instructor"
+                  searchPlaceholder="Search instructors…"
+                  emptyText="No instructors."
+                />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              The guest is emailed an invoice after the flight is closed out — no account needed.
+            </p>
           </div>
-          <div className="space-y-1.5">
-            <Label>Student</Label>
-            <Combobox
-              options={memberOptions(studentsQ.data)}
-              value={studentId}
-              onChange={setStudentId}
-              placeholder="Assign student"
-              searchPlaceholder="Search students…"
-              emptyText="No students."
-            />
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>Instructor</Label>
+              <Combobox
+                options={memberOptions(instructorsQ.data)}
+                value={instructorId}
+                onChange={setInstructorId}
+                placeholder="Assign instructor"
+                searchPlaceholder="Search instructors…"
+                emptyText="No instructors."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Student</Label>
+              <Combobox
+                options={memberOptions(studentsQ.data)}
+                value={studentId}
+                onChange={setStudentId}
+                placeholder="Assign student"
+                searchPlaceholder="Search students…"
+                emptyText="No students."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Renter</Label>
+              <Combobox
+                options={memberOptions(rentersQ.data)}
+                value={renterId}
+                onChange={setRenterId}
+                placeholder="Assign renter"
+                searchPlaceholder="Search renters…"
+                emptyText="No renters."
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Rating (optional)</Label>
+              <Combobox
+                options={ratingOptions}
+                value={ratingId}
+                onChange={setRatingId}
+                placeholder="Select rating"
+                searchPlaceholder="Search ratings…"
+                emptyText="No ratings."
+              />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Renter</Label>
-            <Combobox
-              options={memberOptions(rentersQ.data)}
-              value={renterId}
-              onChange={setRenterId}
-              placeholder="Assign renter"
-              searchPlaceholder="Search renters…"
-              emptyText="No renters."
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label>Rating (optional)</Label>
-            <Combobox
-              options={ratingOptions}
-              value={ratingId}
-              onChange={setRatingId}
-              placeholder="Select rating"
-              searchPlaceholder="Search ratings…"
-              emptyText="No ratings."
-            />
-          </div>
-        </div>
+        )}
 
         <div className="space-y-1.5">
           <Label htmlFor="res-notes">Notes</Label>

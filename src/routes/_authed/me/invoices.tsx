@@ -19,6 +19,7 @@ import { DataTable } from "@/components/data-table";
 import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from "@/components/states";
 import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
 import { MemberInvoiceSheet } from "@/components/me-money/member-invoice-sheet";
+import { PayInvoiceDialog } from "@/components/me-money/pay-invoice-dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -147,6 +148,7 @@ function MyInvoicesPage() {
   const { organization, orgUserId } = useAuth();
   const [search, setSearch] = useState("");
   const [viewId, setViewId] = useState<number | null>(null);
+  const [payId, setPayId] = useState<number | null>(null);
 
   const invoicesQ = useMemberInvoices(orgUserId);
   const invoices = useMemo(() => invoicesQ.data ?? [], [invoicesQ.data]);
@@ -164,6 +166,10 @@ function MyInvoicesPage() {
   const viewInvoice = useMemo(
     () => invoices.find((i) => i.id === viewId) ?? null,
     [invoices, viewId]
+  );
+  const payInvoice = useMemo(
+    () => invoices.find((i) => i.id === payId) ?? null,
+    [invoices, payId]
   );
 
   const columns = useMemo(() => invoiceColumns((inv) => setViewId(inv.id)), []);
@@ -247,6 +253,16 @@ function MyInvoicesPage() {
         invoice={viewInvoice}
         open={viewId != null}
         onOpenChange={(o) => !o && setViewId(null)}
+        onPay={(inv) => {
+          setViewId(null);
+          setPayId(inv.id);
+        }}
+      />
+
+      <PayInvoiceDialog
+        invoice={payInvoice}
+        open={payId != null}
+        onOpenChange={(o) => !o && setPayId(null)}
       />
     </div>
   );

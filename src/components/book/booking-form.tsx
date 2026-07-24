@@ -59,12 +59,18 @@ const TYPE_LABEL: Record<ReservationType, string> = {
   instructor: "Instructor",
   solo: "Solo",
   sim: "Simulator",
+  rental: "Rental",
+  guest: "Guest",
   maintenance: "Maintenance",
 };
 
-/** Reservation types offered per booking mode, first entry is the default. */
+/**
+ * Reservation types offered per booking mode, first entry is the default.
+ * A renter flying a plane on their own is a `rental` (the server rejects `solo`/`ground`/`sim`
+ * when a renter is on the reservation — those require an instructor or student).
+ */
 const TYPE_OPTIONS: Record<BookMode, ReservationType[]> = {
-  renter: ["solo", "ground", "sim"],
+  renter: ["rental"],
   student: ["dual", "ground", "sim"],
   instructor: ["dual", "solo", "instructor", "ground", "sim"],
 };

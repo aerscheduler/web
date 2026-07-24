@@ -10,6 +10,8 @@ export const TYPE_LABEL: Record<ReservationType, string> = {
   solo: "Solo",
   ground: "Ground",
   sim: "Sim",
+  rental: "Rental",
+  guest: "Guest",
   maintenance: "Maintenance",
 };
 
@@ -20,6 +22,8 @@ export const BORDER_L_CLASS: Record<ReservationType, string> = {
   solo: "border-l-res-solo",
   ground: "border-l-res-ground",
   sim: "border-l-res-sim",
+  rental: "border-l-res-rental",
+  guest: "border-l-res-guest",
   maintenance: "border-l-res-maintenance",
 };
 
@@ -30,6 +34,8 @@ export const TYPE_BADGE_CLASS: Record<ReservationType, string> = {
   solo: "bg-res-solo/12 border-res-solo/40 text-res-solo",
   ground: "bg-res-ground/15 border-res-ground/45 text-res-ground",
   sim: "bg-res-sim/12 border-res-sim/40 text-res-sim",
+  rental: "bg-res-rental/12 border-res-rental/40 text-res-rental",
+  guest: "bg-res-guest/12 border-res-guest/40 text-res-guest",
   maintenance: "bg-res-maintenance/12 border-res-maintenance/40 text-res-maintenance",
 };
 

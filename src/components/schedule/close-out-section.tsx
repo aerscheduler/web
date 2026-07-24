@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatMoney } from "@/lib/utils";
 import {
+  canReviewGuest,
   closeOutStep,
   confirmationCount,
   isReservationPersonnel,
@@ -23,23 +24,28 @@ import {
 } from "./close-out";
 import { RampModal } from "./ramp-modal";
 import { ConfirmReviewModal } from "./confirm-review-modal";
+import { ConfirmGuestReviewModal } from "./confirm-guest-review-modal";
 
 /**
  * Role-aware close-out flow for a reservation, walking the state machine:
  * ramp out → ramp in → confirm review → (auto) invoice. Rendered inside the detail sheet.
  */
 export function CloseOutSection({ reservation }: { reservation: Reservation }) {
-  const { orgUserId } = useAuth();
+  const { orgUserId, roles } = useAuth();
   const r = reservation;
   const step = closeOutStep(r);
 
   const [rampMode, setRampMode] = React.useState<"out" | "in" | null>(null);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
+  const [guestConfirmOpen, setGuestConfirmOpen] = React.useState(false);
 
   const invoiceQ = useReservationInvoice(r.id, { enabled: step === "invoiced" });
   const invoice = invoiceQ.data ?? r.invoice ?? null;
 
   const canConfirm = isReservationPersonnel(r, orgUserId);
+  const isAdmin = roles.some((role) => role === "owner" || role === "admin");
+  const canConfirmGuest = canReviewGuest(r, orgUserId, isAdmin);
+  const guestName = r.personnel?.guests?.[0]?.name ?? "the guest";
   const needed = reviewerCount(r);
   const done = confirmationCount(r);
 
@@ -97,6 +103,24 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
           </div>
         )}
 
+        {step === "confirmGuest" && (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Flown — this guest flight needs to be closed out and billed to{" "}
+              <span className="text-foreground">{guestName}</span>.
+            </p>
+            {canConfirmGuest ? (
+              <Button className="w-full" onClick={() => setGuestConfirmOpen(true)}>
+                <Receipt className="size-4" /> Close out &amp; bill guest
+              </Button>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                An admin or the assigned instructor can close this out.
+              </p>
+            )}
+          </div>
+        )}
+
         {step === "reviewed" && (
           <div className="flex items-start gap-2 text-sm text-muted-foreground">
             <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
@@ -116,6 +140,11 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         mode={rampMode ?? "out"}
       />
       <ConfirmReviewModal open={confirmOpen} onOpenChange={setConfirmOpen} reservation={r} />
+      <ConfirmGuestReviewModal
+        open={guestConfirmOpen}
+        onOpenChange={setGuestConfirmOpen}
+        reservation={r}
+      />
     </>
   );
 }
@@ -130,6 +159,7 @@ function StepBadge({ step, invoice }: { step: CloseOutStep; invoice: Invoice | n
     rampOut: { label: "Not ramped out", variant: "outline" },
     rampIn: { label: "In flight", variant: "warning" },
     confirm: { label: "Awaiting review", variant: "warning" },
+    confirmGuest: { label: "Awaiting close-out", variant: "warning" },
     reviewed: { label: "Reviewed", variant: "secondary" },
   };
   const s = map[step];

@@ -26,7 +26,10 @@ export function TableView({
   className?: string;
 }) {
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col gap-4", className)}>
+    // data-fill-page tells the app-shell wrapper to take a DEFINITE height
+    // (:has([data-fill-page]) → h-full) so this flex-1 column is bounded to the
+    // viewport and its table scrolls internally instead of the whole page.
+    <div data-fill-page className={cn("flex min-h-0 flex-1 flex-col gap-4", className)}>
       {children}
     </div>
   );

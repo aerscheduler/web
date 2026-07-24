@@ -62,7 +62,12 @@ export function DataTable<T>({
   const rows = table.getRowModel().rows;
 
   return (
-    <div className={fill ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}>
+    // When fill, tag for the app-shell's :has() rule so the wrapper takes a
+    // definite height and these rows scroll internally (not the whole page).
+    <div
+      data-fill-page={fill ? "" : undefined}
+      className={fill ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}
+    >
       {toolbar ? <div className={fill ? "shrink-0" : undefined}>{toolbar}</div> : null}
 
       {isMobile && mobileCard ? (

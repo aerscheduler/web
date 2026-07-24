@@ -21,6 +21,7 @@ import { useAuth } from "@/lib/auth";
 import { useTheme } from "@/components/theme-provider";
 import { CommandMenuProvider, useCommandMenu } from "@/components/command-menu";
 import { ConfirmProvider } from "@/components/confirm-dialog";
+import { LogoMark } from "@/components/logo";
 import { initials } from "@/lib/utils";
 import {
   Sidebar,
@@ -149,8 +150,8 @@ function OrgSwitcher() {
       size="lg"
       className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
     >
-      <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-        <PlaneTakeoff className="size-4" />
+      <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary p-1.5">
+        <LogoMark onDark className="size-full" />
       </div>
       <div className="grid flex-1 text-left text-sm leading-tight">
         <span className="truncate font-semibold">{organization?.name ?? "AerScheduler"}</span>

@@ -6,123 +6,124 @@
 
 /*
   AerScheduler Console — design system
-  Aviation flight-ops feel: cool slate neutrals, an "airfield blue" primary,
-  amber instrument accents, and a deep navy command rail that stays dark in
-  both themes. Tokens are shadcn-compatible so UI primitives drop straight in.
+  Colors sourced from the production app (app/lib/constants/style.dart):
+  brand blue #1967D2 (the logo), soft charcoal text #363740, a deep navy
+  command rail that echoes the logo's dark mark, and the app's own
+  reservation / status hues. Tokens are shadcn-compatible.
 */
 :root {
   --radius: 0.625rem;
 
-  --background: oklch(0.985 0.003 240);
-  --foreground: oklch(0.24 0.02 250);
+  --background: #f7f8fb;
+  --foreground: #363740; /* app darkColor — soft charcoal, not harsh black */
 
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.24 0.02 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.24 0.02 250);
+  --card: #ffffff;
+  --card-foreground: #363740;
+  --popover: #ffffff;
+  --popover-foreground: #363740;
 
-  --primary: oklch(0.5 0.13 245);
-  --primary-foreground: oklch(0.985 0.004 240);
+  --primary: #1967d2; /* app primaryColor — the logo blue */
+  --primary-foreground: #ffffff;
 
-  --secondary: oklch(0.965 0.008 245);
-  --secondary-foreground: oklch(0.32 0.03 250);
-  --muted: oklch(0.966 0.007 245);
-  --muted-foreground: oklch(0.53 0.02 250);
-  --accent: oklch(0.955 0.014 245);
-  --accent-foreground: oklch(0.32 0.03 250);
+  --secondary: #eef1f7;
+  --secondary-foreground: #363740;
+  --muted: #eef1f7;
+  --muted-foreground: #5f6368; /* app secondaryDarkColor */
+  --accent: #e8f0fe; /* app activeColorLight — primary tint */
+  --accent-foreground: #1a4fa0;
 
-  --destructive: oklch(0.58 0.2 27);
-  --destructive-foreground: oklch(0.985 0.004 240);
-  --success: oklch(0.6 0.13 155);
-  --warning: oklch(0.75 0.15 74);
-  --info: oklch(0.6 0.12 245);
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --success: #52a35c; /* app invoice paid green, tuned for text contrast */
+  --warning: #e0951f; /* app processing amber, tuned for contrast */
+  --info: #1967d2;
 
-  /* signature warm instrument accent, used sparingly */
-  --brand: oklch(0.78 0.14 72);
+  /* signature accent — the logo blue */
+  --brand: #1967d2;
 
-  --border: oklch(0.918 0.008 245);
-  --input: oklch(0.91 0.008 245);
-  --ring: oklch(0.5 0.13 245);
+  --border: #e4e8ef;
+  --input: #dde2ea;
+  --ring: #1967d2;
 
-  /* command rail — deep navy in both themes */
-  --sidebar: oklch(0.235 0.028 258);
-  --sidebar-foreground: oklch(0.82 0.015 245);
-  --sidebar-primary: oklch(0.62 0.14 245);
-  --sidebar-primary-foreground: oklch(0.99 0.004 240);
-  --sidebar-accent: oklch(0.3 0.03 258);
-  --sidebar-accent-foreground: oklch(0.94 0.01 245);
-  --sidebar-border: oklch(0.32 0.028 258);
-  --sidebar-ring: oklch(0.62 0.14 245);
+  /* command rail — deep navy echoing the logo's dark mark, in both themes */
+  --sidebar: #10233f;
+  --sidebar-foreground: #aeb9cc;
+  --sidebar-primary: #1967d2;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1c3355;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #274063;
+  --sidebar-ring: #3d82e6;
   --sidebar-width: 16rem;
   --sidebar-width-icon: 3rem;
   --sidebar-width-mobile: 18rem;
 
-  /* reservation / dispatch-lane type hues (consistent across grid, legends, badges) */
-  --res-dual: oklch(0.5 0.13 245); /* instruction — primary blue */
-  --res-solo: oklch(0.6 0.13 155); /* solo — success green */
-  --res-ground: oklch(0.75 0.15 74); /* ground — warning amber */
-  --res-sim: oklch(0.6 0.16 300); /* sim — violet */
-  --res-maintenance: oklch(0.58 0.2 27); /* maintenance — destructive red */
+  /* reservation / dispatch-lane hues (from the app calendar palette) */
+  --res-dual: #264e6b;
+  --res-solo: #1967d2;
+  --res-ground: #4c515b;
+  --res-sim: #966249;
+  --res-maintenance: #7a86a8;
 
   /* dashboard KPI chart series */
-  --chart-1: oklch(0.5 0.13 245);
-  --chart-2: oklch(0.78 0.14 72);
-  --chart-3: oklch(0.6 0.13 155);
-  --chart-4: oklch(0.6 0.16 300);
-  --chart-5: oklch(0.75 0.15 74);
+  --chart-1: #1967d2;
+  --chart-2: #264e6b;
+  --chart-3: #52a35c;
+  --chart-4: #966249;
+  --chart-5: #e0951f;
 }
 
 .dark {
-  --background: oklch(0.17 0.02 258);
-  --foreground: oklch(0.94 0.01 245);
+  --background: #14161c;
+  --foreground: #e7e9ee;
 
-  --card: oklch(0.212 0.022 258);
-  --card-foreground: oklch(0.94 0.01 245);
-  --popover: oklch(0.212 0.022 258);
-  --popover-foreground: oklch(0.94 0.01 245);
+  --card: #1b1e26;
+  --card-foreground: #e7e9ee;
+  --popover: #1b1e26;
+  --popover-foreground: #e7e9ee;
 
-  --primary: oklch(0.64 0.14 245);
-  --primary-foreground: oklch(0.16 0.02 258);
+  --primary: #4a8fe7; /* lighter logo-blue for dark-surface legibility */
+  --primary-foreground: #0b1220;
 
-  --secondary: oklch(0.26 0.022 258);
-  --secondary-foreground: oklch(0.9 0.012 245);
-  --muted: oklch(0.26 0.022 258);
-  --muted-foreground: oklch(0.68 0.02 250);
-  --accent: oklch(0.29 0.026 258);
-  --accent-foreground: oklch(0.94 0.01 245);
+  --secondary: #262a33;
+  --secondary-foreground: #e2e5ea;
+  --muted: #242832;
+  --muted-foreground: #9aa2b1;
+  --accent: #24304a;
+  --accent-foreground: #cfe0fb;
 
-  --destructive: oklch(0.62 0.19 25);
-  --destructive-foreground: oklch(0.985 0.004 240);
-  --success: oklch(0.68 0.14 156);
-  --warning: oklch(0.79 0.15 74);
-  --info: oklch(0.68 0.13 245);
+  --destructive: #f0605f;
+  --destructive-foreground: #14161c;
+  --success: #69bb72;
+  --warning: #f0b12a;
+  --info: #4a8fe7;
 
-  --brand: oklch(0.8 0.14 72);
+  --brand: #4a8fe7;
 
-  --border: oklch(0.3 0.02 258);
-  --input: oklch(0.32 0.02 258);
-  --ring: oklch(0.64 0.14 245);
+  --border: #2b2f3a;
+  --input: #30343f;
+  --ring: #4a8fe7;
 
-  --sidebar: oklch(0.145 0.02 258);
-  --sidebar-foreground: oklch(0.8 0.015 245);
-  --sidebar-primary: oklch(0.64 0.14 245);
-  --sidebar-primary-foreground: oklch(0.99 0.004 240);
-  --sidebar-accent: oklch(0.25 0.026 258);
-  --sidebar-accent-foreground: oklch(0.94 0.01 245);
-  --sidebar-border: oklch(0.26 0.022 258);
-  --sidebar-ring: oklch(0.64 0.14 245);
+  --sidebar: #0b1626;
+  --sidebar-foreground: #a4afc2;
+  --sidebar-primary: #2f7ae4;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #16263f;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #1d3050;
+  --sidebar-ring: #3d82e6;
 
-  --res-dual: oklch(0.64 0.14 245);
-  --res-solo: oklch(0.68 0.14 156);
-  --res-ground: oklch(0.79 0.15 74);
-  --res-sim: oklch(0.66 0.16 300);
-  --res-maintenance: oklch(0.62 0.19 25);
+  --res-dual: #3a6c93;
+  --res-solo: #4a8fe7;
+  --res-ground: #6b717d;
+  --res-sim: #b3805f;
+  --res-maintenance: #9aa4c0;
 
-  --chart-1: oklch(0.64 0.14 245);
-  --chart-2: oklch(0.8 0.14 72);
-  --chart-3: oklch(0.68 0.14 156);
-  --chart-4: oklch(0.66 0.16 300);
-  --chart-5: oklch(0.79 0.15 74);
+  --chart-1: #4a8fe7;
+  --chart-2: #3a6c93;
+  --chart-3: #69bb72;
+  --chart-4: #b3805f;
+  --chart-5: #f0b12a;
 }
 
 @theme inline {

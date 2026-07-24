@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Loader2, PlaneTakeoff } from "lucide-react";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LogoLockup, LogoMark } from "@/components/logo";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -39,69 +40,13 @@ function LoginPage() {
 
   return (
     <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
-      {/* Brand panel */}
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-white lg:flex">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.6]"
-          style={{
-            background:
-              "radial-gradient(120% 80% at 15% 0%, oklch(0.4 0.11 250 / 0.55), transparent 60%), radial-gradient(90% 70% at 100% 100%, oklch(0.55 0.13 245 / 0.35), transparent 55%)",
-          }}
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 opacity-[0.05]"
-          style={{
-            backgroundImage:
-              "linear-gradient(oklch(1 0 0) 1px, transparent 1px), linear-gradient(90deg, oklch(1 0 0) 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
-          }}
-        />
-        <div className="relative flex items-center gap-2.5">
-          <span className="grid size-9 place-items-center rounded-lg bg-white/10 ring-1 ring-white/15">
-            <PlaneTakeoff className="size-5" />
-          </span>
-          <span className="text-[15px] font-semibold tracking-tight">AerScheduler</span>
-        </div>
-
-        <div className="relative max-w-md">
-          <h2 className="text-3xl font-semibold leading-tight tracking-tight text-balance">
-            The command deck for your flight school.
-          </h2>
-          <p className="mt-4 text-[15px] leading-relaxed text-white/65">
-            Schedule aircraft, manage instructors and renters, and keep billing
-            square &mdash; all from one place built for the front desk.
-          </p>
-          <dl className="mt-10 grid grid-cols-3 gap-6 border-t border-white/10 pt-6">
-            {[
-              ["Dispatch", "Aircraft & sims"],
-              ["Roster", "Instructors & renters"],
-              ["Billing", "Invoices, paid & due"],
-            ].map(([k, v]) => (
-              <div key={k}>
-                <dt className="text-xs font-semibold uppercase tracking-wider text-white/45">
-                  {k}
-                </dt>
-                <dd className="mt-1 text-sm text-white/80">{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </div>
-
-        <div className="relative text-xs text-white/40">
-          &copy; {new Date().getFullYear()} AerScheduler
-        </div>
-      </aside>
+      <BrandPanel />
 
       {/* Form */}
       <main className="flex items-center justify-center bg-background px-6 py-12">
         <div className="w-full max-w-sm">
-          <div className="mb-8 flex items-center gap-2.5 lg:hidden">
-            <span className="grid size-9 place-items-center rounded-lg bg-primary text-primary-foreground">
-              <PlaneTakeoff className="size-5" />
-            </span>
-            <span className="text-[15px] font-semibold tracking-tight">AerScheduler</span>
+          <div className="mb-8 lg:hidden">
+            <LogoLockup />
           </div>
 
           <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
@@ -125,7 +70,12 @@ function LoginPage() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Password</Label>
-                <span className="text-xs text-muted-foreground/70">Forgot?</span>
+                <Link
+                  to="/forgot-password"
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  Forgot?
+                </Link>
               </div>
               <Input
                 id="password"
@@ -150,12 +100,71 @@ function LoginPage() {
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            Connects to{" "}
-            <span className="font-mono text-muted-foreground/80">api.aerscheduler.com</span>
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            New to AerScheduler?{" "}
+            <Link to="/signup" className="font-medium text-primary hover:underline">
+              Create an account
+            </Link>
           </p>
         </div>
       </main>
     </div>
+  );
+}
+
+/** The signature deep-navy brand panel with the checkered grid — shared by auth pages. */
+export function BrandPanel() {
+  return (
+    <aside className="relative hidden flex-col justify-between overflow-hidden bg-sidebar p-12 text-white lg:flex">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.55]"
+        style={{
+          background:
+            "radial-gradient(120% 80% at 15% 0%, color-mix(in oklch, var(--sidebar-primary) 45%, transparent), transparent 60%), radial-gradient(90% 70% at 100% 100%, color-mix(in oklch, var(--sidebar-primary) 30%, transparent), transparent 55%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        style={{
+          backgroundImage:
+            "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
+          backgroundSize: "40px 40px",
+        }}
+      />
+      <div className="relative flex items-center gap-2.5">
+        <LogoMark onDark className="size-9" />
+        <span className="text-[15px] font-semibold tracking-tight">AerScheduler</span>
+      </div>
+
+      <div className="relative max-w-md">
+        <h2 className="text-3xl font-semibold leading-tight tracking-tight text-balance">
+          The command deck for your flight school.
+        </h2>
+        <p className="mt-4 text-[15px] leading-relaxed text-white/65">
+          Schedule aircraft, manage instructors and renters, and keep billing
+          square &mdash; all from one place built for the front desk.
+        </p>
+        <dl className="mt-10 grid grid-cols-3 gap-6 border-t border-white/10 pt-6">
+          {[
+            ["Dispatch", "Aircraft & sims"],
+            ["Roster", "Instructors & renters"],
+            ["Billing", "Invoices, paid & due"],
+          ].map(([k, v]) => (
+            <div key={k}>
+              <dt className="text-xs font-semibold uppercase tracking-wider text-white/45">
+                {k}
+              </dt>
+              <dd className="mt-1 text-sm text-white/80">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <div className="relative text-xs text-white/40">
+        &copy; {new Date().getFullYear()} AerScheduler
+      </div>
+    </aside>
   );
 }

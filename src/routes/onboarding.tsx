@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MoneyInput } from "@/components/money-input";
+import { LogoMark } from "@/components/logo";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/onboarding")({
@@ -320,8 +321,8 @@ function Onboarding() {
           }}
         />
         <div className="relative flex items-center gap-2.5">
-          <span className="grid size-9 place-items-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-            <PlaneTakeoff className="size-5" />
+          <span className="grid size-9 place-items-center rounded-lg bg-sidebar-primary p-1.5">
+            <LogoMark onDark className="size-full" />
           </span>
           <span className="text-[15px] font-semibold tracking-tight text-white">AerScheduler</span>
         </div>

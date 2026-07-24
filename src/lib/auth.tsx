@@ -46,6 +46,7 @@ export function isAuthenticated(): boolean {
 
 interface AuthContextValue extends SessionState {
   login: (email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   switchOrg: (orgId: number) => Promise<void>;
   /** Create a new org (caller becomes owner+admin). Swaps the active token. */
@@ -79,6 +80,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const env = await apiRaw<AuthEnvelope>("/auth", {
         method: "POST",
         body: { email, password },
+      });
+      apply(env);
+    },
+    [apply]
+  );
+
+  const register = useCallback(
+    async (name: string, email: string, password: string) => {
+      const env = await apiRaw<AuthEnvelope>("/users", {
+        method: "POST",
+        body: { name, email, password },
       });
       apply(env);
     },
@@ -125,7 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext
-      value={{ ...session, login, logout, switchOrg, createOrganization, rehydrate }}
+      value={{ ...session, login, register, logout, switchOrg, createOrganization, rehydrate }}
     >
       {children}
     </AuthContext>

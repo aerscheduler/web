@@ -128,14 +128,15 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
         </div>
 
         {p.categoryClass && (
-          <div className="mt-2">
+          <div className="mt-2 mb-4">
             <Badge variant="outline" className="capitalize">
               {p.categoryClass}
             </Badge>
           </div>
         )}
 
-        <div className="mt-auto flex items-end justify-between gap-4 border-t border-border pt-3">
+        {/* -mx-4 + px-4 so the divider spans the full card width (breaks out of the p-4 content padding). */}
+        <div className="-mx-4 mt-auto flex items-end justify-between gap-4 border-t border-border px-4 pt-4">
           <div className="flex gap-4 text-xs text-muted-foreground">
             <Tooltip>
               <TooltipTrigger asChild>

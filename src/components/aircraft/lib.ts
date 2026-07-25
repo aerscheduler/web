@@ -1,12 +1,16 @@
 import type { Plane } from "@/types/api";
 
-/** Status chip descriptor for a plane — grounded > in-flight > available. */
+/** Status chip descriptor for a plane — grounded > in-flight > available.
+ *  NOTE: `Plane.rampedIn` is inverted vs. its name — `rampedIn === true` means the
+ *  plane is on the ramp (parked/available); it's only actually flying once it's been
+ *  ramped OUT (`rampedIn === false`). Only show "In flight" then, so a resting plane
+ *  isn't mislabeled as airborne. */
 export function planeStatus(p: Plane): {
   label: string;
   variant: "success" | "warning" | "danger";
 } {
   if (p.grounded) return { label: "Grounded", variant: "danger" };
-  if (p.rampedIn) return { label: "In flight", variant: "warning" };
+  if (p.rampedIn === false) return { label: "In flight", variant: "warning" };
   return { label: "Available", variant: "success" };
 }
 

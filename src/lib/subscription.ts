@@ -25,7 +25,7 @@ export const TRIAL_DAYS = 14;
  * existing customers (grace window from launch, not a signup trial). Set this to
  * the actual ship date before deploying.
  */
-export const PRICING_LAUNCH_DATE = new Date("2026-07-24T00:00:00Z");
+export const PRICING_LAUNCH_DATE = new Date("2026-07-25T00:00:00Z");
 
 /**
  * Stripe hosted subscription link ($20/mo per aircraft, 14-day trial, adjustable

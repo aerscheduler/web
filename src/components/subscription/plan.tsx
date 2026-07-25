@@ -87,8 +87,13 @@ export function SubscribeButton({
   );
 }
 
-/** One-line reminder of the per-aircraft price, for the add-aircraft surfaces. */
+/** One-line reminder of the per-aircraft price, for the add-aircraft surfaces.
+ *  Hidden entirely for grandfathered (exempt) orgs — they're on the legacy plan and
+ *  shouldn't be shown per-aircraft pricing at all. */
 export function PerPlanePricingNote({ className }: { className?: string }) {
+  const status = useSubStatus();
+  if (status?.state === "exempt") return null;
+
   return (
     <p className={cn("flex items-center gap-1.5 text-xs text-muted-foreground", className)}>
       <Tooltip>

@@ -70,6 +70,30 @@ export function PlanTab() {
     );
   }
 
+  // Grandfathered orgs: neutral card, NO per-aircraft pricing shown — they stay on
+  // their legacy plan and shouldn't learn about the price change here.
+  if (status.state === "exempt") {
+    return (
+      <Card className="max-w-2xl">
+        <CardHeader className="flex-row items-center gap-2.5">
+          <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+            <BadgeDollarSign className="size-4" />
+          </span>
+          <div>
+            <CardTitle>Your plan</CardTitle>
+            <CardDescription>You're on your current AerScheduler plan.</CardDescription>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Your account is on a plan managed by AerScheduler. Reach out to support if you'd like to make
+            any changes to your billing.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="max-w-2xl">
       <CardHeader className="flex-row items-center gap-2.5">
@@ -89,7 +113,7 @@ export function PlanTab() {
           <StatePill status={status} />
         </div>
 
-        {status.state === "exempt" ? null : status.planeCount === 0 ? (
+        {status.planeCount === 0 ? (
           <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
             No aircraft yet — you'll be billed{" "}
             <span className="font-medium text-foreground">${perPlane}/mo per aircraft</span> once you add your fleet.
@@ -113,9 +137,7 @@ export function PlanTab() {
         <p className="text-sm text-muted-foreground">{stateNote(status)}</p>
       </CardContent>
       <CardFooter className="justify-end">
-        {status.state === "exempt" ? (
-          <span className="text-sm text-muted-foreground">Managed under your legacy plan.</span>
-        ) : status.subscribed ? (
+        {status.subscribed ? (
           <span className="flex items-center gap-1.5 text-sm text-success">
             <Check className="size-4" /> Subscription active
           </span>

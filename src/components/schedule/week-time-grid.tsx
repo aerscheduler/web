@@ -1,11 +1,4 @@
-import {
-  addDays,
-  differenceInMinutes,
-  format,
-  isSameDay,
-  isToday,
-  parseISO,
-} from "date-fns";
+import { addDays, format, isSameDay, isToday, parseISO } from "date-fns";
 import type { Reservation } from "@/types/api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -33,12 +26,14 @@ function hourLabel(h: number) {
 
 /** Vertical top/height (px) for a reservation block, clamped to the window. */
 function blockGeometry(r: Reservation): { top: number; height: number } {
-  const start = parseISO(r.start);
-  const startMin = minutesInWindow(start);
-  const durMin = Math.max(0, differenceInMinutes(parseISO(r.end), start));
-  const top = Math.max(0, Math.min(GRID_HEIGHT - MIN_BLOCK, (startMin / 60) * HOUR_HEIGHT));
-  const rawHeight = (durMin / 60) * HOUR_HEIGHT;
-  const height = Math.max(MIN_BLOCK, Math.min(rawHeight, GRID_HEIGHT - top));
+  const totalMin = HOURS * 60;
+  // Clamp BOTH ends to the visible window and derive height from the clamped
+  // span — otherwise a reservation starting before START_HOUR keeps its full
+  // duration and draws too tall (past its real end). Mirrors the lane grid.
+  const s = Math.max(0, Math.min(totalMin, minutesInWindow(parseISO(r.start))));
+  const e = Math.max(0, Math.min(totalMin, minutesInWindow(parseISO(r.end))));
+  const top = (s / 60) * HOUR_HEIGHT;
+  const height = Math.max(MIN_BLOCK, ((e - s) / 60) * HOUR_HEIGHT);
   return { top, height };
 }
 

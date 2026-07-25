@@ -18,6 +18,25 @@ import { DOT_CLASS, personnelNames, typeLabel } from "./meta";
 import { CloseOutSection } from "./close-out-section";
 import { canCancelReservation } from "./close-out";
 
+/**
+ * Format an instant in the reservation's OWN timezone so the clock value agrees
+ * with the `timeZoneName` label shown next to it. (Single-timezone operations
+ * see no change; it only matters when the viewer's browser is in a different
+ * zone than where the flight is scheduled.) Falls back to local on a bad zone.
+ */
+function timeInZone(iso: string, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: tz,
+    }).format(parseISO(iso));
+  } catch {
+    return format(parseISO(iso), "h:mm a");
+  }
+}
+
 /** Slide-over with the full reservation record + destructive actions. */
 export function ReservationDetailSheet({
   reservation,
@@ -53,7 +72,7 @@ export function ReservationDetailSheet({
             <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-4">
               <Field icon={Clock} label="Time">
                 <span className="tabular-nums">
-                  {format(parseISO(r.start), "h:mm a")} – {format(parseISO(r.end), "h:mm a")}
+                  {timeInZone(r.start, r.timeZoneName)} – {timeInZone(r.end, r.timeZoneName)}
                 </span>
                 <span className="ml-2 text-muted-foreground">{r.timeZoneName}</span>
               </Field>

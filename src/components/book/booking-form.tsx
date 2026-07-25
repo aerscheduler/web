@@ -31,7 +31,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,6 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SmartTimeRange } from "@/components/schedule/smart-time-range";
 
 // -------------------------------------------------------------- booking modes
 
@@ -81,14 +81,6 @@ function apiErr(e: unknown): string {
   return "Something went wrong. Your entries are safe — try again.";
 }
 
-/** Combine a `type=date` value and a `type=time` value into a UTC ISO string. */
-function toISO(date: string, time: string): string | null {
-  if (!date || !time) return null;
-  const d = new Date(`${date}T${time}`);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
-
 // -------------------------------------------------------------- component
 
 export function BookingForm({
@@ -121,8 +113,8 @@ export function BookingForm({
   const [instructorId, setInstructorId] = useState("");
   const [ratingId, setRatingId] = useState("");
   const [date, setDate] = useState("");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [startAt, setStartAt] = useState<Date | null>(null);
+  const [endAt, setEndAt] = useState<Date | null>(null);
   const [notes, setNotes] = useState("");
 
   const create = useCreateReservation();
@@ -163,6 +155,17 @@ export function BookingForm({
   const typeOptions = TYPE_OPTIONS[mode];
   const needsInstructor = mode === "student";
 
+  // Everyone whose availability gates the slot: the member themselves, plus the
+  // instructor when booking a lesson. USER ids for /availability/user/:id.
+  const personnelUserIds = useMemo(() => {
+    const ids = [userId];
+    if (mode === "student" && instructorId) {
+      const u = instructors.data?.find((ou) => String(ou.id) === instructorId)?.user?.id;
+      if (u != null) ids.push(u);
+    }
+    return ids;
+  }, [userId, mode, instructorId, instructors.data]);
+
   function onModeChange(next: BookMode) {
     setMode(next);
     setType(TYPE_OPTIONS[next][0]);
@@ -196,13 +199,11 @@ export function BookingForm({
       toast.error("Pick an aircraft to book.");
       return;
     }
-    const start = toISO(date, startTime);
-    const end = toISO(date, endTime);
-    if (!start || !end) {
+    if (!startAt || !endAt) {
       toast.error("Choose a date, start time, and end time.");
       return;
     }
-    if (new Date(end) <= new Date(start)) {
+    if (endAt <= startAt) {
       toast.error("The end time must be after the start time.");
       return;
     }
@@ -222,8 +223,8 @@ export function BookingForm({
     const input: CreateReservationInput = {
       title: buildTitle(resource),
       type,
-      start,
-      end,
+      start: startAt.toISOString(),
+      end: endAt.toISOString(),
       timeZoneName: Intl.DateTimeFormat().resolvedOptions().timeZone,
       resource: { id: resource.id },
       location: { id: locationId },
@@ -394,35 +395,18 @@ export function BookingForm({
 
           <Separator />
 
-          <div className="grid gap-5 sm:grid-cols-3">
-            <div className="space-y-2">
-              <Label htmlFor="book-date">Date</Label>
-              <Input
-                id="book-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="book-start">Start time</Label>
-              <Input
-                id="book-start"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="book-end">End time</Label>
-              <Input
-                id="book-end"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-              />
-            </div>
-          </div>
+          <SmartTimeRange
+            date={date}
+            onDateChange={setDate}
+            start={startAt}
+            end={endAt}
+            onChange={(s, e) => {
+              setStartAt(s);
+              setEndAt(e);
+            }}
+            resourceId={resourceId ? Number(resourceId) : null}
+            personnelUserIds={personnelUserIds}
+          />
 
           <div className="space-y-2">
             <Label htmlFor="book-notes">Notes (optional)</Label>

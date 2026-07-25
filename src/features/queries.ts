@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import {
   presignedObjectUrl,
@@ -9,6 +9,7 @@ import type {
   Announcement,
   AppNotification,
   AvailabilityInput,
+  AvailabilityWindow,
   CreateInvoiceInput,
   CreateLocationInput,
   ConfirmReviewInput,
@@ -663,6 +664,40 @@ export function useMyAvailability(opts?: QueryOpts) {
     queryKey: ["availability", "me"],
     queryFn: () => api<AvailabilityInput>("/users/availability"),
     ...opts,
+  });
+}
+
+// ── Free-window availability (powers smart scheduling) ───────────────────────
+// These endpoints return the INVERSE of existing reservations — free windows
+// with booked time already subtracted server-side (matching the server's
+// resourceIsAvailable / orgUserIsAvailable overlap checks at create time).
+// They ignore date-range params and return ~[yesterday, +1yr], so callers slice
+// to the selected day client-side.
+
+/** A resource's free (conflict-free) windows. */
+export function useResourceAvailability(resourceId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["availability", "resource", resourceId],
+    queryFn: () => api<AvailabilityWindow[]>(`/availability/resource/${resourceId}`),
+    enabled: (opts?.enabled ?? true) && resourceId != null,
+    staleTime: 30_000,
+  });
+}
+
+/**
+ * Free windows for each user (keyed by USER id, not org-user id) — one query per
+ * id via useQueries so the set can vary with the personnel selection. Returns a
+ * stable array aligned to `userIds`.
+ */
+export function useUsersAvailability(userIds: number[], opts?: QueryOpts) {
+  const enabled = opts?.enabled ?? true;
+  return useQueries({
+    queries: userIds.map((id) => ({
+      queryKey: ["availability", "user", id],
+      queryFn: () => api<AvailabilityWindow[]>(`/availability/user/${id}`),
+      enabled: enabled && id != null,
+      staleTime: 30_000,
+    })),
   });
 }
 

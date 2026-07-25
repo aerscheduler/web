@@ -31,6 +31,13 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { DOT_CLASS, TYPE_ORDER, typeLabel } from "./meta";
+import { SmartTimeRange } from "./smart-time-range";
+
+/** Resolve a member combobox value (org-user id) to that person's USER id. */
+function userIdOf(list: OrganizationUser[] | undefined, orgUserId: string): number | null {
+  if (!orgUserId) return null;
+  return list?.find((m) => String(m.id) === orgUserId)?.user?.id ?? null;
+}
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
@@ -75,8 +82,8 @@ export function ReservationForm({
   const [type, setType] = React.useState<ReservationType>("dual");
   const [resourceId, setResourceId] = React.useState("");
   const [date, setDate] = React.useState("");
-  const [start, setStart] = React.useState("09:00");
-  const [end, setEnd] = React.useState("10:00");
+  const [startAt, setStartAt] = React.useState<Date | null>(null);
+  const [endAt, setEndAt] = React.useState<Date | null>(null);
   const [instructorId, setInstructorId] = React.useState("");
   const [studentId, setStudentId] = React.useState("");
   const [renterId, setRenterId] = React.useState("");
@@ -89,16 +96,34 @@ export function ReservationForm({
 
   const isGuest = type === "guest";
 
+  // Everyone assigned must be free for the slot — feed their USER ids to the
+  // smart time picker so it intersects their availability with the aircraft's.
+  const personnelUserIds = React.useMemo(() => {
+    const ids: number[] = [];
+    const add = (id: number | null) => id != null && ids.push(id);
+    add(userIdOf(instructorsQ.data, instructorId));
+    if (!isGuest) {
+      add(userIdOf(studentsQ.data, studentId));
+      add(userIdOf(rentersQ.data, renterId));
+    }
+    return ids;
+  }, [instructorId, studentId, renterId, isGuest, instructorsQ.data, studentsQ.data, rentersQ.data]);
+
   // Re-seed the form each time it opens (from the draft the board handed us).
   const wasOpen = React.useRef(false);
   React.useEffect(() => {
     if (open && !wasOpen.current) {
+      const seed = (hhmm?: string): Date | null => {
+        if (!hhmm) return null;
+        const d = new Date(`${format(draft.date, "yyyy-MM-dd")}T${hhmm}:00`);
+        return Number.isNaN(d.getTime()) ? null : d;
+      };
       setTitle("");
       setType("dual");
       setResourceId(draft.resourceId != null ? String(draft.resourceId) : "");
       setDate(format(draft.date, "yyyy-MM-dd"));
-      setStart(draft.start ?? "09:00");
-      setEnd(draft.end ?? "10:00");
+      setStartAt(seed(draft.start));
+      setEndAt(seed(draft.end));
       setInstructorId("");
       setStudentId("");
       setRenterId("");
@@ -127,14 +152,8 @@ export function ReservationForm({
 
     if (!title.trim()) return setError("Give the reservation a title.");
     if (!date) return setError("Pick a date.");
-    if (!start || !end) return setError("Set a start and end time.");
-
-    const startDt = new Date(`${date}T${start}:00`);
-    const endDt = new Date(`${date}T${end}:00`);
-    if (Number.isNaN(startDt.getTime()) || Number.isNaN(endDt.getTime())) {
-      return setError("That date/time doesn't look right.");
-    }
-    if (endDt <= startDt) return setError("The end time must be after the start time.");
+    if (!startAt || !endAt) return setError("Pick a start and end time.");
+    if (endAt <= startAt) return setError("The end time must be after the start time.");
 
     // Resolve a location: chosen resource's location, else the first location.
     // Use the nested `location` relation, not FK_locationId — the server strips
@@ -188,8 +207,8 @@ export function ReservationForm({
     const input: CreateReservationInput = {
       title: title.trim(),
       type,
-      start: startDt.toISOString(),
-      end: endDt.toISOString(),
+      start: startAt.toISOString(),
+      end: endAt.toISOString(),
       timeZoneName: TZ,
       ...(notes.trim() ? { notes: notes.trim() } : {}),
       ...(locationId != null ? { location: { id: locationId } } : {}),
@@ -261,35 +280,18 @@ export function ReservationForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="res-date">Date</Label>
-            <Input
-              id="res-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="res-start">Start</Label>
-            <Input
-              id="res-start"
-              type="time"
-              value={start}
-              onChange={(e) => setStart(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="res-end">End</Label>
-            <Input
-              id="res-end"
-              type="time"
-              value={end}
-              onChange={(e) => setEnd(e.target.value)}
-            />
-          </div>
-        </div>
+        <SmartTimeRange
+          date={date}
+          onDateChange={setDate}
+          start={startAt}
+          end={endAt}
+          onChange={(s, e) => {
+            setStartAt(s);
+            setEndAt(e);
+          }}
+          resourceId={resourceId ? Number(resourceId) : null}
+          personnelUserIds={personnelUserIds}
+        />
 
         {isGuest ? (
           <div className="space-y-3">

@@ -593,6 +593,18 @@ export interface CreateInvoiceInput {
 }
 
 export type DayBlocks = { start: string; end: string }[];
+
+/**
+ * A free (bookable) time window returned by the availability endpoints
+ * (`/availability/resource/:id`, `/availability/user/:userId`). These are the
+ * INVERSE of existing reservations — the server has already subtracted booked
+ * time — spanning roughly [yesterday, +1 year]. An empty array means fully booked.
+ */
+export interface AvailabilityWindow {
+  start: string; // ISO
+  end: string; // ISO
+}
+
 export interface AvailabilityInput {
   monday?: DayBlocks;
   tuesday?: DayBlocks;

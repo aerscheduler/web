@@ -2,7 +2,7 @@ import * as React from "react";
 import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, Loader2, Ticket } from "lucide-react";
-import { isAuthenticated, postLoginPath, useAuth } from "@/lib/auth";
+import { isAuthenticated, needsEmailVerification, postLoginPath, useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 export const Route = createFileRoute("/join")({
   beforeLoad: () => {
     if (!isAuthenticated()) throw redirect({ to: "/login" });
+    if (needsEmailVerification()) throw redirect({ to: "/verify-email" });
   },
   component: JoinPage,
 });

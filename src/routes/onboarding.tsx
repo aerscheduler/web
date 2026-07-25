@@ -4,24 +4,20 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
+  Building2,
   Check,
-  KeyRound,
+  CheckCircle2,
   Loader2,
   PlaneTakeoff,
   Rocket,
+  Ticket,
   User as UserIcon,
-  Users,
 } from "lucide-react";
-import { isAuthenticated, useAuth } from "@/lib/auth";
+import { isAuthenticated, needsEmailVerification, useAuth } from "@/lib/auth";
 import {
-  useCreateCurrencyType,
   useCreateLocation,
   useCreatePlane,
-  useCreateRating,
   useCreateReservation,
-  useInviteMember,
-  useUpdateAvailability,
-  useUpdateBilling,
   useUpdateOrganization,
 } from "@/features/queries";
 import { api, ApiError } from "@/lib/api";
@@ -29,43 +25,26 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { MoneyInput } from "@/components/money-input";
 import { LogoMark } from "@/components/logo";
+import { FinishSetup } from "@/components/onboarding/finish-setup";
+import { PerPlanePricingNote, PlanCard, useSubStatus } from "@/components/subscription/plan";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/onboarding")({
   beforeLoad: () => {
     if (!isAuthenticated()) throw redirect({ to: "/login" });
+    if (needsEmailVerification()) throw redirect({ to: "/verify-email" });
   },
   component: Onboarding,
 });
 
-// ---------------------------------------------------------------- personas
+// ---------------------------------------------------------------- shared
 
-type PersonaKey = "flight_school" | "flying_club" | "rental" | "solo_instructor";
+type Persona = "student" | "instructor" | "school";
+type OrgType = "flight_school" | "flying_club" | "rental" | "solo_instructor";
 
-const PERSONAS: {
-  key: PersonaKey;
-  icon: typeof PlaneTakeoff;
-  title: string;
-  blurb: string;
-}[] = [
-  { key: "flight_school", icon: PlaneTakeoff, title: "Flight school", blurb: "Students, instructors, a training fleet." },
-  { key: "flying_club", icon: Users, title: "Flying club", blurb: "Members share aircraft and split the costs." },
-  { key: "rental", icon: KeyRound, title: "Rental / FBO", blurb: "You rent aircraft to checked-out pilots." },
-  { key: "solo_instructor", icon: UserIcon, title: "Independent instructor", blurb: "Just you (and maybe a club aircraft)." },
-];
-
-// Aircraft templates → prefill make/model/categoryClass + suggested wet rate (cents) + fuel (gal).
+/** Aircraft templates → prefill make/model/categoryClass + suggested wet rate (cents) + fuel (gal). */
 const AIRCRAFT_TEMPLATES: Record<
   string,
   { make: string; model: string; categoryClass: string; rate: number; fuel: number } | null
@@ -78,7 +57,23 @@ const AIRCRAFT_TEMPLATES: Record<
   Other: null,
 };
 
-const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+const EMPTY_ADDRESS = {
+  streetAddress1: "",
+  streetAddress2: "",
+  city: "",
+  state: "",
+  zipCode: "",
+  country: "",
+};
+
+// The server accepts these exact category/class strings; a free-text box lets typos
+// through and 400s, so "Other" uses a dropdown of these.
+const CATEGORY_CLASSES = [
+  "single-engine land",
+  "multi-engine land",
+  "single-engine sea",
+  "multi-engine sea",
+] as const;
 
 function apiErr(e: unknown): string {
   if (e instanceof ApiError) return e.message;
@@ -86,87 +81,240 @@ function apiErr(e: unknown): string {
   return "Something went wrong. Your entries are safe — try again.";
 }
 
-// ---------------------------------------------------------------- wizard
+/** Book the owner as the pilot so activation never blocks on a second person.
+ *  "solo" + 1 instructor + a plane is a valid reservation type (validateReservationType);
+ *  the owner has the instructor role on a freshly created org. */
+async function bookFirstFlight(
+  create: ReturnType<typeof useCreateReservation>,
+  opts: { resourceId: number; locationId: number; orgUserId: number }
+) {
+  const start = new Date();
+  start.setHours(start.getHours() + 1, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(end.getHours() + 1);
+  await create.mutateAsync({
+    title: "First flight",
+    type: "solo",
+    start: start.toISOString(),
+    end: end.toISOString(),
+    timeZoneName: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    resource: { id: opts.resourceId },
+    location: { id: opts.locationId },
+    personnel: { instructors: [{ id: opts.orgUserId }] },
+  });
+}
+
+// ---------------------------------------------------------------- orchestrator
 
 function Onboarding() {
+  const { organization } = useAuth();
+  const [persona, setPersona] = React.useState<Persona | null>(null);
+
+  if (organization?.preferences?.newOrgOnboardingComplete) {
+    return <AllSet name={organization.name} />;
+  }
+  if (!persona) return <PersonaRouter onPick={setPersona} />;
+  if (persona === "student") return <StudentFlow onBack={() => setPersona(null)} />;
+  if (persona === "instructor") return <InstructorFlow onBack={() => setPersona(null)} />;
+  return <SchoolFlow onBack={() => setPersona(null)} />;
+}
+
+function AllSet({ name }: { name: string }) {
+  return (
+    <Shell headline="You're all set up.">
+      <div className="text-center">
+        <h1 className="text-[22px] font-semibold tracking-tight">You're all set up</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{name} is already configured.</p>
+        <Button asChild className="mt-5">
+          <Link to="/dashboard">Go to dashboard</Link>
+        </Button>
+      </div>
+    </Shell>
+  );
+}
+
+// ---------------------------------------------------------------- persona router
+
+function PersonaRouter({ onPick }: { onPick: (p: Persona) => void }) {
+  return (
+    <Shell headline="Let's get you flying." sub="Tell us who you are — we'll set up only what you need, nothing more.">
+      <Step title="What brings you to AerScheduler?" sub="This just tailors your setup. You can change anything later.">
+        <div className="grid gap-3">
+          <PersonaCard
+            icon={Ticket}
+            title="I'm joining an organization"
+            blurb="A student or renter with a code from your school or club."
+            onClick={() => onPick("student")}
+          />
+          <PersonaCard
+            icon={UserIcon}
+            title="I'm an independent instructor"
+            blurb="Just you — add a plane and start booking in about a minute."
+            onClick={() => onPick("instructor")}
+          />
+          <PersonaCard
+            icon={Building2}
+            title="I run a flight school, club, or FBO"
+            blurb="Set up your fleet, team, and schedule."
+            onClick={() => onPick("school")}
+          />
+        </div>
+      </Step>
+    </Shell>
+  );
+}
+
+function PersonaCard({
+  icon: Icon,
+  title,
+  blurb,
+  onClick,
+}: {
+  icon: typeof Ticket;
+  title: string;
+  blurb: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex items-center gap-4 rounded-xl border p-4 text-left transition-colors hover:border-primary/50 hover:bg-accent/40"
+    >
+      <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+        <Icon className="size-5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">{title}</span>
+        <span className="block text-xs text-muted-foreground">{blurb}</span>
+      </span>
+      <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+    </button>
+  );
+}
+
+// ---------------------------------------------------------------- student flow
+
+function StudentFlow({ onBack }: { onBack: () => void }) {
+  const { joinByCode } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { user, organization, orgUserId, createOrganization } = useAuth();
 
-  const createLocation = useCreateLocation();
-  const createPlane = useCreatePlane();
-  const createRating = useCreateRating();
-  const updateBilling = useUpdateBilling();
-  const createCurrencyType = useCreateCurrencyType();
-  const updateAvailability = useUpdateAvailability();
-  const inviteMember = useInviteMember();
+  const [code, setCode] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [requested, setRequested] = React.useState(false);
+
+  async function submit() {
+    if (!code.trim()) return setError("Enter the code your school gave you.");
+    setBusy(true);
+    setError(null);
+    try {
+      const outcome = await joinByCode(code);
+      if (outcome === "joined") {
+        await qc.invalidateQueries();
+        toast.success("You're in! Let's book your first lesson.");
+        void navigate({ to: "/me/book" });
+      } else {
+        setRequested(true);
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "That code didn't work. Double-check it and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Shell headline="You're almost in." sub="Enter your code and you'll land right on the schedule.">
+      {requested ? (
+        <div className="text-center">
+          <div className="mx-auto grid size-12 place-items-center rounded-full bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-success">
+            <CheckCircle2 className="size-6" />
+          </div>
+          <h1 className="mt-4 text-lg font-semibold">Request sent</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This is a private organization, so an admin needs to approve you. You&rsquo;ll get access as
+            soon as they do.
+          </p>
+          <Button variant="outline" className="mt-5" onClick={onBack}>
+            <ArrowLeft className="size-4" /> Back
+          </Button>
+        </div>
+      ) : (
+        <Step title="Join your organization" sub="Enter the code your flight school or club shared with you.">
+          <Field id="join-code" label="Invite code" error={error ?? ""}>
+            <Input
+              id="join-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="e.g. MURRAY-AV"
+              autoFocus
+              autoComplete="off"
+              className="text-center font-mono text-lg tracking-widest"
+              aria-invalid={!!error}
+            />
+          </Field>
+          <div className="flex items-center gap-2 pt-2">
+            <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back" disabled={busy}>
+              <ArrowLeft className="size-4" />
+            </Button>
+            <div className="flex-1" />
+            <Button onClick={submit} disabled={busy || !code.trim()}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+              Join
+              {!busy && <ArrowRight className="size-4" />}
+            </Button>
+          </div>
+        </Step>
+      )}
+    </Shell>
+  );
+}
+
+// ---------------------------------------------------------------- instructor flow
+
+function InstructorFlow({ onBack }: { onBack: () => void }) {
+  const { user, orgUserId, createOrganization } = useAuth();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
   const createReservation = useCreateReservation();
   const updateOrg = useUpdateOrganization();
+  const subStatus = useSubStatus();
 
+  const who = user?.name?.trim().split(" ")[0];
   const [step, setStep] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
-  // Surfaced only after a submit attempt, so a pristine step never nags.
   const [showErrors, setShowErrors] = React.useState(false);
-
-  // collected state
-  const [persona, setPersona] = React.useState<PersonaKey | null>(null);
-  const [orgName, setOrgName] = React.useState("");
+  const [orgName, setOrgName] = React.useState(who ? `${who}'s Flight Instruction` : "My Flight Instruction");
   const [airport, setAirport] = React.useState("");
   const [locationId, setLocationId] = React.useState<number | null>(null);
-
-  const [template, setTemplate] = React.useState<string>("Cessna 172");
-  const [tail, setTail] = React.useState("");
-  const [year, setYear] = React.useState(String(new Date().getFullYear()));
-  const [hobbs, setHobbs] = React.useState("0");
-  const [tach, setTach] = React.useState("0");
-  const [rate, setRate] = React.useState<number>(16500);
   const [resourceId, setResourceId] = React.useState<number | null>(null);
+  const [tail, setTail] = React.useState("");
 
-  // persona-branch state
-  const [ratingName, setRatingName] = React.useState("Private Pilot");
-  const [instrRate, setInstrRate] = React.useState<number>(6500);
-  const [groundUnpaid, setGroundUnpaid] = React.useState(true);
-  const [checkoutName, setCheckoutName] = React.useState("Aircraft Checkout");
-  const [availDays, setAvailDays] = React.useState<Set<string>>(
-    new Set(["monday", "wednesday", "friday"])
-  );
-  const [availStart, setAvailStart] = React.useState("09:00");
-  const [availEnd, setAvailEnd] = React.useState("17:00");
+  const STEPS = ["You", "Aircraft", "Book", "Plan"];
 
-  const [inviteEmails, setInviteEmails] = React.useState("");
-  const [inviteRole, setInviteRole] = React.useState<
-    "instructor" | "student" | "renter" | "dispatcher" | "admin"
-  >("instructor");
-
-  const isSolo = persona === "solo_instructor";
-  const STEPS = ["Persona", "Operation", "Aircraft", "Setup", "Team", "Booking"];
-
-  // Reset the error surface whenever we move to a different step.
-  React.useEffect(() => {
-    setShowErrors(false);
-  }, [step]);
-
-  // Per-field validity for the input-gated steps, derived each render so inline
-  // messages clear as the user types.
-  const orgErrors = {
-    orgName: orgName.trim() ? "" : "Give your operation a name.",
-  };
-  const aircraftErrors = {
-    tail: tail.trim() ? "" : "Enter a tail number.",
-    year: year.trim().length === 4 ? "" : "Enter a 4-digit year.",
-  };
-
-  function next() {
-    setStep((s) => Math.min(s + 1, STEPS.length));
-  }
-  function back() {
-    setStep((s) => Math.max(s - 1, 0));
-  }
-
-  async function guarded(fn: () => Promise<void>) {
+  async function submitOrg() {
+    if (!orgName.trim()) {
+      setShowErrors(true);
+      document.getElementById("i-orgName")?.focus();
+      return;
+    }
     setBusy(true);
     try {
-      await fn();
+      await createOrganization({
+        name: orgName.trim(),
+        organizationType: "solo_instructor" satisfies OrgType,
+        details: { email: user?.email ?? "", phone: "", address: { ...EMPTY_ADDRESS } },
+        location: { name: airport.trim() || orgName.trim(), address: { ...EMPTY_ADDRESS } },
+      });
+      try {
+        const locs = await api<{ id: number }[]>("/locations");
+        if (locs[0]) setLocationId(locs[0].id);
+      } catch {
+        /* the aircraft step re-checks and can create one if needed */
+      }
+      setStep(1);
     } catch (e) {
       toast.error(apiErr(e));
     } finally {
@@ -174,58 +322,332 @@ function Onboarding() {
     }
   }
 
-  // Step 1 → create org (token swaps). The server also provisions a home-base
-  // location as part of org creation — both details.address and location{name,address}
-  // are REQUIRED by the create service (empty strings are accepted).
+  // Book (optionally) then advance to the Plan step. Mark onboarding complete here
+  // so nothing strands the user if they leave from the plan step.
+  async function toPlan(withBooking: boolean) {
+    setBusy(true);
+    try {
+      if (withBooking && resourceId && locationId && orgUserId) {
+        try {
+          await bookFirstFlight(createReservation, { resourceId, locationId, orgUserId });
+          toast.success("You're cleared for takeoff — first flight is on the schedule.");
+        } catch (e) {
+          toast.error(apiErr(e));
+        }
+      }
+      void updateOrg.mutateAsync({ preferences: { newOrgOnboardingComplete: true } }).catch(() => {});
+      setStep(3);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function finishToDashboard() {
+    qc.clear();
+    void navigate({ to: "/dashboard" });
+  }
+
+  return (
+    <Shell headline="Two minutes to a bookable aircraft." steps={STEPS} step={step}>
+      {step === 0 && (
+        <Step title="Name your operation" sub="Just enough to hang a schedule on — you can rename it anytime.">
+          <Field id="i-orgName" label="Operation name" error={showErrors && !orgName.trim() ? "Give your operation a name." : ""}>
+            <Input
+              id="i-orgName"
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              autoFocus
+              aria-invalid={showErrors && !orgName.trim()}
+            />
+          </Field>
+          <Field id="i-airport" label="Home airport" hint="Identifier, e.g. KAPA">
+            <Input
+              id="i-airport"
+              value={airport}
+              onChange={(e) => setAirport(e.target.value.toUpperCase())}
+              placeholder="KAPA"
+            />
+          </Field>
+          <div className="flex items-center gap-2 pt-2">
+            <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back" disabled={busy}>
+              <ArrowLeft className="size-4" />
+            </Button>
+            <div className="flex-1" />
+            <Button onClick={submitOrg} disabled={busy}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+              Continue
+              {!busy && <ArrowRight className="size-4" />}
+            </Button>
+          </div>
+        </Step>
+      )}
+
+      {step === 1 && (
+        <AircraftStep
+          title="Add the aircraft you fly"
+          sub="Don't own an aircraft? Skip for now — you can add one anytime from the Aircraft page."
+          locationId={locationId}
+          fallbackLocationName={airport.trim() || orgName.trim()}
+          onBack={() => setStep(0)}
+          onSkip={() => setStep(2)}
+          onCreated={(resId, locId, tailNo) => {
+            setResourceId(resId);
+            setLocationId(locId);
+            setTail(tailNo);
+            setStep(2);
+          }}
+        />
+      )}
+
+      {step === 2 && (
+        <BookingStep
+          tail={tail}
+          resourceId={resourceId}
+          busy={busy}
+          onBack={() => setStep(1)}
+          onPlace={() => toPlan(true)}
+          onSkip={() => toPlan(false)}
+        />
+      )}
+
+      {step === 3 && (
+        <Step title="Your plan" sub="You're on a free trial — no card needed to start.">
+          {subStatus && <PlanCard status={subStatus} />}
+          <div className="flex justify-end pt-2">
+            <Button onClick={finishToDashboard}>
+              <Rocket className="size-4" />
+              Go to dashboard
+            </Button>
+          </div>
+        </Step>
+      )}
+    </Shell>
+  );
+}
+
+// ---------------------------------------------------------------- school / club / FBO flow
+
+const SUBTYPES: { key: OrgType; label: string }[] = [
+  { key: "flight_school", label: "Flight school" },
+  { key: "flying_club", label: "Flying club" },
+  { key: "rental", label: "Rental / FBO" },
+];
+
+function SchoolFlow({ onBack }: { onBack: () => void }) {
+  const { user, orgUserId, organization, createOrganization } = useAuth();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const createReservation = useCreateReservation();
+  const updateOrg = useUpdateOrganization();
+
+  const [step, setStep] = React.useState(0);
+  const [busy, setBusy] = React.useState(false);
+  const [showErrors, setShowErrors] = React.useState(false);
+  const [subtype, setSubtype] = React.useState<OrgType>("flight_school");
+  const [orgName, setOrgName] = React.useState("");
+  const [airport, setAirport] = React.useState("");
+  const [locationId, setLocationId] = React.useState<number | null>(null);
+  const [resourceId, setResourceId] = React.useState<number | null>(null);
+  const [tail, setTail] = React.useState("");
+
+  const STEPS = ["You", "Aircraft", "Book", "Finish"];
+
   async function submitOrg() {
-    if (busy) return;
-    if (orgErrors.orgName) {
+    if (!orgName.trim()) {
       setShowErrors(true);
-      document.getElementById("orgName")?.focus();
+      document.getElementById("s-orgName")?.focus();
       return;
     }
-    await guarded(async () => {
-      const emptyAddr = {
-        streetAddress1: "",
-        streetAddress2: "",
-        city: "",
-        state: "",
-        zipCode: "",
-        country: "",
-      };
+    setBusy(true);
+    try {
       await createOrganization({
         name: orgName.trim(),
-        organizationType: persona,
-        details: { email: user?.email ?? "", phone: "", address: { ...emptyAddr } },
-        location: { name: airport.trim() || orgName.trim(), address: { ...emptyAddr } },
+        organizationType: subtype,
+        details: { email: user?.email ?? "", phone: "", address: { ...EMPTY_ADDRESS } },
+        location: { name: airport.trim() || orgName.trim(), address: { ...EMPTY_ADDRESS } },
       });
-      // grab the home-base location id the create just made, for the aircraft step
       try {
         const locs = await api<{ id: number }[]>("/locations");
         if (locs[0]) setLocationId(locs[0].id);
       } catch {
         /* the aircraft step re-checks and can create one if needed */
       }
-      toast.success(`${airport.trim() || "Home base"} is set as your home base.`);
-      next();
-    });
+      setStep(1);
+    } catch (e) {
+      toast.error(apiErr(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function submitAircraft(skip = false) {
-    if (skip) return next();
-    if (busy) return;
-    const firstInvalid = aircraftErrors.tail ? "tail" : aircraftErrors.year ? "year" : "";
+  /** Enter the finish-setup checklist. Mark onboarding complete here (they've
+   *  activated) so the checklist's deep-links can leave the wizard safely. */
+  async function toFinish(withBooking: boolean) {
+    setBusy(true);
+    try {
+      if (withBooking && resourceId && locationId && orgUserId) {
+        try {
+          await bookFirstFlight(createReservation, { resourceId, locationId, orgUserId });
+          toast.success("You're cleared for takeoff — first flight is on the schedule.");
+        } catch (e) {
+          toast.error(apiErr(e));
+        }
+      }
+      void updateOrg.mutateAsync({ preferences: { newOrgOnboardingComplete: true } }).catch(() => {});
+      setStep(3);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function goToDashboard() {
+    qc.clear();
+    void navigate({ to: "/dashboard" });
+  }
+
+  return (
+    <Shell headline="Set up your operation." steps={STEPS} step={step}>
+      {step === 0 && (
+        <Step title="Tell us about your operation" sub="This tailors your setup — you can change it later.">
+          <div>
+            <Label>Type</Label>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              {SUBTYPES.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => setSubtype(s.key)}
+                  className={cn(
+                    "rounded-lg border px-2 py-2 text-xs font-medium transition-colors",
+                    subtype === s.key ? "border-primary bg-primary/5 text-primary ring-1 ring-primary" : "hover:bg-accent"
+                  )}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Field id="s-orgName" label="Operation name" error={showErrors && !orgName.trim() ? "Give your operation a name." : ""}>
+            <Input
+              id="s-orgName"
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              placeholder="Blue Sky Aviation"
+              autoFocus
+              aria-invalid={showErrors && !orgName.trim()}
+            />
+          </Field>
+          <Field id="s-airport" label="Home airport" hint="Identifier, e.g. KAPA">
+            <Input
+              id="s-airport"
+              value={airport}
+              onChange={(e) => setAirport(e.target.value.toUpperCase())}
+              placeholder="KAPA"
+            />
+          </Field>
+          <div className="flex items-center gap-2 pt-2">
+            <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back" disabled={busy}>
+              <ArrowLeft className="size-4" />
+            </Button>
+            <div className="flex-1" />
+            <Button onClick={submitOrg} disabled={busy}>
+              {busy ? <Loader2 className="size-4 animate-spin" /> : null}
+              Create operation
+              {!busy && <ArrowRight className="size-4" />}
+            </Button>
+          </div>
+        </Step>
+      )}
+
+      {step === 1 && (
+        <AircraftStep
+          title="Add your first aircraft"
+          sub="One tail is all we need to make the schedule real — add the rest later."
+          locationId={locationId}
+          fallbackLocationName={airport.trim() || orgName.trim()}
+          onBack={() => setStep(0)}
+          onSkip={() => setStep(2)}
+          onCreated={(resId, locId, tailNo) => {
+            setResourceId(resId);
+            setLocationId(locId);
+            setTail(tailNo);
+            setStep(2);
+          }}
+        />
+      )}
+
+      {step === 2 && (
+        <BookingStep
+          tail={tail}
+          resourceId={resourceId}
+          busy={busy}
+          onBack={() => setStep(1)}
+          onPlace={() => toFinish(true)}
+          onSkip={() => toFinish(false)}
+        />
+      )}
+
+      {step === 3 && (
+        <FinishSetup orgName={organization?.name ?? orgName} onGoToDashboard={goToDashboard} busy={busy} />
+      )}
+    </Shell>
+  );
+}
+
+// ---------------------------------------------------------------- shared steps
+
+function AircraftStep({
+  title,
+  sub,
+  locationId,
+  fallbackLocationName,
+  onCreated,
+  onSkip,
+  onBack,
+}: {
+  title: string;
+  sub: string;
+  locationId: number | null;
+  fallbackLocationName: string;
+  onCreated: (resourceId: number, locationId: number, tail: string) => void;
+  onSkip: () => void;
+  onBack: () => void;
+}) {
+  const createPlane = useCreatePlane();
+  const createLocation = useCreateLocation();
+
+  const [template, setTemplate] = React.useState("Cessna 172");
+  const [tail, setTail] = React.useState("");
+  const [year, setYear] = React.useState(String(new Date().getFullYear()));
+  const [hobbs, setHobbs] = React.useState("0");
+  const [tach, setTach] = React.useState("0");
+  const [rate, setRate] = React.useState(16500);
+  // "Other" isn't in the template list, so make/model/category are entered by hand.
+  const [make, setMake] = React.useState("");
+  const [model, setModel] = React.useState("");
+  const [categoryClass, setCategoryClass] = React.useState<string>("single-engine land");
+  const [busy, setBusy] = React.useState(false);
+  const [showErrors, setShowErrors] = React.useState(false);
+
+  const isOther = template === "Other";
+  const tailErr = tail.trim() ? "" : "Enter a tail number.";
+  const yearErr = year.trim().length === 4 ? "" : "Enter a 4-digit year.";
+  const makeErr = isOther && !make.trim() ? "Enter the make." : "";
+  const modelErr = isOther && !model.trim() ? "Enter the model." : "";
+
+  async function submit() {
+    const firstInvalid = tailErr ? "ac-tail" : yearErr ? "ac-year" : makeErr ? "ac-make" : modelErr ? "ac-model" : "";
     if (firstInvalid) {
       setShowErrors(true);
       document.getElementById(firstInvalid)?.focus();
       return;
     }
-    await guarded(async () => {
+    setBusy(true);
+    try {
       let locId = locationId;
       if (!locId) {
-        const loc = await createLocation.mutateAsync({ name: airport.trim() || orgName.trim() });
+        const loc = await createLocation.mutateAsync({ name: fallbackLocationName });
         locId = loc.id;
-        setLocationId(loc.id);
       }
       const tpl = AIRCRAFT_TEMPLATES[template];
       const res = await createPlane.mutateAsync({
@@ -233,10 +655,10 @@ function Onboarding() {
         type: {
           plane: {
             tailNumber: tail.trim().toUpperCase(),
-            make: tpl?.make,
-            model: tpl?.model,
+            make: isOther ? make.trim() : tpl?.make,
+            model: isOther ? model.trim() : tpl?.model,
             year: year.trim(),
-            categoryClass: tpl?.categoryClass ?? "single-engine land",
+            categoryClass: isOther ? categoryClass : tpl?.categoryClass ?? "single-engine land",
             tachTime: Math.round((Number(tach) || 0) * 10),
             hobbsTime: Math.round((Number(hobbs) || 0) * 10),
             fuelCapacity: tpl?.fuel ?? 50,
@@ -245,118 +667,180 @@ function Onboarding() {
           },
         },
       });
-      setResourceId(res.id);
       toast.success(`${tail.trim().toUpperCase()} is on the schedule.`);
-      next();
-    });
+      onCreated(res.id, locId, tail.trim().toUpperCase());
+    } catch (e) {
+      toast.error(apiErr(e));
+    } finally {
+      setBusy(false);
+    }
   }
-
-  async function submitPersonaStep(skip = false) {
-    if (skip) return next();
-    await guarded(async () => {
-      if (persona === "flight_school" || isSolo) {
-        await createRating.mutateAsync({
-          name: ratingName.trim() || "Flight Instruction",
-          defaultInstructorRate: instrRate,
-          anyInstructorCanTeach: true,
-        });
-      }
-      if (persona === "flying_club") {
-        await updateBilling.mutateAsync({
-          enabled: true,
-          defaultInstructorRate: instrRate,
-          ...(groundUnpaid ? { groundUserUnpaidInvoices: 1 } : {}),
-        });
-      }
-      if (persona === "rental") {
-        await createCurrencyType.mutateAsync({ name: checkoutName.trim() || "Aircraft Checkout" });
-      }
-      if (isSolo) {
-        const blocks: Record<string, { start: string; end: string }[]> = {};
-        for (const d of availDays) blocks[d] = [{ start: availStart, end: availEnd }];
-        await updateAvailability.mutateAsync(blocks);
-      }
-      toast.success("Setup saved.");
-      next();
-    });
-  }
-
-  async function submitInvites(skip = false) {
-    if (skip) return next();
-    const emails = inviteEmails
-      .split(/[\s,;]+/)
-      .map((e) => e.trim())
-      .filter((e) => e.includes("@"));
-    if (emails.length === 0) return next();
-    await guarded(async () => {
-      let ok = 0;
-      let fail = 0;
-      for (const email of emails) {
-        try {
-          await inviteMember.mutateAsync({ email, [inviteRole]: true });
-          ok++;
-        } catch {
-          fail++;
-        }
-      }
-      if (ok === 0) {
-        toast.error("No invitations could be sent — those people may already be members.");
-        return;
-      }
-      if (fail > 0) {
-        toast.success(
-          `${ok} invitation${ok === 1 ? "" : "s"} sent — ${fail} couldn't be sent.`
-        );
-      } else {
-        toast.success(`${ok} invitation${ok === 1 ? "" : "s"} sent.`);
-      }
-      next();
-    });
-  }
-
-  async function finish(withBooking: boolean) {
-    await guarded(async () => {
-      if (withBooking && resourceId && locationId && orgUserId) {
-        const start = new Date();
-        start.setHours(start.getHours() + 1, 0, 0, 0);
-        const end = new Date(start);
-        end.setHours(end.getHours() + 1);
-        try {
-          // Book the owner as the pilot so activation never blocks on a second person.
-          // "solo" + 1 instructor + a plane is a valid reservation type (see the server's
-          // validateReservationType); the owner has the instructor role.
-          await createReservation.mutateAsync({
-            title: "First flight",
-            type: "solo",
-            start: start.toISOString(),
-            end: end.toISOString(),
-            timeZoneName: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            resource: { id: resourceId },
-            location: { id: locationId },
-            personnel: { instructors: [{ id: orgUserId }] },
-          });
-          toast.success("You're cleared for takeoff — first flight is on the schedule.");
-        } catch (e) {
-          toast.error(apiErr(e));
-        }
-      }
-      try {
-        await updateOrg.mutateAsync({ preferences: { newOrgOnboardingComplete: true } });
-      } catch {
-        /* completion flag is best-effort */
-      }
-      qc.clear();
-      navigate({ to: "/dashboard" });
-    });
-  }
-
-  // If the user already has a completed org, they don't belong here.
-  const alreadySetUp = organization?.preferences?.newOrgOnboardingComplete;
 
   return (
+    <Step title={title} sub={sub}>
+      <Field id="ac-template" label="Type">
+        <select
+          id="ac-template"
+          value={template}
+          onChange={(e) => {
+            setTemplate(e.target.value);
+            const t = AIRCRAFT_TEMPLATES[e.target.value];
+            if (t) setRate(t.rate);
+          }}
+          className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+        >
+          {Object.keys(AIRCRAFT_TEMPLATES).map((k) => (
+            <option key={k} value={k}>
+              {k}
+            </option>
+          ))}
+        </select>
+      </Field>
+
+      {isOther && (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <Field id="ac-make" label="Make" error={showErrors ? makeErr : ""}>
+              <Input
+                id="ac-make"
+                value={make}
+                onChange={(e) => setMake(e.target.value)}
+                placeholder="e.g. Cessna"
+                aria-invalid={showErrors && !!makeErr}
+              />
+            </Field>
+            <Field id="ac-model" label="Model" error={showErrors ? modelErr : ""}>
+              <Input
+                id="ac-model"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="e.g. 172"
+                aria-invalid={showErrors && !!modelErr}
+              />
+            </Field>
+          </div>
+          <Field id="ac-cat" label="Category &amp; class">
+            <select
+              id="ac-cat"
+              value={categoryClass}
+              onChange={(e) => setCategoryClass(e.target.value)}
+              className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+            >
+              {CATEGORY_CLASSES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </>
+      )}
+
+      <Field id="ac-tail" label="Tail number" error={showErrors ? tailErr : ""}>
+        <Input
+          id="ac-tail"
+          value={tail}
+          onChange={(e) => setTail(e.target.value.toUpperCase())}
+          placeholder="N734X"
+          aria-invalid={showErrors && !!tailErr}
+        />
+      </Field>
+      <div className="grid grid-cols-3 gap-3">
+        <Field id="ac-year" label="Year" error={showErrors ? yearErr : ""}>
+          <Input
+            id="ac-year"
+            inputMode="numeric"
+            maxLength={4}
+            value={year}
+            onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ""))}
+            className="tnum"
+            aria-invalid={showErrors && !!yearErr}
+          />
+        </Field>
+        <Field id="ac-hobbs" label="Hobbs">
+          <Input id="ac-hobbs" inputMode="decimal" value={hobbs} onChange={(e) => setHobbs(e.target.value)} className="tnum" />
+        </Field>
+        <Field id="ac-tach" label="Tach">
+          <Input id="ac-tach" inputMode="decimal" value={tach} onChange={(e) => setTach(e.target.value)} className="tnum" />
+        </Field>
+      </div>
+      <Field id="ac-rate" label="Rate" hint="Billed on Hobbs (wet)">
+        <MoneyInput id="ac-rate" cents={rate} onCentsChange={setRate} />
+      </Field>
+      <PerPlanePricingNote />
+      <Nav onBack={onBack} onNext={submit} nextLabel="Add aircraft" busy={busy} onSkip={onSkip} />
+    </Step>
+  );
+}
+
+function BookingStep({
+  tail,
+  resourceId,
+  busy,
+  onPlace,
+  onSkip,
+  onBack,
+}: {
+  tail: string;
+  resourceId: number | null;
+  busy: boolean;
+  onPlace: () => void;
+  onSkip: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <Step
+      title="Put something on the schedule"
+      sub="One booking makes the whole thing real — ramp it in when the flight's done and we'll draft the invoice."
+    >
+      <div className="rounded-xl border bg-card p-4">
+        <div className="flex items-center gap-3">
+          <span className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
+            <PlaneTakeoff className="size-5" />
+          </span>
+          <div className="text-sm">
+            <div className="font-medium">{tail ? tail : "Your aircraft"} · today</div>
+            <div className="text-muted-foreground">
+              {resourceId ? "A starter reservation, pre-filled and ready." : "Add an aircraft first to place a booking."}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button className="flex-1" onClick={onPlace} disabled={busy || !resourceId}>
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <Rocket className="size-4" />}
+          Place booking &amp; continue
+        </Button>
+        <Button variant="outline" className="flex-1" onClick={onSkip} disabled={busy}>
+          Skip for now
+        </Button>
+      </div>
+      <button type="button" onClick={onBack} className="mt-2 text-xs text-muted-foreground hover:text-foreground">
+        ← Back
+      </button>
+    </Step>
+  );
+}
+
+// ---------------------------------------------------------------- primitives
+
+function Shell({
+  steps,
+  step = 0,
+  headline,
+  sub,
+  children,
+}: {
+  steps?: string[];
+  step?: number;
+  headline: string;
+  sub?: string;
+  children: React.ReactNode;
+}) {
+  const { user } = useAuth();
+  return (
     <div className="grid min-h-dvh lg:grid-cols-[minmax(0,44%)_minmax(0,56%)]">
-      {/* brand / preview panel */}
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-brand-surface p-10 text-white/75 lg:flex">
+      <aside className="relative hidden overflow-hidden bg-brand-surface p-10 text-white/75 lg:flex lg:flex-col">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.6]"
           style={{
@@ -365,342 +849,57 @@ function Onboarding() {
             backgroundSize: "auto, 34px 34px, 34px 34px",
           }}
         />
-        <div className="relative flex items-center gap-2.5">
-          <span className="grid size-9 place-items-center rounded-lg bg-primary p-1.5">
-            <LogoMark onDark className="size-full" />
-          </span>
-          <span className="text-[15px] font-semibold tracking-tight text-white">AerScheduler</span>
-        </div>
-        <div className="relative max-w-md">
-          <h2 className="text-3xl font-semibold leading-tight tracking-tight text-white text-balance">
-            Two minutes to a bookable aircraft.
-          </h2>
-          <p className="mt-3 text-sm text-white/70">
-            No credit card, no sales call. We'll set up your operation as you go — every step writes
-            real data you can use the moment you land on your dashboard.
-          </p>
-          <ol className="mt-8 space-y-3 text-sm">
-            {STEPS.map((label, i) => (
-              <li key={label} className="flex items-center gap-3">
-                <span
-                  className={cn(
-                    "grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold",
-                    i < step
-                      ? "bg-primary text-primary-foreground"
-                      : i === step
-                        ? "bg-white text-brand-surface"
-                        : "bg-white/10 text-white/50"
-                  )}
-                >
-                  {i < step ? <Check className="size-3.5" /> : i + 1}
-                </span>
-                <span className={cn(i === step ? "text-white" : "text-white/55")}>
-                  {label}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </div>
-        <div className="relative text-xs text-white/45">
-          Signed in as {user?.email}
+        {/* Content capped + centered so it doesn't fly to the far-left on wide screens. */}
+        <div className="relative mx-auto flex h-full w-full max-w-md flex-col justify-between">
+          <div className="flex items-center gap-2.5">
+            <LogoMark onDark className="h-8 w-auto" />
+            <span className="text-[15px] font-semibold tracking-tight text-white">AerScheduler</span>
+          </div>
+          <div>
+            <h2 className="text-3xl font-semibold leading-tight tracking-tight text-white text-balance">{headline}</h2>
+            {sub && <p className="mt-3 text-sm text-white/70">{sub}</p>}
+            {steps ? (
+              <ol className="mt-8 space-y-3 text-sm">
+                {steps.map((label, i) => (
+                  <li key={label} className="flex items-center gap-3">
+                    <span
+                      className={cn(
+                        "grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold",
+                        i < step
+                          ? "bg-primary text-primary-foreground"
+                          : i === step
+                            ? "bg-white text-brand-surface"
+                            : "bg-white/10 text-white/50"
+                      )}
+                    >
+                      {i < step ? <Check className="size-3.5" /> : i + 1}
+                    </span>
+                    <span className={cn(i === step ? "text-white" : "text-white/55")}>{label}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <ul className="mt-8 space-y-2.5 text-sm text-white/70">
+                {["Set up in minutes — no sales call", "No credit card to start", "Every step writes real, usable data"].map(
+                  (t) => (
+                    <li key={t} className="flex items-center gap-2.5">
+                      <Check className="size-4 shrink-0 text-primary" /> {t}
+                    </li>
+                  )
+                )}
+              </ul>
+            )}
+          </div>
+          <div className="text-xs text-white/45">Signed in as {user?.email}</div>
         </div>
       </aside>
 
-      {/* step content */}
       <main className="flex flex-col items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-lg">
-          {alreadySetUp && step === 0 ? (
-            <div className="text-center">
-              <h1 className="text-[22px] font-semibold tracking-tight">You're all set up</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                {organization?.name} is already configured.
-              </p>
-              <Button asChild className="mt-5">
-                <Link to="/dashboard">Go to dashboard</Link>
-              </Button>
-            </div>
-          ) : (
-            <>
-              {step === 0 && (
-                <Step title="Which one sounds like you?" sub="This just tailors the setup — nothing here is locked in.">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {PERSONAS.map((p) => (
-                      <button
-                        key={p.key}
-                        type="button"
-                        onClick={() => setPersona(p.key)}
-                        className={cn(
-                          "flex flex-col items-start gap-2 rounded-xl border p-4 text-left transition-colors hover:border-primary/50 hover:bg-accent/40",
-                          persona === p.key && "border-primary bg-primary/5 ring-1 ring-primary"
-                        )}
-                      >
-                        <span className="grid size-9 place-items-center rounded-lg bg-primary/10 text-primary">
-                          <p.icon className="size-5" />
-                        </span>
-                        <span className="font-medium">{p.title}</span>
-                        <span className="text-xs text-muted-foreground">{p.blurb}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <Nav onNext={next} nextDisabled={!persona} />
-                  <p className="pt-2 text-center text-sm text-muted-foreground">
-                    Joining an existing school?{" "}
-                    <Link to="/join" className="font-medium text-primary hover:underline">
-                      Enter a code
-                    </Link>
-                  </p>
-                </Step>
-              )}
-
-              {step === 1 && (
-                <Step title="What do we call it?" sub="Name your operation and set a home base.">
-                  <Field id="orgName" label="Operation name" error={showErrors ? orgErrors.orgName : ""}>
-                    <Input
-                      id="orgName"
-                      value={orgName}
-                      onChange={(e) => setOrgName(e.target.value)}
-                      placeholder="Blue Sky Aviation"
-                      autoFocus
-                      aria-invalid={showErrors && !!orgErrors.orgName}
-                    />
-                  </Field>
-                  <Field id="airport" label="Home airport" hint="Identifier, e.g. KAPA">
-                    <Input
-                      id="airport"
-                      value={airport}
-                      onChange={(e) => setAirport(e.target.value.toUpperCase())}
-                      placeholder="KAPA"
-                    />
-                  </Field>
-                  <Nav onBack={back} onNext={submitOrg} nextLabel="Create operation" busy={busy} />
-                </Step>
-              )}
-
-              {step === 2 && (
-                <Step
-                  title="Add the aircraft you fly most"
-                  sub={isSolo ? "Fly a club or FBO plane? You can skip this." : "One tail is all we need to make the schedule real."}
-                >
-                  <Field id="template" label="Type">
-                    <Select
-                      value={template}
-                      onValueChange={(v) => {
-                        setTemplate(v);
-                        const t = AIRCRAFT_TEMPLATES[v];
-                        if (t) setRate(t.rate);
-                      }}
-                    >
-                      <SelectTrigger id="template">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.keys(AIRCRAFT_TEMPLATES).map((k) => (
-                          <SelectItem key={k} value={k}>
-                            {k}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field id="tail" label="Tail number" error={showErrors ? aircraftErrors.tail : ""}>
-                    <Input
-                      id="tail"
-                      value={tail}
-                      onChange={(e) => setTail(e.target.value.toUpperCase())}
-                      placeholder="N734X"
-                      aria-invalid={showErrors && !!aircraftErrors.tail}
-                    />
-                  </Field>
-                  <div className="grid grid-cols-3 gap-3">
-                    <Field id="year" label="Year" error={showErrors ? aircraftErrors.year : ""}>
-                      <Input
-                        id="year"
-                        inputMode="numeric"
-                        maxLength={4}
-                        value={year}
-                        onChange={(e) => setYear(e.target.value.replace(/[^0-9]/g, ""))}
-                        className="tnum"
-                        aria-invalid={showErrors && !!aircraftErrors.year}
-                      />
-                    </Field>
-                    <Field id="hobbs" label="Hobbs">
-                      <Input id="hobbs" inputMode="decimal" value={hobbs} onChange={(e) => setHobbs(e.target.value)} className="tnum" />
-                    </Field>
-                    <Field id="tach" label="Tach">
-                      <Input id="tach" inputMode="decimal" value={tach} onChange={(e) => setTach(e.target.value)} className="tnum" />
-                    </Field>
-                  </div>
-                  <Field id="rate" label="Rate" hint="Billed on Hobbs (wet)">
-                    <MoneyInput id="rate" cents={rate} onCentsChange={setRate} />
-                  </Field>
-                  <Nav
-                    onBack={back}
-                    onNext={() => submitAircraft(false)}
-                    nextLabel="Add aircraft"
-                    busy={busy}
-                    onSkip={isSolo ? () => submitAircraft(true) : undefined}
-                  />
-                </Step>
-              )}
-
-              {step === 3 && <PersonaStep />}
-
-              {step === 4 && (
-                <Step title={isSolo ? "Add your first student" : "Who else runs the ramp?"} sub="Invitees land in the right place automatically — you never have to explain the app.">
-                  <Field id="role" label="They are a…">
-                    <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as typeof inviteRole)}>
-                      <SelectTrigger id="role">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="instructor">Instructor</SelectItem>
-                        <SelectItem value="student">Student</SelectItem>
-                        <SelectItem value="renter">Renter / member</SelectItem>
-                        <SelectItem value="dispatcher">Front desk / dispatcher</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </Field>
-                  <Field id="emails" label="Email addresses" hint="One per line — paste a whole roster">
-                    <Textarea
-                      id="emails"
-                      value={inviteEmails}
-                      onChange={(e) => setInviteEmails(e.target.value)}
-                      placeholder={"cfi@example.com\nstudent@example.com"}
-                      rows={4}
-                    />
-                  </Field>
-                  <Nav onBack={back} onNext={() => submitInvites(false)} nextLabel="Send invites" busy={busy} onSkip={() => submitInvites(true)} />
-                </Step>
-              )}
-
-              {step === 5 && (
-                <Step title="Put something on the schedule" sub="One booking makes the whole thing real — ramp it in when the flight's done and we'll draft the invoice.">
-                  <div className="rounded-xl border bg-card p-4">
-                    <div className="flex items-center gap-3">
-                      <span className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
-                        <PlaneTakeoff className="size-5" />
-                      </span>
-                      <div className="text-sm">
-                        <div className="font-medium">
-                          {tail ? tail.toUpperCase() : "Your aircraft"} · today
-                        </div>
-                        <div className="text-muted-foreground">
-                          {resourceId ? "A starter reservation, pre-filled and ready." : "Add an aircraft first to place a booking."}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button className="flex-1" onClick={() => finish(true)} disabled={busy || !resourceId}>
-                      {busy ? <Loader2 className="size-4 animate-spin" /> : <Rocket className="size-4" />}
-                      Place booking &amp; finish
-                    </Button>
-                    <Button variant="outline" className="flex-1" onClick={() => finish(false)} disabled={busy}>
-                      Finish without booking
-                    </Button>
-                  </div>
-                  <button type="button" onClick={back} className="mt-2 text-xs text-muted-foreground hover:text-foreground">
-                    ← Back
-                  </button>
-                </Step>
-              )}
-            </>
-          )}
-        </div>
+        <div className="w-full max-w-lg">{children}</div>
       </main>
     </div>
   );
-
-  function PersonaStep() {
-    if (persona === "flight_school" || isSolo) {
-      return (
-        <Step
-          title={isSolo ? "Set your instruction rate" : "Set your instruction types & rates"}
-          sub={isSolo ? "A student can't book a CFI with no open time or rate." : "A lesson isn't priceable without a rating rate."}
-        >
-          <Field id="ratingName" label="Instruction type">
-            <Input id="ratingName" value={ratingName} onChange={(e) => setRatingName(e.target.value)} placeholder="Private Pilot" />
-          </Field>
-          <Field id="instrRate" label="Instructor rate" hint="Per hour">
-            <MoneyInput id="instrRate" cents={instrRate} onCentsChange={setInstrRate} />
-          </Field>
-          {isSolo && (
-            <>
-              <div className="pt-1">
-                <Label>Weekly availability</Label>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {DAYS.map((d) => {
-                    const on = availDays.has(d);
-                    return (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() =>
-                          setAvailDays((prev) => {
-                            const n = new Set(prev);
-                            if (n.has(d)) n.delete(d);
-                            else n.add(d);
-                            return n;
-                          })
-                        }
-                        className={cn(
-                          "rounded-md border px-2.5 py-1 text-xs font-medium capitalize transition-colors",
-                          on ? "border-primary bg-primary text-primary-foreground" : "hover:bg-accent"
-                        )}
-                      >
-                        {d.slice(0, 3)}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Field id="as" label="From">
-                  <Input id="as" type="time" value={availStart} onChange={(e) => setAvailStart(e.target.value)} />
-                </Field>
-                <Field id="ae" label="To">
-                  <Input id="ae" type="time" value={availEnd} onChange={(e) => setAvailEnd(e.target.value)} />
-                </Field>
-              </div>
-            </>
-          )}
-          <Nav onBack={back} onNext={() => submitPersonaStep(false)} busy={busy} onSkip={() => submitPersonaStep(true)} />
-        </Step>
-      );
-    }
-
-    if (persona === "flying_club") {
-      return (
-        <Step title="Set dues & billing rules" sub="Turn on billing and the delinquency lever treasurers ask for by name.">
-          <Field id="instrRate" label="Default instructor rate" hint="Per hour">
-            <MoneyInput id="instrRate" cents={instrRate} onCentsChange={setInstrRate} />
-          </Field>
-          <label className="flex items-center justify-between rounded-lg border p-3">
-            <span className="text-sm">
-              <span className="font-medium">Block booking on unpaid balances</span>
-              <span className="block text-xs text-muted-foreground">Members with overdue invoices can't book.</span>
-            </span>
-            <Switch checked={groundUnpaid} onCheckedChange={setGroundUnpaid} />
-          </label>
-          <Nav onBack={back} onNext={() => submitPersonaStep(false)} busy={busy} onSkip={() => submitPersonaStep(true)} />
-        </Step>
-      );
-    }
-
-    // rental
-    return (
-      <Step title="Set your checkout requirement" sub="Only checked-out pilots can book a given tail.">
-        <Field id="checkout" label="Checkout name">
-          <Input id="checkout" value={checkoutName} onChange={(e) => setCheckoutName(e.target.value)} placeholder="Aircraft Checkout" />
-        </Field>
-        <Nav onBack={back} onNext={() => submitPersonaStep(false)} busy={busy} onSkip={() => submitPersonaStep(true)} />
-      </Step>
-    );
-  }
 }
-
-// ---------------------------------------------------------------- small pieces
 
 function Step({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
   return (

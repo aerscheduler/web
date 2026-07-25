@@ -62,6 +62,16 @@ export interface OrganizationDetails {
   email: string | null;
 }
 
+/** Per-aircraft platform subscription status (GET /subscription). Stripe-backed. */
+export interface SubscriptionStatus {
+  hasSubscription: boolean;
+  status?: string; // trialing | active | past_due | canceled | unpaid | incomplete…
+  quantity?: number;
+  trialEnd?: string | null;
+  currentPeriodEnd?: string | null;
+  cancelAtPeriodEnd?: boolean;
+}
+
 export interface OrganizationPreferences {
   id: number;
   private: boolean;

@@ -6,6 +6,7 @@ import { PLANE_TEMPLATES } from "@/components/aircraft/lib";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { MoneyInput } from "@/components/money-input";
+import { PerPlanePricingNote } from "@/components/subscription/plan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -334,13 +335,17 @@ export function AircraftFormModal({
 
         <div className="space-y-1.5">
           <Label htmlFor="ac-cat">Category &amp; class</Label>
-          <Input
-            id="ac-cat"
-            placeholder="single-engine land"
-            value={form.categoryClass}
-            onChange={(e) => set("categoryClass", e.target.value)}
-            aria-invalid={showErrors && !!errors.categoryClass}
-          />
+          <Select value={form.categoryClass || undefined} onValueChange={(v) => set("categoryClass", v)}>
+            <SelectTrigger id="ac-cat" className="w-full" aria-invalid={showErrors && !!errors.categoryClass}>
+              <SelectValue placeholder="Select category & class" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="single-engine land">single-engine land</SelectItem>
+              <SelectItem value="multi-engine land">multi-engine land</SelectItem>
+              <SelectItem value="single-engine sea">single-engine sea</SelectItem>
+              <SelectItem value="multi-engine sea">multi-engine sea</SelectItem>
+            </SelectContent>
+          </Select>
           {showErrors && errors.categoryClass && (
             <p className="text-xs text-destructive">{errors.categoryClass}</p>
           )}
@@ -468,6 +473,8 @@ export function AircraftFormModal({
             </p>
           )}
         </div>
+
+        {!isEdit && <PerPlanePricingNote className="pt-1" />}
 
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

@@ -68,8 +68,24 @@ export function hasActiveOrg(): boolean {
   return loadSession().organization != null;
 }
 
+/** True if the signed-in user has verified their email. Read synchronously from
+ *  the stored session for router guards — mirrors the Flutter app, which already
+ *  blocks unverified users after signup. */
+export function isEmailVerifiedSync(): boolean {
+  return Boolean(loadSession().user?.emailVerifiedAt);
+}
+
+/** Whether the email-verification gate should apply. Bypassed on local dev
+ *  (`npm run dev`) so onboarding is testable without a real verification link —
+ *  the dev server talks to the prod API, which never auto-verifies. Enforced in
+ *  every built (preview/prod) bundle. */
+export function needsEmailVerification(): boolean {
+  return !import.meta.env.DEV && !isEmailVerifiedSync();
+}
+
 /** Where to send a user right after authenticating, based on the fresh session. */
-export function postLoginPath(): "/onboarding" | "/dashboard" | "/me" {
+export function postLoginPath(): "/verify-email" | "/onboarding" | "/dashboard" | "/me" {
+  if (needsEmailVerification()) return "/verify-email";
   if (!hasActiveOrg()) return "/onboarding";
   return isStaffSync() ? "/dashboard" : "/me";
 }
@@ -100,6 +116,8 @@ interface AuthContextValue extends SessionState {
    * or "requested" (private school — a join request was sent for an admin to approve).
    */
   joinByCode: (code: string) => Promise<"joined" | "requested">;
+  /** Re-send the account verification email to the signed-in user. */
+  resendVerificationEmail: () => Promise<void>;
   rehydrate: () => Promise<void>;
 }
 
@@ -207,6 +225,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [apply]
   );
 
+  const resendVerificationEmail = useCallback(async () => {
+    await apiRaw("/auth/resendVerificationEmail", { method: "POST" });
+  }, []);
+
   const rehydrate = useCallback(async () => {
     if (!getToken()) return;
     try {
@@ -255,6 +277,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         switchOrg,
         createOrganization,
         joinByCode,
+        resendVerificationEmail,
         rehydrate,
       }}
     >

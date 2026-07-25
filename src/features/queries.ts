@@ -41,6 +41,7 @@ import type {
   Role,
   RolesUpdate,
   Squawk,
+  SubscriptionStatus,
   User,
 } from "@/types/api";
 
@@ -507,6 +508,24 @@ export function useUpdateMemberOrgUser(userId: number) {
 export function useConnectStripe() {
   return useMutation({
     mutationFn: () => api<{ url: string }>("/stripe/account/seller", { method: "POST" }),
+  });
+}
+
+// ---------------------------------------------------------------- per-aircraft subscription
+/** The org's per-aircraft platform subscription status (`GET /subscription`). */
+export function useSubscription(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["subscription"],
+    queryFn: () => api<SubscriptionStatus>("/subscription"),
+    ...opts,
+  });
+}
+
+/** Start Stripe Checkout for the per-aircraft subscription → returns `{ url }`. */
+export function useSubscriptionCheckout() {
+  return useMutation({
+    mutationFn: (body: { successUrl?: string; cancelUrl?: string } = {}) =>
+      api<{ url: string }>("/subscription/checkout", { method: "POST", body }),
   });
 }
 

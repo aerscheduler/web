@@ -64,7 +64,7 @@ function SignupPage() {
                 id="name"
                 autoComplete="name"
                 required
-                placeholder="Jordan Rivera"
+                placeholder="Amelia Earhart"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />

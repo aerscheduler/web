@@ -84,7 +84,9 @@ function stateFromResource(r: Resource): FormState {
     rateCents: (basis === "wet" ? cost?.wetRate : cost?.dryRate) ?? 0,
     rateBasis: basis,
     billByHobbs: cost?.billByHobbsTime ?? true,
-    locationId: r.FK_locationId ? String(r.FK_locationId) : "",
+    // Nested location relation, not FK_locationId (stripped by the server → always
+    // undefined, which left the edit form's home base blank). /resources includes location.
+    locationId: r.location?.id ? String(r.location.id) : "",
   };
 }
 

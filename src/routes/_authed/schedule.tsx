@@ -110,9 +110,6 @@ function SchedulePage() {
   const handleCancel = async (r: Reservation) => {
     if (await actions.cancelReservation(r)) setDetailOpen(false);
   };
-  const handleNoShow = async (r: Reservation) => {
-    if (await actions.markNoShow(r)) setDetailOpen(false);
-  };
 
   const count = q.data ? reservations.length : null;
 
@@ -170,7 +167,6 @@ function SchedulePage() {
               reservations={reservations}
               onView={openDetail}
               onCancel={handleCancel}
-              onNoShow={handleNoShow}
             />
           )
         ) : view === "week" ? (
@@ -187,7 +183,6 @@ function SchedulePage() {
               reservations={reservations}
               onView={openDetail}
               onCancel={handleCancel}
-              onNoShow={handleNoShow}
             />
           )
         ) : isDesktop ? (
@@ -197,7 +192,6 @@ function SchedulePage() {
             reservations={reservations}
             onView={openDetail}
             onCancel={handleCancel}
-            onNoShow={handleNoShow}
             onCreate={openCreate}
           />
         ) : (
@@ -205,7 +199,6 @@ function SchedulePage() {
             reservations={reservations}
             onView={openDetail}
             onCancel={handleCancel}
-            onNoShow={handleNoShow}
           />
         )}
       </Card>
@@ -217,7 +210,6 @@ function SchedulePage() {
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onCancel={handleCancel}
-        onNoShow={handleNoShow}
       />
     </div>
   );

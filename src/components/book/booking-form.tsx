@@ -211,7 +211,9 @@ export function BookingForm({
       return;
     }
 
-    const locationId = resource.FK_locationId ?? locations.data?.[0]?.id;
+    // Nested `location` relation, not FK_locationId — the server strips FK_*
+    // scalars, so the FK is always undefined (would fall back to the wrong location).
+    const locationId = resource.location?.id ?? locations.data?.[0]?.id;
     if (locationId == null) {
       toast.error("No location is set up yet. Ask your school to add one.");
       return;

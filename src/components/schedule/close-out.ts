@@ -1,4 +1,5 @@
-import type { Reservation } from "@/types/api";
+import type { Reservation, Role } from "@/types/api";
+import { isStaff, isTechnician } from "@/lib/permissions";
 
 /**
  * Where a reservation sits in the ramp-out → ramp-in → review → invoice pipeline.
@@ -76,4 +77,47 @@ export function closeOutStep(r: Reservation): CloseOutStep {
   if (needed === 0) return "reviewed";
   if (confirmationCount(r) >= needed) return "reviewed";
   return "confirm";
+}
+
+// ── Per-reservation action capabilities (mirror the Flutter model getters) ────
+// Flutter gates each reservation action with three actor concepts: STAFF
+// (admin/dispatcher, +technician for cancel), the PERSONNEL assigned to *this*
+// reservation, and the CREATOR. The API strips FK_* scalars (so we can't see
+// `createdBy` on the web) — where Flutter also allows the creator we stay
+// strictly more-restrictive, which only ever hides actions, never leaks them.
+
+/** Is `orgUserId` listed as an INSTRUCTOR on this reservation specifically? */
+export function isReservationInstructor(r: Reservation, orgUserId: number | null): boolean {
+  if (orgUserId == null) return false;
+  return (r.personnel?.instructors ?? []).some((i) => i.id === orgUserId);
+}
+
+/**
+ * Who may CANCEL a reservation — mirrors Flutter's `canCancel` getter: the flight
+ * hasn't been ramped out, isn't already cancelled, AND the viewer is staff
+ * (owner/admin/dispatcher), a technician, or the instructor assigned to it.
+ * Students/renters can't cancel someone else's flight (Flutter also allows the
+ * creator, but that field isn't exposed to the web — see note above).
+ */
+export function canCancelReservation(
+  r: Reservation,
+  roles: Role[],
+  orgUserId: number | null
+): boolean {
+  if (r.cancelledAt) return false;
+  if (isRampedOut(r)) return false;
+  return isStaff(roles) || isTechnician(roles) || isReservationInstructor(r, orgUserId);
+}
+
+/**
+ * Who may RAMP OUT / RAMP IN a reservation — mirrors Flutter's `!viewOnly`:
+ * staff or any pilot assigned to the flight. (Creator branch omitted, as above.)
+ */
+export function canRampReservation(
+  r: Reservation,
+  roles: Role[],
+  orgUserId: number | null
+): boolean {
+  if (r.cancelledAt) return false;
+  return isStaff(roles) || isReservationPersonnel(r, orgUserId);
 }

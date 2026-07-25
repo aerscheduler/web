@@ -12,12 +12,10 @@ export function MonthAgenda({
   reservations,
   onView,
   onCancel,
-  onNoShow,
 }: {
   reservations: Reservation[];
   onView: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
-  onNoShow: (r: Reservation) => void;
 }) {
   const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
   const groups = new Map<string, DayGroup>();
@@ -47,13 +45,7 @@ export function MonthAgenda({
           </div>
           <ul className="space-y-2 px-3">
             {items.map((r) => (
-              <AgendaRow
-                key={r.id}
-                r={r}
-                onView={onView}
-                onCancel={onCancel}
-                onNoShow={onNoShow}
-              />
+              <AgendaRow key={r.id} r={r} onView={onView} onCancel={onCancel} />
             ))}
           </ul>
         </div>

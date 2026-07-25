@@ -1,5 +1,6 @@
-import { Ban, Eye, MoreHorizontal, UserX } from "lucide-react";
+import { Ban, Eye, MoreHorizontal } from "lucide-react";
 import type { Reservation } from "@/types/api";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -10,21 +11,32 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { canCancelReservation } from "./close-out";
 
-/** Row/block overflow menu: open details, cancel, mark no-show. */
+/**
+ * Row/block overflow menu. Only rendered when the viewer can actually act on the
+ * reservation — the block/row itself already opens details on click, so for a
+ * plain member looking at someone else's flight there's nothing to show and the
+ * menu is hidden entirely (mirrors Flutter, which never surfaces cancel to a
+ * non-staff/non-crew viewer).
+ */
 export function ReservationMenu({
   r,
   onView,
   onCancel,
-  onNoShow,
   className,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
-  onNoShow: (r: Reservation) => void;
   className?: string;
 }) {
+  const { roles, orgUserId } = useAuth();
+  const canCancel = canCancelReservation(r, roles, orgUserId);
+
+  // Nothing actionable → no menu (details are reachable by clicking the block).
+  if (!canCancel) return null;
+
   return (
     <DropdownMenu>
       <Tooltip>
@@ -48,9 +60,6 @@ export function ReservationMenu({
           <Eye className="size-4" /> View details
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => onNoShow(r)}>
-          <UserX className="size-4" /> Mark no-show
-        </DropdownMenuItem>
         <DropdownMenuItem variant="destructive" onSelect={() => onCancel(r)}>
           <Ban className="size-4" /> Cancel reservation
         </DropdownMenuItem>

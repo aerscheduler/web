@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns";
-import { Ban, Clock, FileText, MapPin, Plane, Users, UserX } from "lucide-react";
+import { Ban, Clock, FileText, MapPin, Plane, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { resourceLabel, type Reservation } from "@/types/api";
 import {
@@ -13,10 +13,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
-import { isStaff } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { DOT_CLASS, personnelNames, typeLabel } from "./meta";
 import { CloseOutSection } from "./close-out-section";
+import { canCancelReservation } from "./close-out";
 
 /** Slide-over with the full reservation record + destructive actions. */
 export function ReservationDetailSheet({
@@ -24,16 +24,15 @@ export function ReservationDetailSheet({
   open,
   onOpenChange,
   onCancel,
-  onNoShow,
 }: {
   reservation: Reservation | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCancel: (r: Reservation) => void;
-  onNoShow: (r: Reservation) => void;
 }) {
-  const { roles } = useAuth();
+  const { roles, orgUserId } = useAuth();
   const r = reservation;
+  const canCancel = r ? canCancelReservation(r, roles, orgUserId) : false;
   const res = r?.resource ? resourceLabel(r.resource) : null;
   const names = r ? personnelNames(r) : [];
 
@@ -97,24 +96,15 @@ export function ReservationDetailSheet({
               <CloseOutSection reservation={r} />
             </div>
 
-            {isStaff(roles) && (
+            {canCancel && (
               <SheetFooter>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => onNoShow(r)}
-                  >
-                    <UserX className="size-4" /> No-show
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="flex-1 text-destructive hover:text-destructive"
-                    onClick={() => onCancel(r)}
-                  >
-                    <Ban className="size-4" /> Cancel
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  className="w-full text-destructive hover:text-destructive"
+                  onClick={() => onCancel(r)}
+                >
+                  <Ban className="size-4" /> Cancel reservation
+                </Button>
               </SheetFooter>
             )}
           </>

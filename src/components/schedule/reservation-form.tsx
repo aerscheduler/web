@@ -137,8 +137,11 @@ export function ReservationForm({
     if (endDt <= startDt) return setError("The end time must be after the start time.");
 
     // Resolve a location: chosen resource's location, else the first location.
+    // Use the nested `location` relation, not FK_locationId — the server strips
+    // every FK_* scalar, so the FK is always undefined (which would silently
+    // fall back to the wrong location).
     const chosenResource = resourcesQ.data?.find((r) => String(r.id) === resourceId);
-    const locationId = chosenResource?.FK_locationId ?? locationsQ.data?.[0]?.id;
+    const locationId = chosenResource?.location?.id ?? locationsQ.data?.[0]?.id;
 
     const personnel: NonNullable<CreateReservationInput["personnel"]> = {};
     if (isGuest) {

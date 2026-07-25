@@ -52,9 +52,10 @@ export function isAuthenticated(): boolean {
 export function rolesFromSession(): Role[] {
   const s = loadSession();
   const ous = s.user?.orgUsers ?? [];
-  const membership =
-    (s.organization ? ous.find((o) => o.FK_organizationId === s.organization!.id) : undefined) ??
-    ous[0];
+  // The server's /auth scopes `user.orgUsers` to the ACTIVE org (org switch does a
+  // full reload), so the first (only) entry is the caller's active-org membership.
+  // We can't match on FK_organizationId — the server strips every FK_* field.
+  const membership = ous[0];
   return membership ? rolesOf(membership) : [];
 }
 
@@ -247,12 +248,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const derived = useMemo(() => {
     const ous = session.user?.orgUsers ?? [];
-    const membership =
-      (session.organization
-        ? ous.find((o) => o.FK_organizationId === session.organization!.id)
-        : undefined) ??
-      ous[0] ??
-      null;
+    // /auth already scopes orgUsers to the active org (see rolesFromSession).
+    const membership = ous[0] ?? null;
     const roles = membership ? rolesOf(membership) : [];
     const isStaff = roles.some((r) => r === "owner" || r === "admin" || r === "dispatcher");
     return {

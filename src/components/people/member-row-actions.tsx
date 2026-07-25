@@ -37,7 +37,11 @@ export function MemberRowActions({
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { roles } = useAuth();
-  const orgUserMut = useUpdateMemberOrgUser(ou.FK_userId);
+  // Use the nested user's id, not FK_userId — the server strips every FK_* field
+  // from responses, so ou.FK_userId is always undefined (which would PATCH/POST
+  // to `.../undefined`). The /orgUsers list includes `user.id`.
+  const targetUserId = ou.user?.id ?? ou.FK_userId ?? 0;
+  const orgUserMut = useUpdateMemberOrgUser(targetUserId);
   const name = memberName(ou);
 
   async function toggleGround() {
@@ -71,7 +75,7 @@ export function MemberRowActions({
     });
     if (!ok) return;
     try {
-      await api(`/organizations/removeUser/${ou.FK_userId}`, { method: "POST" });
+      await api(`/organizations/removeUser/${targetUserId}`, { method: "POST" });
       void qc.invalidateQueries({ queryKey: ["members"] });
       void qc.invalidateQueries({ queryKey: ["users"] });
       toast.success(`${name} removed.`);

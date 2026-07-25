@@ -61,7 +61,6 @@ export function LaneGrid({
   reservations,
   onView,
   onCancel,
-  onNoShow,
   onCreate,
 }: {
   day: Date;
@@ -69,19 +68,24 @@ export function LaneGrid({
   reservations: Reservation[];
   onView: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
-  onNoShow: (r: Reservation) => void;
   onCreate: (draft: ReservationDraft) => void;
 }) {
   const byResource = new Map<number, Reservation[]>();
   const unassigned: Reservation[] = [];
   for (const r of reservations) {
-    if (r.FK_resourceId == null) {
+    // Group by the nested resource object's id, NOT the FK_resourceId scalar:
+    // the server's stripForeignKeyFromData middleware deletes every FK_* field
+    // from API responses, so r.FK_resourceId is always undefined here (which
+    // would drop every reservation into "Unassigned"). The `resource` relation
+    // survives the strip, and its id matches the lane row keys. Mirrors Flutter.
+    const rid = r.resource?.id;
+    if (rid == null) {
       unassigned.push(r);
       continue;
     }
-    const bucket = byResource.get(r.FK_resourceId);
+    const bucket = byResource.get(rid);
     if (bucket) bucket.push(r);
-    else byResource.set(r.FK_resourceId, [r]);
+    else byResource.set(rid, [r]);
   }
 
   const rows: Row[] = resources.map((res) => ({
@@ -217,7 +221,7 @@ export function LaneGrid({
                           height: TRACK_HEIGHT,
                         }}
                       >
-                        <LaneBlock r={r} onView={onView} onCancel={onCancel} onNoShow={onNoShow} />
+                        <LaneBlock r={r} onView={onView} onCancel={onCancel} />
                       </div>
                     );
                   })}
@@ -235,12 +239,10 @@ function LaneBlock({
   r,
   onView,
   onCancel,
-  onNoShow,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
-  onNoShow: (r: Reservation) => void;
 }) {
   const names = personnelNames(r);
   const timeRange = `${format(parseISO(r.start), "h:mm a")} – ${format(parseISO(r.end), "h:mm a")}`;
@@ -279,7 +281,7 @@ function LaneBlock({
             className="opacity-0 transition-opacity group-hover:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <ReservationMenu r={r} onView={onView} onCancel={onCancel} onNoShow={onNoShow} />
+            <ReservationMenu r={r} onView={onView} onCancel={onCancel} />
           </div>
         </div>
       </TooltipTrigger>

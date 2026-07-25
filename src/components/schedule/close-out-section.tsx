@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import type { Invoice, Reservation } from "@/types/api";
 import { useAuth } from "@/lib/auth";
-import { isStaff } from "@/lib/permissions";
 import { useReservationInvoice } from "@/features/queries";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +16,7 @@ import { Separator } from "@/components/ui/separator";
 import { formatMoney } from "@/lib/utils";
 import {
   canReviewGuest,
+  canRampReservation,
   closeOutStep,
   confirmationCount,
   isReservationPersonnel,
@@ -44,13 +44,23 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const invoice = invoiceQ.data ?? r.invoice ?? null;
 
   const canConfirm = isReservationPersonnel(r, orgUserId);
-  // Ramp out/in mirrors the server: staff (admin/dispatcher) or crew on this reservation.
-  const canRamp = isStaff(roles) || canConfirm;
+  // Ramp out/in mirrors Flutter's !viewOnly: staff (admin/dispatcher) or a pilot
+  // assigned to this reservation.
+  const canRamp = canRampReservation(r, roles, orgUserId);
   const isAdmin = roles.some((role) => role === "owner" || role === "admin");
   const canConfirmGuest = canReviewGuest(r, orgUserId, isAdmin);
   const guestName = r.personnel?.guests?.[0]?.name ?? "the guest";
   const needed = reviewerCount(r);
   const done = confirmationCount(r);
+
+  // A cancelled reservation is off the board — nothing to dispatch or close out.
+  if (r.cancelledAt) return null;
+
+  // Before the aircraft is ramped out the flight is simply scheduled — frame it
+  // as "Dispatch", not "Close-out" (which only makes sense once it has flown).
+  // Mirrors the Flutter detail view, which shows a neutral "Not Started" status
+  // and a plain "Ramp Out" action rather than an overdue close-out prompt.
+  const heading = step === "rampOut" ? "Dispatch" : "Close-out";
 
   return (
     <>
@@ -58,23 +68,24 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Close-out
+            {heading}
           </h3>
           <StepBadge step={step} invoice={invoice} />
         </div>
 
-        {step === "rampOut" && (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              This flight hasn&rsquo;t been ramped out yet.
-            </p>
-            {canRamp && (
+        {step === "rampOut" &&
+          (canRamp ? (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Ready to dispatch — ramp out when the aircraft departs.
+              </p>
               <Button className="w-full" onClick={() => setRampMode("out")}>
                 <PlaneTakeoff className="size-4" /> Ramp out
               </Button>
-            )}
-          </div>
-        )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Not started yet.</p>
+          ))}
 
         {step === "rampIn" && (
           <div className="space-y-3">
@@ -163,7 +174,7 @@ function StepBadge({ step, invoice }: { step: CloseOutStep; invoice: Invoice | n
     return <Badge variant="warning">Billed</Badge>;
   }
   const map: Record<Exclude<CloseOutStep, "invoiced">, { label: string; variant: "outline" | "warning" | "secondary" }> = {
-    rampOut: { label: "Not ramped out", variant: "outline" },
+    rampOut: { label: "Not started", variant: "secondary" },
     rampIn: { label: "In flight", variant: "warning" },
     confirm: { label: "Awaiting review", variant: "warning" },
     confirmGuest: { label: "Awaiting close-out", variant: "warning" },

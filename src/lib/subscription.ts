@@ -88,7 +88,10 @@ export function subscriptionStatus(
     planeCount,
     monthlyCents: planeCount * PRICE_PER_AIRCRAFT_CENTS,
     subscribed,
-    blocked: state === "expired",
+    // Don't paywall an org with no aircraft (it owes $0 and has nothing to bill) —
+    // otherwise a 0-plane org whose trial lapsed is stuck with no way to add a plane.
+    // They add aircraft freely; once they have one and the trial is over, the paywall applies.
+    blocked: state === "expired" && planeCount > 0,
   };
 }
 

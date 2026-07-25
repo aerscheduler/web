@@ -8,7 +8,6 @@ import { isAdmin } from "@/lib/permissions";
 import { formatMonthly, PRICE_PER_AIRCRAFT_CENTS, type SubStatus } from "@/lib/subscription";
 import { AppShell } from "@/components/app-shell";
 import { LogoMark } from "@/components/logo";
-import { Button } from "@/components/ui/button";
 import { SubscribeButton, useSubStatus } from "@/components/subscription/plan";
 
 /**
@@ -126,19 +125,18 @@ function Paywall({ status }: { status: SubStatus }) {
             </div>
           ) : (
             <p className="text-muted-foreground">
-              You have no aircraft yet — add one to start your subscription (${perPlane}/mo each).
+              ${perPlane}/mo per aircraft. Add aircraft anytime and your bill adjusts automatically.
             </p>
           )}
-          <p className="mt-2 text-xs text-muted-foreground">Simulators and rooms are free. Cancel anytime.</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            14-day free trial, no card to start. Simulators and rooms are free. Cancel anytime.
+          </p>
         </div>
 
-        {hasPlanes ? (
-          <SubscribeButton className="mt-5 w-full" label={`Subscribe — ${formatMonthly(status.monthlyCents)}`} />
-        ) : (
-          <Button className="mt-5 w-full" disabled>
-            Add an aircraft to subscribe
-          </Button>
-        )}
+        <SubscribeButton
+          className="mt-5 w-full"
+          label={hasPlanes ? `Subscribe — ${formatMonthly(status.monthlyCents)}` : "Start free trial"}
+        />
 
         <button onClick={logout} className="mt-4 text-xs text-muted-foreground hover:text-foreground">
           Sign out

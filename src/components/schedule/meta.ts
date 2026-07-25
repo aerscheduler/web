@@ -1,4 +1,19 @@
-import type { Reservation, ReservationType } from "@/types/api";
+import { Box, DoorOpen, MonitorPlay, Plane, type LucideIcon } from "lucide-react";
+import { resourceLabel, type Reservation, type ReservationType, type Resource } from "@/types/api";
+
+/** The icon for a resource, by kind — aircraft get the plane, sims/rooms don't. */
+export function resourceIcon(r: Resource): LucideIcon {
+  switch (resourceLabel(r).kind) {
+    case "Aircraft":
+      return Plane;
+    case "Simulator":
+      return MonitorPlay;
+    case "Room":
+      return DoorOpen;
+    default:
+      return Box;
+  }
+}
 
 /** Human labels for each reservation type. */
 export const TYPE_LABEL: Record<ReservationType, string> = {

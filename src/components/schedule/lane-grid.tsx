@@ -1,9 +1,8 @@
 import { format, parseISO } from "date-fns";
-import { Plane } from "lucide-react";
 import { resourceLabel, type Reservation, type Resource } from "@/types/api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { BLOCK_CLASS, personnelNames, typeLabel } from "./meta";
+import { BLOCK_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
 import type { ReservationDraft } from "./reservation-form";
@@ -143,6 +142,7 @@ export function LaneGrid({
             const { placed, tracks } = packTracks(row.items);
             const h = laneHeight(tracks);
             const label = row.resource ? resourceLabel(row.resource) : null;
+            const ResIcon = row.resource ? resourceIcon(row.resource) : null;
             return (
               <div key={row.key} className="flex border-b border-border last:border-b-0">
                 <div
@@ -152,7 +152,7 @@ export function LaneGrid({
                   {label ? (
                     <>
                       <span className="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-                        <Plane className="size-4" />
+                        {ResIcon && <ResIcon className="size-4" />}
                       </span>
                       <span className="min-w-0">
                         <span className="block truncate font-mono text-sm font-medium">

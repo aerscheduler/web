@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
-import { DOT_CLASS, personnelNames, typeLabel } from "./meta";
+import { DOT_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { CloseOutSection } from "./close-out-section";
 import { canCancelReservation } from "./close-out";
 
@@ -53,6 +53,7 @@ export function ReservationDetailSheet({
   const r = reservation;
   const canCancel = r ? canCancelReservation(r, roles, orgUserId) : false;
   const res = r?.resource ? resourceLabel(r.resource) : null;
+  const ResourceIcon = r?.resource ? resourceIcon(r.resource) : Plane;
   const names = r ? personnelNames(r) : [];
 
   return (
@@ -77,7 +78,7 @@ export function ReservationDetailSheet({
                 <span className="ml-2 text-muted-foreground">{r.timeZoneName}</span>
               </Field>
 
-              <Field icon={Plane} label="Resource">
+              <Field icon={ResourceIcon} label="Resource">
                 {res ? (
                   <span>
                     <span className="font-medium">{res.name}</span>

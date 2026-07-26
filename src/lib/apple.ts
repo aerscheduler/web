@@ -1,4 +1,4 @@
-// Sign in with Apple for the web console.
+// Sign in with Apple for the web app (app.aerscheduler.com).
 //
 // Uses Apple's "Sign in with Apple JS" (usePopup) to obtain an authorization CODE,
 // which we POST to the server's /auth/apple with `web:true`. The server exchanges
@@ -9,7 +9,7 @@ const APPLE_CLIENT_ID =
   (import.meta.env.VITE_APPLE_CLIENT_ID as string | undefined) || "com.aerscheduler.web";
 const APPLE_REDIRECT_URI =
   (import.meta.env.VITE_APPLE_REDIRECT_URI as string | undefined) ||
-  "https://console.aerscheduler.com/auth/apple/callback";
+  "https://app.aerscheduler.com/auth/apple/callback";
 const APPLE_JS =
   "https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js";
 

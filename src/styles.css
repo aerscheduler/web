@@ -5,7 +5,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
-  AerScheduler Console — design system
+  AerScheduler web app — design system
   A Stripe-inspired system: near-white slate canvas, white cards, hairline
   borders, a soft layered "lift" shadow, calm 8px radius, and colour reserved
   for the primary action + active nav. The single accent is the AerScheduler

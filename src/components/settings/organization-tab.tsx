@@ -376,7 +376,7 @@ function IdentityCard({ organization }: { organization: Organization }) {
       <CardContent className="pt-4">
         <p className="text-xs text-muted-foreground">
           Share the join code with instructors and students so they can join your organization —
-          on the web they enter it at <span className="font-medium">console.aerscheduler.com/join</span>,
+          on the web they enter it at <span className="font-medium">app.aerscheduler.com/join</span>,
           or from the mobile app. Private schools review each request under People.
         </p>
       </CardContent>

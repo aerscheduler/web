@@ -811,11 +811,21 @@ export function useMemberDocuments(orgUserId: number | null, opts?: QueryOpts) {
 /**
  * Upload a document: create the record (`POST /userDocuments/`) to get the presigned target,
  * then PUT the file to S3. Replaces any current document of the same type by default.
+ *
+ * `orgUserId` files the document against another member instead of the caller — the server
+ * requires the caller to be an org admin to do that, and 403s otherwise. Send it as a number:
+ * the route compares it to the caller's own id with `!==`, so a numeric string would take the
+ * on-behalf-of branch even when it names the caller.
  */
 export function useUploadDocument() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (input: { documentTypeId: number; file: File; expiresAt?: string }) => {
+    mutationFn: async (input: {
+      documentTypeId: number;
+      file: File;
+      expiresAt?: string;
+      orgUserId?: number;
+    }) => {
       const res = await api<{ document: UserDocument; signedUrlData: PresignedPost }>(
         "/userDocuments/",
         {
@@ -824,6 +834,7 @@ export function useUploadDocument() {
             documentTypeId: input.documentTypeId,
             fileName: input.file.name,
             ...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+            ...(input.orgUserId != null ? { orgUserId: input.orgUserId } : {}),
             archiveExistingDocumentsOfThisType: true,
           },
         }

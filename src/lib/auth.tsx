@@ -102,6 +102,11 @@ interface AuthContextValue extends SessionState {
   userId: number | null;
   /** True if the caller can manage the org (owner/admin/dispatcher). */
   isStaff: boolean;
+  /**
+   * True if the caller is an owner/admin. Narrower than `isStaff` on purpose: the server
+   * gates admin-only document work on the `adminRole` relation, which dispatchers lack.
+   */
+  isAdmin: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   /** Sign in / sign up with Google (opens the Google account chooser). */
@@ -252,12 +257,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const membership = ous[0] ?? null;
     const roles = membership ? rolesOf(membership) : [];
     const isStaff = roles.some((r) => r === "owner" || r === "admin" || r === "dispatcher");
+    const isAdmin = roles.some((r) => r === "owner" || r === "admin");
     return {
       membership,
       roles,
       orgUserId: membership?.id ?? null,
       userId: session.user?.id ?? null,
       isStaff,
+      isAdmin,
     };
   }, [session]);
 

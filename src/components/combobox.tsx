@@ -27,6 +27,8 @@ export function Combobox({
   emptyText = "No results.",
   className,
   disabled,
+  id,
+  invalid,
 }: {
   options: ComboOption[];
   value?: string;
@@ -36,6 +38,10 @@ export function Combobox({
   emptyText?: string;
   className?: string;
   disabled?: boolean;
+  /** Put on the trigger so a `<Label htmlFor>` and error-focus can target it. */
+  id?: string;
+  /** Marks the trigger `aria-invalid` for validate-on-submit forms. */
+  invalid?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const selected = options.find((o) => o.value === value);
@@ -47,7 +53,9 @@ export function Combobox({
           type="button"
           variant="outline"
           role="combobox"
+          id={id}
           aria-expanded={open}
+          aria-invalid={invalid}
           disabled={disabled}
           className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground", className)}
         >

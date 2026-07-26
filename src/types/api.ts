@@ -94,6 +94,32 @@ export interface RoleRow {
   FK_orgUserId: number;
 }
 
+/**
+ * One side of an instructor↔student assignment, as it arrives nested under
+ * `instructorRole.students` / `studentRole.instructors` on `GET /users/:id`.
+ *
+ * Note `id` here is the ROLE-table id, not an OrganizationUser id — the id the
+ * reservation API wants is `orgUser.id`.
+ */
+export interface AssignedPerson {
+  id: number;
+  orgUser?: {
+    id: number;
+    profileImage: string | null;
+    user?: Pick<User, "id" | "name" | "email">;
+  };
+}
+
+/** `instructorRole` as returned by `GET /users/:id` — carries the assigned students. */
+export interface InstructorRoleRow extends RoleRow {
+  students?: AssignedPerson[];
+}
+
+/** `studentRole` as returned by `GET /users/:id` — carries the assigned instructors. */
+export interface StudentRoleRow extends RoleRow {
+  instructors?: AssignedPerson[];
+}
+
 export interface OrganizationUser {
   id: number;
   createdAt: string;
@@ -104,8 +130,8 @@ export interface OrganizationUser {
   FK_organizationId: number;
   adminRole?: RoleRow | null;
   ownerRole?: RoleRow | null;
-  instructorRole?: RoleRow | null;
-  studentRole?: RoleRow | null;
+  instructorRole?: InstructorRoleRow | null;
+  studentRole?: StudentRoleRow | null;
   renterRole?: RoleRow | null;
   dispatcherRole?: RoleRow | null;
   technicianRole?: RoleRow | null;
@@ -440,6 +466,22 @@ export interface DocumentType {
   restricted: boolean;
   /** When true, an `expiresAt` is required at upload. */
   expires: boolean;
+  /** Inactive types stay on existing documents but aren't offered for new uploads. */
+  active: boolean;
+  /** Days before expiry to start warning. Only meaningful when `expires` is true. */
+  warningPeriod?: number | null;
+}
+
+/**
+ * Create/edit payload for a document type. `warningPeriod` is required by the server
+ * whenever `expires` is true, and is nulled out server-side when `expires` goes false.
+ */
+export interface DocumentTypeInput {
+  name: string;
+  description?: string | null;
+  restricted: boolean;
+  expires: boolean;
+  active: boolean;
   warningPeriod?: number | null;
 }
 

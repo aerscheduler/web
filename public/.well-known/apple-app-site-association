@@ -1,0 +1,25 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["9X76VPY4DF.com.aerscheduler.app"],
+        "components": [
+          {
+            "/": "/auth/*",
+            "exclude": true,
+            "comment": "Web OAuth callbacks (Apple + the marketing Google handoff at /auth/callback) must complete in the browser. Claiming these would hand the callback to the iOS app and break web sign-in."
+          },
+          {
+            "/": "/.well-known/*",
+            "exclude": true,
+            "comment": "Association files are fetched by Apple and Google, never opened by a user."
+          },
+          {
+            "/": "/*",
+            "comment": "Everything else deep-links into the app: /calendar, /reservations, /personnel, /resources, /planes, /settings, /currencies, /reports, etc."
+          }
+        ]
+      }
+    ]
+  }
+}

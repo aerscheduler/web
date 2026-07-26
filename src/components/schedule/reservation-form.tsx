@@ -32,6 +32,11 @@ import {
 import { cn } from "@/lib/utils";
 import { DOT_CLASS, TYPE_ORDER, typeLabel } from "./meta";
 import { SmartTimeRange } from "./smart-time-range";
+import {
+  buildReservationInput,
+  resolveLocationId,
+  validateTimeRange,
+} from "./reservation-shared";
 
 /** Resolve a member combobox value (org-user id) to that person's USER id. */
 function userIdOf(list: OrganizationUser[] | undefined, orgUserId: string): number | null {
@@ -39,7 +44,6 @@ function userIdOf(list: OrganizationUser[] | undefined, orgUserId: string): numb
   return list?.find((m) => String(m.id) === orgUserId)?.user?.id ?? null;
 }
 
-const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 export type ReservationDraft = {
   date: Date;
@@ -152,16 +156,11 @@ export function ReservationForm({
 
     if (!title.trim()) return setError("Give the reservation a title.");
     if (!date) return setError("Pick a date.");
-    if (!startAt || !endAt || Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()))
-      return setError("Pick a start and end time.");
-    if (endAt <= startAt) return setError("The end time must be after the start time.");
+    const timeError = validateTimeRange(startAt, endAt);
+    if (timeError) return setError(timeError);
 
-    // Resolve a location: chosen resource's location, else the first location.
-    // Use the nested `location` relation, not FK_locationId — the server strips
-    // every FK_* scalar, so the FK is always undefined (which would silently
-    // fall back to the wrong location).
     const chosenResource = resourcesQ.data?.find((r) => String(r.id) === resourceId);
-    const locationId = chosenResource?.location?.id ?? locationsQ.data?.[0]?.id;
+    const locationId = resolveLocationId(chosenResource, locationsQ.data);
 
     const personnel: NonNullable<CreateReservationInput["personnel"]> = {};
     if (isGuest) {
@@ -205,18 +204,17 @@ export function ReservationForm({
       if (renterId) personnel.renters = [{ id: Number(renterId) }];
     }
 
-    const input: CreateReservationInput = {
+    const input = buildReservationInput({
       title: title.trim(),
       type,
-      start: startAt.toISOString(),
-      end: endAt.toISOString(),
-      timeZoneName: TZ,
-      ...(notes.trim() ? { notes: notes.trim() } : {}),
-      ...(locationId != null ? { location: { id: locationId } } : {}),
-      ...(resourceId ? { resource: { id: Number(resourceId) } } : {}),
-      ...(ratingId ? { rating: { id: Number(ratingId) } } : {}),
-      ...(Object.keys(personnel).length ? { personnel } : {}),
-    };
+      startAt: startAt!,
+      endAt: endAt!,
+      resourceId: resourceId ? Number(resourceId) : null,
+      locationId,
+      ratingId: ratingId ? Number(ratingId) : null,
+      personnel,
+      notes,
+    });
 
     try {
       const created = await create.mutateAsync(input);

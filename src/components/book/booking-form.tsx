@@ -42,6 +42,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SmartTimeRange } from "@/components/schedule/smart-time-range";
+import {
+  buildReservationInput,
+  resolveLocationId,
+  validateTimeRange,
+} from "@/components/schedule/reservation-shared";
 
 // -------------------------------------------------------------- booking modes
 
@@ -199,12 +204,9 @@ export function BookingForm({
       toast.error("Pick an aircraft to book.");
       return;
     }
-    if (!startAt || !endAt || Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
-      toast.error("Choose a date, start time, and end time.");
-      return;
-    }
-    if (endAt <= startAt) {
-      toast.error("The end time must be after the start time.");
+    const timeError = validateTimeRange(startAt, endAt);
+    if (timeError) {
+      toast.error(timeError === "Pick a start and end time." ? "Choose a date, start time, and end time." : timeError);
       return;
     }
     if (needsInstructor && !instructorId) {
@@ -212,26 +214,23 @@ export function BookingForm({
       return;
     }
 
-    // Nested `location` relation, not FK_locationId — the server strips FK_*
-    // scalars, so the FK is always undefined (would fall back to the wrong location).
-    const locationId = resource.location?.id ?? locations.data?.[0]?.id;
+    const locationId = resolveLocationId(resource, locations.data);
     if (locationId == null) {
       toast.error("No location is set up yet. Ask your school to add one.");
       return;
     }
 
-    const input: CreateReservationInput = {
+    const input = buildReservationInput({
       title: buildTitle(resource),
       type,
-      start: startAt.toISOString(),
-      end: endAt.toISOString(),
-      timeZoneName: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      resource: { id: resource.id },
-      location: { id: locationId },
+      startAt: startAt!,
+      endAt: endAt!,
+      resourceId: resource.id,
+      locationId,
       personnel: buildPersonnel(),
-    };
-    if (notes.trim()) input.notes = notes.trim();
-    if (ratingId) input.rating = { id: Number(ratingId) };
+      notes,
+      ratingId: ratingId ? Number(ratingId) : null,
+    });
 
     try {
       await create.mutateAsync(input);

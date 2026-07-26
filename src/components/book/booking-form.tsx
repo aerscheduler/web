@@ -199,7 +199,7 @@ export function BookingForm({
       toast.error("Pick an aircraft to book.");
       return;
     }
-    if (!startAt || !endAt) {
+    if (!startAt || !endAt || Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
       toast.error("Choose a date, start time, and end time.");
       return;
     }

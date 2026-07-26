@@ -342,6 +342,9 @@ export function useApproveResource(resourceId: number) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["resources"] });
       void qc.invalidateQueries({ queryKey: ["members"] });
+      // Refresh the caller's bookable fleet (the /me/book "checked out" list)
+      // so a just-approved renter sees the aircraft without a reload.
+      void qc.invalidateQueries({ queryKey: ["approvedResources"] });
     },
   });
 }

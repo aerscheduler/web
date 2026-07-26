@@ -33,6 +33,18 @@ import {
  * invalid (double-booked or past) appointment can't be selected. Picking a start
  * auto-fills a valid end (default 1h, backing off to fit the free window).
  */
+/** ISO string for a Select value; "" for null or an invalid Date. Prevents a bad
+ * Date from crashing the render via `toISOString()` ("Invalid time value") — the
+ * selection then self-heals through the reconcile effect below. */
+function isoValue(d: Date | null): string {
+  return d && !Number.isNaN(d.getTime()) ? d.toISOString() : "";
+}
+
+/** Drop any non-finite Date so option keys/values never throw. */
+function valid(dates: Date[]): Date[] {
+  return dates.filter((d) => !Number.isNaN(d.getTime()));
+}
+
 export function SmartTimeRange({
   date,
   onDateChange,
@@ -78,15 +90,19 @@ export function SmartTimeRange({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resourceId, resUpdated, usersUpdated, personnelKey]);
 
-  const day = React.useMemo(() => (date ? parseISO(date) : null), [date]);
+  const day = React.useMemo(() => {
+    if (!date) return null;
+    const parsed = parseISO(date);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }, [date]);
 
   const dayWindows = React.useMemo(
     () => (day ? windowsForDay(allWindows, day, now) : []),
     [allWindows, day, now]
   );
-  const starts = React.useMemo(() => startOptions(dayWindows), [dayWindows]);
+  const starts = React.useMemo(() => valid(startOptions(dayWindows)), [dayWindows]);
   const ends = React.useMemo(
-    () => (start ? endOptions(dayWindows, start) : []),
+    () => (start ? valid(endOptions(dayWindows, start)) : []),
     [dayWindows, start]
   );
 
@@ -151,7 +167,7 @@ export function SmartTimeRange({
         <div className="space-y-1.5">
           <Label htmlFor="smart-start">Start</Label>
           <Select
-            value={start ? start.toISOString() : ""}
+            value={isoValue(start)}
             onValueChange={pickStart}
             disabled={disabled || loading || starts.length === 0}
           >
@@ -171,7 +187,7 @@ export function SmartTimeRange({
         <div className="space-y-1.5">
           <Label htmlFor="smart-end">End</Label>
           <Select
-            value={end ? end.toISOString() : ""}
+            value={isoValue(end)}
             onValueChange={pickEnd}
             disabled={disabled || loading || !start || ends.length === 0}
           >

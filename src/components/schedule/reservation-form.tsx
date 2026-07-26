@@ -152,7 +152,8 @@ export function ReservationForm({
 
     if (!title.trim()) return setError("Give the reservation a title.");
     if (!date) return setError("Pick a date.");
-    if (!startAt || !endAt) return setError("Pick a start and end time.");
+    if (!startAt || !endAt || Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime()))
+      return setError("Pick a start and end time.");
     if (endAt <= startAt) return setError("The end time must be after the start time.");
 
     // Resolve a location: chosen resource's location, else the first location.

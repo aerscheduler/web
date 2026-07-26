@@ -3,11 +3,17 @@
     "details": [
       {
         "appIDs": ["9X76VPY4DF.com.aerscheduler.app"],
+        "defaults": { "caseSensitive": false },
         "components": [
+          {
+            "/": "/auth",
+            "exclude": true,
+            "comment": "Bare /auth with no trailing slash: /auth/* does NOT match it, so without this it would fall through to the catch-all below."
+          },
           {
             "/": "/auth/*",
             "exclude": true,
-            "comment": "Web OAuth callbacks (Apple + the marketing Google handoff at /auth/callback) must complete in the browser. Claiming these would hand the callback to the iOS app and break web sign-in."
+            "comment": "Web OAuth callbacks (Apple + the marketing Google handoff at /auth/callback) must complete in the browser. Claiming these would hand the callback to the iOS app and break web sign-in. The * is a greedy character wildcard that crosses / boundaries, so this also covers /auth/apple/callback."
           },
           {
             "/": "/.well-known/*",

@@ -1,19 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { PageHeader } from "@/components/page-header";
-import { AvailabilityEditor } from "@/components/me-account/availability-editor";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// Availability now lives as a tab under Profile. Keep the old path working
+// (bookmarks / deep links) by redirecting to that tab.
 export const Route = createFileRoute("/_authed/me/availability")({
-  component: AvailabilityPage,
+  beforeLoad: () => {
+    throw redirect({ to: "/me/profile", search: { tab: "availability" }, replace: true });
+  },
 });
-
-function AvailabilityPage() {
-  return (
-    <div>
-      <PageHeader
-        title="Availability"
-        subtitle="Set the recurring hours students can book you against."
-      />
-      <AvailabilityEditor />
-    </div>
-  );
-}

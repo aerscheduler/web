@@ -12,15 +12,15 @@ export const Route = createRootRoute({
 
 /** Browser-tab titles per route, most-specific first (prefix match). */
 const TITLES: Array<[string, string]> = [
-  ["/me/schedule", "My schedule"],
+  ["/me/schedule", "Calendar"],
   ["/me/book", "Book"],
-  ["/me/invoices", "My invoices"],
+  ["/me/invoices", "Invoices"],
   ["/me/payment-methods", "Payment methods"],
-  ["/me/currencies", "My currencies"],
-  ["/me/documents", "My documents"],
+  ["/me/currencies", "Currencies"],
+  ["/me/documents", "Documents"],
   ["/me/availability", "Availability"],
   ["/me/profile", "Profile"],
-  ["/me", "My day"],
+  ["/me", "Home"],
   ["/dashboard", "Dashboard"],
   ["/schedule", "Schedule"],
   ["/people", "People"],

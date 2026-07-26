@@ -140,7 +140,7 @@ function AddCardForm({
 
     const { error } = await stripe.confirmSetup({
       elements,
-      confirmParams: { return_url: `${window.location.origin}/me/payment-methods` },
+      confirmParams: { return_url: `${window.location.origin}/me/profile?tab=payments` },
       redirect: "if_required",
     });
 

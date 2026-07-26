@@ -7,8 +7,6 @@ import {
   CalendarPlus,
   Check,
   ChevronsUpDown,
-  Clock,
-  CreditCard,
   FileText,
   Home,
   ChartColumnBig,
@@ -84,7 +82,6 @@ type NavGroup = { label: string; items: NavItem[] };
  */
 function navForRoles(roles: string[]): NavGroup[] {
   const R = roles as Role[];
-  const has = (r: string) => roles.includes(r);
 
   const orgGroups: NavGroup[] = [
     {
@@ -112,18 +109,17 @@ function navForRoles(roles: string[]): NavGroup[] {
     .map((g) => ({ ...g, items: g.items.filter((it) => canAccess(it.to, R)) }))
     .filter((g) => g.items.length > 0);
 
-  // Personal section — every member gets this.
+  // Personal section — every member gets this. (Payment methods & availability
+  // moved to tabs under Profile; Profile itself is reachable from the account
+  // menu at the bottom of the rail, so it's not repeated here.)
   const you: NavItem[] = [
-    { to: "/me", label: "My day", icon: Home },
-    { to: "/me/schedule", label: "My schedule", icon: CalendarDays },
+    { to: "/me", label: "Home", icon: Home },
+    { to: "/me/schedule", label: "Calendar", icon: CalendarDays },
     { to: "/me/book", label: "Book", icon: CalendarPlus },
-    { to: "/me/invoices", label: "My invoices", icon: Wallet },
-    { to: "/me/payment-methods", label: "Payment methods", icon: CreditCard },
-    { to: "/me/currencies", label: "My currencies", icon: ShieldCheck },
-    { to: "/me/documents", label: "My documents", icon: FileText },
+    { to: "/me/invoices", label: "Invoices", icon: Wallet },
+    { to: "/me/currencies", label: "Currencies", icon: ShieldCheck },
+    { to: "/me/documents", label: "Documents", icon: FileText },
   ];
-  if (has("instructor")) you.push({ to: "/me/availability", label: "Availability", icon: Clock });
-  you.push({ to: "/me/profile", label: "Profile", icon: UserIcon });
   groups.push({ label: "You", items: you });
 
   // Notifications + Settings live in the top bar (Stripe-style), not the left nav.

@@ -152,7 +152,7 @@ function MyDayPage() {
               to="/me/schedule"
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
-              My schedule
+              Calendar
             </Link>
           </CardHeader>
           <CardContent className="pt-0">
@@ -197,12 +197,12 @@ function MyDayPage() {
             </Button>
             <Button asChild variant="outline" className="justify-start">
               <Link to="/me/schedule">
-                <CalendarClock className="size-4" /> My schedule
+                <CalendarClock className="size-4" /> Calendar
               </Link>
             </Button>
             <Button asChild variant="outline" className="justify-start">
               <Link to="/me/invoices">
-                <Receipt className="size-4" /> My invoices
+                <Receipt className="size-4" /> Invoices
               </Link>
             </Button>
           </CardContent>

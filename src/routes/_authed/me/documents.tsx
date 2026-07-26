@@ -73,7 +73,7 @@ function MyDocumentsPage() {
   if (!organization) {
     return (
       <div>
-        <PageHeader title="My documents" subtitle="Medicals, certificates, and agreements." />
+        <PageHeader title="Documents" subtitle="Medicals, certificates, and agreements." />
         <Card className="p-0">
           <EmptyState
             icon={Building2}
@@ -88,7 +88,7 @@ function MyDocumentsPage() {
   return (
     <div>
       <PageHeader
-        title="My documents"
+        title="Documents"
         subtitle="Keep your medical, certificates, and agreements current."
         actions={
           <Button onClick={() => setUploadOpen(true)}>

@@ -47,7 +47,7 @@ function MyCurrenciesPage() {
   if (!organization) {
     return (
       <div>
-        <PageHeader title="My currencies" subtitle="Your medicals, reviews & checkouts." />
+        <PageHeader title="Currencies" subtitle="Your medicals, reviews & checkouts." />
         <Card className="p-0">
           <EmptyState
             icon={Building2}
@@ -62,7 +62,7 @@ function MyCurrenciesPage() {
   return (
     <div>
       <PageHeader
-        title="My currencies"
+        title="Currencies"
         subtitle="Medicals, flight reviews and checkouts — so you always know you're legal to fly."
       />
 

@@ -189,7 +189,7 @@ function MyInvoicesPage() {
   if (!organization) {
     return (
       <div>
-        <PageHeader title="My invoices" subtitle="Your flight-training charges." />
+        <PageHeader title="Invoices" subtitle="Your flight-training charges." />
         <Card className="p-0">
           <EmptyState
             icon={Building2}
@@ -204,7 +204,7 @@ function MyInvoicesPage() {
   return (
     <div>
       <PageHeader
-        title="My invoices"
+        title="Invoices"
         subtitle="Your flight-training charges — what you owe and what's settled."
       />
 

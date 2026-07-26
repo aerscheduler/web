@@ -65,7 +65,7 @@ function MySchedulePage() {
   if (organization === null) {
     return (
       <div>
-        <PageHeader title="My schedule" />
+        <PageHeader title="Calendar" />
         <Card>
           <EmptyState
             icon={UserRound}
@@ -80,7 +80,7 @@ function MySchedulePage() {
   return (
     <div>
       <PageHeader
-        title="My schedule"
+        title="Calendar"
         subtitle="Your flights, ground and sim sessions."
         actions={
           <Button asChild>

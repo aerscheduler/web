@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { postLoginPath, useAuth } from "@/lib/auth";
-import { setToken } from "@/lib/api";
+import { getToken, setToken } from "@/lib/api";
 import { LogoLockup } from "@/components/logo";
 
 export const Route = createFileRoute("/auth/callback")({
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/auth/callback")({
  * user in; we stash it, hydrate the session, and route into the app.
  */
 function AuthCallbackPage() {
-  const { token } = Route.useSearch();
+  const search = Route.useSearch();
   const { rehydrate } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
@@ -27,18 +27,22 @@ function AuthCallbackPage() {
     let cancelled = false;
 
     async function finish() {
-      if (!token) {
+      // Prefer the live query string over router search — React Strict Mode
+      // remounts this page, and an early history.replaceState used to wipe
+      // ?token= before the second mount could read it.
+      const fromUrl = new URLSearchParams(window.location.search).get("token");
+      const jwt = search.token || fromUrl || getToken();
+      if (!jwt) {
         setError("Missing sign-in token. Please try again.");
         return;
       }
 
-      setToken(token);
-      // Drop the token from the URL so it isn't left in history / referrers.
-      window.history.replaceState(null, "", "/auth/callback");
+      setToken(jwt);
 
       try {
         await rehydrate();
         if (cancelled) return;
+        // Navigate away (replace) so the JWT never sits in the address bar.
         await navigate({ to: postLoginPath(), replace: true });
       } catch {
         if (cancelled) return;
@@ -51,7 +55,7 @@ function AuthCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, rehydrate, navigate]);
+  }, [search.token, rehydrate, navigate]);
 
   return (
     <main className="grid min-h-dvh place-items-center bg-background px-6">

@@ -1,4 +1,4 @@
-import { Ban, Eye, MoreHorizontal } from "lucide-react";
+import { Ban, Eye, MoreHorizontal, Pencil } from "lucide-react";
 import type { Reservation } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { canCancelReservation } from "./close-out";
+import { canCancelReservation, canEditReservation } from "./close-out";
 
 /**
  * Row/block overflow menu. Only rendered when the viewer can actually act on the
@@ -23,19 +23,23 @@ import { canCancelReservation } from "./close-out";
 export function ReservationMenu({
   r,
   onView,
+  onEdit,
   onCancel,
   className,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
+  /** Omitted on surfaces that have no edit affordance. */
+  onEdit?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
   className?: string;
 }) {
   const { roles, orgUserId } = useAuth();
   const canCancel = canCancelReservation(r, roles, orgUserId);
+  const canEdit = onEdit != null && canEditReservation(r, roles, orgUserId);
 
   // Nothing actionable → no menu (details are reachable by clicking the block).
-  if (!canCancel) return null;
+  if (!canCancel && !canEdit) return null;
 
   return (
     <DropdownMenu>
@@ -59,10 +63,19 @@ export function ReservationMenu({
         <DropdownMenuItem onSelect={() => onView(r)}>
           <Eye className="size-4" /> View details
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onSelect={() => onCancel(r)}>
-          <Ban className="size-4" /> Cancel reservation
-        </DropdownMenuItem>
+        {canEdit && (
+          <DropdownMenuItem onSelect={() => onEdit(r)}>
+            <Pencil className="size-4" /> Edit reservation
+          </DropdownMenuItem>
+        )}
+        {canCancel && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onSelect={() => onCancel(r)}>
+              <Ban className="size-4" /> Cancel reservation
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

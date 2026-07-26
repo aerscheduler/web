@@ -10,9 +10,9 @@ import {
 } from "date-fns";
 import { CalendarClock, Plus } from "lucide-react";
 import { useReservations, useResources } from "@/features/queries";
-import type { Reservation, Resource } from "@/types/api";
+import { resourceLabel, type Reservation, type Resource, type Role } from "@/types/api";
 import { useAuth } from "@/lib/auth";
-import { isStaff } from "@/lib/permissions";
+import { canSeeRoomLanes, canSeeSimulatorLanes, isStaff } from "@/lib/permissions";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { PageHeader } from "@/components/page-header";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
@@ -32,7 +32,7 @@ import {
   ReservationForm,
   type ReservationDraft,
 } from "@/components/schedule/reservation-form";
-import { useReservationActions } from "@/components/schedule/use-reservation-actions";
+import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 
 export const Route = createFileRoute("/_authed/schedule")({
   component: SchedulePage,
@@ -73,43 +73,38 @@ function SchedulePage() {
   }, []);
 
   const reservations = React.useMemo(() => q.data ?? [], [q.data]);
-  const resources = useResolvedResources(resourcesQ.data, reservations);
+  const resources = useResolvedResources(resourcesQ.data, reservations, roles);
 
-  // Modal + sheet state.
+  // Modal state.
   const [formOpen, setFormOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<ReservationDraft>({ date: day });
-  const [detailOpen, setDetailOpen] = React.useState(false);
-  const [detailRes, setDetailRes] = React.useState<Reservation | null>(null);
 
-  // Keep the open detail sheet in sync with the live list so the close-out flow
-  // (ramp out → ramp in → confirm → invoice) advances as mutations invalidate/refetch.
-  const detail = React.useMemo(
-    () => reservations.find((x) => x.id === detailRes?.id) ?? detailRes,
-    [reservations, detailRes]
-  );
-
-  const actions = useReservationActions();
+  const {
+    detail,
+    open: detailOpen,
+    setOpen: setDetailOpen,
+    openDetail,
+    cancelReservation: handleCancel,
+    editing,
+    setEditing,
+    startEdit,
+  } = useReservationDetail(reservations);
 
   const openNew = () => {
     setDraft({ date: day });
     setFormOpen(true);
   };
   const openCreate = (d: ReservationDraft) => {
-    if (!staff) return; // members are read-only here; they book via /me/book
     setDraft(d);
     setFormOpen(true);
-  };
-  const openDetail = (r: Reservation) => {
-    setDetailRes(r);
-    setDetailOpen(true);
   };
   const selectDay = (d: Date) => {
     setDay(d);
     setView("day");
   };
-  const handleCancel = async (r: Reservation) => {
-    if (await actions.cancelReservation(r)) setDetailOpen(false);
-  };
+  // Members are read-only on the board (they book via /me/book), so they get no
+  // click-to-create regions at all rather than ones that silently do nothing.
+  const onCreate = staff ? openCreate : undefined;
 
   const count = q.data ? reservations.length : null;
 
@@ -159,13 +154,14 @@ function SchedulePage() {
               month={day}
               reservations={reservations}
               onView={openDetail}
-              onCreate={openCreate}
+              onCreate={onCreate}
               onSelectDay={selectDay}
             />
           ) : (
             <MonthAgenda
               reservations={reservations}
               onView={openDetail}
+              onEdit={startEdit}
               onCancel={handleCancel}
             />
           )
@@ -175,13 +171,14 @@ function SchedulePage() {
               weekStart={startOfWeek(day)}
               reservations={reservations}
               onView={openDetail}
-              onCreate={openCreate}
+              onCreate={onCreate}
               onSelectDay={selectDay}
             />
           ) : (
             <AgendaList
               reservations={reservations}
               onView={openDetail}
+              onEdit={startEdit}
               onCancel={handleCancel}
             />
           )
@@ -191,13 +188,15 @@ function SchedulePage() {
             resources={resources}
             reservations={reservations}
             onView={openDetail}
+            onEdit={startEdit}
             onCancel={handleCancel}
-            onCreate={openCreate}
+            onCreate={onCreate}
           />
         ) : (
           <AgendaList
             reservations={reservations}
             onView={openDetail}
+            onEdit={startEdit}
             onCancel={handleCancel}
           />
         )}
@@ -205,11 +204,21 @@ function SchedulePage() {
 
       <ReservationForm open={formOpen} onOpenChange={setFormOpen} draft={draft} />
 
+      {editing && (
+        <ReservationForm
+          open
+          onOpenChange={(o) => !o && setEditing(null)}
+          draft={{ date: new Date(editing.start) }}
+          editing={editing}
+        />
+      )}
+
       <ReservationDetailSheet
         reservation={detail}
         open={detailOpen}
         onOpenChange={setDetailOpen}
         onCancel={handleCancel}
+        onEdit={startEdit}
       />
     </div>
   );
@@ -217,11 +226,19 @@ function SchedulePage() {
 
 /**
  * The lane grid needs a resource list even when `/resources` is empty or slow —
- * so merge the fleet endpoint with any resources embedded on the reservations.
+ * so merge the fleet endpoint with any resources embedded on the reservations,
+ * then drop the lanes this role has no business scanning.
+ *
+ * The filter lives here, at the single data source, rather than in each grid:
+ * only the day board draws lanes, and this way the rule is stated once. It
+ * filters LANES only — every member still sees the whole org's bookings, and
+ * the lane grid folds any reservation whose lane is missing into its "Other"
+ * row so nothing is silently dropped.
  */
 function useResolvedResources(
   fromApi: Resource[] | undefined,
-  reservations: Reservation[]
+  reservations: Reservation[],
+  roles: Role[]
 ): Resource[] {
   return React.useMemo(() => {
     const byId = new Map<number, Resource>();
@@ -229,6 +246,22 @@ function useResolvedResources(
     for (const res of reservations) {
       if (res.resource && !byId.has(res.resource.id)) byId.set(res.resource.id, res.resource);
     }
-    return [...byId.values()];
-  }, [fromApi, reservations]);
+    return [...byId.values()].filter((r) => canSeeLane(r, roles));
+  }, [fromApi, reservations, roles]);
+}
+
+/**
+ * Which resource lanes a role sees. Mirrors the Flutter calendar's `canSee*`
+ * getters: planes for everyone, rooms and sims only for the instruction roles
+ * (a renter's or technician's board is planes-only).
+ */
+function canSeeLane(r: Resource, roles: Role[]): boolean {
+  switch (resourceLabel(r).kind) {
+    case "Room":
+      return canSeeRoomLanes(roles);
+    case "Simulator":
+      return canSeeSimulatorLanes(roles);
+    default:
+      return true;
+  }
 }

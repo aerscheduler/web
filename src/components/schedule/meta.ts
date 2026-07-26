@@ -1,5 +1,6 @@
 import { Box, DoorOpen, MonitorPlay, Plane, type LucideIcon } from "lucide-react";
 import { resourceLabel, type Reservation, type ReservationType, type Resource } from "@/types/api";
+import { RESERVATION_TYPE_ORDER } from "@/lib/permissions";
 
 /** The icon for a resource, by kind — aircraft get the plane, sims/rooms don't. */
 export function resourceIcon(r: Resource): LucideIcon {
@@ -27,18 +28,12 @@ export const TYPE_LABEL: Record<ReservationType, string> = {
   maintenance: "Maintenance",
 };
 
-/** Order used for the legend and the type Select. */
-// Note: "instructor" is intentionally omitted — the server has no such
-// reservation type, so offering it would always 400 on submit.
-export const TYPE_ORDER: ReservationType[] = [
-  "dual",
-  "solo",
-  "rental",
-  "guest",
-  "ground",
-  "sim",
-  "maintenance",
-];
+/**
+ * Order used for the legend and the type Select. Re-exported from the
+ * permissions module so the display order and the role→type matrix can never
+ * drift apart.
+ */
+export const TYPE_ORDER = RESERVATION_TYPE_ORDER;
 
 // Tailwind can only see class names that appear as complete literals, so every
 // variant is written out in full below (never string-concatenated).

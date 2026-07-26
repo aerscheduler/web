@@ -121,3 +121,30 @@ export function canRampReservation(
   if (r.cancelledAt) return false;
   return isStaff(roles) || isReservationPersonnel(r, orgUserId);
 }
+
+/**
+ * Who may EDIT / reschedule a reservation — mirrors Flutter's `canEdit`: not
+ * cancelled, not yet departed, not already past, and the viewer is staff or a
+ * pilot on it. The server's `PATCH /reservations/:id` allows creator ∪ personnel
+ * ∪ admin ∪ dispatcher; as elsewhere we can't see the creator, so we stay
+ * strictly more-restrictive.
+ *
+ * Once the aircraft has ramped out, editing stops. Flutter keeps the END time
+ * editable in that state; the web's availability-driven time picker can't offer
+ * slots around a start that's already in the past, so rather than ship a
+ * half-working picker this returns false and a later "extend return time"
+ * action can cover it properly.
+ *
+ * `now` is injectable so this stays a pure function for testing.
+ */
+export function canEditReservation(
+  r: Reservation,
+  roles: Role[],
+  orgUserId: number | null,
+  now: Date = new Date()
+): boolean {
+  if (r.cancelledAt) return false;
+  if (isRampedOut(r)) return false;
+  if (new Date(r.end).getTime() < now.getTime()) return false;
+  return isStaff(roles) || isReservationPersonnel(r, orgUserId);
+}

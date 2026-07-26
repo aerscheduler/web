@@ -5,12 +5,10 @@ import {
   CalendarDays,
   LayoutDashboard,
   LogOut,
-  Moon,
   PlaneTakeoff,
   Receipt,
   Settings,
   ShieldCheck,
-  Sun,
   Users,
 } from "lucide-react";
 import {
@@ -25,7 +23,6 @@ import {
 import { useAuth } from "@/lib/auth";
 import { canAccess, isAdmin } from "@/lib/permissions";
 import type { Role } from "@/types/api";
-import { useTheme } from "@/components/theme-provider";
 import { useMembers, usePlanes, useInvoices } from "@/features/queries";
 import { resourceLabel } from "@/types/api";
 import { formatMoney } from "@/lib/utils";
@@ -59,7 +56,6 @@ export function CommandMenuProvider({ children }: { children: React.ReactNode })
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { logout, organization, roles } = useAuth();
-  const { theme, toggle } = useTheme();
   const R = roles as Role[];
 
   // Entity search — client-side over cached lists (the API has no server search).
@@ -163,11 +159,9 @@ export function CommandMenuProvider({ children }: { children: React.ReactNode })
           ) : null}
 
           <CommandSeparator />
+          {/* Theme lives in Settings → Appearance and Profile → Appearance; it
+              doesn't earn a slot in the command palette. */}
           <CommandGroup heading="Actions">
-            <CommandItem value="toggle theme dark light" onSelect={() => run(toggle)}>
-              {theme === "dark" ? <Sun className="text-muted-foreground" /> : <Moon className="text-muted-foreground" />}
-              Toggle theme
-            </CommandItem>
             <CommandItem
               value="sign out logout"
               onSelect={() =>

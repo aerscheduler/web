@@ -11,10 +11,12 @@ type DayGroup = { date: Date; items: Reservation[] };
 export function MonthAgenda({
   reservations,
   onView,
+  onEdit,
   onCancel,
 }: {
   reservations: Reservation[];
   onView: (r: Reservation) => void;
+  onEdit?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
 }) {
   const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
@@ -45,7 +47,7 @@ export function MonthAgenda({
           </div>
           <ul className="space-y-2 px-3">
             {items.map((r) => (
-              <AgendaRow key={r.id} r={r} onView={onView} onCancel={onCancel} />
+              <AgendaRow key={r.id} r={r} onView={onView} onEdit={onEdit} onCancel={onCancel} />
             ))}
           </ul>
         </div>

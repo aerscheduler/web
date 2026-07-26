@@ -76,6 +76,34 @@ export function intersectAvailability(lists: (Window[] | null)[]): Window[] | nu
   return active.reduce((acc, cur) => intersectTwo(acc, cur));
 }
 
+/**
+ * Add `extra` back into a free-window list, merging it with anything it touches.
+ *
+ * Needed when EDITING a reservation: the server's availability endpoints count
+ * that reservation as busy, so its own slot would show as unavailable and the
+ * picker would refuse to re-offer the time it already occupies. Passing the
+ * reservation's current interval here restores it. `null` windows ("nothing
+ * constrains") stay null — there is nothing to add to an already-open day.
+ */
+export function withWindowRestored(windows: Window[] | null, extra: Window | null): Window[] | null {
+  if (windows === null || extra === null) return windows;
+  if (!(extra.end.getTime() > extra.start.getTime())) return windows;
+
+  const merged = [...windows, extra].sort((a, b) => a.start.getTime() - b.start.getTime());
+  const out: Window[] = [];
+  for (const w of merged) {
+    const last = out[out.length - 1];
+    // Adjacent windows count as touching — back-to-back bookings are legal, so
+    // 09:00-10:00 and 10:00-11:00 form one continuous 09:00-11:00 span.
+    if (last && w.start.getTime() <= last.end.getTime()) {
+      if (w.end.getTime() > last.end.getTime()) last.end = w.end;
+    } else {
+      out.push({ start: w.start, end: w.end });
+    }
+  }
+  return out;
+}
+
 // ── slot grid ────────────────────────────────────────────────────────────────
 
 /** Round a Date UP to the next clock-aligned 15-minute mark (seconds zeroed). */

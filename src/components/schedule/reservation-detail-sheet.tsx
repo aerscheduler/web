@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns";
-import { Ban, Clock, FileText, MapPin, Plane, Users } from "lucide-react";
+import { Ban, Clock, FileText, MapPin, Pencil, Plane, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { resourceLabel, type Reservation } from "@/types/api";
 import {
@@ -17,7 +17,7 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { DOT_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { CloseOutSection } from "./close-out-section";
-import { canCancelReservation } from "./close-out";
+import { canCancelReservation, canEditReservation } from "./close-out";
 
 /**
  * Format an instant in the reservation's OWN timezone so the clock value agrees
@@ -44,15 +44,19 @@ export function ReservationDetailSheet({
   open,
   onOpenChange,
   onCancel,
+  onEdit,
 }: {
   reservation: Reservation | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCancel: (r: Reservation) => void;
+  /** Omitted on surfaces with no edit form mounted. */
+  onEdit?: (r: Reservation) => void;
 }) {
   const { roles, orgUserId } = useAuth();
   const r = reservation;
   const canCancel = r ? canCancelReservation(r, roles, orgUserId) : false;
+  const canEdit = r != null && onEdit != null && canEditReservation(r, roles, orgUserId);
   const res = r?.resource ? resourceLabel(r.resource) : null;
   const ResourceIcon = r?.resource ? resourceIcon(r.resource) : Plane;
   const names = r ? personnelNames(r) : [];
@@ -139,15 +143,22 @@ export function ReservationDetailSheet({
               <CloseOutSection reservation={r} />
             </div>
 
-            {canCancel && (
+            {(canEdit || canCancel) && (
               <SheetFooter>
-                <Button
-                  variant="outline"
-                  className="w-full text-destructive hover:text-destructive"
-                  onClick={() => onCancel(r)}
-                >
-                  <Ban className="size-4" /> Cancel reservation
-                </Button>
+                {canEdit && (
+                  <Button variant="outline" className="w-full" onClick={() => onEdit(r)}>
+                    <Pencil className="size-4" /> Edit reservation
+                  </Button>
+                )}
+                {canCancel && (
+                  <Button
+                    variant="outline"
+                    className="w-full text-destructive hover:text-destructive"
+                    onClick={() => onCancel(r)}
+                  >
+                    <Ban className="size-4" /> Cancel reservation
+                  </Button>
+                )}
               </SheetFooter>
             )}
           </>

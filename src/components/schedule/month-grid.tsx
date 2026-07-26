@@ -32,9 +32,11 @@ export function MonthGrid({
   month: Date;
   reservations: Reservation[];
   onView: (r: Reservation) => void;
-  onCreate: (draft: ReservationDraft) => void;
+  /** Omitted for roles that may not create — the cells then aren't clickable. */
+  onCreate?: (draft: ReservationDraft) => void;
   onSelectDay: (day: Date) => void;
 }) {
+  const canCreate = onCreate != null;
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(month)),
     end: endOfWeek(endOfMonth(month)),
@@ -76,18 +78,26 @@ export function MonthGrid({
           return (
             <div
               key={d.toISOString()}
-              role="button"
-              tabIndex={0}
-              aria-label={`Book a reservation on ${format(d, "EEEE, MMMM d")}`}
-              onClick={() => onCreate({ date: d })}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onCreate({ date: d });
-                }
-              }}
+              role={canCreate ? "button" : undefined}
+              tabIndex={canCreate ? 0 : undefined}
+              aria-label={
+                canCreate ? `Book a reservation on ${format(d, "EEEE, MMMM d")}` : undefined
+              }
+              onClick={canCreate ? () => onCreate?.({ date: d }) : undefined}
+              onKeyDown={
+                canCreate
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onCreate?.({ date: d });
+                      }
+                    }
+                  : undefined
+              }
               className={cn(
-                "flex min-h-28 min-w-0 cursor-copy flex-col gap-1 border-b border-r border-border p-1.5 transition-colors last:border-r-0 [&:nth-child(7n)]:border-r-0 hover:bg-accent/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                "flex min-h-28 min-w-0 flex-col gap-1 border-b border-r border-border p-1.5 transition-colors last:border-r-0 [&:nth-child(7n)]:border-r-0",
+                canCreate &&
+                  "cursor-copy hover:bg-accent/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 !inMonth && "bg-muted/30"
               )}
             >

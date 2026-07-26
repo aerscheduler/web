@@ -9,6 +9,7 @@ import {
   useRatings,
   useResources,
   useSquawks,
+  useUpdateReservation,
 } from "@/features/queries";
 import {
   resourceLabel,
@@ -21,7 +22,11 @@ import {
 } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { isStaff, isTechnician } from "@/lib/permissions";
+import {
+  canViewSquawks,
+  defaultReservationType,
+  reservationTypesForRoles,
+} from "@/lib/permissions";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { Button } from "@/components/ui/button";
@@ -36,11 +41,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { DOT_CLASS, TYPE_ORDER, typeLabel } from "./meta";
+import { DOT_CLASS, typeLabel } from "./meta";
 import { SmartTimeRange } from "./smart-time-range";
 import {
+  TYPE_REQUIREMENTS,
   buildReservationInput,
   resolveLocationId,
+  resourceMatchesType,
+  validatePersonnelForType,
   validateTimeRange,
 } from "./reservation-shared";
 
@@ -118,23 +126,20 @@ export function airworthinessHint(r: Resource, openSquawks: number): string {
 
 /**
  * Airworthiness notice for the selected resource: the grounding reason, then the
- * open squawks. `neutral` states the grounding instead of shouting it — on a
- * maintenance reservation the aircraft being grounded is the REASON for the
- * booking, not an alarm.
+ * open squawks. Purely factual — it reports the aircraft's state and never
+ * infers anything about why you're booking it.
  */
 export function AirworthinessNotice({
   resource,
   squawks,
-  neutral,
 }: {
   resource: Resource | undefined;
   squawks: Squawk[];
-  neutral?: boolean;
 }) {
   const { grounded, reason } = groundedOf(resource);
   if (!resource || (!grounded && squawks.length === 0)) return null;
 
-  const alarm = grounded && !neutral;
+  const alarm = grounded;
   const Icon = alarm ? Ban : Wrench;
   const name = resourceLabel(resource).name;
 
@@ -159,10 +164,7 @@ export function AirworthinessNotice({
       <div className="min-w-0 space-y-1.5">
         {grounded && (
           <p className={alarm ? "text-destructive" : "text-foreground"}>
-            <span className="font-medium">
-              {name} is grounded
-              {neutral ? " — that's what this maintenance booking is for" : ""}:
-            </span>{" "}
+            <span className="font-medium">{name} is grounded:</span>{" "}
             {reason?.trim() ? reason : "no reason was given."}
           </p>
         )}
@@ -185,12 +187,13 @@ export function AirworthinessNotice({
   );
 }
 
-/** Modal form that creates a reservation. */
+/** Modal form that creates a reservation — or edits one when `editing` is set. */
 export function ReservationForm({
   open,
   onOpenChange,
   draft,
   onCreated,
+  editing,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -198,13 +201,31 @@ export function ReservationForm({
   /** Called with the created reservation after a successful booking (e.g. to
    * navigate to it). The board doesn't pass this; the global "+" does. */
   onCreated?: (reservation: Reservation) => void;
+  /**
+   * When present the form edits this reservation instead of creating one. Once
+   * the aircraft is off the ramp only the end time stays editable — see
+   * `canOnlyEditEndTime`.
+   */
+  editing?: Reservation;
 }) {
   const { roles } = useAuth();
   // GET /maintenance/squawks is staff/technician-only — it 403s for instructor,
   // student and renter. Gate on the role so a viewer who can't read squawks
   // never fires a request that is guaranteed to fail; the UI then degrades to
   // grounded-only, which needs no request at all.
-  const canSeeSquawks = isStaff(roles) || isTechnician(roles);
+  const canSeeSquawks = canViewSquawks(roles);
+  // Only offer types this dispatcher's roles can actually create — the server
+  // gates creation on the same matrix, so anything else would 400.
+  const typeOptions = React.useMemo(() => reservationTypesForRoles(roles), [roles]);
+  // Dispatch mostly books training flights, so the board keeps defaulting to
+  // dual; anyone whose roles can't create one falls back to their own default.
+  const initialType = React.useMemo<ReservationType>(
+    () =>
+      typeOptions.includes("dual")
+        ? "dual"
+        : defaultReservationType(roles) ?? typeOptions[0] ?? "dual",
+    [roles, typeOptions]
+  );
 
   const resourcesQ = useResources({ enabled: open });
   // ONE request per form open for the whole fleet, grouped by resource below —
@@ -216,9 +237,12 @@ export function ReservationForm({
   const ratingsQ = useRatings({ enabled: open });
   const locationsQ = useLocations({ enabled: open });
   const create = useCreateReservation();
+  const update = useUpdateReservation();
+
+  const isEditing = editing != null;
 
   const [title, setTitle] = React.useState("");
-  const [type, setType] = React.useState<ReservationType>("dual");
+  const [type, setType] = React.useState<ReservationType>(initialType);
   const [resourceId, setResourceId] = React.useState("");
   const [date, setDate] = React.useState("");
   const [startAt, setStartAt] = React.useState<Date | null>(null);
@@ -238,50 +262,84 @@ export function ReservationForm({
   // Everyone assigned must be free for the slot — feed their USER ids to the
   // smart time picker so it intersects their availability with the aircraft's.
   const personnelUserIds = React.useMemo(() => {
+    const allows = TYPE_REQUIREMENTS[type].allows;
     const ids: number[] = [];
     const add = (id: number | null) => id != null && ids.push(id);
-    add(userIdOf(instructorsQ.data, instructorId));
-    if (!isGuest) {
-      add(userIdOf(studentsQ.data, studentId));
-      add(userIdOf(rentersQ.data, renterId));
-    }
+    // Only the sides this type accepts — a picker hidden by a type switch can
+    // leave a stale id behind, and constraining the slot on it would hide times
+    // that are actually free.
+    if (allows.includes("instructors")) add(userIdOf(instructorsQ.data, instructorId));
+    if (allows.includes("students")) add(userIdOf(studentsQ.data, studentId));
+    if (allows.includes("renters")) add(userIdOf(rentersQ.data, renterId));
     return ids;
-  }, [instructorId, studentId, renterId, isGuest, instructorsQ.data, studentsQ.data, rentersQ.data]);
+  }, [instructorId, studentId, renterId, type, instructorsQ.data, studentsQ.data, rentersQ.data]);
 
   // Re-seed the form each time it opens (from the draft the board handed us).
   const wasOpen = React.useRef(false);
   React.useEffect(() => {
     if (open && !wasOpen.current) {
-      const seed = (hhmm?: string): Date | null => {
-        if (!hhmm) return null;
-        const d = new Date(`${format(draft.date, "yyyy-MM-dd")}T${hhmm}:00`);
-        return Number.isNaN(d.getTime()) ? null : d;
-      };
-      setTitle("");
-      setType("dual");
-      setResourceId(draft.resourceId != null ? String(draft.resourceId) : "");
-      setDate(format(draft.date, "yyyy-MM-dd"));
-      setStartAt(seed(draft.start));
-      setEndAt(seed(draft.end));
-      setInstructorId("");
-      setStudentId("");
-      setRenterId("");
-      setRatingId("");
-      setGuestName("");
-      setGuestEmail("");
-      setGuestPhone("");
-      setNotes("");
       setError(null);
+
+      if (editing) {
+        // Re-open the reservation exactly as it stands; the server revalidates
+        // the whole shape on PATCH, so every field has to round-trip.
+        const start = new Date(editing.start);
+        const end = new Date(editing.end);
+        const p = editing.personnel;
+        const guest = p?.guests?.[0];
+        setTitle(editing.title ?? "");
+        setType(editing.type);
+        setResourceId(editing.resource?.id != null ? String(editing.resource.id) : "");
+        setDate(Number.isNaN(start.getTime()) ? "" : format(start, "yyyy-MM-dd"));
+        setStartAt(Number.isNaN(start.getTime()) ? null : start);
+        setEndAt(Number.isNaN(end.getTime()) ? null : end);
+        setInstructorId(p?.instructors?.[0]?.id != null ? String(p.instructors[0].id) : "");
+        setStudentId(p?.students?.[0]?.id != null ? String(p.students[0].id) : "");
+        setRenterId(p?.renters?.[0]?.id != null ? String(p.renters[0].id) : "");
+        setRatingId("");
+        setGuestName(guest?.name ?? "");
+        setGuestEmail(guest?.email ?? "");
+        setGuestPhone(guest?.phone ?? "");
+        setNotes(editing.notes ?? "");
+      } else {
+        const seed = (hhmm?: string): Date | null => {
+          if (!hhmm) return null;
+          const d = new Date(`${format(draft.date, "yyyy-MM-dd")}T${hhmm}:00`);
+          return Number.isNaN(d.getTime()) ? null : d;
+        };
+        setTitle("");
+        setType(initialType);
+        setResourceId(draft.resourceId != null ? String(draft.resourceId) : "");
+        setDate(format(draft.date, "yyyy-MM-dd"));
+        setStartAt(seed(draft.start));
+        setEndAt(seed(draft.end));
+        setInstructorId("");
+        setStudentId("");
+        setRenterId("");
+        setRatingId("");
+        setGuestName("");
+        setGuestEmail("");
+        setGuestPhone("");
+        setNotes("");
+      }
     }
     wasOpen.current = open;
-  }, [open, draft]);
+  }, [open, draft, initialType, editing]);
 
   const openSquawksByResourceId = React.useMemo(
     () => groupSquawksByResource(squawksQ.data),
     [squawksQ.data]
   );
 
-  const resourceOptions: ComboOption[] = (resourcesQ.data ?? []).map((r) => {
+  // Each type books a specific kind of resource — a ground session needs a room,
+  // a sim session a simulator, everything else an aircraft. Offering the whole
+  // fleet regardless of type just invites a 400.
+  const eligibleResources = React.useMemo(
+    () => (resourcesQ.data ?? []).filter((r) => resourceMatchesType(r, type)),
+    [resourcesQ.data, type]
+  );
+
+  const resourceOptions: ComboOption[] = eligibleResources.map((r) => {
     const l = resourceLabel(r);
     // Airworthiness takes the hint slot when there's something to say — it's a
     // narrow, right-aligned, truncating column and "Grounded" earns that space
@@ -290,7 +348,14 @@ export function ReservationForm({
     return { value: String(r.id), label: l.name, hint: air || l.kind };
   });
 
-  const selectedResource = resourcesQ.data?.find((r) => String(r.id) === resourceId);
+  const selectedResource = eligibleResources.find((r) => String(r.id) === resourceId);
+
+  // Switching type can strand a resource of the wrong kind in the picker's value.
+  React.useEffect(() => {
+    if (resourceId && !eligibleResources.some((r) => String(r.id) === resourceId)) {
+      setResourceId("");
+    }
+  }, [resourceId, eligibleResources]);
   const selectedSquawks = selectedResource
     ? openSquawksByResourceId.get(selectedResource.id) ?? []
     : [];
@@ -327,30 +392,28 @@ export function ReservationForm({
       ];
       if (instructorId) personnel.instructors = [{ id: Number(instructorId) }];
     } else {
+      // Only compose the sides this type actually allows — a stale instructor
+      // left selected from a previous type would otherwise be sent along and
+      // rejected (a maintenance booking must carry nobody at all).
+      const req = TYPE_REQUIREMENTS[type];
+      if (instructorId && req.allows.includes("instructors"))
+        personnel.instructors = [{ id: Number(instructorId) }];
+      if (studentId && req.allows.includes("students"))
+        personnel.students = [{ id: Number(studentId) }];
+      if (renterId && req.allows.includes("renters"))
+        personnel.renters = [{ id: Number(renterId) }];
+
       // The server enforces per-type personnel + resource rules; validate here so
       // the happy path doesn't 400 with an opaque "Reservation type is not valid".
-      const kind = selectedResource ? resourceLabel(selectedResource).kind : null;
-      if (type === "dual" && !(instructorId && studentId))
-        return setError("Dual flights need both an instructor and a student.");
-      if (type === "solo" && !(instructorId || studentId))
-        return setError("Solo flights need an instructor or a student.");
-      if (type === "rental" && !renterId)
-        return setError("Rentals need a renter.");
-      if (type === "ground") {
-        if (!(instructorId || studentId))
-          return setError("Ground sessions need an instructor or a student.");
-        if (kind !== "Room") return setError("Ground sessions need a room resource.");
+      const personnelError = validatePersonnelForType(type, personnel);
+      if (personnelError) return setError(personnelError);
+      if (req.resourceRequired && !selectedResource) {
+        return setError(
+          `${typeLabel(type)} reservations need ${
+            req.resource === "Aircraft" ? "an aircraft" : `a ${req.resource.toLowerCase()}`
+          }.`
+        );
       }
-      if (type === "sim") {
-        if (!(instructorId || studentId))
-          return setError("Sim sessions need an instructor or a student.");
-        if (kind !== "Simulator")
-          return setError("Sim sessions need a simulator resource.");
-      }
-
-      if (instructorId) personnel.instructors = [{ id: Number(instructorId) }];
-      if (studentId) personnel.students = [{ id: Number(studentId) }];
-      if (renterId) personnel.renters = [{ id: Number(renterId) }];
     }
 
     const input = buildReservationInput({
@@ -366,12 +429,21 @@ export function ReservationForm({
     });
 
     try {
+      if (editing) {
+        await update.mutateAsync({ id: editing.id, input });
+        toast.success("Reservation updated");
+        onOpenChange(false);
+        return;
+      }
       const created = await create.mutateAsync(input);
       toast.success("Reservation booked");
       onOpenChange(false);
       onCreated?.(created);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Couldn't book the reservation";
+      const fallback = editing
+        ? "Couldn't update the reservation"
+        : "Couldn't book the reservation";
+      const msg = err instanceof ApiError ? err.message : fallback;
       setError(msg);
       toast.error(msg);
     }
@@ -381,8 +453,12 @@ export function ReservationForm({
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
-      title="New reservation"
-      description="Book aircraft, instructors and students onto the dispatch board."
+      title={isEditing ? "Edit reservation" : "New reservation"}
+      description={
+        isEditing
+          ? "Change the aircraft, crew or times for this reservation."
+          : "Book aircraft, instructors and students onto the dispatch board."
+      }
     >
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-1.5">
@@ -404,7 +480,7 @@ export function ReservationForm({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TYPE_ORDER.map((t) => (
+                {typeOptions.map((t) => (
                   <SelectItem key={t} value={t}>
                     <span className="flex items-center gap-2">
                       <span className={cn("size-2 rounded-full", DOT_CLASS[t])} aria-hidden />
@@ -416,24 +492,25 @@ export function ReservationForm({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label>Aircraft / resource</Label>
+            <Label>{TYPE_REQUIREMENTS[type].resource === "Aircraft" ? "Aircraft" : TYPE_REQUIREMENTS[type].resource}</Label>
             <Combobox
               options={resourceOptions}
               value={resourceId}
               onChange={setResourceId}
               placeholder={resourcesQ.isLoading ? "Loading…" : "Select resource"}
               searchPlaceholder="Search fleet…"
-              emptyText="No resources."
+              emptyText={`No ${TYPE_REQUIREMENTS[type].resource.toLowerCase()}s set up.`}
             />
           </div>
         </div>
 
-        {/* Full-width under the picker so a long grounding reason has room. */}
-        <AirworthinessNotice
-          resource={selectedResource}
-          squawks={selectedSquawks}
-          neutral={type === "maintenance"}
-        />
+        {/* Full-width under the picker so a long grounding reason has room.
+            Skipped for maintenance: whoever is booking the work already knows
+            the aircraft's state, and the notice can't know what they're
+            actually there to fix. */}
+        {type !== "maintenance" && (
+          <AirworthinessNotice resource={selectedResource} squawks={selectedSquawks} />
+        )}
 
         <SmartTimeRange
           date={date}
@@ -446,6 +523,11 @@ export function ReservationForm({
           }}
           resourceId={resourceId ? Number(resourceId) : null}
           personnelUserIds={personnelUserIds}
+          restoreWindow={
+            // The reservation we're editing occupies its own slot; without this
+            // the picker would report its current time as unavailable.
+            editing ? { start: new Date(editing.start), end: new Date(editing.end) } : null
+          }
         />
 
         {isGuest ? (
@@ -498,41 +580,56 @@ export function ReservationForm({
               The guest is emailed an invoice after the flight is closed out — no account needed.
             </p>
           </div>
+        ) : type === "maintenance" ? (
+          // Maintenance takes the aircraft off the line — the server rejects it
+          // outright if anyone is assigned, so there's nobody to pick.
+          <p className="text-sm text-muted-foreground">
+            Maintenance blocks the aircraft for the whole window. Nobody is assigned to it — note
+            what&rsquo;s being done below.
+          </p>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label>Instructor</Label>
-              <Combobox
-                options={memberOptions(instructorsQ.data)}
-                value={instructorId}
-                onChange={setInstructorId}
-                placeholder="Assign instructor"
-                searchPlaceholder="Search instructors…"
-                emptyText="No instructors."
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Student</Label>
-              <Combobox
-                options={memberOptions(studentsQ.data)}
-                value={studentId}
-                onChange={setStudentId}
-                placeholder="Assign student"
-                searchPlaceholder="Search students…"
-                emptyText="No students."
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Renter</Label>
-              <Combobox
-                options={memberOptions(rentersQ.data)}
-                value={renterId}
-                onChange={setRenterId}
-                placeholder="Assign renter"
-                searchPlaceholder="Search renters…"
-                emptyText="No renters."
-              />
-            </div>
+            {/* Only the sides this type accepts — a rental has no instructor, a
+                dual has no renter. Mirrors the server's type matrix. */}
+            {TYPE_REQUIREMENTS[type].allows.includes("instructors") && (
+              <div className="space-y-1.5">
+                <Label>Instructor</Label>
+                <Combobox
+                  options={memberOptions(instructorsQ.data)}
+                  value={instructorId}
+                  onChange={setInstructorId}
+                  placeholder="Assign instructor"
+                  searchPlaceholder="Search instructors…"
+                  emptyText="No instructors."
+                />
+              </div>
+            )}
+            {TYPE_REQUIREMENTS[type].allows.includes("students") && (
+              <div className="space-y-1.5">
+                <Label>Student</Label>
+                <Combobox
+                  options={memberOptions(studentsQ.data)}
+                  value={studentId}
+                  onChange={setStudentId}
+                  placeholder="Assign student"
+                  searchPlaceholder="Search students…"
+                  emptyText="No students."
+                />
+              </div>
+            )}
+            {TYPE_REQUIREMENTS[type].allows.includes("renters") && (
+              <div className="space-y-1.5">
+                <Label>Renter</Label>
+                <Combobox
+                  options={memberOptions(rentersQ.data)}
+                  value={renterId}
+                  onChange={setRenterId}
+                  placeholder="Assign renter"
+                  searchPlaceholder="Search renters…"
+                  emptyText="No renters."
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label>Rating (optional)</Label>
               <Combobox
@@ -568,8 +665,14 @@ export function ReservationForm({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="submit" disabled={create.isPending}>
-            {create.isPending ? "Booking…" : "Book reservation"}
+          <Button type="submit" disabled={create.isPending || update.isPending}>
+            {isEditing
+              ? update.isPending
+                ? "Saving…"
+                : "Save changes"
+              : create.isPending
+                ? "Booking…"
+                : "Book reservation"}
           </Button>
         </div>
       </form>

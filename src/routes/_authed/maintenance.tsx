@@ -1,20 +1,18 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, ClipboardList, Plus, Wrench } from "lucide-react";
-import { toast } from "sonner";
 import {
   useSquawks,
-  useResolveSquawk,
   useMaintenanceReminders,
 } from "@/features/queries";
 import type { Squawk } from "@/types/api";
 import { guardRoute } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
-import { useConfirm } from "@/components/confirm-dialog";
 import { SquawkCard } from "@/components/maintenance/squawk-card";
 import { ReminderCard } from "@/components/maintenance/reminder-card";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
+import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -88,32 +86,11 @@ function TabFrame({
 
 function OpenSquawksTab({ onLog }: { onLog: () => void }) {
   const q = useSquawks({ resolved: false });
-  const confirm = useConfirm();
-  const resolve = useResolveSquawk();
-  const [resolvingId, setResolvingId] = React.useState<number | null>(null);
+  // Resolving needs a completion date (and optionally notes), so it opens a
+  // form rather than a yes/no confirm — see ResolveSquawkModal.
+  const [resolving, setResolving] = React.useState<Squawk | null>(null);
 
   const squawks = q.data ?? [];
-
-  async function onResolve(squawk: Squawk) {
-    const ok = await confirm({
-      title: `Resolve "${squawk.title || "this squawk"}"?`,
-      description: squawk.grounding
-        ? "Resolving clears this squawk. The aircraft may still need a return-to-service check."
-        : "This marks the squawk as resolved.",
-      confirmLabel: "Resolve",
-    });
-    if (!ok) return;
-    setResolvingId(squawk.id);
-    resolve.mutate(
-      { id: squawk.id, action: "resolve" },
-      {
-        onSuccess: () => toast.success("Squawk resolved."),
-        onError: (e) =>
-          toast.error(e instanceof Error ? e.message : "Couldn't resolve that squawk."),
-        onSettled: () => setResolvingId(null),
-      }
-    );
-  }
 
   return (
     <TabFrame isLoading={q.isLoading} error={q.error} onRetry={() => q.refetch()}>
@@ -136,12 +113,18 @@ function OpenSquawksTab({ onLog }: { onLog: () => void }) {
             <SquawkCard
               key={s.id}
               squawk={s}
-              onResolve={onResolve}
-              resolving={resolvingId === s.id}
+              onResolve={setResolving}
+              resolving={resolving?.id === s.id}
             />
           ))}
         </div>
       )}
+
+      <ResolveSquawkModal
+        squawk={resolving}
+        open={resolving != null}
+        onOpenChange={(o) => !o && setResolving(null)}
+      />
     </TabFrame>
   );
 }

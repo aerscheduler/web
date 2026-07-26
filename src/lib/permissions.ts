@@ -1,5 +1,5 @@
 import { redirect } from "@tanstack/react-router";
-import type { Role } from "@/types/api";
+import type { ReservationType, Role } from "@/types/api";
 import { hasActiveOrg, rolesFromSession } from "./auth";
 
 /**
@@ -10,11 +10,18 @@ import { hasActiveOrg, rolesFromSession } from "./auth";
  *   owner ⊃ admin (enforced invariant) — dispatcher, instructor, student,
  *   renter, technician are separate. `isOrgAdmin` on the server = adminRole
  *   (owner passes via the invariant); it is NOT dispatcher.
+ *
+ * Predicates that need a specific *reservation* to answer (can I cancel this
+ * flight? ramp it out? edit it?) live in `components/schedule/close-out.ts`,
+ * since they turn on who is assigned to that reservation rather than on roles
+ * alone. This module owns everything answerable from roles.
  */
 export const isOwner = (r: Role[]) => r.includes("owner");
 export const isAdmin = (r: Role[]) => r.includes("admin") || isOwner(r);
 export const isDispatcher = (r: Role[]) => r.includes("dispatcher");
 export const isInstructor = (r: Role[]) => r.includes("instructor");
+export const isStudent = (r: Role[]) => r.includes("student");
+export const isRenter = (r: Role[]) => r.includes("renter");
 export const isTechnician = (r: Role[]) => r.includes("technician");
 /** owner | admin | dispatcher — the "runs the operation" set. */
 export const isStaff = (r: Role[]) => isAdmin(r) || isDispatcher(r);
@@ -76,13 +83,126 @@ export const canManageBillingSettings = isOwner;
 /** Org profile / logo / ratings. Server: admin. */
 export const canManageOrg = isAdmin;
 
-/** Can self-book a flight from /me/book (instructor, student, or renter). */
-export const canSelfBook = (r: Role[]) =>
-  isInstructor(r) || r.includes("student") || r.includes("renter");
+/** Open squawks are admin/dispatcher/technician-only on the server. */
+export const canViewSquawks = (r: Role[]) => isStaff(r) || isTechnician(r);
+
+// ── Reservation types by role ────────────────────────────────────────────────
 /**
- * Anyone who can create a reservation in *some* form — staff create any on the
- * dispatch board; instructors/students/renters self-book. Drives the global "+"
- * quick-create button (the menu item differs by role: staff get the full "New
- * reservation" modal, others get "Book a flight").
+ * Display order for reservation types. Also the canonical list of types the
+ * server will actually accept — "instructor" is deliberately absent because the
+ * server's type union has no such case (offering it would always 400).
  */
-export const canCreateReservation = (r: Role[]) => isStaff(r) || canSelfBook(r);
+export const RESERVATION_TYPE_ORDER: ReservationType[] = [
+  "dual",
+  "solo",
+  "rental",
+  "guest",
+  "ground",
+  "sim",
+  "maintenance",
+];
+
+const STAFF_TYPES: ReservationType[] = [
+  "solo",
+  "dual",
+  "ground",
+  "guest",
+  "sim",
+  "rental",
+  "maintenance",
+];
+
+/**
+ * Which reservation types each role may CREATE. Mirrors the Flutter app's own
+ * matrix (`create_reservation_bottom_sheet.dart` `getButtons()`) and the
+ * server's role gate, so all three agree.
+ *
+ * Roles are additive: a student who is also a renter may book everything a
+ * student can *plus* rentals.
+ */
+const TYPES_BY_ROLE: Record<Role, ReservationType[]> = {
+  owner: STAFF_TYPES,
+  admin: STAFF_TYPES,
+  dispatcher: STAFF_TYPES,
+  instructor: ["solo", "dual", "ground", "guest", "sim"],
+  student: ["solo", "dual", "ground", "sim"],
+  renter: ["rental"],
+  technician: ["maintenance"],
+};
+
+/** The union of reservation types these roles may create, in display order. */
+export function reservationTypesForRoles(roles: Role[]): ReservationType[] {
+  const allowed = new Set<ReservationType>();
+  for (const role of roles) {
+    for (const type of TYPES_BY_ROLE[role] ?? []) allowed.add(type);
+  }
+  return RESERVATION_TYPE_ORDER.filter((t) => allowed.has(t));
+}
+
+/** May these roles create this specific type? */
+export const canCreateReservationType = (roles: Role[], type: ReservationType) =>
+  reservationTypesForRoles(roles).includes(type);
+
+/**
+ * Which type a booking form should preselect. Mirrors Flutter's
+ * `setDefaultReservationType()` precedence — importantly, a renter+student
+ * defaults to a rental, not a solo.
+ */
+export function defaultReservationType(roles: Role[]): ReservationType | null {
+  const allowed = reservationTypesForRoles(roles);
+  if (allowed.length === 0) return null;
+  if (isStaff(roles)) return "solo";
+  if (isRenter(roles)) return "rental";
+  if (isTechnician(roles)) return "maintenance";
+  return allowed.includes("solo") ? "solo" : allowed[0];
+}
+
+/**
+ * Roles that put a person *on* a reservation rather than merely letting them
+ * dispatch one. Staff grants (owner/admin/dispatcher) are deliberately excluded:
+ * a dispatcher books other people from the board, and shouldn't be seated on a
+ * flight as their own student.
+ */
+const SELF_BOOKABLE: Role[] = ["instructor", "student", "renter", "technician"];
+
+/**
+ * Can self-book from /me/book. Technicians count: their "booking" is taking an
+ * aircraft off the line for maintenance.
+ */
+export const canSelfBook = (r: Role[]) => r.some((role) => SELF_BOOKABLE.includes(role));
+
+/**
+ * Types offered on the SELF-serve page — derived only from the roles that seat
+ * you on a flight. An admin+instructor self-books as an instructor; their admin
+ * grant belongs to the dispatch board, not to /me/book.
+ */
+export const selfBookableTypes = (r: Role[]) =>
+  reservationTypesForRoles(r.filter((role) => SELF_BOOKABLE.includes(role)));
+
+/**
+ * What the self-serve booking call-to-action should say. A technician isn't
+ * booking a flight — they're pulling an aircraft off the line.
+ */
+export function bookActionLabel(r: Role[]): string {
+  const types = selfBookableTypes(r);
+  return types.length === 1 && types[0] === "maintenance"
+    ? "Schedule maintenance"
+    : "Book a flight";
+}
+/**
+ * Anyone who can create a reservation in *some* form — staff create any type on
+ * the dispatch board; everyone else self-books their own role's types. Drives
+ * the global "+" quick-create button (the menu item differs by role: staff get
+ * the full "New reservation" modal, others get "Book a flight").
+ */
+export const canCreateReservation = (r: Role[]) => reservationTypesForRoles(r).length > 0;
+
+// ── Which resource lanes a role sees on the dispatch board ───────────────────
+// Mirrors the Flutter calendar's `canSee*` getters (`calendar_controller.dart`):
+// a technician's board is planes-only, a renter's is planes-only on the web
+// (Flutter also gives renters a renter *person* lane, which the web board has
+// no equivalent of — it groups strictly by resource).
+/** Rooms are an instruction resource — hidden from renters and technicians. */
+export const canSeeRoomLanes = (r: Role[]) => isStaff(r) || isInstructor(r) || isStudent(r);
+/** Simulators likewise. */
+export const canSeeSimulatorLanes = (r: Role[]) => isStaff(r) || isInstructor(r) || isStudent(r);

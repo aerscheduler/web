@@ -6,6 +6,7 @@ import {
   defaultEnd,
   endOptions,
   intersectAvailability,
+  withWindowRestored,
   isBookable,
   MAX_ADVANCE_DAYS,
   nextAvailable,
@@ -54,6 +55,8 @@ export function SmartTimeRange({
   resourceId,
   personnelUserIds,
   disabled,
+  restoreWindow = null,
+  lockStart = false,
 }: {
   /** "yyyy-MM-dd" of the selected day. */
   date: string;
@@ -66,6 +69,13 @@ export function SmartTimeRange({
   /** USER ids (not org-user ids) of everyone assigned to the reservation. */
   personnelUserIds: number[];
   disabled?: boolean;
+  /**
+   * When editing, the reservation's CURRENT interval. The availability endpoints
+   * count it as busy, so without this its own slot would read as unavailable.
+   */
+  restoreWindow?: { start: Date; end: Date } | null;
+  /** Lock the date and start — used once a flight has ramped out. */
+  lockStart?: boolean;
 }) {
   // Captured once so the past-clamp / memo keys stay stable while the form is open.
   const now = React.useMemo(() => new Date(), []);
@@ -82,13 +92,17 @@ export function SmartTimeRange({
   // Intersect the free windows of every constraining entity. A null entry means
   // "no constraint" (not selected, still loading, or the request errored) and is
   // skipped, so the picker degrades to an open grid rather than blocking.
+  const restoreKey = restoreWindow
+    ? `${restoreWindow.start.getTime()}-${restoreWindow.end.getTime()}`
+    : "";
   const allWindows: Window[] | null = React.useMemo(() => {
     const lists: (Window[] | null)[] = [];
     if (resourceId != null) lists.push(resQ.data ? parseWindows(resQ.data) : null);
     userResults.forEach((r) => lists.push(r.data ? parseWindows(r.data) : null));
-    return intersectAvailability(lists);
+    // The reservation being edited books itself, so add its own slot back in.
+    return withWindowRestored(intersectAvailability(lists), restoreWindow);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resourceId, resUpdated, usersUpdated, personnelKey]);
+  }, [resourceId, resUpdated, usersUpdated, personnelKey, restoreKey]);
 
   const day = React.useMemo(() => {
     if (!date) return null;
@@ -158,7 +172,7 @@ export function SmartTimeRange({
             value={date}
             min={minDate}
             max={maxDate}
-            disabled={disabled}
+            disabled={disabled || lockStart}
             onChange={onDateChange}
           />
         </div>
@@ -168,7 +182,7 @@ export function SmartTimeRange({
           <Select
             value={isoValue(start)}
             onValueChange={pickStart}
-            disabled={disabled || loading || starts.length === 0}
+            disabled={disabled || lockStart || loading || starts.length === 0}
           >
             <SelectTrigger id="smart-start" className="w-full">
               <SelectValue placeholder={loading ? "Checking…" : "Select"} />

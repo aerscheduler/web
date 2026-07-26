@@ -22,6 +22,7 @@ export function DatePickerField({
   placeholder = "Pick a date",
   id,
   className,
+  invalid,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -31,6 +32,8 @@ export function DatePickerField({
   placeholder?: string;
   id?: string;
   className?: string;
+  /** Marks the trigger `aria-invalid` for validate-on-submit forms. */
+  invalid?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
 
@@ -61,6 +64,7 @@ export function DatePickerField({
           id={id}
           type="button"
           variant="outline"
+          aria-invalid={invalid}
           disabled={disabled}
           className={cn(
             "w-full justify-start gap-2 font-normal",

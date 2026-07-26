@@ -16,14 +16,19 @@ export function TypeBadge({ type, className }: { type: ReservationType; classNam
 /**
  * A member-facing reservation row: colored left border by type, time range,
  * resource name, a type badge and (optionally) a personnel summary.
+ *
+ * With `onOpen` it becomes a real button that opens the reservation's detail
+ * sheet (the same one the dispatch board uses); without it, it's static.
  */
 export function ReservationCard({
   r,
   showDate = false,
+  onOpen,
   className,
 }: {
   r: Reservation;
   showDate?: boolean;
+  onOpen?: (r: Reservation) => void;
   className?: string;
 }) {
   const start = parseISO(r.start);
@@ -31,28 +36,41 @@ export function ReservationCard({
   const res = r.resource ? resourceLabel(r.resource) : null;
   const people = personnelSummary(r);
 
-  return (
-    <div
-      className={cn(
-        "flex items-stretch gap-3 rounded-lg border border-l-4 border-border bg-card p-3",
-        BORDER_L_CLASS[r.type],
-        className
-      )}
-    >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="truncate font-medium">{r.title}</span>
-          <TypeBadge type={r.type} className="shrink-0" />
-        </div>
-        <div className="mt-1 text-sm tabular-nums text-muted-foreground">
-          {showDate && <span>{format(start, "EEE, MMM d")} · </span>}
-          {format(start, "h:mm a")} – {format(end, "h:mm a")}
-        </div>
-        <div className="mt-0.5 truncate text-sm text-muted-foreground">
-          {res ? res.name : "Unassigned"}
-          {people ? ` · ${people}` : ""}
-        </div>
+  const cardClass = cn(
+    "flex items-stretch gap-3 rounded-lg border border-l-4 border-border bg-card p-3",
+    BORDER_L_CLASS[r.type],
+    onOpen &&
+      "w-full text-left transition-colors hover:bg-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    className
+  );
+
+  const body = (
+    <div className="min-w-0 flex-1">
+      <div className="flex items-center gap-2">
+        <span className="truncate font-medium">{r.title}</span>
+        <TypeBadge type={r.type} className="shrink-0" />
+      </div>
+      <div className="mt-1 text-sm tabular-nums text-muted-foreground">
+        {showDate && <span>{format(start, "EEE, MMM d")} · </span>}
+        {format(start, "h:mm a")} – {format(end, "h:mm a")}
+      </div>
+      <div className="mt-0.5 truncate text-sm text-muted-foreground">
+        {res ? res.name : "Unassigned"}
+        {people ? ` · ${people}` : ""}
       </div>
     </div>
+  );
+
+  if (!onOpen) return <div className={cardClass}>{body}</div>;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(r)}
+      aria-label={`View ${r.title}`}
+      className={cardClass}
+    >
+      {body}
+    </button>
   );
 }

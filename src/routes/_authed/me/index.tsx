@@ -1,3 +1,4 @@
+import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { addDays, endOfDay, format, parseISO, startOfDay } from "date-fns";
 import {
@@ -11,6 +12,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { bookActionLabel } from "@/lib/permissions";
 import {
   useAnnouncements,
   useMemberInvoices,
@@ -28,6 +30,10 @@ import { formatMoney } from "@/lib/utils";
 import { ReservationCard } from "@/components/me/reservation-card";
 import { currencyAttention } from "@/components/me/currency";
 import { WeatherBadge } from "@/components/weather-badge";
+import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
+import { ReservationForm } from "@/components/schedule/reservation-form";
+import { InstructionPartnersCard } from "@/components/me/instruction-partners-card";
+import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 
 export const Route = createFileRoute("/_authed/me/")({
   component: MyDayPage,
@@ -48,6 +54,13 @@ function MyDayPage() {
   const currenciesQ = useMyCurrencies();
   const announcementsQ = useAnnouncements();
 
+  const reservations = React.useMemo(() => reservationsQ.data ?? [], [reservationsQ.data]);
+  const bookLabel = bookActionLabel(roles);
+  // Same detail sheet the dispatch board opens — cancel and the ramp-out /
+  // ramp-in / close-out flow behave identically here.
+  const { detail, open, setOpen, openDetail, cancelReservation, editing, setEditing, startEdit } =
+    useReservationDetail(reservations);
+
   if (organization === null) {
     return (
       <div>
@@ -63,7 +76,7 @@ function MyDayPage() {
     );
   }
 
-  const upcoming = (reservationsQ.data ?? [])
+  const upcoming = reservations
     .filter((r) => parseISO(r.end).getTime() >= now.getTime())
     .sort((a, b) => a.start.localeCompare(b.start));
   const next = upcoming[0] as Reservation | undefined;
@@ -165,11 +178,11 @@ function MyDayPage() {
               <EmptyState
                 icon={CalendarClock}
                 title="No upcoming flights"
-                body="Book a flight and it'll show up here."
+                body={`${bookLabel} and it'll show up here.`}
                 action={
                   <Button asChild>
                     <Link to="/me/book">
-                      <CalendarPlus className="size-4" /> Book a flight
+                      <CalendarPlus className="size-4" /> {bookLabel}
                     </Link>
                   </Button>
                 }
@@ -193,7 +206,7 @@ function MyDayPage() {
                 <ul className="space-y-2">
                   {upcoming.slice(0, MAX_UPCOMING).map((r) => (
                     <li key={r.id}>
-                      <ReservationCard r={r} showDate />
+                      <ReservationCard r={r} showDate onOpen={openDetail} />
                     </li>
                   ))}
                 </ul>
@@ -209,7 +222,7 @@ function MyDayPage() {
           <CardContent className="flex flex-col gap-2 pt-0">
             <Button asChild className="justify-start">
               <Link to="/me/book">
-                <CalendarPlus className="size-4" /> Book a flight
+                <CalendarPlus className="size-4" /> {bookLabel}
               </Link>
             </Button>
             <Button asChild variant="outline" className="justify-start">
@@ -224,7 +237,27 @@ function MyDayPage() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Renders nothing unless you instruct or study. */}
+        <InstructionPartnersCard />
       </div>
+
+      {editing && (
+        <ReservationForm
+          open
+          onOpenChange={(o) => !o && setEditing(null)}
+          draft={{ date: new Date(editing.start) }}
+          editing={editing}
+        />
+      )}
+
+      <ReservationDetailSheet
+        reservation={detail}
+        open={open}
+        onOpenChange={setOpen}
+        onCancel={cancelReservation}
+        onEdit={startEdit}
+      />
     </div>
   );
 }

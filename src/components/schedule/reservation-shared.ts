@@ -1,3 +1,4 @@
+import { resourceLabel } from "@/types/api";
 import type {
   CreateReservationInput,
   Location,
@@ -17,6 +18,157 @@ import type {
 
 /** The device timezone; the server stores it on the reservation. */
 export const DEVICE_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+// ── What each reservation type requires ──────────────────────────────────────
+/**
+ * The server's `validateReservationType` is the authority on which combinations
+ * of resource + personnel it will accept, and it returns a single generic error
+ * for every violation. This table mirrors those rules so both forms can ask for
+ * the right fields up front and explain a rejection in the field the user can
+ * actually fix, rather than surfacing a blanket 400.
+ *
+ * `resource` is the kind of resource the type is booked against; `personnel`
+ * lists which sides the server permits, and `requires` which are mandatory.
+ * A type with an empty `personnel` list forbids personnel entirely.
+ */
+export type PersonnelSide = "instructors" | "students" | "renters" | "guests";
+export type ResourceKind = "Aircraft" | "Simulator" | "Room";
+
+export interface TypeRequirement {
+  /** Which resource kind this type books. */
+  resource: ResourceKind;
+  /** Is a resource mandatory? (`dual` is the one type the server allows without one.) */
+  resourceRequired: boolean;
+  /** Personnel sides the server permits on this type. */
+  allows: PersonnelSide[];
+  /** Sides that must ALL be present. */
+  requiresAll: PersonnelSide[];
+  /** At least one of these must be present (empty = no such rule). */
+  requiresAny: PersonnelSide[];
+  /** At most ONE of these may be present (empty = no such rule). */
+  exclusive: PersonnelSide[];
+}
+
+export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
+  // solo: an instructor alone, or a student with an aircraft.
+  solo: {
+    resource: "Aircraft",
+    resourceRequired: true,
+    allows: ["instructors", "students"],
+    requiresAll: [],
+    requiresAny: ["instructors", "students"],
+    // A solo has ONE pilot. An instructor flying with a student is a `dual`.
+    exclusive: ["instructors", "students"],
+  },
+  dual: {
+    resource: "Aircraft",
+    resourceRequired: false,
+    allows: ["instructors", "students"],
+    requiresAll: ["instructors", "students"],
+    requiresAny: [],
+    exclusive: [],
+  },
+  ground: {
+    resource: "Room",
+    resourceRequired: true,
+    allows: ["instructors", "students"],
+    requiresAll: [],
+    requiresAny: ["instructors", "students"],
+    exclusive: [],
+  },
+  sim: {
+    resource: "Simulator",
+    resourceRequired: true,
+    allows: ["instructors", "students"],
+    requiresAll: [],
+    requiresAny: ["instructors", "students"],
+    exclusive: [],
+  },
+  rental: {
+    resource: "Aircraft",
+    resourceRequired: true,
+    allows: ["renters"],
+    requiresAll: ["renters"],
+    requiresAny: [],
+    exclusive: [],
+  },
+  guest: {
+    resource: "Aircraft",
+    resourceRequired: true,
+    allows: ["guests", "instructors"],
+    requiresAll: ["guests"],
+    requiresAny: [],
+    exclusive: [],
+  },
+  // Taking an aircraft off the line. The server rejects a maintenance booking
+  // that carries ANY personnel — it's the aircraft that's busy, not a person.
+  maintenance: {
+    resource: "Aircraft",
+    resourceRequired: true,
+    allows: [],
+    requiresAll: [],
+    requiresAny: [],
+    exclusive: [],
+  },
+  // Not a real server type; present only so the Record is total. Never offered.
+  instructor: {
+    resource: "Aircraft",
+    resourceRequired: true,
+    allows: ["instructors"],
+    requiresAll: ["instructors"],
+    requiresAny: [],
+    exclusive: [],
+  },
+};
+
+/** Does this resource match the kind the given type books against? */
+export function resourceMatchesType(resource: Resource, type: ReservationType): boolean {
+  return resourceLabel(resource).kind === TYPE_REQUIREMENTS[type].resource;
+}
+
+const SIDE_LABEL: Record<PersonnelSide, string> = {
+  instructors: "an instructor",
+  students: "a student",
+  renters: "a renter",
+  guests: "a guest",
+};
+
+/**
+ * Check a composed personnel object against the type's rules. Returns a
+ * human-readable message naming the offending field, or null when it's valid.
+ * Mirrors the server's `validateReservationType` so a submit that passes here
+ * isn't rejected there for a reason we could have explained inline.
+ */
+export function validatePersonnelForType(
+  type: ReservationType,
+  personnel: CreateReservationInput["personnel"] | undefined
+): string | null {
+  const req = TYPE_REQUIREMENTS[type];
+  const has = (side: PersonnelSide) => (personnel?.[side]?.length ?? 0) > 0;
+
+  for (const side of ["instructors", "students", "renters", "guests"] as PersonnelSide[]) {
+    if (has(side) && !req.allows.includes(side)) {
+      return type === "maintenance"
+        ? "A maintenance booking can't have anyone assigned to it — it takes the aircraft off the line."
+        : `A ${type} reservation can't include ${SIDE_LABEL[side]}.`;
+    }
+  }
+  for (const side of req.requiresAll) {
+    if (!has(side)) return `Pick ${SIDE_LABEL[side]} for this ${type} reservation.`;
+  }
+  if (req.requiresAny.length > 0 && !req.requiresAny.some(has)) {
+    const names = req.requiresAny.map((s) => SIDE_LABEL[s]).join(" or ");
+    return `Pick ${names} for this ${type} reservation.`;
+  }
+  if (req.exclusive.filter(has).length > 1) {
+    return type === "solo"
+      ? "A solo has one pilot. Book a dual if an instructor is flying with a student."
+      : `A ${type} reservation can only have one of ${req.exclusive
+          .map((s) => SIDE_LABEL[s])
+          .join(" or ")}.`;
+  }
+  return null;
+}
 
 /**
  * Resolve a booking's location: the chosen resource's own location, else the

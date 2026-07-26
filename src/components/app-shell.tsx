@@ -33,6 +33,8 @@ import {
   canSelfBook,
   isAdmin,
   isStaff,
+  isTechnician,
+  selfBookableTypes,
 } from "@/lib/permissions";
 import type { Role } from "@/types/api";
 import { CommandMenuProvider, useCommandMenu } from "@/components/command-menu";
@@ -115,7 +117,9 @@ function navForRoles(roles: string[]): NavGroup[] {
   const you: NavItem[] = [
     { to: "/me", label: "Home", icon: Home },
     { to: "/me/schedule", label: "Calendar", icon: CalendarDays },
-    { to: "/me/book", label: "Book", icon: CalendarPlus },
+    // Only for roles that can actually be seated on a booking — a pure
+    // dispatcher books from the board, not here.
+    ...(canSelfBook(R) ? [{ to: "/me/book", label: "Book", icon: CalendarPlus }] : []),
     { to: "/me/invoices", label: "Invoices", icon: Wallet },
     { to: "/me/currencies", label: "Currencies", icon: ShieldCheck },
     { to: "/me/documents", label: "Documents", icon: FileText },
@@ -454,7 +458,11 @@ function Topbar() {
                 <DropdownMenuItem asChild>
                   <Link to="/me/book">
                     <CalendarPlus />
-                    Book a flight
+                    {/* A technician isn't booking a flight — they're pulling an
+                        aircraft off the line. */}
+                    {selfBookableTypes(roles).length === 1 && isTechnician(roles)
+                      ? "Schedule maintenance"
+                      : "Book a flight"}
                   </Link>
                 </DropdownMenuItem>
               )}

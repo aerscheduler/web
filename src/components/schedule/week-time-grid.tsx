@@ -48,9 +48,11 @@ export function WeekTimeGrid({
   weekStart: Date;
   reservations: Reservation[];
   onView: (r: Reservation) => void;
-  onCreate: (draft: ReservationDraft) => void;
+  /** Omitted for roles that may not create — the columns then aren't clickable. */
+  onCreate?: (draft: ReservationDraft) => void;
   onSelectDay: (day: Date) => void;
 }) {
+  const canCreate = onCreate != null;
   const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
   const now = new Date();
   const nowMin = minutesInWindow(now);
@@ -108,27 +110,39 @@ export function WeekTimeGrid({
           return (
             <div
               key={d.toISOString()}
-              role="button"
-              tabIndex={0}
-              aria-label={`Book time on ${format(d, "EEEE, MMMM d")}`}
-              onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const y = e.clientY - rect.top;
-                const hour = Math.min(
-                  END_HOUR - 1,
-                  Math.max(START_HOUR, START_HOUR + Math.floor(y / HOUR_HEIGHT))
-                );
-                const hh = String(hour).padStart(2, "0");
-                const eh = String(hour + 1).padStart(2, "0");
-                onCreate({ date: d, start: `${hh}:00`, end: `${eh}:00` });
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onCreate({ date: d, start: "09:00", end: "10:00" });
-                }
-              }}
-              className="relative cursor-copy border-l border-border focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              role={canCreate ? "button" : undefined}
+              tabIndex={canCreate ? 0 : undefined}
+              aria-label={canCreate ? `Book time on ${format(d, "EEEE, MMMM d")}` : undefined}
+              onClick={
+                canCreate
+                  ? (e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const y = e.clientY - rect.top;
+                      const hour = Math.min(
+                        END_HOUR - 1,
+                        Math.max(START_HOUR, START_HOUR + Math.floor(y / HOUR_HEIGHT))
+                      );
+                      const hh = String(hour).padStart(2, "0");
+                      const eh = String(hour + 1).padStart(2, "0");
+                      onCreate?.({ date: d, start: `${hh}:00`, end: `${eh}:00` });
+                    }
+                  : undefined
+              }
+              onKeyDown={
+                canCreate
+                  ? (e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onCreate?.({ date: d, start: "09:00", end: "10:00" });
+                      }
+                    }
+                  : undefined
+              }
+              className={cn(
+                "relative border-l border-border",
+                canCreate &&
+                  "cursor-copy focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              )}
               style={{
                 height: GRID_HEIGHT,
                 backgroundImage: `repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px ${HOUR_HEIGHT}px)`,

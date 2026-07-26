@@ -13,6 +13,7 @@ import {
 } from "date-fns";
 import { CalendarClock, CalendarPlus, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { bookActionLabel } from "@/lib/permissions";
 import { useUserReservations } from "@/features/queries";
 import type { Reservation } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -21,6 +22,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ReservationCard } from "@/components/me/reservation-card";
+import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
+import { ReservationForm } from "@/components/schedule/reservation-form";
+import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 
 export const Route = createFileRoute("/_authed/me/schedule")({
   component: MySchedulePage,
@@ -53,14 +57,23 @@ function dayHeading(d: Date): string {
 }
 
 function MySchedulePage() {
-  const { organization, userId } = useAuth();
+  const { organization, userId, roles } = useAuth();
+  const bookLabel = bookActionLabel(roles);
+  // A technician's calendar holds maintenance, not flights.
+  const maintenanceOnly = bookLabel === "Schedule maintenance";
   const [range, setRange] = React.useState<Range>("upcoming");
 
   const now = React.useMemo(() => new Date(), []);
   const [startISO, endISO] = rangeBounds(range, now);
   const q = useUserReservations(userId, startISO, endISO);
 
-  const groups = React.useMemo(() => groupByDay(q.data ?? []), [q.data]);
+  const reservations = React.useMemo(() => q.data ?? [], [q.data]);
+  const groups = React.useMemo(() => groupByDay(reservations), [reservations]);
+
+  // Same detail sheet the dispatch board opens — cancel and the ramp-out /
+  // ramp-in / close-out flow behave identically here.
+  const { detail, open, setOpen, openDetail, cancelReservation, editing, setEditing, startEdit } =
+    useReservationDetail(reservations);
 
   if (organization === null) {
     return (
@@ -81,7 +94,11 @@ function MySchedulePage() {
     <div>
       <PageHeader
         title="Calendar"
-        subtitle="Your flights, ground and sim sessions."
+        subtitle={
+          maintenanceOnly
+            ? "The maintenance you've scheduled."
+            : "Your flights, ground and sim sessions."
+        }
         actions={
           <Button asChild>
             <Link to="/me/book">
@@ -127,7 +144,7 @@ function MySchedulePage() {
             action={
               <Button asChild>
                 <Link to="/me/book">
-                  <CalendarPlus className="size-4" /> Book a flight
+                  <CalendarPlus className="size-4" /> {bookLabel}
                 </Link>
               </Button>
             }
@@ -142,7 +159,7 @@ function MySchedulePage() {
                 <ul className="space-y-2">
                   {items.map((r) => (
                     <li key={r.id}>
-                      <ReservationCard r={r} />
+                      <ReservationCard r={r} onOpen={openDetail} />
                     </li>
                   ))}
                 </ul>
@@ -151,6 +168,23 @@ function MySchedulePage() {
           </div>
         )}
       </Card>
+
+      {editing && (
+        <ReservationForm
+          open
+          onOpenChange={(o) => !o && setEditing(null)}
+          draft={{ date: new Date(editing.start) }}
+          editing={editing}
+        />
+      )}
+
+      <ReservationDetailSheet
+        reservation={detail}
+        open={open}
+        onOpenChange={setOpen}
+        onCancel={cancelReservation}
+        onEdit={startEdit}
+      />
     </div>
   );
 }

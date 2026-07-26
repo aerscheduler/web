@@ -31,6 +31,7 @@ import type {
   Currency,
   CurrencyType,
   DocumentType,
+  DocumentTypeInput,
   UserDocument,
   Invoice,
   InvoicePaymentIntent,
@@ -218,12 +219,21 @@ export function useCreateReservation() {
   });
 }
 
-export function useUpdateReservation(id: number) {
+/**
+ * Edit an existing reservation. The server re-runs `validateReservationType` on
+ * whatever body it receives, so this takes the COMPLETE reservation shape (same
+ * as create) rather than a patch of changed fields — sending only `{end}` would
+ * fail validation for want of a type and personnel.
+ */
+export function useUpdateReservation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: Partial<CreateReservationInput>) =>
+    mutationFn: ({ id, input }: { id: number; input: CreateReservationInput }) =>
       api<Reservation>(`/reservations/${id}`, { method: "PATCH", body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reservations"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      void qc.invalidateQueries({ queryKey: ["availability"] });
+    },
   });
 }
 
@@ -671,6 +681,31 @@ export function useApprovedResources(userId: number | null, opts?: QueryOpts) {
   });
 }
 
+/**
+ * Who this user is paired with for instruction — their assigned students (if
+ * they instruct) and their assigned instructors (if they're a student).
+ *
+ * `GET /instructors/` and `GET /students/` are both still 501 Not Implemented,
+ * but `GET /users/:id` nests the assignments under the role rows, scoped
+ * server-side to self-or-admin. That's the only way to read them today.
+ */
+export function useMyInstructionPartners(userId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["instructionPartners", userId],
+    queryFn: async () => {
+      const user = await api<User & { orgUsers?: OrganizationUser[] }>(`/users/${userId}`);
+      // The token pins one active org, and the server returns the membership
+      // for it; fall back to the first row if that ever changes.
+      const membership = user.orgUsers?.[0];
+      return {
+        students: membership?.instructorRole?.students ?? [],
+        instructors: membership?.studentRole?.instructors ?? [],
+      };
+    },
+    enabled: (opts?.enabled ?? true) && userId != null,
+  });
+}
+
 /** The caller's recurring weekly availability. */
 export function useMyAvailability(opts?: QueryOpts) {
   return useQuery({
@@ -799,6 +834,42 @@ export function useDocumentTypes(opts?: QueryOpts) {
   });
 }
 
+/**
+ * Create a document type (admin only). The server rejects an expiring type with no
+ * `warningPeriod` ("Missing warning period"), so the form requires one first.
+ */
+export function useCreateDocumentType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: DocumentTypeInput) =>
+      api<DocumentType>("/userDocuments/types", { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["documentTypes"] }),
+  });
+}
+
+/**
+ * Edit a document type (admin only). Turning `expires` off also clears `expiresAt` on
+ * every document already filed under the type, server-side.
+ */
+export function useUpdateDocumentType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: Partial<DocumentTypeInput> & { id: number }) =>
+      api<DocumentType>(`/userDocuments/types/${id}`, { method: "PATCH", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["documentTypes"] }),
+  });
+}
+
+/** Soft-delete a document type (admin only) — 204, no body. Filed documents survive. */
+export function useDeleteDocumentType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      api<void>(`/userDocuments/types/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["documentTypes"] }),
+  });
+}
+
 /** A member's documents (self, or admin viewing another) — `GET /userDocuments/orgUsers/:id`. */
 export function useMemberDocuments(orgUserId: number | null, opts?: QueryOpts) {
   return useQuery({
@@ -868,12 +939,41 @@ export function useCreateSquawk() {
   });
 }
 
+/**
+ * Resolve or verify a squawk.
+ *
+ * `resolve` REQUIRES `completedAt` — when the work was actually finished, which
+ * is not the same as when it's being signed off (the server stamps `resolvedAt`
+ * itself). Omitting it fails with "Completed at is required." `notes` records
+ * what was done and is optional. `verify` takes neither.
+ */
 export function useResolveSquawk() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, action }: { id: number; action: "resolve" | "verify" }) =>
-      api(`/maintenance/squawks/${id}`, { method: "POST", body: { action } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["squawks"] }),
+    mutationFn: ({
+      id,
+      action,
+      completedAt,
+      notes,
+    }: {
+      id: number;
+      action: "resolve" | "verify";
+      completedAt?: string;
+      notes?: string;
+    }) =>
+      api(`/maintenance/squawks/${id}`, {
+        method: "POST",
+        body: {
+          action,
+          ...(completedAt ? { completedAt } : {}),
+          ...(notes?.trim() ? { notes: notes.trim() } : {}),
+        },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["squawks"] });
+      // A resolved squawk changes the airworthiness hints on the booking forms.
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+    },
   });
 }
 

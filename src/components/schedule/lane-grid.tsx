@@ -59,6 +59,7 @@ export function LaneGrid({
   resources,
   reservations,
   onView,
+  onEdit,
   onCancel,
   onCreate,
 }: {
@@ -66,9 +67,12 @@ export function LaneGrid({
   resources: Resource[];
   reservations: Reservation[];
   onView: (r: Reservation) => void;
+  onEdit?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
-  onCreate: (draft: ReservationDraft) => void;
+  /** Omitted for roles that may not create — the lanes then aren't clickable. */
+  onCreate?: (draft: ReservationDraft) => void;
 }) {
+  const canCreate = onCreate != null;
   const byResource = new Map<number, Reservation[]>();
   const unassigned: Reservation[] = [];
   for (const r of reservations) {
@@ -92,9 +96,22 @@ export function LaneGrid({
     resource: res,
     items: byResource.get(res.id) ?? [],
   }));
-  if (unassigned.length > 0) {
-    rows.push({ key: "unassigned", resource: null, items: unassigned });
+
+  // Reservations on a resource that has no lane — either the caller filtered
+  // the lane out (rooms/sims are hidden from renters and technicians) or the
+  // fleet list doesn't know it. The board is a view-only mirror of the whole
+  // org, so those still get drawn: they fall into the catch-all row rather than
+  // disappearing with their lane.
+  const laneIds = new Set(resources.map((res) => res.id));
+  const offLane = [...byResource.entries()]
+    .filter(([id]) => !laneIds.has(id))
+    .flatMap(([, items]) => items);
+  const leftovers = [...unassigned, ...offLane].sort((a, b) => a.start.localeCompare(b.start));
+  if (leftovers.length > 0) {
+    rows.push({ key: "other", resource: null, items: leftovers });
   }
+  // Only "Unassigned" when it really is — an off-lane booking does have a resource.
+  const leftoverLabel = offLane.length > 0 ? "Other" : "Unassigned";
 
   const laneWidth = HOURS * HOUR_WIDTH;
   const isToday = new Date().toDateString() === day.toDateString();
@@ -164,49 +181,67 @@ export function LaneGrid({
                       </span>
                     </>
                   ) : (
-                    <span className="text-sm font-medium text-muted-foreground">Unassigned</span>
+                    <span className="text-sm font-medium text-muted-foreground">
+                      {leftoverLabel}
+                    </span>
                   )}
                 </div>
 
                 <div
-                  role="button"
-                  tabIndex={0}
-                  className="relative shrink-0 cursor-copy focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  role={canCreate ? "button" : undefined}
+                  tabIndex={canCreate ? 0 : undefined}
+                  className={cn(
+                    "relative shrink-0",
+                    canCreate &&
+                      "cursor-copy focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  )}
                   style={{
                     width: laneWidth,
                     height: h,
                     backgroundImage: `repeating-linear-gradient(to right, var(--border) 0 1px, transparent 1px ${HOUR_WIDTH}px)`,
                   }}
                   aria-label={
-                    label ? `Book time on ${label.name}` : "Book an unassigned reservation"
+                    canCreate
+                      ? label
+                        ? `Book time on ${label.name}`
+                        : "Book an unassigned reservation"
+                      : undefined
                   }
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      onCreate({
-                        date: day,
-                        resourceId: row.resource?.id,
-                        start: "09:00",
-                        end: "10:00",
-                      });
-                    }
-                  }}
-                  onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const x = e.clientX - rect.left;
-                    const hour = Math.min(
-                      END_HOUR - 1,
-                      Math.max(START_HOUR, START_HOUR + Math.floor(x / HOUR_WIDTH))
-                    );
-                    const hh = String(hour).padStart(2, "0");
-                    const eh = String(hour + 1).padStart(2, "0");
-                    onCreate({
-                      date: day,
-                      resourceId: row.resource?.id,
-                      start: `${hh}:00`,
-                      end: `${eh}:00`,
-                    });
-                  }}
+                  onKeyDown={
+                    canCreate
+                      ? (e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onCreate?.({
+                              date: day,
+                              resourceId: row.resource?.id,
+                              start: "09:00",
+                              end: "10:00",
+                            });
+                          }
+                        }
+                      : undefined
+                  }
+                  onClick={
+                    canCreate
+                      ? (e) => {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          const x = e.clientX - rect.left;
+                          const hour = Math.min(
+                            END_HOUR - 1,
+                            Math.max(START_HOUR, START_HOUR + Math.floor(x / HOUR_WIDTH))
+                          );
+                          const hh = String(hour).padStart(2, "0");
+                          const eh = String(hour + 1).padStart(2, "0");
+                          onCreate?.({
+                            date: day,
+                            resourceId: row.resource?.id,
+                            start: `${hh}:00`,
+                            end: `${eh}:00`,
+                          });
+                        }
+                      : undefined
+                  }
                 >
                   {placed.map(({ r, track }) => {
                     const { leftPx, widthPx } = laneBlockGeometry(r);
@@ -221,7 +256,7 @@ export function LaneGrid({
                           height: TRACK_HEIGHT,
                         }}
                       >
-                        <LaneBlock r={r} onView={onView} onCancel={onCancel} />
+                        <LaneBlock r={r} onView={onView} onEdit={onEdit} onCancel={onCancel} />
                       </div>
                     );
                   })}
@@ -238,10 +273,12 @@ export function LaneGrid({
 function LaneBlock({
   r,
   onView,
+  onEdit,
   onCancel,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
+  onEdit?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
 }) {
   const names = personnelNames(r);
@@ -281,7 +318,7 @@ function LaneBlock({
             className="opacity-0 transition-opacity group-hover:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <ReservationMenu r={r} onView={onView} onCancel={onCancel} />
+            <ReservationMenu r={r} onView={onView} onEdit={onEdit} onCancel={onCancel} />
           </div>
         </div>
       </TooltipTrigger>

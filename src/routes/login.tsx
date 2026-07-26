@@ -11,14 +11,20 @@ import { GoogleButton, AppleButton, OrDivider } from "@/components/google-button
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
+  validateSearch: (search: Record<string, unknown>): { error?: string } => ({
+    error: typeof search.error === "string" ? search.error : undefined,
+  }),
 });
 
 function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { error: oauthError } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    oauthError ? "Google sign-in didn't complete. Please try again." : null
+  );
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: FormEvent) {

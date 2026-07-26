@@ -29,6 +29,7 @@ import { Route as AuthedPeopleRouteImport } from './routes/_authed/people'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedScheduleRouteImport } from './routes/_authed/schedule'
 import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
+import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthedMeIndexRouteImport } from './routes/_authed/me/index'
 import { Route as AuthedMeAvailabilityRouteImport } from './routes/_authed/me/availability'
 import { Route as AuthedMeBookRouteImport } from './routes/_authed/me/book'
@@ -138,6 +139,11 @@ const AuthedSettingsRoute = AuthedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthedMeIndexRoute = AuthedMeIndexRouteImport.update({
   id: '/me/',
   path: '/me/',
@@ -204,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/reports': typeof AuthedReportsRoute
   '/schedule': typeof AuthedScheduleRoute
   '/settings': typeof AuthedSettingsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
   '/me/book': typeof AuthedMeBookRoute
   '/me/currencies': typeof AuthedMeCurrenciesRoute
@@ -234,6 +241,7 @@ export interface FileRoutesByTo {
   '/reports': typeof AuthedReportsRoute
   '/schedule': typeof AuthedScheduleRoute
   '/settings': typeof AuthedSettingsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
   '/me/book': typeof AuthedMeBookRoute
   '/me/currencies': typeof AuthedMeCurrenciesRoute
@@ -266,6 +274,7 @@ export interface FileRoutesById {
   '/_authed/reports': typeof AuthedReportsRoute
   '/_authed/schedule': typeof AuthedScheduleRoute
   '/_authed/settings': typeof AuthedSettingsRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/_authed/me/availability': typeof AuthedMeAvailabilityRoute
   '/_authed/me/book': typeof AuthedMeBookRoute
   '/_authed/me/currencies': typeof AuthedMeCurrenciesRoute
@@ -298,6 +307,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/schedule'
     | '/settings'
+    | '/auth/callback'
     | '/me/availability'
     | '/me/book'
     | '/me/currencies'
@@ -328,6 +338,7 @@ export interface FileRouteTypes {
     | '/reports'
     | '/schedule'
     | '/settings'
+    | '/auth/callback'
     | '/me/availability'
     | '/me/book'
     | '/me/currencies'
@@ -359,6 +370,7 @@ export interface FileRouteTypes {
     | '/_authed/reports'
     | '/_authed/schedule'
     | '/_authed/settings'
+    | '/auth/callback'
     | '/_authed/me/availability'
     | '/_authed/me/book'
     | '/_authed/me/currencies'
@@ -380,6 +392,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -524,6 +537,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/auth/callback': {
+      id: '/auth/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authed/me/': {
       id: '/_authed/me/'
       path: '/me'
@@ -649,6 +669,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   VerifyEmailRoute: VerifyEmailRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

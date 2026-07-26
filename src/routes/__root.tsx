@@ -36,6 +36,7 @@ const TITLES: Array<[string, string]> = [
   ["/join", "Join a school"],
   ["/login", "Sign in"],
   ["/signup", "Create account"],
+  ["/auth/callback", "Signing in"],
   ["/forgot-password", "Reset password"],
   ["/reset-password", "Reset password"],
 ];

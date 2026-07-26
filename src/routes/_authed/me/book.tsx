@@ -46,9 +46,7 @@ function Book() {
           </CardContent>
         </Card>
       ) : (
-        <div className="max-w-3xl">
-          <BookingForm modes={modes} orgUserId={orgUserId} userId={userId} />
-        </div>
+        <BookingForm modes={modes} orgUserId={orgUserId} userId={userId} />
       )}
     </div>
   );

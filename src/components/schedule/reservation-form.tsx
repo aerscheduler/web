@@ -1,5 +1,6 @@
 import * as React from "react";
 import { format } from "date-fns";
+import { Ban, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import {
   useCreateReservation,
@@ -7,6 +8,7 @@ import {
   useMembers,
   useRatings,
   useResources,
+  useSquawks,
 } from "@/features/queries";
 import {
   resourceLabel,
@@ -14,8 +16,12 @@ import {
   type OrganizationUser,
   type Reservation,
   type ReservationType,
+  type Resource,
+  type Squawk,
 } from "@/types/api";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { isStaff, isTechnician } from "@/lib/permissions";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { Button } from "@/components/ui/button";
@@ -60,6 +66,125 @@ function memberOptions(rows: OrganizationUser[] | undefined): ComboOption[] {
   }));
 }
 
+// ── Airworthiness ───────────────────────────────────────────────────────────
+// Read-only surfacing. Nothing here blocks a booking: the server is the
+// authority on whether a grounded aircraft may be dispatched, and dispatch
+// legitimately books grounded aircraft (maintenance, ferry-to-shop).
+// The member self-serve form (components/book/booking-form.tsx) reuses the three
+// exports below so both pickers say the same thing the same way.
+
+/** Grounding for a resource, read off the record the picker already loaded —
+ *  planes and simulators both carry `grounded` / `groundedReason`; rooms don't. */
+function groundedOf(r: Resource | undefined): { grounded: boolean; reason: string | null } {
+  const unit = r?.type?.plane ?? r?.type?.simulator ?? null;
+  if (!unit) return { grounded: false, reason: null };
+  return { grounded: unit.grounded, reason: unit.groundedReason ?? null };
+}
+
+function squawkCountLabel(n: number): string {
+  return `${n} open squawk${n === 1 ? "" : "s"}`;
+}
+
+/**
+ * Bucket the org's open squawks by resource id, once, so a picker can read a
+ * per-option count without a request per row. The API strips every FK_* field,
+ * so the resource id only exists on the nested relation — `s.FK_resourceId` is
+ * always null.
+ */
+export function groupSquawksByResource(squawks: Squawk[] | undefined): Map<number, Squawk[]> {
+  const map = new Map<number, Squawk[]>();
+  for (const s of squawks ?? []) {
+    const id = s.resource?.id;
+    if (id == null) continue;
+    const list = map.get(id);
+    if (list) list.push(s);
+    else map.set(id, [s]);
+  }
+  return map;
+}
+
+/**
+ * The airworthiness text for a picker option's `hint`, or "" when the resource is
+ * clean. The Combobox row renders plain `label` + `hint` strings, so this is where
+ * the per-option signal lives; it also joins the search text, so typing "grounded"
+ * filters the fleet down to what's out of service.
+ */
+export function airworthinessHint(r: Resource, openSquawks: number): string {
+  const flags: string[] = [];
+  if (groundedOf(r).grounded) flags.push("Grounded");
+  if (openSquawks > 0) flags.push(squawkCountLabel(openSquawks));
+  return flags.join(" · ");
+}
+
+/**
+ * Airworthiness notice for the selected resource: the grounding reason, then the
+ * open squawks. `neutral` states the grounding instead of shouting it — on a
+ * maintenance reservation the aircraft being grounded is the REASON for the
+ * booking, not an alarm.
+ */
+export function AirworthinessNotice({
+  resource,
+  squawks,
+  neutral,
+}: {
+  resource: Resource | undefined;
+  squawks: Squawk[];
+  neutral?: boolean;
+}) {
+  const { grounded, reason } = groundedOf(resource);
+  if (!resource || (!grounded && squawks.length === 0)) return null;
+
+  const alarm = grounded && !neutral;
+  const Icon = alarm ? Ban : Wrench;
+  const name = resourceLabel(resource).name;
+
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-2.5 rounded-lg border p-3 text-sm",
+        alarm
+          ? "border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)]"
+          : "border-[color-mix(in_oklch,var(--warning)_35%,transparent)] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)]"
+      )}
+      role="status"
+    >
+      <Icon
+        className={cn(
+          "mt-0.5 size-4 shrink-0",
+          alarm
+            ? "text-destructive"
+            : "text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]"
+        )}
+      />
+      <div className="min-w-0 space-y-1.5">
+        {grounded && (
+          <p className={alarm ? "text-destructive" : "text-foreground"}>
+            <span className="font-medium">
+              {name} is grounded
+              {neutral ? " — that's what this maintenance booking is for" : ""}:
+            </span>{" "}
+            {reason?.trim() ? reason : "no reason was given."}
+          </p>
+        )}
+        {squawks.length > 0 && (
+          <div className="space-y-0.5">
+            <p className="font-medium text-foreground">{squawkCountLabel(squawks.length)}</p>
+            <ul className="space-y-0.5 text-xs text-muted-foreground">
+              {squawks.slice(0, 4).map((s) => (
+                <li key={s.id} className="truncate">
+                  {s.title || "Untitled squawk"}
+                  {s.grounding ? " (grounding)" : ""}
+                </li>
+              ))}
+              {squawks.length > 4 && <li>+{squawks.length - 4} more</li>}
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Modal form that creates a reservation. */
 export function ReservationForm({
   open,
@@ -74,7 +199,17 @@ export function ReservationForm({
    * navigate to it). The board doesn't pass this; the global "+" does. */
   onCreated?: (reservation: Reservation) => void;
 }) {
+  const { roles } = useAuth();
+  // GET /maintenance/squawks is staff/technician-only — it 403s for instructor,
+  // student and renter. Gate on the role so a viewer who can't read squawks
+  // never fires a request that is guaranteed to fail; the UI then degrades to
+  // grounded-only, which needs no request at all.
+  const canSeeSquawks = isStaff(roles) || isTechnician(roles);
+
   const resourcesQ = useResources({ enabled: open });
+  // ONE request per form open for the whole fleet, grouped by resource below —
+  // never one per option row.
+  const squawksQ = useSquawks({ resolved: false }, { enabled: open && canSeeSquawks });
   const instructorsQ = useMembers({ instructor: true }, { enabled: open });
   const studentsQ = useMembers({ student: true }, { enabled: open });
   const rentersQ = useMembers({ renter: true }, { enabled: open });
@@ -141,10 +276,25 @@ export function ReservationForm({
     wasOpen.current = open;
   }, [open, draft]);
 
+  const openSquawksByResourceId = React.useMemo(
+    () => groupSquawksByResource(squawksQ.data),
+    [squawksQ.data]
+  );
+
   const resourceOptions: ComboOption[] = (resourcesQ.data ?? []).map((r) => {
     const l = resourceLabel(r);
-    return { value: String(r.id), label: l.name, hint: l.kind };
+    // Airworthiness takes the hint slot when there's something to say — it's a
+    // narrow, right-aligned, truncating column and "Grounded" earns that space
+    // more than "Aircraft" does.
+    const air = airworthinessHint(r, openSquawksByResourceId.get(r.id)?.length ?? 0);
+    return { value: String(r.id), label: l.name, hint: air || l.kind };
   });
+
+  const selectedResource = resourcesQ.data?.find((r) => String(r.id) === resourceId);
+  const selectedSquawks = selectedResource
+    ? openSquawksByResourceId.get(selectedResource.id) ?? []
+    : [];
+
   const ratingOptions: ComboOption[] = (ratingsQ.data ?? []).map((r) => ({
     value: String(r.id),
     label: r.name,
@@ -159,8 +309,7 @@ export function ReservationForm({
     const timeError = validateTimeRange(startAt, endAt);
     if (timeError) return setError(timeError);
 
-    const chosenResource = resourcesQ.data?.find((r) => String(r.id) === resourceId);
-    const locationId = resolveLocationId(chosenResource, locationsQ.data);
+    const locationId = resolveLocationId(selectedResource, locationsQ.data);
 
     const personnel: NonNullable<CreateReservationInput["personnel"]> = {};
     if (isGuest) {
@@ -180,7 +329,7 @@ export function ReservationForm({
     } else {
       // The server enforces per-type personnel + resource rules; validate here so
       // the happy path doesn't 400 with an opaque "Reservation type is not valid".
-      const kind = chosenResource ? resourceLabel(chosenResource).kind : null;
+      const kind = selectedResource ? resourceLabel(selectedResource).kind : null;
       if (type === "dual" && !(instructorId && studentId))
         return setError("Dual flights need both an instructor and a student.");
       if (type === "solo" && !(instructorId || studentId))
@@ -278,6 +427,13 @@ export function ReservationForm({
             />
           </div>
         </div>
+
+        {/* Full-width under the picker so a long grounding reason has room. */}
+        <AirworthinessNotice
+          resource={selectedResource}
+          squawks={selectedSquawks}
+          neutral={type === "maintenance"}
+        />
 
         <SmartTimeRange
           date={date}

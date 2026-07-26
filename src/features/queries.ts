@@ -1,6 +1,16 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import {
+  coordinateKey,
+  fetchNearestObservation,
+  fetchSunTimes,
+  FAILURE_STALE_MS,
+  METAR_STALE_MS,
+  type Coordinates,
+  type Observation,
+  type SunTimes,
+} from "@/lib/weather";
+import {
   presignedObjectUrl,
   uploadToPresignedPost,
   type PresignedPost,
@@ -893,5 +903,57 @@ export function useConnectGoogleCalendar() {
         body: { serverAuthCode, web: true },
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["integration", "googleCalendar"] }),
+  });
+}
+
+// ── Pre-flight weather (third-party, keyless) ────────────────────────────────
+// NOT AerScheduler API calls: these go straight to aviationweather.gov and
+// api.sunrise-sunset.org, so they use the plain fetches in lib/weather.ts rather than
+// api()/apiRaw() — those attach our Authorization header and unwrap a `{ data }`
+// envelope that neither service returns.
+//
+// React Query is this feature's entire cache; it replaces the hand-rolled maps in the
+// Flutter WeatherService. Keys are ROUNDED coordinates (plus the date, for sun times), so
+// every reservation at the same field shares one cache entry and one in-flight request —
+// which is what keeps a month-long board far under aviationweather.gov's ~100 req/min.
+// The fetches never reject: a failure resolves to null, is held for FAILURE_STALE_MS so an
+// offline browser doesn't re-request on every badge that mounts, and renders nothing.
+
+/**
+ * The nearest METAR to a set of coordinates. Only worth asking for a flight inside the
+ * 12-hour observation window (see `shouldIncludeObservation`) — an observation says
+ * nothing about a flight three weeks out.
+ */
+export function useMetarObservation(coordinates: Coordinates | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["weather", "metar", coordinates ? coordinateKey(coordinates) : null],
+    queryFn: ({ signal }): Promise<Observation | null> =>
+      coordinates ? fetchNearestObservation(coordinates, signal) : Promise.resolve(null),
+    enabled: (opts?.enabled ?? true) && coordinates != null,
+    // Observations are hourly (SPECIs excepted); a failed lookup is held far shorter.
+    staleTime: (query) => (query.state.data == null ? FAILURE_STALE_MS : METAR_STALE_MS),
+    gcTime: 30 * 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * Sunset and civil twilight for one day at one point (`day` is `YYYY-MM-DD`, in the
+ * flight's own timezone). Courtesy of sunrise-sunset.org, which requires attribution —
+ * the weather badge's tooltip carries it.
+ */
+export function useSunTimes(coordinates: Coordinates | null, day: string | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["weather", "sun", coordinates ? coordinateKey(coordinates) : null, day],
+    queryFn: ({ signal }): Promise<SunTimes | null> =>
+      coordinates && day ? fetchSunTimes(coordinates, day, signal) : Promise.resolve(null),
+    enabled: (opts?.enabled ?? true) && coordinates != null && day != null,
+    // Sunset for a given day and place never changes, so a hit is cached for the whole
+    // session and never refetched. Only a failure is allowed to be retried.
+    staleTime: (query) => (query.state.data == null ? FAILURE_STALE_MS : Infinity),
+    gcTime: Infinity,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 }

@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
 import { ReservationCard } from "@/components/me/reservation-card";
 import { currencyAttention } from "@/components/me/currency";
+import { WeatherBadge } from "@/components/weather-badge";
 
 export const Route = createFileRoute("/_authed/me/")({
   component: MyDayPage,
@@ -174,13 +175,29 @@ function MyDayPage() {
                 }
               />
             ) : (
-              <ul className="space-y-2">
-                {upcoming.slice(0, MAX_UPCOMING).map((r) => (
-                  <li key={r.id}>
-                    <ReservationCard r={r} showDate />
-                  </li>
-                ))}
-              </ul>
+              <>
+                {/* Pre-flight weather for the NEXT flight only, sitting directly above it.
+                    Hides itself entirely when the location isn't geocoded or the lookup
+                    fails, so the list closes up as if it were never here. */}
+                {next && (
+                  <WeatherBadge
+                    // The RESERVATION's location, not the resource's — the API returns
+                    // `resource.location` as a bare { id } stub with no address, so the
+                    // badge would never have coordinates to look weather up with.
+                    location={(next as unknown as { location?: unknown }).location}
+                    start={next.start}
+                    timeZone={next.timeZoneName}
+                    className="mb-3"
+                  />
+                )}
+                <ul className="space-y-2">
+                  {upcoming.slice(0, MAX_UPCOMING).map((r) => (
+                    <li key={r.id}>
+                      <ReservationCard r={r} showDate />
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
           </CardContent>
         </Card>

@@ -5,6 +5,8 @@ import { Plane as PlaneIcon, Loader2, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
 
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { isStaff, isTechnician } from "@/lib/permissions";
 import {
   useApprovedResources,
   useCreateReservation,
@@ -12,6 +14,7 @@ import {
   useMembers,
   usePlanes,
   useRatings,
+  useSquawks,
 } from "@/features/queries";
 import { resourceLabel } from "@/types/api";
 import type {
@@ -47,6 +50,13 @@ import {
   resolveLocationId,
   validateTimeRange,
 } from "@/components/schedule/reservation-shared";
+// Shared with the staff dispatch form so both pickers surface airworthiness
+// identically. Read-only — neither form blocks a booking on it.
+import {
+  AirworthinessNotice,
+  airworthinessHint,
+  groupSquawksByResource,
+} from "@/components/schedule/reservation-form";
 
 // -------------------------------------------------------------- booking modes
 
@@ -101,12 +111,26 @@ export function BookingForm({
   userId: number;
 }) {
   const navigate = useNavigate();
+  const { roles } = useAuth();
   const [mode, setMode] = useState<BookMode>(modes[0]);
 
   // Fleet: renters may only book aircraft they're checked out on.
   const approved = useApprovedResources(userId, { enabled: mode === "renter" });
   const planes = usePlanes({ enabled: mode !== "renter" });
   const aircraftQuery = mode === "renter" ? approved : planes;
+
+  // GET /maintenance/squawks is staff/technician-only — it 403s for instructor,
+  // student and renter, which is most of the people on this page. Gate on the
+  // role so we never fire a request that's guaranteed to fail, and never render
+  // its error: the notice below degrades to grounded-only, which is read straight
+  // off the aircraft records already loaded. ONE request for the whole fleet,
+  // grouped by resource in memory — never one per option row.
+  const canSeeSquawks = isStaff(roles) || isTechnician(roles);
+  const squawksQuery = useSquawks({ resolved: false }, { enabled: canSeeSquawks });
+  const openSquawksByResourceId = useMemo(
+    () => groupSquawksByResource(squawksQuery.data),
+    [squawksQuery.data]
+  );
 
   const locations = useLocations();
   const ratings = useRatings();
@@ -124,7 +148,10 @@ export function BookingForm({
 
   const create = useCreateReservation();
 
-  const aircraft = aircraftQuery.data ?? [];
+  // Memoised because `?? []` mints a fresh array on every render while the query is
+  // undefined, which would change the identity of every dependent useMemo below and
+  // defeat the memoisation entirely.
+  const aircraft = useMemo(() => aircraftQuery.data ?? [], [aircraftQuery.data]);
   const byId = useMemo(() => {
     const m = new Map<string, Resource>();
     for (const r of aircraft) m.set(String(r.id), r);
@@ -137,9 +164,13 @@ export function BookingForm({
         const { name, kind } = resourceLabel(r);
         const plane = r.type?.plane;
         const hint = plane ? `${plane.make} ${plane.model}`.trim() || kind : kind;
-        return { value: String(r.id), label: name, hint };
+        // Airworthiness takes the hint slot when there's something to say — it's a
+        // narrow, right-aligned, truncating column and "Grounded" earns that space
+        // more than the make/model does.
+        const air = airworthinessHint(r, openSquawksByResourceId.get(r.id)?.length ?? 0);
+        return { value: String(r.id), label: name, hint: air || hint };
       }),
-    [aircraft]
+    [aircraft, openSquawksByResourceId]
   );
 
   const instructorOptions: ComboOption[] = useMemo(
@@ -159,6 +190,11 @@ export function BookingForm({
 
   const typeOptions = TYPE_OPTIONS[mode];
   const needsInstructor = mode === "student";
+
+  const selectedAircraft = byId.get(resourceId);
+  const selectedSquawks = selectedAircraft
+    ? openSquawksByResourceId.get(selectedAircraft.id) ?? []
+    : [];
 
   // Everyone whose availability gates the slot: the member themselves, plus the
   // instructor when booking a lesson. USER ids for /availability/user/:id.
@@ -340,6 +376,9 @@ export function BookingForm({
                 searchPlaceholder="Search fleet…"
                 emptyText="No matching aircraft."
               />
+              {/* Advisory only — Book stays enabled. The server decides what it
+                  will accept; the member just shouldn't be surprised by it. */}
+              <AirworthinessNotice resource={selectedAircraft} squawks={selectedSquawks} />
             </div>
 
             <div className="space-y-2">

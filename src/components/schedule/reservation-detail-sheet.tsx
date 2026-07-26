@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { WeatherBadge } from "@/components/weather-badge";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { DOT_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
@@ -55,6 +56,13 @@ export function ReservationDetailSheet({
   const res = r?.resource ? resourceLabel(r.resource) : null;
   const ResourceIcon = r?.resource ? resourceIcon(r.resource) : Plane;
   const names = r ? personnelNames(r) : [];
+  // `reservation.location` is hydrated (name + address + geocoded coordinates);
+  // `reservation.resource.location` is only a { id } stub. The weather lookup needs
+  // the former — see the Location field below.
+  // Typed narrowly here rather than in types/api.ts, which doesn't declare the
+  // reservation's location relation. WeatherBadge narrows the address itself.
+  const reservationLocation =
+    (r as unknown as { location?: { name?: string } | null } | null)?.location ?? null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -89,11 +97,26 @@ export function ReservationDetailSheet({
                 )}
               </Field>
 
-              {r.resource?.location?.name && (
+              {/* The RESERVATION's own location, not the resource's. The API returns
+                  `resource.location` as a bare { id } stub, so reading it here rendered
+                  no Location row and gave the weather badge no coordinates to work
+                  with. `reservation.location` is the fully hydrated one (name + address
+                  + geocoded coordinates). Fall back to the stub only for its name. */}
+              {(reservationLocation?.name ?? r.resource?.location?.name) && (
                 <Field icon={MapPin} label="Location">
-                  {r.resource.location.name}
+                  {reservationLocation?.name ?? r.resource?.location?.name}
                 </Field>
               )}
+
+              {/* Renders nothing at all — no row, no spinner — unless the location is
+                  geocoded AND a lookup came back. Its own markup mirrors `Field` below
+                  so it can hide the whole row rather than leave an empty label. */}
+              <WeatherBadge
+                variant="detail"
+                location={reservationLocation}
+                start={r.start}
+                timeZone={r.timeZoneName}
+              />
 
               <Field icon={Users} label="Personnel">
                 {names.length > 0 ? (

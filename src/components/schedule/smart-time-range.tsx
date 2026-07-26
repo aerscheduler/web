@@ -15,8 +15,8 @@ import {
   type Window,
 } from "@/lib/scheduling";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { DatePickerField } from "@/components/date-picker";
 import {
   Select,
   SelectContent,
@@ -153,14 +153,13 @@ export function SmartTimeRange({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <div className="space-y-1.5">
           <Label htmlFor="smart-date">Date</Label>
-          <Input
+          <DatePickerField
             id="smart-date"
-            type="date"
             value={date}
             min={minDate}
             max={maxDate}
             disabled={disabled}
-            onChange={(e) => onDateChange(e.target.value)}
+            onChange={onDateChange}
           />
         </div>
 

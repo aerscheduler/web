@@ -52,5 +52,17 @@ export function useReservationDetail(reservations: Reservation[]) {
     if (await actions.cancelReservation(r)) setOpen(false);
   };
 
-  return { detail, open, setOpen, openDetail, cancelReservation, editing, setEditing, startEdit };
+  return {
+    detail,
+    open,
+    setOpen,
+    openDetail,
+    cancelReservation,
+    editing,
+    setEditing,
+    startEdit,
+    //Passed straight through: the dialog has to be rendered by the page, but every
+    //page shares this hook's single cancel behaviour.
+    cancelDialog: actions.cancelDialog,
+  };
 }

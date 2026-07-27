@@ -847,3 +847,89 @@ export function resourceLabel(r: Resource): { name: string; kind: "Aircraft" | "
   if (t?.room) return { name: `Room ${t.room.roomNumber}`, kind: "Room" };
   return { name: `Resource #${r.id}`, kind: "Resource" };
 }
+
+/* ── Cancellations (F12) ─────────────────────────────────────────────────────── */
+
+/**
+ * Which occurrences a cancel applies to, for a booking in a repeating series.
+ * Google Calendar's three choices. Meaningless — and ignored — for a one-off.
+ */
+export type CancelScope = "this" | "following" | "all";
+
+/** One option in the fixed list of cancellation reasons, served by the API. */
+export type CancellationCategory = {
+  value: string;
+  label: string;
+  group: "operational" | "customer" | "weather" | "other";
+};
+
+export type CancelledReservation = {
+  id: number;
+  title: string;
+  type: string;
+  start: string;
+  end: string;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  cancellationCategory: string | null;
+  /** Resolved server-side, so "Not recorded" reads the same everywhere. */
+  categoryLabel: string;
+  /** Cancelled with less than 24 hours' notice — including after the fact. */
+  isLate: boolean;
+  resource?: {
+    id: number;
+    type?: {
+      plane?: { tailNumber: string; make: string; model: string } | null;
+      room?: { roomNumber: string } | null;
+      simulator?: { name: string } | null;
+    } | null;
+  } | null;
+  cancelledBy?: { id: number; user?: { id: number; name: string } | null } | null;
+  personnel?: {
+    students?: Array<{ id: number; user?: { id: number; name: string } | null }> | null;
+    instructors?: Array<{ id: number; user?: { id: number; name: string } | null }> | null;
+    renters?: Array<{ id: number; user?: { id: number; name: string } | null }> | null;
+  } | null;
+};
+
+export type CancellationReport = {
+  cancellations: CancelledReservation[];
+  summary: {
+    total: number;
+    /** Every booking in the window, cancelled or not — the denominator for `rate`. */
+    totalInWindow: number;
+    /** 0–1. Already guarded against an empty window server-side. */
+    rate: number;
+    late: number;
+    lateWithinHours: number;
+    byCategory: Array<{ value: string; label: string; count: number; late: number }>;
+  };
+};
+
+/**
+ * The tail number, room or simulator name on a cancelled booking.
+ *
+ * Separate from `resourceLabel` above because the report's rows carry a trimmed-down
+ * resource (no id-derived fallback to fall back to), and an em dash reads better than
+ * "Resource #undefined" in a table of things that didn't happen.
+ */
+export function cancelledResourceLabel(r: CancelledReservation["resource"]): string {
+  const t = r?.type;
+  if (t?.plane) return t.plane.tailNumber;
+  if (t?.room) return `Room ${t.room.roomNumber}`;
+  if (t?.simulator) return t.simulator.name;
+  return "—";
+}
+
+/** Whoever the booking was for — the person a cancellation is actually about. */
+export function cancelledForLabel(r: CancelledReservation): string {
+  const names = [
+    ...(r.personnel?.students ?? []),
+    ...(r.personnel?.renters ?? []),
+    ...(r.personnel?.instructors ?? []),
+  ]
+    .map((p) => p.user?.name)
+    .filter(Boolean) as string[];
+
+  return names.length ? names.join(", ") : "—";
+}

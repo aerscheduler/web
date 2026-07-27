@@ -23,6 +23,7 @@ import { StatCard } from "@/components/stat-card";
 import { EmptyState } from "@/components/states";
 import { DateRangePicker, lastNDays } from "@/components/billing/date-range-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CancellationsReport } from "@/components/reports/cancellations-report";
 import { formatMoney } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/reports")({
@@ -205,6 +206,8 @@ function ReportsPage() {
           />
         </div>
       </section>
+
+      <CancellationsReport startDate={startISO} endDate={endISO} />
     </div>
   );
 }

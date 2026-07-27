@@ -31,6 +31,7 @@ import { ReservationCard } from "@/components/me/reservation-card";
 import { currencyAttention } from "@/components/me/currency";
 import { WeatherBadge } from "@/components/weather-badge";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
+import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
 import { ReservationForm } from "@/components/schedule/reservation-form";
 import { InstructionPartnersCard } from "@/components/me/instruction-partners-card";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
@@ -58,7 +59,7 @@ function MyDayPage() {
   const bookLabel = bookActionLabel(roles);
   // Same detail sheet the dispatch board opens — cancel and the ramp-out /
   // ramp-in / close-out flow behave identically here.
-  const { detail, open, setOpen, openDetail, cancelReservation, editing, setEditing, startEdit } =
+  const { detail, open, setOpen, openDetail, cancelReservation, editing, setEditing, startEdit, cancelDialog } =
     useReservationDetail(reservations);
 
   if (organization === null) {
@@ -257,6 +258,8 @@ function MyDayPage() {
           editing={editing}
         />
       )}
+
+      <CancelReservationDialog {...cancelDialog} />
 
       <ReservationDetailSheet
         reservation={detail}

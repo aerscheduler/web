@@ -60,6 +60,9 @@ import type {
   Squawk,
   SubscriptionStatus,
   User,
+  CancelScope,
+  CancellationCategory,
+  CancellationReport,
 } from "@/types/api";
 
 /** Options accepted by every read hook (currently just React Query's `enabled`). */
@@ -258,9 +261,42 @@ export function useUpdateReservation() {
 export function useCancelReservation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason?: string }) =>
-      api<void>(`/reservations/${id}`, { method: "DELETE", body: reason ? { reason } : undefined }),
+    mutationFn: ({ id, reason, category, scope }: { id: number; reason?: string; category?: string; scope?: CancelScope }) =>
+      api<void>(`/reservations/${id}`, {
+        method: "DELETE",
+        body: {
+          ...(reason ? { reason } : {}),
+          ...(category ? { category } : {}),
+          //Absent means just this one, which is what the server has always assumed.
+          ...(scope && scope !== "this" ? { scope } : {}),
+        },
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["reservations"] }),
+  });
+}
+
+/**
+ * The fixed list of cancellation reasons.
+ *
+ * Served rather than hardcoded so this and the app can never disagree with the report
+ * about what the categories are. Cached hard — it changes on deploy, not during a session.
+ */
+export function useCancellationCategories() {
+  return useQuery({
+    queryKey: ["cancellation-categories"],
+    queryFn: () => api<CancellationCategory[]>("/reports/cancellations/categories"),
+    staleTime: Infinity,
+  });
+}
+
+/** Why bookings were cancelled over a window, with the counts to chart. */
+export function useCancellationReport(startDate: string, endDate: string) {
+  return useQuery({
+    queryKey: ["cancellation-report", startDate, endDate],
+    queryFn: () =>
+      api<CancellationReport>(
+        `/reports/cancellations?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`
+      ),
   });
 }
 

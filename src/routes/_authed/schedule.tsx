@@ -28,6 +28,7 @@ import { MonthGrid } from "@/components/schedule/month-grid";
 import { MonthAgenda } from "@/components/schedule/month-agenda";
 import { AgendaList } from "@/components/schedule/agenda-list";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
+import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
 import {
   ReservationForm,
   type ReservationDraft,
@@ -90,6 +91,7 @@ function SchedulePage() {
     editing,
     setEditing,
     startEdit,
+    cancelDialog,
   } = useReservationDetail(reservations);
 
   const openNew = () => {
@@ -225,6 +227,8 @@ function SchedulePage() {
           duplicating={duplicating}
         />
       )}
+
+      <CancelReservationDialog {...cancelDialog} />
 
       <ReservationDetailSheet
         reservation={detail}

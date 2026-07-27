@@ -1,5 +1,6 @@
 import * as React from "react";
 import type { Reservation } from "@/types/api";
+import { useReservation } from "@/features/queries";
 import { useReservationActions } from "./use-reservation-actions";
 
 /**
@@ -7,10 +8,11 @@ import { useReservationActions } from "./use-reservation-actions";
  * board and the member pages both open the same `ReservationDetailSheet`, so
  * they share the wiring rather than each growing their own copy.
  *
- * `detail` re-reads the reservation out of the live list on every render so the
- * open sheet advances with the close-out flow (ramp out → ramp in → confirm)
- * as those mutations invalidate and refetch behind it; it falls back to the
- * clicked copy while the list is refetching.
+ * Opens with the list row, then hydrates from `GET /reservations/:id` (same as
+ * Flutter's detail sheet) so plane Hobbs/tach are available for ramp-out. While
+ * that fetch is in flight — and after close-out mutations invalidate the list —
+ * `detail` still tracks the live list row so the sheet advances through
+ * ramp out → ramp in → confirm.
  */
 export function useReservationDetail(reservations: Reservation[]) {
   const [open, setOpen] = React.useState(false);
@@ -18,10 +20,18 @@ export function useReservationDetail(reservations: Reservation[]) {
   const [editing, setEditing] = React.useState<Reservation | null>(null);
   const actions = useReservationActions();
 
-  const detail = React.useMemo(
-    () => reservations.find((x) => x.id === selected?.id) ?? selected,
-    [reservations, selected]
-  );
+  const fullQ = useReservation(open ? (selected?.id ?? null) : null);
+
+  const detail = React.useMemo(() => {
+    const fromList = reservations.find((x) => x.id === selected?.id) ?? selected;
+    if (!fromList) return null;
+    // List drives close-out progress after mutations invalidate it. Overlay the
+    // full resource (Hobbs/tach) from GET /:id — those fields are omitted on the list.
+    if (fullQ.data?.id === fromList.id && fullQ.data.resource) {
+      return { ...fromList, resource: fullQ.data.resource };
+    }
+    return fromList;
+  }, [reservations, selected, fullQ.data]);
 
   const openDetail = (r: Reservation) => {
     setSelected(r);

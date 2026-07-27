@@ -65,8 +65,10 @@ export function RampModal({
 
   React.useEffect(() => {
     if (!open) return;
-    const planeHobbs = plane ? (plane.hobbsTime / 10).toFixed(1) : "";
-    const planeTach = plane ? (plane.tachTime / 10).toFixed(1) : "";
+    // List payloads omit meters; full GET /reservations/:id includes them. Guard
+    // null so we never seed the string "NaN" while the detail fetch is in flight.
+    const planeHobbs = plane?.hobbsTime != null ? (plane.hobbsTime / 10).toFixed(1) : "";
+    const planeTach = plane?.tachTime != null ? (plane.tachTime / 10).toFixed(1) : "";
     if (mode === "out") {
       setHobbs(planeHobbs);
       setTach(planeTach);
@@ -77,8 +79,9 @@ export function RampModal({
     }
     setBriefing("");
     setShowErrors(false);
+    // Re-seed when meters arrive from the detail refetch (same reservation id).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mode, reservation?.id]);
+  }, [open, mode, reservation?.id, plane?.hobbsTime, plane?.tachTime, review?.hobbsTimeOut, review?.tachTimeOut]);
 
   const hobbsNum = toNumber(hobbs); // decimal hours
   const tachNum = toNumber(tach);

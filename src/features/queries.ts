@@ -132,6 +132,19 @@ export function useReservations(startDate: string, endDate: string, opts?: Query
   });
 }
 
+/**
+ * Full single-reservation payload (`GET /reservations/:id`). The schedule list omits
+ * plane/sim meter readings; Flutter refetches this before ramp-out so Hobbs/tach are
+ * present — the web detail sheet does the same.
+ */
+export function useReservation(id: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["reservations", id],
+    queryFn: () => api<Reservation>(`/reservations/${id}`),
+    enabled: (opts?.enabled ?? true) && id != null,
+  });
+}
+
 export function useInvoices(
   filter?: { paid?: boolean; startDate?: string; endDate?: string },
   opts?: QueryOpts

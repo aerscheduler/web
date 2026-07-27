@@ -368,7 +368,15 @@ export interface AppNotification {
   createdAt: string;
   readAt: string | null;
   title: string | null;
-  body: string | null;
+  /**
+   * The body text. The server calls this `subtitle` (notification.subtitle), which is
+   * the field GET /notifications actually returns — `body`/`message` were never on the
+   * payload, so every notification rendered with its text missing.
+   */
+  subtitle?: string | null;
+  /** Where the notification points, e.g. "/announcements". Not yet used for navigation. */
+  link?: string | null;
+  body?: string | null;
   message?: string | null;
   type?: string | null;
 }

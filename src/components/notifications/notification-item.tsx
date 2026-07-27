@@ -17,8 +17,14 @@ export function NotificationItem({
 }) {
   const unread = notification.readAt == null;
   const title = notification.title ?? notification.message ?? "Notification";
+  // `subtitle` first: that is the field the server actually sends. Without it every
+  // notification rendered as a bare title — for an announcement that meant the whole
+  // row read "Test Flight School" and nothing else, so a member could see they had a
+  // notification but not what it said.
   const body =
-    notification.body ?? (notification.title ? notification.message ?? null : null);
+    notification.subtitle ??
+    notification.body ??
+    (notification.title ? notification.message ?? null : null);
   const when = notification.createdAt
     ? formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })
     : null;

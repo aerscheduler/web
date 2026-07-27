@@ -1,7 +1,17 @@
+import * as React from "react";
 import { format } from "date-fns";
-import type { RecurrenceInput } from "@/types/api";
-import { Label } from "@/components/ui/label";
+import type { MonthlyMode, RecurrenceFrequency, RecurrenceInput } from "@/types/api";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -14,47 +24,247 @@ import { cn } from "@/lib/utils";
 /**
  * The "Repeat" control on the booking form.
  *
- * Modelled on Google Calendar because that is the mental model people already have for
- * repeating events: pick a cadence, pick the days, say when it stops.
+ * Modelled on Google Calendar, and specifically on the thing Google gets right: the
+ * booking form shows ONE dropdown of ready-made cadences derived from the date you
+ * already picked — "Weekly on Monday", "Monthly on the fourth Monday" — and everything
+ * fiddly lives behind "Custom…". That is what keeps this usable in a narrow modal; the
+ * previous version put seven day-chips, an interval and an end picker inline, and they
+ * overflowed the dialog.
  *
- * Deliberately weekly-only for now — that is what a flight school actually asks for
- * ("Sarah takes the plane every Tuesday at nine") and the server rejects anything else,
- * so offering daily/monthly here would just be a way to produce errors.
+ * The presets are computed from the start date, so they always describe something real:
+ * pick the 27th and you are offered "Monthly on the fourth Monday", not an abstract
+ * "Monthly" you then have to go and configure.
+ *
+ * ONE DELIBERATE DIVERGENCE FROM GOOGLE: there is no "Never" ending. A repeating booking
+ * here materialises real reservations that hold a real aircraft, so it has to be bounded.
+ * Every preset therefore carries a sensible finite end, shown in the summary line and
+ * changeable in Custom.
  */
+
+export type RecurrenceEndMode = "on" | "after";
 
 export type RecurrenceState = {
   enabled: boolean;
+  frequency: RecurrenceFrequency;
   interval: number;
+  /** Weekly only. 0 = Sunday … 6 = Saturday. */
   daysOfWeek: number[];
-  /** "on" = until a date, "after" = a number of occurrences. */
-  endMode: "on" | "after";
+  /** Monthly only. */
+  monthlyMode: MonthlyMode;
+  endMode: RecurrenceEndMode;
   until: string; // yyyy-MM-dd
   count: number;
 };
 
-const DAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+const DAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"];
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const ORDINALS = ["", "first", "second", "third", "fourth", "fifth"];
+
+/* ── calendar helpers ─────────────────────────────────────────────────────────
+ * Deliberately mirrors server/src/utils/recurrence.ts. The server is the authority — it
+ * re-derives all of this and rejects anything that doesn't hold — but the picker has to
+ * know "is the 27th the last Monday?" to offer the right presets without a round trip.
+ */
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate();
+}
+
+/** 1 for the first Monday of the month, 4 for the fourth. */
+function weekdayOrdinalOf(day: number): number {
+  return Math.floor((day - 1) / 7) + 1;
+}
+
+function isLastWeekdayOfMonth(d: Date): boolean {
+  return d.getDate() + 7 > daysInMonth(d.getFullYear(), d.getMonth() + 1);
+}
+
+/** Local yyyy-MM-dd. Never `toISOString()` — that shifts the date in western zones. */
+function ymd(d: Date): string {
+  return format(d, "yyyy-MM-dd");
+}
+
+function addMonths(d: Date, months: number): Date {
+  const out = new Date(d);
+  out.setMonth(out.getMonth() + months);
+  return out;
+}
+
+/** "1st" / "2nd" / "31st" — for the month-end warning copy. */
+function ordinalSuffix(n: number): string {
+  if (n % 100 >= 11 && n % 100 <= 13) return "th";
+  return ["th", "st", "nd", "rd"][n % 10] ?? "th";
+}
+
+/* ── presets ──────────────────────────────────────────────────────────────── */
+
+export type RecurrencePreset = {
+  id: string;
+  label: string;
+  build: () => RecurrenceState;
+};
+
+/**
+ * How many occurrences each cadence produces by default.
+ *
+ * Chosen so a preset is immediately useful without opening Custom: roughly a term of
+ * lessons, a fortnight of daily slots, half a year of monthly ones. All well under the
+ * server's 200 ceiling.
+ */
+const DEFAULT_COUNTS = {
+  daily: 14,
+  weekday: 20,
+  weekly: 12,
+  fortnightly: 8,
+  monthly: 6,
+  yearly: 3,
+} as const;
+
+const base = (over: Partial<RecurrenceState>): RecurrenceState => ({
+  enabled: true,
+  frequency: "weekly",
+  interval: 1,
+  daysOfWeek: [],
+  monthlyMode: "dayOfMonth",
+  endMode: "after",
+  until: "",
+  count: DEFAULT_COUNTS.weekly,
+  ...over,
+});
+
+/** The id the dropdown uses for the entry that opens the Custom dialog. */
+export const CUSTOM_PRESET_ID = "custom";
+
+/**
+ * The cadences offered for a given start date, in Google's order.
+ *
+ * Two entries are conditional, exactly as Google does it: "Monthly on the last X" only
+ * appears when the date IS the last such weekday, and the nth-weekday entry is dropped
+ * for a fifth weekday, because a fifth-weekday rule skips most months and is a trap
+ * rather than a shortcut. Anyone who genuinely wants it can still build it in Custom.
+ */
+export function presetsFor(start: Date | null): RecurrencePreset[] {
+  const presets: RecurrencePreset[] = [
+    { id: "none", label: "Does not repeat", build: () => ({ ...base({}), enabled: false }) },
+  ];
+
+  if (!start || Number.isNaN(start.getTime())) return presets;
+
+  const weekday = start.getDay();
+  const ordinal = weekdayOrdinalOf(start.getDate());
+
+  presets.push({
+    id: "daily",
+    label: "Daily",
+    build: () => base({ frequency: "daily", count: DEFAULT_COUNTS.daily }),
+  });
+
+  presets.push({
+    id: "weekly",
+    label: `Weekly on ${DAY_NAMES[weekday]}`,
+    build: () => base({ frequency: "weekly", daysOfWeek: [weekday], count: DEFAULT_COUNTS.weekly }),
+  });
+
+  //Not one of Google's, but the cadence a flight school actually asks for after weekly —
+  //"so-and-so takes the plane every other Tuesday". Google buries it in Custom.
+  presets.push({
+    id: "fortnightly",
+    label: `Every 2 weeks on ${DAY_NAMES[weekday]}`,
+    build: () =>
+      base({ frequency: "weekly", interval: 2, daysOfWeek: [weekday], count: DEFAULT_COUNTS.fortnightly }),
+  });
+
+  if (ordinal <= 4) {
+    presets.push({
+      id: "monthly-nth",
+      label: `Monthly on the ${ORDINALS[ordinal]} ${DAY_NAMES[weekday]}`,
+      build: () => base({ frequency: "monthly", monthlyMode: "nthWeekday", count: DEFAULT_COUNTS.monthly }),
+    });
+  }
+
+  if (isLastWeekdayOfMonth(start)) {
+    presets.push({
+      id: "monthly-last",
+      label: `Monthly on the last ${DAY_NAMES[weekday]}`,
+      build: () => base({ frequency: "monthly", monthlyMode: "lastWeekday", count: DEFAULT_COUNTS.monthly }),
+    });
+  }
+
+  presets.push({
+    id: "monthly-day",
+    label: `Monthly on day ${start.getDate()}`,
+    build: () => base({ frequency: "monthly", monthlyMode: "dayOfMonth", count: DEFAULT_COUNTS.monthly }),
+  });
+
+  presets.push({
+    id: "yearly",
+    label: `Annually on ${format(start, "MMMM d")}`,
+    build: () => base({ frequency: "yearly", count: DEFAULT_COUNTS.yearly }),
+  });
+
+  presets.push({
+    id: "weekday",
+    label: "Every weekday (Monday to Friday)",
+    build: () => base({ frequency: "weekly", daysOfWeek: [1, 2, 3, 4, 5], count: DEFAULT_COUNTS.weekday }),
+  });
+
+  return presets;
+}
+
+/**
+ * Which preset a state corresponds to, or "custom".
+ *
+ * Matching on the SHAPE rather than remembering which item was clicked keeps the
+ * dropdown honest after a trip through Custom: nudge the interval to 3 and it reads
+ * "Custom…", set it back to 1 and it snaps to "Weekly on Monday" again.
+ *
+ * Deliberately ignores the end condition — "Weekly on Monday, 12 times" and "Weekly on
+ * Monday until March" are the same cadence, and demoting one to "Custom…" just because
+ * the end date moved would be noise.
+ */
+export function matchPreset(state: RecurrenceState, start: Date | null): string {
+  if (!state.enabled) return "none";
+
+  for (const preset of presetsFor(start)) {
+    if (preset.id === "none") continue;
+    const candidate = preset.build();
+    if (
+      candidate.frequency === state.frequency &&
+      candidate.interval === state.interval &&
+      (state.frequency !== "monthly" || candidate.monthlyMode === state.monthlyMode) &&
+      candidate.daysOfWeek.length === state.daysOfWeek.length &&
+      candidate.daysOfWeek.every((d) => state.daysOfWeek.includes(d))
+    ) {
+      return preset.id;
+    }
+  }
+
+  return CUSTOM_PRESET_ID;
+}
 
 export function defaultRecurrence(startAt: Date | null, date: string): RecurrenceState {
   const anchor = startAt ?? (date ? new Date(`${date}T12:00:00`) : new Date());
-  const day = Number.isNaN(anchor.getTime()) ? new Date().getDay() : anchor.getDay();
-  const until = new Date(Number.isNaN(anchor.getTime()) ? Date.now() : anchor.getTime());
-  until.setMonth(until.getMonth() + 2);
+  const valid = !Number.isNaN(anchor.getTime());
+  const until = addMonths(valid ? anchor : new Date(), 2);
 
   return {
     enabled: false,
+    frequency: "weekly",
     interval: 1,
-    daysOfWeek: [day],
-    endMode: "on",
-    until: format(until, "yyyy-MM-dd"),
-    count: 8,
+    daysOfWeek: valid ? [anchor.getDay()] : [],
+    monthlyMode: "dayOfMonth",
+    endMode: "after",
+    until: ymd(until),
+    count: DEFAULT_COUNTS.weekly,
   };
 }
 
 /**
- * Turn the form state into the server's rule, or null when it isn't repeating.
- * Returns a `problem` instead of throwing so the form can block submit and say why —
- * the server validates all of this again, this is just the fast path.
+ * Turn the form state into the server's rule.
+ *
+ * Returns a `problem` rather than throwing so the form can block submit and say why. The
+ * server validates all of this again — this is only the fast path that avoids a round
+ * trip to be told something the form already knows.
  */
 export function toRecurrenceInput(
   state: RecurrenceState,
@@ -64,7 +274,10 @@ export function toRecurrenceInput(
 ): { input: RecurrenceInput | null; problem: string | null } {
   if (!state.enabled) return { input: null, problem: null };
   if (!startAt || !endAt) return { input: null, problem: "Pick a start and end time first." };
-  if (state.daysOfWeek.length === 0) return { input: null, problem: "Pick at least one day to repeat on." };
+
+  if (state.frequency === "weekly" && state.daysOfWeek.length === 0) {
+    return { input: null, problem: "Pick at least one day to repeat on." };
+  }
 
   const durationMins = Math.round((endAt.getTime() - startAt.getTime()) / 60000);
   if (durationMins <= 0) return { input: null, problem: "The end time has to be after the start time." };
@@ -79,13 +292,16 @@ export function toRecurrenceInput(
   return {
     problem: null,
     input: {
-      frequency: "weekly",
+      frequency: state.frequency,
       interval: state.interval,
-      daysOfWeek: [...state.daysOfWeek].sort((a, b) => a - b),
+      //Only weekly rules carry days; sending them for a monthly rule would imply they
+      //mean something, and they don't.
+      daysOfWeek: state.frequency === "weekly" ? [...state.daysOfWeek].sort((a, b) => a - b) : undefined,
+      monthlyMode: state.frequency === "monthly" ? state.monthlyMode : undefined,
       startTime: format(startAt, "HH:mm"),
       durationMins,
       timeZoneName,
-      startDate: format(startAt, "yyyy-MM-dd"),
+      startDate: ymd(startAt),
       until: state.endMode === "on" ? state.until : null,
       count: state.endMode === "after" ? state.count : null,
     },
@@ -93,157 +309,338 @@ export function toRecurrenceInput(
 }
 
 /** Plain-language summary, so nobody has to infer what they just configured. */
-export function summarise(state: RecurrenceState): string {
-  const days = [...state.daysOfWeek].sort((a, b) => a - b).map((d) => DAY_NAMES[d]);
-  const cadence = state.interval === 1 ? "every week" : `every ${state.interval} weeks`;
-  const on = days.length ? ` on ${days.join(", ")}` : "";
-  const end =
+export function summarise(state: RecurrenceState, start: Date | null): string {
+  if (!state.enabled) return "";
+
+  const cadence = (() => {
+    switch (state.frequency) {
+      case "daily":
+        return state.interval === 1 ? "every day" : `every ${state.interval} days`;
+      case "weekly": {
+        const days = [...state.daysOfWeek].sort((a, b) => a - b).map((d) => DAY_NAMES[d]);
+        const every = state.interval === 1 ? "every week" : `every ${state.interval} weeks`;
+        return days.length ? `${every} on ${days.join(", ")}` : every;
+      }
+      case "monthly": {
+        const every = state.interval === 1 ? "every month" : `every ${state.interval} months`;
+        if (!start) return every;
+        if (state.monthlyMode === "dayOfMonth") return `${every} on day ${start.getDate()}`;
+        if (state.monthlyMode === "lastWeekday") return `${every} on the last ${DAY_NAMES[start.getDay()]}`;
+        return `${every} on the ${ORDINALS[weekdayOrdinalOf(start.getDate())]} ${DAY_NAMES[start.getDay()]}`;
+      }
+      case "yearly":
+        return state.interval === 1
+          ? `every year${start ? ` on ${format(start, "MMMM d")}` : ""}`
+          : `every ${state.interval} years`;
+      default:
+        return "";
+    }
+  })();
+
+  const ends =
     state.endMode === "on"
       ? state.until
         ? ` until ${state.until}`
         : ""
-      : ` — ${state.count} time${state.count === 1 ? "" : "s"}`;
-  return `Repeats ${cadence}${on}${end}.`;
+      : ` — ${state.count} booking${state.count === 1 ? "" : "s"}`;
+
+  return `Repeats ${cadence}${ends}.`;
 }
+
+/* ── the control ──────────────────────────────────────────────────────────── */
 
 export function RecurrenceField({
   value,
   onChange,
+  start,
   disabled,
 }: {
   value: RecurrenceState;
   onChange: (next: RecurrenceState) => void;
+  /** The reservation's start — every preset is derived from it. */
+  start: Date | null;
   disabled?: boolean;
 }) {
-  const set = (patch: Partial<RecurrenceState>) => onChange({ ...value, ...patch });
+  const [customOpen, setCustomOpen] = React.useState(false);
 
-  const toggleDay = (day: number) => {
-    const has = value.daysOfWeek.includes(day);
-    //Never let the last day be removed — a weekly rule with no days can't produce
-    //anything, and the server would reject it. Better to make it impossible here.
-    if (has && value.daysOfWeek.length === 1) return;
-    set({ daysOfWeek: has ? value.daysOfWeek.filter((d) => d !== day) : [...value.daysOfWeek, day] });
+  const presets = React.useMemo(() => presetsFor(start), [start]);
+  const selected = matchPreset(value, start);
+
+  const choose = (id: string) => {
+    if (id === CUSTOM_PRESET_ID) {
+      //Seeded with whatever is configured now, so Custom refines the current choice
+      //rather than starting from a blank slate.
+      setCustomOpen(true);
+      return;
+    }
+    const preset = presets.find((p) => p.id === id);
+    if (preset) onChange(preset.build());
   };
 
   return (
-    <div className="space-y-3">
-      <div className="grid gap-2">
-        <Label htmlFor="repeat">Repeat</Label>
-        <Select
-          value={value.enabled ? "weekly" : "none"}
-          onValueChange={(v) => set({ enabled: v === "weekly" })}
-          disabled={disabled}
-        >
-          <SelectTrigger id="repeat">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">Does not repeat</SelectItem>
-            <SelectItem value="weekly">Weekly</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+    <div className="space-y-2">
+      <Label htmlFor="repeat">Repeat</Label>
+      <Select value={selected} onValueChange={choose} disabled={disabled}>
+        <SelectTrigger id="repeat" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {presets.map((p) => (
+            <SelectItem key={p.id} value={p.id}>
+              {p.label}
+            </SelectItem>
+          ))}
+          <SelectItem value={CUSTOM_PRESET_ID}>Custom…</SelectItem>
+        </SelectContent>
+      </Select>
 
       {value.enabled && (
-        <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="repeat-interval">Every</Label>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
+          <p className="min-w-0 flex-1 text-xs text-muted-foreground">{summarise(value, start)}</p>
+          {/* Also the way back into Custom when the dropdown already reads "Custom…" —
+              re-picking the selected item fires no change event. */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 shrink-0 px-2 text-xs"
+            disabled={disabled}
+            onClick={() => setCustomOpen(true)}
+          >
+            Edit
+          </Button>
+        </div>
+      )}
+
+      <CustomRecurrenceDialog
+        open={customOpen}
+        onOpenChange={setCustomOpen}
+        value={value}
+        start={start}
+        onSave={(next) => {
+          onChange(next);
+          setCustomOpen(false);
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Everything the presets don't cover: an arbitrary interval, several days a week, which
+ * sense of "monthly", and where it stops.
+ *
+ * A dialog rather than an inline panel because the booking form is a modal in a narrow
+ * column — seven day-chips alone need more width than that column has, which is exactly
+ * how they came to overflow it.
+ */
+function CustomRecurrenceDialog({
+  open,
+  onOpenChange,
+  value,
+  start,
+  onSave,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  value: RecurrenceState;
+  start: Date | null;
+  onSave: (next: RecurrenceState) => void;
+}) {
+  const [draft, setDraft] = React.useState<RecurrenceState>(value);
+
+  //Re-seeded each time it opens, so closing abandons the edit — which is what Cancel in
+  //a dialog is expected to mean.
+  React.useEffect(() => {
+    if (open) {
+      setDraft({
+        ...value,
+        enabled: true,
+        //"Does not repeat" carries no days; turning it into a weekly rule needs one.
+        daysOfWeek:
+          value.daysOfWeek.length === 0 && start ? [start.getDay()] : value.daysOfWeek,
+      });
+    }
+  }, [open, value, start]);
+
+  const set = (patch: Partial<RecurrenceState>) => setDraft((d) => ({ ...d, ...patch }));
+
+  const toggleDay = (day: number) => {
+    const has = draft.daysOfWeek.includes(day);
+    //Never let the last day go: a weekly rule with no days can't produce a single
+    //booking, and the server would refuse it. Better to make the empty state unreachable
+    //than to explain it.
+    if (has && draft.daysOfWeek.length === 1) return;
+    set({ daysOfWeek: has ? draft.daysOfWeek.filter((d) => d !== day) : [...draft.daysOfWeek, day] });
+  };
+
+  const plural = (one: string, many: string) => (draft.interval === 1 ? one : many);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Custom repeat</DialogTitle>
+          <DialogDescription>
+            Every date has to be free — if one clashes, nothing is booked and you&apos;ll be told
+            which.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Repeat every</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                max={12}
+                value={draft.interval}
+                onChange={(e) => set({ interval: Math.max(1, Math.min(12, Number(e.target.value) || 1)) })}
+                className="w-20"
+                aria-label="Interval"
+              />
               <Select
-                value={String(value.interval)}
-                onValueChange={(v) => set({ interval: Number(v) })}
-                disabled={disabled}
+                value={draft.frequency}
+                onValueChange={(v) => {
+                  const frequency = v as RecurrenceFrequency;
+                  set({
+                    frequency,
+                    //Switching to weekly with nothing selected would be an unsubmittable
+                    //rule, so it lands on the start date's own weekday.
+                    daysOfWeek:
+                      frequency === "weekly" && draft.daysOfWeek.length === 0 && start
+                        ? [start.getDay()]
+                        : draft.daysOfWeek,
+                  });
+                }}
               >
-                <SelectTrigger id="repeat-interval">
+                <SelectTrigger className="flex-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[1, 2, 3, 4].map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n === 1 ? "week" : `${n} weeks`}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="daily">{plural("day", "days")}</SelectItem>
+                  <SelectItem value="weekly">{plural("week", "weeks")}</SelectItem>
+                  <SelectItem value="monthly">{plural("month", "months")}</SelectItem>
+                  <SelectItem value="yearly">{plural("year", "years")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+          </div>
 
-            <div className="grid gap-2">
-              <Label>On</Label>
-              <div className="flex gap-1">
-                {DAY_LABELS.map((label, day) => {
-                  const active = value.daysOfWeek.includes(day);
+          {draft.frequency === "weekly" && (
+            <div className="space-y-2">
+              <Label>Repeat on</Label>
+              {/* flex-wrap, not a fixed row — seven chips have to be able to fall onto a
+                  second line rather than run out of the dialog. */}
+              <div className="flex flex-wrap gap-1.5">
+                {DAY_INITIALS.map((initial, day) => {
+                  const active = draft.daysOfWeek.includes(day);
                   return (
                     <button
                       key={day}
                       type="button"
-                      disabled={disabled}
                       onClick={() => toggleDay(day)}
                       aria-pressed={active}
                       aria-label={DAY_NAMES[day]}
+                      title={DAY_NAMES[day]}
                       className={cn(
-                        "size-8 rounded-full border text-xs font-medium transition-colors",
+                        "size-9 shrink-0 rounded-full border text-xs font-medium transition-colors",
                         active
                           ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border text-muted-foreground hover:bg-accent",
-                        disabled && "opacity-50"
+                          : "border-border text-muted-foreground hover:bg-accent"
                       )}
                     >
-                      {label}
+                      {initial}
                     </button>
                   );
                 })}
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="grid gap-2">
-              <Label htmlFor="repeat-end">Ends</Label>
-              <Select
-                value={value.endMode}
-                onValueChange={(v) => set({ endMode: v as "on" | "after" })}
-                disabled={disabled}
-              >
-                <SelectTrigger id="repeat-end">
+          {draft.frequency === "monthly" && start && (
+            <div className="space-y-2">
+              <Label htmlFor="monthly-mode">Repeat by</Label>
+              <Select value={draft.monthlyMode} onValueChange={(v) => set({ monthlyMode: v as MonthlyMode })}>
+                <SelectTrigger id="monthly-mode" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="on">On a date</SelectItem>
-                  <SelectItem value="after">After a number of times</SelectItem>
+                  <SelectItem value="dayOfMonth">Day {start.getDate()} of the month</SelectItem>
+                  <SelectItem value="nthWeekday">
+                    The {ORDINALS[weekdayOrdinalOf(start.getDate())]} {DAY_NAMES[start.getDay()]}
+                  </SelectItem>
+                  <SelectItem value="lastWeekday">The last {DAY_NAMES[start.getDay()]}</SelectItem>
                 </SelectContent>
               </Select>
+              {draft.monthlyMode === "dayOfMonth" && start.getDate() > 28 && (
+                <p className="text-xs text-muted-foreground">
+                  Months without a {start.getDate()}
+                  {ordinalSuffix(start.getDate())} are skipped, not moved to the end of the month.
+                </p>
+              )}
             </div>
+          )}
 
-            <div className="grid gap-2">
-              <Label htmlFor="repeat-endvalue">{value.endMode === "on" ? "Until" : "Times"}</Label>
-              {value.endMode === "on" ? (
-                <Input
-                  id="repeat-endvalue"
-                  type="date"
-                  value={value.until}
-                  disabled={disabled}
-                  onChange={(e) => set({ until: e.target.value })}
-                />
+          <div className="space-y-2">
+            <Label>Ends</Label>
+            <div className="flex items-center gap-2">
+              <Select value={draft.endMode} onValueChange={(v) => set({ endMode: v as RecurrenceEndMode })}>
+                <SelectTrigger className="w-32 shrink-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="after">After</SelectItem>
+                  <SelectItem value="on">On date</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {draft.endMode === "after" ? (
+                <div className="flex flex-1 items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={draft.count}
+                    onChange={(e) => set({ count: Math.max(1, Math.min(200, Number(e.target.value) || 1)) })}
+                    className="w-20"
+                    aria-label="Number of bookings"
+                  />
+                  <span className="text-sm text-muted-foreground">bookings</span>
+                </div>
               ) : (
                 <Input
-                  id="repeat-endvalue"
-                  type="number"
-                  min={1}
-                  max={200}
-                  value={value.count}
-                  disabled={disabled}
-                  onChange={(e) => set({ count: Number(e.target.value) })}
+                  type="date"
+                  value={draft.until}
+                  onChange={(e) => set({ until: e.target.value })}
+                  className="flex-1"
+                  aria-label="Repeat until"
                 />
               )}
             </div>
+            {/* Said plainly: Google offers "Never" and we cannot, because each occurrence
+                is a real booking holding a real aircraft. */}
+            <p className="text-xs text-muted-foreground">
+              A repeat always has an end — each booking holds the aircraft, so there is no
+              &ldquo;forever&rdquo;. Up to 200 at a time.
+            </p>
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            {summarise(value)} Every date has to be free — if one clashes, nothing is booked and
-            you&apos;ll be told which.
+          <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            {summarise(draft, start)}
           </p>
         </div>
-      )}
-    </div>
+
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="button" onClick={() => onSave(draft)}>
+            Done
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

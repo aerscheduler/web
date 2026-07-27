@@ -515,10 +515,14 @@ export function ReservationForm({
     }
   }
 
+  //Wider than the default dialog: this form carries two person pickers, a smart time
+  //range and the repeat control, and the narrower column was making rows of controls
+  //overflow rather than wrap.
   return (
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
+      className="sm:max-w-2xl"
       title={isEditing ? "Edit reservation" : "New reservation"}
       description={
         isEditing
@@ -714,7 +718,12 @@ export function ReservationForm({
           {/* Repeating bookings are a create-time choice; editing one occurrence of a
               series is just an ordinary edit. */}
           {!isEditing && (
-            <RecurrenceField value={recurrence} onChange={setRecurrence} disabled={create.isPending} />
+            <RecurrenceField
+              value={recurrence}
+              onChange={setRecurrence}
+              start={startAt}
+              disabled={create.isPending}
+            />
           )}
 
           <Label htmlFor="res-notes">Notes</Label>

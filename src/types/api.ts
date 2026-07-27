@@ -686,13 +686,26 @@ export interface CreateReservationInput {
   recurrence?: RecurrenceInput;
 }
 
-/** A weekly repeat rule. Times and days are expressed in `timeZoneName`. */
+export type RecurrenceFrequency = "daily" | "weekly" | "monthly" | "yearly";
+
+/**
+ * How a monthly rule picks its day.
+ * - `dayOfMonth`  — "the 27th of every month"
+ * - `nthWeekday`  — "the fourth Monday"
+ * - `lastWeekday` — "the last Monday", which differs from "the fourth" in any month
+ *                   with five Mondays
+ */
+export type MonthlyMode = "dayOfMonth" | "nthWeekday" | "lastWeekday";
+
+/** A repeat rule. Times and days are expressed in `timeZoneName`. */
 export interface RecurrenceInput {
-  frequency: "weekly";
-  /** Every N weeks. 1 = weekly, 2 = fortnightly. */
+  frequency: RecurrenceFrequency;
+  /** Every N days / weeks / months / years. */
   interval: number;
-  /** 0 = Sunday … 6 = Saturday. */
-  daysOfWeek: number[];
+  /** 0 = Sunday … 6 = Saturday. Weekly rules only. */
+  daysOfWeek?: number[];
+  /** Monthly rules only. Defaults server-side to `dayOfMonth`. */
+  monthlyMode?: MonthlyMode;
   /** Local wall clock, "HH:mm". */
   startTime: string;
   durationMins: number;
@@ -709,11 +722,20 @@ export interface RecurrenceInput {
 export interface ReservationSeries {
   id: number;
   frequency: string;
+  monthlyMode?: MonthlyMode | null;
   interval: number;
   daysOfWeek: number[];
   startTime: string;
   durationMins: number;
   timeZoneName: string;
+  startDate?: string | null;
+  /**
+   * The human sentence for this rule, rendered server-side at creation ("Monthly on the
+   * fourth Monday"). Prefer it over re-deriving the wording here — it is what stops the
+   * console and the app describing the same rule differently. Null on series created
+   * before it existed, which is why `describeSeries` still has a fallback.
+   */
+  label?: string | null;
   until: string | null;
   occurrences: number;
 }
@@ -725,8 +747,19 @@ export interface CreatedSeries {
   occurrences: number;
 }
 
-/** "Weekly on Tue" / "Every 2 weeks on Mon, Wed" — for a badge or a summary line. */
-export function describeSeries(series: Pick<ReservationSeries, "interval" | "daysOfWeek">): string {
+/**
+ * "Weekly on Tue" / "Monthly on the fourth Monday" — for a badge or a summary line.
+ *
+ * Uses the server's stored `label` when there is one, which is the whole point of
+ * storing it: the wording is decided in one place and every surface repeats it.
+ * The fallback below only ever runs for series created before that column existed —
+ * all of which are weekly, which is why it only knows how to say "weekly".
+ */
+export function describeSeries(
+  series: Pick<ReservationSeries, "interval" | "daysOfWeek"> & { label?: string | null }
+): string {
+  if (series.label) return series.label;
+
   const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const days = [...new Set(series.daysOfWeek)].sort((a, b) => a - b).map((d) => names[d] ?? "?");
   const cadence = series.interval === 1 ? "Weekly" : `Every ${series.interval} weeks`;

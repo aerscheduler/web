@@ -58,7 +58,7 @@ function LoginPage() {
 
           <h1 className="text-[22px] font-semibold tracking-tight">Sign in</h1>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            Welcome back. Enter your credentials to reach your console.
+            Welcome back. Enter your credentials to reach your flight school.
           </p>
 
           <div className="mt-5 space-y-3">

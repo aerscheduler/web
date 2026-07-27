@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -495,10 +496,14 @@ export function BookingForm({
             {seatIsAmbiguous && needsCounterpart && (
               <div className="space-y-2">
                 <Label>Your seat</Label>
+                {/* `flex`, not `inline-flex`: an inline-level box sits on the SAME LINE
+                    as the label, which jammed "Your seat" against the first button while
+                    every other field in this grid stacks. `w-fit` keeps it from
+                    stretching the full column now that it's block-level. */}
                 <div
                   role="radiogroup"
                   aria-label="Your seat on this booking"
-                  className="inline-flex flex-wrap gap-1 rounded-lg border border-border bg-muted/40 p-1"
+                  className="flex w-fit flex-wrap gap-1 rounded-lg border border-border bg-muted/40 p-1"
                 >
                   {[
                     { instructing: true, label: "I'm instructing" },
@@ -523,7 +528,12 @@ export function BookingForm({
               </div>
             )}
 
-            <div className="space-y-2 sm:col-span-2">
+            {/* One column, like every other field here. It used to span both, which
+                made the aircraft picker twice the width of the type and rating pickers
+                beside it — three stacked comboboxes, the middle one visibly wrong. The
+                empty state still spans, because a full-width card in half a column
+                looks broken. */}
+            <div className={cn("space-y-2", noResources && "sm:col-span-2")}>
               <Label>{kind === "Aircraft" ? "Aircraft" : kind}</Label>
               {noResources ? (
                 <EmptyState

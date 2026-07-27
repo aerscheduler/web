@@ -194,6 +194,8 @@ export interface Reservation {
    * ⇒ the guest reservation has been reviewed and its invoice generated.
    */
   completedByForGuest?: { id: number } | null;
+  /** Set when this reservation is one occurrence of a repeating booking. */
+  series?: ReservationSeries | null;
 }
 
 export interface ReservationPersonnel {
@@ -673,6 +675,62 @@ export interface CreateReservationInput {
     renters?: PersonRef[];
     guests?: { id?: number; name: string; email: string; phone?: string }[];
   };
+  /**
+   * Optional. When present the server creates a repeating booking — one real
+   * reservation per occurrence — instead of the single one described by
+   * `start`/`end`, and returns `{ seriesId, reservations, occurrences }`.
+   *
+   * All or nothing: if any occurrence clashes, nothing is created and the error
+   * names the offending dates.
+   */
+  recurrence?: RecurrenceInput;
+}
+
+/** A weekly repeat rule. Times and days are expressed in `timeZoneName`. */
+export interface RecurrenceInput {
+  frequency: "weekly";
+  /** Every N weeks. 1 = weekly, 2 = fortnightly. */
+  interval: number;
+  /** 0 = Sunday … 6 = Saturday. */
+  daysOfWeek: number[];
+  /** Local wall clock, "HH:mm". */
+  startTime: string;
+  durationMins: number;
+  timeZoneName: string;
+  /** First local date an occurrence may fall on, "YYYY-MM-DD". */
+  startDate: string;
+  /** Inclusive last local date. Mutually exclusive with `count`. */
+  until?: string | null;
+  /** How many to create. Mutually exclusive with `until`. */
+  count?: number | null;
+}
+
+/** The stored rule behind a repeating booking, as it comes back on a reservation. */
+export interface ReservationSeries {
+  id: number;
+  frequency: string;
+  interval: number;
+  daysOfWeek: number[];
+  startTime: string;
+  durationMins: number;
+  timeZoneName: string;
+  until: string | null;
+  occurrences: number;
+}
+
+/** What the server returns when a repeating booking is created. */
+export interface CreatedSeries {
+  seriesId: number;
+  reservations: number[];
+  occurrences: number;
+}
+
+/** "Weekly on Tue" / "Every 2 weeks on Mon, Wed" — for a badge or a summary line. */
+export function describeSeries(series: Pick<ReservationSeries, "interval" | "daysOfWeek">): string {
+  const names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const days = [...new Set(series.daysOfWeek)].sort((a, b) => a - b).map((d) => names[d] ?? "?");
+  const cadence = series.interval === 1 ? "Weekly" : `Every ${series.interval} weeks`;
+  return days.length ? `${cadence} on ${days.join(", ")}` : cadence;
 }
 
 /**

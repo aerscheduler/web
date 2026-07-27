@@ -44,6 +44,14 @@ import { cn } from "@/lib/utils";
 import { DOT_CLASS, typeLabel } from "./meta";
 import { SmartTimeRange } from "./smart-time-range";
 import {
+  RecurrenceField,
+  defaultRecurrence,
+  toRecurrenceInput,
+  type RecurrenceState,
+} from "./recurrence-field";
+
+import {
+  DEVICE_TZ,
   TYPE_REQUIREMENTS,
   buildReservationInput,
   resolveLocationId,
@@ -267,6 +275,11 @@ export function ReservationForm({
   const [guestPhone, setGuestPhone] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  //Repeat rule. Only ever sent on CREATE — editing one occurrence of a series is
+  //an ordinary edit, and changing the rule itself isn't offered yet.
+  const [recurrence, setRecurrence] = React.useState<RecurrenceState>(() =>
+    defaultRecurrence(null, "")
+  );
 
   const isGuest = type === "guest";
 
@@ -357,6 +370,8 @@ export function ReservationForm({
         setGuestPhone("");
         setNotes("");
       }
+      //A repeat rule must never survive from one booking to the next.
+      setRecurrence(defaultRecurrence(null, format(draft.date, "yyyy-MM-dd")));
     }
     wasOpen.current = open;
   }, [open, draft, initialType, editing, duplicating]);
@@ -463,6 +478,18 @@ export function ReservationForm({
       notes,
     });
 
+    //Repeating booking. Editing never carries a rule: changing one occurrence is an
+    //ordinary edit, and the server ignores `recurrence` on PATCH anyway.
+    if (!editing) {
+      const { input: rule, problem } = toRecurrenceInput(recurrence, startAt, endAt, DEVICE_TZ);
+      if (problem) {
+        setError(problem);
+        toast.error(problem);
+        return;
+      }
+      if (rule) input.recurrence = rule;
+    }
+
     try {
       if (editing) {
         await update.mutateAsync({ id: editing.id, input });
@@ -471,7 +498,11 @@ export function ReservationForm({
         return;
       }
       const created = await create.mutateAsync(input);
-      toast.success("Reservation booked");
+      toast.success(
+        input.recurrence
+          ? "Repeating booking created"
+          : "Reservation booked"
+      );
       onOpenChange(false);
       onCreated?.(created);
     } catch (err) {
@@ -680,6 +711,12 @@ export function ReservationForm({
         )}
 
         <div className="space-y-1.5">
+          {/* Repeating bookings are a create-time choice; editing one occurrence of a
+              series is just an ordinary edit. */}
+          {!isEditing && (
+            <RecurrenceField value={recurrence} onChange={setRecurrence} disabled={create.isPending} />
+          )}
+
           <Label htmlFor="res-notes">Notes</Label>
           <Textarea
             id="res-notes"

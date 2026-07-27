@@ -1,9 +1,9 @@
-import { differenceInCalendarDays, parseISO } from "date-fns";
 import type { Currency } from "@/types/api";
+import { currencyStanding } from "@/components/me/currency";
 import { Badge } from "@/components/ui/badge";
 import type { BadgeProps } from "@/components/ui/badge";
 
-export type CurrencyStatusKey = "expired" | "expiring" | "current";
+export type CurrencyStatusKey = "expired" | "expiring" | "current" | "notSignedOff";
 
 export interface CurrencyStatus {
   key: CurrencyStatusKey;
@@ -11,20 +11,28 @@ export interface CurrencyStatus {
   variant: NonNullable<BadgeProps["variant"]>;
 }
 
-/** Days out from today an expiry counts as "expiring soon". */
-export const EXPIRING_SOON_DAYS = 30;
-
 /**
- * Derive a currency's status from its expiry: past → expired, within 30 days →
- * expiring soon, otherwise current. No expiry on file is treated as current.
+ * Present a currency's standing, using the server's own definition (see
+ * `currencyStanding`). Booking is gated on exactly this, so the badge must not
+ * be more optimistic than the server.
+ *
+ * ⚠️ This used to derive status from a `Currency.expiresAt` field that doesn't
+ * exist, and treated "no expiry on file" as Current — so a currency that had
+ * never been signed off showed a green badge to a pilot the server would refuse
+ * to dispatch. Never infer currency from dates alone; `renewedBy` is what makes
+ * a currency count.
  */
-export function currencyStatus(c: Currency, now: Date = new Date()): CurrencyStatus {
-  if (!c.expiresAt) return { key: "current", label: "Current", variant: "success" };
-  const days = differenceInCalendarDays(parseISO(c.expiresAt), now);
-  if (days < 0) return { key: "expired", label: "Expired", variant: "danger" };
-  if (days <= EXPIRING_SOON_DAYS)
-    return { key: "expiring", label: "Expiring soon", variant: "warning" };
-  return { key: "current", label: "Current", variant: "success" };
+export function currencyStatus(c: Currency): CurrencyStatus {
+  switch (currencyStanding(c)) {
+    case "expired":
+      return { key: "expired", label: "Expired", variant: "danger" };
+    case "expiring":
+      return { key: "expiring", label: "Expiring soon", variant: "warning" };
+    case "notSignedOff":
+      return { key: "notSignedOff", label: "Not signed off", variant: "warning" };
+    default:
+      return { key: "current", label: "Current", variant: "success" };
+  }
 }
 
 export function CurrencyStatusBadge({ status }: { status: CurrencyStatus }) {

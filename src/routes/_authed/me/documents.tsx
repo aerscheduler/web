@@ -52,7 +52,7 @@ function MyDocumentsPage() {
         }
       />
 
-      {q.isLoading ? (
+      {q.isPending ? (
         <Card className="divide-y divide-border overflow-hidden">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="px-3 py-2.5">

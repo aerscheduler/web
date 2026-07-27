@@ -446,7 +446,7 @@ function BillingPage() {
         }
       />
 
-      {invoicesQ.isLoading ? (
+      {invoicesQ.isPending ? (
         <StatSkeleton count={4} />
       ) : (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -511,7 +511,7 @@ function BillingPage() {
 
         <TabsContent value="unbilled">
           <Card className="mt-4 overflow-hidden p-4">
-            {reservationsQ.isLoading ? (
+            {reservationsQ.isPending ? (
               <TableSkeleton rows={6} cols={4} />
             ) : reservationsQ.isError ? (
               <ErrorState error={reservationsQ.error} onRetry={() => reservationsQ.refetch()} />

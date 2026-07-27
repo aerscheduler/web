@@ -201,7 +201,7 @@ function PeoplePage() {
         </Tabs>
       </TableView.Header>
 
-      {q.isLoading ? (
+      {q.isPending ? (
         <Card className="min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={8} cols={5} />
         </Card>

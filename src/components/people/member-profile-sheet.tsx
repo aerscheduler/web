@@ -105,7 +105,7 @@ function MemberDocuments({ ou }: { ou: OrganizationUser }) {
         )}
       </div>
 
-      {q.isLoading ? (
+      {q.isPending ? (
         <Skeleton className="h-10 w-full" />
       ) : q.isError ? (
         <p className="text-sm text-muted-foreground">Couldn't load documents.</p>

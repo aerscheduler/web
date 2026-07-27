@@ -102,7 +102,7 @@ function FacilitiesPage() {
           </Button>
         </div>
 
-        {simsQ.isLoading ? (
+        {simsQ.isPending ? (
           <CardGridSkeleton count={3} />
         ) : simsQ.isError ? (
           <Card>
@@ -141,7 +141,7 @@ function FacilitiesPage() {
           </Button>
         </div>
 
-        {roomsQ.isLoading ? (
+        {roomsQ.isPending ? (
           <Card className="h-24 animate-pulse" />
         ) : roomsQ.isError ? (
           <Card>

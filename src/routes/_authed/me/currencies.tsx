@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, Building2, CheckCircle2, Clock, ShieldCheck } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, Clock, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { useMyCurrencies } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import type { Currency } from "@/types/api";
@@ -9,6 +9,7 @@ import { StatCard } from "@/components/stat-card";
 import { EmptyState, ErrorState, CardGridSkeleton, StatSkeleton } from "@/components/states";
 import { CurrencyCard } from "@/components/me-money/currency-card";
 import { currencyStatus } from "@/components/me-money/currency-status";
+import { currencyAttention } from "@/components/me/currency";
 import { Card } from "@/components/ui/card";
 
 export const Route = createFileRoute("/_authed/me/currencies")({
@@ -27,21 +28,30 @@ function MyCurrenciesPage() {
     [currenciesQ.data]
   );
 
-  const { current, expiring, expired, sorted } = useMemo(() => {
-    let cur = 0;
-    let exp = 0;
-    let dead = 0;
-    const weight: Record<string, number> = { expired: 0, expiring: 1, current: 2 };
+  const { current, expiring, expired, notSignedOff, sorted } = useMemo(() => {
+    // Counts come from the shared helper so this page can't drift from the
+    // server's definition of current. "Not signed off" is its own state — it
+    // used to be lumped in with expired, which overstated the expired count and
+    // hid the fact that the currency simply hasn't been signed off yet.
+    const att = currencyAttention(currencies);
+    // Worst first. Every state needs a weight; a missing key yields NaN and the
+    // comparator silently stops sorting.
+    const weight: Record<string, number> = {
+      expired: 0,
+      notSignedOff: 1,
+      expiring: 2,
+      current: 3,
+    };
     const ordered = [...currencies].sort(
       (a, b) => weight[currencyStatus(a).key] - weight[currencyStatus(b).key]
     );
-    for (const c of currencies) {
-      const k = currencyStatus(c).key;
-      if (k === "current") cur += 1;
-      else if (k === "expiring") exp += 1;
-      else dead += 1;
-    }
-    return { current: cur, expiring: exp, expired: dead, sorted: ordered };
+    return {
+      current: currencies.length - att.attention,
+      expiring: att.expiring,
+      expired: att.expired,
+      notSignedOff: att.notSignedOff,
+      sorted: ordered,
+    };
   }, [currencies]);
 
   if (!organization) {
@@ -66,24 +76,25 @@ function MyCurrenciesPage() {
         subtitle="Medicals, flight reviews and checkouts — so you always know you're legal to fly."
       />
 
-      {currenciesQ.isLoading ? (
+      {currenciesQ.isPending ? (
         <StatSkeleton count={3} />
       ) : (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard label="Current" value={current} icon={CheckCircle2} accent="success" />
-          <StatCard
-            label="Expiring soon"
-            value={expiring}
-            icon={Clock}
-            accent="warning"
-            hint="Within 30 days"
-          />
+          <StatCard label="Expiring soon" value={expiring} icon={Clock} accent="warning" />
           <StatCard label="Expired" value={expired} icon={AlertTriangle} accent="warning" />
+          <StatCard
+            label="Not signed off"
+            value={notSignedOff}
+            icon={ShieldQuestion}
+            accent="warning"
+            hint="Never signed off"
+          />
         </div>
       )}
 
       <div className="mt-5">
-        {currenciesQ.isLoading ? (
+        {currenciesQ.isPending ? (
           <CardGridSkeleton count={6} />
         ) : currenciesQ.isError ? (
           <Card className="p-0">

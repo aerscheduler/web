@@ -112,7 +112,7 @@ function AircraftPage() {
         }
       />
 
-      {q.isLoading ? (
+      {q.isPending ? (
         <CardGridSkeleton />
       ) : q.isError ? (
         <Card>

@@ -21,9 +21,12 @@ const TONE: Record<string, string> = {
 export function CurrencyCard({ currency }: { currency: Currency }) {
   const status = currencyStatus(currency);
   const name = currency.currencyType?.name ?? "Currency";
-  const expires = fmtDate(currency.expiresAt);
-  const relative = currency.expiresAt
-    ? formatDistanceToNowStrict(parseISO(currency.expiresAt), { addSuffix: true })
+  // The server stamps `expiredAt` when a currency lapses; there is no forward
+  // "expires on" date to show, so the date line reports when it went out rather
+  // than pretending to predict when it will.
+  const lapsed = fmtDate(currency.expiredAt);
+  const relative = currency.expiredAt
+    ? formatDistanceToNowStrict(parseISO(currency.expiredAt), { addSuffix: true })
     : null;
 
   return (
@@ -53,9 +56,19 @@ export function CurrencyCard({ currency }: { currency: Currency }) {
       <div className="flex items-end justify-between gap-3 border-t border-border pt-3 text-sm">
         <div>
           <div className="text-xs text-muted-foreground">
-            {status.key === "expired" ? "Expired" : "Expires"}
+            {status.key === "expired"
+              ? "Expired"
+              : status.key === "notSignedOff"
+                ? "Status"
+                : "Signed off"}
           </div>
-          <div className="tnum font-medium">{expires ?? "No expiry on file"}</div>
+          <div className="tnum font-medium">
+            {status.key === "expired"
+              ? (lapsed ?? "—")
+              : status.key === "notSignedOff"
+                ? "Awaiting sign-off"
+                : (fmtDate(currency.startedAt) ?? "—")}
+          </div>
         </div>
         {relative && (
           <div

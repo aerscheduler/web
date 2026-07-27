@@ -7,7 +7,9 @@ import {
   CreditCard,
   FileCog,
   GraduationCap,
+  Layers,
   Puzzle,
+  ShieldCheck,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,6 +18,8 @@ import { PlanTab } from "@/components/settings/plan-tab";
 import { BillingTab } from "@/components/settings/billing-tab";
 import { RatesTab } from "@/components/settings/rates-tab";
 import { DocumentTypesTab } from "@/components/settings/document-types-tab";
+import { GroupsTab } from "@/components/settings/groups-tab";
+import { CurrencyTypesTab } from "@/components/settings/currency-types-tab";
 import { IntegrationsTab } from "@/components/settings/integrations-tab";
 
 export const Route = createFileRoute("/_authed/settings")({
@@ -29,6 +33,8 @@ const TABS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "billing", label: "Billing", icon: CreditCard },
   { value: "rates", label: "Instruction rates", icon: GraduationCap },
   { value: "documents", label: "Document types", icon: FileCog },
+  { value: "groups", label: "Groups", icon: Layers },
+  { value: "currencies", label: "Currency rules", icon: ShieldCheck },
   { value: "integrations", label: "Integrations", icon: Puzzle },
 ];
 
@@ -70,6 +76,12 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="documents">
           <DocumentTypesTab />
+        </TabsContent>
+        <TabsContent value="groups">
+          <GroupsTab />
+        </TabsContent>
+        <TabsContent value="currencies">
+          <CurrencyTypesTab />
         </TabsContent>
         <TabsContent value="integrations">
           <IntegrationsTab />

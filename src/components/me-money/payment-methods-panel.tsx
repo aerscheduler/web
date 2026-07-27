@@ -162,7 +162,7 @@ export function PaymentMethodsPanel() {
             </Button>
           </CardHeader>
           <CardContent>
-            {methodsQ.isLoading ? (
+            {methodsQ.isPending ? (
               <div className="space-y-2">
                 <Skeleton className="h-16 w-full" />
                 <Skeleton className="h-16 w-full" />

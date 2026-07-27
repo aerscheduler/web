@@ -208,7 +208,7 @@ function MyInvoicesPage() {
         subtitle="Your flight-training charges — what you owe and what's settled."
       />
 
-      {invoicesQ.isLoading ? (
+      {invoicesQ.isPending ? (
         <StatSkeleton count={2} />
       ) : (
         <div className="grid grid-cols-2 gap-4">
@@ -230,7 +230,7 @@ function MyInvoicesPage() {
       )}
 
       <Card className="mt-5 overflow-hidden p-4">
-        {invoicesQ.isLoading ? (
+        {invoicesQ.isPending ? (
           <TableSkeleton rows={6} cols={5} />
         ) : invoicesQ.isError ? (
           <ErrorState error={invoicesQ.error} onRetry={() => invoicesQ.refetch()} />

@@ -337,12 +337,111 @@ export interface OrganizationRating {
   showInDirectory?: boolean;
 }
 
+/**
+ * A currency RULE — "you may not fly this aircraft unless you're current on
+ * this". The server enforces it at booking (`orgUserIsCurrentForResource`),
+ * and applicability is decided by `resourceGroups`: a currency type with no
+ * resource group attached matches no aircraft and therefore enforces nothing.
+ */
 export interface CurrencyType {
   id: number;
   name: string;
   description?: string | null;
-  gracePeriodDays?: number | null;
   active?: boolean;
+
+  // Expiration rules — days/months/on are alternative ways to say the same
+  // thing; the server stores whichever was set.
+  expiresInDays?: number | null;
+  expiresInMonths?: number | null;
+  expiresOn?: string | null;
+  warningPeriodInDays?: number | null;
+  /** A lapsed currency still permits the flight if a current instructor is aboard. */
+  canFlyWithInstructor?: boolean;
+  applyToAllGuests?: boolean;
+
+  // Renewal rules — who may sign this off, besides an admin.
+  dispatcherCanRenew?: boolean;
+  instructorCanRenew?: boolean;
+  canRenewSelf?: boolean;
+
+  // Scope. Without `resourceGroups` the rule gates nothing.
+  resourceGroups?: ResourceGroup[];
+  orgUserGroups?: OrgUserGroup[];
+  documentTypes?: DocumentType[];
+}
+
+/** Body for POST/PATCH /currencies/types — relations go as id arrays. */
+export interface CurrencyTypeInput {
+  name: string;
+  description?: string | null;
+  active?: boolean;
+  expiresInDays?: number | null;
+  expiresInMonths?: number | null;
+  expiresOn?: string | null;
+  warningPeriodInDays?: number | null;
+  canFlyWithInstructor?: boolean;
+  applyToAllGuests?: boolean;
+  dispatcherCanRenew?: boolean;
+  instructorCanRenew?: boolean;
+  canRenewSelf?: boolean;
+  resourceGroupIds?: number[];
+  orgUserGroupIds?: number[];
+  documentTypeIds?: number[];
+}
+
+/**
+ * A set of resources a currency rule applies to. The `addNew*` flags make the
+ * group self-maintaining — a newly added aircraft joins automatically.
+ */
+export interface ResourceGroup {
+  id: number;
+  name: string;
+  description?: string | null;
+  addNewResources?: boolean;
+  addNewPlanes?: boolean;
+  addNewRooms?: boolean;
+  addNewSimulators?: boolean;
+  resources?: Resource[];
+}
+
+export interface ResourceGroupInput {
+  name: string;
+  description?: string | null;
+  addNewResources?: boolean;
+  addNewPlanes?: boolean;
+  addNewRooms?: boolean;
+  addNewSimulators?: boolean;
+  resourceIds?: number[];
+}
+
+/** A set of people a currency rule applies to, with the same auto-join flags. */
+export interface OrgUserGroup {
+  id: number;
+  name: string;
+  description?: string | null;
+  addNewUsers?: boolean;
+  addNewStudents?: boolean;
+  addNewInstructors?: boolean;
+  addNewRenters?: boolean;
+  addNewTechnicians?: boolean;
+  addNewDispatchers?: boolean;
+  addNewAdmins?: boolean;
+  addNewOwners?: boolean;
+  orgUsers?: OrganizationUser[];
+}
+
+export interface OrgUserGroupInput {
+  name: string;
+  description?: string | null;
+  addNewUsers?: boolean;
+  addNewStudents?: boolean;
+  addNewInstructors?: boolean;
+  addNewRenters?: boolean;
+  addNewTechnicians?: boolean;
+  addNewDispatchers?: boolean;
+  addNewAdmins?: boolean;
+  addNewOwners?: boolean;
+  orgUserIds?: number[];
 }
 
 export interface Announcement {
@@ -354,11 +453,28 @@ export interface Announcement {
   forRoles?: Role[] | null;
 }
 
+/**
+ * One person's standing against a currency type.
+ *
+ * ⚠️ There is no `expiresAt` — the server model is startedAt / warnedAt /
+ * expiredAt / archivedAt, and the server decides currency rather than the
+ * client inferring it from a date. Per `checkIfCurrencyIsCurrent`, current
+ * means: not expired, not archived, HAS a `renewedBy` (stamped on manual renew
+ * or document upload), and — when the type expects documents — those documents
+ * are attached. See `components/me/currency.ts`.
+ */
 export interface Currency {
   id: number;
   startedAt: string | null;
-  expiresAt: string | null;
+  /** Set once the warning period has been entered. */
+  warnedAt: string | null;
+  /** Set once it has lapsed; null does NOT by itself mean current. */
+  expiredAt: string | null;
   archivedAt: string | null;
+  notes?: string | null;
+  /** Absent ⇒ never signed off ⇒ not current, regardless of dates. */
+  renewedBy?: OrganizationUser | null;
+  documents?: UserDocument[];
   currencyType?: CurrencyType;
   orgUser?: OrganizationUser;
 }

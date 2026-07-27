@@ -84,7 +84,8 @@ function MyDayPage() {
 
   const outstanding = (invoicesQ.data ?? []).reduce((sum, i) => sum + (i.total ?? 0), 0);
 
-  const att = currencyAttention(currenciesQ.data, now, HORIZON_DAYS);
+  // Standing comes from the server's own flags, not a client-side date window.
+  const att = currencyAttention(currenciesQ.data);
 
   const announcements = [...(announcementsQ.data ?? [])]
     .filter((a) => !a.expireAt || parseISO(a.expireAt).getTime() >= now.getTime())
@@ -129,7 +130,13 @@ function MyDayPage() {
           hint={
             att.attention === 0
               ? "medicals, reviews, checkouts"
-              : `${att.expired} expired · ${att.expiring} expiring`
+              : [
+                  att.expired > 0 ? `${att.expired} expired` : null,
+                  att.expiring > 0 ? `${att.expiring} expiring` : null,
+                  att.notSignedOff > 0 ? `${att.notSignedOff} not signed off` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")
           }
           icon={att.attention === 0 ? BadgeCheck : ShieldCheck}
           accent={att.attention > 0 ? "warning" : "success"}
@@ -170,7 +177,7 @@ function MyDayPage() {
             </Link>
           </CardHeader>
           <CardContent className="pt-0">
-            {reservationsQ.isLoading ? (
+            {reservationsQ.isPending ? (
               <CalendarGridSkeleton />
             ) : reservationsQ.isError ? (
               <ErrorState error={reservationsQ.error} onRetry={() => reservationsQ.refetch()} />

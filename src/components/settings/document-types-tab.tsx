@@ -99,7 +99,7 @@ export function DocumentTypesTab() {
         </Button>
       </CardHeader>
       <CardContent className="p-0">
-        {q.isLoading ? (
+        {q.isPending ? (
           <div className="space-y-3 p-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center justify-between">

@@ -1,30 +1,25 @@
-import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
   CheckCircle2,
   PlaneTakeoff,
-  Plus,
   ShieldCheck,
   UserX,
+  Settings2,
 } from "lucide-react";
-import { usePlanes, useMembers, useCurrencyTypes, useCreateCurrencyType } from "@/features/queries";
+import { usePlanes, useMembers, useCurrencyTypes } from "@/features/queries";
 import { guardRoute } from "@/lib/permissions";
 import { rolesOf, resourceLabel } from "@/types/api";
 import type { Resource, OrganizationUser } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { EmptyState, ErrorState, CardGridSkeleton } from "@/components/states";
-import { ResponsiveModal } from "@/components/responsive-modal";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { initials } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authed/compliance")({
   beforeLoad: guardRoute("/compliance"),
@@ -35,10 +30,7 @@ function CompliancePage() {
   const planes = usePlanes();
   const members = useMembers();
   const currencyTypes = useCurrencyTypes();
-  const createType = useCreateCurrencyType();
 
-  const [addOpen, setAddOpen] = React.useState(false);
-  const [typeName, setTypeName] = React.useState("");
 
   const groundedAircraft = (planes.data ?? []).filter((r) => r.type?.plane?.grounded);
   const groundedMembers = (members.data ?? []).filter((m) => m.grounded);
@@ -47,17 +39,6 @@ function CompliancePage() {
   const loading = planes.isLoading || members.isLoading;
   const error = planes.error ?? members.error;
 
-  async function addType() {
-    if (!typeName.trim()) return;
-    try {
-      await createType.mutateAsync({ name: typeName.trim() });
-      toast.success(`Now tracking "${typeName.trim()}".`);
-      setTypeName("");
-      setAddOpen(false);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't add that currency type.");
-    }
-  }
 
   return (
     <div className="space-y-5">
@@ -65,8 +46,12 @@ function CompliancePage() {
         title="Go / No-Go"
         subtitle="Who and what can't fly right now — grounded aircraft, grounded members, and the currencies you track."
         actions={
-          <Button variant="outline" onClick={() => setAddOpen(true)}>
-            <Plus className="size-4" /> Track a currency
+          // Currency RULES are org configuration (scope, expiry, renewal), so they
+          // live in Settings. This board consumes their status; it doesn't define them.
+          <Button asChild variant="outline">
+            <Link to="/settings">
+              <Settings2 className="size-4" /> Manage currency rules
+            </Link>
           </Button>
         }
       />
@@ -141,8 +126,10 @@ function CompliancePage() {
               title="Track medicals, flight reviews & checkouts"
               body="Add the currencies your operation enforces so nobody flies out of currency."
               action={
-                <Button size="sm" onClick={() => setAddOpen(true)}>
-                  <Plus className="size-4" /> Add a currency type
+                <Button asChild size="sm">
+                  <Link to="/settings">
+                    <Settings2 className="size-4" /> Set up currency rules
+                  </Link>
                 </Button>
               }
             />
@@ -150,33 +137,6 @@ function CompliancePage() {
         )}
       </section>
 
-      <ResponsiveModal
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        title="Track a currency"
-        description="Medicals, flight reviews, stage checks, aircraft checkouts — anything you enforce."
-      >
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="ctname">Name</Label>
-            <Input
-              id="ctname"
-              value={typeName}
-              onChange={(e) => setTypeName(e.target.value)}
-              placeholder="Medical"
-              autoFocus
-            />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => setAddOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={addType} disabled={!typeName.trim() || createType.isPending}>
-              Add
-            </Button>
-          </div>
-        </div>
-      </ResponsiveModal>
     </div>
   );
 }

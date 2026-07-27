@@ -132,7 +132,7 @@ function MySchedulePage() {
       </div>
 
       <Card className="overflow-hidden p-0">
-        {q.isLoading ? (
+        {q.isPending ? (
           <CalendarGridSkeleton />
         ) : q.isError ? (
           <ErrorState error={q.error} onRetry={() => q.refetch()} />

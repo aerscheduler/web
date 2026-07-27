@@ -30,6 +30,11 @@ import type {
   ConfirmReviewGuestInput,
   Currency,
   CurrencyType,
+  OrgUserGroupInput,
+  OrgUserGroup,
+  ResourceGroupInput,
+  ResourceGroup,
+  CurrencyTypeInput,
   DocumentType,
   DocumentTypeInput,
   UserDocument,
@@ -480,12 +485,128 @@ export function useUpdateBilling() {
   });
 }
 
+/**
+ * Create a currency RULE. `gracePeriodDays` never existed on the server — the
+ * real field is `warningPeriodInDays`, and the type carries expiration rules,
+ * renewal rules, and three scope relations besides.
+ *
+ * ⚠️ Scope matters: a currency type with no `resourceGroupIds` matches no
+ * aircraft in `orgUserIsCurrentForResource`, so it enforces nothing. The server
+ * accepts it happily — it just does nothing.
+ */
 export function useCreateCurrencyType() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { name: string; description?: string; gracePeriodDays?: number }) =>
+    mutationFn: (input: CurrencyTypeInput) =>
       api<CurrencyType>("/currencies/types", { method: "POST", body: input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["currencyTypes"] }),
+  });
+}
+
+export function useUpdateCurrencyType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: Partial<CurrencyTypeInput> }) =>
+      api<CurrencyType>(`/currencies/types/${id}`, { method: "PATCH", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["currencyTypes"] }),
+  });
+}
+
+export function useDeleteCurrencyType() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/currencies/types/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["currencyTypes"] }),
+  });
+}
+
+// ── Groups ───────────────────────────────────────────────────────────────────
+// Resource groups scope a currency rule to a set of aircraft; org-user groups
+// scope it to a set of people. Reads are any-member; writes are admin.
+
+export function useResourceGroups(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["groups", "resource"],
+    queryFn: () => api<ResourceGroup[]>("/groups/resource"),
+    ...opts,
+  });
+}
+
+/** One group WITH its resources — the list endpoint omits them. */
+export function useResourceGroup(id: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["groups", "resource", id],
+    queryFn: () => api<ResourceGroup>(`/groups/resource/${id}`),
+    enabled: (opts?.enabled ?? true) && id != null,
+  });
+}
+
+export function useCreateResourceGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ResourceGroupInput) =>
+      api<ResourceGroup>("/groups/resource", { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["groups", "resource"] }),
+  });
+}
+
+export function useUpdateResourceGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: Partial<ResourceGroupInput> }) =>
+      api<ResourceGroup>(`/groups/resource/${id}`, { method: "PATCH", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["groups", "resource"] }),
+  });
+}
+
+export function useDeleteResourceGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/groups/resource/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["groups", "resource"] }),
+  });
+}
+
+export function useOrgUserGroups(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["groups", "orgUser"],
+    queryFn: () => api<OrgUserGroup[]>("/groups/orgUser"),
+    ...opts,
+  });
+}
+
+/** One group WITH its members — the list endpoint omits them. */
+export function useOrgUserGroup(id: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["groups", "orgUser", id],
+    queryFn: () => api<OrgUserGroup>(`/groups/orgUser/${id}`),
+    enabled: (opts?.enabled ?? true) && id != null,
+  });
+}
+
+export function useCreateOrgUserGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: OrgUserGroupInput) =>
+      api<OrgUserGroup>("/groups/orgUser", { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["groups", "orgUser"] }),
+  });
+}
+
+export function useUpdateOrgUserGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, input }: { id: number; input: Partial<OrgUserGroupInput> }) =>
+      api<OrgUserGroup>(`/groups/orgUser/${id}`, { method: "PATCH", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["groups", "orgUser"] }),
+  });
+}
+
+export function useDeleteOrgUserGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/groups/orgUser/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["groups", "orgUser"] }),
   });
 }
 

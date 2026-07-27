@@ -67,7 +67,7 @@ function NotificationsPage() {
         }
       />
 
-      {q.isLoading ? (
+      {q.isPending ? (
         <CardGridSkeleton count={4} />
       ) : q.isError ? (
         <Card className="p-0">

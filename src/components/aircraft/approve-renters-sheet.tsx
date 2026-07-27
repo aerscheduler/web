@@ -71,7 +71,7 @@ export function ApproveRentersSheet({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-4 pb-5">
-          {q.isLoading ? (
+          {q.isPending ? (
             <TableSkeleton rows={6} cols={2} />
           ) : q.isError ? (
             <ErrorState error={q.error} onRetry={() => q.refetch()} />

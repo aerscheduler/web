@@ -13,11 +13,13 @@ export function AgendaRow({
   r,
   onView,
   onEdit,
+  onDuplicate,
   onCancel,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
+  onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
 }) {
   const res = r.resource ? resourceLabel(r.resource) : null;
@@ -51,7 +53,13 @@ export function AgendaRow({
         </div>
       </button>
       <div className="flex flex-col items-end justify-between">
-        <ReservationMenu r={r} onView={onView} onEdit={onEdit} onCancel={onCancel} />
+        <ReservationMenu
+          r={r}
+          onView={onView}
+          onEdit={onEdit}
+          onDuplicate={onDuplicate}
+          onCancel={onCancel}
+        />
         {r.invoice &&
           (r.invoice.paidAt ? (
             <Badge variant="success">Paid</Badge>

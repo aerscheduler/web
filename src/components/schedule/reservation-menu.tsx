@@ -1,4 +1,4 @@
-import { Ban, Eye, MoreHorizontal, Pencil } from "lucide-react";
+import { Ban, Copy, Eye, MoreHorizontal, Pencil } from "lucide-react";
 import type { Reservation } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { canCancelReservation, canEditReservation } from "./close-out";
+import { canCreateReservationType } from "@/lib/permissions";
 
 /**
  * Row/block overflow menu. Only rendered when the viewer can actually act on the
@@ -24,6 +25,7 @@ export function ReservationMenu({
   r,
   onView,
   onEdit,
+  onDuplicate,
   onCancel,
   className,
 }: {
@@ -31,15 +33,21 @@ export function ReservationMenu({
   onView: (r: Reservation) => void;
   /** Omitted on surfaces that have no edit affordance. */
   onEdit?: (r: Reservation) => void;
+  /** "Book another like this." Omitted on surfaces that can't create. */
+  onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
   className?: string;
 }) {
   const { roles, orgUserId } = useAuth();
   const canCancel = canCancelReservation(r, roles, orgUserId);
   const canEdit = onEdit != null && canEditReservation(r, roles, orgUserId);
+  // Duplicating CREATES, so it is gated on being allowed to create that type —
+  // not on being allowed to edit this particular booking. Someone can be able to
+  // book another dual flight without being able to touch this one.
+  const canDuplicate = onDuplicate != null && canCreateReservationType(roles, r.type);
 
   // Nothing actionable → no menu (details are reachable by clicking the block).
-  if (!canCancel && !canEdit) return null;
+  if (!canCancel && !canEdit && !canDuplicate) return null;
 
   return (
     <DropdownMenu>
@@ -66,6 +74,11 @@ export function ReservationMenu({
         {canEdit && (
           <DropdownMenuItem onSelect={() => onEdit(r)}>
             <Pencil className="size-4" /> Edit reservation
+          </DropdownMenuItem>
+        )}
+        {canDuplicate && (
+          <DropdownMenuItem onSelect={() => onDuplicate(r)}>
+            <Copy className="size-4" /> Duplicate
           </DropdownMenuItem>
         )}
         {canCancel && (

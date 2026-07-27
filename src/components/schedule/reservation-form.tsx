@@ -194,6 +194,7 @@ export function ReservationForm({
   draft,
   onCreated,
   editing,
+  duplicating,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -207,6 +208,16 @@ export function ReservationForm({
    * `canOnlyEditEndTime`.
    */
   editing?: Reservation;
+  /**
+   * "Book another like this." Seeds every field from an existing reservation but
+   * still CREATES — `isEditing` stays false, so submit takes the create branch.
+   *
+   * The one thing deliberately not copied is the time: a duplicate seeded onto its
+   * source's own slot would collide with it every single time, so the picker opens
+   * empty and the dispatcher chooses when. The date defaults to the source's date,
+   * which is usually the right week to be looking at.
+   */
+  duplicating?: Reservation;
 }) {
   const { roles } = useAuth();
   // GET /maintenance/squawks is staff/technician-only — it 403s for instructor,
@@ -301,6 +312,30 @@ export function ReservationForm({
         setGuestEmail(guest?.email ?? "");
         setGuestPhone(guest?.phone ?? "");
         setNotes(editing.notes ?? "");
+      } else if (duplicating) {
+        // Same crew, same aircraft, same kind of flight — new time.
+        const source = new Date(duplicating.start);
+        const p = duplicating.personnel;
+        const guest = p?.guests?.[0];
+        setTitle(duplicating.title ?? "");
+        setType(duplicating.type);
+        setResourceId(duplicating.resource?.id != null ? String(duplicating.resource.id) : "");
+        setDate(
+          Number.isNaN(source.getTime())
+            ? format(draft.date, "yyyy-MM-dd")
+            : format(source, "yyyy-MM-dd")
+        );
+        // Left for the dispatcher to pick — see the `duplicating` prop note.
+        setStartAt(null);
+        setEndAt(null);
+        setInstructorId(p?.instructors?.[0]?.id != null ? String(p.instructors[0].id) : "");
+        setStudentId(p?.students?.[0]?.id != null ? String(p.students[0].id) : "");
+        setRenterId(p?.renters?.[0]?.id != null ? String(p.renters[0].id) : "");
+        setRatingId("");
+        setGuestName(guest?.name ?? "");
+        setGuestEmail(guest?.email ?? "");
+        setGuestPhone(guest?.phone ?? "");
+        setNotes(duplicating.notes ?? "");
       } else {
         const seed = (hhmm?: string): Date | null => {
           if (!hhmm) return null;
@@ -324,7 +359,7 @@ export function ReservationForm({
       }
     }
     wasOpen.current = open;
-  }, [open, draft, initialType, editing]);
+  }, [open, draft, initialType, editing, duplicating]);
 
   const openSquawksByResourceId = React.useMemo(
     () => groupSquawksByResource(squawksQ.data),

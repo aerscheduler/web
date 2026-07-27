@@ -7,11 +7,13 @@ export function AgendaList({
   reservations,
   onView,
   onEdit,
+  onDuplicate,
   onCancel,
 }: {
   reservations: Reservation[];
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
+  onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
 }) {
   const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
@@ -40,7 +42,14 @@ export function AgendaList({
           </div>
           <ul className="space-y-2 px-3">
             {items.map((r) => (
-              <AgendaRow key={r.id} r={r} onView={onView} onEdit={onEdit} onCancel={onCancel} />
+              <AgendaRow
+                key={r.id}
+                r={r}
+                onView={onView}
+                onEdit={onEdit}
+                onDuplicate={onDuplicate}
+                onCancel={onCancel}
+              />
             ))}
           </ul>
         </div>

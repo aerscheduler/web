@@ -78,6 +78,8 @@ function SchedulePage() {
   // Modal state.
   const [formOpen, setFormOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<ReservationDraft>({ date: day });
+  // "Book another like this" — seeds a CREATE from an existing reservation.
+  const [duplicating, setDuplicating] = React.useState<Reservation | null>(null);
 
   const {
     detail,
@@ -189,6 +191,7 @@ function SchedulePage() {
             reservations={reservations}
             onView={openDetail}
             onEdit={startEdit}
+            onDuplicate={setDuplicating}
             onCancel={handleCancel}
             onCreate={onCreate}
           />
@@ -197,6 +200,7 @@ function SchedulePage() {
             reservations={reservations}
             onView={openDetail}
             onEdit={startEdit}
+            onDuplicate={setDuplicating}
             onCancel={handleCancel}
           />
         )}
@@ -210,6 +214,15 @@ function SchedulePage() {
           onOpenChange={(o) => !o && setEditing(null)}
           draft={{ date: new Date(editing.start) }}
           editing={editing}
+        />
+      )}
+
+      {duplicating && (
+        <ReservationForm
+          open
+          onOpenChange={(o) => !o && setDuplicating(null)}
+          draft={{ date: new Date(duplicating.start) }}
+          duplicating={duplicating}
         />
       )}
 

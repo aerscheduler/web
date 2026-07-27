@@ -60,6 +60,7 @@ export function LaneGrid({
   reservations,
   onView,
   onEdit,
+  onDuplicate,
   onCancel,
   onCreate,
 }: {
@@ -68,6 +69,7 @@ export function LaneGrid({
   reservations: Reservation[];
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
+  onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
   /** Omitted for roles that may not create — the lanes then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
@@ -256,7 +258,13 @@ export function LaneGrid({
                           height: TRACK_HEIGHT,
                         }}
                       >
-                        <LaneBlock r={r} onView={onView} onEdit={onEdit} onCancel={onCancel} />
+                        <LaneBlock
+                          r={r}
+                          onView={onView}
+                          onEdit={onEdit}
+                          onDuplicate={onDuplicate}
+                          onCancel={onCancel}
+                        />
                       </div>
                     );
                   })}
@@ -274,11 +282,13 @@ function LaneBlock({
   r,
   onView,
   onEdit,
+  onDuplicate,
   onCancel,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
+  onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
 }) {
   const names = personnelNames(r);
@@ -318,7 +328,13 @@ function LaneBlock({
             className="opacity-0 transition-opacity group-hover:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <ReservationMenu r={r} onView={onView} onEdit={onEdit} onCancel={onCancel} />
+            <ReservationMenu
+              r={r}
+              onView={onView}
+              onEdit={onEdit}
+              onDuplicate={onDuplicate}
+              onCancel={onCancel}
+            />
           </div>
         </div>
       </TooltipTrigger>

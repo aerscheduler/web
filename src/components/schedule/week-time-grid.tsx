@@ -1,5 +1,5 @@
 import { addDays, format, isSameDay, isToday, parseISO } from "date-fns";
-import type { Reservation } from "@/types/api";
+import { resourceLabel, type Reservation } from "@/types/api";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { END_HOUR, START_HOUR } from "./lane-grid";
@@ -185,6 +185,10 @@ export function WeekTimeGrid({
 function WeekBlock({ r, onView }: { r: Reservation; onView: (r: Reservation) => void }) {
   const names = personnelNames(r);
   const timeRange = `${format(parseISO(r.start), "h:mm a")} – ${format(parseISO(r.end), "h:mm a")}`;
+  // The week view has no resource lane to read the aircraft off, and a stored title is
+  // generic ("Dual Flight"), so without this the week is a wall of identical blocks.
+  // resourceLabel covers simulators and rooms too.
+  const aircraft = r.resource ? resourceLabel(r.resource).name : null;
 
   return (
     <Tooltip>
@@ -204,7 +208,7 @@ function WeekBlock({ r, onView }: { r: Reservation; onView: (r: Reservation) => 
           )}
         >
           <span className="truncate text-[11px] font-semibold leading-tight text-foreground">
-            {r.title}
+            {aircraft ? `${aircraft} · ${r.title}` : r.title}
           </span>
           <span className="truncate text-[10px] leading-tight opacity-80 tabular-nums">
             {format(parseISO(r.start), "h:mm a")}
@@ -213,7 +217,7 @@ function WeekBlock({ r, onView }: { r: Reservation; onView: (r: Reservation) => 
       </TooltipTrigger>
       <TooltipContent>
         <div className="text-xs">
-          <div className="font-medium">{r.title}</div>
+          <div className="font-medium">{aircraft ? `${aircraft} · ${r.title}` : r.title}</div>
           <div className="tabular-nums">{timeRange}</div>
           <div className="opacity-80">
             {typeLabel(r.type)}

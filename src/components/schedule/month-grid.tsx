@@ -9,7 +9,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import type { Reservation } from "@/types/api";
+import { resourceLabel, type Reservation } from "@/types/api";
 import { cn } from "@/lib/utils";
 import { BORDER_L_CLASS, CHIP_CLASS } from "./meta";
 import type { ReservationDraft } from "./reservation-form";
@@ -138,7 +138,12 @@ export function MonthGrid({
                     <span className="shrink-0 tabular-nums opacity-80">
                       {format(parseISO(r.start), "h:mm")}
                     </span>
-                    <span className="truncate font-medium text-foreground">{r.title}</span>
+                    <span className="truncate font-medium text-foreground">
+                      {/* Month cells have no resource lane either, and the stored title
+                          is generic — lead with the aircraft so a day's chips are
+                          distinguishable at a glance. */}
+                      {r.resource ? `${resourceLabel(r.resource).name} · ${r.title}` : r.title}
+                    </span>
                   </button>
                 ))}
                 {extra > 0 && (

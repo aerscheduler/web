@@ -23,7 +23,9 @@ import { StatCard } from "@/components/stat-card";
 import { EmptyState } from "@/components/states";
 import { DateRangePicker, lastNDays } from "@/components/billing/date-range-picker";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CancellationsReport } from "@/components/reports/cancellations-report";
+import { RevenueReport } from "@/components/reports/revenue-report";
 import { formatMoney } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/reports")({
@@ -96,6 +98,22 @@ function ReportsPage() {
         actions={<DateRangePicker value={range} onChange={setRange} />}
       />
 
+      {/* Reports is a shell of tabs now, so a new report is a tab rather than more
+          sections stacked on one ever-growing page. Overview is what was already here. */}
+      <Tabs defaultValue="overview" className="mt-4">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="revenue">Revenue</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="revenue" className="mt-4">
+          {/* The server groups revenue four ways (aircraft, instructor, student,
+              instruction type) from one endpoint. Aircraft is the one the school asked
+              for; the others become sibling tabs by passing a different `dimension`. */}
+          <RevenueReport dimension="aircraft" startDate={startISO} endDate={endISO} />
+        </TabsContent>
+
+        <TabsContent value="overview" className="mt-4 space-y-6">
       {/* Activity */}
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -208,6 +226,8 @@ function ReportsPage() {
       </section>
 
       <CancellationsReport startDate={startISO} endDate={endISO} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

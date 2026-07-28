@@ -61,6 +61,8 @@ import type {
   SubscriptionStatus,
   User,
   CancelScope,
+  RevenueDimension,
+  RevenueReport,
   CancellationCategory,
   CancellationReport,
 } from "@/types/api";
@@ -286,6 +288,25 @@ export function useCancellationCategories() {
     queryKey: ["cancellation-categories"],
     queryFn: () => api<CancellationCategory[]>("/reports/cancellations/categories"),
     staleTime: Infinity,
+  });
+}
+
+/**
+ * Revenue grouped by a dimension. One query behind every revenue tab — pass a different
+ * `groupBy` and you have the next report.
+ */
+export function useRevenueReport(
+  groupBy: RevenueDimension,
+  startDate: string | undefined,
+  endDate: string | undefined
+) {
+  return useQuery({
+    queryKey: ["revenue-report", groupBy, startDate, endDate],
+    enabled: !!startDate && !!endDate,
+    queryFn: () =>
+      api<RevenueReport>(
+        `/reports/revenue?groupBy=${groupBy}&startDate=${encodeURIComponent(startDate!)}&endDate=${encodeURIComponent(endDate!)}`
+      ),
   });
 }
 

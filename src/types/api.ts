@@ -966,3 +966,31 @@ export function cancelledForLabel(r: CancelledReservation): string {
 
   return names.length ? names.join(", ") : "—";
 }
+
+/* ── Revenue reports ─────────────────────────────────────────────────────────
+ * One shape behind every revenue tab. Adding "by instructor" or "by student" to the
+ * UI is a new tab reading the same endpoint with a different `groupBy` — the server
+ * already returns all four.
+ */
+
+export type RevenueDimension = "aircraft" | "instructor" | "student" | "instructionType";
+
+export type RevenueRow = {
+  key: string;
+  label: string;
+  sublabel: string | null;
+  invoices: number;
+  /** Cents raised in the window. Voided invoices are excluded server-side. */
+  billed: number;
+  /** Of that, cents actually paid. */
+  collected: number;
+  /** Deci-hours, matching the invoice column — divide by 10 to display. */
+  resourceHours: number;
+};
+
+export type RevenueReport = {
+  groupBy: RevenueDimension;
+  rows: RevenueRow[];
+  months: Array<{ month: string; total: number }>;
+  totals: { invoices: number; billed: number; collected: number; resourceHours: number };
+};

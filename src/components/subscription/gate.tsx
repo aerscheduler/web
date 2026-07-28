@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
 import { formatMonthly, PRICE_PER_AIRCRAFT_CENTS, type SubStatus } from "@/lib/subscription";
 import { AppShell } from "@/components/app-shell";
+import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
 import { LogoMark } from "@/components/logo";
 import { SubscribeButton, useSubStatus } from "@/components/subscription/plan";
 
@@ -43,7 +44,15 @@ export function SubscriptionGate() {
   }
 
   if (status.blocked) {
-    return isAdmin(roles) ? <Paywall status={status} /> : <OrgPausedNotice orgName={organization.name} />;
+    // These two replace the app shell entirely, so the impersonation banner has
+    // to come along — a lapsed org is exactly the kind you get asked to look at,
+    // and without it a developer lands here with no way back to their own account.
+    return (
+      <>
+        <ImpersonationBanner />
+        {isAdmin(roles) ? <Paywall status={status} /> : <OrgPausedNotice orgName={organization.name} />}
+      </>
+    );
   }
 
   return (

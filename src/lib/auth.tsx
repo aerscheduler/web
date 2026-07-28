@@ -9,6 +9,13 @@ import {
 import { apiRaw, getToken, setToken } from "./api";
 import { signInWithGoogle } from "./google";
 import { signInWithApple } from "./apple";
+import {
+  clearDevStash,
+  decodeImpersonatedBy,
+  isDeveloperEmail,
+  readDevStash,
+  writeDevStash,
+} from "./developer";
 import { rolesOf, type Organization, type OrganizationUser, type Role, type User } from "@/types/api";
 
 interface AuthEnvelope {
@@ -64,6 +71,12 @@ export function isStaffSync(): boolean {
   return rolesFromSession().some((r) => r === "owner" || r === "admin" || r === "dispatcher");
 }
 
+/** Synchronous developer check from the stored session — for the /developer route
+ *  guard. Cosmetic: the server enforces the same allowlist on every request. */
+export function isDeveloperSync(): boolean {
+  return isDeveloperEmail(loadSession().user?.email);
+}
+
 /** True if the stored session has an active organization. */
 export function hasActiveOrg(): boolean {
   return loadSession().organization != null;
@@ -76,12 +89,22 @@ export function isEmailVerifiedSync(): boolean {
   return Boolean(loadSession().user?.emailVerifiedAt);
 }
 
+/** True when the current token was minted by `POST /developer/loginAs`. Read from
+ *  the token itself so it survives a refresh. */
+export function isImpersonatingSync(): boolean {
+  return decodeImpersonatedBy(getToken()) !== null;
+}
+
 /** Whether the email-verification gate should apply. Bypassed on local dev
  *  (`npm run dev`) so onboarding is testable without a real verification link —
  *  the dev server talks to the prod API, which never auto-verifies. Enforced in
- *  every built (preview/prod) bundle. */
+ *  every built (preview/prod) bundle.
+ *
+ *  Also bypassed while impersonating: /verify-email is a dead end for a developer
+ *  (you cannot click a link sent to someone else's inbox), and troubleshooting an
+ *  unverified account is exactly when you need to get in and look. */
 export function needsEmailVerification(): boolean {
-  return !import.meta.env.DEV && !isEmailVerifiedSync();
+  return !import.meta.env.DEV && !isEmailVerifiedSync() && !isImpersonatingSync();
 }
 
 /** Where to send a user right after authenticating, based on the fresh session. */
@@ -125,6 +148,18 @@ interface AuthContextValue extends SessionState {
   /** Re-send the account verification email to the signed-in user. */
   resendVerificationEmail: () => Promise<void>;
   rehydrate: () => Promise<void>;
+  /** True if this user's email is on the developer allowlist (UI gating only —
+   *  the server independently enforces it on every /developer request). */
+  isDeveloper: boolean;
+  /** True if the active session came from "log in as" rather than a real login. */
+  isImpersonating: boolean;
+  /** While impersonating: the developer account to return to. */
+  impersonatorEmail: string | null;
+  /** Developer only: swap this session for `email`'s. Parks the developer session
+   *  so `stopImpersonating()` can put it back. */
+  loginAs: (email: string) => Promise<void>;
+  /** Restore the parked developer session. Returns false if there wasn't one. */
+  stopImpersonating: () => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -248,7 +283,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setToken(null);
     localStorage.removeItem(SESSION_KEY);
+    // Signing out means signing out — never leave a parked developer token behind
+    // in storage for the next person at this browser.
+    clearDevStash();
     setSession({ user: null, organization: null, organizations: [] });
+  }, []);
+
+  /**
+   * Sign in as another user (developer only — the server enforces it).
+   *
+   * The developer's own token is parked first so the swap is reversible. Note the
+   * resulting session is a *real* session for that user: every request after this
+   * carries their permissions, and anything done here is done as them.
+   */
+  const loginAs = useCallback(
+    async (email: string) => {
+      const priorToken = getToken();
+      const priorSession = localStorage.getItem(SESSION_KEY);
+      const priorEmail = session.user?.email ?? "";
+
+      // Request first: a failed lookup must leave the developer exactly where
+      // they were, with nothing parked.
+      const env = await apiRaw<AuthEnvelope>("/developer/loginAs", {
+        method: "POST",
+        body: { email: email.trim().toLowerCase() },
+      });
+
+      // Park only the FIRST hop. If a session is somehow already impersonated,
+      // "exit" must still land on the developer, not on the previous target.
+      if (priorToken && priorSession && !readDevStash()) {
+        writeDevStash({ token: priorToken, session: priorSession, developerEmail: priorEmail });
+      }
+
+      apply(env);
+    },
+    [apply, session.user?.email]
+  );
+
+  const stopImpersonating = useCallback(() => {
+    const stash = readDevStash();
+    if (!stash) return false;
+
+    let restored: SessionState;
+    try {
+      restored = JSON.parse(stash.session) as SessionState;
+    } catch {
+      // The parked session is unreadable — drop it rather than restore garbage.
+      // The caller falls back to sending the developer to /login.
+      clearDevStash();
+      return false;
+    }
+
+    setToken(stash.token);
+    localStorage.setItem(SESSION_KEY, stash.session);
+    clearDevStash();
+    setSession(restored);
+    return true;
   }, []);
 
   const derived = useMemo(() => {
@@ -258,6 +348,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const roles = membership ? rolesOf(membership) : [];
     const isStaff = roles.some((r) => r === "owner" || r === "admin" || r === "dispatcher");
     const isAdmin = roles.some((r) => r === "owner" || r === "admin");
+    // Read from the token, not from state, so a refresh mid-impersonation still
+    // shows the banner. `session` is in the dep list because every path that
+    // swaps the token also sets session.
+    const isImpersonating = decodeImpersonatedBy(getToken()) !== null;
     return {
       membership,
       roles,
@@ -265,6 +359,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userId: session.user?.id ?? null,
       isStaff,
       isAdmin,
+      isDeveloper: isDeveloperEmail(session.user?.email),
+      isImpersonating,
+      impersonatorEmail: isImpersonating ? (readDevStash()?.developerEmail ?? null) : null,
     };
   }, [session]);
 
@@ -283,6 +380,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         joinByCode,
         resendVerificationEmail,
         rehydrate,
+        loginAs,
+        stopImpersonating,
       }}
     >
       {children}

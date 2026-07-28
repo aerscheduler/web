@@ -23,6 +23,7 @@ import { Route as AuthedBillingRouteImport } from './routes/_authed/billing'
 import { Route as AuthedBillingRegisterRedirectRouteImport } from './routes/_authed/billing-register-redirect'
 import { Route as AuthedComplianceRouteImport } from './routes/_authed/compliance'
 import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
+import { Route as AuthedDeveloperRouteImport } from './routes/_authed/developer'
 import { Route as AuthedFacilitiesRouteImport } from './routes/_authed/facilities'
 import { Route as AuthedMaintenanceRouteImport } from './routes/_authed/maintenance'
 import { Route as AuthedNotificationsRouteImport } from './routes/_authed/notifications'
@@ -109,6 +110,11 @@ const AuthedComplianceRoute = AuthedComplianceRouteImport.update({
 const AuthedDashboardRoute = AuthedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedDeveloperRoute = AuthedDeveloperRouteImport.update({
+  id: '/developer',
+  path: '/developer',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedFacilitiesRoute = AuthedFacilitiesRouteImport.update({
@@ -211,6 +217,7 @@ export interface FileRoutesByFullPath {
   '/billing-register-redirect': typeof AuthedBillingRegisterRedirectRoute
   '/compliance': typeof AuthedComplianceRoute
   '/dashboard': typeof AuthedDashboardRoute
+  '/developer': typeof AuthedDeveloperRoute
   '/facilities': typeof AuthedFacilitiesRoute
   '/maintenance': typeof AuthedMaintenanceRoute
   '/notifications': typeof AuthedNotificationsRoute
@@ -243,6 +250,7 @@ export interface FileRoutesByTo {
   '/billing-register-redirect': typeof AuthedBillingRegisterRedirectRoute
   '/compliance': typeof AuthedComplianceRoute
   '/dashboard': typeof AuthedDashboardRoute
+  '/developer': typeof AuthedDeveloperRoute
   '/facilities': typeof AuthedFacilitiesRoute
   '/maintenance': typeof AuthedMaintenanceRoute
   '/notifications': typeof AuthedNotificationsRoute
@@ -277,6 +285,7 @@ export interface FileRoutesById {
   '/_authed/billing-register-redirect': typeof AuthedBillingRegisterRedirectRoute
   '/_authed/compliance': typeof AuthedComplianceRoute
   '/_authed/dashboard': typeof AuthedDashboardRoute
+  '/_authed/developer': typeof AuthedDeveloperRoute
   '/_authed/facilities': typeof AuthedFacilitiesRoute
   '/_authed/maintenance': typeof AuthedMaintenanceRoute
   '/_authed/notifications': typeof AuthedNotificationsRoute
@@ -311,6 +320,7 @@ export interface FileRouteTypes {
     | '/billing-register-redirect'
     | '/compliance'
     | '/dashboard'
+    | '/developer'
     | '/facilities'
     | '/maintenance'
     | '/notifications'
@@ -343,6 +353,7 @@ export interface FileRouteTypes {
     | '/billing-register-redirect'
     | '/compliance'
     | '/dashboard'
+    | '/developer'
     | '/facilities'
     | '/maintenance'
     | '/notifications'
@@ -376,6 +387,7 @@ export interface FileRouteTypes {
     | '/_authed/billing-register-redirect'
     | '/_authed/compliance'
     | '/_authed/dashboard'
+    | '/_authed/developer'
     | '/_authed/facilities'
     | '/_authed/maintenance'
     | '/_authed/notifications'
@@ -508,6 +520,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDashboardRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/developer': {
+      id: '/_authed/developer'
+      path: '/developer'
+      fullPath: '/developer'
+      preLoaderRoute: typeof AuthedDeveloperRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/facilities': {
       id: '/_authed/facilities'
       path: '/facilities'
@@ -636,6 +655,7 @@ interface AuthedRouteChildren {
   AuthedBillingRegisterRedirectRoute: typeof AuthedBillingRegisterRedirectRoute
   AuthedComplianceRoute: typeof AuthedComplianceRoute
   AuthedDashboardRoute: typeof AuthedDashboardRoute
+  AuthedDeveloperRoute: typeof AuthedDeveloperRoute
   AuthedFacilitiesRoute: typeof AuthedFacilitiesRoute
   AuthedMaintenanceRoute: typeof AuthedMaintenanceRoute
   AuthedNotificationsRoute: typeof AuthedNotificationsRoute
@@ -660,6 +680,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedBillingRegisterRedirectRoute: AuthedBillingRegisterRedirectRoute,
   AuthedComplianceRoute: AuthedComplianceRoute,
   AuthedDashboardRoute: AuthedDashboardRoute,
+  AuthedDeveloperRoute: AuthedDeveloperRoute,
   AuthedFacilitiesRoute: AuthedFacilitiesRoute,
   AuthedMaintenanceRoute: AuthedMaintenanceRoute,
   AuthedNotificationsRoute: AuthedNotificationsRoute,

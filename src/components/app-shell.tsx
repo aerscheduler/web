@@ -21,6 +21,7 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  TerminalSquare,
   User as UserIcon,
   Users,
   Wallet,
@@ -41,6 +42,7 @@ import { CommandMenuProvider, useCommandMenu } from "@/components/command-menu";
 import { ConfirmProvider } from "@/components/confirm-dialog";
 import { QuickCreateProvider, useQuickCreate } from "@/components/quick-create";
 import { LogoMark } from "@/components/logo";
+import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
 import { initials } from "@/lib/utils";
 import {
   Sidebar,
@@ -139,6 +141,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             <AppSidebar />
             <SidebarEdgeToggle />
             <SidebarInset className="min-h-0">
+              {/* Above the topbar and inside the content column — the desktop rail
+                  is `fixed`, so a banner spanning the full window would sit under
+                  it and lose its first words. */}
+              <ImpersonationBanner />
               <Topbar />
               {/* main is the scroll container; the content wrapper adapts per page:
                   • Normal pages → `min-h-full`: fills the viewport when short and
@@ -318,7 +324,7 @@ function OrgSwitcher() {
 }
 
 function UserMenu() {
-  const { user, logout, membership } = useAuth();
+  const { user, logout, membership, isDeveloper } = useAuth();
   const navigate = useNavigate();
   const avatarSrc = membership?.profileImage ?? undefined;
   const qc = useQueryClient();
@@ -367,6 +373,14 @@ function UserMenu() {
                 Account &amp; settings
               </Link>
             </DropdownMenuItem>
+            {isDeveloper && (
+              <DropdownMenuItem asChild>
+                <Link to="/developer">
+                  <TerminalSquare />
+                  Developer
+                </Link>
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"

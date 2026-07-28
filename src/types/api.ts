@@ -994,3 +994,12 @@ export type RevenueReport = {
   months: Array<{ month: string; total: number }>;
   totals: { invoices: number; billed: number; collected: number; resourceHours: number };
 };
+
+/**
+ * What PATCH /invoices/:id accepts.
+ *
+ * Intent, not timestamps — the server has to void/pay through Stripe as well as the row,
+ * and records which org user did it. A body of `{ paidAt }` is silently ignored AND
+ * answered with 200, so this type exists to make that mistake unrepresentable.
+ */
+export type InvoiceUpdate = { markPaid: true } | { markVoided: true };

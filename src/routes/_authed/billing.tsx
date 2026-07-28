@@ -348,9 +348,17 @@ function BillingPage() {
 
   function markPaid(inv: Invoice) {
     update.mutate(
-      { id: inv.id, patch: { paidAt: new Date().toISOString() } },
+      //INTENT, not a timestamp — the server pays it through Stripe too and records who
+      //did it. `{ paidAt }` matched nothing and still returned 200, so the invoice
+      //silently stayed outstanding with no error shown.
+      { id: inv.id, patch: { markPaid: true } },
       {
-        onSuccess: () => toast.success(`Invoice #${inv.id} marked paid`),
+        //A warning means our row changed but Stripe didn't. Saying "marked paid" and
+        //nothing else would leave the two out of step silently.
+        onSuccess: (res) =>
+          res.warning
+            ? toast.warning(res.warning, { duration: 8000 })
+            : toast.success(`Invoice #${inv.id} marked paid`),
         onError: (err) =>
           toast.error(err instanceof Error ? err.message : "Couldn't update invoice"),
       }
@@ -366,9 +374,12 @@ function BillingPage() {
     });
     if (!ok) return;
     update.mutate(
-      { id: inv.id, patch: { voidedAt: new Date().toISOString() } },
+      { id: inv.id, patch: { markVoided: true } },
       {
-        onSuccess: () => toast.success(`Invoice #${inv.id} voided`),
+        onSuccess: (res) =>
+          res.warning
+            ? toast.warning(res.warning, { duration: 8000 })
+            : toast.success(`Invoice #${inv.id} voided`),
         onError: (err) =>
           toast.error(err instanceof Error ? err.message : "Couldn't void invoice"),
       }

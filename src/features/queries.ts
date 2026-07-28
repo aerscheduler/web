@@ -1,5 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, raw } from "@/lib/api";
 import {
   coordinateKey,
   fetchNearestObservation,
@@ -61,6 +61,7 @@ import type {
   SubscriptionStatus,
   User,
   CancelScope,
+  InvoiceUpdate,
   RevenueDimension,
   RevenueReport,
   CancellationCategory,
@@ -500,12 +501,46 @@ export function useCreateInvoice() {
 }
 
 /** PATCH an invoice — mark paid (`{ paidAt }`), void (`{ voidedAt }`), edit memo. */
+/**
+ * One invoice, WITH its line items.
+ *
+ * The list endpoint doesn't select `items` — only the single-invoice endpoint does — so
+ * a detail view that reads the row out of the list array shows an invoice with no lines
+ * on it. Always hydrate the drawer from here.
+ */
+export function useInvoice(id: number | null) {
+  return useQuery({
+    queryKey: ["invoice", id],
+    enabled: id != null,
+    queryFn: () => api<Invoice>(`/invoices/${id}`),
+  });
+}
+
+/**
+ * Mark an invoice paid or voided.
+ *
+ * The server takes INTENT (`markPaid` / `markVoided`), not timestamps: it has to reach
+ * Stripe as well as the row, and it records who did it. Sending `{ paidAt }` — which this
+ * used to do — matched nothing, changed nothing, and still returned 200, so the UI showed
+ * no error and the invoice silently stayed outstanding.
+ */
 export function useUpdateInvoice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: Record<string, unknown> }) =>
-      api<Invoice>(`/invoices/${id}`, { method: "PATCH", body: patch }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["invoices"] }),
+    //`raw` rather than `api`: a partial success (our row changed, Stripe didn't) comes
+    //back as a `warning` alongside `data`, and `api` unwraps to `data` and drops it.
+    mutationFn: async ({ id, patch }: { id: number; patch: InvoiceUpdate }) => {
+      const { body } = await raw(`/invoices/${id}`, { method: "PATCH", body: patch });
+      const envelope = (body ?? {}) as { data?: Invoice; warning?: string };
+      return { invoice: envelope.data, warning: envelope.warning };
+    },
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+      void qc.invalidateQueries({ queryKey: ["invoice", vars.id] });
+      //Reports and the dashboard both read invoice money.
+      void qc.invalidateQueries({ queryKey: ["revenue-report"] });
+      void qc.invalidateQueries({ queryKey: ["orgReport"] });
+    },
   });
 }
 

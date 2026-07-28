@@ -94,6 +94,8 @@ export function CreateInvoiceDialog({
   }, 0);
 
   const validRows = rows.filter((r) => r.name.trim() && Number(r.qty) > 0);
+  //Gates "Add line item": the row you'd be pushing down has to say what it is first.
+  const lastRowIsDescribed = (rows[rows.length - 1]?.name ?? "").trim().length > 0;
   // Per-field validity, derived every render so inline messages clear as you fix them.
   const customerError = !customerId;
   const itemsError = validRows.length === 0;
@@ -171,61 +173,103 @@ export function CreateInvoiceDialog({
           </div>
 
           <div className="space-y-2">
+            {/* On a phone all four controls on one line squeezed the description down to
+                a few characters — the field you actually type the most into. Below `sm`
+                the description gets its own full-width line with qty/price/remove
+                beneath it, and each item sits in its own bordered card so two items
+                don't read as one run-on row. From `sm` up it stays the compact row. */}
             {rows.map((r, i) => (
-              <div key={r.key} className="flex items-start gap-2">
+              <div
+                key={r.key}
+                className="rounded-lg border border-border p-2 sm:flex sm:items-start sm:gap-2 sm:rounded-none sm:border-0 sm:p-0"
+              >
+                <div className="mb-2 flex items-center justify-between gap-2 sm:hidden">
+                  <span className="text-xs font-medium text-muted-foreground">
+                    Item {i + 1}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remove line item"
+                    disabled={rows.length === 1}
+                    onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
+                    className="size-7 text-muted-foreground"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </div>
+
                 <Input
                   id={`invoice-item-${i}`}
                   aria-label="Item description"
                   placeholder="Description"
                   value={r.name}
                   onChange={(e) => updateRow(r.key, { name: e.target.value })}
-                  className="flex-1"
+                  className="w-full sm:flex-1"
                   aria-invalid={showErrors && itemsError}
                 />
-                <Input
-                  aria-label="Quantity"
-                  inputMode="decimal"
-                  placeholder="Qty"
-                  value={r.qty}
-                  onChange={(e) =>
-                    updateRow(r.key, { qty: e.target.value.replace(/[^0-9.]/g, "") })
-                  }
-                  className="w-16 tnum"
-                />
-                <div className="w-28">
-                  <MoneyInput
-                    cents={r.unitPrice}
-                    onCentsChange={(cents) => updateRow(r.key, { unitPrice: cents })}
+
+                <div className="mt-2 flex items-start gap-2 sm:mt-0 sm:contents">
+                  <Input
+                    aria-label="Quantity"
+                    inputMode="decimal"
+                    placeholder="Qty"
+                    value={r.qty}
+                    onChange={(e) =>
+                      updateRow(r.key, { qty: e.target.value.replace(/[^0-9.]/g, "") })
+                    }
+                    className="w-16 tnum"
                   />
+                  <div className="flex-1 sm:w-28 sm:flex-none">
+                    <MoneyInput
+                      cents={r.unitPrice}
+                      onCentsChange={(cents) => updateRow(r.key, { unitPrice: cents })}
+                    />
+                  </div>
+                  {/* The remove button lives in the mobile header above; from sm up it
+                      belongs at the end of the row. */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Remove line item"
+                        disabled={rows.length === 1}
+                        onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
+                        className="hidden text-muted-foreground sm:inline-flex"
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Remove line item</TooltipContent>
+                  </Tooltip>
                 </div>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Remove line item"
-                      disabled={rows.length === 1}
-                      onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
-                      className="text-muted-foreground"
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Remove line item</TooltipContent>
-                </Tooltip>
               </div>
             ))}
           </div>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setRows((rs) => [...rs, blankRow()])}
-          >
-            <Plus className="size-4" /> Add line item
-          </Button>
+          {/* Can't stack up blank rows: an unnamed line is an invoice line the customer
+              can't read, and three empty rows above the one you're typing in is just
+              noise. Disabled rather than hidden, with the reason said out loud — a
+              control that vanishes is harder to understand than one that explains itself. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!lastRowIsDescribed}
+              onClick={() => setRows((rs) => [...rs, blankRow()])}
+            >
+              <Plus className="size-4" /> Add line item
+            </Button>
+            {!lastRowIsDescribed && (
+              <span className="text-xs text-muted-foreground">
+                Describe item {rows.length} first.
+              </span>
+            )}
+          </div>
 
           {showErrors && itemsError && (
             <p className="text-xs text-destructive">

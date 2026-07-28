@@ -1,6 +1,7 @@
 import { format, parseISO } from "date-fns";
 import { Check, Ban, FileText, Plane, User } from "lucide-react";
 import type { Invoice } from "@/types/api";
+import { useInvoice } from "@/features/queries";
 import { resourceLabel } from "@/types/api";
 import {
   Sheet,
@@ -51,8 +52,15 @@ export function InvoiceDetailSheet({
 }) {
   const inv = invoice;
   const customerName = inv?.customer?.user?.name ?? inv?.customer?.user?.email ?? "No customer";
-  const items = inv?.items ?? [];
-  const subtotal = inv?.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
+  //The LIST endpoint doesn't select line items — only GET /invoices/:id does — so the
+  //row handed in from the table always has `items` undefined and the drawer rendered
+  //"No line items on this invoice." for every invoice. Hydrate from the single-invoice
+  //endpoint and fall back to the list row while it loads, so the header, totals and
+  //status never flash empty.
+  const full = useInvoice(open ? (inv?.id ?? null) : null);
+  const hydrated = full.data?.id === inv?.id ? { ...inv, ...full.data } : inv;
+  const items = hydrated?.items ?? [];
+  const subtotal = hydrated?.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
 
   const events: Event[] = [];
   if (inv) {
@@ -101,7 +109,9 @@ export function InvoiceDetailSheet({
                     {items.length === 0 ? (
                       <TR className="hover:bg-transparent">
                         <TD colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
-                          No line items on this invoice.
+                          {full.isLoading
+                            ? "Loading line items…"
+                            : "No line items on this invoice."}
                         </TD>
                       </TR>
                     ) : (

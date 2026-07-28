@@ -36,7 +36,7 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
   onUnauthorized = fn;
 }
 
-async function raw(path: string, opts: ApiOptions): Promise<{ status: number; body: unknown }> {
+export async function raw(path: string, opts: ApiOptions): Promise<{ status: number; body: unknown }> {
   const headers = new Headers({ Accept: "application/json" });
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);

@@ -1,5 +1,7 @@
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
 import { resourceLabel, type Reservation, type Resource } from "@/types/api";
+import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { BLOCK_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
@@ -18,16 +20,21 @@ const TRACK_GAP = 4; // px
 const LANE_PAD_Y = 8; // px
 const TOTAL_MIN = HOURS * 60;
 
-/** Minutes past START_HOUR (unclamped). */
-function minutesInWindow(iso: string) {
-  const d = parseISO(iso);
-  return (d.getHours() - START_HOUR) * 60 + d.getMinutes();
+/**
+ * Minutes past START_HOUR, measured on the AIRPORT's clock (unclamped).
+ *
+ * This used to read `d.getHours()` — the viewer's clock — which is what made the whole board
+ * slide an hour when a dispatcher opened it from another zone. The instant is unchanged; only
+ * the clock we measure it against is now the right one.
+ */
+function minutesInWindow(iso: string, zone: string) {
+  return minutesFromMidnightInZone(iso, zone) - START_HOUR * 60;
 }
 
 /** Horizontal geometry for one block: left + width in px along the hour ruler. */
-function laneBlockGeometry(r: Reservation): { leftPx: number; widthPx: number } {
-  const s = minutesInWindow(r.start);
-  const e = minutesInWindow(r.end);
+function laneBlockGeometry(r: Reservation, zone: string): { leftPx: number; widthPx: number } {
+  const s = minutesInWindow(r.start, zone);
+  const e = minutesInWindow(r.end, zone);
   const cs = Math.max(0, Math.min(TOTAL_MIN, s));
   const ce = Math.max(0, Math.min(TOTAL_MIN, e));
   if (ce <= 0 || cs >= TOTAL_MIN || ce <= cs) {
@@ -74,6 +81,7 @@ export function LaneGrid({
   /** Omitted for roles that may not create — the lanes then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
 }) {
+  const tz = useTimeZone();
   const canCreate = onCreate != null;
   const byResource = new Map<number, Reservation[]>();
   const unassigned: Reservation[] = [];
@@ -116,8 +124,11 @@ export function LaneGrid({
   const leftoverLabel = offLane.length > 0 ? "Other" : "Unassigned";
 
   const laneWidth = HOURS * HOUR_WIDTH;
-  const isToday = new Date().toDateString() === day.toDateString();
-  const nowMin = isToday ? minutesInWindow(new Date().toISOString()) : -1;
+  //"Is the selected day today" is asked at the AIRPORT, not here. A dispatcher opening the
+  //board from Tokyo is looking at the school's day, so the now-line belongs on the school's
+  //today. `day` is a picked calendar date, so its own local components ARE the date.
+  const isToday = dateKeyInZone(new Date(), tz.zone) === format(day, "yyyy-MM-dd");
+  const nowMin = isToday ? minutesInWindow(new Date().toISOString(), tz.zone) : -1;
   const showNow = nowMin >= 0 && nowMin <= TOTAL_MIN;
 
   return (
@@ -246,7 +257,7 @@ export function LaneGrid({
                   }
                 >
                   {placed.map(({ r, track }) => {
-                    const { leftPx, widthPx } = laneBlockGeometry(r);
+                    const { leftPx, widthPx } = laneBlockGeometry(r, tz.zone);
                     return (
                       <div
                         key={r.id}
@@ -291,8 +302,10 @@ function LaneBlock({
   onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
 }) {
+  //Per-reservation so a school with fields in two zones labels each block correctly.
+  const tz = useTimeZone(r.location);
   const names = personnelNames(r);
-  const timeRange = `${format(parseISO(r.start), "h:mm a")} – ${format(parseISO(r.end), "h:mm a")}`;
+  const timeRange = tz.range(r.start, r.end);
 
   return (
     <Tooltip>

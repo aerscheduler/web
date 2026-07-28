@@ -51,6 +51,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { dateKeyInZone, zonedWallClockToUtc } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
 import { DOT_CLASS, typeLabel } from "./meta";
 import { SmartTimeRange } from "./smart-time-range";
 import {
@@ -286,6 +288,7 @@ export function ReservationForm({
   self?: { orgUserId: number; userId: number };
 }) {
   const { roles } = useAuth();
+  const tz = useTimeZone();
   const navigate = useNavigate();
 
   const isSelf = variant === "self";
@@ -486,7 +489,9 @@ export function ReservationForm({
         setTitle(editing.title ?? "");
         setType(editing.type);
         setResourceId(editing.resource?.id != null ? String(editing.resource.id) : "");
-        setDate(Number.isNaN(start.getTime()) ? "" : format(start, "yyyy-MM-dd"));
+        //The day this booking is on is the airport's day, not the viewer's — a 9pm Mountain
+        //flight is already tomorrow in UTC.
+        setDate(Number.isNaN(start.getTime()) ? "" : dateKeyInZone(start, tz.zone));
         setStartAt(Number.isNaN(start.getTime()) ? null : start);
         setEndAt(Number.isNaN(end.getTime()) ? null : end);
         setInstructorId(p?.instructors?.[0]?.id != null ? String(p.instructors[0].id) : "");
@@ -508,7 +513,7 @@ export function ReservationForm({
         setDate(
           Number.isNaN(source.getTime())
             ? format(draft.date, "yyyy-MM-dd")
-            : format(source, "yyyy-MM-dd")
+            : dateKeyInZone(source, tz.zone)
         );
         // Left for the dispatcher to pick — see the `duplicating` prop note.
         setStartAt(null);
@@ -522,10 +527,17 @@ export function ReservationForm({
         setGuestPhone(guest?.phone ?? "");
         setNotes(duplicating.notes ?? "");
       } else {
+        //A draft's "HH:mm" comes from clicking the grid, which is ruled in AIRPORT time —
+        //so it has to be interpreted there too. `new Date("2026-07-28T09:00")` parses in the
+        //browser's zone, which booked the flight at the wrong instant for any dispatcher
+        //working from somewhere other than the field. Nothing surfaced the mistake: the
+        //request succeeded and the block drew where they clicked.
         const seed = (hhmm?: string): Date | null => {
           if (!hhmm) return null;
-          const d = new Date(`${format(draft.date, "yyyy-MM-dd")}T${hhmm}:00`);
-          return Number.isNaN(d.getTime()) ? null : d;
+          const [h, m] = hhmm.split(":").map(Number);
+          if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+          const [yy, mm, dd] = format(draft.date, "yyyy-MM-dd").split("-").map(Number);
+          return zonedWallClockToUtc(yy, mm, dd, h, m, tz.zone);
         };
         setTitle("");
         setType(initialType);

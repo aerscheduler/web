@@ -1,15 +1,15 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
-  endOfDay,
   endOfMonth,
   endOfWeek,
-  startOfDay,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
 import { CalendarClock, Plus } from "lucide-react";
 import { useReservations, useResources } from "@/features/queries";
+import { zonedStartOfDay, zonedEndOfDay } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
 import { resourceLabel, type Reservation, type Resource, type Role } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { canSeeRoomLanes, canSeeSimulatorLanes, isStaff } from "@/lib/permissions";
@@ -47,19 +47,32 @@ function SchedulePage() {
   // (owner/admin/dispatcher) get the create-booking entry points. Mirrors the
   // server's guard on reservation creation.
   const staff = isStaff(roles);
+  const tz = useTimeZone();
   const [day, setDay] = React.useState<Date>(() => new Date());
   const [view, setView] = React.useState<ScheduleView>("day");
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
-  const [startISO, endISO] =
+  //The window we FETCH has to be the same calendar range we RENDER, and rendering is
+  //pinned to the airport. Computing the bounds locally while positioning by airport time
+  //puts a booking on the board that doesn't belong to that day at all: a 6am-UTC flight is
+  //still the previous evening in Hawaii, and a locally-bounded fetch hands it to a grid
+  //that then draws it under today.
+  //
+  //`day` is a picked calendar date, so its own local components are the date; the bounds
+  //are then built as midnight-to-midnight IN THE FIELD'S ZONE. A day is padded by one on
+  //each side and re-clipped by the grids, so a booking that straddles midnight anywhere in
+  //the range is still fetched.
+  const rangeDays =
     view === "month"
-      ? [
-          startOfWeek(startOfMonth(day)).toISOString(),
-          endOfWeek(endOfMonth(day)).toISOString(),
-        ]
+      ? [startOfWeek(startOfMonth(day)), endOfWeek(endOfMonth(day))]
       : view === "week"
-        ? [startOfWeek(day).toISOString(), endOfWeek(day).toISOString()]
-        : [startOfDay(day).toISOString(), endOfDay(day).toISOString()];
+        ? [startOfWeek(day), endOfWeek(day)]
+        : [day, day];
+
+  const [startISO, endISO] = [
+    zonedStartOfDay(rangeDays[0], tz.zone).toISOString(),
+    zonedEndOfDay(rangeDays[1], tz.zone).toISOString(),
+  ];
 
   const q = useReservations(startISO, endISO);
   const resourcesQ = useResources();

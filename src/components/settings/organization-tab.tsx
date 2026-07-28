@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Field, PreferenceToggle } from "@/components/settings/parts";
+import { OrganizationTimeZoneCard } from "@/components/settings/time-zone-card";
 
 export function OrganizationTab() {
   const { organization, rehydrate } = useAuth();
@@ -63,6 +64,8 @@ export function OrganizationTab() {
       <div className="space-y-5">
         <LogoCard organization={organization} />
         <IdentityCard organization={organization} />
+
+        <OrganizationTimeZoneCard />
 
         <BookingPreferencesCard organization={organization} />
       </div>

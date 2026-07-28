@@ -1,8 +1,21 @@
-import { format, parseISO } from "date-fns";
+import { wallClockInZone } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
 import type { Reservation } from "@/types/api";
 import { AgendaRow } from "./agenda-row";
 
 /** Mobile / narrow layout: a vertical agenda grouped by hour. */
+/**
+ * "9 AM" for the hour a booking falls in, on the airport's clock.
+ *
+ * Grouping and the heading have to be derived from the same clock, or a block files itself
+ * under an hour its own label contradicts.
+ */
+function hourBucketLabel(instant: string, zone: string): string {
+  const { hour } = wallClockInZone(instant, zone);
+  const display = hour % 12 === 0 ? 12 : hour % 12;
+  return `${display} ${hour < 12 ? "AM" : "PM"}`;
+}
+
 export function AgendaList({
   reservations,
   onView,
@@ -16,10 +29,12 @@ export function AgendaList({
   onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
 }) {
+  const tz = useTimeZone();
   const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
   const groups = new Map<string, Reservation[]>();
   for (const r of sorted) {
-    const key = format(parseISO(r.start), "h a");
+    //Hour buckets are the airport's hours; the heading and the block have to agree.
+    const key = hourBucketLabel(r.start, tz.zone);
     const bucket = groups.get(key);
     if (bucket) bucket.push(r);
     else groups.set(key, [r]);

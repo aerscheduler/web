@@ -48,6 +48,7 @@ import type {
   SetupIntentResponse,
   MaintenanceReminder,
   Organization,
+  TimeZonePreferences,
   OrganizationBillingSettings,
   OrganizationRating,
   OrganizationUser,
@@ -1292,5 +1293,52 @@ export function useSunTimes(coordinates: Coordinates | null, day: string | null,
     gcTime: Infinity,
     retry: false,
     refetchOnWindowFocus: false,
+  });
+}
+
+/**
+ * The signed-in member's time-zone settings.
+ *
+ * Read from the same `/orgUser/preferences` row the notification settings live on — the
+ * server creates it on demand, so there is no "no preferences yet" case to handle here.
+ * Cached hard: a zone preference changes about once a year, and re-resolving it on every
+ * window focus would re-render the whole board for nothing.
+ */
+export function useTimeZonePreferences(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["orgUser", "preferences", "timezone"],
+    queryFn: () => api<TimeZonePreferences>("/orgUsers/preferences"),
+    enabled: opts?.enabled ?? true,
+    staleTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+}
+
+/** Update the member's own zone settings. */
+export function useUpdateTimeZonePreferences() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: TimeZonePreferences) =>
+      api<TimeZonePreferences>("/orgUsers/preferences", { method: "PATCH", body: patch }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["orgUser", "preferences", "timezone"] });
+    },
+  });
+}
+
+/**
+ * Set the organization's primary time zone.
+ *
+ * Invalidates broadly on purpose: this changes the zone every schedule, agenda and detail
+ * view renders in, so anything holding a formatted time is now stale.
+ */
+export function useUpdateOrganizationTimeZone() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (timeZone: string | null) =>
+      api<Organization>("/organizations/", { method: "PATCH", body: { timeZone } }),
+    onSuccess: () => {
+      void qc.invalidateQueries();
+    },
   });
 }

@@ -1,5 +1,7 @@
 import * as React from "react";
-import { addDays, format, parseISO, startOfDay } from "date-fns";
+import { addDays, startOfDay } from "date-fns";
+import { dateKeyInZone, zonedWallClockToUtc } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
 import { CalendarClock, Loader2 } from "lucide-react";
 import { useResourceAvailability, useUsersAvailability } from "@/features/queries";
 import {
@@ -77,6 +79,7 @@ export function SmartTimeRange({
   /** Lock the date and start — used once a flight has ramped out. */
   lockStart?: boolean;
 }) {
+  const tz = useTimeZone();
   // Captured once so the past-clamp / memo keys stay stable while the form is open.
   const now = React.useMemo(() => new Date(), []);
   const personnelKey = personnelUserIds.join(",");
@@ -104,11 +107,15 @@ export function SmartTimeRange({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resourceId, resUpdated, usersUpdated, personnelKey, restoreKey]);
 
+  //`date` is "YYYY-MM-DD" chosen by a person, meaning that day AT THE FIELD. Anchored to
+  //noon in the airport's zone rather than parsed to local midnight: noon is never within an
+  //hour of a DST transition, so the day can't slide when the clocks change.
   const day = React.useMemo(() => {
     if (!date) return null;
-    const parsed = parseISO(date);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }, [date]);
+    const [yy, mm, dd] = date.split("-").map(Number);
+    if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return null;
+    return zonedWallClockToUtc(yy, mm, dd, 12, 0, tz.zone);
+  }, [date, tz.zone]);
 
   const dayWindows = React.useMemo(
     () => (day ? windowsForDay(allWindows, day, now) : []),
@@ -154,12 +161,12 @@ export function SmartTimeRange({
     const from = day ? startOfDay(day) : now;
     const slot = nextAvailable(allWindows, from, now);
     if (!slot) return;
-    onDateChange(format(slot, "yyyy-MM-dd"));
+    onDateChange(dateKeyInZone(slot, tz.zone));
     onChange(slot, defaultEnd(windowsForDay(allWindows, slot, now), slot));
   };
 
-  const minDate = format(now, "yyyy-MM-dd");
-  const maxDate = format(addDays(now, MAX_ADVANCE_DAYS), "yyyy-MM-dd");
+  const minDate = dateKeyInZone(now, tz.zone);
+  const maxDate = dateKeyInZone(addDays(now, MAX_ADVANCE_DAYS), tz.zone);
   const noSlots = !loading && day != null && starts.length === 0;
 
   return (
@@ -190,7 +197,7 @@ export function SmartTimeRange({
             <SelectContent className="max-h-64">
               {starts.map((s) => (
                 <SelectItem key={s.toISOString()} value={s.toISOString()}>
-                  {format(s, "h:mm a")}
+                  {tz.time(s)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -210,7 +217,7 @@ export function SmartTimeRange({
             <SelectContent className="max-h-64">
               {ends.map((e) => (
                 <SelectItem key={e.toISOString()} value={e.toISOString()}>
-                  {format(e, "h:mm a")}
+                  {tz.time(e)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -234,7 +241,7 @@ export function SmartTimeRange({
               className="h-auto p-0 text-xs"
               onClick={jumpToNextAvailable}
             >
-              Next available: {format(next, "EEE, MMM d · h:mm a")}
+              Next available: {tz.date(next)} · {tz.time(next)}
             </Button>
           )}
         </div>

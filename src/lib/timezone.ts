@@ -349,3 +349,36 @@ export function describeZone(zone: string, at: Date = new Date()): string {
 
   return abbr ? `${base} (${abbr})` : base;
 }
+
+/**
+ * Midnight at the start of a picked calendar date, in a zone.
+ *
+ * `day` is a date the user chose (a Date whose LOCAL y/m/d are the date they mean), not an
+ * instant to be converted — so its own local components are read, then re-anchored in the
+ * target zone. Converting it as an instant instead would slide the boundary by the offset
+ * between the two zones and silently shift the whole fetched window by a day.
+ */
+export function zonedStartOfDay(day: Date, timeZone: string): Date {
+  return zonedWallClockToUtc(
+    day.getFullYear(),
+    day.getMonth() + 1,
+    day.getDate(),
+    0,
+    0,
+    timeZone
+  );
+}
+
+/** The last instant of a picked calendar date in a zone (23:59 + a minute, exclusive-ish). */
+export function zonedEndOfDay(day: Date, timeZone: string): Date {
+  return new Date(
+    zonedWallClockToUtc(
+      day.getFullYear(),
+      day.getMonth() + 1,
+      day.getDate(),
+      23,
+      59,
+      timeZone
+    ).getTime() + 59_999
+  );
+}

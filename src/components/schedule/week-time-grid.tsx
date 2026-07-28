@@ -1,5 +1,7 @@
-import { addDays, format, isSameDay, isToday, parseISO } from "date-fns";
+import { addDays, format, isToday } from "date-fns";
 import { resourceLabel, type Reservation } from "@/types/api";
+import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { END_HOUR, START_HOUR } from "./lane-grid";
@@ -13,9 +15,14 @@ const TOTAL_MIN = HOURS * 60;
 const GRID_HEIGHT = HOURS * HOUR_HEIGHT;
 const MIN_BLOCK = 20; // px
 
-/** Minutes past START_HOUR for an instant (local time). */
-function minutesInWindow(d: Date) {
-  return (d.getHours() - START_HOUR) * 60 + d.getMinutes();
+/**
+ * Minutes past START_HOUR for an instant, measured on the AIRPORT's clock.
+ *
+ * Was `d.getHours()` — the viewer's clock — which is what slid the whole column an hour when
+ * the board was opened from another zone.
+ */
+function minutesInWindow(d: Date | string, zone: string) {
+  return minutesFromMidnightInZone(d, zone) - START_HOUR * 60;
 }
 
 function hourLabel(h: number) {
@@ -25,13 +32,13 @@ function hourLabel(h: number) {
 }
 
 /** Vertical top/height (px) for a reservation block, clamped to the window. */
-function blockGeometry(r: Reservation): { top: number; height: number } {
+function blockGeometry(r: Reservation, zone: string): { top: number; height: number } {
   const totalMin = HOURS * 60;
   // Clamp BOTH ends to the visible window and derive height from the clamped
   // span — otherwise a reservation starting before START_HOUR keeps its full
   // duration and draws too tall (past its real end). Mirrors the lane grid.
-  const s = Math.max(0, Math.min(totalMin, minutesInWindow(parseISO(r.start))));
-  const e = Math.max(0, Math.min(totalMin, minutesInWindow(parseISO(r.end))));
+  const s = Math.max(0, Math.min(totalMin, minutesInWindow(r.start, zone)));
+  const e = Math.max(0, Math.min(totalMin, minutesInWindow(r.end, zone)));
   const top = (s / 60) * HOUR_HEIGHT;
   const height = Math.max(MIN_BLOCK, ((e - s) / 60) * HOUR_HEIGHT);
   return { top, height };
@@ -52,10 +59,11 @@ export function WeekTimeGrid({
   onCreate?: (draft: ReservationDraft) => void;
   onSelectDay: (day: Date) => void;
 }) {
+  const tz = useTimeZone();
   const canCreate = onCreate != null;
   const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
   const now = new Date();
-  const nowMin = minutesInWindow(now);
+  const nowMin = minutesInWindow(now, tz.zone);
   const showNow = nowMin >= 0 && nowMin <= TOTAL_MIN;
 
   return (
@@ -104,7 +112,12 @@ export function WeekTimeGrid({
         </div>
 
         {days.map((d) => {
-          const items = reservations.filter((r) => isSameDay(parseISO(r.start), d));
+          //Which column a booking belongs in is the airport's calendar day, not the
+          //viewer's. A 9pm Mountain flight is already tomorrow in UTC and two days on in
+          //Tokyo; isSameDay() on the viewer's clock puts it in the wrong column entirely,
+          //which is a worse failure than drawing it at the wrong height.
+          const dayKey = format(d, "yyyy-MM-dd");
+          const items = reservations.filter((r) => dateKeyInZone(r.start, tz.zone) === dayKey);
           const { placed, tracks } = packTracks(items);
           const today = isToday(d);
           return (
@@ -158,7 +171,7 @@ export function WeekTimeGrid({
                 </div>
               )}
               {placed.map(({ r, track }) => {
-                const { top, height } = blockGeometry(r);
+                const { top, height } = blockGeometry(r, tz.zone);
                 return (
                   <div
                     key={r.id}
@@ -183,8 +196,9 @@ export function WeekTimeGrid({
 }
 
 function WeekBlock({ r, onView }: { r: Reservation; onView: (r: Reservation) => void }) {
+  const tz = useTimeZone(r.location);
   const names = personnelNames(r);
-  const timeRange = `${format(parseISO(r.start), "h:mm a")} – ${format(parseISO(r.end), "h:mm a")}`;
+  const timeRange = tz.range(r.start, r.end);
   // The week view has no resource lane to read the aircraft off, and a stored title is
   // generic ("Dual Flight"), so without this the week is a wall of identical blocks.
   // resourceLabel covers simulators and rooms too.
@@ -211,7 +225,7 @@ function WeekBlock({ r, onView }: { r: Reservation; onView: (r: Reservation) => 
             {aircraft ? `${aircraft} · ${r.title}` : r.title}
           </span>
           <span className="truncate text-[10px] leading-tight opacity-80 tabular-nums">
-            {format(parseISO(r.start), "h:mm a")}
+            {tz.time(r.start)}
           </span>
         </button>
       </TooltipTrigger>

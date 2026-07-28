@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { ProfileCard } from "@/components/me-account/profile-card";
+import { MyTimeZoneCard } from "@/components/settings/time-zone-card";
 import { SecurityCard } from "@/components/me-account/security-card";
 import { GoogleCalendarCard } from "@/components/me-account/google-calendar-card";
 import { AvailabilityEditor } from "@/components/me-account/availability-editor";
@@ -82,8 +83,11 @@ function ProfilePage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile">
+        <TabsContent value="profile" className="space-y-4">
           <ProfileCard />
+          {/* Lives on the profile tab rather than its own: it's a personal preference, and
+              most people will set it once when they first travel and never look again. */}
+          <MyTimeZoneCard />
         </TabsContent>
         <TabsContent value="security">
           <SecurityCard />

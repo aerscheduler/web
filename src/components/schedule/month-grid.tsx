@@ -11,6 +11,8 @@ import {
 } from "date-fns";
 import { resourceLabel, type Reservation } from "@/types/api";
 import { cn } from "@/lib/utils";
+import { dateKeyInZone } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
 import { BORDER_L_CLASS, CHIP_CLASS } from "./meta";
 import type { ReservationDraft } from "./reservation-form";
 
@@ -36,6 +38,7 @@ export function MonthGrid({
   onCreate?: (draft: ReservationDraft) => void;
   onSelectDay: (day: Date) => void;
 }) {
+  const tz = useTimeZone();
   const canCreate = onCreate != null;
   const days = eachDayOfInterval({
     start: startOfWeek(startOfMonth(month)),
@@ -45,7 +48,9 @@ export function MonthGrid({
 
   const byDay = new Map<string, Reservation[]>();
   for (const r of reservations) {
-    const key = format(parseISO(r.start), "yyyy-MM-dd");
+    //The airport's calendar day, not the viewer's — a late-evening Mountain flight is
+    //already tomorrow in UTC, and bucketing on the viewer's clock drops it in the wrong cell.
+    const key = dateKeyInZone(r.start, tz.zone);
     const bucket = byDay.get(key);
     if (bucket) bucket.push(r);
     else byDay.set(key, [r]);

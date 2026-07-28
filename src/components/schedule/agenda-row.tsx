@@ -1,7 +1,7 @@
-import { format, parseISO } from "date-fns";
 import { resourceLabel, type Reservation } from "@/types/api";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useTimeZone } from "@/lib/use-timezone";
 import { BORDER_L_CLASS, personnelNames, typeLabel } from "./meta";
 import { ReservationMenu } from "./reservation-menu";
 
@@ -22,6 +22,7 @@ export function AgendaRow({
   onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
 }) {
+  const tz = useTimeZone();
   const res = r.resource ? resourceLabel(r.resource) : null;
   const names = personnelNames(r);
 
@@ -44,7 +45,7 @@ export function AgendaRow({
           </Badge>
         </div>
         <div className="mt-1 text-sm tabular-nums text-muted-foreground">
-          {format(parseISO(r.start), "h:mm a")} – {format(parseISO(r.end), "h:mm a")}
+          {tz.range(r.start, r.end)}
         </div>
         <div className="mt-0.5 truncate text-sm text-muted-foreground">
           {res ? res.name : "Unassigned"}

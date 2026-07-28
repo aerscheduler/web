@@ -51,9 +51,25 @@ export interface Organization {
   code: string;
   profileImage: string | null;
   about?: string | null;
+  /** The school's primary IANA zone; the fallback for a location that has none. */
+  timeZone?: string | null;
   billing?: OrganizationBillingSettings;
   preferences?: OrganizationPreferences;
   details?: OrganizationDetails;
+}
+
+/**
+ * A member's own time-zone settings, stored per membership.
+ *
+ * Two settings, deliberately: `timeZoneMode` decides which zone is "mine" (follow the device,
+ * or a pinned one), while `scheduleTimeZoneMode` decides which zone the SCHEDULE renders in.
+ * They are separate because a personal zone silently driving the board is the bug this whole
+ * feature exists to fix — so the schedule defaults to airport time and says so.
+ */
+export interface TimeZonePreferences {
+  timeZone?: string | null;
+  timeZoneMode?: "auto" | "manual";
+  scheduleTimeZoneMode?: "location" | "user";
 }
 
 export interface OrganizationDetails {
@@ -185,6 +201,11 @@ export interface Reservation {
   FK_resourceId: number | null;
   personnel?: ReservationPersonnel;
   resource?: Resource;
+  /**
+   * The field this booking is at. Carries `timeZone`, which is what every schedule surface
+   * positions and formats against — the airport's clock, not the viewer's.
+   */
+  location?: Location | null;
   invoice?: Invoice;
   /** Ramp/close-out readings + sign-offs. Present on the retrieve include set. */
   review?: ReservationReview | null;
@@ -305,6 +326,12 @@ export interface Location {
   id: number;
   name: string;
   FK_organizationId: number;
+  /**
+   * The airport's IANA zone, e.g. "America/Boise" — the operational truth a schedule is
+   * pinned to. Null falls back to the organization's, then to the viewer's own, which is
+   * exactly today's behaviour.
+   */
+  timeZone?: string | null;
 }
 
 export interface Invoice {

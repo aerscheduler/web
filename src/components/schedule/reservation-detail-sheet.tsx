@@ -1,4 +1,3 @@
-import { format, parseISO } from "date-fns";
 import { Ban, Clock, FileText, MapPin, Pencil, Plane, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import { resourceLabel, type Reservation } from "@/types/api";
@@ -18,25 +17,8 @@ import { cn } from "@/lib/utils";
 import { DOT_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { CloseOutSection } from "./close-out-section";
 import { canCancelReservation, canEditReservation } from "./close-out";
-
-/**
- * Format an instant in the reservation's OWN timezone so the clock value agrees
- * with the `timeZoneName` label shown next to it. (Single-timezone operations
- * see no change; it only matters when the viewer's browser is in a different
- * zone than where the flight is scheduled.) Falls back to local on a bad zone.
- */
-function timeInZone(iso: string, tz: string): string {
-  try {
-    return new Intl.DateTimeFormat(undefined, {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-      timeZone: tz,
-    }).format(parseISO(iso));
-  } catch {
-    return format(parseISO(iso), "h:mm a");
-  }
-}
+import { formatTimeInZone } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
 
 /** Slide-over with the full reservation record + destructive actions. */
 export function ReservationDetailSheet({
@@ -55,6 +37,7 @@ export function ReservationDetailSheet({
 }) {
   const { roles, orgUserId } = useAuth();
   const r = reservation;
+  const tz = useTimeZone(r?.location);
   const canCancel = r ? canCancelReservation(r, roles, orgUserId) : false;
   const canEdit = r != null && onEdit != null && canEditReservation(r, roles, orgUserId);
   const res = r?.resource ? resourceLabel(r.resource) : null;
@@ -79,15 +62,23 @@ export function ReservationDetailSheet({
                 <Badge variant="outline">{typeLabel(r.type)}</Badge>
               </div>
               <SheetTitle className="text-balance">{r.title}</SheetTitle>
-              <SheetDescription>{format(parseISO(r.start), "EEEE, MMMM d, yyyy")}</SheetDescription>
+              <SheetDescription>{tz.date(r.start, "long")}</SheetDescription>
             </SheetHeader>
 
             <div className="flex-1 space-y-5 overflow-y-auto px-4 pb-4">
+              {/* Airport time, and only says so when the reader is somewhere else. The old
+                  version formatted with r.timeZoneName — the zone of the DEVICE THAT BOOKED
+                  IT — and printed the raw "America/Boise" next to every booking whether or
+                  not it told the reader anything. */}
               <Field icon={Clock} label="Time">
                 <span className="tabular-nums">
-                  {timeInZone(r.start, r.timeZoneName)} – {timeInZone(r.end, r.timeZoneName)}
+                  {tz.time(r.start)} – {tz.time(r.end)}
                 </span>
-                <span className="ml-2 text-muted-foreground">{r.timeZoneName}</span>
+                {tz.differs(r.start) && (
+                  <span className="ml-2 text-muted-foreground">
+                    {tz.label(r.start)} · {formatTimeInZone(r.start, tz.viewerZone)} your time
+                  </span>
+                )}
               </Field>
 
               <Field icon={ResourceIcon} label="Resource">

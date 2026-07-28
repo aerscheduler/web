@@ -1,9 +1,9 @@
 import * as React from "react";
 import { toast } from "sonner";
+import { ClipboardCheck } from "lucide-react";
 import { useConfirmReview } from "@/features/queries";
 import type { Reservation } from "@/types/api";
 import { ApiError } from "@/lib/api";
-import { useConfirm } from "@/components/confirm-dialog";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,8 +13,11 @@ const PIN_LENGTH = 4;
 
 /**
  * Sign off a flight review with the caller's PIN. When the last required pilot confirms,
- * the server finalizes the review and auto-generates the invoice — so the submit is gated
- * behind a destructive confirm.
+ * the server finalizes the review and auto-generates the invoice.
+ *
+ * Typing a PIN is itself the deliberate act, so there is no second confirm dialog on top
+ * of this one — chaining them made signing off a three-click sequence through two buttons
+ * reading "Confirm review". The consequence is stated inline instead.
  */
 export function ConfirmReviewModal({
   open,
@@ -25,7 +28,6 @@ export function ConfirmReviewModal({
   onOpenChange: (open: boolean) => void;
   reservation: Reservation | null;
 }) {
-  const confirm = useConfirm();
   const confirmReview = useConfirmReview(reservation?.id ?? 0);
   const [pin, setPin] = React.useState("");
 
@@ -37,15 +39,6 @@ export function ConfirmReviewModal({
 
   async function submit() {
     if (!reservation || !valid) return;
-    const ok = await confirm({
-      title: "Confirm this flight review?",
-      description:
-        "This signs off the review with your PIN. Once every assigned pilot has signed off, the invoice is generated automatically — this can't be undone.",
-      confirmLabel: "Confirm review",
-      cancelLabel: "Back",
-      destructive: true,
-    });
-    if (!ok) return;
     try {
       await confirmReview.mutateAsync({ pin });
       toast.success("Review confirmed");
@@ -69,8 +62,12 @@ export function ConfirmReviewModal({
           void submit();
         }}
       >
-        <div className="space-y-1.5">
-          <Label htmlFor="review-pin">Confirmation PIN</Label>
+        <div className="space-y-2">
+          {/* `block` matters: the PIN input is only w-28, so an inline <label> would
+              let it sit on the same line, jammed against the label text. */}
+          <Label htmlFor="review-pin" className="block">
+            Confirmation PIN
+          </Label>
           <Input
             id="review-pin"
             autoFocus
@@ -92,6 +89,15 @@ export function ConfirmReviewModal({
             Set your {PIN_LENGTH}-character PIN under Account → Security.
           </p>
         </div>
+
+        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          <ClipboardCheck className="mt-0.5 size-4 shrink-0" />
+          <span>
+            Signing off can&rsquo;t be undone. Once every assigned pilot has signed off, the
+            invoice is generated automatically.
+          </span>
+        </div>
+
         <div className="flex justify-end gap-2">
           <Button
             type="button"

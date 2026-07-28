@@ -34,15 +34,41 @@ export function canReviewGuest(
   return (r.personnel?.instructors ?? []).some((i) => i.id === orgUserId);
 }
 
-/** Pilots who must sign off the review — instructors + students + renters (guests excluded). */
+/**
+ * Pilots who must sign off the review — instructors + students + renters (guests excluded),
+ * counted as DISTINCT people rather than as seats.
+ *
+ * The server used to accept the same org user in two seats (booked as both the instructor
+ * and the student). A confirmation is keyed on the person, so they can only ever sign off
+ * once; summing the sides would ask for two and strand the close-out at "1 of 2 confirmed"
+ * forever. New bookings are rejected server-side now, so this only has to read the ones
+ * already in the database correctly — and it matches the server's own completion check
+ * (server/src/utils/reservationPersonnel.ts).
+ */
 export function reviewerCount(r: Reservation): number {
   const p = r.personnel;
-  return (p?.instructors?.length ?? 0) + (p?.students?.length ?? 0) + (p?.renters?.length ?? 0);
+  const ids = [...(p?.instructors ?? []), ...(p?.students ?? []), ...(p?.renters ?? [])].map(
+    (ou) => ou.id
+  );
+  return new Set(ids).size;
 }
 
 /** How many of the required pilots have already confirmed. */
 export function confirmationCount(r: Reservation): number {
   return r.review?.reviewConfirmations?.length ?? 0;
+}
+
+/**
+ * Has `orgUserId` already signed off this review? The server rejects a second confirmation
+ * from the same person, so once they have, the button has to go — otherwise a pilot waiting
+ * on their counterpart still sees "Confirm review" and gets a 400 for pressing it.
+ *
+ * Reads the nested relation id, never a `FK_*` scalar: the server strips every FK_* field
+ * from API responses, so `FK_reviewedByOrgUserId` is never actually present.
+ */
+export function hasConfirmedReview(r: Reservation, orgUserId: number | null): boolean {
+  if (orgUserId == null) return false;
+  return (r.review?.reviewConfirmations ?? []).some((c) => c.reviewedBy?.id === orgUserId);
 }
 
 /** Is `orgUserId` one of the pilots on this reservation (i.e. eligible to confirm)? */

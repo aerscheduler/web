@@ -19,6 +19,7 @@ import {
   canRampReservation,
   closeOutStep,
   confirmationCount,
+  hasConfirmedReview,
   isReservationPersonnel,
   reviewerCount,
   type CloseOutStep,
@@ -43,7 +44,11 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const invoiceQ = useReservationInvoice(r.id, { enabled: step === "invoiced" });
   const invoice = invoiceQ.data ?? r.invoice ?? null;
 
-  const canConfirm = isReservationPersonnel(r, orgUserId);
+  // A pilot on the flight may confirm — but only once. The server rejects a second
+  // confirmation from the same person, so after signing off they wait on their
+  // counterpart rather than being offered a button that can only 400.
+  const alreadyConfirmed = hasConfirmedReview(r, orgUserId);
+  const canConfirm = isReservationPersonnel(r, orgUserId) && !alreadyConfirmed;
   // Ramp out/in mirrors Flutter's !viewOnly: staff (admin/dispatcher) or a pilot
   // assigned to this reservation.
   const canRamp = canRampReservation(r, roles, orgUserId);
@@ -113,6 +118,11 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
               <Button className="w-full" onClick={() => setConfirmOpen(true)}>
                 <ClipboardCheck className="size-4" /> Confirm review
               </Button>
+            ) : alreadyConfirmed ? (
+              <div className="flex items-start gap-2 text-sm text-muted-foreground">
+                <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
+                <span>You&rsquo;ve signed off. Waiting on the other pilot&rsquo;s PIN.</span>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">
                 Waiting for the assigned pilot(s) to confirm with their PIN.

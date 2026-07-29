@@ -18,7 +18,7 @@
  * tzdata we'd otherwise be shipping ourselves. The maths mirrors the server's
  * `utils/timeZone.ts` deliberately; the two must agree or a booking round-trips wrong.
  *
- * Reasoning behind the fallback order lives in `insights/timezones-design.md`.
+ * Reasoning behind the fallback order lives in `_local/insights/timezones-design.md`.
  */
 
 /** The browser's own zone. Updates by itself when the machine moves. */

@@ -44,6 +44,7 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   "/facilities": isAdmin,
   "/billing": isAdmin,
   "/reports": isAdmin,
+  "/operations/cancellations": isStaff,
   "/compliance": isStaff,
   "/maintenance": (r) => isStaff(r) || isTechnician(r),
   "/settings": isAdmin,

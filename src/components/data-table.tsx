@@ -27,6 +27,7 @@ export function DataTable<T>({
   mobileCard,
   emptyMessage = "Nothing here yet.",
   fill = false,
+  onRowClick,
 }: {
   columns: ColumnDef<T, unknown>[];
   data: T[];
@@ -44,6 +45,8 @@ export function DataTable<T>({
    * so table pages don't scroll the whole page. Off by default (inline table).
    */
   fill?: boolean;
+  /** Opens a detail drawer/sheet when a row is clicked. */
+  onRowClick?: (row: T) => void;
 }) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const isMobile = useIsMobile();
@@ -126,7 +129,11 @@ export function DataTable<T>({
               </TR>
             ) : (
               rows.map((row) => (
-                <TR key={row.id}>
+                <TR
+                  key={row.id}
+                  className={onRowClick ? "cursor-pointer" : undefined}
+                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TD key={cell.id}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}

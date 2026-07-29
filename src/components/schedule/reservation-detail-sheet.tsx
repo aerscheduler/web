@@ -1,5 +1,4 @@
 import { Ban, Clock, FileText, MapPin, Pencil, Plane, Users } from "lucide-react";
-import type { ReactNode } from "react";
 import { resourceLabel, type Reservation } from "@/types/api";
 import {
   Sheet,
@@ -12,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { WeatherBadge } from "@/components/weather-badge";
+import { SheetDetailField } from "@/components/sheet-detail-field";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { DOT_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
@@ -70,7 +70,7 @@ export function ReservationDetailSheet({
                   version formatted with r.timeZoneName — the zone of the DEVICE THAT BOOKED
                   IT — and printed the raw "America/Boise" next to every booking whether or
                   not it told the reader anything. */}
-              <Field icon={Clock} label="Time">
+              <SheetDetailField icon={Clock} label="Time">
                 <span className="tabular-nums">
                   {tz.time(r.start)} – {tz.time(r.end)}
                 </span>
@@ -79,9 +79,9 @@ export function ReservationDetailSheet({
                     {tz.label(r.start)} · {formatTimeInZone(r.start, tz.viewerZone)} your time
                   </span>
                 )}
-              </Field>
+              </SheetDetailField>
 
-              <Field icon={ResourceIcon} label="Resource">
+              <SheetDetailField icon={ResourceIcon} label="Resource">
                 {res ? (
                   <span>
                     <span className="font-medium">{res.name}</span>
@@ -90,17 +90,12 @@ export function ReservationDetailSheet({
                 ) : (
                   <span className="text-muted-foreground">Unassigned</span>
                 )}
-              </Field>
+              </SheetDetailField>
 
-              {/* The RESERVATION's own location, not the resource's. The API returns
-                  `resource.location` as a bare { id } stub, so reading it here rendered
-                  no Location row and gave the weather badge no coordinates to work
-                  with. `reservation.location` is the fully hydrated one (name + address
-                  + geocoded coordinates). Fall back to the stub only for its name. */}
               {(reservationLocation?.name ?? r.resource?.location?.name) && (
-                <Field icon={MapPin} label="Location">
+                <SheetDetailField icon={MapPin} label="Location">
                   {reservationLocation?.name ?? r.resource?.location?.name}
-                </Field>
+                </SheetDetailField>
               )}
 
               {/* Renders nothing at all — no row, no spinner — unless the location is
@@ -113,7 +108,7 @@ export function ReservationDetailSheet({
                 timeZone={r.timeZoneName}
               />
 
-              <Field icon={Users} label="Personnel">
+              <SheetDetailField icon={Users} label="Personnel">
                 {names.length > 0 ? (
                   <ul className="space-y-0.5">
                     {names.map((n, i) => (
@@ -123,12 +118,12 @@ export function ReservationDetailSheet({
                 ) : (
                   <span className="text-muted-foreground">No one assigned</span>
                 )}
-              </Field>
+              </SheetDetailField>
 
               {r.notes && (
-                <Field icon={FileText} label="Notes">
+                <SheetDetailField icon={FileText} label="Notes">
                   <p className="whitespace-pre-wrap text-muted-foreground">{r.notes}</p>
-                </Field>
+                </SheetDetailField>
               )}
 
               <CloseOutSection reservation={r} />
@@ -156,27 +151,5 @@ export function ReservationDetailSheet({
         )}
       </SheetContent>
     </Sheet>
-  );
-}
-
-function Field({
-  icon: Icon,
-  label,
-  children,
-}: {
-  icon: typeof Clock;
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex gap-3 text-sm">
-      <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      <div className="min-w-0 flex-1">
-        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {label}
-        </div>
-        <div className="mt-0.5">{children}</div>
-      </div>
-    </div>
   );
 }

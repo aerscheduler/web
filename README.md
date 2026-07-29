@@ -52,7 +52,7 @@ src/
 ```
 
 The full API surface this client is built against is documented in
-`../insights/api-contract.md`.
+`../_local/insights/api-contract.md`.
 
 ## Key facts about the API (so you don't get surprised)
 

@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
+  CalendarX2,
   LayoutDashboard,
   LogOut,
   PlaneTakeoff,
@@ -48,6 +49,7 @@ const NAV = [
   { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
   { to: "/billing", label: "Billing", icon: Receipt },
   { to: "/compliance", label: "Go / No-Go", icon: ShieldCheck },
+  { to: "/operations/cancellations", label: "Cancellations", icon: CalendarX2 },
   { to: "/settings", label: "Settings", icon: Settings },
 ] as const;
 

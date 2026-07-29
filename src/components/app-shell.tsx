@@ -6,6 +6,7 @@ import {
   CircleHelp,
   CalendarDays,
   CalendarPlus,
+  CalendarX2,
   Check,
   ChevronsUpDown,
   FileText,
@@ -78,7 +79,7 @@ import {
 } from "@/components/ui/tooltip";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
-type NavGroup = { label: string; items: NavItem[] };
+type NavGroup = { label: string; items: NavItem[]; /** Secondary links — sidebar "More" menu. */ more?: NavItem[] };
 
 /**
  * Build the nav from the caller's roles. Every org item is filtered through the
@@ -99,6 +100,7 @@ function navForRoles(roles: string[]): NavGroup[] {
         { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
         { to: "/facilities", label: "Facilities", icon: MonitorPlay },
       ],
+      more: [{ to: "/operations/cancellations", label: "Cancellations", icon: CalendarX2 }],
     },
     {
       label: "Money",
@@ -112,8 +114,12 @@ function navForRoles(roles: string[]): NavGroup[] {
   ];
 
   const groups: NavGroup[] = orgGroups
-    .map((g) => ({ ...g, items: g.items.filter((it) => canAccess(it.to, R)) }))
-    .filter((g) => g.items.length > 0);
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((it) => canAccess(it.to, R)),
+      more: g.more?.filter((it) => canAccess(it.to, R)),
+    }))
+    .filter((g) => g.items.length > 0 || (g.more?.length ?? 0) > 0);
 
   // Personal section — every member gets this. (Payment methods & availability
   // moved to tabs under Profile; Profile itself is reachable from the account
@@ -205,6 +211,9 @@ function AppSidebar() {
                     </SidebarMenuItem>
                   );
                 })}
+                {group.more && group.more.length > 0 && (
+                  <SidebarNavMore items={group.more} pathname={pathname} />
+                )}
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
@@ -215,6 +224,36 @@ function AppSidebar() {
         <UserMenu />
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+/** Overflow links at the bottom of a nav group (Operations → Cancellations, …). */
+function SidebarNavMore({ items, pathname }: { items: NavItem[]; pathname: string }) {
+  const active = items.some(
+    (it) => pathname === it.to || pathname.startsWith(it.to + "/")
+  );
+
+  return (
+    <SidebarMenuItem>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <SidebarMenuButton isActive={active} tooltip="More">
+            <MoreHorizontal />
+            <span>More</span>
+          </SidebarMenuButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="right" align="start" className="min-w-48">
+          {items.map((item) => (
+            <DropdownMenuItem key={item.to} asChild>
+              <Link to={item.to} className="gap-2">
+                <item.icon className="size-4 text-muted-foreground" />
+                {item.label}
+              </Link>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
   );
 }
 

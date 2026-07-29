@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, raw } from "@/lib/api";
 import {
@@ -41,6 +42,7 @@ import type {
   Invoice,
   InvoicePaymentIntent,
   InviteInput,
+  InstructionPairRequest,
   JoinRequest,
   Location,
   OrgUserBillingSettings,
@@ -961,6 +963,69 @@ export function useMyCurrencies(opts?: QueryOpts) {
   });
 }
 
+/**
+ * Active (non-archived) currency records for one member across every org currency
+ * type. There is no "list by orgUser" endpoint — the desk surface fans out
+ * `GET /currencies/types/:id/currencies?orgUserId=` per type (admin/dispatcher only).
+ */
+export function useMemberCurrencies(orgUserId: number | null, opts?: QueryOpts) {
+  const typesQ = useCurrencyTypes({
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
+  });
+  const types = typesQ.data ?? [];
+
+  const perType = useQueries({
+    queries: types.map((t) => ({
+      queryKey: ["currencies", "byType", t.id, orgUserId] as const,
+      queryFn: () =>
+        api<Currency[]>(`/currencies/types/${t.id}/currencies`, {
+          query: { orgUserId: orgUserId! },
+        }),
+      enabled: (opts?.enabled ?? true) && orgUserId != null && typesQ.isSuccess,
+    })),
+  });
+
+  const isPending = typesQ.isPending || perType.some((q) => q.isPending);
+  const isError = typesQ.isError || perType.some((q) => q.isError);
+  // Flatten once results settle — ids are unique across types.
+  const settled = perType.map((q) => q.dataUpdatedAt).join(",");
+  const data = useMemo(() => {
+    if (!typesQ.isSuccess) return undefined;
+    const out: Currency[] = [];
+    for (const q of perType) {
+      if (!q.data) continue;
+      for (const c of q.data) {
+        if (c.archivedAt == null) out.push(c);
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on settled timestamps
+  }, [typesQ.isSuccess, settled]);
+
+  return { data, isPending, isError, typesQ, perType };
+}
+
+/** Sign off / renew a currency (`POST /currencies/:id` with `{ startedAt }`). */
+export function useRenewCurrency() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      currencyId,
+      startedAt,
+    }: {
+      currencyId: number;
+      startedAt: string;
+    }) =>
+      api<Currency>(`/currencies/${currencyId}`, {
+        method: "POST",
+        body: { startedAt },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["currencies"] });
+    },
+  });
+}
+
 /** Resources the caller (or a user) is approved to fly. */
 export function useApprovedResources(userId: number | null, opts?: QueryOpts) {
   return useQuery({
@@ -978,20 +1043,140 @@ export function useApprovedResources(userId: number | null, opts?: QueryOpts) {
  * but `GET /users/:id` nests the assignments under the role rows, scoped
  * server-side to self-or-admin. That's the only way to read them today.
  */
-export function useMyInstructionPartners(userId: number | null, opts?: QueryOpts) {
+export function useUserInstructionPartners(userId: number | null, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["instructionPartners", userId],
     queryFn: async () => {
       const user = await api<User & { orgUsers?: OrganizationUser[] }>(`/users/${userId}`);
-      // The token pins one active org, and the server returns the membership
-      // for it; fall back to the first row if that ever changes.
       const membership = user.orgUsers?.[0];
       return {
+        membership: membership ?? null,
+        instructorRoleId: membership?.instructorRole?.id ?? null,
+        studentRoleId: membership?.studentRole?.id ?? null,
         students: membership?.instructorRole?.students ?? [],
         instructors: membership?.studentRole?.instructors ?? [],
       };
     },
     enabled: (opts?.enabled ?? true) && userId != null,
+  });
+}
+
+/** @deprecated Prefer useUserInstructionPartners — same query key `/me` already uses. */
+export function useMyInstructionPartners(userId: number | null, opts?: QueryOpts) {
+  return useUserInstructionPartners(userId, opts);
+}
+
+/** Admin assign pair — ids are Student / Instructor role PKs. */
+export function useAssignInstructionPair() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { studentId: number; instructorId: number }) =>
+      api(`/students/assign`, { method: "POST", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["instructionPartners"] });
+      void qc.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
+}
+
+/** Admin unassign pair. */
+export function useUnassignInstructionPair() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { studentId: number; instructorId: number }) =>
+      api(`/students/unassign`, { method: "POST", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["instructionPartners"] });
+      void qc.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
+}
+
+/** Student removes themselves from an instructor. */
+export function useUnassignSelfAsStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { studentId: number; instructorId: number }) =>
+      api(`/students/unassignStudentFromInstructor`, { method: "POST", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["instructionPartners"] });
+    },
+  });
+}
+
+/** Instructor removes themselves from a student. */
+export function useUnassignSelfAsInstructor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { studentId: number; instructorId: number }) =>
+      api(`/instructors/unassignInstructorFromStudent`, { method: "POST", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["instructionPartners"] });
+    },
+  });
+}
+
+/** Instructor requests a student (admin must accept). */
+export function useRequestStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { studentId: number }) =>
+      api(`/students/requests`, { method: "POST", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["instructionRequests"] });
+    },
+  });
+}
+
+/** Student requests an instructor (admin must accept). */
+export function useRequestInstructor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { instructorId: number }) =>
+      api(`/instructors/requests`, { method: "POST", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["instructionRequests"] });
+    },
+  });
+}
+
+export function useStudentPairRequests(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["instructionRequests", "students"],
+    queryFn: () => api<InstructionPairRequest[]>("/students/requests"),
+    ...opts,
+  });
+}
+
+export function useInstructorPairRequests(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["instructionRequests", "instructors"],
+    queryFn: () => api<InstructionPairRequest[]>("/instructors/requests"),
+    ...opts,
+  });
+}
+
+export function useRespondStudentPairRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "accept" | "decline" }) =>
+      api(`/students/requests/${id}/${action}`, { method: "POST" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["instructionRequests"] });
+      void qc.invalidateQueries({ queryKey: ["instructionPartners"] });
+    },
+  });
+}
+
+export function useRespondInstructorPairRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, action }: { id: number; action: "accept" | "decline" }) =>
+      api(`/instructors/requests/${id}/${action}`, { method: "POST" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["instructionRequests"] });
+      void qc.invalidateQueries({ queryKey: ["instructionPartners"] });
+    },
   });
 }
 

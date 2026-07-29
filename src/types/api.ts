@@ -1,4 +1,4 @@
-// Types mirrored from the server Prisma schema (see insights/api-contract.md).
+// Types mirrored from the server Prisma schema (see _local/insights/api-contract.md).
 // All DateTime columns arrive as ISO strings; all money fields are integer cents.
 
 export type Role =
@@ -134,6 +134,19 @@ export interface InstructorRoleRow extends RoleRow {
 /** `studentRole` as returned by `GET /users/:id` — carries the assigned instructors. */
 export interface StudentRoleRow extends RoleRow {
   instructors?: AssignedPerson[];
+}
+
+/**
+ * Pending pairing request. Role-table ids on `student` / `instructor`.
+ * - Student-side queue (`GET /students/requests`): instructor asked to take this student.
+ * - Instructor-side queue (`GET /instructors/requests`): student asked for this instructor.
+ */
+export interface InstructionPairRequest {
+  id: number;
+  createdAt?: string;
+  status?: string | null;
+  student?: AssignedPerson | null;
+  instructor?: AssignedPerson | null;
 }
 
 export interface OrganizationUser {
@@ -550,7 +563,7 @@ export interface MaintenanceReminder {
   resource?: Resource;
 }
 
-// ---- Mutation input payloads (see insights/api-contract.md §4) ----
+// ---- Mutation input payloads (see _local/insights/api-contract.md §4) ----
 
 export interface CreateOrgInput {
   name: string;

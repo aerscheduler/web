@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
+import { Link } from "@tanstack/react-router";
 import { Upload } from "lucide-react";
-import { rolesOf, type OrganizationUser } from "@/types/api";
-import { useMemberDocuments } from "@/features/queries";
+import { rolesOf, type Currency, type OrganizationUser } from "@/types/api";
+import { useMemberCurrencies, useMemberDocuments } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -11,6 +12,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { RoleBadges } from "@/components/role-badges";
 import { DocumentRow } from "@/components/documents/document-row";
 import { DocumentUploadModal } from "@/components/me-account/document-upload-modal";
+import { CurrencyStatusBadge, currencyStatus } from "@/components/me-money/currency-status";
+import {
+  RenewCurrencyDialog,
+  canOfferRenew,
+  isDocumentGated,
+} from "@/components/people/renew-currency-dialog";
+import { MemberInstructionSection } from "@/components/people/member-instruction-section";
 import { formatDate, initials } from "@/lib/utils";
 import { memberName } from "./util";
 
@@ -74,8 +82,105 @@ function ProfileBody({ ou }: { ou: OrganizationUser }) {
         </Row>
       </dl>
 
+      <MemberInstructionSection ou={ou} />
+      <MemberCurrencies ou={ou} />
       <MemberDocuments ou={ou} />
     </>
+  );
+}
+
+/**
+ * Desk sign-off for a member's currencies. Admin/dispatcher can list via the
+ * per-type endpoint; renew uses the same POST as the Flutter renew sheet.
+ */
+function MemberCurrencies({ ou }: { ou: OrganizationUser }) {
+  const { isStaff, isAdmin, roles, orgUserId } = useAuth();
+  const [active, setActive] = useState<Currency | null>(null);
+
+  const q = useMemberCurrencies(ou.id, { enabled: isStaff });
+  const isOwningMember = ou.id === orgUserId;
+  const currencies = useMemo(() => {
+    const list = q.data ?? [];
+    return [...list].sort((a, b) => {
+      const weight = (c: Currency) => {
+        switch (currencyStatus(c).key) {
+          case "expired":
+          case "notSignedOff":
+            return 0;
+          case "expiring":
+            return 1;
+          default:
+            return 2;
+        }
+      };
+      return weight(a) - weight(b);
+    });
+  }, [q.data]);
+
+  if (!isStaff) return null;
+
+  return (
+    <div className="border-t border-border px-4 py-4">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium">Currencies</h3>
+      </div>
+
+      {q.isPending ? (
+        <Skeleton className="h-10 w-full" />
+      ) : q.isError ? (
+        <p className="text-sm text-muted-foreground">Couldn't load currencies.</p>
+      ) : currencies.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No currency records for this member — check that they&apos;re in a group
+          scoped by a{" "}
+          <Link to="/settings" className="underline underline-offset-2">
+            currency rule
+          </Link>
+          .
+        </p>
+      ) : (
+        <ul className="-mx-1 divide-y divide-border">
+          {currencies.map((c) => {
+            const status = currencyStatus(c);
+            const gated = isDocumentGated(c);
+            const canRenew = canOfferRenew(c, roles, isAdmin, isOwningMember);
+            const label = c.renewedBy == null ? "Sign off" : "Renew";
+            return (
+              <li
+                key={c.id}
+                className="flex items-center justify-between gap-3 px-1 py-2.5"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">
+                    {c.currencyType?.name ?? "Currency"}
+                  </div>
+                  <div className="mt-0.5">
+                    <CurrencyStatusBadge status={status} />
+                  </div>
+                </div>
+                {gated ? (
+                  <span className="max-w-[9rem] text-right text-xs text-muted-foreground">
+                    Renew via document upload
+                  </span>
+                ) : canRenew ? (
+                  <Button variant="outline" size="sm" onClick={() => setActive(c)}>
+                    {label}
+                  </Button>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <RenewCurrencyDialog
+        currency={active}
+        open={active != null}
+        onOpenChange={(open) => {
+          if (!open) setActive(null);
+        }}
+      />
+    </div>
   );
 }
 

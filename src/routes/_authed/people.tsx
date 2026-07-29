@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { UserPlus, Users } from "lucide-react";
+import { UserPlus, Users, GraduationCap } from "lucide-react";
 import { useMembers, useOrgUserGroups, type MemberFilter } from "@/features/queries";
 import { rolesOf, type OrganizationUser } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -17,6 +17,8 @@ import { Card } from "@/components/ui/card";
 import { EditRolesModal } from "@/components/people/edit-roles-modal";
 import { InviteModal } from "@/components/people/invite-modal";
 import { JoinRequestsPanel } from "@/components/people/join-requests-panel";
+import { InstructionRequestsPanel } from "@/components/people/instruction-requests-panel";
+import { AdminAssignPairDialog } from "@/components/people/admin-assign-pair-dialog";
 import { MemberCard } from "@/components/people/member-card";
 import { MemberProfileSheet } from "@/components/people/member-profile-sheet";
 import { MemberRowActions } from "@/components/people/member-row-actions";
@@ -83,6 +85,7 @@ function PeoplePage() {
     facetKeys: [...PEOPLE_FACET_KEYS],
   });
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [assignPairOpen, setAssignPairOpen] = useState(false);
   const [editing, setEditing] = useState<OrganizationUser | null>(null);
   const [viewing, setViewing] = useState<OrganizationUser | null>(null);
 
@@ -235,9 +238,14 @@ function PeoplePage() {
       onFilterChange={setFacets}
       trailing={
         canManageMembers(roles) ? (
-          <Button onClick={() => setInviteOpen(true)} className="sm:w-auto">
-            <UserPlus className="size-4" /> Invite
-          </Button>
+          <div className="flex flex-wrap gap-2 sm:w-auto">
+            <Button variant="outline" onClick={() => setAssignPairOpen(true)} className="sm:w-auto">
+              <GraduationCap className="size-4" /> Assign pair
+            </Button>
+            <Button onClick={() => setInviteOpen(true)} className="sm:w-auto">
+              <UserPlus className="size-4" /> Invite
+            </Button>
+          </div>
         ) : undefined
       }
     />
@@ -256,6 +264,7 @@ function PeoplePage() {
         />
 
         {canManageMembers(roles) && <JoinRequestsPanel />}
+        {canManageMembers(roles) && <InstructionRequestsPanel />}
         {toolbar}
       </TableView.Header>
 
@@ -295,6 +304,7 @@ function PeoplePage() {
       )}
 
       <InviteModal open={inviteOpen} onOpenChange={setInviteOpen} />
+      <AdminAssignPairDialog open={assignPairOpen} onOpenChange={setAssignPairOpen} />
       <EditRolesModal
         member={editing}
         open={!!editing}

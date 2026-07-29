@@ -17,7 +17,7 @@ import {
 import { useOrgReport, type ReportRange } from "@/features/queries";
 import { guardRoute } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
-import type { ReportPayments, ReportPoint } from "@/types/api";
+import type { ReportPayments, ReportPoint, RevenueDimension } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { EmptyState } from "@/components/states";
@@ -45,6 +45,8 @@ function hours(deci: number | undefined): string {
 function ReportsPage() {
   const { organization } = useAuth();
   const [range, setRange] = useState<DateRange | undefined>(() => lastNDays(30));
+  const [revenueDimension, setRevenueDimension] =
+    useState<RevenueDimension>("aircraft");
 
   const startISO = range?.from ? startOfDay(range.from).toISOString() : undefined;
   const endISO = range?.to
@@ -106,11 +108,43 @@ function ReportsPage() {
           <TabsTrigger value="revenue">Revenue</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="revenue" className="mt-4">
-          {/* The server groups revenue four ways (aircraft, instructor, student,
-              instruction type) from one endpoint. Aircraft is the one the school asked
-              for; the others become sibling tabs by passing a different `dimension`. */}
-          <RevenueReport dimension="aircraft" startDate={startISO} endDate={endISO} />
+        <TabsContent value="revenue" className="mt-4 space-y-4">
+          {/* Nested Radix Tabs were invisible under the outer Reports tabs —
+              use a plain button group for the groupBy dimension. */}
+          <div
+            role="tablist"
+            aria-label="Revenue grouped by"
+            className="flex flex-wrap gap-1 rounded-lg border border-border bg-muted/40 p-1"
+          >
+            {(
+              [
+                ["aircraft", "Aircraft"],
+                ["instructor", "Instructor"],
+                ["student", "Customer"],
+                ["instructionType", "Lesson type"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={revenueDimension === value}
+                onClick={() => setRevenueDimension(value)}
+                className={
+                  revenueDimension === value
+                    ? "rounded-md bg-background px-3 py-1.5 text-sm font-medium shadow-sm"
+                    : "rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <RevenueReport
+            dimension={revenueDimension}
+            startDate={startISO}
+            endDate={endISO}
+          />
         </TabsContent>
 
         <TabsContent value="overview" className="mt-4 space-y-6">

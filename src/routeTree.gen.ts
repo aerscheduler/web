@@ -41,6 +41,7 @@ import { Route as AuthedMeInvoicesRouteImport } from './routes/_authed/me/invoic
 import { Route as AuthedMePaymentMethodsRouteImport } from './routes/_authed/me/payment-methods'
 import { Route as AuthedMeProfileRouteImport } from './routes/_authed/me/profile'
 import { Route as AuthedMeScheduleRouteImport } from './routes/_authed/me/schedule'
+import { Route as AuthedOperationsCancellationsRouteImport } from './routes/_authed/operations/cancellations'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -202,6 +203,12 @@ const AuthedMeScheduleRoute = AuthedMeScheduleRouteImport.update({
   path: '/me/schedule',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedOperationsCancellationsRoute =
+  AuthedOperationsCancellationsRouteImport.update({
+    id: '/operations/cancellations',
+    path: '/operations/cancellations',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -234,6 +241,7 @@ export interface FileRoutesByFullPath {
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
+  '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/me/': typeof AuthedMeIndexRoute
 }
 export interface FileRoutesByTo {
@@ -267,6 +275,7 @@ export interface FileRoutesByTo {
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
+  '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/me': typeof AuthedMeIndexRoute
 }
 export interface FileRoutesById {
@@ -302,6 +311,7 @@ export interface FileRoutesById {
   '/_authed/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/_authed/me/profile': typeof AuthedMeProfileRoute
   '/_authed/me/schedule': typeof AuthedMeScheduleRoute
+  '/_authed/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/_authed/me/': typeof AuthedMeIndexRoute
 }
 export interface FileRouteTypes {
@@ -337,6 +347,7 @@ export interface FileRouteTypes {
     | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
+    | '/operations/cancellations'
     | '/me/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -370,6 +381,7 @@ export interface FileRouteTypes {
     | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
+    | '/operations/cancellations'
     | '/me'
   id:
     | '__root__'
@@ -404,6 +416,7 @@ export interface FileRouteTypes {
     | '/_authed/me/payment-methods'
     | '/_authed/me/profile'
     | '/_authed/me/schedule'
+    | '/_authed/operations/cancellations'
     | '/_authed/me/'
   fileRoutesById: FileRoutesById
 }
@@ -646,6 +659,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedMeScheduleRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/operations/cancellations': {
+      id: '/_authed/operations/cancellations'
+      path: '/operations/cancellations'
+      fullPath: '/operations/cancellations'
+      preLoaderRoute: typeof AuthedOperationsCancellationsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -671,6 +691,7 @@ interface AuthedRouteChildren {
   AuthedMePaymentMethodsRoute: typeof AuthedMePaymentMethodsRoute
   AuthedMeProfileRoute: typeof AuthedMeProfileRoute
   AuthedMeScheduleRoute: typeof AuthedMeScheduleRoute
+  AuthedOperationsCancellationsRoute: typeof AuthedOperationsCancellationsRoute
   AuthedMeIndexRoute: typeof AuthedMeIndexRoute
 }
 
@@ -696,6 +717,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMePaymentMethodsRoute: AuthedMePaymentMethodsRoute,
   AuthedMeProfileRoute: AuthedMeProfileRoute,
   AuthedMeScheduleRoute: AuthedMeScheduleRoute,
+  AuthedOperationsCancellationsRoute: AuthedOperationsCancellationsRoute,
   AuthedMeIndexRoute: AuthedMeIndexRoute,
 }
 

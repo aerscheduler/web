@@ -25,6 +25,8 @@ import { StatCard } from "@/components/stat-card";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
 import { ListSearch } from "@/components/list-search";
+import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { DateRangePicker, lastNDays } from "@/components/billing/date-range-picker";
@@ -34,7 +36,6 @@ import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,7 +51,7 @@ export const Route = createFileRoute("/_authed/billing")({
   component: BillingPage,
 });
 
-type TabKey = "all" | "outstanding" | "paid" | "unbilled";
+type StatusKey = "outstanding" | "paid" | "unbilled";
 
 type InvoiceActions = {
   onView: (inv: Invoice) => void;
@@ -61,11 +62,23 @@ type InvoiceActions = {
 
 const EMPTY_COPY = "No invoices in this range. They draft automatically when a flight ramps in.";
 
+const STATUS_FACETS: FacetDef[] = [
+  {
+    kind: "select",
+    key: "status",
+    label: "Status",
+    allLabel: "All invoices",
+    options: [
+      { value: "outstanding", label: "Outstanding" },
+      { value: "paid", label: "Paid" },
+      { value: "unbilled", label: "Unbilled flights" },
+    ],
+  },
+];
+
 function fmtDate(iso: string | null | undefined) {
   return iso ? format(parseISO(iso), "MMM d, yyyy") : "—";
 }
-
-// ------------------------------------------------------------ invoice columns
 
 function invoiceColumns(actions: InvoiceActions): ColumnDef<Invoice, unknown>[] {
   return [
@@ -202,8 +215,6 @@ function InvoiceCard({ inv, actions }: { inv: Invoice; actions: InvoiceActions }
   );
 }
 
-// ------------------------------------------------------------ unbilled flights
-
 function unbilledColumns(onBill: (r: Reservation) => void): ColumnDef<Reservation, unknown>[] {
   return [
     {
@@ -285,16 +296,21 @@ function UnbilledCard({ r, onBill }: { r: Reservation; onBill: (r: Reservation) 
   );
 }
 
-// ------------------------------------------------------------ page
-
 function BillingPage() {
   const confirm = useConfirm();
   const [range, setRange] = useState<DateRange | undefined>(() => lastNDays(30));
-  const [tab, setTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
+  const debouncedQ = useDebouncedValue(search);
+  const [facets, setFacets] = useState<ListFilterValues>({});
   const [viewId, setViewId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState<InvoiceDraft | undefined>(undefined);
+
+  const status: StatusKey | undefined =
+    facets.status === "outstanding" || facets.status === "paid" || facets.status === "unbilled"
+      ? facets.status
+      : undefined;
+  const showUnbilled = status === "unbilled";
 
   const startISO = range?.from ? startOfDay(range.from).toISOString() : undefined;
   const endISO = range?.to
@@ -303,14 +319,24 @@ function BillingPage() {
       ? endOfDay(range.from).toISOString()
       : undefined;
 
-  const invoicesQ = useInvoices({ startDate: startISO, endDate: endISO });
-  const reservationsQ = useReservations(startISO ?? "", endISO ?? "", {
+  const statsQ = useInvoices({ startDate: startISO, endDate: endISO });
+  const invoicesQ = useInvoices(
+    {
+      startDate: startISO,
+      endDate: endISO,
+      q: debouncedQ || undefined,
+      ...(status === "outstanding" ? { paid: false } : status === "paid" ? { paid: true } : {}),
+    },
+    { enabled: !showUnbilled }
+  );
+  const reservationsQ = useReservations(startISO ?? "", endISO ?? "", undefined, {
     enabled: !!startISO && !!endISO,
   });
 
   const update = useUpdateInvoice();
 
   const invoices = useMemo(() => invoicesQ.data ?? [], [invoicesQ.data]);
+  const statsInvoices = useMemo(() => statsQ.data ?? [], [statsQ.data]);
 
   const unbilled = useMemo(() => {
     const now = Date.now();
@@ -323,7 +349,7 @@ function BillingPage() {
     let revenue = 0;
     let outstanding = 0;
     let paidCount = 0;
-    for (const i of invoices) {
+    for (const i of statsInvoices) {
       if (i.paidAt) {
         revenue += i.total;
         paidCount += 1;
@@ -332,29 +358,25 @@ function BillingPage() {
       }
     }
     return { revenue, outstanding, paidCount };
-  }, [invoices]);
+  }, [statsInvoices]);
 
   const rows = useMemo(() => {
-    if (tab === "paid") return invoices.filter((i) => i.paidAt != null);
-    if (tab === "outstanding")
-      return invoices.filter((i) => i.paidAt == null && i.voidedAt == null);
+    if (status === "outstanding") return invoices.filter((i) => i.voidedAt == null);
     return invoices;
-  }, [invoices, tab]);
+  }, [invoices, status]);
 
   const viewInvoice = useMemo(
-    () => invoices.find((i) => i.id === viewId) ?? null,
-    [invoices, viewId]
+    () =>
+      invoices.find((i) => i.id === viewId) ??
+      statsInvoices.find((i) => i.id === viewId) ??
+      null,
+    [invoices, statsInvoices, viewId]
   );
 
   function markPaid(inv: Invoice) {
     update.mutate(
-      //INTENT, not a timestamp — the server pays it through Stripe too and records who
-      //did it. `{ paidAt }` matched nothing and still returned 200, so the invoice
-      //silently stayed outstanding with no error shown.
       { id: inv.id, patch: { markPaid: true } },
       {
-        //A warning means our row changed but Stripe didn't. Saying "marked paid" and
-        //nothing else would leave the two out of step silently.
         onSuccess: (res) =>
           res.warning
             ? toast.warning(res.warning, { duration: 8000 })
@@ -406,16 +428,21 @@ function BillingPage() {
       ? `${format(range.from, "MMM d")} – ${format(range.to, "MMM d, yyyy")}`
       : "Pick a date range";
 
-  const searchToolbar = (
-    <ListSearch
-      value={search}
-      onChange={setSearch}
-      placeholder="Search invoices…"
-      aria-label="Search invoices"
-    />
+  const toolbar = (
+    <div className="flex flex-col gap-2">
+      {!showUnbilled && (
+        <ListSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search invoices…"
+          aria-label="Search invoices"
+        />
+      )}
+      <ListFilters facets={STATUS_FACETS} values={facets} onChange={setFacets} />
+    </div>
   );
 
-  function renderInvoiceTable(tabRows: Invoice[], emptyMessage: string) {
+  function renderInvoiceTable(emptyMessage: string) {
     if (invoicesQ.isLoading)
       return (
         <Card className="min-h-0 flex-1 overflow-hidden">
@@ -428,7 +455,7 @@ function BillingPage() {
           <ErrorState error={invoicesQ.error} onRetry={() => invoicesQ.refetch()} />
         </Card>
       );
-    if (invoices.length === 0)
+    if (statsInvoices.length === 0 && !debouncedQ && !status)
       return (
         <Card className="min-h-0 flex-1">
           <EmptyState icon={Receipt} title="No invoices yet" body={EMPTY_COPY} />
@@ -438,144 +465,120 @@ function BillingPage() {
       <DataTable
         fill
         columns={columns}
-        data={tabRows}
-        toolbar={searchToolbar}
-        globalFilter={search}
-        onGlobalFilterChange={setSearch}
+        data={rows}
         mobileCard={(inv) => <InvoiceCard inv={inv} actions={actions} />}
         emptyMessage={emptyMessage}
       />
     );
   }
 
-  const tabPanelClass =
-    "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden";
+  function renderUnbilled() {
+    if (reservationsQ.isPending)
+      return (
+        <Card className="min-h-0 flex-1 overflow-hidden">
+          <TableSkeleton rows={6} cols={4} />
+        </Card>
+      );
+    if (reservationsQ.isError)
+      return (
+        <Card className="min-h-0 flex-1">
+          <ErrorState error={reservationsQ.error} onRetry={() => reservationsQ.refetch()} />
+        </Card>
+      );
+    if (unbilled.length === 0)
+      return (
+        <Card className="min-h-0 flex-1">
+          <EmptyState
+            icon={CheckCircle2}
+            title="All flights billed"
+            body="Every past flight in this range already has an invoice."
+          />
+        </Card>
+      );
+    return (
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <p className="shrink-0 text-sm text-muted-foreground">
+          {unbilled.length} past{" "}
+          {unbilled.length === 1 ? "flight hasn't" : "flights haven't"} been billed yet.
+        </p>
+        <DataTable
+          fill
+          columns={unbilledCols}
+          data={unbilled}
+          mobileCard={(r) => <UnbilledCard r={r} onBill={billReservation} />}
+          emptyMessage="No unbilled flights."
+        />
+      </div>
+    );
+  }
+
+  const emptyByStatus =
+    status === "outstanding"
+      ? "Nothing outstanding — you're all paid up."
+      : status === "paid"
+        ? "No paid invoices in this range yet."
+        : "No invoices match your filters.";
 
   return (
     <TableView>
-      <Tabs
-        value={tab}
-        onValueChange={(v) => setTab(v as TabKey)}
-        className="flex min-h-0 flex-1 flex-col gap-4"
-      >
-        <TableView.Header>
-          <PageHeader
-            title="Billing"
-            subtitle={`Invoices · ${rangeSubtitle}`}
-            actions={
-              <div className="flex items-center gap-2">
-                <DateRangePicker value={range} onChange={setRange} />
-                <Button
-                  onClick={() => {
-                    setDraft(undefined);
-                    setCreateOpen(true);
-                  }}
-                >
-                  <Plus className="size-4" /> New invoice
-                </Button>
-              </div>
-            }
-          />
-
-          {invoicesQ.isPending ? (
-            <StatSkeleton count={4} />
-          ) : (
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              <StatCard
-                label="Revenue"
-                value={formatMoney(stats.revenue, { cents: false })}
-                icon={TrendingUp}
-                accent="success"
-                hint="Paid invoices in range"
-              />
-              <StatCard
-                label="Outstanding"
-                value={formatMoney(stats.outstanding, { cents: false })}
-                icon={Wallet}
-                accent="warning"
-                hint="Unpaid, not voided"
-              />
-              <StatCard
-                label="Paid"
-                value={stats.paidCount}
-                icon={CheckCircle2}
-                hint="Invoices settled"
-              />
-              <StatCard
-                label="Unbilled flights"
-                value={unbilled.length}
-                icon={Plane}
-                accent="warning"
-                loading={reservationsQ.isLoading}
-                hint="Past flights, no invoice"
-              />
+      <TableView.Header>
+        <PageHeader
+          title="Billing"
+          subtitle={`Invoices · ${rangeSubtitle}`}
+          actions={
+            <div className="flex items-center gap-2">
+              <DateRangePicker value={range} onChange={setRange} />
+              <Button
+                onClick={() => {
+                  setDraft(undefined);
+                  setCreateOpen(true);
+                }}
+              >
+                <Plus className="size-4" /> New invoice
+              </Button>
             </div>
-          )}
+          }
+        />
 
-          <TabsList>
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
-            <TabsTrigger value="paid">Paid</TabsTrigger>
-            <TabsTrigger value="unbilled">
-              Unbilled flights
-              {unbilled.length > 0 && (
-                <Badge variant="warning" className="ml-1.5">
-                  {unbilled.length}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
-        </TableView.Header>
+        {statsQ.isPending ? (
+          <StatSkeleton count={4} />
+        ) : (
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard
+              label="Revenue"
+              value={formatMoney(stats.revenue, { cents: false })}
+              icon={TrendingUp}
+              accent="success"
+              hint="Paid invoices in range"
+            />
+            <StatCard
+              label="Outstanding"
+              value={formatMoney(stats.outstanding, { cents: false })}
+              icon={Wallet}
+              accent="warning"
+              hint="Unpaid, not voided"
+            />
+            <StatCard
+              label="Paid"
+              value={stats.paidCount}
+              icon={CheckCircle2}
+              hint="Invoices settled"
+            />
+            <StatCard
+              label="Unbilled flights"
+              value={unbilled.length}
+              icon={Plane}
+              accent="warning"
+              loading={reservationsQ.isLoading}
+              hint="Past flights, no invoice"
+            />
+          </div>
+        )}
 
-        <TabsContent value="all" className={tabPanelClass}>
-          {renderInvoiceTable(rows, "No invoices match your search.")}
-        </TabsContent>
+        {toolbar}
+      </TableView.Header>
 
-        <TabsContent value="outstanding" className={tabPanelClass}>
-          {renderInvoiceTable(rows, "Nothing outstanding — you're all paid up.")}
-        </TabsContent>
-
-        <TabsContent value="paid" className={tabPanelClass}>
-          {renderInvoiceTable(rows, "No paid invoices in this range yet.")}
-        </TabsContent>
-
-        <TabsContent value="unbilled" className={tabPanelClass}>
-          {reservationsQ.isPending ? (
-            <Card className="min-h-0 flex-1 overflow-hidden">
-              <TableSkeleton rows={6} cols={4} />
-            </Card>
-          ) : reservationsQ.isError ? (
-            <Card className="min-h-0 flex-1">
-              <ErrorState
-                error={reservationsQ.error}
-                onRetry={() => reservationsQ.refetch()}
-              />
-            </Card>
-          ) : unbilled.length === 0 ? (
-            <Card className="min-h-0 flex-1">
-              <EmptyState
-                icon={CheckCircle2}
-                title="All flights billed"
-                body="Every past flight in this range already has an invoice."
-              />
-            </Card>
-          ) : (
-            <div className="flex min-h-0 flex-1 flex-col gap-3">
-              <p className="shrink-0 text-sm text-muted-foreground">
-                {unbilled.length} past{" "}
-                {unbilled.length === 1 ? "flight hasn't" : "flights haven't"} been billed yet.
-              </p>
-              <DataTable
-                fill
-                columns={unbilledCols}
-                data={unbilled}
-                mobileCard={(r) => <UnbilledCard r={r} onBill={billReservation} />}
-                emptyMessage="No unbilled flights."
-              />
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+      {showUnbilled ? renderUnbilled() : renderInvoiceTable(emptyByStatus)}
 
       <InvoiceDetailSheet
         invoice={viewInvoice}

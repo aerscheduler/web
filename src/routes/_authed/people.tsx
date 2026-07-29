@@ -2,19 +2,20 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { UserPlus, Users } from "lucide-react";
-import { useMembers, type MemberFilter } from "@/features/queries";
+import { useMembers, useOrgUserGroups, type MemberFilter } from "@/features/queries";
 import { rolesOf, type OrganizationUser } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
 import { ListSearch } from "@/components/list-search";
+import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RoleBadges } from "@/components/role-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EditRolesModal } from "@/components/people/edit-roles-modal";
 import { InviteModal } from "@/components/people/invite-modal";
 import { JoinRequestsPanel } from "@/components/people/join-requests-panel";
@@ -30,17 +31,23 @@ export const Route = createFileRoute("/_authed/people")({
   component: PeoplePage,
 });
 
-type TabKey = "all" | "instructor" | "student" | "renter" | "admin";
+const ROLE_OPTIONS = [
+  { value: "instructor", label: "Instructors" },
+  { value: "student", label: "Students" },
+  { value: "renter", label: "Renters" },
+  { value: "admin", label: "Admins" },
+] as const;
 
-const FILTERS: { key: TabKey; label: string; filter: MemberFilter }[] = [
-  { key: "all", label: "Everyone", filter: {} },
-  { key: "instructor", label: "Instructors", filter: { instructor: true } },
-  { key: "student", label: "Students", filter: { student: true } },
-  { key: "renter", label: "Renters", filter: { renter: true } },
-  { key: "admin", label: "Admins", filter: { admin: true } },
-];
+type RoleKey = (typeof ROLE_OPTIONS)[number]["value"];
 
-const EMPTY_COPY: Record<TabKey, { title: string; body: string }> = {
+const ROLE_FILTER: Record<RoleKey, MemberFilter> = {
+  instructor: { instructor: true },
+  student: { student: true },
+  renter: { renter: true },
+  admin: { admin: true },
+};
+
+const EMPTY_BY_ROLE: Record<RoleKey | "all", { title: string; body: string }> = {
   all: {
     title: "Just you so far",
     body: "Invite instructors and import your students to build the roster.",
@@ -65,15 +72,65 @@ const EMPTY_COPY: Record<TabKey, { title: string; body: string }> = {
 
 function PeoplePage() {
   const { roles } = useAuth();
-  const [tab, setTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
+  const debouncedQ = useDebouncedValue(search);
+  const [facets, setFacets] = useState<ListFilterValues>({});
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editing, setEditing] = useState<OrganizationUser | null>(null);
   const [viewing, setViewing] = useState<OrganizationUser | null>(null);
 
-  const active = FILTERS.find((f) => f.key === tab) ?? FILTERS[0];
-  const q = useMembers(active.filter);
+  const groupsQ = useOrgUserGroups();
+  const roleKey =
+    typeof facets.role === "string" && facets.role in ROLE_FILTER
+      ? (facets.role as RoleKey)
+      : undefined;
+  const groupIdRaw = typeof facets.groupId === "string" ? Number(facets.groupId) : undefined;
+
+  const q = useMembers({
+    ...(roleKey ? ROLE_FILTER[roleKey] : {}),
+    q: debouncedQ || undefined,
+    grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
+    groupId: Number.isFinite(groupIdRaw) ? groupIdRaw : undefined,
+  });
   const members = q.data ?? [];
+
+  const facetDefs = useMemo<FacetDef[]>(
+    () => [
+      {
+        kind: "select",
+        key: "role",
+        label: "Role",
+        allLabel: "Everyone",
+        options: ROLE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+      },
+      {
+        kind: "boolean",
+        key: "grounded",
+        label: "Status",
+        trueLabel: "Grounded",
+        falseLabel: "Active",
+      },
+      {
+        kind: "select",
+        key: "groupId",
+        label: "Group",
+        allLabel: "All groups",
+        options: (groupsQ.data ?? []).map((g) => ({
+          value: String(g.id),
+          label: g.name,
+        })),
+      },
+    ],
+    [groupsQ.data]
+  );
+
+  const filtersActive =
+    !!debouncedQ ||
+    roleKey != null ||
+    facets.grounded !== undefined ||
+    (typeof facets.groupId === "string" && facets.groupId !== "");
+
+  const emptyCopy = EMPTY_BY_ROLE[roleKey ?? "all"];
 
   const columns = useMemo<ColumnDef<OrganizationUser, unknown>[]>(
     () => [
@@ -157,18 +214,21 @@ function PeoplePage() {
   );
 
   const toolbar = (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <ListSearch
-        value={search}
-        onChange={setSearch}
-        placeholder="Search name or email…"
-        aria-label="Search members"
-      />
-      {canManageMembers(roles) && (
-        <Button onClick={() => setInviteOpen(true)} className="sm:w-auto">
-          <UserPlus className="size-4" /> Invite
-        </Button>
-      )}
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <ListSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search name or email…"
+          aria-label="Search members"
+        />
+        {canManageMembers(roles) && (
+          <Button onClick={() => setInviteOpen(true)} className="sm:w-auto">
+            <UserPlus className="size-4" /> Invite
+          </Button>
+        )}
+      </div>
+      <ListFilters facets={facetDefs} values={facets} onChange={setFacets} />
     </div>
   );
 
@@ -185,16 +245,7 @@ function PeoplePage() {
         />
 
         {canManageMembers(roles) && <JoinRequestsPanel />}
-
-        <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)}>
-          <TabsList>
-            {FILTERS.map((f) => (
-              <TabsTrigger key={f.key} value={f.key}>
-                {f.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        {toolbar}
       </TableView.Header>
 
       {q.isPending ? (
@@ -205,12 +256,12 @@ function PeoplePage() {
         <Card>
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
-      ) : members.length === 0 ? (
+      ) : members.length === 0 && !filtersActive ? (
         <Card>
           <EmptyState
             icon={Users}
-            title={EMPTY_COPY[tab].title}
-            body={EMPTY_COPY[tab].body}
+            title={emptyCopy.title}
+            body={emptyCopy.body}
             action={
               canManageMembers(roles) && (
                 <Button onClick={() => setInviteOpen(true)}>
@@ -225,10 +276,7 @@ function PeoplePage() {
           fill
           columns={columns}
           data={members}
-          toolbar={toolbar}
-          globalFilter={search}
-          onGlobalFilterChange={setSearch}
-          emptyMessage="No members match your search."
+          emptyMessage="No members match your filters."
           mobileCard={(ou) => (
             <MemberCard ou={ou} onView={setViewing} onEditRoles={setEditing} />
           )}

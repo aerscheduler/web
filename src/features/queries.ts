@@ -77,7 +77,56 @@ export type MemberFilter = Partial<
     "admin" | "owner" | "instructor" | "student" | "renter" | "dispatcher" | "technician" | "noRoles",
     boolean
   >
->;
+> & {
+  q?: string;
+  grounded?: boolean;
+  groupId?: number;
+};
+
+export type ResourceListFilter = {
+  q?: string;
+  grounded?: boolean;
+  locationId?: number;
+};
+
+export type InvoiceListFilter = {
+  q?: string;
+  paid?: boolean;
+  startDate?: string;
+  endDate?: string;
+};
+
+export type ReservationListFilter = {
+  q?: string;
+  resourceId?: number;
+  locationId?: number;
+};
+
+export type SquawkListFilter = {
+  q?: string;
+  resolved?: boolean;
+  resourceId?: number;
+  startDate?: string;
+  endDate?: string;
+};
+
+export type ReminderListFilter = {
+  q?: string;
+  resolved?: boolean;
+  warned?: boolean;
+  resourceId?: number;
+};
+
+export type NotificationListFilter = {
+  q?: string;
+};
+
+export type DocumentListFilter = {
+  q?: string;
+  documentTypeId?: number;
+  includeArchived?: boolean;
+  status?: "expired" | "expiring" | "good";
+};
 
 // ---------------------------------------------------------------- reads
 
@@ -101,10 +150,10 @@ export function useUsers(opts?: QueryOpts) {
   });
 }
 
-export function usePlanes(opts?: QueryOpts) {
+export function usePlanes(filter?: ResourceListFilter, opts?: QueryOpts) {
   return useQuery({
-    queryKey: ["resources", "planes"],
-    queryFn: () => api<Resource[]>("/resources/planes"),
+    queryKey: ["resources", "planes", filter ?? {}],
+    queryFn: () => api<Resource[]>("/resources/planes", { query: filter }),
     ...opts,
   });
 }
@@ -117,28 +166,33 @@ export function useResources(opts?: QueryOpts) {
   });
 }
 
-export function useSimulators(opts?: QueryOpts) {
+export function useSimulators(filter?: ResourceListFilter, opts?: QueryOpts) {
   return useQuery({
-    queryKey: ["resources", "simulators"],
-    queryFn: () => api<Resource[]>("/resources/simulators"),
+    queryKey: ["resources", "simulators", filter ?? {}],
+    queryFn: () => api<Resource[]>("/resources/simulators", { query: filter }),
     ...opts,
   });
 }
 
-export function useRooms(opts?: QueryOpts) {
+export function useRooms(filter?: ResourceListFilter, opts?: QueryOpts) {
   return useQuery({
-    queryKey: ["resources", "rooms"],
-    queryFn: () => api<Resource[]>("/resources/rooms"),
+    queryKey: ["resources", "rooms", filter ?? {}],
+    queryFn: () => api<Resource[]>("/resources/rooms", { query: filter }),
     ...opts,
   });
 }
 
-export function useReservations(startDate: string, endDate: string, opts?: QueryOpts) {
+export function useReservations(
+  startDate: string,
+  endDate: string,
+  filter?: ReservationListFilter,
+  opts?: QueryOpts
+) {
   return useQuery({
-    queryKey: ["reservations", startDate, endDate],
+    queryKey: ["reservations", startDate, endDate, filter ?? {}],
     queryFn: () =>
       api<Reservation[]>("/reservations", {
-        query: { startDate, endDate, orderBy: "asc", includeCanceled: false },
+        query: { startDate, endDate, orderBy: "asc", includeCanceled: false, ...filter },
       }),
     ...opts,
   });
@@ -157,10 +211,7 @@ export function useReservation(id: number | null, opts?: QueryOpts) {
   });
 }
 
-export function useInvoices(
-  filter?: { paid?: boolean; startDate?: string; endDate?: string },
-  opts?: QueryOpts
-) {
+export function useInvoices(filter?: InvoiceListFilter, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["invoices", filter ?? {}],
     queryFn: () => api<Invoice[]>("/invoices", { query: filter }),
@@ -866,12 +917,18 @@ export function useSetAutoPay() {
 // ---------------------------------------------------------------- personal / self-service
 
 /** The caller's (or any user's) reservations in a date range. */
-export function useUserReservations(userId: number | null, startDate: string, endDate: string, opts?: QueryOpts) {
+export function useUserReservations(
+  userId: number | null,
+  startDate: string,
+  endDate: string,
+  filter?: ReservationListFilter,
+  opts?: QueryOpts
+) {
   return useQuery({
-    queryKey: ["reservations", "user", userId, startDate, endDate],
+    queryKey: ["reservations", "user", userId, startDate, endDate, filter ?? {}],
     queryFn: () =>
       api<Reservation[]>(`/reservations/user/${userId}`, {
-        query: { startDate, endDate, orderBy: "asc", includeCanceled: false },
+        query: { startDate, endDate, orderBy: "asc", includeCanceled: false, ...filter },
       }),
     enabled: (opts?.enabled ?? true) && userId != null,
   });
@@ -880,7 +937,7 @@ export function useUserReservations(userId: number | null, startDate: string, en
 /** Invoices for one member (self, or admin viewing another). */
 export function useMemberInvoices(
   orgUserId: number | null,
-  filter?: { paid?: boolean; startDate?: string; endDate?: string },
+  filter?: InvoiceListFilter,
   opts?: QueryOpts
 ) {
   return useQuery({
@@ -977,10 +1034,10 @@ export function useUsersAvailability(userIds: number[], opts?: QueryOpts) {
 }
 
 /** The caller's notifications. */
-export function useNotifications(opts?: QueryOpts) {
+export function useNotifications(filter?: NotificationListFilter, opts?: QueryOpts) {
   return useQuery({
-    queryKey: ["notifications"],
-    queryFn: () => api<AppNotification[]>("/notifications"),
+    queryKey: ["notifications", filter ?? {}],
+    queryFn: () => api<AppNotification[]>("/notifications", { query: filter }),
     ...opts,
   });
 }
@@ -1098,10 +1155,14 @@ export function useDeleteDocumentType() {
 }
 
 /** A member's documents (self, or admin viewing another) — `GET /userDocuments/orgUsers/:id`. */
-export function useMemberDocuments(orgUserId: number | null, opts?: QueryOpts) {
+export function useMemberDocuments(
+  orgUserId: number | null,
+  filter?: DocumentListFilter,
+  opts?: QueryOpts
+) {
   return useQuery({
-    queryKey: ["documents", orgUserId],
-    queryFn: () => api<UserDocument[]>(`/userDocuments/orgUsers/${orgUserId}`),
+    queryKey: ["documents", orgUserId, filter ?? {}],
+    queryFn: () => api<UserDocument[]>(`/userDocuments/orgUsers/${orgUserId}`, { query: filter }),
     enabled: (opts?.enabled ?? true) && orgUserId != null,
   });
 }
@@ -1146,7 +1207,7 @@ export function useUploadDocument() {
 
 // ---------------------------------------------------------------- maintenance
 
-export function useSquawks(filter?: { resolved?: boolean }, opts?: QueryOpts) {
+export function useSquawks(filter?: SquawkListFilter, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["squawks", filter ?? {}],
     queryFn: () => api<Squawk[]>("/maintenance/squawks", { query: filter }),
@@ -1204,7 +1265,7 @@ export function useResolveSquawk() {
   });
 }
 
-export function useMaintenanceReminders(filter?: { resolved?: boolean }, opts?: QueryOpts) {
+export function useMaintenanceReminders(filter?: ReminderListFilter, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["reminders", filter ?? {}],
     queryFn: () => api<MaintenanceReminder[]>("/maintenance/reminders", { query: filter }),

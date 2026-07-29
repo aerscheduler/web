@@ -2,7 +2,9 @@ import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-/** Shared list/table search field — same look as People / Billing. */
+/** Shared list/table search field — same look as People / Billing.
+ *  Pair with `useDebouncedValue` when the value drives a server `q` param.
+ */
 export function ListSearch({
   value,
   onChange,
@@ -30,7 +32,7 @@ export function ListSearch({
   );
 }
 
-/** Case-insensitive substring match across any of the given fields. */
+/** @deprecated Prefer server-side `q`. Kept for rare local-only filters. */
 export function matchesSearch(
   fields: Array<string | null | undefined>,
   query: string

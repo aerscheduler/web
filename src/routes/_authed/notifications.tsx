@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { BellOff, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -9,7 +9,8 @@ import {
 } from "@/features/queries";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
-import { ListSearch, matchesSearch } from "@/components/list-search";
+import { ListSearch } from "@/components/list-search";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { NotificationItem } from "@/components/notifications/notification-item";
@@ -21,21 +22,16 @@ export const Route = createFileRoute("/_authed/notifications")({
 });
 
 function NotificationsPage() {
-  const q = useNotifications();
+  const [search, setSearch] = useState("");
+  const debouncedQ = useDebouncedValue(search);
+  const q = useNotifications({ q: debouncedQ || undefined });
   const markRead = useMarkNotificationRead();
   const clear = useClearNotifications();
   const confirm = useConfirm();
-  const [search, setSearch] = useState("");
 
   const notifications = q.data ?? [];
   const unreadCount = notifications.filter((n) => n.readAt == null).length;
-  const filtered = useMemo(
-    () =>
-      notifications.filter((n) =>
-        matchesSearch([n.title, n.subtitle, n.body, n.message], search)
-      ),
-    [notifications, search]
-  );
+  const searching = !!debouncedQ;
 
   function onMarkRead(id: number) {
     markRead.mutate(id, {
@@ -78,14 +74,12 @@ function NotificationsPage() {
             ) : undefined
           }
         />
-        {notifications.length > 0 && (
-          <ListSearch
-            value={search}
-            onChange={setSearch}
-            placeholder="Search notifications…"
-            aria-label="Search notifications"
-          />
-        )}
+        <ListSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search notifications…"
+          aria-label="Search notifications"
+        />
       </TableView.Header>
 
       {q.isPending ? (
@@ -96,7 +90,7 @@ function NotificationsPage() {
         <Card className="min-h-0 flex-1 p-0">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
-      ) : notifications.length === 0 ? (
+      ) : notifications.length === 0 && !searching ? (
         <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={BellOff}
@@ -104,7 +98,7 @@ function NotificationsPage() {
             body="Reservation changes, squawks, and account activity will show up here."
           />
         </Card>
-      ) : filtered.length === 0 ? (
+      ) : notifications.length === 0 ? (
         <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={BellOff}
@@ -115,7 +109,7 @@ function NotificationsPage() {
       ) : (
         <TableView.Body>
           <div className="space-y-2.5">
-            {filtered.map((n) => (
+            {notifications.map((n) => (
               <NotificationItem
                 key={n.id}
                 notification={n}

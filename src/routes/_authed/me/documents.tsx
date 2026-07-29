@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Building2, ExternalLink, FileText, Plus, Upload } from "lucide-react";
-import { useMemberDocuments } from "@/features/queries";
+import { useDocumentTypes, useMemberDocuments } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import type { UserDocument } from "@/types/api";
 import { formatDate } from "@/lib/utils";
@@ -10,6 +10,8 @@ import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
 import { ListSearch } from "@/components/list-search";
+import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
 import { ExpiryBadge } from "@/components/documents/document-row";
 import { DocumentUploadModal } from "@/components/me-account/document-upload-modal";
@@ -112,11 +114,63 @@ function MyDocumentsPage() {
   const { organization, orgUserId } = useAuth();
   const [uploadOpen, setUploadOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const debouncedQ = useDebouncedValue(search);
+  const [facets, setFacets] = useState<ListFilterValues>({});
+  const typesQ = useDocumentTypes();
 
-  const q = useMemberDocuments(orgUserId);
-  const docs = useMemo(
-    () => (q.data ?? []).filter((d) => !d.archivedAt),
-    [q.data]
+  const documentTypeIdRaw =
+    typeof facets.documentTypeId === "string" ? Number(facets.documentTypeId) : undefined;
+  const status =
+    facets.status === "expired" || facets.status === "expiring" || facets.status === "good"
+      ? facets.status
+      : undefined;
+
+  const q = useMemberDocuments(orgUserId, {
+    q: debouncedQ || undefined,
+    documentTypeId: Number.isFinite(documentTypeIdRaw) ? documentTypeIdRaw : undefined,
+    status,
+    includeArchived: typeof facets.includeArchived === "boolean" ? facets.includeArchived : undefined,
+  });
+  const docs = q.data ?? [];
+
+  const filtersActive =
+    !!debouncedQ ||
+    (typeof facets.documentTypeId === "string" && facets.documentTypeId !== "") ||
+    status != null ||
+    facets.includeArchived === true;
+
+  const facetDefs = useMemo<FacetDef[]>(
+    () => [
+      {
+        kind: "select",
+        key: "documentTypeId",
+        label: "Type",
+        allLabel: "All types",
+        options: (typesQ.data ?? []).map((t) => ({
+          value: String(t.id),
+          label: t.name,
+        })),
+      },
+      {
+        kind: "select",
+        key: "status",
+        label: "Status",
+        allLabel: "All statuses",
+        options: [
+          { value: "expired", label: "Expired" },
+          { value: "expiring", label: "Expiring" },
+          { value: "good", label: "Good" },
+        ],
+      },
+      {
+        kind: "boolean",
+        key: "includeArchived",
+        label: "Archived",
+        trueLabel: "Include archived",
+        falseLabel: "Hide archived",
+      },
+    ],
+    [typesQ.data]
   );
 
   if (!organization) {
@@ -158,7 +212,7 @@ function MyDocumentsPage() {
         <Card className="min-h-0 flex-1">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
-      ) : docs.length === 0 ? (
+      ) : docs.length === 0 && !filtersActive ? (
         <Card className="min-h-0 flex-1">
           <EmptyState
             icon={FileText}
@@ -177,15 +231,16 @@ function MyDocumentsPage() {
           columns={columns}
           data={docs}
           toolbar={
-            <ListSearch
-              value={search}
-              onChange={setSearch}
-              placeholder="Search documents…"
-              aria-label="Search documents"
-            />
+            <div className="flex flex-col gap-2">
+              <ListSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search documents…"
+                aria-label="Search documents"
+              />
+              <ListFilters facets={facetDefs} values={facets} onChange={setFacets} />
+            </div>
           }
-          globalFilter={search}
-          onGlobalFilterChange={setSearch}
           mobileCard={(doc) => <DocumentCard doc={doc} />}
           emptyMessage="No documents match your search."
         />

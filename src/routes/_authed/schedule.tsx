@@ -7,7 +7,7 @@ import {
   startOfWeek,
 } from "date-fns";
 import { CalendarClock, Plus } from "lucide-react";
-import { useReservations, useResources } from "@/features/queries";
+import { useLocations, useReservations, useResources } from "@/features/queries";
 import { zonedStartOfDay, zonedEndOfDay } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { resourceLabel, type Reservation, type Resource, type Role } from "@/types/api";
@@ -20,7 +20,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
-import { ListSearch, matchesSearch } from "@/components/list-search";
+import { ListSearch } from "@/components/list-search";
+import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import {
   ScheduleControls,
@@ -59,6 +61,8 @@ function SchedulePage() {
     "grid"
   );
   const [search, setSearch] = React.useState("");
+  const debouncedQ = useDebouncedValue(search);
+  const [facets, setFacets] = React.useState<ListFilterValues>({});
   const isDesktop = useMediaQuery("(min-width: 768px)");
   // Mobile always uses the agenda; desktop honors the board/list toggle.
   const showBoard = isDesktop && presentation === "grid";
@@ -85,8 +89,20 @@ function SchedulePage() {
     zonedEndOfDay(rangeDays[1], tz.zone).toISOString(),
   ];
 
-  const q = useReservations(startISO, endISO);
+  const resourceIdRaw =
+    typeof facets.resourceId === "string" ? Number(facets.resourceId) : undefined;
+  const locationIdRaw =
+    typeof facets.locationId === "string" ? Number(facets.locationId) : undefined;
+  const resourceId = Number.isFinite(resourceIdRaw) ? resourceIdRaw : undefined;
+  const locationId = Number.isFinite(locationIdRaw) ? locationIdRaw : undefined;
+
+  const q = useReservations(startISO, endISO, {
+    q: debouncedQ || undefined,
+    resourceId,
+    locationId,
+  });
   const resourcesQ = useResources();
+  const locationsQ = useLocations();
 
   // Live board: quietly re-pull the range on an interval (ref keeps the timer
   // stable across renders while always calling the latest refetch).
@@ -100,26 +116,41 @@ function SchedulePage() {
   const reservations = React.useMemo(() => q.data ?? [], [q.data]);
   const resources = useResolvedResources(resourcesQ.data, reservations, roles);
 
-  const filteredResources = React.useMemo(
-    () =>
-      resources.filter((r) =>
-        matchesSearch([resourceLabel(r).name, r.about, r.location?.name], search)
-      ),
-    [resources, search]
-  );
-  const filteredReservations = React.useMemo(
-    () =>
-      reservations.filter((res) =>
-        matchesSearch(
-          [
-            res.title,
-            res.notes,
-            res.resource ? resourceLabel(res.resource).name : null,
-          ],
-          search
-        )
-      ),
-    [reservations, search]
+  // Narrow lanes when a resource/location facet is active (permission filter stays above).
+  const filteredResources = React.useMemo(() => {
+    let list = resources;
+    if (resourceId != null) list = list.filter((r) => r.id === resourceId);
+    if (locationId != null)
+      list = list.filter(
+        (r) => r.FK_locationId === locationId || r.location?.id === locationId
+      );
+    return list;
+  }, [resources, resourceId, locationId]);
+
+  const facetDefs = React.useMemo<FacetDef[]>(
+    () => [
+      {
+        kind: "select",
+        key: "resourceId",
+        label: "Resource",
+        allLabel: "All resources",
+        options: resources.map((r) => ({
+          value: String(r.id),
+          label: resourceLabel(r).name,
+        })),
+      },
+      {
+        kind: "select",
+        key: "locationId",
+        label: "Location",
+        allLabel: "All locations",
+        options: (locationsQ.data ?? []).map((l) => ({
+          value: String(l.id),
+          label: l.name,
+        })),
+      },
+    ],
+    [resources, locationsQ.data]
   );
 
   // Modal state.
@@ -191,6 +222,7 @@ function SchedulePage() {
           placeholder="Search resources or bookings…"
           aria-label="Search schedule"
         />
+        <ListFilters facets={facetDefs} values={facets} onChange={setFacets} />
       </TableView.Header>
 
       <TableView.Body className="flex flex-col overflow-hidden">
@@ -216,14 +248,14 @@ function SchedulePage() {
             showBoard ? (
               <MonthGrid
                 month={day}
-                reservations={filteredReservations}
+                reservations={reservations}
                 onView={openDetail}
                 onCreate={onCreate}
                 onSelectDay={selectDay}
               />
             ) : (
               <MonthAgenda
-                reservations={filteredReservations}
+                reservations={reservations}
                 onView={openDetail}
                 onEdit={startEdit}
                 onCancel={handleCancel}
@@ -233,14 +265,14 @@ function SchedulePage() {
             showBoard ? (
               <WeekTimeGrid
                 weekStart={startOfWeek(day)}
-                reservations={filteredReservations}
+                reservations={reservations}
                 onView={openDetail}
                 onCreate={onCreate}
                 onSelectDay={selectDay}
               />
             ) : (
               <AgendaList
-                reservations={filteredReservations}
+                reservations={reservations}
                 onView={openDetail}
                 onEdit={startEdit}
                 onCancel={handleCancel}
@@ -250,7 +282,7 @@ function SchedulePage() {
             <LaneGrid
               day={day}
               resources={filteredResources}
-              reservations={filteredReservations}
+              reservations={reservations}
               onView={openDetail}
               onEdit={startEdit}
               onDuplicate={setDuplicating}
@@ -259,7 +291,7 @@ function SchedulePage() {
             />
           ) : (
             <AgendaList
-              reservations={filteredReservations}
+              reservations={reservations}
               onView={openDetail}
               onEdit={startEdit}
               onDuplicate={setDuplicating}

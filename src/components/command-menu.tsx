@@ -62,7 +62,7 @@ export function CommandMenuProvider({ children }: { children: React.ReactNode })
   // `enabled` only when the palette is open, so we don't fetch on every page.
   // Invoices are admin-only on the server, so only fetch them for admins.
   const members = useMembers(undefined, { enabled: open });
-  const planes = usePlanes({ enabled: open });
+  const planes = usePlanes(undefined, { enabled: open });
   const invoices = useInvoices(undefined, { enabled: open && isAdmin(R) });
 
   React.useEffect(() => {

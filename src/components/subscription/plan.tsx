@@ -31,7 +31,7 @@ function overrideState(): SubState | null {
  */
 export function useSubStatus(): SubStatus | null {
   const { organization } = useAuth();
-  const planes = usePlanes({ enabled: !!organization });
+  const planes = usePlanes(undefined, { enabled: !!organization });
   // Whether the org bills through Stripe Connect — existing Connect users are
   // grandfathered off the per-aircraft model.
   const billing = useBilling({ enabled: !!organization });

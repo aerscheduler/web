@@ -14,11 +14,13 @@ import {
 import { CalendarClock, CalendarPlus, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { bookActionLabel } from "@/lib/permissions";
-import { useUserReservations } from "@/features/queries";
+import { useLocations, useResources, useUserReservations } from "@/features/queries";
 import type { Reservation } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
-import { ListSearch, matchesSearch } from "@/components/list-search";
+import { ListSearch } from "@/components/list-search";
+import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,22 +69,56 @@ function MySchedulePage() {
   const maintenanceOnly = bookLabel === "Schedule maintenance";
   const [range, setRange] = React.useState<Range>("upcoming");
   const [search, setSearch] = React.useState("");
+  const debouncedQ = useDebouncedValue(search);
+  const [facets, setFacets] = React.useState<ListFilterValues>({});
 
   const now = React.useMemo(() => new Date(), []);
   const [startISO, endISO] = rangeBounds(range, now);
-  const q = useUserReservations(userId, startISO, endISO);
 
-  const reservations = React.useMemo(
-    () =>
-      (q.data ?? []).filter((r) =>
-        matchesSearch(
-          [r.title, r.notes, r.resource ? resourceLabel(r.resource).name : null],
-          search
-        )
-      ),
-    [q.data, search]
-  );
+  const resourceIdRaw =
+    typeof facets.resourceId === "string" ? Number(facets.resourceId) : undefined;
+  const locationIdRaw =
+    typeof facets.locationId === "string" ? Number(facets.locationId) : undefined;
+  const resourceId = Number.isFinite(resourceIdRaw) ? resourceIdRaw : undefined;
+  const locationId = Number.isFinite(locationIdRaw) ? locationIdRaw : undefined;
+
+  const resourcesQ = useResources();
+  const locationsQ = useLocations();
+  const q = useUserReservations(userId, startISO, endISO, {
+    q: debouncedQ || undefined,
+    resourceId,
+    locationId,
+  });
+
+  const reservations = q.data ?? [];
+  const filtersActive = !!debouncedQ || resourceId != null || locationId != null;
   const groups = React.useMemo(() => groupByDay(reservations), [reservations]);
+
+  const facetDefs = React.useMemo<FacetDef[]>(
+    () => [
+      {
+        kind: "select",
+        key: "resourceId",
+        label: "Resource",
+        allLabel: "All resources",
+        options: (resourcesQ.data ?? []).map((r) => ({
+          value: String(r.id),
+          label: resourceLabel(r).name,
+        })),
+      },
+      {
+        kind: "select",
+        key: "locationId",
+        label: "Location",
+        allLabel: "All locations",
+        options: (locationsQ.data ?? []).map((l) => ({
+          value: String(l.id),
+          label: l.name,
+        })),
+      },
+    ],
+    [resourcesQ.data, locationsQ.data]
+  );
 
   // Same detail sheet the dispatch board opens — cancel and the ramp-out /
   // ramp-in / close-out flow behave identically here.
@@ -153,6 +189,7 @@ function MySchedulePage() {
           placeholder="Search flights…"
           aria-label="Search calendar"
         />
+        <ListFilters facets={facetDefs} values={facets} onChange={setFacets} />
       </TableView.Header>
 
       {q.isPending ? (
@@ -163,7 +200,7 @@ function MySchedulePage() {
         <Card className="min-h-0 flex-1 p-0">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
-      ) : groups.length === 0 ? (
+      ) : groups.length === 0 && !filtersActive ? (
         <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={CalendarClock}
@@ -176,6 +213,14 @@ function MySchedulePage() {
                 </Link>
               </Button>
             }
+          />
+        </Card>
+      ) : groups.length === 0 ? (
+        <Card className="min-h-0 flex-1 p-0">
+          <EmptyState
+            icon={CalendarClock}
+            title="No matches"
+            body="Nothing matches that search."
           />
         </Card>
       ) : (

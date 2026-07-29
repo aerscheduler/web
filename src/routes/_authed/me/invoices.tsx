@@ -17,6 +17,8 @@ import { StatCard } from "@/components/stat-card";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
 import { ListSearch } from "@/components/list-search";
+import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from "@/components/states";
 import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
 import { MemberInvoiceSheet } from "@/components/me-money/member-invoice-sheet";
@@ -32,6 +34,17 @@ export const Route = createFileRoute("/_authed/me/invoices")({
 
 const EMPTY_COPY =
   "No invoices yet. They'll appear here after your flights are billed.";
+
+const FACETS: FacetDef[] = [
+  {
+    kind: "boolean",
+    key: "paid",
+    label: "Status",
+    trueLabel: "Paid",
+    falseLabel: "Outstanding",
+  },
+  { kind: "dateRange", key: "dateRange", label: "Date range" },
+];
 
 function fmtDate(iso: string | null | undefined) {
   return iso ? format(parseISO(iso), "MMM d, yyyy") : "—";
@@ -147,40 +160,65 @@ function InvoiceCard({ inv, onView }: { inv: Invoice; onView: (inv: Invoice) => 
 function MyInvoicesPage() {
   const { organization, orgUserId } = useAuth();
   const [search, setSearch] = useState("");
+  const debouncedQ = useDebouncedValue(search);
+  const [facets, setFacets] = useState<ListFilterValues>({});
   const [viewId, setViewId] = useState<number | null>(null);
   const [payId, setPayId] = useState<number | null>(null);
 
-  const invoicesQ = useMemberInvoices(orgUserId);
+  const filtersActive =
+    !!debouncedQ ||
+    facets.paid !== undefined ||
+    !!facets.startDate ||
+    !!facets.endDate;
+
+  // KPIs stay unfiltered so paid/date facets don't zero out the cards.
+  const statsQ = useMemberInvoices(orgUserId);
+  const invoicesQ = useMemberInvoices(orgUserId, {
+    q: debouncedQ || undefined,
+    paid: typeof facets.paid === "boolean" ? facets.paid : undefined,
+    startDate: typeof facets.startDate === "string" ? facets.startDate : undefined,
+    endDate: typeof facets.endDate === "string" ? facets.endDate : undefined,
+  });
   const invoices = useMemo(() => invoicesQ.data ?? [], [invoicesQ.data]);
+  const statsInvoices = useMemo(() => statsQ.data ?? [], [statsQ.data]);
 
   const stats = useMemo(() => {
     let outstanding = 0;
     let paid = 0;
-    for (const i of invoices) {
+    for (const i of statsInvoices) {
       if (i.paidAt) paid += i.total;
       else if (!i.voidedAt) outstanding += i.total;
     }
     return { outstanding, paid };
-  }, [invoices]);
+  }, [statsInvoices]);
 
   const viewInvoice = useMemo(
-    () => invoices.find((i) => i.id === viewId) ?? null,
-    [invoices, viewId]
+    () =>
+      invoices.find((i) => i.id === viewId) ??
+      statsInvoices.find((i) => i.id === viewId) ??
+      null,
+    [invoices, statsInvoices, viewId]
   );
   const payInvoice = useMemo(
-    () => invoices.find((i) => i.id === payId) ?? null,
-    [invoices, payId]
+    () =>
+      invoices.find((i) => i.id === payId) ??
+      statsInvoices.find((i) => i.id === payId) ??
+      null,
+    [invoices, statsInvoices, payId]
   );
 
   const columns = useMemo(() => invoiceColumns((inv) => setViewId(inv.id)), []);
 
   const searchToolbar = (
-    <ListSearch
-      value={search}
-      onChange={setSearch}
-      placeholder="Search invoices…"
-      aria-label="Search invoices"
-    />
+    <div className="flex flex-col gap-2">
+      <ListSearch
+        value={search}
+        onChange={setSearch}
+        placeholder="Search invoices…"
+        aria-label="Search invoices"
+      />
+      <ListFilters facets={FACETS} values={facets} onChange={setFacets} />
+    </div>
   );
 
   if (!organization) {
@@ -208,7 +246,7 @@ function MyInvoicesPage() {
           subtitle="Your flight-training charges — what you owe and what's settled."
         />
 
-        {invoicesQ.isPending ? (
+        {statsQ.isPending ? (
           <StatSkeleton count={2} />
         ) : (
           <div className="grid grid-cols-2 gap-4">
@@ -238,7 +276,7 @@ function MyInvoicesPage() {
         <Card className="min-h-0 flex-1">
           <ErrorState error={invoicesQ.error} onRetry={() => invoicesQ.refetch()} />
         </Card>
-      ) : invoices.length === 0 ? (
+      ) : invoices.length === 0 && !filtersActive ? (
         <Card className="min-h-0 flex-1">
           <EmptyState icon={Receipt} title="No invoices yet" body={EMPTY_COPY} />
         </Card>
@@ -248,8 +286,6 @@ function MyInvoicesPage() {
           columns={columns}
           data={invoices}
           toolbar={searchToolbar}
-          globalFilter={search}
-          onGlobalFilterChange={setSearch}
           mobileCard={(inv) => <InvoiceCard inv={inv} onView={(i) => setViewId(i.id)} />}
           emptyMessage="No invoices match your search."
         />

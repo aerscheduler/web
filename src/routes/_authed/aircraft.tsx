@@ -17,7 +17,9 @@ import { AircraftDetailSheet } from "@/components/aircraft/aircraft-detail-sheet
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
-import { ListSearch, matchesSearch } from "@/components/list-search";
+import { ListSearch } from "@/components/list-search";
+import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -29,33 +31,55 @@ export const Route = createFileRoute("/_authed/aircraft")({
 });
 
 function AircraftPage() {
-  const q = usePlanes();
   const locationsQ = useLocations();
   const confirm = useConfirm();
   const qc = useQueryClient();
   const { roles } = useAuth();
 
-  const planes = q.data ?? [];
-  const locations = locationsQ.data ?? [];
-
   const [view, setView] = usePersistedState<ViewMode>("view:aircraft", "grid");
   const [search, setSearch] = React.useState("");
+  const debouncedQ = useDebouncedValue(search);
+  const [facets, setFacets] = React.useState<ListFilterValues>({});
   const [addOpen, setAddOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Resource | null>(null);
   const [grounding, setGrounding] = React.useState<Resource | null>(null);
   const [approving, setApproving] = React.useState<Resource | null>(null);
   const [detail, setDetail] = React.useState<Resource | null>(null);
 
-  const filtered = React.useMemo(
-    () =>
-      planes.filter((r) => {
-        const p = r.type?.plane;
-        return matchesSearch(
-          [p?.tailNumber, p?.make, p?.model, p?.year, r.location?.name, r.about],
-          search
-        );
-      }),
-    [planes, search]
+  const locations = locationsQ.data ?? [];
+  const locationIdRaw =
+    typeof facets.locationId === "string" ? Number(facets.locationId) : undefined;
+
+  const q = usePlanes({
+    q: debouncedQ || undefined,
+    grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
+    locationId: Number.isFinite(locationIdRaw) ? locationIdRaw : undefined,
+  });
+  const planes = q.data ?? [];
+
+  const filtersActive =
+    !!debouncedQ ||
+    facets.grounded !== undefined ||
+    (typeof facets.locationId === "string" && facets.locationId !== "");
+
+  const facetDefs = React.useMemo<FacetDef[]>(
+    () => [
+      {
+        kind: "boolean",
+        key: "grounded",
+        label: "Status",
+        trueLabel: "Grounded",
+        falseLabel: "Available",
+      },
+      {
+        kind: "select",
+        key: "locationId",
+        label: "Location",
+        allLabel: "All locations",
+        options: locations.map((l) => ({ value: String(l.id), label: l.name })),
+      },
+    ],
+    [locations]
   );
 
   // Ungrounding is a one-shot patch against an arbitrary id (the shared hook is fixed-id).
@@ -112,19 +136,22 @@ function AircraftPage() {
           }
           actions={
             <>
-              {planes.length > 0 && <ViewModeToggle value={view} onChange={setView} />}
+              {(planes.length > 0 || filtersActive) && (
+                <ViewModeToggle value={view} onChange={setView} />
+              )}
               {addButton}
             </>
           }
         />
-        {planes.length > 0 && (
+        <div className="flex flex-col gap-2">
           <ListSearch
             value={search}
             onChange={setSearch}
             placeholder="Search tail, make, model…"
             aria-label="Search aircraft"
           />
-        )}
+          <ListFilters facets={facetDefs} values={facets} onChange={setFacets} />
+        </div>
       </TableView.Header>
 
       {q.isPending ? (
@@ -135,7 +162,7 @@ function AircraftPage() {
         <Card className="min-h-0 flex-1">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
-      ) : planes.length === 0 ? (
+      ) : planes.length === 0 && !filtersActive ? (
         <Card className="min-h-0 flex-1">
           <EmptyState
             icon={PlaneTakeoff}
@@ -144,7 +171,7 @@ function AircraftPage() {
             action={addButton}
           />
         </Card>
-      ) : filtered.length === 0 ? (
+      ) : planes.length === 0 ? (
         <Card className="min-h-0 flex-1">
           <EmptyState
             icon={PlaneTakeoff}
@@ -155,7 +182,7 @@ function AircraftPage() {
       ) : view === "grid" ? (
         <TableView.Body>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((r) => (
+            {planes.map((r) => (
               <AircraftCard key={r.id} r={r} actions={actions} />
             ))}
           </div>
@@ -163,7 +190,7 @@ function AircraftPage() {
       ) : (
         <TableView.Body>
           <Card className="divide-y divide-border overflow-hidden">
-            {filtered.map((r) => (
+            {planes.map((r) => (
               <AircraftListRow key={r.id} r={r} actions={actions} />
             ))}
           </Card>

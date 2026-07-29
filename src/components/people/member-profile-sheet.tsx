@@ -89,7 +89,7 @@ function MemberDocuments({ ou }: { ou: OrganizationUser }) {
   const [uploadOpen, setUploadOpen] = useState(false);
 
   const isSelf = ou.id === orgUserId;
-  const q = useMemberDocuments(ou.id, { enabled: isStaff || isSelf });
+  const q = useMemberDocuments(ou.id, undefined, { enabled: isStaff || isSelf });
   const docs = useMemo(() => (q.data ?? []).filter((d) => !d.archivedAt), [q.data]);
 
   if (!isStaff && !isSelf) return null;

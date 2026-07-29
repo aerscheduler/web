@@ -8,7 +8,9 @@ import type { Resource } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
-import { ListSearch, matchesSearch } from "@/components/list-search";
+import { ListSearch } from "@/components/list-search";
+import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import {
@@ -107,12 +109,7 @@ function SimulatorListRow({ r }: { r: Resource }) {
 
 function FacilitiesPage() {
   const { organization } = useAuth();
-  const simsQ = useSimulators({ enabled: organization != null });
-  const roomsQ = useRooms({ enabled: organization != null });
   const locationsQ = useLocations({ enabled: organization != null });
-
-  const sims = simsQ.data ?? [];
-  const rooms = roomsQ.data ?? [];
   const locations = locationsQ.data ?? [];
 
   const [addKind, setAddKind] = useState<FacilityKind | null>(null);
@@ -120,21 +117,80 @@ function FacilitiesPage() {
   const [view, setView] = usePersistedState<ViewMode>("view:facilities", "grid");
   const [simSearch, setSimSearch] = useState("");
   const [roomSearch, setRoomSearch] = useState("");
+  const debouncedSim = useDebouncedValue(simSearch);
+  const debouncedRoom = useDebouncedValue(roomSearch);
+  const [simFacets, setSimFacets] = useState<ListFilterValues>({});
+  const [roomFacets, setRoomFacets] = useState<ListFilterValues>({});
 
-  const filteredSims = useMemo(
-    () =>
-      sims.filter((r) =>
-        matchesSearch([r.type?.simulator?.name, r.location?.name, r.about], simSearch)
-      ),
-    [sims, simSearch]
+  const simLocationId =
+    typeof simFacets.locationId === "string" ? Number(simFacets.locationId) : undefined;
+  const roomLocationId =
+    typeof roomFacets.locationId === "string" ? Number(roomFacets.locationId) : undefined;
+
+  const simsQ = useSimulators(
+    {
+      q: debouncedSim || undefined,
+      locationId: Number.isFinite(simLocationId) ? simLocationId : undefined,
+      grounded: typeof simFacets.grounded === "boolean" ? simFacets.grounded : undefined,
+    },
+    { enabled: organization != null }
   );
-  const filteredRooms = useMemo(
-    () =>
-      rooms.filter((r) =>
-        matchesSearch([r.type?.room?.roomNumber, r.location?.name, r.about], roomSearch)
-      ),
-    [rooms, roomSearch]
+  const roomsQ = useRooms(
+    {
+      q: debouncedRoom || undefined,
+      locationId: Number.isFinite(roomLocationId) ? roomLocationId : undefined,
+    },
+    { enabled: organization != null }
   );
+
+  const sims = simsQ.data ?? [];
+  const rooms = roomsQ.data ?? [];
+
+  const locationOptions = useMemo(
+    () => locations.map((l) => ({ value: String(l.id), label: l.name })),
+    [locations]
+  );
+
+  const simFacetDefs = useMemo<FacetDef[]>(
+    () => [
+      {
+        kind: "select",
+        key: "locationId",
+        label: "Location",
+        allLabel: "All locations",
+        options: locationOptions,
+      },
+      {
+        kind: "boolean",
+        key: "grounded",
+        label: "Status",
+        trueLabel: "Grounded",
+        falseLabel: "Available",
+      },
+    ],
+    [locationOptions]
+  );
+
+  const roomFacetDefs = useMemo<FacetDef[]>(
+    () => [
+      {
+        kind: "select",
+        key: "locationId",
+        label: "Location",
+        allLabel: "All locations",
+        options: locationOptions,
+      },
+    ],
+    [locationOptions]
+  );
+
+  const simFiltersActive =
+    !!debouncedSim ||
+    simFacets.grounded !== undefined ||
+    (typeof simFacets.locationId === "string" && simFacets.locationId !== "");
+  const roomFiltersActive =
+    !!debouncedRoom ||
+    (typeof roomFacets.locationId === "string" && roomFacets.locationId !== "");
 
   const addButton =
     tab === "simulators" ? (
@@ -160,7 +216,9 @@ function FacilitiesPage() {
             subtitle="Simulators and ground-school rooms — bookable for sim and ground lessons."
             actions={
               <>
-                {(tab === "simulators" ? sims.length > 0 : rooms.length > 0) && (
+                {(tab === "simulators"
+                  ? sims.length > 0 || simFiltersActive
+                  : rooms.length > 0 || roomFiltersActive) && (
                   <ViewModeToggle value={view} onChange={setView} />
                 )}
                 {addButton}
@@ -174,14 +232,15 @@ function FacilitiesPage() {
         </TableView.Header>
 
         <TabsContent value="simulators" className={tabPanelClass}>
-          {sims.length > 0 && (
+          <div className="flex flex-col gap-2">
             <ListSearch
               value={simSearch}
               onChange={setSimSearch}
               placeholder="Search simulators…"
               aria-label="Search simulators"
             />
-          )}
+            <ListFilters facets={simFacetDefs} values={simFacets} onChange={setSimFacets} />
+          </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {simsQ.isPending ? (
               <CardGridSkeleton count={3} />
@@ -189,7 +248,7 @@ function FacilitiesPage() {
               <Card>
                 <ErrorState error={simsQ.error} onRetry={() => simsQ.refetch()} />
               </Card>
-            ) : sims.length === 0 ? (
+            ) : sims.length === 0 && !simFiltersActive ? (
               <Card>
                 <EmptyState
                   icon={MonitorPlay}
@@ -202,19 +261,19 @@ function FacilitiesPage() {
                   }
                 />
               </Card>
-            ) : filteredSims.length === 0 ? (
+            ) : sims.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 No simulators match your search.
               </p>
             ) : view === "grid" ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredSims.map((r) => (
+                {sims.map((r) => (
                   <SimulatorCard key={r.id} r={r} />
                 ))}
               </div>
             ) : (
               <Card className="divide-y divide-border overflow-hidden">
-                {filteredSims.map((r) => (
+                {sims.map((r) => (
                   <SimulatorListRow key={r.id} r={r} />
                 ))}
               </Card>
@@ -223,14 +282,15 @@ function FacilitiesPage() {
         </TabsContent>
 
         <TabsContent value="rooms" className={tabPanelClass}>
-          {rooms.length > 0 && (
+          <div className="flex flex-col gap-2">
             <ListSearch
               value={roomSearch}
               onChange={setRoomSearch}
               placeholder="Search rooms…"
               aria-label="Search rooms"
             />
-          )}
+            <ListFilters facets={roomFacetDefs} values={roomFacets} onChange={setRoomFacets} />
+          </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {roomsQ.isPending ? (
               <Card className="h-24 animate-pulse" />
@@ -238,7 +298,7 @@ function FacilitiesPage() {
               <Card>
                 <ErrorState error={roomsQ.error} onRetry={() => roomsQ.refetch()} />
               </Card>
-            ) : rooms.length === 0 ? (
+            ) : rooms.length === 0 && !roomFiltersActive ? (
               <Card>
                 <EmptyState
                   icon={DoorOpen}
@@ -251,13 +311,13 @@ function FacilitiesPage() {
                   }
                 />
               </Card>
-            ) : filteredRooms.length === 0 ? (
+            ) : rooms.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 No rooms match your search.
               </p>
             ) : view === "grid" ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredRooms.map((r) => {
+                {rooms.map((r) => {
                   const room = r.type?.room;
                   if (!room) return null;
                   return (
@@ -279,7 +339,7 @@ function FacilitiesPage() {
               </div>
             ) : (
               <Card className="divide-y divide-border overflow-hidden">
-                {filteredRooms.map((r) => {
+                {rooms.map((r) => {
                   const room = r.type?.room;
                   if (!room) return null;
                   return (

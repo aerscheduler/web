@@ -77,6 +77,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   const { rehydrate } = useAuth();
   const update = useUpdateOrganization();
   const prefs = organization.preferences;
+  const bookingPolicy = organization.bookingPolicy;
 
   // Local mirror so the switch flips instantly; reconciled from the server on rehydrate.
   const [overridePrices, setOverridePrices] = useState(
@@ -85,20 +86,26 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   const [approvedOnly, setApprovedOnly] = useState(
     prefs?.personnelCanOnlyUseApprovedResources ?? false
   );
-  const [pending, setPending] = useState<PrefField | null>(null);
+  const [requirePaymentMethod, setRequirePaymentMethod] = useState(
+    bookingPolicy?.requirePaymentMethod ?? false
+  );
+  const [pending, setPending] = useState<PrefField | "requirePaymentMethod" | null>(null);
 
   // Keep local state honest if the org changes underneath us (org switch, rehydrate).
   useEffect(() => {
     setOverridePrices(prefs?.instructorsCanOverrideReservationPrices ?? false);
     setApprovedOnly(prefs?.personnelCanOnlyUseApprovedResources ?? false);
+    setRequirePaymentMethod(bookingPolicy?.requirePaymentMethod ?? false);
   }, [
     prefs?.instructorsCanOverrideReservationPrices,
     prefs?.personnelCanOnlyUseApprovedResources,
+    bookingPolicy?.requirePaymentMethod,
   ]);
 
-  function save(field: PrefField, value: boolean, apply: (v: boolean) => void) {
-    const previous = field === "instructorsCanOverrideReservationPrices" ? overridePrices : approvedOnly;
-    apply(value); // optimistic
+  function savePref(field: PrefField, value: boolean, apply: (v: boolean) => void) {
+    const previous =
+      field === "instructorsCanOverrideReservationPrices" ? overridePrices : approvedOnly;
+    apply(value);
     setPending(field);
     update.mutate(
       { preferences: { [field]: value } },
@@ -108,7 +115,29 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
           toast.success("Booking preferences updated");
         },
         onError: (err) => {
-          apply(previous); // revert on failure
+          apply(previous);
+          toast.error(
+            err instanceof ApiError ? err.message : "Couldn't save that preference"
+          );
+        },
+        onSettled: () => setPending(null),
+      }
+    );
+  }
+
+  function saveRequirePaymentMethod(value: boolean) {
+    const previous = requirePaymentMethod;
+    setRequirePaymentMethod(value);
+    setPending("requirePaymentMethod");
+    update.mutate(
+      { bookingPolicy: { requirePaymentMethod: value } },
+      {
+        onSuccess: async () => {
+          await rehydrate();
+          toast.success("Booking preferences updated");
+        },
+        onError: (err) => {
+          setRequirePaymentMethod(previous);
           toast.error(
             err instanceof ApiError ? err.message : "Couldn't save that preference"
           );
@@ -137,7 +166,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
           disabled={pending !== null}
           saving={pending === "instructorsCanOverrideReservationPrices"}
           onCheckedChange={(v) =>
-            save("instructorsCanOverrideReservationPrices", v, setOverridePrices)
+            savePref("instructorsCanOverrideReservationPrices", v, setOverridePrices)
           }
         />
         <PreferenceToggle
@@ -147,8 +176,16 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
           disabled={pending !== null}
           saving={pending === "personnelCanOnlyUseApprovedResources"}
           onCheckedChange={(v) =>
-            save("personnelCanOnlyUseApprovedResources", v, setApprovedOnly)
+            savePref("personnelCanOnlyUseApprovedResources", v, setApprovedOnly)
           }
+        />
+        <PreferenceToggle
+          label="Require payment method before self-book"
+          description="Students and renters must have a card on file before they can book themselves. Owners, admins, and dispatchers can still book anyone; instructor-led bookings are unaffected. Only applies when Stripe billing is enabled."
+          checked={requirePaymentMethod}
+          disabled={pending !== null}
+          saving={pending === "requirePaymentMethod"}
+          onCheckedChange={saveRequirePaymentMethod}
         />
       </CardContent>
     </Card>

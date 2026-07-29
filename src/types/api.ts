@@ -55,6 +55,7 @@ export interface Organization {
   timeZone?: string | null;
   billing?: OrganizationBillingSettings;
   preferences?: OrganizationPreferences;
+  bookingPolicy?: OrganizationBookingPolicy;
   details?: OrganizationDetails;
 }
 
@@ -94,6 +95,12 @@ export interface OrganizationPreferences {
   newOrgOnboardingComplete: boolean;
   instructorsCanOverrideReservationPrices: boolean;
   personnelCanOnlyUseApprovedResources: boolean;
+}
+
+/** Org-wide booking policy defaults (1:1). Source of truth for schedule gates. */
+export interface OrganizationBookingPolicy {
+  id?: number;
+  requirePaymentMethod: boolean;
 }
 
 export interface OrganizationBillingSettings {

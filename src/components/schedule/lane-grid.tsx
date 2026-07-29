@@ -132,17 +132,17 @@ export function LaneGrid({
   const showNow = nowMin >= 0 && nowMin <= TOTAL_MIN;
 
   return (
-    <div className="overflow-x-auto">
+    <div className="h-full min-h-0 overflow-auto">
       <div style={{ minWidth: LABEL_WIDTH + laneWidth }}>
-        {/* Header — hour ruler */}
-        <div className="flex border-b border-border">
+        {/* Header — hour ruler (sticky while scrolling resource lanes) */}
+        <div className="sticky top-0 z-30 flex border-b border-border bg-card">
           <div
-            className="sticky left-0 z-20 shrink-0 border-r border-border bg-card px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            className="sticky left-0 z-40 shrink-0 border-r border-border bg-card px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
             style={{ width: LABEL_WIDTH }}
           >
             Resource
           </div>
-          <div className="relative bg-card" style={{ width: laneWidth, height: 32 }}>
+          <div className="relative" style={{ width: laneWidth, height: 32 }}>
             {Array.from({ length: HOURS + 1 }).map((_, i) => (
               <div
                 key={i}

@@ -38,7 +38,7 @@ export function MonthAgenda({
   }
 
   return (
-    <div className="divide-y divide-border">
+    <div className="h-full min-h-0 divide-y divide-border overflow-auto">
       {[...groups.values()].map(({ date, items }) => (
         <div key={date.toISOString()} className="py-3">
           <div className="sticky top-0 z-10 flex items-center gap-2 bg-card px-4 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

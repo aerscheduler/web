@@ -67,7 +67,7 @@ export function WeekTimeGrid({
   const showNow = nowMin >= 0 && nowMin <= TOTAL_MIN;
 
   return (
-    <div className="max-h-[70vh] overflow-auto">
+    <div className="h-full min-h-0 overflow-auto">
       <div className="grid min-w-[52rem] grid-cols-[auto_repeat(7,minmax(0,1fr))]">
         {/* Header row: corner + day headers (sticky top) */}
         <div className="sticky left-0 top-0 z-30 border-b border-r border-border bg-card" />

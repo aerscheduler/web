@@ -7,7 +7,6 @@ import {
   CheckCircle2,
   ChevronRight,
   Receipt,
-  Search,
   Wallet,
 } from "lucide-react";
 import { useMemberInvoices } from "@/features/queries";
@@ -15,14 +14,15 @@ import { useAuth } from "@/lib/auth";
 import type { Invoice } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
+import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
+import { ListSearch } from "@/components/list-search";
 import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from "@/components/states";
 import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
 import { MemberInvoiceSheet } from "@/components/me-money/member-invoice-sheet";
 import { PayInvoiceDialog } from "@/components/me-money/pay-invoice-dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatMoney } from "@/lib/utils";
 
@@ -175,79 +175,85 @@ function MyInvoicesPage() {
   const columns = useMemo(() => invoiceColumns((inv) => setViewId(inv.id)), []);
 
   const searchToolbar = (
-    <div className="relative max-w-xs">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        placeholder="Search invoices…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="pl-9"
-      />
-    </div>
+    <ListSearch
+      value={search}
+      onChange={setSearch}
+      placeholder="Search invoices…"
+      aria-label="Search invoices"
+    />
   );
 
   if (!organization) {
     return (
-      <div>
-        <PageHeader title="Invoices" subtitle="Your flight-training charges." />
-        <Card className="p-0">
+      <TableView>
+        <TableView.Header>
+          <PageHeader title="Invoices" subtitle="Your flight-training charges." />
+        </TableView.Header>
+        <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={Building2}
             title="No active school"
             body="Join or pick a flight school and your invoices will show up here."
           />
         </Card>
-      </div>
+      </TableView>
     );
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Invoices"
-        subtitle="Your flight-training charges — what you owe and what's settled."
-      />
+    <TableView>
+      <TableView.Header>
+        <PageHeader
+          title="Invoices"
+          subtitle="Your flight-training charges — what you owe and what's settled."
+        />
+
+        {invoicesQ.isPending ? (
+          <StatSkeleton count={2} />
+        ) : (
+          <div className="grid grid-cols-2 gap-4">
+            <StatCard
+              label="Outstanding"
+              value={formatMoney(stats.outstanding, { cents: false })}
+              icon={Wallet}
+              accent="warning"
+              hint="Unpaid, not voided"
+            />
+            <StatCard
+              label="Paid"
+              value={formatMoney(stats.paid, { cents: false })}
+              icon={CheckCircle2}
+              accent="success"
+              hint="Settled to date"
+            />
+          </div>
+        )}
+      </TableView.Header>
 
       {invoicesQ.isPending ? (
-        <StatSkeleton count={2} />
-      ) : (
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard
-            label="Outstanding"
-            value={formatMoney(stats.outstanding, { cents: false })}
-            icon={Wallet}
-            accent="warning"
-            hint="Unpaid, not voided"
-          />
-          <StatCard
-            label="Paid"
-            value={formatMoney(stats.paid, { cents: false })}
-            icon={CheckCircle2}
-            accent="success"
-            hint="Settled to date"
-          />
-        </div>
-      )}
-
-      <Card className="mt-5 overflow-hidden p-4">
-        {invoicesQ.isPending ? (
+        <Card className="min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={6} cols={5} />
-        ) : invoicesQ.isError ? (
+        </Card>
+      ) : invoicesQ.isError ? (
+        <Card className="min-h-0 flex-1">
           <ErrorState error={invoicesQ.error} onRetry={() => invoicesQ.refetch()} />
-        ) : invoices.length === 0 ? (
+        </Card>
+      ) : invoices.length === 0 ? (
+        <Card className="min-h-0 flex-1">
           <EmptyState icon={Receipt} title="No invoices yet" body={EMPTY_COPY} />
-        ) : (
-          <DataTable
-            columns={columns}
-            data={invoices}
-            toolbar={searchToolbar}
-            globalFilter={search}
-            onGlobalFilterChange={setSearch}
-            mobileCard={(inv) => <InvoiceCard inv={inv} onView={(i) => setViewId(i.id)} />}
-            emptyMessage="No invoices match your search."
-          />
-        )}
-      </Card>
+        </Card>
+      ) : (
+        <DataTable
+          fill
+          columns={columns}
+          data={invoices}
+          toolbar={searchToolbar}
+          globalFilter={search}
+          onGlobalFilterChange={setSearch}
+          mobileCard={(inv) => <InvoiceCard inv={inv} onView={(i) => setViewId(i.id)} />}
+          emptyMessage="No invoices match your search."
+        />
+      )}
 
       <MemberInvoiceSheet
         invoice={viewInvoice}
@@ -264,6 +270,6 @@ function MyInvoicesPage() {
         open={payId != null}
         onOpenChange={(o) => !o && setPayId(null)}
       />
-    </div>
+    </TableView>
   );
 }

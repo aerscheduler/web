@@ -12,7 +12,6 @@ import {
   Plane,
   Plus,
   Receipt,
-  Search,
   TrendingUp,
   Wallet,
 } from "lucide-react";
@@ -23,7 +22,9 @@ import type { Invoice, Reservation } from "@/types/api";
 import { resourceLabel } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
+import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
+import { ListSearch } from "@/components/list-search";
 import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { DateRangePicker, lastNDays } from "@/components/billing/date-range-picker";
@@ -33,7 +34,6 @@ import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu,
@@ -407,25 +407,36 @@ function BillingPage() {
       : "Pick a date range";
 
   const searchToolbar = (
-    <div className="relative max-w-xs">
-      <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-      <Input
-        placeholder="Search invoices…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="pl-9"
-      />
-    </div>
+    <ListSearch
+      value={search}
+      onChange={setSearch}
+      placeholder="Search invoices…"
+      aria-label="Search invoices"
+    />
   );
 
   function renderInvoiceTable(tabRows: Invoice[], emptyMessage: string) {
-    if (invoicesQ.isLoading) return <TableSkeleton rows={8} cols={6} />;
+    if (invoicesQ.isLoading)
+      return (
+        <Card className="min-h-0 flex-1 overflow-hidden">
+          <TableSkeleton rows={8} cols={6} />
+        </Card>
+      );
     if (invoicesQ.isError)
-      return <ErrorState error={invoicesQ.error} onRetry={() => invoicesQ.refetch()} />;
+      return (
+        <Card className="min-h-0 flex-1">
+          <ErrorState error={invoicesQ.error} onRetry={() => invoicesQ.refetch()} />
+        </Card>
+      );
     if (invoices.length === 0)
-      return <EmptyState icon={Receipt} title="No invoices yet" body={EMPTY_COPY} />;
+      return (
+        <Card className="min-h-0 flex-1">
+          <EmptyState icon={Receipt} title="No invoices yet" body={EMPTY_COPY} />
+        </Card>
+      );
     return (
       <DataTable
+        fill
         columns={columns}
         data={tabRows}
         toolbar={searchToolbar}
@@ -437,116 +448,132 @@ function BillingPage() {
     );
   }
 
+  const tabPanelClass =
+    "mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden";
+
   return (
-    <div>
-      <PageHeader
-        title="Billing"
-        subtitle={`Invoices · ${rangeSubtitle}`}
-        actions={
-          <div className="flex items-center gap-2">
-            <DateRangePicker value={range} onChange={setRange} />
-            <Button
-              onClick={() => {
-                setDraft(undefined);
-                setCreateOpen(true);
-              }}
-            >
-              <Plus className="size-4" /> New invoice
-            </Button>
-          </div>
-        }
-      />
-
-      {invoicesQ.isPending ? (
-        <StatSkeleton count={4} />
-      ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard
-            label="Revenue"
-            value={formatMoney(stats.revenue, { cents: false })}
-            icon={TrendingUp}
-            accent="success"
-            hint="Paid invoices in range"
+    <TableView>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as TabKey)}
+        className="flex min-h-0 flex-1 flex-col gap-4"
+      >
+        <TableView.Header>
+          <PageHeader
+            title="Billing"
+            subtitle={`Invoices · ${rangeSubtitle}`}
+            actions={
+              <div className="flex items-center gap-2">
+                <DateRangePicker value={range} onChange={setRange} />
+                <Button
+                  onClick={() => {
+                    setDraft(undefined);
+                    setCreateOpen(true);
+                  }}
+                >
+                  <Plus className="size-4" /> New invoice
+                </Button>
+              </div>
+            }
           />
-          <StatCard
-            label="Outstanding"
-            value={formatMoney(stats.outstanding, { cents: false })}
-            icon={Wallet}
-            accent="warning"
-            hint="Unpaid, not voided"
-          />
-          <StatCard label="Paid" value={stats.paidCount} icon={CheckCircle2} hint="Invoices settled" />
-          <StatCard
-            label="Unbilled flights"
-            value={unbilled.length}
-            icon={Plane}
-            accent="warning"
-            loading={reservationsQ.isLoading}
-            hint="Past flights, no invoice"
-          />
-        </div>
-      )}
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as TabKey)} className="mt-5">
-        <TabsList>
-          <TabsTrigger value="all">All</TabsTrigger>
-          <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
-          <TabsTrigger value="paid">Paid</TabsTrigger>
-          <TabsTrigger value="unbilled">
-            Unbilled flights
-            {unbilled.length > 0 && (
-              <Badge variant="warning" className="ml-1.5">
-                {unbilled.length}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
+          {invoicesQ.isPending ? (
+            <StatSkeleton count={4} />
+          ) : (
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <StatCard
+                label="Revenue"
+                value={formatMoney(stats.revenue, { cents: false })}
+                icon={TrendingUp}
+                accent="success"
+                hint="Paid invoices in range"
+              />
+              <StatCard
+                label="Outstanding"
+                value={formatMoney(stats.outstanding, { cents: false })}
+                icon={Wallet}
+                accent="warning"
+                hint="Unpaid, not voided"
+              />
+              <StatCard
+                label="Paid"
+                value={stats.paidCount}
+                icon={CheckCircle2}
+                hint="Invoices settled"
+              />
+              <StatCard
+                label="Unbilled flights"
+                value={unbilled.length}
+                icon={Plane}
+                accent="warning"
+                loading={reservationsQ.isLoading}
+                hint="Past flights, no invoice"
+              />
+            </div>
+          )}
 
-        <TabsContent value="all">
-          <Card className="mt-4 overflow-hidden p-4">
-            {renderInvoiceTable(rows, "No invoices match your search.")}
-          </Card>
+          <TabsList>
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="outstanding">Outstanding</TabsTrigger>
+            <TabsTrigger value="paid">Paid</TabsTrigger>
+            <TabsTrigger value="unbilled">
+              Unbilled flights
+              {unbilled.length > 0 && (
+                <Badge variant="warning" className="ml-1.5">
+                  {unbilled.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+        </TableView.Header>
+
+        <TabsContent value="all" className={tabPanelClass}>
+          {renderInvoiceTable(rows, "No invoices match your search.")}
         </TabsContent>
 
-        <TabsContent value="outstanding">
-          <Card className="mt-4 overflow-hidden p-4">
-            {renderInvoiceTable(rows, "Nothing outstanding — you're all paid up.")}
-          </Card>
+        <TabsContent value="outstanding" className={tabPanelClass}>
+          {renderInvoiceTable(rows, "Nothing outstanding — you're all paid up.")}
         </TabsContent>
 
-        <TabsContent value="paid">
-          <Card className="mt-4 overflow-hidden p-4">
-            {renderInvoiceTable(rows, "No paid invoices in this range yet.")}
-          </Card>
+        <TabsContent value="paid" className={tabPanelClass}>
+          {renderInvoiceTable(rows, "No paid invoices in this range yet.")}
         </TabsContent>
 
-        <TabsContent value="unbilled">
-          <Card className="mt-4 overflow-hidden p-4">
-            {reservationsQ.isPending ? (
+        <TabsContent value="unbilled" className={tabPanelClass}>
+          {reservationsQ.isPending ? (
+            <Card className="min-h-0 flex-1 overflow-hidden">
               <TableSkeleton rows={6} cols={4} />
-            ) : reservationsQ.isError ? (
-              <ErrorState error={reservationsQ.error} onRetry={() => reservationsQ.refetch()} />
-            ) : unbilled.length === 0 ? (
+            </Card>
+          ) : reservationsQ.isError ? (
+            <Card className="min-h-0 flex-1">
+              <ErrorState
+                error={reservationsQ.error}
+                onRetry={() => reservationsQ.refetch()}
+              />
+            </Card>
+          ) : unbilled.length === 0 ? (
+            <Card className="min-h-0 flex-1">
               <EmptyState
                 icon={CheckCircle2}
                 title="All flights billed"
                 body="Every past flight in this range already has an invoice."
               />
-            ) : (
-              <>
-                <p className="mb-3 text-sm text-muted-foreground">
-                  {unbilled.length} past{" "}
-                  {unbilled.length === 1 ? "flight hasn't" : "flights haven't"} been billed yet.
-                </p>
-                <DataTable
-                  columns={unbilledCols}
-                  data={unbilled}
-                  mobileCard={(r) => <UnbilledCard r={r} onBill={billReservation} />}
-                  emptyMessage="No unbilled flights."
-                />
-              </>
-            )}
-          </Card>
+            </Card>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col gap-3">
+              <p className="shrink-0 text-sm text-muted-foreground">
+                {unbilled.length} past{" "}
+                {unbilled.length === 1 ? "flight hasn't" : "flights haven't"} been billed yet.
+              </p>
+              <DataTable
+                fill
+                columns={unbilledCols}
+                data={unbilled}
+                mobileCard={(r) => <UnbilledCard r={r} onBill={billReservation} />}
+                emptyMessage="No unbilled flights."
+              />
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
@@ -560,6 +587,6 @@ function BillingPage() {
       />
 
       <CreateInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} draft={draft} />
-    </div>
+    </TableView>
   );
 }

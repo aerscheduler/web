@@ -211,13 +211,15 @@ function MyDayPage() {
                     className="mb-3"
                   />
                 )}
-                <ul className="space-y-2">
-                  {upcoming.slice(0, MAX_UPCOMING).map((r) => (
-                    <li key={r.id}>
-                      <ReservationCard r={r} showDate onOpen={openDetail} />
-                    </li>
-                  ))}
-                </ul>
+                <div className="max-h-[min(28rem,50vh)] overflow-y-auto">
+                  <ul className="space-y-2">
+                    {upcoming.slice(0, MAX_UPCOMING).map((r) => (
+                      <li key={r.id}>
+                        <ReservationCard r={r} showDate onOpen={openDetail} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               </>
             )}
           </CardContent>

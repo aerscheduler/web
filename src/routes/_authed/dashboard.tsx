@@ -118,11 +118,13 @@ function DashboardPage() {
                 body="No reservations scheduled for today."
               />
             ) : (
-              <ul className="divide-y divide-border">
-                {todays.map((r) => (
-                  <ScheduleRow key={r.id} r={r} />
-                ))}
-              </ul>
+              <div className="max-h-[min(28rem,50vh)] overflow-y-auto">
+                <ul className="divide-y divide-border">
+                  {todays.map((r) => (
+                    <ScheduleRow key={r.id} r={r} />
+                  ))}
+                </ul>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -144,32 +146,34 @@ function DashboardPage() {
             ) : recentInvoices.length === 0 ? (
               <Empty icon={Receipt} title="No recent invoices" body="Nothing billed in the last two weeks." />
             ) : (
-              <ul className="divide-y divide-border">
-                {recentInvoices.map((i) => (
-                  <li key={i.id} className="flex items-center justify-between gap-3 py-2.5">
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-medium">
-                        {i.customer?.user?.name ?? `Invoice #${i.id}`}
+              <div className="max-h-[min(28rem,50vh)] overflow-y-auto">
+                <ul className="divide-y divide-border">
+                  {recentInvoices.map((i) => (
+                    <li key={i.id} className="flex items-center justify-between gap-3 py-2.5">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">
+                          {i.customer?.user?.name ?? `Invoice #${i.id}`}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatDate(i.createdAt, "MMM d")}
+                        </div>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatDate(i.createdAt, "MMM d")}
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-sm font-medium tabular-nums">
+                          {formatMoney(i.total)}
+                        </span>
+                        {i.voidedAt ? (
+                          <Badge variant="outline">Void</Badge>
+                        ) : i.paidAt ? (
+                          <Badge variant="success">Paid</Badge>
+                        ) : (
+                          <Badge variant="warning">Due</Badge>
+                        )}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-sm font-medium tabular-nums">
-                        {formatMoney(i.total)}
-                      </span>
-                      {i.voidedAt ? (
-                        <Badge variant="outline">Void</Badge>
-                      ) : i.paidAt ? (
-                        <Badge variant="success">Paid</Badge>
-                      ) : (
-                        <Badge variant="warning">Due</Badge>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </CardContent>
         </Card>

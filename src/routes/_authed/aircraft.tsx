@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { LayoutGrid, List, PlaneTakeoff, Plus } from "lucide-react";
+import { PlaneTakeoff, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { usePlanes, useLocations } from "@/features/queries";
 import { api } from "@/lib/api";
@@ -15,11 +15,14 @@ import { GroundModal } from "@/components/aircraft/ground-modal";
 import { ApproveRentersSheet } from "@/components/aircraft/approve-renters-sheet";
 import { AircraftDetailSheet } from "@/components/aircraft/aircraft-detail-sheet";
 import { PageHeader } from "@/components/page-header";
+import { TableView } from "@/components/table-view";
+import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
+import { ListSearch, matchesSearch } from "@/components/list-search";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_authed/aircraft")({
   component: AircraftPage,
@@ -35,12 +38,25 @@ function AircraftPage() {
   const planes = q.data ?? [];
   const locations = locationsQ.data ?? [];
 
-  const [view, setView] = React.useState<"grid" | "list">("grid");
+  const [view, setView] = usePersistedState<ViewMode>("view:aircraft", "grid");
+  const [search, setSearch] = React.useState("");
   const [addOpen, setAddOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Resource | null>(null);
   const [grounding, setGrounding] = React.useState<Resource | null>(null);
   const [approving, setApproving] = React.useState<Resource | null>(null);
   const [detail, setDetail] = React.useState<Resource | null>(null);
+
+  const filtered = React.useMemo(
+    () =>
+      planes.filter((r) => {
+        const p = r.type?.plane;
+        return matchesSearch(
+          [p?.tailNumber, p?.make, p?.model, p?.year, r.location?.name, r.about],
+          search
+        );
+      }),
+    [planes, search]
+  );
 
   // Ungrounding is a one-shot patch against an arbitrary id (the shared hook is fixed-id).
   const unground = useMutation({
@@ -85,41 +101,42 @@ function AircraftPage() {
   ) : null;
 
   return (
-    <div>
-      <PageHeader
-        title="Aircraft"
-        subtitle={
-          q.data
-            ? `${planes.length} ${planes.length === 1 ? "tail" : "tails"} in the fleet`
-            : "Your fleet"
-        }
-        actions={
-          <>
-            {planes.length > 0 && (
-              <Tabs value={view} onValueChange={(v) => setView(v as "grid" | "list")}>
-                <TabsList>
-                  <TabsTrigger value="grid" aria-label="Grid view">
-                    <LayoutGrid className="size-4" />
-                  </TabsTrigger>
-                  <TabsTrigger value="list" aria-label="List view">
-                    <List className="size-4" />
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            )}
-            {addButton}
-          </>
-        }
-      />
+    <TableView>
+      <TableView.Header>
+        <PageHeader
+          title="Aircraft"
+          subtitle={
+            q.data
+              ? `${planes.length} ${planes.length === 1 ? "tail" : "tails"} in the fleet`
+              : "Your fleet"
+          }
+          actions={
+            <>
+              {planes.length > 0 && <ViewModeToggle value={view} onChange={setView} />}
+              {addButton}
+            </>
+          }
+        />
+        {planes.length > 0 && (
+          <ListSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search tail, make, model…"
+            aria-label="Search aircraft"
+          />
+        )}
+      </TableView.Header>
 
       {q.isPending ? (
-        <CardGridSkeleton />
+        <TableView.Body>
+          <CardGridSkeleton />
+        </TableView.Body>
       ) : q.isError ? (
-        <Card>
+        <Card className="min-h-0 flex-1">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
       ) : planes.length === 0 ? (
-        <Card>
+        <Card className="min-h-0 flex-1">
           <EmptyState
             icon={PlaneTakeoff}
             title="No aircraft yet"
@@ -127,18 +144,30 @@ function AircraftPage() {
             action={addButton}
           />
         </Card>
-      ) : view === "grid" ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {planes.map((r) => (
-            <AircraftCard key={r.id} r={r} actions={actions} />
-          ))}
-        </div>
-      ) : (
-        <Card className="divide-y divide-border overflow-hidden">
-          {planes.map((r) => (
-            <AircraftListRow key={r.id} r={r} actions={actions} />
-          ))}
+      ) : filtered.length === 0 ? (
+        <Card className="min-h-0 flex-1">
+          <EmptyState
+            icon={PlaneTakeoff}
+            title="No aircraft match"
+            body="Try a different tail number, make, or model."
+          />
         </Card>
+      ) : view === "grid" ? (
+        <TableView.Body>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {filtered.map((r) => (
+              <AircraftCard key={r.id} r={r} actions={actions} />
+            ))}
+          </div>
+        </TableView.Body>
+      ) : (
+        <TableView.Body>
+          <Card className="divide-y divide-border overflow-hidden">
+            {filtered.map((r) => (
+              <AircraftListRow key={r.id} r={r} actions={actions} />
+            ))}
+          </Card>
+        </TableView.Body>
       )}
 
       <AircraftFormModal
@@ -167,6 +196,6 @@ function AircraftPage() {
         onOpenChange={(o) => !o && setDetail(null)}
         resource={detail}
       />
-    </div>
+    </TableView>
   );
 }

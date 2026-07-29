@@ -58,9 +58,9 @@ export function MonthGrid({
   for (const list of byDay.values()) list.sort((a, b) => a.start.localeCompare(b.start));
 
   return (
-    <div>
+    <div className="h-full min-h-0 overflow-auto">
       {/* Weekday header */}
-      <div className="grid grid-cols-7 border-b border-border">
+      <div className="sticky top-0 z-10 grid grid-cols-7 border-b border-border bg-card">
         {weekdays.map((d) => (
           <div
             key={d.toISOString()}

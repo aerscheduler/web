@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { DoorOpen, MonitorPlay, Plus } from "lucide-react";
 import { useLocations, useRooms, useSimulators } from "@/features/queries";
@@ -6,6 +6,10 @@ import { guardRoute } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
 import type { Resource } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { TableView } from "@/components/table-view";
+import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
+import { ListSearch, matchesSearch } from "@/components/list-search";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import {
   FacilityFormModal,
@@ -14,12 +18,18 @@ import {
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatMoney } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/facilities")({
   beforeLoad: guardRoute("/facilities"),
   component: FacilitiesPage,
 });
+
+type TabKey = "simulators" | "rooms";
+
+const tabPanelClass =
+  "mt-0 flex min-h-0 flex-1 flex-col gap-3 overflow-hidden data-[state=inactive]:hidden";
 
 function SimulatorCard({ r }: { r: Resource }) {
   const sim = r.type?.simulator;
@@ -72,6 +82,29 @@ function SimulatorCard({ r }: { r: Resource }) {
   );
 }
 
+function SimulatorListRow({ r }: { r: Resource }) {
+  const sim = r.type?.simulator;
+  if (!sim) return null;
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5">
+      <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-res-sim">
+        <MonitorPlay className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate font-medium">{sim.name}</div>
+        {r.location?.name && (
+          <div className="truncate text-xs text-muted-foreground">{r.location.name}</div>
+        )}
+      </div>
+      {sim.grounded ? (
+        <Badge variant="danger">Grounded</Badge>
+      ) : (
+        <Badge variant="secondary">Available</Badge>
+      )}
+    </div>
+  );
+}
+
 function FacilitiesPage() {
   const { organization } = useAuth();
   const simsQ = useSimulators({ enabled: organization != null });
@@ -83,107 +116,193 @@ function FacilitiesPage() {
   const locations = locationsQ.data ?? [];
 
   const [addKind, setAddKind] = useState<FacilityKind | null>(null);
+  const [tab, setTab] = usePersistedState<TabKey>("view:facilities-tab", "simulators");
+  const [view, setView] = usePersistedState<ViewMode>("view:facilities", "grid");
+  const [simSearch, setSimSearch] = useState("");
+  const [roomSearch, setRoomSearch] = useState("");
+
+  const filteredSims = useMemo(
+    () =>
+      sims.filter((r) =>
+        matchesSearch([r.type?.simulator?.name, r.location?.name, r.about], simSearch)
+      ),
+    [sims, simSearch]
+  );
+  const filteredRooms = useMemo(
+    () =>
+      rooms.filter((r) =>
+        matchesSearch([r.type?.room?.roomNumber, r.location?.name, r.about], roomSearch)
+      ),
+    [rooms, roomSearch]
+  );
+
+  const addButton =
+    tab === "simulators" ? (
+      <Button onClick={() => setAddKind("simulator")}>
+        <Plus className="size-4" /> Add simulator
+      </Button>
+    ) : (
+      <Button onClick={() => setAddKind("room")}>
+        <Plus className="size-4" /> Add room
+      </Button>
+    );
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Facilities"
-        subtitle="Simulators and ground-school rooms — bookable for sim and ground lessons."
-      />
+    <TableView>
+      <Tabs
+        value={tab}
+        onValueChange={(v) => setTab(v as TabKey)}
+        className="flex min-h-0 flex-1 flex-col gap-4"
+      >
+        <TableView.Header>
+          <PageHeader
+            title="Facilities"
+            subtitle="Simulators and ground-school rooms — bookable for sim and ground lessons."
+            actions={
+              <>
+                {(tab === "simulators" ? sims.length > 0 : rooms.length > 0) && (
+                  <ViewModeToggle value={view} onChange={setView} />
+                )}
+                {addButton}
+              </>
+            }
+          />
+          <TabsList>
+            <TabsTrigger value="simulators">Simulators</TabsTrigger>
+            <TabsTrigger value="rooms">Rooms</TabsTrigger>
+          </TabsList>
+        </TableView.Header>
 
-      {/* Simulators */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Simulators
-          </h2>
-          <Button size="sm" onClick={() => setAddKind("simulator")}>
-            <Plus className="size-4" /> Add simulator
-          </Button>
-        </div>
-
-        {simsQ.isPending ? (
-          <CardGridSkeleton count={3} />
-        ) : simsQ.isError ? (
-          <Card>
-            <ErrorState error={simsQ.error} onRetry={() => simsQ.refetch()} />
-          </Card>
-        ) : sims.length === 0 ? (
-          <Card>
-            <EmptyState
-              icon={MonitorPlay}
-              title="No simulators yet"
-              body="Add a simulator to schedule and bill sim sessions."
-              action={
-                <Button size="sm" onClick={() => setAddKind("simulator")}>
-                  <Plus className="size-4" /> Add simulator
-                </Button>
-              }
+        <TabsContent value="simulators" className={tabPanelClass}>
+          {sims.length > 0 && (
+            <ListSearch
+              value={simSearch}
+              onChange={setSimSearch}
+              placeholder="Search simulators…"
+              aria-label="Search simulators"
             />
-          </Card>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {sims.map((r) => (
-              <SimulatorCard key={r.id} r={r} />
-            ))}
+          )}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {simsQ.isPending ? (
+              <CardGridSkeleton count={3} />
+            ) : simsQ.isError ? (
+              <Card>
+                <ErrorState error={simsQ.error} onRetry={() => simsQ.refetch()} />
+              </Card>
+            ) : sims.length === 0 ? (
+              <Card>
+                <EmptyState
+                  icon={MonitorPlay}
+                  title="No simulators yet"
+                  body="Add a simulator to schedule and bill sim sessions."
+                  action={
+                    <Button size="sm" onClick={() => setAddKind("simulator")}>
+                      <Plus className="size-4" /> Add simulator
+                    </Button>
+                  }
+                />
+              </Card>
+            ) : filteredSims.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No simulators match your search.
+              </p>
+            ) : view === "grid" ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredSims.map((r) => (
+                  <SimulatorCard key={r.id} r={r} />
+                ))}
+              </div>
+            ) : (
+              <Card className="divide-y divide-border overflow-hidden">
+                {filteredSims.map((r) => (
+                  <SimulatorListRow key={r.id} r={r} />
+                ))}
+              </Card>
+            )}
           </div>
-        )}
-      </section>
+        </TabsContent>
 
-      {/* Rooms */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Rooms
-          </h2>
-          <Button size="sm" onClick={() => setAddKind("room")}>
-            <Plus className="size-4" /> Add room
-          </Button>
-        </div>
-
-        {roomsQ.isPending ? (
-          <Card className="h-24 animate-pulse" />
-        ) : roomsQ.isError ? (
-          <Card>
-            <ErrorState error={roomsQ.error} onRetry={() => roomsQ.refetch()} />
-          </Card>
-        ) : rooms.length === 0 ? (
-          <Card>
-            <EmptyState
-              icon={DoorOpen}
-              title="No rooms yet"
-              body="Add a ground-school room to schedule ground lessons."
-              action={
-                <Button size="sm" onClick={() => setAddKind("room")}>
-                  <Plus className="size-4" /> Add room
-                </Button>
-              }
+        <TabsContent value="rooms" className={tabPanelClass}>
+          {rooms.length > 0 && (
+            <ListSearch
+              value={roomSearch}
+              onChange={setRoomSearch}
+              placeholder="Search rooms…"
+              aria-label="Search rooms"
             />
-          </Card>
-        ) : (
-          <Card className="divide-y divide-border overflow-hidden">
-            {rooms.map((r) => {
-              const room = r.type?.room;
-              if (!room) return null;
-              return (
-                <div key={r.id} className="flex items-center gap-3 px-3 py-2.5">
-                  <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-                    <DoorOpen className="size-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{room.roomNumber}</div>
-                    {r.location?.name && (
-                      <div className="truncate text-xs text-muted-foreground">
-                        {r.location.name}
+          )}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            {roomsQ.isPending ? (
+              <Card className="h-24 animate-pulse" />
+            ) : roomsQ.isError ? (
+              <Card>
+                <ErrorState error={roomsQ.error} onRetry={() => roomsQ.refetch()} />
+              </Card>
+            ) : rooms.length === 0 ? (
+              <Card>
+                <EmptyState
+                  icon={DoorOpen}
+                  title="No rooms yet"
+                  body="Add a ground-school room to schedule ground lessons."
+                  action={
+                    <Button size="sm" onClick={() => setAddKind("room")}>
+                      <Plus className="size-4" /> Add room
+                    </Button>
+                  }
+                />
+              </Card>
+            ) : filteredRooms.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No rooms match your search.
+              </p>
+            ) : view === "grid" ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredRooms.map((r) => {
+                  const room = r.type?.room;
+                  if (!room) return null;
+                  return (
+                    <Card key={r.id} className="flex items-center gap-3 p-4">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+                        <DoorOpen className="size-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">{room.roomNumber}</div>
+                        {r.location?.name && (
+                          <div className="truncate text-xs text-muted-foreground">
+                            {r.location.name}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </Card>
-        )}
-      </section>
+                    </Card>
+                  );
+                })}
+              </div>
+            ) : (
+              <Card className="divide-y divide-border overflow-hidden">
+                {filteredRooms.map((r) => {
+                  const room = r.type?.room;
+                  if (!room) return null;
+                  return (
+                    <div key={r.id} className="flex items-center gap-3 px-3 py-2.5">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
+                        <DoorOpen className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium">{room.roomNumber}</div>
+                        {r.location?.name && (
+                          <div className="truncate text-xs text-muted-foreground">
+                            {r.location.name}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       <FacilityFormModal
         open={addKind !== null}
@@ -191,6 +310,6 @@ function FacilitiesPage() {
         kind={addKind ?? "simulator"}
         locations={locations}
       />
-    </div>
+    </TableView>
   );
 }

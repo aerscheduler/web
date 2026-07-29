@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { BellOff, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -7,6 +8,8 @@ import {
   useClearNotifications,
 } from "@/features/queries";
 import { PageHeader } from "@/components/page-header";
+import { TableView } from "@/components/table-view";
+import { ListSearch, matchesSearch } from "@/components/list-search";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { NotificationItem } from "@/components/notifications/notification-item";
@@ -22,9 +25,17 @@ function NotificationsPage() {
   const markRead = useMarkNotificationRead();
   const clear = useClearNotifications();
   const confirm = useConfirm();
+  const [search, setSearch] = useState("");
 
   const notifications = q.data ?? [];
   const unreadCount = notifications.filter((n) => n.readAt == null).length;
+  const filtered = useMemo(
+    () =>
+      notifications.filter((n) =>
+        matchesSearch([n.title, n.subtitle, n.body, n.message], search)
+      ),
+    [notifications, search]
+  );
 
   function onMarkRead(id: number) {
     markRead.mutate(id, {
@@ -48,51 +59,73 @@ function NotificationsPage() {
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Notifications"
-        subtitle={
-          q.data
-            ? unreadCount > 0
-              ? `${unreadCount} unread`
-              : "You're all caught up"
-            : "Your recent activity"
-        }
-        actions={
-          notifications.length > 0 && unreadCount > 0 ? (
-            <Button variant="outline" onClick={onMarkAllRead} disabled={clear.isPending}>
-              <CheckCheck className="size-4" /> Mark all read
-            </Button>
-          ) : undefined
-        }
-      />
+    <TableView>
+      <TableView.Header>
+        <PageHeader
+          title="Notifications"
+          subtitle={
+            q.data
+              ? unreadCount > 0
+                ? `${unreadCount} unread`
+                : "You're all caught up"
+              : "Your recent activity"
+          }
+          actions={
+            notifications.length > 0 && unreadCount > 0 ? (
+              <Button variant="outline" onClick={onMarkAllRead} disabled={clear.isPending}>
+                <CheckCheck className="size-4" /> Mark all read
+              </Button>
+            ) : undefined
+          }
+        />
+        {notifications.length > 0 && (
+          <ListSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search notifications…"
+            aria-label="Search notifications"
+          />
+        )}
+      </TableView.Header>
 
       {q.isPending ? (
-        <CardGridSkeleton count={4} />
+        <TableView.Body>
+          <CardGridSkeleton count={4} />
+        </TableView.Body>
       ) : q.isError ? (
-        <Card className="p-0">
+        <Card className="min-h-0 flex-1 p-0">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
       ) : notifications.length === 0 ? (
-        <Card className="p-0">
+        <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={BellOff}
             title="You're all caught up."
             body="Reservation changes, squawks, and account activity will show up here."
           />
         </Card>
+      ) : filtered.length === 0 ? (
+        <Card className="min-h-0 flex-1 p-0">
+          <EmptyState
+            icon={BellOff}
+            title="No matches"
+            body="Nothing matches that search."
+          />
+        </Card>
       ) : (
-        <div className="space-y-2.5">
-          {notifications.map((n) => (
-            <NotificationItem
-              key={n.id}
-              notification={n}
-              onMarkRead={onMarkRead}
-              marking={markRead.isPending}
-            />
-          ))}
-        </div>
+        <TableView.Body>
+          <div className="space-y-2.5">
+            {filtered.map((n) => (
+              <NotificationItem
+                key={n.id}
+                notification={n}
+                onMarkRead={onMarkRead}
+                marking={markRead.isPending}
+              />
+            ))}
+          </div>
+        </TableView.Body>
       )}
-    </div>
+    </TableView>
   );
 }

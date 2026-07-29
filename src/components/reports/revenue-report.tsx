@@ -135,7 +135,7 @@ export function RevenueReport({
               {meta.blank}
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="max-h-[min(32rem,60vh)] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>

@@ -18,6 +18,10 @@ import { PageHeader } from "@/components/page-header";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { TableView } from "@/components/table-view";
+import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
+import { ListSearch, matchesSearch } from "@/components/list-search";
+import { usePersistedState } from "@/hooks/use-persisted-state";
 import {
   ScheduleControls,
   type ScheduleView,
@@ -49,8 +53,15 @@ function SchedulePage() {
   const staff = isStaff(roles);
   const tz = useTimeZone();
   const [day, setDay] = React.useState<Date>(() => new Date());
-  const [view, setView] = React.useState<ScheduleView>("day");
+  const [view, setView] = usePersistedState<ScheduleView>("view:schedule-range", "day");
+  const [presentation, setPresentation] = usePersistedState<ViewMode>(
+    "view:schedule-presentation",
+    "grid"
+  );
+  const [search, setSearch] = React.useState("");
   const isDesktop = useMediaQuery("(min-width: 768px)");
+  // Mobile always uses the agenda; desktop honors the board/list toggle.
+  const showBoard = isDesktop && presentation === "grid";
 
   //The window we FETCH has to be the same calendar range we RENDER, and rendering is
   //pinned to the airport. Computing the bounds locally while positioning by airport time
@@ -89,6 +100,28 @@ function SchedulePage() {
   const reservations = React.useMemo(() => q.data ?? [], [q.data]);
   const resources = useResolvedResources(resourcesQ.data, reservations, roles);
 
+  const filteredResources = React.useMemo(
+    () =>
+      resources.filter((r) =>
+        matchesSearch([resourceLabel(r).name, r.about, r.location?.name], search)
+      ),
+    [resources, search]
+  );
+  const filteredReservations = React.useMemo(
+    () =>
+      reservations.filter((res) =>
+        matchesSearch(
+          [
+            res.title,
+            res.notes,
+            res.resource ? resourceLabel(res.resource).name : null,
+          ],
+          search
+        )
+      ),
+    [reservations, search]
+  );
+
   // Modal state.
   const [formOpen, setFormOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<ReservationDraft>({ date: day });
@@ -126,100 +159,115 @@ function SchedulePage() {
   const count = q.data ? reservations.length : null;
 
   return (
-    <div>
-      <PageHeader
-        title="The Ramp"
-        subtitle="Dispatch board — aircraft, instructors and students at a glance."
-        actions={
-          staff && (
-            <Button onClick={openNew}>
-              <Plus className="size-4" /> New reservation
-            </Button>
-          )
-        }
-      />
-
-      <ScheduleControls
-        day={day}
-        onDayChange={setDay}
-        view={view}
-        onViewChange={setView}
-        count={count}
-      />
-
-      <Card className="overflow-hidden p-0">
-        {q.isPending ? (
-          <CalendarGridSkeleton />
-        ) : q.isError ? (
-          <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        ) : view === "day" && reservations.length === 0 ? (
-          <EmptyState
-            icon={CalendarClock}
-            title="Your dispatch board is clear"
-            body="Book a flight to see aircraft and instructors line up."
-            action={
-              staff && (
+    <TableView>
+      <TableView.Header>
+        <PageHeader
+          title="The Ramp"
+          subtitle="Dispatch board — aircraft, instructors and students at a glance."
+          actions={
+            <>
+              {isDesktop && (
+                <ViewModeToggle value={presentation} onChange={setPresentation} />
+              )}
+              {staff && (
                 <Button onClick={openNew}>
-                  <Plus className="size-4" /> Book a flight
+                  <Plus className="size-4" /> New reservation
                 </Button>
-              )
-            }
-          />
-        ) : view === "month" ? (
-          isDesktop ? (
-            <MonthGrid
-              month={day}
-              reservations={reservations}
-              onView={openDetail}
-              onCreate={onCreate}
-              onSelectDay={selectDay}
+              )}
+            </>
+          }
+        />
+
+        <ScheduleControls
+          day={day}
+          onDayChange={setDay}
+          view={view}
+          onViewChange={setView}
+          count={count}
+        />
+        <ListSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search resources or bookings…"
+          aria-label="Search schedule"
+        />
+      </TableView.Header>
+
+      <TableView.Body className="flex flex-col overflow-hidden">
+        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+          {q.isPending ? (
+            <CalendarGridSkeleton />
+          ) : q.isError ? (
+            <ErrorState error={q.error} onRetry={() => q.refetch()} />
+          ) : view === "day" && reservations.length === 0 ? (
+            <EmptyState
+              icon={CalendarClock}
+              title="Your dispatch board is clear"
+              body="Book a flight to see aircraft and instructors line up."
+              action={
+                staff && (
+                  <Button onClick={openNew}>
+                    <Plus className="size-4" /> Book a flight
+                  </Button>
+                )
+              }
             />
-          ) : (
-            <MonthAgenda
-              reservations={reservations}
+          ) : view === "month" ? (
+            showBoard ? (
+              <MonthGrid
+                month={day}
+                reservations={filteredReservations}
+                onView={openDetail}
+                onCreate={onCreate}
+                onSelectDay={selectDay}
+              />
+            ) : (
+              <MonthAgenda
+                reservations={filteredReservations}
+                onView={openDetail}
+                onEdit={startEdit}
+                onCancel={handleCancel}
+              />
+            )
+          ) : view === "week" ? (
+            showBoard ? (
+              <WeekTimeGrid
+                weekStart={startOfWeek(day)}
+                reservations={filteredReservations}
+                onView={openDetail}
+                onCreate={onCreate}
+                onSelectDay={selectDay}
+              />
+            ) : (
+              <AgendaList
+                reservations={filteredReservations}
+                onView={openDetail}
+                onEdit={startEdit}
+                onCancel={handleCancel}
+              />
+            )
+          ) : showBoard ? (
+            <LaneGrid
+              day={day}
+              resources={filteredResources}
+              reservations={filteredReservations}
               onView={openDetail}
               onEdit={startEdit}
+              onDuplicate={setDuplicating}
               onCancel={handleCancel}
-            />
-          )
-        ) : view === "week" ? (
-          isDesktop ? (
-            <WeekTimeGrid
-              weekStart={startOfWeek(day)}
-              reservations={reservations}
-              onView={openDetail}
               onCreate={onCreate}
-              onSelectDay={selectDay}
             />
           ) : (
             <AgendaList
-              reservations={reservations}
+              reservations={filteredReservations}
               onView={openDetail}
               onEdit={startEdit}
+              onDuplicate={setDuplicating}
               onCancel={handleCancel}
             />
-          )
-        ) : isDesktop ? (
-          <LaneGrid
-            day={day}
-            resources={resources}
-            reservations={reservations}
-            onView={openDetail}
-            onEdit={startEdit}
-            onDuplicate={setDuplicating}
-            onCancel={handleCancel}
-            onCreate={onCreate}
-          />
-        ) : (
-          <AgendaList
-            reservations={reservations}
-            onView={openDetail}
-            onEdit={startEdit}
-            onDuplicate={setDuplicating}
-            onCancel={handleCancel}
-          />
-        )}
-      </Card>
+          )}
+        </Card>
+      </TableView.Body>
 
       <ReservationForm open={formOpen} onOpenChange={setFormOpen} draft={draft} />
 
@@ -250,7 +298,7 @@ function SchedulePage() {
         onCancel={handleCancel}
         onEdit={startEdit}
       />
-    </div>
+    </TableView>
   );
 }
 

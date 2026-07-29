@@ -17,6 +17,8 @@ import { bookActionLabel } from "@/lib/permissions";
 import { useUserReservations } from "@/features/queries";
 import type { Reservation } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { TableView } from "@/components/table-view";
+import { ListSearch, matchesSearch } from "@/components/list-search";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,6 +28,7 @@ import { ReservationDetailSheet } from "@/components/schedule/reservation-detail
 import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
 import { ReservationForm } from "@/components/schedule/reservation-form";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
+import { resourceLabel } from "@/types/api";
 
 export const Route = createFileRoute("/_authed/me/schedule")({
   component: MySchedulePage,
@@ -63,12 +66,22 @@ function MySchedulePage() {
   // A technician's calendar holds maintenance, not flights.
   const maintenanceOnly = bookLabel === "Schedule maintenance";
   const [range, setRange] = React.useState<Range>("upcoming");
+  const [search, setSearch] = React.useState("");
 
   const now = React.useMemo(() => new Date(), []);
   const [startISO, endISO] = rangeBounds(range, now);
   const q = useUserReservations(userId, startISO, endISO);
 
-  const reservations = React.useMemo(() => q.data ?? [], [q.data]);
+  const reservations = React.useMemo(
+    () =>
+      (q.data ?? []).filter((r) =>
+        matchesSearch(
+          [r.title, r.notes, r.resource ? resourceLabel(r.resource).name : null],
+          search
+        )
+      ),
+    [q.data, search]
+  );
   const groups = React.useMemo(() => groupByDay(reservations), [reservations]);
 
   // Same detail sheet the dispatch board opens — cancel and the ramp-out /
@@ -78,66 +91,80 @@ function MySchedulePage() {
 
   if (organization === null) {
     return (
-      <div>
-        <PageHeader title="Calendar" />
-        <Card>
+      <TableView>
+        <TableView.Header>
+          <PageHeader title="Calendar" />
+        </TableView.Header>
+        <Card className="min-h-0 flex-1">
           <EmptyState
             icon={UserRound}
             title="You're not in an organization yet"
             body="Accept an invite or ask your school's admin to add you, and your flights will show up here."
           />
         </Card>
-      </div>
+      </TableView>
     );
   }
 
   return (
-    <div>
-      <PageHeader
-        title="Calendar"
-        subtitle={
-          maintenanceOnly
-            ? "The maintenance you've scheduled."
-            : "Your flights, ground and sim sessions."
-        }
-        actions={
-          <Button asChild>
-            <Link to="/me/book">
-              <CalendarPlus className="size-4" /> Book
-            </Link>
-          </Button>
-        }
-      />
+    <TableView>
+      <TableView.Header>
+        <PageHeader
+          title="Calendar"
+          subtitle={
+            maintenanceOnly
+              ? "The maintenance you've scheduled."
+              : "Your flights, ground and sim sessions."
+          }
+          actions={
+            <Button asChild>
+              <Link to="/me/book">
+                <CalendarPlus className="size-4" /> Book
+              </Link>
+            </Button>
+          }
+        />
 
-      <div
-        role="group"
-        aria-label="Schedule range"
-        className="mb-4 inline-flex rounded-lg border border-border bg-card p-1"
-      >
-        {RANGES.map((r) => (
-          <button
-            key={r.value}
-            type="button"
-            aria-pressed={range === r.value}
-            onClick={() => setRange(r.value)}
-            className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-              range === r.value
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {r.label}
-          </button>
-        ))}
-      </div>
+        <div
+          role="group"
+          aria-label="Schedule range"
+          className="inline-flex rounded-lg border border-border bg-card p-1"
+        >
+          {RANGES.map((r) => (
+            <button
+              key={r.value}
+              type="button"
+              aria-pressed={range === r.value}
+              onClick={() => setRange(r.value)}
+              className={cn(
+                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                range === r.value
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <ListSearch
+          value={search}
+          onChange={setSearch}
+          placeholder="Search flights…"
+          aria-label="Search calendar"
+        />
+      </TableView.Header>
 
-      <Card className="overflow-hidden p-0">
-        {q.isPending ? (
+      {q.isPending ? (
+        <Card className="min-h-0 flex-1 overflow-hidden p-0">
           <CalendarGridSkeleton />
-        ) : q.isError ? (
+        </Card>
+      ) : q.isError ? (
+        <Card className="min-h-0 flex-1 p-0">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        ) : groups.length === 0 ? (
+        </Card>
+      ) : groups.length === 0 ? (
+        <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={CalendarClock}
             title="No flights on your schedule"
@@ -150,25 +177,29 @@ function MySchedulePage() {
               </Button>
             }
           />
-        ) : (
-          <div className="divide-y divide-border">
-            {groups.map(([key, items]) => (
-              <section key={key} className="p-4">
-                <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  {dayHeading(parseISO(key))}
-                </h2>
-                <ul className="space-y-2">
-                  {items.map((r) => (
-                    <li key={r.id}>
-                      <ReservationCard r={r} onOpen={openDetail} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        )}
-      </Card>
+        </Card>
+      ) : (
+        <TableView.Body>
+          <Card className="overflow-hidden p-0">
+            <div className="divide-y divide-border">
+              {groups.map(([key, items]) => (
+                <section key={key} className="p-4">
+                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    {dayHeading(parseISO(key))}
+                  </h2>
+                  <ul className="space-y-2">
+                    {items.map((r) => (
+                      <li key={r.id}>
+                        <ReservationCard r={r} onOpen={openDetail} />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          </Card>
+        </TableView.Body>
+      )}
 
       {editing && (
         <ReservationForm
@@ -188,7 +219,7 @@ function MySchedulePage() {
         onCancel={cancelReservation}
         onEdit={startEdit}
       />
-    </div>
+    </TableView>
   );
 }
 

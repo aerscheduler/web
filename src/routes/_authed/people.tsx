@@ -1,19 +1,19 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Search, UserPlus, Users } from "lucide-react";
+import { UserPlus, Users } from "lucide-react";
 import { useMembers, type MemberFilter } from "@/features/queries";
 import { rolesOf, type OrganizationUser } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
+import { ListSearch } from "@/components/list-search";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RoleBadges } from "@/components/role-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EditRolesModal } from "@/components/people/edit-roles-modal";
 import { InviteModal } from "@/components/people/invite-modal";
@@ -158,16 +158,12 @@ function PeoplePage() {
 
   const toolbar = (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div className="relative w-full sm:max-w-xs">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search name or email…"
-          className="pl-8"
-          aria-label="Search members"
-        />
-      </div>
+      <ListSearch
+        value={search}
+        onChange={setSearch}
+        placeholder="Search name or email…"
+        aria-label="Search members"
+      />
       {canManageMembers(roles) && (
         <Button onClick={() => setInviteOpen(true)} className="sm:w-auto">
           <UserPlus className="size-4" /> Invite

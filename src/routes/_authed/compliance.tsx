@@ -92,17 +92,21 @@ function CompliancePage() {
           {groundedAircraft.length > 0 && (
             <section className="space-y-2.5">
               <h2 className="text-sm font-semibold text-muted-foreground">Grounded aircraft</h2>
-              {groundedAircraft.map((r) => (
-                <GroundedAircraftCard key={r.id} resource={r} />
-              ))}
+              <div className="max-h-[min(28rem,50vh)] space-y-2.5 overflow-y-auto">
+                {groundedAircraft.map((r) => (
+                  <GroundedAircraftCard key={r.id} resource={r} />
+                ))}
+              </div>
             </section>
           )}
           {groundedMembers.length > 0 && (
             <section className="space-y-2.5">
               <h2 className="text-sm font-semibold text-muted-foreground">Grounded members</h2>
-              {groundedMembers.map((m) => (
-                <GroundedMemberCard key={m.id} member={m} />
-              ))}
+              <div className="max-h-[min(28rem,50vh)] space-y-2.5 overflow-y-auto">
+                {groundedMembers.map((m) => (
+                  <GroundedMemberCard key={m.id} member={m} />
+                ))}
+              </div>
             </section>
           )}
         </div>

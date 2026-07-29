@@ -21,7 +21,13 @@ export class ApiError extends Error {
   }
 }
 
-type QueryValue = string | number | boolean | undefined | null;
+type QueryValue =
+  | string
+  | number
+  | boolean
+  | Array<string | number>
+  | undefined
+  | null;
 
 export interface ApiOptions {
   method?: string;
@@ -45,7 +51,12 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
   if (opts.query) {
     const qs = new URLSearchParams();
     for (const [k, v] of Object.entries(opts.query)) {
-      if (v !== undefined && v !== null) qs.set(k, String(v));
+      if (v === undefined || v === null) continue;
+      if (Array.isArray(v)) {
+        if (v.length) qs.set(k, v.map(String).join(","));
+      } else {
+        qs.set(k, String(v));
+      }
     }
     const s = qs.toString();
     if (s) url += `?${s}`;

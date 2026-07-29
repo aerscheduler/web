@@ -11,7 +11,7 @@ import { guardRoute } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
-import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { SquawkCard } from "@/components/maintenance/squawk-card";
 import { ReminderCard } from "@/components/maintenance/reminder-card";
@@ -45,9 +45,7 @@ function MaintenancePage() {
 
   const view: ViewKey =
     facets.view === "resolved" || facets.view === "reminders" ? facets.view : "open";
-  const resourceIdRaw =
-    typeof facets.resourceId === "string" ? Number(facets.resourceId) : undefined;
-  const resourceId = Number.isFinite(resourceIdRaw) ? resourceIdRaw : undefined;
+  const resourceIds = asFacetInts(facets.resourceId);
   const q = debouncedQ;
 
   const facetDefs = React.useMemo<FacetDef[]>(
@@ -68,6 +66,7 @@ function MaintenancePage() {
         key: "resourceId",
         label: "Aircraft",
         allLabel: "All aircraft",
+        multiple: true,
         options: (planesQ.data ?? []).map((r) => ({
           value: String(r.id),
           label: resourceLabel(r).name,
@@ -101,10 +100,10 @@ function MaintenancePage() {
       </TableView.Header>
 
       {view === "open" && (
-        <OpenSquawks onLog={() => setAddOpen(true)} q={q} resourceId={resourceId} />
+        <OpenSquawks onLog={() => setAddOpen(true)} q={q} resourceId={resourceIds} />
       )}
-      {view === "resolved" && <ResolvedSquawks q={q} resourceId={resourceId} />}
-      {view === "reminders" && <Reminders q={q} resourceId={resourceId} />}
+      {view === "resolved" && <ResolvedSquawks q={q} resourceId={resourceIds} />}
+      {view === "reminders" && <Reminders q={q} resourceId={resourceIds} />}
 
       <LogSquawkModal open={addOpen} onOpenChange={setAddOpen} />
     </TableView>
@@ -137,6 +136,10 @@ function Frame({
   return <>{children}</>;
 }
 
+function hasResourceFilter(resourceId?: number | number[]) {
+  return Array.isArray(resourceId) ? resourceId.length > 0 : resourceId != null;
+}
+
 function OpenSquawks({
   onLog,
   q: searchQ,
@@ -144,12 +147,12 @@ function OpenSquawks({
 }: {
   onLog: () => void;
   q?: string;
-  resourceId?: number;
+  resourceId?: number | number[];
 }) {
   const q = useSquawks({ resolved: false, q: searchQ, resourceId });
   const [resolving, setResolving] = React.useState<Squawk | null>(null);
   const squawks = q.data ?? [];
-  const empty = squawks.length === 0 && !searchQ && resourceId == null;
+  const empty = squawks.length === 0 && !searchQ && !hasResourceFilter(resourceId);
   const noMatch = squawks.length === 0 && !empty;
 
   return (
@@ -195,10 +198,16 @@ function OpenSquawks({
   );
 }
 
-function ResolvedSquawks({ q: searchQ, resourceId }: { q?: string; resourceId?: number }) {
+function ResolvedSquawks({
+  q: searchQ,
+  resourceId,
+}: {
+  q?: string;
+  resourceId?: number | number[];
+}) {
   const q = useSquawks({ resolved: true, q: searchQ, resourceId });
   const squawks = q.data ?? [];
-  const empty = squawks.length === 0 && !searchQ && resourceId == null;
+  const empty = squawks.length === 0 && !searchQ && !hasResourceFilter(resourceId);
   const noMatch = squawks.length === 0 && !empty;
 
   return (
@@ -228,10 +237,16 @@ function ResolvedSquawks({ q: searchQ, resourceId }: { q?: string; resourceId?: 
   );
 }
 
-function Reminders({ q: searchQ, resourceId }: { q?: string; resourceId?: number }) {
+function Reminders({
+  q: searchQ,
+  resourceId,
+}: {
+  q?: string;
+  resourceId?: number | number[];
+}) {
   const q = useMaintenanceReminders({ q: searchQ, resourceId });
   const reminders = q.data ?? [];
-  const empty = reminders.length === 0 && !searchQ && resourceId == null;
+  const empty = reminders.length === 0 && !searchQ && !hasResourceFilter(resourceId);
   const noMatch = reminders.length === 0 && !empty;
 
   return (

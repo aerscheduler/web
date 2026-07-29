@@ -22,7 +22,7 @@ import { MemberProfileSheet } from "@/components/people/member-profile-sheet";
 import { MemberRowActions } from "@/components/people/member-row-actions";
 import { memberName } from "@/components/people/util";
 import { useAuth } from "@/lib/auth";
-import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+import { asFacetInts, asFacetStrings, useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { canManageMembers } from "@/lib/permissions";
 import { formatDate, initials } from "@/lib/utils";
 
@@ -87,17 +87,18 @@ function PeoplePage() {
   const [viewing, setViewing] = useState<OrganizationUser | null>(null);
 
   const groupsQ = useOrgUserGroups();
-  const roleKey =
-    typeof facets.role === "string" && facets.role in ROLE_FILTER
-      ? (facets.role as RoleKey)
-      : undefined;
-  const groupIdRaw = typeof facets.groupId === "string" ? Number(facets.groupId) : undefined;
+  const roleKeys = asFacetStrings(facets.role).filter(
+    (r): r is RoleKey => r in ROLE_FILTER
+  );
+  const roleFilter: MemberFilter = {};
+  for (const r of roleKeys) Object.assign(roleFilter, ROLE_FILTER[r]);
+  const groupIds = asFacetInts(facets.groupId);
 
   const q = useMembers({
-    ...(roleKey ? ROLE_FILTER[roleKey] : {}),
+    ...roleFilter,
     q: debouncedQ,
     grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
-    groupId: Number.isFinite(groupIdRaw) ? groupIdRaw : undefined,
+    groupId: groupIds,
   });
   const members = q.data ?? [];
 
@@ -108,6 +109,7 @@ function PeoplePage() {
         key: "role",
         label: "Role",
         allLabel: "Everyone",
+        multiple: true,
         options: ROLE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
       },
       {
@@ -122,6 +124,7 @@ function PeoplePage() {
         key: "groupId",
         label: "Group",
         allLabel: "All groups",
+        multiple: true,
         options: (groupsQ.data ?? []).map((g) => ({
           value: String(g.id),
           label: g.name,
@@ -133,11 +136,12 @@ function PeoplePage() {
 
   const filtersActive =
     !!debouncedQ ||
-    roleKey != null ||
+    roleKeys.length > 0 ||
     facets.grounded !== undefined ||
-    (typeof facets.groupId === "string" && facets.groupId !== "");
+    (groupIds?.length ?? 0) > 0;
 
-  const emptyCopy = EMPTY_BY_ROLE[roleKey ?? "all"];
+  const emptyCopy =
+    EMPTY_BY_ROLE[roleKeys.length === 1 ? roleKeys[0]! : "all"];
 
   const columns = useMemo<ColumnDef<OrganizationUser, unknown>[]>(
     () => [

@@ -10,7 +10,7 @@ import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { usePersistedState } from "@/hooks/use-persisted-state";
-import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import {
   FacilityFormModal,
@@ -128,14 +128,12 @@ function FacilitiesPage() {
   const [view, setView] = usePersistedState<ViewMode>("view:facilities", "grid");
 
   const tab: TabKey = facets.tab === "rooms" ? "rooms" : "simulators";
-  const locationIdRaw =
-    typeof facets.locationId === "string" ? Number(facets.locationId) : undefined;
-  const locationId = Number.isFinite(locationIdRaw) ? locationIdRaw : undefined;
+  const locationIds = asFacetInts(facets.locationId);
 
   const simsQ = useSimulators(
     {
       q: debouncedQ,
-      locationId,
+      locationId: locationIds,
       grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
     },
     { enabled: organization != null }
@@ -143,7 +141,7 @@ function FacilitiesPage() {
   const roomsQ = useRooms(
     {
       q: debouncedQ,
-      locationId,
+      locationId: locationIds,
     },
     { enabled: organization != null }
   );
@@ -163,6 +161,7 @@ function FacilitiesPage() {
         key: "locationId",
         label: "Location",
         allLabel: "All locations",
+        multiple: true,
         options: locationOptions,
       },
       {
@@ -183,6 +182,7 @@ function FacilitiesPage() {
         key: "locationId",
         label: "Location",
         allLabel: "All locations",
+        multiple: true,
         options: locationOptions,
       },
     ],

@@ -15,7 +15,7 @@ import { ExpiryBadge } from "@/components/documents/document-row";
 import { DocumentUploadModal } from "@/components/me-account/document-upload-modal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+import { asFacetInts, asFacetStrings, useListQueryState, validateListSearch } from "@/lib/list-query-state";
 
 const FACET_KEYS = ["documentTypeId", "status", "includeArchived"] as const;
 
@@ -125,25 +125,24 @@ function MyDocumentsPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const typesQ = useDocumentTypes();
 
-  const documentTypeIdRaw =
-    typeof facets.documentTypeId === "string" ? Number(facets.documentTypeId) : undefined;
-  const status =
-    facets.status === "expired" || facets.status === "expiring" || facets.status === "good"
-      ? facets.status
-      : undefined;
+  const documentTypeIds = asFacetInts(facets.documentTypeId);
+  const statuses = asFacetStrings(facets.status).filter(
+    (s): s is "expired" | "expiring" | "good" =>
+      s === "expired" || s === "expiring" || s === "good"
+  );
 
   const q = useMemberDocuments(orgUserId, {
     q: debouncedQ,
-    documentTypeId: Number.isFinite(documentTypeIdRaw) ? documentTypeIdRaw : undefined,
-    status,
+    documentTypeId: documentTypeIds,
+    status: statuses.length ? statuses : undefined,
     includeArchived: typeof facets.includeArchived === "boolean" ? facets.includeArchived : undefined,
   });
   const docs = q.data ?? [];
 
   const filtersActive =
     !!debouncedQ ||
-    (typeof facets.documentTypeId === "string" && facets.documentTypeId !== "") ||
-    status != null ||
+    (documentTypeIds?.length ?? 0) > 0 ||
+    statuses.length > 0 ||
     facets.includeArchived === true;
 
   const facetDefs = useMemo<FacetDef[]>(
@@ -153,6 +152,7 @@ function MyDocumentsPage() {
         key: "documentTypeId",
         label: "Type",
         allLabel: "All types",
+        multiple: true,
         options: (typesQ.data ?? []).map((t) => ({
           value: String(t.id),
           label: t.name,
@@ -163,6 +163,7 @@ function MyDocumentsPage() {
         key: "status",
         label: "Status",
         allLabel: "All statuses",
+        multiple: true,
         options: [
           { value: "expired", label: "Expired" },
           { value: "expiring", label: "Expiring" },

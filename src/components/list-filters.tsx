@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -19,6 +20,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { asFacetStrings } from "@/lib/list-query-state";
 import { cn } from "@/lib/utils";
 
 export type BooleanFacet = {
@@ -38,6 +40,8 @@ export type SelectFacet = {
   allLabel?: string;
   /** When true, omit the “any” choice — value is always one of `options`. */
   required?: boolean;
+  /** Allow stacking multiple values (OR). Renders checkboxes instead of radios. */
+  multiple?: boolean;
 };
 
 export type DateRangeFacet = {
@@ -48,14 +52,22 @@ export type DateRangeFacet = {
 
 export type FacetDef = BooleanFacet | SelectFacet | DateRangeFacet;
 
+export type ListFilterValue = string | boolean | string[] | undefined;
+
 export type ListFilterValues = {
   /** ISO start/end when a dateRange facet is present. */
   startDate?: string;
   endDate?: string;
-  [key: string]: string | boolean | undefined;
+  [key: string]: ListFilterValue;
 };
 
-type Chip = { key: string; label: string; facet: FacetDef };
+type Chip = {
+  key: string;
+  label: string;
+  facet: FacetDef;
+  /** For multi-select: which option this chip clears. */
+  optionValue?: string;
+};
 
 function activeValueLabel(facet: FacetDef, values: ListFilterValues): string | null {
   if (facet.kind === "boolean") {
@@ -65,8 +77,17 @@ function activeValueLabel(facet: FacetDef, values: ListFilterValues): string | n
     return null;
   }
   if (facet.kind === "select") {
+    if (facet.multiple) {
+      const selected = asFacetStrings(values[facet.key]);
+      if (selected.length === 0) return null;
+      const labels = selected.map(
+        (v) => facet.options.find((o) => o.value === v)?.label ?? v
+      );
+      if (labels.length <= 2) return labels.join(", ");
+      return `${labels.length} selected`;
+    }
     const v = values[facet.key];
-    if (v === undefined || v === "") return null;
+    if (v === undefined || v === "" || Array.isArray(v)) return null;
     if (facet.required && String(v) === facet.options[0]?.value) return null;
     return facet.options.find((o) => o.value === String(v))?.label ?? String(v);
   }
@@ -79,19 +100,17 @@ function activeValueLabel(facet: FacetDef, values: ListFilterValues): string | n
   return null;
 }
 
-function chipLabel(facet: FacetDef, values: ListFilterValues): string | null {
-  const value = activeValueLabel(facet, values);
-  if (!value) return null;
-  return `${facet.label}: ${value}`;
-}
-
-function summaryLabel(facet: FacetDef, values: ListFilterValues): string {
-  return activeValueLabel(facet, values) ?? "Any";
-}
-
-function clearFacetValue(facet: FacetDef, values: ListFilterValues): ListFilterValues {
+function clearFacetValue(
+  facet: FacetDef,
+  values: ListFilterValues,
+  optionValue?: string
+): ListFilterValues {
   if (facet.kind === "dateRange") {
     return { ...values, startDate: undefined, endDate: undefined };
+  }
+  if (facet.kind === "select" && facet.multiple && optionValue != null) {
+    const next = asFacetStrings(values[facet.key]).filter((v) => v !== optionValue);
+    return { ...values, [facet.key]: next.length ? next : undefined };
   }
   if (facet.kind === "select" && facet.required) {
     return { ...values, [facet.key]: facet.options[0]?.value };
@@ -106,12 +125,40 @@ function clearAllValues(facets: FacetDef[], values: ListFilterValues): ListFilte
 }
 
 function activeChips(facets: FacetDef[], values: ListFilterValues): Chip[] {
-  return facets
-    .map((f) => {
-      const label = chipLabel(f, values);
-      return label ? { key: f.key, label, facet: f } : null;
-    })
-    .filter(Boolean) as Chip[];
+  const chips: Chip[] = [];
+  for (const f of facets) {
+    if (f.kind === "select" && f.multiple) {
+      for (const v of asFacetStrings(values[f.key])) {
+        const optLabel = f.options.find((o) => o.value === v)?.label ?? v;
+        chips.push({
+          key: `${f.key}:${v}`,
+          label: `${f.label}: ${optLabel}`,
+          facet: f,
+          optionValue: v,
+        });
+      }
+      continue;
+    }
+    const value = activeValueLabel(f, values);
+    if (!value) continue;
+    chips.push({ key: f.key, label: `${f.label}: ${value}`, facet: f });
+  }
+  return chips;
+}
+
+function toggleMultiValue(
+  values: ListFilterValues,
+  key: string,
+  option: string,
+  checked: boolean
+): ListFilterValues {
+  const current = asFacetStrings(values[key]);
+  const next = checked
+    ? current.includes(option)
+      ? current
+      : [...current, option]
+    : current.filter((v) => v !== option);
+  return { ...values, [key]: next.length ? next : undefined };
 }
 
 /**
@@ -154,10 +201,7 @@ export function ListFilters({
             type="button"
             variant="outline"
             size="icon-sm"
-            className={cn(
-              "relative shrink-0",
-              activeCount > 0 && "border-primary/40 bg-primary/5 text-primary"
-            )}
+            className="relative shrink-0"
             aria-label={
               activeCount > 0
                 ? `Filters (${activeCount} active)`
@@ -188,7 +232,7 @@ export function ListFilters({
                   <DropdownMenuSubTrigger>
                     <span className="flex-1 truncate">{facet.label}</span>
                     <span className="ml-2 truncate text-xs text-muted-foreground">
-                      {summaryLabel(facet, values)}
+                      {activeValueLabel(facet, values) ?? "Any"}
                     </span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="min-w-44">
@@ -215,8 +259,53 @@ export function ListFilters({
             }
 
             if (facet.kind === "select") {
+              if (facet.multiple) {
+                const selected = new Set(asFacetStrings(values[facet.key]));
+                return (
+                  <DropdownMenuSub key={facet.key}>
+                    <DropdownMenuSubTrigger>
+                      <span className="flex-1 truncate">{facet.label}</span>
+                      <span className="ml-2 max-w-24 truncate text-xs text-muted-foreground">
+                        {activeValueLabel(facet, values) ?? facet.allLabel ?? "Any"}
+                      </span>
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="max-h-72 min-w-44 overflow-y-auto">
+                      {facet.options.map((o) => (
+                        <DropdownMenuCheckboxItem
+                          key={o.value}
+                          checked={selected.has(o.value)}
+                          onCheckedChange={(checked) =>
+                            onChange(
+                              toggleMultiValue(values, facet.key, o.value, checked === true)
+                            )
+                          }
+                          onSelect={(e) => e.preventDefault()}
+                        >
+                          {o.label}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                      {selected.size > 0 && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onSelect={(e) => {
+                              e.preventDefault();
+                              onChange(clearFacetValue(facet, values));
+                            }}
+                          >
+                            Clear {facet.label.toLowerCase()}
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                );
+              }
+
               const current =
-                values[facet.key] !== undefined && values[facet.key] !== ""
+                values[facet.key] !== undefined &&
+                values[facet.key] !== "" &&
+                !Array.isArray(values[facet.key])
                   ? String(values[facet.key])
                   : facet.required
                     ? (facet.options[0]?.value ?? "all")
@@ -226,7 +315,7 @@ export function ListFilters({
                   <DropdownMenuSubTrigger>
                     <span className="flex-1 truncate">{facet.label}</span>
                     <span className="ml-2 max-w-24 truncate text-xs text-muted-foreground">
-                      {summaryLabel(facet, values)}
+                      {activeValueLabel(facet, values) ?? "Any"}
                     </span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="max-h-72 min-w-44 overflow-y-auto">
@@ -262,7 +351,7 @@ export function ListFilters({
                 <DropdownMenuSubTrigger>
                   <span className="flex-1 truncate">{facet.label}</span>
                   <span className="ml-2 max-w-28 truncate text-xs text-muted-foreground">
-                    {summaryLabel(facet, values)}
+                    {activeValueLabel(facet, values) ?? "Any"}
                   </span>
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="p-2" onClick={(e) => e.stopPropagation()}>
@@ -334,7 +423,7 @@ function FilterBadges({
             type="button"
             className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label={`Remove ${c.label}`}
-            onClick={() => onChange(clearFacetValue(c.facet, values))}
+            onClick={() => onChange(clearFacetValue(c.facet, values, c.optionValue))}
           >
             <X className="size-3" />
           </button>

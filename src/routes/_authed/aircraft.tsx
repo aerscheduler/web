@@ -19,7 +19,7 @@ import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { usePersistedState } from "@/hooks/use-persisted-state";
-import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { Card } from "@/components/ui/card";
@@ -54,20 +54,19 @@ function AircraftPage() {
   const [detail, setDetail] = React.useState<Resource | null>(null);
 
   const locations = locationsQ.data ?? [];
-  const locationIdRaw =
-    typeof facets.locationId === "string" ? Number(facets.locationId) : undefined;
+  const locationIds = asFacetInts(facets.locationId);
 
   const q = usePlanes({
     q: debouncedQ,
     grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
-    locationId: Number.isFinite(locationIdRaw) ? locationIdRaw : undefined,
+    locationId: locationIds,
   });
   const planes = q.data ?? [];
 
   const filtersActive =
     !!debouncedQ ||
     facets.grounded !== undefined ||
-    (typeof facets.locationId === "string" && facets.locationId !== "");
+    (locationIds?.length ?? 0) > 0;
 
   const facetDefs = React.useMemo<FacetDef[]>(
     () => [
@@ -83,6 +82,7 @@ function AircraftPage() {
         key: "locationId",
         label: "Location",
         allLabel: "All locations",
+        multiple: true,
         options: locations.map((l) => ({ value: String(l.id), label: l.name })),
       },
     ],

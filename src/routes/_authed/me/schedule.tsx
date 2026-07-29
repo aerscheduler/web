@@ -23,7 +23,7 @@ import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/state
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
 import { ReservationCard } from "@/components/me/reservation-card";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
 import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
@@ -82,23 +82,20 @@ function MySchedulePage() {
   const now = React.useMemo(() => new Date(), []);
   const [startISO, endISO] = rangeBounds(range, now);
 
-  const resourceIdRaw =
-    typeof facets.resourceId === "string" ? Number(facets.resourceId) : undefined;
-  const locationIdRaw =
-    typeof facets.locationId === "string" ? Number(facets.locationId) : undefined;
-  const resourceId = Number.isFinite(resourceIdRaw) ? resourceIdRaw : undefined;
-  const locationId = Number.isFinite(locationIdRaw) ? locationIdRaw : undefined;
+  const resourceIds = asFacetInts(facets.resourceId);
+  const locationIds = asFacetInts(facets.locationId);
 
   const resourcesQ = useResources();
   const locationsQ = useLocations();
   const q = useUserReservations(userId, startISO, endISO, {
     q: debouncedQ,
-    resourceId,
-    locationId,
+    resourceId: resourceIds,
+    locationId: locationIds,
   });
 
   const reservations = q.data ?? [];
-  const filtersActive = !!debouncedQ || resourceId != null || locationId != null;
+  const filtersActive =
+    !!debouncedQ || (resourceIds?.length ?? 0) > 0 || (locationIds?.length ?? 0) > 0;
   const groups = React.useMemo(() => groupByDay(reservations), [reservations]);
 
   const facetDefs = React.useMemo<FacetDef[]>(
@@ -108,6 +105,7 @@ function MySchedulePage() {
         key: "resourceId",
         label: "Resource",
         allLabel: "All resources",
+        multiple: true,
         options: (resourcesQ.data ?? []).map((r) => ({
           value: String(r.id),
           label: resourceLabel(r).name,
@@ -118,6 +116,7 @@ function MySchedulePage() {
         key: "locationId",
         label: "Location",
         allLabel: "All locations",
+        multiple: true,
         options: (locationsQ.data ?? []).map((l) => ({
           value: String(l.id),
           label: l.name,

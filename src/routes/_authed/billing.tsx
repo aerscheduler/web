@@ -42,7 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+import { asFacetStrings, useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { formatDate, formatMoney } from "@/lib/utils";
 
 const FACET_KEYS = ["status", "startDate", "endDate"] as const;
@@ -70,6 +70,7 @@ const STATUS_FACETS: FacetDef[] = [
     key: "status",
     label: "Status",
     allLabel: "All invoices",
+    multiple: true,
     options: [
       { value: "outstanding", label: "Outstanding" },
       { value: "paid", label: "Paid" },
@@ -312,11 +313,23 @@ function BillingPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState<InvoiceDraft | undefined>(undefined);
 
-  const status: StatusKey | undefined =
-    facets.status === "outstanding" || facets.status === "paid" || facets.status === "unbilled"
-      ? facets.status
-      : undefined;
-  const showUnbilled = status === "unbilled";
+  const statuses = asFacetStrings(facets.status).filter(
+    (s): s is StatusKey => s === "outstanding" || s === "paid" || s === "unbilled"
+  );
+  const wantsOutstanding = statuses.includes("outstanding");
+  const wantsPaid = statuses.includes("paid");
+  const wantsUnbilled = statuses.includes("unbilled");
+  const showUnbilled = wantsUnbilled;
+  const showInvoices = statuses.length === 0 || wantsOutstanding || wantsPaid;
+
+  const paidFilter =
+    wantsOutstanding && wantsPaid
+      ? undefined
+      : wantsOutstanding
+        ? false
+        : wantsPaid
+          ? true
+          : undefined;
 
   const range: DateRange | undefined = useMemo(() => {
     if (typeof facets.startDate === "string" || typeof facets.endDate === "string") {
@@ -353,9 +366,9 @@ function BillingPage() {
       startDate: startISO,
       endDate: endISO,
       q: debouncedQ,
-      ...(status === "outstanding" ? { paid: false } : status === "paid" ? { paid: true } : {}),
+      ...(paidFilter !== undefined ? { paid: paidFilter } : {}),
     },
-    { enabled: !showUnbilled }
+    { enabled: showInvoices }
   );
   const reservationsQ = useReservations(startISO ?? "", endISO ?? "", undefined, {
     enabled: !!startISO && !!endISO,
@@ -389,9 +402,9 @@ function BillingPage() {
   }, [statsInvoices]);
 
   const rows = useMemo(() => {
-    if (status === "outstanding") return invoices.filter((i) => i.voidedAt == null);
+    if (wantsOutstanding && !wantsPaid) return invoices.filter((i) => i.voidedAt == null);
     return invoices;
-  }, [invoices, status]);
+  }, [invoices, wantsOutstanding, wantsPaid]);
 
   const viewInvoice = useMemo(
     () =>
@@ -465,7 +478,7 @@ function BillingPage() {
       facets={STATUS_FACETS}
       filterValues={facets}
       onFilterChange={setFacets}
-      showSearch={!showUnbilled}
+      showSearch={showInvoices}
     />
   );
 
@@ -482,7 +495,7 @@ function BillingPage() {
           <ErrorState error={invoicesQ.error} onRetry={() => invoicesQ.refetch()} />
         </Card>
       );
-    if (statsInvoices.length === 0 && !debouncedQ && !status)
+    if (statsInvoices.length === 0 && !debouncedQ && statuses.length === 0)
       return (
         <Card className="min-h-0 flex-1">
           <EmptyState icon={Receipt} title="No invoices yet" body={EMPTY_COPY} />
@@ -540,9 +553,9 @@ function BillingPage() {
   }
 
   const emptyByStatus =
-    status === "outstanding"
+    wantsOutstanding && !wantsPaid
       ? "Nothing outstanding — you're all paid up."
-      : status === "paid"
+      : wantsPaid && !wantsOutstanding
         ? "No paid invoices in this range yet."
         : "No invoices match your filters.";
 
@@ -605,7 +618,20 @@ function BillingPage() {
         {toolbar}
       </TableView.Header>
 
-      {showUnbilled ? renderUnbilled() : renderInvoiceTable(emptyByStatus)}
+      {showInvoices && showUnbilled ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {renderInvoiceTable(emptyByStatus)}
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {renderUnbilled()}
+          </div>
+        </div>
+      ) : showUnbilled ? (
+        renderUnbilled()
+      ) : (
+        renderInvoiceTable(emptyByStatus)
+      )}
 
       <InvoiceDetailSheet
         invoice={viewInvoice}

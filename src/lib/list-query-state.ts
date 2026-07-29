@@ -17,7 +17,31 @@ type NavigateSearch = (opts: {
 }) => unknown;
 
 function isEmptyValue(v: unknown): boolean {
-  return v === undefined || v === null || v === "";
+  if (v === undefined || v === null || v === "") return true;
+  if (Array.isArray(v)) return v.length === 0;
+  return false;
+}
+
+/** Normalize a facet value to a string list (single string, CSV, or array). */
+export function asFacetStrings(v: unknown): string[] {
+  if (Array.isArray(v)) {
+    return v.map(String).map((s) => s.trim()).filter(Boolean);
+  }
+  if (typeof v === "string" && v.trim()) {
+    return v
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+/** Numeric IDs from a facet value, or `undefined` when none. */
+export function asFacetInts(v: unknown): number[] | undefined {
+  const nums = asFacetStrings(v)
+    .map((s) => Number.parseInt(s, 10))
+    .filter((n) => Number.isFinite(n));
+  return nums.length ? nums : undefined;
 }
 
 /** True when the URL already carries any list-query field (including empty-ish we keep). */
@@ -35,6 +59,7 @@ export function listSearchHasParams(
 /**
  * Parse URL search into a typed list-query object.
  * Booleans arrive as `"true"` / `"false"` strings from the query string.
+ * Multi-value facets use comma-separated strings (or arrays from storage).
  */
 export function parseListSearch(
   search: Record<string, unknown>,
@@ -48,8 +73,24 @@ export function parseListSearch(
     const v = search[k];
     if (v === true || v === "true") out[k] = true;
     else if (v === false || v === "false") out[k] = false;
-    else if (typeof v === "string" && v !== "") out[k] = v;
-    else if (typeof v === "number" && Number.isFinite(v)) out[k] = String(v);
+    else if (Array.isArray(v)) {
+      const list = v.map(String).map((s) => s.trim()).filter(Boolean);
+      if (list.length === 1) out[k] = list[0];
+      else if (list.length > 1) out[k] = list;
+    } else if (typeof v === "string" && v !== "") {
+      if (v.includes(",")) {
+        const list = v
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        if (list.length === 1) out[k] = list[0];
+        else if (list.length > 1) out[k] = list;
+      } else {
+        out[k] = v;
+      }
+    } else if (typeof v === "number" && Number.isFinite(v)) {
+      out[k] = String(v);
+    }
   }
   return out;
 }
@@ -66,8 +107,10 @@ export function serializeListSearch(
   for (const [k, v] of Object.entries(state)) {
     if (k === "q") continue;
     if (isEmptyValue(v)) continue;
-    if (defaults[k] !== undefined && v === defaults[k]) continue;
-    if (typeof v === "boolean" || typeof v === "string") out[k] = v;
+    if (defaults[k] !== undefined && !Array.isArray(v) && v === defaults[k]) continue;
+    if (typeof v === "boolean") out[k] = v;
+    else if (Array.isArray(v)) out[k] = v.map(String).join(",");
+    else if (typeof v === "string") out[k] = v;
   }
   return out;
 }
@@ -181,7 +224,9 @@ export function useListQueryState({
     const next: ListFilterValues = { ...defaults };
     for (const k of facetKeys) {
       const v = search[k];
-      if (!isEmptyValue(v)) next[k] = v as string | boolean;
+      if (isEmptyValue(v)) continue;
+      if (Array.isArray(v)) next[k] = v.map(String);
+      else if (typeof v === "boolean" || typeof v === "string") next[k] = v;
     }
     return next;
   }, [search, facetKeys, defaults]);

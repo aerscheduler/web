@@ -80,13 +80,15 @@ export type MemberFilter = Partial<
 > & {
   q?: string;
   grounded?: boolean;
-  groupId?: number;
+  /** One or more group IDs (OR). */
+  groupId?: number | number[];
 };
 
 export type ResourceListFilter = {
   q?: string;
   grounded?: boolean;
-  locationId?: number;
+  /** One or more location IDs (OR). */
+  locationId?: number | number[];
 };
 
 export type InvoiceListFilter = {
@@ -98,14 +100,16 @@ export type InvoiceListFilter = {
 
 export type ReservationListFilter = {
   q?: string;
-  resourceId?: number;
-  locationId?: number;
+  /** One or more resource IDs (OR). */
+  resourceId?: number | number[];
+  /** One or more location IDs (OR). */
+  locationId?: number | number[];
 };
 
 export type SquawkListFilter = {
   q?: string;
   resolved?: boolean;
-  resourceId?: number;
+  resourceId?: number | number[];
   startDate?: string;
   endDate?: string;
 };
@@ -114,7 +118,7 @@ export type ReminderListFilter = {
   q?: string;
   resolved?: boolean;
   warned?: boolean;
-  resourceId?: number;
+  resourceId?: number | number[];
 };
 
 export type NotificationListFilter = {
@@ -123,9 +127,10 @@ export type NotificationListFilter = {
 
 export type DocumentListFilter = {
   q?: string;
-  documentTypeId?: number;
+  documentTypeId?: number | number[];
   includeArchived?: boolean;
-  status?: "expired" | "expiring" | "good";
+  /** One or more of expired | expiring | good (OR). */
+  status?: "expired" | "expiring" | "good" | Array<"expired" | "expiring" | "good">;
 };
 
 // ---------------------------------------------------------------- reads

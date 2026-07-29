@@ -22,7 +22,7 @@ import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { usePersistedState } from "@/hooks/use-persisted-state";
-import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
 import {
   ScheduleControls,
   type ScheduleView,
@@ -96,17 +96,13 @@ function SchedulePage() {
     zonedEndOfDay(rangeDays[1], tz.zone).toISOString(),
   ];
 
-  const resourceIdRaw =
-    typeof facets.resourceId === "string" ? Number(facets.resourceId) : undefined;
-  const locationIdRaw =
-    typeof facets.locationId === "string" ? Number(facets.locationId) : undefined;
-  const resourceId = Number.isFinite(resourceIdRaw) ? resourceIdRaw : undefined;
-  const locationId = Number.isFinite(locationIdRaw) ? locationIdRaw : undefined;
+  const resourceIds = asFacetInts(facets.resourceId);
+  const locationIds = asFacetInts(facets.locationId);
 
   const q = useReservations(startISO, endISO, {
     q: debouncedQ,
-    resourceId,
-    locationId,
+    resourceId: resourceIds,
+    locationId: locationIds,
   });
   const resourcesQ = useResources();
   const locationsQ = useLocations();
@@ -126,13 +122,16 @@ function SchedulePage() {
   // Narrow lanes when a resource/location facet is active (permission filter stays above).
   const filteredResources = React.useMemo(() => {
     let list = resources;
-    if (resourceId != null) list = list.filter((r) => r.id === resourceId);
-    if (locationId != null)
+    if (resourceIds?.length)
+      list = list.filter((r) => resourceIds.includes(r.id));
+    if (locationIds?.length)
       list = list.filter(
-        (r) => r.FK_locationId === locationId || r.location?.id === locationId
+        (r) =>
+          locationIds.includes(r.FK_locationId) ||
+          (r.location?.id != null && locationIds.includes(r.location.id))
       );
     return list;
-  }, [resources, resourceId, locationId]);
+  }, [resources, resourceIds, locationIds]);
 
   const facetDefs = React.useMemo<FacetDef[]>(
     () => [
@@ -141,6 +140,7 @@ function SchedulePage() {
         key: "resourceId",
         label: "Resource",
         allLabel: "All resources",
+        multiple: true,
         options: resources.map((r) => ({
           value: String(r.id),
           label: resourceLabel(r).name,
@@ -151,6 +151,7 @@ function SchedulePage() {
         key: "locationId",
         label: "Location",
         allLabel: "All locations",
+        multiple: true,
         options: (locationsQ.data ?? []).map((l) => ({
           value: String(l.id),
           label: l.name,

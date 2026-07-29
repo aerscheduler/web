@@ -7,9 +7,7 @@ import { rolesOf, type OrganizationUser } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
-import { ListSearch } from "@/components/list-search";
-import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RoleBadges } from "@/components/role-badges";
@@ -24,10 +22,14 @@ import { MemberProfileSheet } from "@/components/people/member-profile-sheet";
 import { MemberRowActions } from "@/components/people/member-row-actions";
 import { memberName } from "@/components/people/util";
 import { useAuth } from "@/lib/auth";
+import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { canManageMembers } from "@/lib/permissions";
 import { formatDate, initials } from "@/lib/utils";
 
+const PEOPLE_FACET_KEYS = ["role", "grounded", "groupId"] as const;
+
 export const Route = createFileRoute("/_authed/people")({
+  validateSearch: (s) => validateListSearch(s, [...PEOPLE_FACET_KEYS]),
   component: PeoplePage,
 });
 
@@ -72,9 +74,14 @@ const EMPTY_BY_ROLE: Record<RoleKey | "all", { title: string; body: string }> = 
 
 function PeoplePage() {
   const { roles } = useAuth();
-  const [search, setSearch] = useState("");
-  const debouncedQ = useDebouncedValue(search);
-  const [facets, setFacets] = useState<ListFilterValues>({});
+  const routeSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
+    storageKey: "people",
+    search: routeSearch,
+    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    facetKeys: [...PEOPLE_FACET_KEYS],
+  });
   const [inviteOpen, setInviteOpen] = useState(false);
   const [editing, setEditing] = useState<OrganizationUser | null>(null);
   const [viewing, setViewing] = useState<OrganizationUser | null>(null);
@@ -88,7 +95,7 @@ function PeoplePage() {
 
   const q = useMembers({
     ...(roleKey ? ROLE_FILTER[roleKey] : {}),
-    q: debouncedQ || undefined,
+    q: debouncedQ,
     grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
     groupId: Number.isFinite(groupIdRaw) ? groupIdRaw : undefined,
   });
@@ -214,22 +221,22 @@ function PeoplePage() {
   );
 
   const toolbar = (
-    <div className="flex flex-col gap-2">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <ListSearch
-          value={search}
-          onChange={setSearch}
-          placeholder="Search name or email…"
-          aria-label="Search members"
-        />
-        {canManageMembers(roles) && (
+    <ListSearchBar
+      value={search}
+      onChange={setSearch}
+      placeholder="Search name or email…"
+      aria-label="Search members"
+      facets={facetDefs}
+      filterValues={facets}
+      onFilterChange={setFacets}
+      trailing={
+        canManageMembers(roles) ? (
           <Button onClick={() => setInviteOpen(true)} className="sm:w-auto">
             <UserPlus className="size-4" /> Invite
           </Button>
-        )}
-      </div>
-      <ListFilters facets={facetDefs} values={facets} onChange={setFacets} />
-    </div>
+        ) : undefined
+      }
+    />
   );
 
   return (

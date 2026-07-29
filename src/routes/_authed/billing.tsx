@@ -24,9 +24,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
-import { ListSearch } from "@/components/list-search";
-import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { DateRangePicker, lastNDays } from "@/components/billing/date-range-picker";
@@ -44,10 +42,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { formatDate, formatMoney } from "@/lib/utils";
+
+const FACET_KEYS = ["status", "startDate", "endDate"] as const;
 
 export const Route = createFileRoute("/_authed/billing")({
   beforeLoad: guardRoute("/billing"),
+  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
   component: BillingPage,
 });
 
@@ -298,10 +300,14 @@ function UnbilledCard({ r, onBill }: { r: Reservation; onBill: (r: Reservation) 
 
 function BillingPage() {
   const confirm = useConfirm();
-  const [range, setRange] = useState<DateRange | undefined>(() => lastNDays(30));
-  const [search, setSearch] = useState("");
-  const debouncedQ = useDebouncedValue(search);
-  const [facets, setFacets] = useState<ListFilterValues>({});
+  const routeSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
+    storageKey: "billing",
+    search: routeSearch,
+    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    facetKeys: [...FACET_KEYS],
+  });
   const [viewId, setViewId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState<InvoiceDraft | undefined>(undefined);
@@ -311,6 +317,28 @@ function BillingPage() {
       ? facets.status
       : undefined;
   const showUnbilled = status === "unbilled";
+
+  const range: DateRange | undefined = useMemo(() => {
+    if (typeof facets.startDate === "string" || typeof facets.endDate === "string") {
+      return {
+        from: typeof facets.startDate === "string" ? parseISO(facets.startDate) : undefined,
+        to: typeof facets.endDate === "string" ? parseISO(facets.endDate) : undefined,
+      };
+    }
+    return lastNDays(30);
+  }, [facets.startDate, facets.endDate]);
+
+  function setRange(next: DateRange | undefined) {
+    setFacets({
+      ...facets,
+      startDate: next?.from ? startOfDay(next.from).toISOString() : undefined,
+      endDate: next?.to
+        ? endOfDay(next.to).toISOString()
+        : next?.from
+          ? endOfDay(next.from).toISOString()
+          : undefined,
+    });
+  }
 
   const startISO = range?.from ? startOfDay(range.from).toISOString() : undefined;
   const endISO = range?.to
@@ -324,7 +352,7 @@ function BillingPage() {
     {
       startDate: startISO,
       endDate: endISO,
-      q: debouncedQ || undefined,
+      q: debouncedQ,
       ...(status === "outstanding" ? { paid: false } : status === "paid" ? { paid: true } : {}),
     },
     { enabled: !showUnbilled }
@@ -429,17 +457,16 @@ function BillingPage() {
       : "Pick a date range";
 
   const toolbar = (
-    <div className="flex flex-col gap-2">
-      {!showUnbilled && (
-        <ListSearch
-          value={search}
-          onChange={setSearch}
-          placeholder="Search invoices…"
-          aria-label="Search invoices"
-        />
-      )}
-      <ListFilters facets={STATUS_FACETS} values={facets} onChange={setFacets} />
-    </div>
+    <ListSearchBar
+      value={search}
+      onChange={setSearch}
+      placeholder="Search invoices…"
+      aria-label="Search invoices"
+      facets={STATUS_FACETS}
+      filterValues={facets}
+      onFilterChange={setFacets}
+      showSearch={!showUnbilled}
+    />
   );
 
   function renderInvoiceTable(emptyMessage: string) {

@@ -20,10 +20,9 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
-import { ListSearch } from "@/components/list-search";
-import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { usePersistedState } from "@/hooks/use-persisted-state";
+import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import {
   ScheduleControls,
   type ScheduleView,
@@ -41,7 +40,10 @@ import {
 } from "@/components/schedule/reservation-form";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 
+const FACET_KEYS = ["resourceId", "locationId"] as const;
+
 export const Route = createFileRoute("/_authed/schedule")({
+  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
   component: SchedulePage,
 });
 
@@ -54,15 +56,20 @@ function SchedulePage() {
   // server's guard on reservation creation.
   const staff = isStaff(roles);
   const tz = useTimeZone();
+  const routeSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
+    storageKey: "schedule",
+    search: routeSearch,
+    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    facetKeys: [...FACET_KEYS],
+  });
   const [day, setDay] = React.useState<Date>(() => new Date());
   const [view, setView] = usePersistedState<ScheduleView>("view:schedule-range", "day");
   const [presentation, setPresentation] = usePersistedState<ViewMode>(
     "view:schedule-presentation",
     "grid"
   );
-  const [search, setSearch] = React.useState("");
-  const debouncedQ = useDebouncedValue(search);
-  const [facets, setFacets] = React.useState<ListFilterValues>({});
   const isDesktop = useMediaQuery("(min-width: 768px)");
   // Mobile always uses the agenda; desktop honors the board/list toggle.
   const showBoard = isDesktop && presentation === "grid";
@@ -97,7 +104,7 @@ function SchedulePage() {
   const locationId = Number.isFinite(locationIdRaw) ? locationIdRaw : undefined;
 
   const q = useReservations(startISO, endISO, {
-    q: debouncedQ || undefined,
+    q: debouncedQ,
     resourceId,
     locationId,
   });
@@ -216,13 +223,15 @@ function SchedulePage() {
           onViewChange={setView}
           count={count}
         />
-        <ListSearch
+        <ListSearchBar
           value={search}
           onChange={setSearch}
           placeholder="Search resources or bookings…"
           aria-label="Search schedule"
+          facets={facetDefs}
+          filterValues={facets}
+          onFilterChange={setFacets}
         />
-        <ListFilters facets={facetDefs} values={facets} onChange={setFacets} />
       </TableView.Header>
 
       <TableView.Body className="flex flex-col overflow-hidden">

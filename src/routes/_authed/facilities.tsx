@@ -8,10 +8,9 @@ import type { Resource } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
-import { ListSearch } from "@/components/list-search";
-import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { usePersistedState } from "@/hooks/use-persisted-state";
+import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import {
   FacilityFormModal,
@@ -23,8 +22,11 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatMoney } from "@/lib/utils";
 
+const FACET_KEYS = ["tab", "locationId", "grounded"] as const;
+
 export const Route = createFileRoute("/_authed/facilities")({
   beforeLoad: guardRoute("/facilities"),
+  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
   component: FacilitiesPage,
 });
 
@@ -112,33 +114,36 @@ function FacilitiesPage() {
   const locationsQ = useLocations({ enabled: organization != null });
   const locations = locationsQ.data ?? [];
 
-  const [addKind, setAddKind] = useState<FacilityKind | null>(null);
-  const [tab, setTab] = usePersistedState<TabKey>("view:facilities-tab", "simulators");
-  const [view, setView] = usePersistedState<ViewMode>("view:facilities", "grid");
-  const [simSearch, setSimSearch] = useState("");
-  const [roomSearch, setRoomSearch] = useState("");
-  const debouncedSim = useDebouncedValue(simSearch);
-  const debouncedRoom = useDebouncedValue(roomSearch);
-  const [simFacets, setSimFacets] = useState<ListFilterValues>({});
-  const [roomFacets, setRoomFacets] = useState<ListFilterValues>({});
+  const routeSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
+    storageKey: "facilities",
+    search: routeSearch,
+    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    facetKeys: [...FACET_KEYS],
+    defaults: { tab: "simulators" },
+  });
 
-  const simLocationId =
-    typeof simFacets.locationId === "string" ? Number(simFacets.locationId) : undefined;
-  const roomLocationId =
-    typeof roomFacets.locationId === "string" ? Number(roomFacets.locationId) : undefined;
+  const [addKind, setAddKind] = useState<FacilityKind | null>(null);
+  const [view, setView] = usePersistedState<ViewMode>("view:facilities", "grid");
+
+  const tab: TabKey = facets.tab === "rooms" ? "rooms" : "simulators";
+  const locationIdRaw =
+    typeof facets.locationId === "string" ? Number(facets.locationId) : undefined;
+  const locationId = Number.isFinite(locationIdRaw) ? locationIdRaw : undefined;
 
   const simsQ = useSimulators(
     {
-      q: debouncedSim || undefined,
-      locationId: Number.isFinite(simLocationId) ? simLocationId : undefined,
-      grounded: typeof simFacets.grounded === "boolean" ? simFacets.grounded : undefined,
+      q: debouncedQ,
+      locationId,
+      grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
     },
     { enabled: organization != null }
   );
   const roomsQ = useRooms(
     {
-      q: debouncedRoom || undefined,
-      locationId: Number.isFinite(roomLocationId) ? roomLocationId : undefined,
+      q: debouncedQ,
+      locationId,
     },
     { enabled: organization != null }
   );
@@ -185,12 +190,11 @@ function FacilitiesPage() {
   );
 
   const simFiltersActive =
-    !!debouncedSim ||
-    simFacets.grounded !== undefined ||
-    (typeof simFacets.locationId === "string" && simFacets.locationId !== "");
+    !!debouncedQ ||
+    facets.grounded !== undefined ||
+    (typeof facets.locationId === "string" && facets.locationId !== "");
   const roomFiltersActive =
-    !!debouncedRoom ||
-    (typeof roomFacets.locationId === "string" && roomFacets.locationId !== "");
+    !!debouncedQ || (typeof facets.locationId === "string" && facets.locationId !== "");
 
   const addButton =
     tab === "simulators" ? (
@@ -207,7 +211,7 @@ function FacilitiesPage() {
     <TableView>
       <Tabs
         value={tab}
-        onValueChange={(v) => setTab(v as TabKey)}
+        onValueChange={(v) => setFacets({ ...facets, tab: v as TabKey })}
         className="flex min-h-0 flex-1 flex-col gap-4"
       >
         <TableView.Header>
@@ -232,15 +236,15 @@ function FacilitiesPage() {
         </TableView.Header>
 
         <TabsContent value="simulators" className={tabPanelClass}>
-          <div className="flex flex-col gap-2">
-            <ListSearch
-              value={simSearch}
-              onChange={setSimSearch}
-              placeholder="Search simulators…"
-              aria-label="Search simulators"
-            />
-            <ListFilters facets={simFacetDefs} values={simFacets} onChange={setSimFacets} />
-          </div>
+          <ListSearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Search simulators…"
+            aria-label="Search simulators"
+            facets={simFacetDefs}
+            filterValues={facets}
+            onFilterChange={setFacets}
+          />
           <div className="min-h-0 flex-1 overflow-y-auto">
             {simsQ.isPending ? (
               <CardGridSkeleton count={3} />
@@ -282,15 +286,15 @@ function FacilitiesPage() {
         </TabsContent>
 
         <TabsContent value="rooms" className={tabPanelClass}>
-          <div className="flex flex-col gap-2">
-            <ListSearch
-              value={roomSearch}
-              onChange={setRoomSearch}
-              placeholder="Search rooms…"
-              aria-label="Search rooms"
-            />
-            <ListFilters facets={roomFacetDefs} values={roomFacets} onChange={setRoomFacets} />
-          </div>
+          <ListSearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder="Search rooms…"
+            aria-label="Search rooms"
+            facets={roomFacetDefs}
+            filterValues={facets}
+            onFilterChange={setFacets}
+          />
           <div className="min-h-0 flex-1 overflow-y-auto">
             {roomsQ.isPending ? (
               <Card className="h-24 animate-pulse" />

@@ -17,16 +17,18 @@ import { AircraftDetailSheet } from "@/components/aircraft/aircraft-detail-sheet
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
-import { ListSearch } from "@/components/list-search";
-import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { usePersistedState } from "@/hooks/use-persisted-state";
+import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+const FACET_KEYS = ["grounded", "locationId"] as const;
+
 export const Route = createFileRoute("/_authed/aircraft")({
+  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
   component: AircraftPage,
 });
 
@@ -35,11 +37,16 @@ function AircraftPage() {
   const confirm = useConfirm();
   const qc = useQueryClient();
   const { roles } = useAuth();
+  const routeSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
+    storageKey: "aircraft",
+    search: routeSearch,
+    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    facetKeys: [...FACET_KEYS],
+  });
 
   const [view, setView] = usePersistedState<ViewMode>("view:aircraft", "grid");
-  const [search, setSearch] = React.useState("");
-  const debouncedQ = useDebouncedValue(search);
-  const [facets, setFacets] = React.useState<ListFilterValues>({});
   const [addOpen, setAddOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Resource | null>(null);
   const [grounding, setGrounding] = React.useState<Resource | null>(null);
@@ -51,7 +58,7 @@ function AircraftPage() {
     typeof facets.locationId === "string" ? Number(facets.locationId) : undefined;
 
   const q = usePlanes({
-    q: debouncedQ || undefined,
+    q: debouncedQ,
     grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
     locationId: Number.isFinite(locationIdRaw) ? locationIdRaw : undefined,
   });
@@ -143,15 +150,15 @@ function AircraftPage() {
             </>
           }
         />
-        <div className="flex flex-col gap-2">
-          <ListSearch
-            value={search}
-            onChange={setSearch}
-            placeholder="Search tail, make, model…"
-            aria-label="Search aircraft"
-          />
-          <ListFilters facets={facetDefs} values={facets} onChange={setFacets} />
-        </div>
+        <ListSearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search tail, make, model…"
+          aria-label="Search aircraft"
+          facets={facetDefs}
+          filterValues={facets}
+          onFilterChange={setFacets}
+        />
       </TableView.Header>
 
       {q.isPending ? (

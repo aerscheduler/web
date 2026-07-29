@@ -9,16 +9,18 @@ import { formatDate } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
-import { ListSearch } from "@/components/list-search";
-import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
 import { ExpiryBadge } from "@/components/documents/document-row";
 import { DocumentUploadModal } from "@/components/me-account/document-upload-modal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+
+const FACET_KEYS = ["documentTypeId", "status", "includeArchived"] as const;
 
 export const Route = createFileRoute("/_authed/me/documents")({
+  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
   component: MyDocumentsPage,
 });
 
@@ -112,10 +114,15 @@ function DocumentCard({ doc }: { doc: UserDocument }) {
 
 function MyDocumentsPage() {
   const { organization, orgUserId } = useAuth();
+  const routeSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
+    storageKey: "me-documents",
+    search: routeSearch,
+    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    facetKeys: [...FACET_KEYS],
+  });
   const [uploadOpen, setUploadOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const debouncedQ = useDebouncedValue(search);
-  const [facets, setFacets] = useState<ListFilterValues>({});
   const typesQ = useDocumentTypes();
 
   const documentTypeIdRaw =
@@ -126,7 +133,7 @@ function MyDocumentsPage() {
       : undefined;
 
   const q = useMemberDocuments(orgUserId, {
-    q: debouncedQ || undefined,
+    q: debouncedQ,
     documentTypeId: Number.isFinite(documentTypeIdRaw) ? documentTypeIdRaw : undefined,
     status,
     includeArchived: typeof facets.includeArchived === "boolean" ? facets.includeArchived : undefined,
@@ -231,15 +238,15 @@ function MyDocumentsPage() {
           columns={columns}
           data={docs}
           toolbar={
-            <div className="flex flex-col gap-2">
-              <ListSearch
-                value={search}
-                onChange={setSearch}
-                placeholder="Search documents…"
-                aria-label="Search documents"
-              />
-              <ListFilters facets={facetDefs} values={facets} onChange={setFacets} />
-            </div>
+            <ListSearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="Search documents…"
+              aria-label="Search documents"
+              facets={facetDefs}
+              filterValues={facets}
+              onFilterChange={setFacets}
+            />
           }
           mobileCard={(doc) => <DocumentCard doc={doc} />}
           emptyMessage="No documents match your search."

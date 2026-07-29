@@ -10,9 +10,8 @@ import { resourceLabel, type Squawk } from "@/types/api";
 import { guardRoute } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
-import { ListSearch } from "@/components/list-search";
-import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListSearchBar, type FacetDef } from "@/components/list-filters";
+import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { SquawkCard } from "@/components/maintenance/squawk-card";
 import { ReminderCard } from "@/components/maintenance/reminder-card";
@@ -21,18 +20,27 @@ import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-moda
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
+const FACET_KEYS = ["view", "resourceId"] as const;
+
 export const Route = createFileRoute("/_authed/maintenance")({
   beforeLoad: guardRoute("/maintenance"),
+  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
   component: MaintenancePage,
 });
 
 type ViewKey = "open" | "resolved" | "reminders";
 
 function MaintenancePage() {
+  const routeSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
+    storageKey: "maintenance",
+    search: routeSearch,
+    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    facetKeys: [...FACET_KEYS],
+    defaults: { view: "open" },
+  });
   const [addOpen, setAddOpen] = React.useState(false);
-  const [search, setSearch] = React.useState("");
-  const debouncedQ = useDebouncedValue(search);
-  const [facets, setFacets] = React.useState<ListFilterValues>({ view: "open" });
   const planesQ = usePlanes();
 
   const view: ViewKey =
@@ -40,7 +48,7 @@ function MaintenancePage() {
   const resourceIdRaw =
     typeof facets.resourceId === "string" ? Number(facets.resourceId) : undefined;
   const resourceId = Number.isFinite(resourceIdRaw) ? resourceIdRaw : undefined;
-  const q = debouncedQ || undefined;
+  const q = debouncedQ;
 
   const facetDefs = React.useMemo<FacetDef[]>(
     () => [
@@ -69,14 +77,6 @@ function MaintenancePage() {
     [planesQ.data]
   );
 
-  // "Open squawks" is the default — don't treat clearing the Show facet as "all views".
-  function onFacetsChange(next: ListFilterValues) {
-    setFacets({
-      ...next,
-      view: next.view === undefined || next.view === "" ? "open" : next.view,
-    });
-  }
-
   return (
     <TableView>
       <TableView.Header>
@@ -89,15 +89,15 @@ function MaintenancePage() {
             </Button>
           }
         />
-        <div className="flex flex-col gap-2">
-          <ListSearch
-            value={search}
-            onChange={setSearch}
-            placeholder="Search squawks or reminders…"
-            aria-label="Search maintenance"
-          />
-          <ListFilters facets={facetDefs} values={facets} onChange={onFacetsChange} />
-        </div>
+        <ListSearchBar
+          value={search}
+          onChange={setSearch}
+          placeholder="Search squawks or reminders…"
+          aria-label="Search maintenance"
+          facets={facetDefs}
+          filterValues={facets}
+          onFilterChange={setFacets}
+        />
       </TableView.Header>
 
       {view === "open" && (

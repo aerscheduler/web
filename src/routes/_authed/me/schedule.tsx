@@ -18,13 +18,12 @@ import { useLocations, useResources, useUserReservations } from "@/features/quer
 import type { Reservation } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
-import { ListSearch } from "@/components/list-search";
-import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { ReservationCard } from "@/components/me/reservation-card";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
 import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
@@ -32,7 +31,10 @@ import { ReservationForm } from "@/components/schedule/reservation-form";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 import { resourceLabel } from "@/types/api";
 
+const FACET_KEYS = ["resourceId", "locationId"] as const;
+
 export const Route = createFileRoute("/_authed/me/schedule")({
+  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
   component: MySchedulePage,
 });
 
@@ -67,10 +69,15 @@ function MySchedulePage() {
   const bookLabel = bookActionLabel(roles);
   // A technician's calendar holds maintenance, not flights.
   const maintenanceOnly = bookLabel === "Schedule maintenance";
+  const routeSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
+    storageKey: "me-schedule",
+    search: routeSearch,
+    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    facetKeys: [...FACET_KEYS],
+  });
   const [range, setRange] = React.useState<Range>("upcoming");
-  const [search, setSearch] = React.useState("");
-  const debouncedQ = useDebouncedValue(search);
-  const [facets, setFacets] = React.useState<ListFilterValues>({});
 
   const now = React.useMemo(() => new Date(), []);
   const [startISO, endISO] = rangeBounds(range, now);
@@ -85,7 +92,7 @@ function MySchedulePage() {
   const resourcesQ = useResources();
   const locationsQ = useLocations();
   const q = useUserReservations(userId, startISO, endISO, {
-    q: debouncedQ || undefined,
+    q: debouncedQ,
     resourceId,
     locationId,
   });
@@ -183,13 +190,15 @@ function MySchedulePage() {
             </button>
           ))}
         </div>
-        <ListSearch
+        <ListSearchBar
           value={search}
           onChange={setSearch}
           placeholder="Search flights…"
           aria-label="Search calendar"
+          facets={facetDefs}
+          filterValues={facets}
+          onFilterChange={setFacets}
         />
-        <ListFilters facets={facetDefs} values={facets} onChange={setFacets} />
       </TableView.Header>
 
       {q.isPending ? (

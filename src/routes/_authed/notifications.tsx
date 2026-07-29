@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { BellOff, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
@@ -10,21 +9,30 @@ import {
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ListSearch } from "@/components/list-search";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { NotificationItem } from "@/components/notifications/notification-item";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+
+const FACET_KEYS = [] as const;
 
 export const Route = createFileRoute("/_authed/notifications")({
+  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
   component: NotificationsPage,
 });
 
 function NotificationsPage() {
-  const [search, setSearch] = useState("");
-  const debouncedQ = useDebouncedValue(search);
-  const q = useNotifications({ q: debouncedQ || undefined });
+  const routeSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { search, setSearch, debouncedQ } = useListQueryState({
+    storageKey: "notifications",
+    search: routeSearch,
+    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    facetKeys: [...FACET_KEYS],
+  });
+  const q = useNotifications({ q: debouncedQ });
   const markRead = useMarkNotificationRead();
   const clear = useClearNotifications();
   const confirm = useConfirm();

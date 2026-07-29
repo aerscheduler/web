@@ -16,9 +16,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
-import { ListSearch } from "@/components/list-search";
-import { ListFilters, type FacetDef, type ListFilterValues } from "@/components/list-filters";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from "@/components/states";
 import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
 import { MemberInvoiceSheet } from "@/components/me-money/member-invoice-sheet";
@@ -26,9 +24,13 @@ import { PayInvoiceDialog } from "@/components/me-money/pay-invoice-dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { formatMoney } from "@/lib/utils";
 
+const FACET_KEYS = ["paid", "startDate", "endDate"] as const;
+
 export const Route = createFileRoute("/_authed/me/invoices")({
+  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
   component: MyInvoicesPage,
 });
 
@@ -159,9 +161,14 @@ function InvoiceCard({ inv, onView }: { inv: Invoice; onView: (inv: Invoice) => 
 
 function MyInvoicesPage() {
   const { organization, orgUserId } = useAuth();
-  const [search, setSearch] = useState("");
-  const debouncedQ = useDebouncedValue(search);
-  const [facets, setFacets] = useState<ListFilterValues>({});
+  const routeSearch = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
+    storageKey: "me-invoices",
+    search: routeSearch,
+    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    facetKeys: [...FACET_KEYS],
+  });
   const [viewId, setViewId] = useState<number | null>(null);
   const [payId, setPayId] = useState<number | null>(null);
 
@@ -174,7 +181,7 @@ function MyInvoicesPage() {
   // KPIs stay unfiltered so paid/date facets don't zero out the cards.
   const statsQ = useMemberInvoices(orgUserId);
   const invoicesQ = useMemberInvoices(orgUserId, {
-    q: debouncedQ || undefined,
+    q: debouncedQ,
     paid: typeof facets.paid === "boolean" ? facets.paid : undefined,
     startDate: typeof facets.startDate === "string" ? facets.startDate : undefined,
     endDate: typeof facets.endDate === "string" ? facets.endDate : undefined,
@@ -210,15 +217,15 @@ function MyInvoicesPage() {
   const columns = useMemo(() => invoiceColumns((inv) => setViewId(inv.id)), []);
 
   const searchToolbar = (
-    <div className="flex flex-col gap-2">
-      <ListSearch
-        value={search}
-        onChange={setSearch}
-        placeholder="Search invoices…"
-        aria-label="Search invoices"
-      />
-      <ListFilters facets={FACETS} values={facets} onChange={setFacets} />
-    </div>
+    <ListSearchBar
+      value={search}
+      onChange={setSearch}
+      placeholder="Search invoices…"
+      aria-label="Search invoices"
+      facets={FACETS}
+      filterValues={facets}
+      onFilterChange={setFacets}
+    />
   );
 
   if (!organization) {

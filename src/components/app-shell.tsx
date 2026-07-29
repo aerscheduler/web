@@ -1,8 +1,9 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
+  CircleHelp,
   CalendarDays,
   CalendarPlus,
   Check,
@@ -43,6 +44,7 @@ import { ConfirmProvider } from "@/components/confirm-dialog";
 import { QuickCreateProvider, useQuickCreate } from "@/components/quick-create";
 import { LogoMark } from "@/components/logo";
 import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
+import { FeedbackModal } from "@/components/feedback/feedback-modal";
 import { initials } from "@/lib/utils";
 import {
   Sidebar,
@@ -405,6 +407,7 @@ function Topbar() {
   const { roles } = useAuth();
   const { toggleSidebar } = useSidebar();
   const { openNewReservation } = useQuickCreate();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   return (
     <header className="sticky top-0 z-20 shrink-0 bg-background">
@@ -437,6 +440,15 @@ function Topbar() {
 
         <div className="flex-1" />
 
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label="Send feedback"
+          onClick={() => setFeedbackOpen(true)}
+        >
+          <CircleHelp className="size-4" />
+        </Button>
         <Button asChild variant="ghost" size="icon" aria-label="Notifications">
           <Link to="/notifications">
             <Bell className="size-4" />
@@ -484,6 +496,7 @@ function Topbar() {
           </DropdownMenu>
         )}
       </div>
+      <FeedbackModal open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </header>
   );
 }

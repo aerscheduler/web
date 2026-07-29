@@ -1342,3 +1342,9 @@ export function useUpdateOrganizationTimeZone() {
     },
   });
 }
+
+export function useSubmitFeedback() {
+  return useMutation({
+    mutationFn: (message: string) => api<void>("/support", { method: "POST", body: { message } }),
+  });
+}

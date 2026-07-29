@@ -52,8 +52,14 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
 
 /** Can these roles reach `path`? Unlisted paths (e.g. /me/*, /notifications) are open. */
 export function canAccess(path: string, roles: Role[]): boolean {
-  const check = ROUTE_ACCESS[path];
-  return check ? check(roles) : true;
+  const exact = ROUTE_ACCESS[path];
+  if (exact) return exact(roles);
+  // Nested pages inherit the nearest registered parent (e.g. /settings/integrations/…).
+  const parent = Object.keys(ROUTE_ACCESS)
+    .filter((k) => path.startsWith(`${k}/`))
+    .sort((a, b) => b.length - a.length)[0];
+  if (parent) return ROUTE_ACCESS[parent]!(roles);
+  return true;
 }
 
 /**

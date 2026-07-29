@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { InvoiceStatusBadge } from "@/components/billing/invoice-status";
+import { InvoiceQuickBooksSection } from "@/components/billing/invoice-qbo-section";
 import { formatMoney } from "@/lib/utils";
 
 function fmt(iso: string | null | undefined) {
@@ -58,9 +59,14 @@ export function InvoiceDetailSheet({
   //endpoint and fall back to the list row while it loads, so the header, totals and
   //status never flash empty.
   const full = useInvoice(open ? (inv?.id ?? null) : null);
-  const hydrated = full.data?.id === inv?.id ? { ...inv, ...full.data } : inv;
-  const items = hydrated?.items ?? [];
-  const subtotal = hydrated?.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
+  const display: Invoice | null =
+    inv == null
+      ? null
+      : full.data?.id === inv.id
+        ? { ...inv, ...full.data }
+        : inv;
+  const items = display?.items ?? [];
+  const subtotal = display?.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
 
   const events: Event[] = [];
   if (inv) {
@@ -82,14 +88,16 @@ export function InvoiceDetailSheet({
         <SheetHeader>
           <div className="flex items-center justify-between gap-3">
             <SheetTitle className="font-mono">Invoice #{inv?.id}</SheetTitle>
-            {inv && <InvoiceStatusBadge invoice={inv} />}
+            {display && <InvoiceStatusBadge invoice={display} />}
           </div>
           <SheetDescription>{customerName}</SheetDescription>
         </SheetHeader>
 
-        {inv && (
+        {display && (
           <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-4">
-            {inv.memo && <p className="text-sm text-muted-foreground">{inv.memo}</p>}
+            {display.memo && <p className="text-sm text-muted-foreground">{display.memo}</p>}
+
+            <InvoiceQuickBooksSection invoice={display} />
 
             <section>
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -135,21 +143,21 @@ export function InvoiceDetailSheet({
                   <dt className="text-muted-foreground">Subtotal</dt>
                   <dd className="tnum">{formatMoney(subtotal)}</dd>
                 </div>
-                {inv.tax != null && inv.tax > 0 && (
+                {display.tax != null && display.tax > 0 && (
                   <div className="flex justify-between">
                     <dt className="text-muted-foreground">Tax</dt>
-                    <dd className="tnum">{formatMoney(inv.tax)}</dd>
+                    <dd className="tnum">{formatMoney(display.tax)}</dd>
                   </div>
                 )}
                 <Separator className="my-2" />
                 <div className="flex justify-between text-base font-semibold">
                   <dt>Total</dt>
-                  <dd className="tnum">{formatMoney(inv.total)}</dd>
+                  <dd className="tnum">{formatMoney(display.total)}</dd>
                 </div>
               </dl>
             </section>
 
-            {inv.reservation && (
+            {display.reservation && (
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Linked flight
@@ -157,17 +165,17 @@ export function InvoiceDetailSheet({
                 <div className="space-y-2 rounded-lg border p-3 text-sm">
                   <div className="flex items-center gap-2 font-medium">
                     <FileText className="size-4 shrink-0 text-muted-foreground" />
-                    {inv.reservation.title}
+                    {display.reservation.title}
                   </div>
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <span className="tnum">
-                      {format(parseISO(inv.reservation.start), "MMM d, yyyy 'at' h:mm a")}
+                      {format(parseISO(display.reservation.start), "MMM d, yyyy 'at' h:mm a")}
                     </span>
                   </div>
-                  {inv.reservation.resource && (
+                  {display.reservation.resource && (
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Plane className="size-4 shrink-0" />
-                      {resourceLabel(inv.reservation.resource).name}
+                      {resourceLabel(display.reservation.resource).name}
                     </div>
                   )}
                   {people.length > 0 && (

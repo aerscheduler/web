@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { guardRoute } from "@/lib/permissions";
 import {
   BadgeDollarSign,
@@ -22,8 +22,27 @@ import { GroupsTab } from "@/components/settings/groups-tab";
 import { CurrencyTypesTab } from "@/components/settings/currency-types-tab";
 import { IntegrationsTab } from "@/components/settings/integrations-tab";
 
-export const Route = createFileRoute("/_authed/settings")({
-  beforeLoad: guardRoute("/settings"),
+type SettingsSearch = {
+  tab?: string;
+  qbo?: string;
+};
+
+export const Route = createFileRoute("/_authed/settings/")({
+  beforeLoad: (ctx) => {
+    guardRoute("/settings")();
+    const qbo = typeof ctx.search.qbo === "string" ? ctx.search.qbo : undefined;
+    // Legacy OAuth return URL: /settings?qbo=… → dedicated QuickBooks page.
+    if (qbo) {
+      throw redirect({
+        to: "/settings/integrations/quickbooks",
+        search: { qbo },
+      });
+    }
+  },
+  validateSearch: (s: Record<string, unknown>): SettingsSearch => ({
+    tab: typeof s.tab === "string" ? s.tab : undefined,
+    qbo: typeof s.qbo === "string" ? s.qbo : undefined,
+  }),
   component: SettingsPage,
 });
 
@@ -39,6 +58,10 @@ const TABS: { value: string; label: string; icon: LucideIcon }[] = [
 ];
 
 function SettingsPage() {
+  const search = Route.useSearch();
+  const initialTab =
+    search.tab && TABS.some((t) => t.value === search.tab) ? search.tab : "organization";
+
   return (
     <div>
       <PageHeader
@@ -46,7 +69,7 @@ function SettingsPage() {
         subtitle="Manage your organization, billing, and integrations"
       />
 
-      <Tabs defaultValue="organization" className="gap-4">
+      <Tabs key={initialTab} defaultValue={initialTab} className="gap-4">
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
           <TabsList className="w-full justify-start sm:w-fit">
             {TABS.map((t) => {
@@ -83,7 +106,7 @@ function SettingsPage() {
         <TabsContent value="currencies">
           <CurrencyTypesTab />
         </TabsContent>
-        <TabsContent value="integrations">
+        <TabsContent value="integrations" className="w-full">
           <IntegrationsTab />
         </TabsContent>
       </Tabs>

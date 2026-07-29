@@ -30,7 +30,6 @@ import { Route as AuthedNotificationsRouteImport } from './routes/_authed/notifi
 import { Route as AuthedPeopleRouteImport } from './routes/_authed/people'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedScheduleRouteImport } from './routes/_authed/schedule'
-import { Route as AuthedSettingsRouteImport } from './routes/_authed/settings'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthedMeIndexRouteImport } from './routes/_authed/me/index'
 import { Route as AuthedMeAvailabilityRouteImport } from './routes/_authed/me/availability'
@@ -42,6 +41,8 @@ import { Route as AuthedMePaymentMethodsRouteImport } from './routes/_authed/me/
 import { Route as AuthedMeProfileRouteImport } from './routes/_authed/me/profile'
 import { Route as AuthedMeScheduleRouteImport } from './routes/_authed/me/schedule'
 import { Route as AuthedOperationsCancellationsRouteImport } from './routes/_authed/operations/cancellations'
+import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
+import { Route as AuthedSettingsIntegrationsQuickbooksRouteImport } from './routes/_authed/settings/integrations/quickbooks'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -148,11 +149,6 @@ const AuthedScheduleRoute = AuthedScheduleRouteImport.update({
   path: '/schedule',
   getParentRoute: () => AuthedRoute,
 } as any)
-const AuthedSettingsRoute = AuthedSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => AuthedRoute,
-} as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
@@ -209,6 +205,17 @@ const AuthedOperationsCancellationsRoute =
     path: '/operations/cancellations',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedSettingsIndexRoute = AuthedSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedSettingsIntegrationsQuickbooksRoute =
+  AuthedSettingsIntegrationsQuickbooksRouteImport.update({
+    id: '/settings/integrations/quickbooks',
+    path: '/settings/integrations/quickbooks',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -231,7 +238,6 @@ export interface FileRoutesByFullPath {
   '/people': typeof AuthedPeopleRoute
   '/reports': typeof AuthedReportsRoute
   '/schedule': typeof AuthedScheduleRoute
-  '/settings': typeof AuthedSettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
   '/me/book': typeof AuthedMeBookRoute
@@ -243,6 +249,8 @@ export interface FileRoutesByFullPath {
   '/me/schedule': typeof AuthedMeScheduleRoute
   '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/me/': typeof AuthedMeIndexRoute
+  '/settings/': typeof AuthedSettingsIndexRoute
+  '/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -265,7 +273,6 @@ export interface FileRoutesByTo {
   '/people': typeof AuthedPeopleRoute
   '/reports': typeof AuthedReportsRoute
   '/schedule': typeof AuthedScheduleRoute
-  '/settings': typeof AuthedSettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
   '/me/book': typeof AuthedMeBookRoute
@@ -277,6 +284,8 @@ export interface FileRoutesByTo {
   '/me/schedule': typeof AuthedMeScheduleRoute
   '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/me': typeof AuthedMeIndexRoute
+  '/settings': typeof AuthedSettingsIndexRoute
+  '/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -301,7 +310,6 @@ export interface FileRoutesById {
   '/_authed/people': typeof AuthedPeopleRoute
   '/_authed/reports': typeof AuthedReportsRoute
   '/_authed/schedule': typeof AuthedScheduleRoute
-  '/_authed/settings': typeof AuthedSettingsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/_authed/me/availability': typeof AuthedMeAvailabilityRoute
   '/_authed/me/book': typeof AuthedMeBookRoute
@@ -313,6 +321,8 @@ export interface FileRoutesById {
   '/_authed/me/schedule': typeof AuthedMeScheduleRoute
   '/_authed/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/_authed/me/': typeof AuthedMeIndexRoute
+  '/_authed/settings/': typeof AuthedSettingsIndexRoute
+  '/_authed/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -337,7 +347,6 @@ export interface FileRouteTypes {
     | '/people'
     | '/reports'
     | '/schedule'
-    | '/settings'
     | '/auth/callback'
     | '/me/availability'
     | '/me/book'
@@ -349,6 +358,8 @@ export interface FileRouteTypes {
     | '/me/schedule'
     | '/operations/cancellations'
     | '/me/'
+    | '/settings/'
+    | '/settings/integrations/quickbooks'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -371,7 +382,6 @@ export interface FileRouteTypes {
     | '/people'
     | '/reports'
     | '/schedule'
-    | '/settings'
     | '/auth/callback'
     | '/me/availability'
     | '/me/book'
@@ -383,6 +393,8 @@ export interface FileRouteTypes {
     | '/me/schedule'
     | '/operations/cancellations'
     | '/me'
+    | '/settings'
+    | '/settings/integrations/quickbooks'
   id:
     | '__root__'
     | '/'
@@ -406,7 +418,6 @@ export interface FileRouteTypes {
     | '/_authed/people'
     | '/_authed/reports'
     | '/_authed/schedule'
-    | '/_authed/settings'
     | '/auth/callback'
     | '/_authed/me/availability'
     | '/_authed/me/book'
@@ -418,6 +429,8 @@ export interface FileRouteTypes {
     | '/_authed/me/schedule'
     | '/_authed/operations/cancellations'
     | '/_authed/me/'
+    | '/_authed/settings/'
+    | '/_authed/settings/integrations/quickbooks'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -582,13 +595,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedScheduleRouteImport
       parentRoute: typeof AuthedRoute
     }
-    '/_authed/settings': {
-      id: '/_authed/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof AuthedSettingsRouteImport
-      parentRoute: typeof AuthedRoute
-    }
     '/auth/callback': {
       id: '/auth/callback'
       path: '/auth/callback'
@@ -666,6 +672,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedOperationsCancellationsRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/settings/': {
+      id: '/_authed/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AuthedSettingsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/settings/integrations/quickbooks': {
+      id: '/_authed/settings/integrations/quickbooks'
+      path: '/settings/integrations/quickbooks'
+      fullPath: '/settings/integrations/quickbooks'
+      preLoaderRoute: typeof AuthedSettingsIntegrationsQuickbooksRouteImport
+      parentRoute: typeof AuthedRoute
+    }
   }
 }
 
@@ -682,7 +702,6 @@ interface AuthedRouteChildren {
   AuthedPeopleRoute: typeof AuthedPeopleRoute
   AuthedReportsRoute: typeof AuthedReportsRoute
   AuthedScheduleRoute: typeof AuthedScheduleRoute
-  AuthedSettingsRoute: typeof AuthedSettingsRoute
   AuthedMeAvailabilityRoute: typeof AuthedMeAvailabilityRoute
   AuthedMeBookRoute: typeof AuthedMeBookRoute
   AuthedMeCurrenciesRoute: typeof AuthedMeCurrenciesRoute
@@ -693,6 +712,8 @@ interface AuthedRouteChildren {
   AuthedMeScheduleRoute: typeof AuthedMeScheduleRoute
   AuthedOperationsCancellationsRoute: typeof AuthedOperationsCancellationsRoute
   AuthedMeIndexRoute: typeof AuthedMeIndexRoute
+  AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
+  AuthedSettingsIntegrationsQuickbooksRoute: typeof AuthedSettingsIntegrationsQuickbooksRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -708,7 +729,6 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPeopleRoute: AuthedPeopleRoute,
   AuthedReportsRoute: AuthedReportsRoute,
   AuthedScheduleRoute: AuthedScheduleRoute,
-  AuthedSettingsRoute: AuthedSettingsRoute,
   AuthedMeAvailabilityRoute: AuthedMeAvailabilityRoute,
   AuthedMeBookRoute: AuthedMeBookRoute,
   AuthedMeCurrenciesRoute: AuthedMeCurrenciesRoute,
@@ -719,6 +739,9 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMeScheduleRoute: AuthedMeScheduleRoute,
   AuthedOperationsCancellationsRoute: AuthedOperationsCancellationsRoute,
   AuthedMeIndexRoute: AuthedMeIndexRoute,
+  AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
+  AuthedSettingsIntegrationsQuickbooksRoute:
+    AuthedSettingsIntegrationsQuickbooksRoute,
 }
 
 const AuthedRouteWithChildren =

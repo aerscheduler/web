@@ -820,6 +820,127 @@ export function useConnectStripe() {
   });
 }
 
+// ---------------------------------------------------------------- QuickBooks / org integrations
+
+export type QuickBooksSettings = {
+  id: number;
+  enabled: boolean;
+  expiredAt: string | null;
+  expiresAt: string;
+  realmId: string | null;
+  companyName: string | null;
+  incomeItemId: string | null;
+  incomeItemName: string | null;
+  lastSyncAt: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
+  connectedAt: string | null;
+  status: "disconnected" | "connected" | "needs_mapping" | "needs_reconnect" | "error";
+  mappingComplete: boolean;
+};
+
+export type QuickBooksItem = { id: string; name: string; type?: string };
+
+export function useQuickBooksSettings(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["integrations", "quickbooks", "settings"],
+    queryFn: () => api<QuickBooksSettings | null>("/intuit/quickbooks/settings"),
+    ...opts,
+  });
+}
+
+export function useQuickBooksItems(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["integrations", "quickbooks", "items"],
+    queryFn: () => api<QuickBooksItem[]>("/intuit/quickbooks/items"),
+    ...opts,
+  });
+}
+
+export function useQuickBooksAuthorize() {
+  return useMutation({
+    mutationFn: () => api<string>("/oauth2/intuit/authorize"),
+  });
+}
+
+export function useUpdateQuickBooksSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      enabled?: boolean;
+      incomeItemId?: string | null;
+      incomeItemName?: string | null;
+    }) =>
+      api<QuickBooksSettings>("/intuit/quickbooks/settings", {
+        method: "PATCH",
+        body,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["integrations", "quickbooks"] });
+    },
+  });
+}
+
+export function useDisconnectQuickBooks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<void>("/intuit/quickbooks/settings", { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["integrations", "quickbooks"] });
+    },
+  });
+}
+
+export type QuickBooksSyncEvent = {
+  id: number;
+  createdAt: string;
+  status: "success" | "skipped" | "error" | string;
+  message: string | null;
+  externalId: string | null;
+  invoiceId: number | null;
+  triggeredBy: string;
+};
+
+export function useQuickBooksActivity(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["integrations", "quickbooks", "activity"],
+    queryFn: () => api<QuickBooksSyncEvent[]>("/intuit/quickbooks/activity"),
+    ...opts,
+  });
+}
+
+export function useQuickBooksBackfill() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (limit?: number) =>
+      api<{ attempted: number; synced: number; failed: number; skipped: number }>(
+        "/intuit/quickbooks/backfill",
+        { method: "POST", body: { limit: limit ?? 25 } }
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["integrations", "quickbooks"] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+export function useSyncInvoiceToQuickBooks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: number) =>
+      api<{ qboSalesReceiptId: string }>(
+        `/intuit/quickbooks/invoices/${invoiceId}/sync`,
+        { method: "POST" }
+      ),
+    onSuccess: (_data, invoiceId) => {
+      void qc.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+      void qc.invalidateQueries({ queryKey: ["integrations", "quickbooks", "activity"] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------- per-aircraft subscription
 /** The org's per-aircraft platform subscription status (`GET /subscription`). */
 export function useSubscription(opts?: QueryOpts) {

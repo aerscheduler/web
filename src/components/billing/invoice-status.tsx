@@ -1,6 +1,12 @@
+import { CheckCircle2, AlertCircle } from "lucide-react";
 import type { Invoice } from "@/types/api";
 import { Badge } from "@/components/ui/badge";
 import type { BadgeProps } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type InvoiceStatus = {
   key: "paid" | "void" | "outstanding";
@@ -17,5 +23,46 @@ export function invoiceStatus(inv: Invoice): InvoiceStatus {
 
 export function InvoiceStatusBadge({ invoice }: { invoice: Invoice }) {
   const s = invoiceStatus(invoice);
-  return <Badge variant={s.variant}>{s.label}</Badge>;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <Badge variant={s.variant}>{s.label}</Badge>
+      <QuickBooksSyncChip invoice={invoice} />
+    </span>
+  );
+}
+
+/** Tiny QBO status next to Paid — desk trust without opening the sheet. */
+function QuickBooksSyncChip({ invoice }: { invoice: Invoice }) {
+  if (!invoice.paidAt || invoice.voidedAt) return null;
+
+  if (invoice.qboSalesReceiptId) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="inline-flex text-emerald-600 dark:text-emerald-400"
+            aria-label="Synced to QuickBooks"
+          >
+            <CheckCircle2 className="size-3.5" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>QuickBooks Sales Receipt {invoice.qboSalesReceiptId}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  if (invoice.qboSyncError) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex text-destructive" aria-label="QuickBooks sync failed">
+            <AlertCircle className="size-3.5" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">{invoice.qboSyncError}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return null;
 }

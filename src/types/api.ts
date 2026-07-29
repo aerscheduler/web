@@ -366,6 +366,10 @@ export interface Invoice {
   memo: string | null;
   FK_reservationId: number | null;
   FK_customerOrgUserId: number | null;
+  /** QuickBooks Sales Receipt id when synced. */
+  qboSalesReceiptId?: string | null;
+  qboSyncedAt?: string | null;
+  qboSyncError?: string | null;
   items?: InvoiceItem[];
   customer?: OrganizationUser;
   reservation?: Reservation;

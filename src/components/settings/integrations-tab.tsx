@@ -1,55 +1,45 @@
-import { BookOpenCheck } from "lucide-react";
+import { BookOpenCheck, Loader2 } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { canManageBillingSettings } from "@/lib/permissions";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+  IntegrationCatalogCard,
+  integrationStatusBadge,
+} from "@/components/integrations/integration-shell";
+import { useQuickBooksSettings } from "@/features/queries";
 
 /**
- * Org-level integrations. Personal integrations (e.g. Google Calendar, which is
- * per-user) live on the member's own Profile, not here — Settings is admin-only.
+ * Org-level integrations catalog. Each card opens a dedicated provider page
+ * (`/settings/integrations/:id`) that uses IntegrationPageShell.
+ * Personal integrations (e.g. Google Calendar) stay on Profile.
  */
 export function IntegrationsTab() {
+  const { roles } = useAuth();
+  const isOwner = canManageBillingSettings(roles);
+  const settings = useQuickBooksSettings({ enabled: isOwner });
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Card className="flex flex-col">
-        <CardHeader className="flex-row items-start gap-3">
-          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-            <BookOpenCheck className="size-4" />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <CardTitle>QuickBooks</CardTitle>
-              <Badge variant="outline">Not connected</Badge>
-            </div>
-            <CardDescription className="mt-1">
-              Sync invoices and payments to your accounting ledger.
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="mt-auto">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span tabIndex={0} className="inline-flex cursor-not-allowed">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled
-                  aria-label="Connect QuickBooks (coming soon)"
-                >
-                  Connect
-                </Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>Coming soon</TooltipContent>
-          </Tooltip>
-        </CardContent>
-      </Card>
+    <div className="flex w-full flex-col gap-3">
+      <p className="text-sm text-muted-foreground">
+        Connect accounting and other school-wide tools. Each integration has its own setup
+        page.
+      </p>
+
+      <IntegrationCatalogCard
+        to="/settings/integrations/quickbooks"
+        icon={BookOpenCheck}
+        iconClassName="bg-emerald-600"
+        title="QuickBooks Online"
+        description="Sync paid invoices to QuickBooks as Sales Receipts."
+        status={
+          !isOwner ? (
+            integrationStatusBadge("disconnected")
+          ) : settings.isLoading ? (
+            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+          ) : (
+            integrationStatusBadge(settings.data?.status ?? "disconnected")
+          )
+        }
+      />
     </div>
   );
 }

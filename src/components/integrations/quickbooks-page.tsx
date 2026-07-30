@@ -271,10 +271,10 @@ function QuickBooksOwnerPage() {
         <>
           <IntegrationSection
             title="Configuration"
-            description="Every Sales Receipt line posts to this Product/Service in QuickBooks."
+            description="Income items are your QuickBooks Products & Services — we load them live from the connected company. Every Sales Receipt line posts to the one you pick."
           >
             <div className="space-y-2">
-              <Label className="text-sm">Income item</Label>
+              <Label className="text-sm">Income item (from QuickBooks)</Label>
               <Select
                 value={row?.incomeItemId ?? undefined}
                 onValueChange={(v) => void onSaveItem(v)}
@@ -283,7 +283,11 @@ function QuickBooksOwnerPage() {
                 <SelectTrigger className="max-w-lg">
                   <SelectValue
                     placeholder={
-                      items.isLoading ? "Loading items from QuickBooks…" : "Select an item"
+                      items.isLoading
+                        ? "Loading Products & Services from QuickBooks…"
+                        : itemOptions.length === 0
+                          ? "No active items in QuickBooks — create one there first"
+                          : "Select a Product/Service"
                     }
                   />
                 </SelectTrigger>

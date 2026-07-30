@@ -5,6 +5,11 @@ import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 /**
  * Shared shell for every org integration detail page.
@@ -173,19 +178,46 @@ export function IntegrationCatalogCard({
   );
 }
 
+const STATUS_TOOLTIPS: Record<string, string> = {
+  connected:
+    "QuickBooks is connected, an income item is mapped, and sync can run when enabled.",
+  needs_mapping:
+    "QuickBooks is connected, but setup isn’t finished — pick an income item below, then turn sync on.",
+  needs_reconnect:
+    "The QuickBooks connection expired or was revoked. Reconnect to resume syncing.",
+  error: "Something went wrong with this connection. Check the last error or reconnect.",
+  disconnected: "Not linked to a QuickBooks company yet. Connect to get started.",
+};
+
 export function integrationStatusBadge(
   status: "disconnected" | "connected" | "needs_mapping" | "needs_reconnect" | "error" | string
 ) {
+  let badge: ReactNode;
   switch (status) {
     case "connected":
-      return <Badge>Connected</Badge>;
+      badge = <Badge>Connected</Badge>;
+      break;
     case "needs_mapping":
-      return <Badge variant="secondary">Needs setup</Badge>;
+      badge = <Badge variant="secondary">Needs setup</Badge>;
+      break;
     case "needs_reconnect":
-      return <Badge variant="danger">Reconnect</Badge>;
+      badge = <Badge variant="danger">Reconnect</Badge>;
+      break;
     case "error":
-      return <Badge variant="danger">Error</Badge>;
+      badge = <Badge variant="danger">Error</Badge>;
+      break;
     default:
-      return <Badge variant="outline">Not connected</Badge>;
+      badge = <Badge variant="outline">Not connected</Badge>;
+      status = "disconnected";
   }
+
+  const tip = STATUS_TOOLTIPS[status] ?? STATUS_TOOLTIPS.disconnected;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-help">{badge}</span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">{tip}</TooltipContent>
+    </Tooltip>
+  );
 }

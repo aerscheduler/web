@@ -41,6 +41,7 @@ import { Route as AuthedMeNotificationsRouteImport } from './routes/_authed/me/n
 import { Route as AuthedMePaymentMethodsRouteImport } from './routes/_authed/me/payment-methods'
 import { Route as AuthedMeProfileRouteImport } from './routes/_authed/me/profile'
 import { Route as AuthedMeScheduleRouteImport } from './routes/_authed/me/schedule'
+import { Route as AuthedOperationsAnnouncementsRouteImport } from './routes/_authed/operations/announcements'
 import { Route as AuthedOperationsCancellationsRouteImport } from './routes/_authed/operations/cancellations'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedSettingsIntegrationsQuickbooksRouteImport } from './routes/_authed/settings/integrations/quickbooks'
@@ -205,6 +206,12 @@ const AuthedMeScheduleRoute = AuthedMeScheduleRouteImport.update({
   path: '/me/schedule',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedOperationsAnnouncementsRoute =
+  AuthedOperationsAnnouncementsRouteImport.update({
+    id: '/operations/announcements',
+    path: '/operations/announcements',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedOperationsCancellationsRoute =
   AuthedOperationsCancellationsRouteImport.update({
     id: '/operations/cancellations',
@@ -254,6 +261,7 @@ export interface FileRoutesByFullPath {
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
+  '/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/me/': typeof AuthedMeIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
@@ -290,6 +298,7 @@ export interface FileRoutesByTo {
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
+  '/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/me': typeof AuthedMeIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
@@ -328,6 +337,7 @@ export interface FileRoutesById {
   '/_authed/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/_authed/me/profile': typeof AuthedMeProfileRoute
   '/_authed/me/schedule': typeof AuthedMeScheduleRoute
+  '/_authed/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/_authed/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/_authed/me/': typeof AuthedMeIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
@@ -366,6 +376,7 @@ export interface FileRouteTypes {
     | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
+    | '/operations/announcements'
     | '/operations/cancellations'
     | '/me/'
     | '/settings/'
@@ -402,6 +413,7 @@ export interface FileRouteTypes {
     | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
+    | '/operations/announcements'
     | '/operations/cancellations'
     | '/me'
     | '/settings'
@@ -439,6 +451,7 @@ export interface FileRouteTypes {
     | '/_authed/me/payment-methods'
     | '/_authed/me/profile'
     | '/_authed/me/schedule'
+    | '/_authed/operations/announcements'
     | '/_authed/operations/cancellations'
     | '/_authed/me/'
     | '/_authed/settings/'
@@ -684,6 +697,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedMeScheduleRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/operations/announcements': {
+      id: '/_authed/operations/announcements'
+      path: '/operations/announcements'
+      fullPath: '/operations/announcements'
+      preLoaderRoute: typeof AuthedOperationsAnnouncementsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/operations/cancellations': {
       id: '/_authed/operations/cancellations'
       path: '/operations/cancellations'
@@ -730,6 +750,7 @@ interface AuthedRouteChildren {
   AuthedMePaymentMethodsRoute: typeof AuthedMePaymentMethodsRoute
   AuthedMeProfileRoute: typeof AuthedMeProfileRoute
   AuthedMeScheduleRoute: typeof AuthedMeScheduleRoute
+  AuthedOperationsAnnouncementsRoute: typeof AuthedOperationsAnnouncementsRoute
   AuthedOperationsCancellationsRoute: typeof AuthedOperationsCancellationsRoute
   AuthedMeIndexRoute: typeof AuthedMeIndexRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
@@ -758,6 +779,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMePaymentMethodsRoute: AuthedMePaymentMethodsRoute,
   AuthedMeProfileRoute: AuthedMeProfileRoute,
   AuthedMeScheduleRoute: AuthedMeScheduleRoute,
+  AuthedOperationsAnnouncementsRoute: AuthedOperationsAnnouncementsRoute,
   AuthedOperationsCancellationsRoute: AuthedOperationsCancellationsRoute,
   AuthedMeIndexRoute: AuthedMeIndexRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,

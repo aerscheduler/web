@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { UserPlus, Users, GraduationCap } from "lucide-react";
@@ -31,7 +31,20 @@ import { formatDate, initials } from "@/lib/utils";
 const PEOPLE_FACET_KEYS = ["role", "grounded", "groupId"] as const;
 
 export const Route = createFileRoute("/_authed/people")({
-  validateSearch: (s) => validateListSearch(s, [...PEOPLE_FACET_KEYS]),
+  /**
+   * `?member=<orgUserId>` opens that person's profile sheet — the deep link the
+   * ⌘K palette uses for a person, and for another member's currency or document
+   * (this sheet is the only place the console shows those for someone else).
+   *
+   * It is kept OUTSIDE the facet list on purpose: facets are remembered in
+   * localStorage and restored on the next visit, and a one-shot deep link that
+   * came back days later would reopen a sheet nobody asked for.
+   */
+  validateSearch: (s) => {
+    const list = validateListSearch(s, [...PEOPLE_FACET_KEYS]);
+    const member = Number.parseInt(String(s.member ?? ""), 10);
+    return Number.isFinite(member) ? { ...list, member: String(member) } : list;
+  },
   component: PeoplePage,
 });
 
@@ -78,16 +91,41 @@ function PeoplePage() {
   const { roles } = useAuth();
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
+  // One loosely-typed navigate for every search-param update on this page, the
+  // same cast `useListQueryState` already needs for its own reducers.
+  const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
   const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
     storageKey: "people",
     search: routeSearch,
-    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    navigate: navigateSearch,
     facetKeys: [...PEOPLE_FACET_KEYS],
   });
   const [inviteOpen, setInviteOpen] = useState(false);
   const [assignPairOpen, setAssignPairOpen] = useState(false);
   const [editing, setEditing] = useState<OrganizationUser | null>(null);
   const [viewing, setViewing] = useState<OrganizationUser | null>(null);
+
+  const deepLinkedId = useMemo(() => {
+    const n = Number.parseInt(String(routeSearch.member ?? ""), 10);
+    return Number.isFinite(n) ? n : null;
+  }, [routeSearch.member]);
+
+  // Resolved against the FULL roster, not the filtered list on screen: the page
+  // restores your last filters from localStorage, and a link to someone those
+  // filters exclude must still open — otherwise the palette silently no-ops.
+  const deepLinkQ = useMembers(undefined, { enabled: deepLinkedId != null });
+
+  useEffect(() => {
+    if (deepLinkedId == null) return;
+    const match = (deepLinkQ.data ?? []).find((m) => m.id === deepLinkedId);
+    if (!match) return;
+    setViewing(match);
+    // Consume the param so closing the sheet doesn't leave a URL that reopens it.
+    navigateSearch({
+      search: ({ member: _drop, ...rest }: Record<string, unknown>) => rest,
+      replace: true,
+    });
+  }, [deepLinkedId, deepLinkQ.data, navigateSearch]);
 
   const groupsQ = useOrgUserGroups();
   const roleKeys = asFacetStrings(facets.role).filter(

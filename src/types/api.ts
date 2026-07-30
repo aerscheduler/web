@@ -1091,3 +1091,47 @@ export type RevenueReport = {
  * answered with 200, so this type exists to make that mistake unrepresentable.
  */
 export type InvoiceUpdate = { markPaid: true } | { markVoided: true };
+
+/* ── Global search ───────────────────────────────────────────────────────────
+ * `GET /search` flattens every entity to ONE row shape so the palette can render
+ * a squawk and a currency without knowing either. The server decides both which
+ * types this caller may search and which rows within them they may see — never
+ * re-filter by role here, and never assume a type is present just because it
+ * exists (`types` is the caller's real category list).
+ */
+
+export type SearchEntityType =
+  | "person"
+  | "resource"
+  | "location"
+  | "rating"
+  | "reservation"
+  | "announcement"
+  | "currency"
+  | "document"
+  | "squawk";
+
+export interface SearchResult {
+  type: SearchEntityType;
+  id: number;
+  title: string;
+  subtitle: string | null;
+  /** ISO-8601, unformatted on purpose — render it with `timeZone` below. */
+  date: string | null;
+  /** What `date` means: "Starts", "Expires", "Reported"… */
+  dateLabel: string | null;
+  /** IANA zone to render `date` in; null means the viewer's own. */
+  timeZone: string | null;
+  /** Status chip: "Open", "Expired", "Cancelled", "Grounded". */
+  badge: string | null;
+  /** Ids for deep-linking — see `lib/search-links.ts`. */
+  params: Record<string, number | string>;
+}
+
+export interface SearchResponse {
+  q: string;
+  /** Every type this caller may search — the category list, not just what came back. */
+  types: SearchEntityType[];
+  counts: Partial<Record<SearchEntityType, number>>;
+  results: SearchResult[];
+}

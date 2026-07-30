@@ -14,13 +14,13 @@ import {
   ChartColumnBig,
   LayoutDashboard,
   LogOut,
+  Megaphone,
   Menu,
   MonitorPlay,
   MoreHorizontal,
   PlaneTakeoff,
   Plus,
   Receipt,
-  Search,
   Settings,
   ShieldCheck,
   TerminalSquare,
@@ -40,7 +40,7 @@ import {
   selfBookableTypes,
 } from "@/lib/permissions";
 import type { Role } from "@/types/api";
-import { CommandMenuProvider, useCommandMenu } from "@/components/command-menu";
+import { CommandMenuProvider, CommandMenuSearch } from "@/components/command-menu";
 import { ConfirmProvider } from "@/components/confirm-dialog";
 import { QuickCreateProvider, useQuickCreate } from "@/components/quick-create";
 import { LogoMark } from "@/components/logo";
@@ -100,7 +100,10 @@ function navForRoles(roles: string[]): NavGroup[] {
         { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
         { to: "/facilities", label: "Facilities", icon: MonitorPlay },
       ],
-      more: [{ to: "/operations/cancellations", label: "Cancellations", icon: CalendarX2 }],
+      more: [
+        { to: "/operations/announcements", label: "Announcements", icon: Megaphone },
+        { to: "/operations/cancellations", label: "Cancellations", icon: CalendarX2 },
+      ],
     },
     {
       label: "Money",
@@ -448,7 +451,6 @@ function UserMenu() {
 }
 
 function Topbar() {
-  const { setOpen } = useCommandMenu();
   const { roles } = useAuth();
   const { toggleSidebar } = useSidebar();
   const { openNewReservation } = useQuickCreate();
@@ -469,19 +471,8 @@ function Topbar() {
           <Menu className="size-4" />
         </Button>
 
-        {/* Stripe-style search — borderless subtle fill; opens the ⌘K palette */}
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          aria-label="Search"
-          className="flex h-8 w-full max-w-xs items-center gap-2 rounded-md bg-muted/70 px-2.5 text-[13px] text-muted-foreground transition-colors hover:bg-muted"
-        >
-          <Search className="size-4 shrink-0" />
-          <span className="flex-1 text-left">Search</span>
-          <kbd className="pointer-events-none hidden select-none items-center rounded bg-card px-1.5 font-mono text-[10px] font-medium text-muted-foreground shadow-sm sm:flex">
-            ⌘K
-          </kbd>
-        </button>
+        {/* Stripe-style search — results drop down from this field */}
+        <CommandMenuSearch />
 
         <div className="flex-1" />
 

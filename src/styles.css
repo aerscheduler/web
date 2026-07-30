@@ -244,6 +244,14 @@
   ::selection {
     background: color-mix(in oklch, var(--primary) 22%, transparent);
   }
+  /* Stripe-style search match highlight inside the ⌘K palette */
+  mark.search-match {
+    background: color-mix(in oklch, var(--primary) 18%, transparent);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 1px;
+    font-weight: 550;
+  }
   /* thin, unobtrusive scrollbars */
   * {
     scrollbar-width: thin;

@@ -61,6 +61,8 @@ import type {
   Resource,
   Role,
   RolesUpdate,
+  SearchEntityType,
+  SearchResponse,
   Squawk,
   SubscriptionStatus,
   User,
@@ -276,6 +278,36 @@ export function useAnnouncements(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["announcements"],
     queryFn: () => api<Announcement[]>("/announcements"),
+    ...opts,
+  });
+}
+
+/**
+ * Org-wide search across people, aircraft, locations, ratings, reservations,
+ * announcements, currencies, documents and squawks — `GET /search`.
+ *
+ * Pass a DEBOUNCED `q` (see `useDebouncedValue`); every keystroke is a query.
+ * An empty `q` is legal and means browse: the newest few rows of each type,
+ * which is what the palette shows before anything is typed.
+ *
+ * `placeholderData: keepPrevious` keeps the last hits on screen while the next
+ * request is in flight, so the list refines instead of blanking as you type.
+ */
+export function useGlobalSearch(
+  q: string,
+  filter?: { types?: SearchEntityType[]; limit?: number },
+  opts?: QueryOpts
+) {
+  const needle = q.trim();
+  return useQuery({
+    queryKey: ["search", needle, filter ?? {}],
+    queryFn: () =>
+      api<SearchResponse>("/search", {
+        query: { q: needle || undefined, types: filter?.types, limit: filter?.limit },
+      }),
+    placeholderData: (prev) => prev,
+    // Results are a snapshot of live data; a stale palette is worse than a refetch.
+    staleTime: 30_000,
     ...opts,
   });
 }

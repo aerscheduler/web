@@ -604,6 +604,13 @@ export function useUpdateInvoice() {
   });
 }
 
+/** Admin: email/push a payment reminder for an unpaid member invoice. */
+export function useRemindInvoice() {
+  return useMutation({
+    mutationFn: (id: number) => api<true>(`/invoices/${id}/remind`, { method: "POST" }),
+  });
+}
+
 // ---------------------------------------------------------------- onboarding / org setup
 
 export function useCreateLocation() {

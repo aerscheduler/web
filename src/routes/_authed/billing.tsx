@@ -16,7 +16,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useInvoices, useReservations, useUpdateInvoice } from "@/features/queries";
+import { useInvoices, useRemindInvoice, useReservations, useUpdateInvoice } from "@/features/queries";
 import { guardRoute } from "@/lib/permissions";
 import type { Invoice, Reservation } from "@/types/api";
 import { resourceLabel } from "@/types/api";
@@ -375,6 +375,7 @@ function BillingPage() {
   });
 
   const update = useUpdateInvoice();
+  const remind = useRemindInvoice();
 
   const invoices = useMemo(() => invoicesQ.data ?? [], [invoicesQ.data]);
   const statsInvoices = useMemo(() => statsQ.data ?? [], [statsQ.data]);
@@ -449,6 +450,14 @@ function BillingPage() {
     );
   }
 
+  function remindInvoice(inv: Invoice) {
+    remind.mutate(inv.id, {
+      onSuccess: () => toast.success(`Reminder sent for invoice #${inv.id}`),
+      onError: (err) =>
+        toast.error(err instanceof Error ? err.message : "Couldn't send reminder"),
+    });
+  }
+
   function billReservation(r: Reservation) {
     setDraft(reservationDraft(r));
     setCreateOpen(true);
@@ -458,7 +467,7 @@ function BillingPage() {
     onView: (inv) => setViewId(inv.id),
     onMarkPaid: markPaid,
     onVoid: voidInvoice,
-    busy: update.isPending,
+    busy: update.isPending || remind.isPending,
   };
 
   const columns = useMemo(() => invoiceColumns(actions), [update.isPending]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -639,7 +648,8 @@ function BillingPage() {
         onOpenChange={(o) => !o && setViewId(null)}
         onMarkPaid={markPaid}
         onVoid={voidInvoice}
-        busy={update.isPending}
+        onRemind={remindInvoice}
+        busy={update.isPending || remind.isPending}
       />
 
       <CreateInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} draft={draft} />

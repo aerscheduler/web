@@ -1,5 +1,5 @@
 import { format, parseISO } from "date-fns";
-import { Check, Ban, FileText, Plane, User } from "lucide-react";
+import { Ban, Bell, Check, FileText, Plane, User } from "lucide-react";
 import type { Invoice } from "@/types/api";
 import { useInvoice } from "@/features/queries";
 import { resourceLabel } from "@/types/api";
@@ -42,6 +42,7 @@ export function InvoiceDetailSheet({
   onOpenChange,
   onMarkPaid,
   onVoid,
+  onRemind,
   busy,
 }: {
   invoice: Invoice | null;
@@ -49,6 +50,7 @@ export function InvoiceDetailSheet({
   onOpenChange: (open: boolean) => void;
   onMarkPaid: (inv: Invoice) => void;
   onVoid: (inv: Invoice) => void;
+  onRemind?: (inv: Invoice) => void;
   busy?: boolean;
 }) {
   const inv = invoice;
@@ -81,6 +83,7 @@ export function InvoiceDetailSheet({
 
   const people = inv ? participants(inv) : [];
   const isOpen = inv ? !inv.paidAt && !inv.voidedAt : false;
+  const canRemind = Boolean(isOpen && inv?.customer && onRemind);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -211,18 +214,30 @@ export function InvoiceDetailSheet({
         )}
 
         {inv && isOpen && (
-          <SheetFooter className="flex-row gap-2 border-t">
-            <Button
-              variant="outline"
-              className="flex-1"
-              disabled={busy}
-              onClick={() => onVoid(inv)}
-            >
-              <Ban className="size-4" /> Void
-            </Button>
-            <Button className="flex-1" disabled={busy} onClick={() => onMarkPaid(inv)}>
-              <Check className="size-4" /> Mark paid
-            </Button>
+          <SheetFooter className="flex-col gap-2 border-t sm:flex-col">
+            {canRemind && (
+              <Button
+                variant="secondary"
+                className="w-full"
+                disabled={busy}
+                onClick={() => onRemind?.(inv)}
+              >
+                <Bell className="size-4" /> Send payment reminder
+              </Button>
+            )}
+            <div className="flex w-full flex-row gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={busy}
+                onClick={() => onVoid(inv)}
+              >
+                <Ban className="size-4" /> Void
+              </Button>
+              <Button className="flex-1" disabled={busy} onClick={() => onMarkPaid(inv)}>
+                <Check className="size-4" /> Mark paid
+              </Button>
+            </div>
           </SheetFooter>
         )}
       </SheetContent>

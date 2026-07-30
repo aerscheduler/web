@@ -214,7 +214,11 @@ function QuickBooksOwnerPage() {
           integrationStatusBadge(row?.status ?? "disconnected")
         )
       }
-      accountLabel={row?.companyName}
+      accountLabel={
+        row?.companyName
+          ? `${row.companyName}${row.useSandbox ? " (sandbox)" : ""}`
+          : null
+      }
       actions={
         connected && row?.status !== "needs_reconnect" ? (
           <Button

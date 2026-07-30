@@ -7,14 +7,13 @@ import { canManageBillingSettings } from "@/lib/permissions";
 import { ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useSyncInvoiceToQuickBooks } from "@/features/queries";
+import { useQuickBooksSettings, useSyncInvoiceToQuickBooks } from "@/features/queries";
 
-function qboSalesReceiptUrl(receiptId: string): string {
-  // Desk deep-link into the receipt in QBO (sandbox vs prod is Intuit-side session).
-  const host =
-    import.meta.env.DEV
-      ? "https://app.sandbox.qbo.intuit.com"
-      : "https://app.qbo.intuit.com";
+/** Deep-link into a Sales Receipt — must match sandbox vs production Intuit company. */
+export function qboSalesReceiptUrl(receiptId: string, useSandbox: boolean): string {
+  const host = useSandbox
+    ? "https://app.sandbox.qbo.intuit.com"
+    : "https://app.qbo.intuit.com";
   return `${host}/app/salesreceipt?txnId=${encodeURIComponent(receiptId)}`;
 }
 
@@ -23,6 +22,12 @@ export function InvoiceQuickBooksSection({ invoice }: { invoice: Invoice }) {
   const { roles } = useAuth();
   const isOwner = canManageBillingSettings(roles);
   const sync = useSyncInvoiceToQuickBooks();
+  // Owners get useSandbox from settings; default sandbox-safe while loading so we
+  // never open production QBO for a sandbox receipt.
+  const qboSettings = useQuickBooksSettings({
+    enabled: isOwner && !!invoice.qboSalesReceiptId,
+  });
+  const useSandbox = qboSettings.data?.useSandbox ?? true;
 
   if (!invoice.paidAt || invoice.voidedAt) return null;
 
@@ -66,6 +71,7 @@ export function InvoiceQuickBooksSection({ invoice }: { invoice: Invoice }) {
               <span className="font-mono text-foreground">{invoice.qboSalesReceiptId}</span>
               {" · "}
               {formatDistanceToNow(parseISO(invoice.qboSyncedAt), { addSuffix: true })}
+              {useSandbox ? " · sandbox" : null}
             </p>
           )}
           {failed && (
@@ -81,12 +87,12 @@ export function InvoiceQuickBooksSection({ invoice }: { invoice: Invoice }) {
           {synced && invoice.qboSalesReceiptId && (
             <Button size="sm" variant="outline" className="gap-1.5" asChild>
               <a
-                href={qboSalesReceiptUrl(invoice.qboSalesReceiptId)}
+                href={qboSalesReceiptUrl(invoice.qboSalesReceiptId, useSandbox)}
                 target="_blank"
                 rel="noreferrer"
               >
                 <ExternalLink className="size-3.5" />
-                Open in QBO
+                {useSandbox ? "Open in sandbox" : "Open in QBO"}
               </a>
             </Button>
           )}

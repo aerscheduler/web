@@ -837,6 +837,8 @@ export type QuickBooksSettings = {
   connectedAt: string | null;
   status: "disconnected" | "connected" | "needs_mapping" | "needs_reconnect" | "error";
   mappingComplete: boolean;
+  /** True while Intuit sandbox keys / INTUIT_USE_SANDBOX are in use. */
+  useSandbox: boolean;
 };
 
 export type QuickBooksItem = { id: string; name: string; type?: string };

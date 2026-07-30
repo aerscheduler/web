@@ -20,6 +20,7 @@ const TITLES: Array<[string, string]> = [
   ["/me/documents", "Documents"],
   ["/me/availability", "Availability"],
   ["/me/profile", "Profile"],
+  ["/me/notifications", "Notification settings"],
   ["/me", "Home"],
   ["/dashboard", "Dashboard"],
   ["/schedule", "Schedule"],

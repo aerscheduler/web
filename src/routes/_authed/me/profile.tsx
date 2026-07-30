@@ -1,10 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { CalendarClock, Clock, CreditCard, ShieldCheck, UserRound } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Bell, CalendarClock, Clock, CreditCard, ShieldCheck, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { isInstructor } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { ProfileCard } from "@/components/me-account/profile-card";
 import { MyTimeZoneCard } from "@/components/settings/time-zone-card";
 import { SecurityCard } from "@/components/me-account/security-card";
@@ -88,6 +89,20 @@ function ProfilePage() {
           {/* Lives on the profile tab rather than its own: it's a personal preference, and
               most people will set it once when they first travel and never look again. */}
           <MyTimeZoneCard />
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
+            <div className="flex items-start gap-3">
+              <Bell className="mt-0.5 size-4 text-muted-foreground" />
+              <div>
+                <p className="text-sm font-medium">Email notifications</p>
+                <p className="text-xs text-muted-foreground">
+                  Choose which booking, billing, and school emails you receive.
+                </p>
+              </div>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/me/notifications">Manage</Link>
+            </Button>
+          </div>
         </TabsContent>
         <TabsContent value="security">
           <SecurityCard />

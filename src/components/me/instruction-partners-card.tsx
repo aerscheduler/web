@@ -1,12 +1,11 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { GraduationCap, UserMinus, UserRound } from "lucide-react";
+import { GraduationCap, UserMinus } from "lucide-react";
 import type { AssignedPerson } from "@/types/api";
 import { useAuth } from "@/lib/auth";
-import { isInstructor, isStudent } from "@/lib/permissions";
+import { isInstructor } from "@/lib/permissions";
 import {
   useUnassignSelfAsInstructor,
-  useUnassignSelfAsStudent,
   useUserInstructionPartners,
 } from "@/features/queries";
 import { ApiError } from "@/lib/api";
@@ -60,28 +59,25 @@ function PersonRow({
 }
 
 /**
- * "My students" / "My instructors" on /me. Remove uses Flutter self-unassign
- * endpoints. Admins assign from People → member sheet; request from a profile.
+ * "My students" on /me for instructors. Students no longer get a "My instructors"
+ * rail here (same as the mobile home). Admins assign from People; request from a profile.
  */
 export function InstructionPartnersCard() {
   const { roles, userId, membership } = useAuth();
   const confirm = useConfirm();
   const instructs = isInstructor(roles);
-  const studies = isStudent(roles);
 
-  const q = useUserInstructionPartners(userId, { enabled: instructs || studies });
+  const q = useUserInstructionPartners(userId, { enabled: instructs });
   const myInstructorId =
     membership?.instructorRole?.id ?? q.data?.instructorRoleId ?? null;
-  const myStudentId = membership?.studentRole?.id ?? q.data?.studentRoleId ?? null;
 
-  const unassignStudent = useUnassignSelfAsStudent();
   const unassignInstructor = useUnassignSelfAsInstructor();
   const [busyId, setBusyId] = useState<number | null>(null);
 
-  if (!instructs && !studies) return null;
+  if (!instructs) return null;
 
   const sections = [
-    instructs && {
+    {
       key: "students",
       title: "My students",
       icon: GraduationCap,
@@ -112,45 +108,7 @@ export function InstructionPartnersCard() {
         }
       },
     },
-    studies && {
-      key: "instructors",
-      title: "My instructors",
-      icon: UserRound,
-      people: q.data?.instructors ?? [],
-      empty:
-        "No instructor is assigned to you yet. Ask your school to pair you, or request from an instructor's profile.",
-      onRemove: async (person: AssignedPerson) => {
-        if (myStudentId == null) return;
-        const name = person.orgUser?.user?.name ?? "this instructor";
-        const ok = await confirm({
-          title: `Remove ${name}?`,
-          description: "You can request them again later.",
-          confirmLabel: "Remove",
-          destructive: true,
-        });
-        if (!ok) return;
-        setBusyId(person.id);
-        try {
-          await unassignStudent.mutateAsync({
-            studentId: myStudentId,
-            instructorId: person.id,
-          });
-          toast.success("Instructor removed.");
-        } catch (e) {
-          toast.error(e instanceof ApiError ? e.message : "Couldn't remove.");
-        } finally {
-          setBusyId(null);
-        }
-      },
-    },
-  ].filter(Boolean) as {
-    key: string;
-    title: string;
-    icon: typeof GraduationCap;
-    people: AssignedPerson[];
-    empty: string;
-    onRemove: (person: AssignedPerson) => Promise<void>;
-  }[];
+  ];
 
   return (
     <>

@@ -73,6 +73,43 @@ export interface TimeZonePreferences {
   scheduleTimeZoneMode?: "location" | "user";
 }
 
+/** Per-category email / push toggles under `/orgUsers/preferences`. */
+export interface ChannelNotificationPreferences {
+  reservationCreated?: boolean;
+  reservationUpdated?: boolean;
+  reservationCanceled?: boolean;
+  reservationCompleted?: boolean;
+  reservationInvoiceReceived?: boolean;
+  reservationInvoicePaid?: boolean;
+  reservationInvoiceDeclined?: boolean;
+  reservationInvoiceReminders?: boolean;
+  joinedOrganization?: boolean;
+  leftOrganization?: boolean;
+  invitedToOrganization?: boolean;
+  joinRequestApproved?: boolean;
+  joinRequestDeclined?: boolean;
+  announcements?: boolean;
+  maintenanceReminders?: boolean;
+  squawks?: boolean;
+  userDocumentReminders?: boolean;
+  currencyReminders?: boolean;
+  grounded?: boolean;
+}
+
+export interface OrgUserNotificationPreferences {
+  emailEnabled?: boolean;
+  pushEnabled?: boolean;
+  smsEnabled?: boolean;
+  emailNotificationPreferences?: ChannelNotificationPreferences | null;
+  pushNotificationPreferences?: ChannelNotificationPreferences | null;
+}
+
+/** Full member preferences row (timezone + notifications). */
+export interface OrgUserPreferences extends TimeZonePreferences {
+  id?: number;
+  notificationPreferences?: OrgUserNotificationPreferences | null;
+}
+
 export interface OrganizationDetails {
   id: number;
   phone: string | null;

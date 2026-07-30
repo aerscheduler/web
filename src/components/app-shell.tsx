@@ -414,6 +414,12 @@ function UserMenu() {
                 Account &amp; settings
               </Link>
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link to="/me/notifications">
+                <Bell />
+                Notification settings
+              </Link>
+            </DropdownMenuItem>
             {isDeveloper && (
               <DropdownMenuItem asChild>
                 <Link to="/developer">

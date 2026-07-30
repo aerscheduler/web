@@ -37,6 +37,7 @@ import { Route as AuthedMeBookRouteImport } from './routes/_authed/me/book'
 import { Route as AuthedMeCurrenciesRouteImport } from './routes/_authed/me/currencies'
 import { Route as AuthedMeDocumentsRouteImport } from './routes/_authed/me/documents'
 import { Route as AuthedMeInvoicesRouteImport } from './routes/_authed/me/invoices'
+import { Route as AuthedMeNotificationsRouteImport } from './routes/_authed/me/notifications'
 import { Route as AuthedMePaymentMethodsRouteImport } from './routes/_authed/me/payment-methods'
 import { Route as AuthedMeProfileRouteImport } from './routes/_authed/me/profile'
 import { Route as AuthedMeScheduleRouteImport } from './routes/_authed/me/schedule'
@@ -184,6 +185,11 @@ const AuthedMeInvoicesRoute = AuthedMeInvoicesRouteImport.update({
   path: '/me/invoices',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMeNotificationsRoute = AuthedMeNotificationsRouteImport.update({
+  id: '/me/notifications',
+  path: '/me/notifications',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedMePaymentMethodsRoute = AuthedMePaymentMethodsRouteImport.update({
   id: '/me/payment-methods',
   path: '/me/payment-methods',
@@ -244,6 +250,7 @@ export interface FileRoutesByFullPath {
   '/me/currencies': typeof AuthedMeCurrenciesRoute
   '/me/documents': typeof AuthedMeDocumentsRoute
   '/me/invoices': typeof AuthedMeInvoicesRoute
+  '/me/notifications': typeof AuthedMeNotificationsRoute
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
@@ -279,6 +286,7 @@ export interface FileRoutesByTo {
   '/me/currencies': typeof AuthedMeCurrenciesRoute
   '/me/documents': typeof AuthedMeDocumentsRoute
   '/me/invoices': typeof AuthedMeInvoicesRoute
+  '/me/notifications': typeof AuthedMeNotificationsRoute
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
@@ -316,6 +324,7 @@ export interface FileRoutesById {
   '/_authed/me/currencies': typeof AuthedMeCurrenciesRoute
   '/_authed/me/documents': typeof AuthedMeDocumentsRoute
   '/_authed/me/invoices': typeof AuthedMeInvoicesRoute
+  '/_authed/me/notifications': typeof AuthedMeNotificationsRoute
   '/_authed/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/_authed/me/profile': typeof AuthedMeProfileRoute
   '/_authed/me/schedule': typeof AuthedMeScheduleRoute
@@ -353,6 +362,7 @@ export interface FileRouteTypes {
     | '/me/currencies'
     | '/me/documents'
     | '/me/invoices'
+    | '/me/notifications'
     | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
@@ -388,6 +398,7 @@ export interface FileRouteTypes {
     | '/me/currencies'
     | '/me/documents'
     | '/me/invoices'
+    | '/me/notifications'
     | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
@@ -424,6 +435,7 @@ export interface FileRouteTypes {
     | '/_authed/me/currencies'
     | '/_authed/me/documents'
     | '/_authed/me/invoices'
+    | '/_authed/me/notifications'
     | '/_authed/me/payment-methods'
     | '/_authed/me/profile'
     | '/_authed/me/schedule'
@@ -644,6 +656,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedMeInvoicesRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/me/notifications': {
+      id: '/_authed/me/notifications'
+      path: '/me/notifications'
+      fullPath: '/me/notifications'
+      preLoaderRoute: typeof AuthedMeNotificationsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/me/payment-methods': {
       id: '/_authed/me/payment-methods'
       path: '/me/payment-methods'
@@ -707,6 +726,7 @@ interface AuthedRouteChildren {
   AuthedMeCurrenciesRoute: typeof AuthedMeCurrenciesRoute
   AuthedMeDocumentsRoute: typeof AuthedMeDocumentsRoute
   AuthedMeInvoicesRoute: typeof AuthedMeInvoicesRoute
+  AuthedMeNotificationsRoute: typeof AuthedMeNotificationsRoute
   AuthedMePaymentMethodsRoute: typeof AuthedMePaymentMethodsRoute
   AuthedMeProfileRoute: typeof AuthedMeProfileRoute
   AuthedMeScheduleRoute: typeof AuthedMeScheduleRoute
@@ -734,6 +754,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMeCurrenciesRoute: AuthedMeCurrenciesRoute,
   AuthedMeDocumentsRoute: AuthedMeDocumentsRoute,
   AuthedMeInvoicesRoute: AuthedMeInvoicesRoute,
+  AuthedMeNotificationsRoute: AuthedMeNotificationsRoute,
   AuthedMePaymentMethodsRoute: AuthedMePaymentMethodsRoute,
   AuthedMeProfileRoute: AuthedMeProfileRoute,
   AuthedMeScheduleRoute: AuthedMeScheduleRoute,

@@ -51,6 +51,7 @@ import type {
   MaintenanceReminder,
   Organization,
   TimeZonePreferences,
+  OrgUserPreferences,
   OrganizationBillingSettings,
   OrganizationRating,
   OrganizationUser,
@@ -1695,7 +1696,60 @@ export function useUpdateTimeZonePreferences() {
     mutationFn: (patch: TimeZonePreferences) =>
       api<TimeZonePreferences>("/orgUsers/preferences", { method: "PATCH", body: patch }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["orgUser", "preferences", "timezone"] });
+      void qc.invalidateQueries({ queryKey: ["orgUser", "preferences"] });
+    },
+  });
+}
+
+/** Full org-user preferences including notification toggles. */
+export function useOrgUserPreferences(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["orgUser", "preferences"],
+    queryFn: () => api<OrgUserPreferences>("/orgUsers/preferences"),
+    enabled: opts?.enabled ?? true,
+    staleTime: 60_000,
+  });
+}
+
+/** Patch notification (or timezone) preferences on the same preferences row. */
+export function useUpdateOrgUserPreferences() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<OrgUserPreferences>) =>
+      api<OrgUserPreferences>("/orgUsers/preferences", { method: "PATCH", body: patch }),
+    onMutate: async (patch) => {
+      await qc.cancelQueries({ queryKey: ["orgUser", "preferences"] });
+      const previous = qc.getQueryData<OrgUserPreferences>(["orgUser", "preferences"]);
+      if (previous) {
+        const nextNotif = patch.notificationPreferences
+          ? {
+              ...previous.notificationPreferences,
+              ...patch.notificationPreferences,
+              emailNotificationPreferences: {
+                ...previous.notificationPreferences?.emailNotificationPreferences,
+                ...patch.notificationPreferences.emailNotificationPreferences,
+              },
+              pushNotificationPreferences: {
+                ...previous.notificationPreferences?.pushNotificationPreferences,
+                ...patch.notificationPreferences.pushNotificationPreferences,
+              },
+            }
+          : previous.notificationPreferences;
+        qc.setQueryData<OrgUserPreferences>(["orgUser", "preferences"], {
+          ...previous,
+          ...patch,
+          notificationPreferences: nextNotif,
+        });
+      }
+      return { previous };
+    },
+    onError: (_err, _patch, ctx) => {
+      if (ctx?.previous) {
+        qc.setQueryData(["orgUser", "preferences"], ctx.previous);
+      }
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["orgUser", "preferences"] });
     },
   });
 }

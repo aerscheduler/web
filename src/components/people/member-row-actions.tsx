@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ban, Eye, MoreHorizontal, Shield, Trash2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
@@ -16,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { GroundMemberModal } from "./ground-member-modal";
 import { memberName } from "./util";
 
 function errMessage(e: unknown, fallback: string) {
@@ -43,23 +45,30 @@ export function MemberRowActions({
   const targetUserId = ou.user?.id ?? ou.FK_userId ?? 0;
   const orgUserMut = useUpdateMemberOrgUser(targetUserId);
   const name = memberName(ou);
+  const [groundOpen, setGroundOpen] = useState(false);
 
-  async function toggleGround() {
-    if (!ou.grounded) {
-      const ok = await confirm({
-        title: `Ground ${name}?`,
-        description:
-          "They won't be able to book or fly until you reinstate them. You can undo this any time.",
-        confirmLabel: "Ground member",
-        destructive: true,
-      });
-      if (!ok) return;
-    }
+  /**
+   * Grounding opens a modal, because the reason is mandatory — the member is
+   * emailed it verbatim. Ungrounding stays inline but now confirms: it used to
+   * fire on a single click with no prompt, so a misclick silently reinstated
+   * someone. It also clears the stale reason rather than leaving the old one
+   * hanging off an active member.
+   */
+  async function unground() {
+    const ok = await confirm({
+      title: `Reinstate ${name}?`,
+      description: "They'll be able to book and fly again right away.",
+      confirmLabel: "Reinstate member",
+    });
+    if (!ok) return;
     orgUserMut.mutate(
-      { grounded: !ou.grounded },
+      // Empty string, NOT null: the server does `params.groundedReason ?? undefined`,
+      // so null collapses to undefined and Prisma skips the column — the old reason
+      // would survive on a now-active member. "" actually writes. (Verified against
+      // the API; the Flutter unground path sends "" for the same reason.)
+      { grounded: false, groundedReason: "" },
       {
-        onSuccess: () =>
-          toast.success(ou.grounded ? `${name} is active again.` : `${name} grounded.`),
+        onSuccess: () => toast.success(`${name} is active again.`),
         onError: (e) => toast.error(errMessage(e, "Couldn't update this member.")),
       }
     );
@@ -85,44 +94,49 @@ export function MemberRowActions({
   }
 
   return (
-    <DropdownMenu>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${name}`}>
-              <MoreHorizontal />
-            </Button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent>Actions</TooltipContent>
-      </Tooltip>
-      <DropdownMenuContent align={align} className="w-48">
-        <DropdownMenuItem onSelect={() => onView(ou)}>
-          <Eye /> View profile
-        </DropdownMenuItem>
-        {canManageMembers(roles) && (
+    <>
+      <GroundMemberModal open={groundOpen} onOpenChange={setGroundOpen} member={ou} />
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${name}`}>
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Actions</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align={align} className="w-48">
+          <DropdownMenuItem onSelect={() => onView(ou)}>
+            <Eye /> View profile
+          </DropdownMenuItem>
+          {canManageMembers(roles) && (
           <>
-            <DropdownMenuItem onSelect={() => onEditRoles(ou)}>
-              <Shield /> Edit roles
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => void toggleGround()}>
-              {ou.grounded ? (
+              <DropdownMenuItem onSelect={() => onEditRoles(ou)}>
+                <Shield /> Edit roles
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => (ou.grounded ? void unground() : setGroundOpen(true))}
+              >
+                {ou.grounded ? (
                 <>
-                  <Undo2 /> Unground
+                    <Undo2 /> Unground
                 </>
-              ) : (
+                ) : (
                 <>
-                  <Ban /> Ground
+                    <Ban /> Ground
                 </>
-              )}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={() => void remove()}>
-              <Trash2 /> Remove
-            </DropdownMenuItem>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => void remove()}>
+                <Trash2 /> Remove
+              </DropdownMenuItem>
           </>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
   );
 }

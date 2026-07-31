@@ -1,81 +1,57 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import type { DateRange } from "react-day-picker";
-import { endOfDay, format, parseISO, startOfDay } from "date-fns";
-import {
-  AlertTriangle,
-  Building2,
-  CalendarCheck,
-  CalendarClock,
-  GraduationCap,
-  PlaneTakeoff,
-  TowerControl,
-  UserPlus,
-  Users,
-  Wallet,
-} from "lucide-react";
-import { useOrgReport, type ReportRange } from "@/features/queries";
+import { Building2, FileBarChart } from "lucide-react";
+import { useReportCatalog } from "@/features/reports";
 import { guardRoute } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
-import type { ReportPayments, ReportPoint, RevenueDimension } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
-import { StatCard } from "@/components/stat-card";
 import { EmptyState } from "@/components/states";
-import { DateRangePicker, lastNDays } from "@/components/billing/date-range-picker";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CancellationsReport } from "@/components/reports/cancellations-report";
-import { RevenueReport } from "@/components/reports/revenue-report";
-import { formatMoney } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ReportView } from "@/components/reports/shell/report-view";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/reports")({
   beforeLoad: guardRoute("/reports"),
   component: ReportsPage,
 });
 
-function sumSeries(points: ReportPoint[] | undefined): number {
-  return (points ?? []).reduce((s, p) => s + p.count, 0);
-}
-
-/** deci-hours → "12.3 h" */
-function hours(deci: number | undefined): string {
-  return `${((deci ?? 0) / 10).toFixed(1)} h`;
-}
-
+/**
+ * Reports.
+ *
+ * A rail of what exists and one pane that renders whichever is selected. There
+ * is deliberately no per-report page: every report is described by the server's
+ * catalog and rendered by `ReportView`, so the report list grows without this
+ * file changing.
+ *
+ * The catalog is already filtered to what this user may run, so a dispatcher
+ * simply does not see a Financial section — there is nothing here to hide.
+ */
 function ReportsPage() {
   const { organization } = useAuth();
-  const [range, setRange] = useState<DateRange | undefined>(() => lastNDays(30));
-  const [revenueDimension, setRevenueDimension] =
-    useState<RevenueDimension>("aircraft");
+  const catalog = useReportCatalog();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const startISO = range?.from ? startOfDay(range.from).toISOString() : undefined;
-  const endISO = range?.to
-    ? endOfDay(range.to).toISOString()
-    : range?.from
-      ? endOfDay(range.from).toISOString()
-      : undefined;
+  const reports = catalog.data?.reports ?? [];
+  const categories = catalog.data?.categories ?? [];
 
-  const reportRange: ReportRange | undefined =
-    startISO && endISO ? { startDate: startISO, endDate: endISO } : undefined;
+  // Open on the first report rather than an empty pane — the rail already shows
+  // what else there is, so an empty state here would just be a wasted click.
+  useEffect(() => {
+    if (!selectedId && reports.length > 0) setSelectedId(reports[0].id);
+  }, [reports, selectedId]);
 
-  const flightTime = useOrgReport<ReportPoint[]>("countFlightTime", reportRange);
-  const instrGiven = useOrgReport<number>("countInstructionTimeGiven", reportRange);
-  const instrRecv = useOrgReport<number>("countInstructionTimeReceived", reportRange);
-  const scheduled = useOrgReport<ReportPoint[]>("countScheduledReservations", reportRange);
-  const completed = useOrgReport<ReportPoint[]>("countCompletedReservations", reportRange);
-  const payments = useOrgReport<ReportPayments>("countPendingAndProcessedPayments", reportRange);
-  const activeMembers = useOrgReport<number>("countActiveOrgUsers", reportRange);
-  const newMembers = useOrgReport<number>("countNewOrgUsers", reportRange);
-  const squawks = useOrgReport<number>("countUnresolvedSquawks", undefined, { rangeRequired: false });
-  // This endpoint returns an object, not a scalar: { groundableResources, groundedResources }.
-  const grounded = useOrgReport<{ groundableResources: number; groundedResources: number }>(
-    "countGroundedResources",
-    undefined,
-    { rangeRequired: false }
+  const selected = useMemo(
+    () => reports.find((r) => r.id === selectedId) ?? null,
+    [reports, selectedId]
   );
-  const groundedCount = grounded.data?.groundedResources ?? 0;
-
-  const flightHoursTotal = useMemo(() => sumSeries(flightTime.data), [flightTime.data]);
 
   if (!organization) {
     return (
@@ -96,210 +72,105 @@ function ReportsPage() {
     <div className="space-y-5">
       <PageHeader
         title="Reports"
-        subtitle="How the school is flying — over your selected window."
-        actions={<DateRangePicker value={range} onChange={setRange} />}
+        subtitle="Build it how you want it, save it, and export it."
       />
 
-      {/* Reports is a shell of tabs now, so a new report is a tab rather than more
-          sections stacked on one ever-growing page. Overview is what was already here. */}
-      <Tabs defaultValue="overview" className="mt-4">
-        <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="revenue">Revenue</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="revenue" className="mt-4 space-y-4">
-          {/* Nested Radix Tabs were invisible under the outer Reports tabs —
-              use a plain button group for the groupBy dimension. */}
-          <div
-            role="tablist"
-            aria-label="Revenue grouped by"
-            className="flex flex-wrap gap-1 rounded-lg border border-border bg-muted/40 p-1"
-          >
-            {(
-              [
-                ["aircraft", "Aircraft"],
-                ["instructor", "Instructor"],
-                ["student", "Customer"],
-                ["instructionType", "Lesson type"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                role="tab"
-                aria-selected={revenueDimension === value}
-                onClick={() => setRevenueDimension(value)}
-                className={
-                  revenueDimension === value
-                    ? "rounded-md bg-background px-3 py-1.5 text-sm font-medium shadow-sm"
-                    : "rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
-                }
-              >
-                {label}
-              </button>
-            ))}
+      {catalog.isLoading ? (
+        <div className="h-96 animate-pulse rounded-lg bg-muted" />
+      ) : reports.length === 0 ? (
+        <Card className="p-0">
+          <EmptyState
+            icon={FileBarChart}
+            title="No reports available"
+            body="Your roles don't give you access to any reports yet. An owner or admin can change that."
+          />
+        </Card>
+      ) : (
+        <div className="flex flex-col gap-5 lg:flex-row">
+          {/* On a phone the rail becomes a single select — a two-level list of
+              fourteen reports down the side of a 375px screen is unusable. */}
+          <div className="lg:hidden">
+            <Select value={selectedId ?? undefined} onValueChange={setSelectedId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Choose a report" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((category) => (
+                  <SelectGroupForCategory
+                    key={category.key}
+                    label={category.label}
+                    reports={reports.filter((r) => r.category === category.key)}
+                  />
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <RevenueReport
-            dimension={revenueDimension}
-            startDate={startISO}
-            endDate={endISO}
-          />
-        </TabsContent>
 
-        <TabsContent value="overview" className="mt-4 space-y-6">
-      {/* Activity */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Activity
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <StatCard
-            label="Flight time"
-            value={hours(flightHoursTotal)}
-            icon={PlaneTakeoff}
-            accent="primary"
-            hint="Hobbs hours flown"
-            loading={flightTime.isLoading}
-          />
-          <StatCard
-            label="Instruction given"
-            value={hours(instrGiven.data)}
-            icon={GraduationCap}
-            hint="Briefed dual time"
-            loading={instrGiven.isLoading}
-          />
-          <StatCard
-            label="Instruction received"
-            value={hours(instrRecv.data)}
-            icon={GraduationCap}
-            hint="Received by students"
-            loading={instrRecv.isLoading}
-          />
-          <StatCard
-            label="Scheduled flights"
-            value={String(sumSeries(scheduled.data))}
-            icon={CalendarClock}
-            hint="Booked in window"
-            loading={scheduled.isLoading}
-          />
-          <StatCard
-            label="Completed flights"
-            value={String(sumSeries(completed.data))}
-            icon={CalendarCheck}
-            accent="success"
-            hint="Flown & closed out"
-            loading={completed.isLoading}
-          />
-          <StatCard
-            label="Active members"
-            value={String(activeMembers.data ?? 0)}
-            icon={Users}
-            hint="Flew in window"
-            loading={activeMembers.isLoading}
-          />
+          <nav
+            aria-label="Reports"
+            className="hidden w-60 shrink-0 lg:block"
+          >
+            <ScrollArea className="max-h-[calc(100vh-12rem)]">
+              <div className="space-y-4 pr-3">
+                {categories.map((category) => (
+                  <div key={category.key}>
+                    <h2 className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {category.label}
+                    </h2>
+                    <div className="space-y-0.5">
+                      {reports
+                        .filter((r) => r.category === category.key)
+                        .map((report) => (
+                          <button
+                            key={report.id}
+                            type="button"
+                            onClick={() => setSelectedId(report.id)}
+                            aria-current={report.id === selectedId ? "page" : undefined}
+                            className={cn(
+                              "block w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                              report.id === selectedId
+                                ? "bg-muted font-medium text-foreground"
+                                : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            )}
+                          >
+                            {report.name}
+                          </button>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </nav>
+
+          <div className="min-w-0 flex-1">
+            {selected && <ReportView key={selected.id} report={selected} />}
+          </div>
         </div>
-      </section>
-
-      {/* Daily flight hours */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm">Flight hours by day</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <DailyBars points={flightTime.data} loading={flightTime.isLoading} />
-        </CardContent>
-      </Card>
-
-      {/* Money + roster + fleet */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Money &amp; fleet
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Collected"
-            value={formatMoney(payments.data?.processed ?? 0, { cents: false })}
-            icon={Wallet}
-            accent="success"
-            hint="Paid invoices"
-            loading={payments.isLoading}
-          />
-          <StatCard
-            label="Outstanding"
-            value={formatMoney(payments.data?.pending ?? 0, { cents: false })}
-            icon={Wallet}
-            accent="warning"
-            hint="Unpaid invoices"
-            loading={payments.isLoading}
-          />
-          <StatCard
-            label="New members"
-            value={String(newMembers.data ?? 0)}
-            icon={UserPlus}
-            hint="Joined in window"
-            loading={newMembers.isLoading}
-          />
-          <StatCard
-            label="Grounded aircraft"
-            value={String(groundedCount)}
-            icon={TowerControl}
-            accent={groundedCount ? "warning" : "primary"}
-            hint="Currently down"
-            loading={grounded.isLoading}
-          />
-          <StatCard
-            label="Open squawks"
-            value={String(squawks.data ?? 0)}
-            icon={AlertTriangle}
-            accent={squawks.data ? "warning" : "primary"}
-            hint="Unresolved"
-            loading={squawks.isLoading}
-          />
-        </div>
-      </section>
-
-      <CancellationsReport startDate={startISO} endDate={endISO} />
-        </TabsContent>
-      </Tabs>
+      )}
     </div>
   );
 }
 
-/** A lightweight per-day bar chart of flight hours (count is deci-hours). */
-function DailyBars({ points, loading }: { points: ReportPoint[] | undefined; loading: boolean }) {
-  const data = points ?? [];
-  const max = Math.max(1, ...data.map((p) => p.count));
-
-  if (loading) {
-    return <div className="h-40 animate-pulse rounded-md bg-muted" />;
-  }
-  if (data.length === 0 || data.every((p) => p.count === 0)) {
-    return (
-      <div className="grid h-40 place-items-center text-sm text-muted-foreground">
-        No flight time in this window.
-      </div>
-    );
-  }
-
+/** Radix Select has no nested grouping helper here, so render a label + items. */
+function SelectGroupForCategory({
+  label,
+  reports,
+}: {
+  label: string;
+  reports: { id: string; name: string }[];
+}) {
+  if (reports.length === 0) return null;
   return (
-    <div className="flex h-40 items-end gap-0.5 overflow-x-auto">
-      {data.map((p) => {
-        const h = Math.round((p.count / max) * 100);
-        return (
-          <div
-            key={p.date}
-            className="group relative flex min-w-[6px] flex-1 items-end"
-            style={{ height: "100%" }}
-            title={`${format(parseISO(p.date), "MMM d")} — ${(p.count / 10).toFixed(1)} h`}
-          >
-            <div
-              className="w-full rounded-t bg-primary/70 transition-colors group-hover:bg-primary"
-              style={{ height: `${Math.max(h, p.count > 0 ? 3 : 0)}%` }}
-            />
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <div className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </div>
+      {reports.map((r) => (
+        <SelectItem key={r.id} value={r.id}>
+          {r.name}
+        </SelectItem>
+      ))}
+    </>
   );
 }

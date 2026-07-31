@@ -168,7 +168,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                     and its rows scroll internally. (min-height alone is indefinite,
                     so the table would expand to full content and scroll the whole
                     page — the regression this rule prevents.) */}
-              <main className="min-h-0 flex-1 overflow-y-auto">
+              {/* `min-w-0` matters as much as `min-h-0`: main is a flex item beside
+                  the sidebar, and a flex item defaults to `min-width:auto`, so it
+                  refuses to shrink below its content's min-content width. A page with
+                  a wide table (Reports) then pushes main past the viewport, where the
+                  wrapper's `overflow-hidden` silently CLIPS the right-hand columns
+                  rather than letting them scroll. Shrinking is what lets each page's
+                  own scroll container do its job. */}
+              <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
                 <div className="mx-auto flex min-h-full w-full max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 [&:has([data-fill-page])]:h-full">
                   {children}
                 </div>

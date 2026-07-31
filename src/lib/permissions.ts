@@ -43,7 +43,12 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   "/aircraft": anyMember,
   "/facilities": isAdmin,
   "/billing": isAdmin,
-  "/reports": isAdmin,
+  // Reports are per-category on the server now: the catalog only returns what
+  // the caller's roles grant, so a dispatcher reaching this page sees operations,
+  // fleet and people reports and no financial section at all. Gating the whole
+  // route on admin would keep forcing schools to make a dispatcher an admin just
+  // to pull a utilization report — and hand over revenue per named person with it.
+  "/reports": (r) => isStaff(r) || isTechnician(r),
   "/operations/cancellations": isStaff,
   "/compliance": isStaff,
   "/maintenance": (r) => isStaff(r) || isTechnician(r),

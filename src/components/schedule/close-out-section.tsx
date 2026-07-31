@@ -17,6 +17,7 @@ import { formatMoney } from "@/lib/utils";
 import {
   canReviewGuest,
   canRampReservation,
+  canViewReservationInvoice,
   closeOutStep,
   confirmationCount,
   hasConfirmedReview,
@@ -33,7 +34,7 @@ import { ConfirmGuestReviewModal } from "./confirm-guest-review-modal";
  * ramp out → ramp in → confirm review → (auto) invoice. Rendered inside the detail sheet.
  */
 export function CloseOutSection({ reservation }: { reservation: Reservation }) {
-  const { orgUserId, roles } = useAuth();
+  const { orgUserId, roles, isStaff } = useAuth();
   const r = reservation;
   const step = closeOutStep(r);
 
@@ -41,7 +42,9 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [guestConfirmOpen, setGuestConfirmOpen] = React.useState(false);
 
-  const invoiceQ = useReservationInvoice(r.id, { enabled: step === "invoiced" });
+  const invoiceQ = useReservationInvoice(r.id, {
+    enabled: step === "invoiced" && canViewReservationInvoice(r, orgUserId, isStaff),
+  });
   const invoice = invoiceQ.data ?? r.invoice ?? null;
 
   // A pilot on the flight may confirm — but only once. The server rejects a second

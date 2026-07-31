@@ -80,6 +80,25 @@ export function isReservationPersonnel(r: Reservation, orgUserId: number | null)
   );
 }
 
+/**
+ * Whether to even ask the server for this reservation's invoice.
+ *
+ * The server releases an invoice to staff (owner/admin/dispatcher), to the person billed
+ * for it, and to the instructor on a guest booking. The reservation payload carries only a
+ * slim invoice (id/total/paidAt/voidedAt — no customer), so the closest the web can get is
+ * "staff, or someone rostered on this flight". That is enough to stop the common case: a
+ * member with no billing role opening someone else's reservation and firing a request that
+ * can only ever 403.
+ */
+export function canViewReservationInvoice(
+  r: Reservation,
+  orgUserId: number | null,
+  isStaff: boolean
+): boolean {
+  if (isStaff) return true;
+  return isReservationPersonnel(r, orgUserId);
+}
+
 export function isRampedOut(r: Reservation): boolean {
   const rev = r.review;
   return rev?.hobbsTimeOut != null || rev?.tachTimeOut != null;

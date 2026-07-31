@@ -4,42 +4,44 @@ import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { hourLabel, hourWindow } from "./hours";
 import { BLOCK_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
 import type { ReservationDraft } from "./reservation-form";
 
-// The visible window is shared with the vertical week time-grid.
-export const START_HOUR = 6;
-export const END_HOUR = 22;
-const HOURS = END_HOUR - START_HOUR;
 const HOUR_WIDTH = 68; // px
 const LABEL_WIDTH = 176; // px
 const TRACK_HEIGHT = 46; // px
 const TRACK_GAP = 4; // px
 const LANE_PAD_Y = 8; // px
-const TOTAL_MIN = HOURS * 60;
 
 /**
- * Minutes past START_HOUR, measured on the AIRPORT's clock (unclamped).
+ * Minutes past the window's first hour, measured on the AIRPORT's clock (unclamped).
  *
  * This used to read `d.getHours()` — the viewer's clock — which is what made the whole board
  * slide an hour when a dispatcher opened it from another zone. The instant is unchanged; only
  * the clock we measure it against is now the right one.
  */
-function minutesInWindow(iso: string, zone: string) {
-  return minutesFromMidnightInZone(iso, zone) - START_HOUR * 60;
+function minutesInWindow(iso: string, zone: string, startHour: number) {
+  return minutesFromMidnightInZone(iso, zone) - startHour * 60;
 }
 
 /** Horizontal geometry for one block: left + width in px along the hour ruler. */
-function laneBlockGeometry(r: Reservation, zone: string): { leftPx: number; widthPx: number } {
-  const s = minutesInWindow(r.start, zone);
-  const e = minutesInWindow(r.end, zone);
-  const cs = Math.max(0, Math.min(TOTAL_MIN, s));
-  const ce = Math.max(0, Math.min(TOTAL_MIN, e));
-  if (ce <= 0 || cs >= TOTAL_MIN || ce <= cs) {
-    // Outside the visible window — still show it pinned to the nearest edge.
-    const left = cs >= TOTAL_MIN ? TOTAL_MIN - 30 : 0;
+function laneBlockGeometry(
+  r: Reservation,
+  zone: string,
+  startHour: number,
+  totalMin: number
+): { leftPx: number; widthPx: number } {
+  const s = minutesInWindow(r.start, zone, startHour);
+  const e = minutesInWindow(r.end, zone, startHour);
+  const cs = Math.max(0, Math.min(totalMin, s));
+  const ce = Math.max(0, Math.min(totalMin, e));
+  if (ce <= 0 || cs >= totalMin || ce <= cs) {
+    // The window grows to fit its reservations, so this is now only reachable by one that
+    // wraps past midnight. Pin it to the nearest edge rather than dropping it.
+    const left = cs >= totalMin ? totalMin - 30 : 0;
     return { leftPx: (left / 60) * HOUR_WIDTH, widthPx: 28 };
   }
   return {
@@ -50,12 +52,6 @@ function laneBlockGeometry(r: Reservation, zone: string): { leftPx: number; widt
 
 function laneHeight(tracks: number) {
   return LANE_PAD_Y * 2 + tracks * TRACK_HEIGHT + (tracks - 1) * TRACK_GAP;
-}
-
-function hourLabel(h: number) {
-  const period = h < 12 || h === 24 ? "a" : "p";
-  const display = h % 12 === 0 ? 12 : h % 12;
-  return `${display}${period}`;
 }
 
 type Row = { key: string; resource: Resource | null; items: Reservation[] };
@@ -123,13 +119,18 @@ export function LaneGrid({
   // Only "Unassigned" when it really is — an off-lane booking does have a resource.
   const leftoverLabel = offLane.length > 0 ? "Other" : "Unassigned";
 
-  const laneWidth = HOURS * HOUR_WIDTH;
+  // Widened past the default 6a–10p by whatever this day's reservations need, so an early or
+  // late booking gets its own hour instead of collapsing onto the edge of the ruler.
+  const { startHour, endHour } = hourWindow(reservations, tz.zone);
+  const hours = endHour - startHour;
+  const totalMin = hours * 60;
+  const laneWidth = hours * HOUR_WIDTH;
   //"Is the selected day today" is asked at the AIRPORT, not here. A dispatcher opening the
   //board from Tokyo is looking at the school's day, so the now-line belongs on the school's
   //today. `day` is a picked calendar date, so its own local components ARE the date.
   const isToday = dateKeyInZone(new Date(), tz.zone) === format(day, "yyyy-MM-dd");
-  const nowMin = isToday ? minutesInWindow(new Date().toISOString(), tz.zone) : -1;
-  const showNow = nowMin >= 0 && nowMin <= TOTAL_MIN;
+  const nowMin = isToday ? minutesInWindow(new Date().toISOString(), tz.zone, startHour) : -1;
+  const showNow = nowMin >= 0 && nowMin <= totalMin;
 
   return (
     <div className="h-full min-h-0 overflow-auto">
@@ -143,14 +144,17 @@ export function LaneGrid({
             Resource
           </div>
           <div className="relative" style={{ width: laneWidth, height: 32 }}>
-            {Array.from({ length: HOURS + 1 }).map((_, i) => (
+            {Array.from({ length: hours + 1 }).map((_, i) => (
               <div
                 key={i}
                 className="absolute top-0 h-full text-[11px] tabular-nums text-muted-foreground"
                 style={{ left: i * HOUR_WIDTH }}
               >
-                <span className="absolute -translate-x-1/2 pt-2">
-                  {i < HOURS ? hourLabel(START_HOUR + i) : ""}
+                {/* Ticks are centred on their gridline, but the first one sits on the ruler's
+                    left edge — centring it slides half the label under the sticky Resource
+                    column, which clipped "12a" down to "2a". Left-align just that one. */}
+                <span className={cn("absolute pt-2", i === 0 ? "left-0" : "-translate-x-1/2")}>
+                  {i < hours ? hourLabel(startHour + i) : ""}
                 </span>
               </div>
             ))}
@@ -241,8 +245,8 @@ export function LaneGrid({
                           const rect = e.currentTarget.getBoundingClientRect();
                           const x = e.clientX - rect.left;
                           const hour = Math.min(
-                            END_HOUR - 1,
-                            Math.max(START_HOUR, START_HOUR + Math.floor(x / HOUR_WIDTH))
+                            endHour - 1,
+                            Math.max(startHour, startHour + Math.floor(x / HOUR_WIDTH))
                           );
                           const hh = String(hour).padStart(2, "0");
                           const eh = String(hour + 1).padStart(2, "0");
@@ -257,7 +261,7 @@ export function LaneGrid({
                   }
                 >
                   {placed.map(({ r, track }) => {
-                    const { leftPx, widthPx } = laneBlockGeometry(r, tz.zone);
+                    const { leftPx, widthPx } = laneBlockGeometry(r, tz.zone, startHour, totalMin);
                     return (
                       <div
                         key={r.id}

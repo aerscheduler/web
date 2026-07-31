@@ -4,41 +4,36 @@ import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { END_HOUR, START_HOUR } from "./lane-grid";
+import { hourLabel, hourWindow } from "./hours";
 import { BLOCK_CLASS, personnelNames, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import type { ReservationDraft } from "./reservation-form";
 
 const HOUR_HEIGHT = 48; // px per hour
-const HOURS = END_HOUR - START_HOUR;
-const TOTAL_MIN = HOURS * 60;
-const GRID_HEIGHT = HOURS * HOUR_HEIGHT;
 const MIN_BLOCK = 20; // px
 
 /**
- * Minutes past START_HOUR for an instant, measured on the AIRPORT's clock.
+ * Minutes past the window's first hour for an instant, measured on the AIRPORT's clock.
  *
  * Was `d.getHours()` — the viewer's clock — which is what slid the whole column an hour when
  * the board was opened from another zone.
  */
-function minutesInWindow(d: Date | string, zone: string) {
-  return minutesFromMidnightInZone(d, zone) - START_HOUR * 60;
-}
-
-function hourLabel(h: number) {
-  const period = h < 12 || h === 24 ? "a" : "p";
-  const display = h % 12 === 0 ? 12 : h % 12;
-  return `${display}${period}`;
+function minutesInWindow(d: Date | string, zone: string, startHour: number) {
+  return minutesFromMidnightInZone(d, zone) - startHour * 60;
 }
 
 /** Vertical top/height (px) for a reservation block, clamped to the window. */
-function blockGeometry(r: Reservation, zone: string): { top: number; height: number } {
-  const totalMin = HOURS * 60;
+function blockGeometry(
+  r: Reservation,
+  zone: string,
+  startHour: number,
+  totalMin: number
+): { top: number; height: number } {
   // Clamp BOTH ends to the visible window and derive height from the clamped
-  // span — otherwise a reservation starting before START_HOUR keeps its full
+  // span — otherwise a reservation starting before the window keeps its full
   // duration and draws too tall (past its real end). Mirrors the lane grid.
-  const s = Math.max(0, Math.min(totalMin, minutesInWindow(r.start, zone)));
-  const e = Math.max(0, Math.min(totalMin, minutesInWindow(r.end, zone)));
+  const s = Math.max(0, Math.min(totalMin, minutesInWindow(r.start, zone, startHour)));
+  const e = Math.max(0, Math.min(totalMin, minutesInWindow(r.end, zone, startHour)));
   const top = (s / 60) * HOUR_HEIGHT;
   const height = Math.max(MIN_BLOCK, ((e - s) / 60) * HOUR_HEIGHT);
   return { top, height };
@@ -62,13 +57,21 @@ export function WeekTimeGrid({
   const tz = useTimeZone();
   const canCreate = onCreate != null;
   const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
+  // Computed over the WHOLE week, not per column, so all seven days share one time axis.
+  const { startHour, endHour } = hourWindow(reservations, tz.zone);
+  const hours = endHour - startHour;
+  const totalMin = hours * 60;
+  const gridHeight = hours * HOUR_HEIGHT;
   const now = new Date();
-  const nowMin = minutesInWindow(now, tz.zone);
-  const showNow = nowMin >= 0 && nowMin <= TOTAL_MIN;
+  const nowMin = minutesInWindow(now, tz.zone, startHour);
+  const showNow = nowMin >= 0 && nowMin <= totalMin;
 
   return (
     <div className="h-full min-h-0 overflow-auto">
-      <div className="grid min-w-[52rem] grid-cols-[auto_repeat(7,minmax(0,1fr))]">
+      {/* The gutter column needs an EXPLICIT width: every hour label inside it is absolutely
+          positioned, so an `auto` track has no in-flow content to measure and collapses to the
+          1px border — the labels then overflow left and get clipped by the scroll container. */}
+      <div className="grid min-w-[52rem] grid-cols-[2.75rem_repeat(7,minmax(0,1fr))]">
         {/* Header row: corner + day headers (sticky top) */}
         <div className="sticky left-0 top-0 z-30 border-b border-r border-border bg-card" />
         {days.map((d) => (
@@ -98,15 +101,15 @@ export function WeekTimeGrid({
         {/* Body row: hour gutter + day columns */}
         <div
           className="sticky left-0 z-10 shrink-0 border-r border-border bg-card"
-          style={{ height: GRID_HEIGHT }}
+          style={{ height: gridHeight }}
         >
-          {Array.from({ length: HOURS }).map((_, i) => (
+          {Array.from({ length: hours }).map((_, i) => (
             <div
               key={i}
               className="absolute right-1.5 pt-0.5 text-[10px] tabular-nums text-muted-foreground"
               style={{ top: i * HOUR_HEIGHT }}
             >
-              {hourLabel(START_HOUR + i)}
+              {hourLabel(startHour + i)}
             </div>
           ))}
         </div>
@@ -132,8 +135,8 @@ export function WeekTimeGrid({
                       const rect = e.currentTarget.getBoundingClientRect();
                       const y = e.clientY - rect.top;
                       const hour = Math.min(
-                        END_HOUR - 1,
-                        Math.max(START_HOUR, START_HOUR + Math.floor(y / HOUR_HEIGHT))
+                        endHour - 1,
+                        Math.max(startHour, startHour + Math.floor(y / HOUR_HEIGHT))
                       );
                       const hh = String(hour).padStart(2, "0");
                       const eh = String(hour + 1).padStart(2, "0");
@@ -157,7 +160,7 @@ export function WeekTimeGrid({
                   "cursor-copy focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               )}
               style={{
-                height: GRID_HEIGHT,
+                height: gridHeight,
                 backgroundImage: `repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px ${HOUR_HEIGHT}px)`,
               }}
             >
@@ -171,7 +174,7 @@ export function WeekTimeGrid({
                 </div>
               )}
               {placed.map(({ r, track }) => {
-                const { top, height } = blockGeometry(r, tz.zone);
+                const { top, height } = blockGeometry(r, tz.zone, startHour, totalMin);
                 return (
                   <div
                     key={r.id}

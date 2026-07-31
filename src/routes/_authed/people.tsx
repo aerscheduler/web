@@ -22,10 +22,12 @@ import { AdminAssignPairDialog } from "@/components/people/admin-assign-pair-dia
 import { MemberCard } from "@/components/people/member-card";
 import { MemberProfileSheet } from "@/components/people/member-profile-sheet";
 import { MemberRowActions } from "@/components/people/member-row-actions";
+import { GuestsTable } from "@/components/people/guests-table";
 import { memberName } from "@/components/people/util";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { asFacetInts, asFacetStrings, useListQueryState, validateListSearch } from "@/lib/list-query-state";
-import { canManageMembers } from "@/lib/permissions";
+import { canManageMembers, isInstructor, isStaff } from "@/lib/permissions";
 import { formatDate, initials } from "@/lib/utils";
 
 const PEOPLE_FACET_KEYS = ["role", "grounded", "groupId"] as const;
@@ -43,16 +45,32 @@ export const Route = createFileRoute("/_authed/people")({
   validateSearch: (s) => {
     const list = validateListSearch(s, [...PEOPLE_FACET_KEYS]);
     const member = Number.parseInt(String(s.member ?? ""), 10);
-    return Number.isFinite(member) ? { ...list, member: String(member) } : list;
+    const tab = s.tab === "guests" ? "guests" : undefined;
+    return {
+      ...list,
+      ...(tab ? { tab } : {}),
+      ...(Number.isFinite(member) ? { member: String(member) } : {}),
+    };
   },
   component: PeoplePage,
 });
 
+/**
+ * Every role the server can filter on, plus "no role". `GET /orgUsers` has
+ * always accepted technician/dispatcher/noRoles — only this list was short, so
+ * a technician or a member waiting to be assigned a role was unfindable.
+ *
+ * Owner is deliberately absent: the server enforces owner ⊃ admin, so owners
+ * already appear under Admins and a separate facet would only ever be a subset.
+ */
 const ROLE_OPTIONS = [
   { value: "instructor", label: "Instructors" },
   { value: "student", label: "Students" },
   { value: "renter", label: "Renters" },
+  { value: "technician", label: "Technicians" },
+  { value: "dispatcher", label: "Dispatchers" },
   { value: "admin", label: "Admins" },
+  { value: "noRoles", label: "No role yet" },
 ] as const;
 
 type RoleKey = (typeof ROLE_OPTIONS)[number]["value"];
@@ -61,7 +79,10 @@ const ROLE_FILTER: Record<RoleKey, MemberFilter> = {
   instructor: { instructor: true },
   student: { student: true },
   renter: { renter: true },
+  technician: { technician: true },
+  dispatcher: { dispatcher: true },
   admin: { admin: true },
+  noRoles: { noRoles: true },
 };
 
 const EMPTY_BY_ROLE: Record<RoleKey | "all", { title: string; body: string }> = {
@@ -81,9 +102,21 @@ const EMPTY_BY_ROLE: Record<RoleKey | "all", { title: string; body: string }> = 
     title: "No renters yet",
     body: "Invite renters to let them book aircraft solo.",
   },
+  technician: {
+    title: "No technicians yet",
+    body: "Invite your maintenance staff so they can work squawks and reminders.",
+  },
+  dispatcher: {
+    title: "No dispatchers yet",
+    body: "Grant dispatcher to whoever runs the board day to day.",
+  },
   admin: {
     title: "No admins yet",
     body: "Grant admin to trusted staff so they can help run the school.",
+  },
+  noRoles: {
+    title: "Everyone has a role",
+    body: "Nobody is waiting to be assigned — new members will show up here.",
   },
 };
 
@@ -100,6 +133,17 @@ function PeoplePage() {
     navigate: navigateSearch,
     facetKeys: [...PEOPLE_FACET_KEYS],
   });
+  // Guests come from `GET /organizations/guests`, which the server serves to
+  // admin, dispatcher and instructor — mirror exactly that.
+  const canViewGuests = isStaff(roles) || isInstructor(roles);
+  const tab = canViewGuests && routeSearch.tab === "guests" ? "guests" : "members";
+  const setTab = (next: string) =>
+    navigateSearch({
+      search: ({ tab: _drop, ...rest }: Record<string, unknown>) =>
+        next === "guests" ? { ...rest, tab: "guests" } : rest,
+      replace: true,
+    });
+
   const [inviteOpen, setInviteOpen] = useState(false);
   const [assignPairOpen, setAssignPairOpen] = useState(false);
   const [editing, setEditing] = useState<OrganizationUser | null>(null);
@@ -131,8 +175,15 @@ function PeoplePage() {
   const roleKeys = asFacetStrings(facets.role).filter(
     (r): r is RoleKey => r in ROLE_FILTER
   );
+  // `noRoles` trumps every other role flag on the server (routes/orgUser.ts), so
+  // combining it with, say, Students would silently drop the Students half.
+  // Match that here rather than sending a filter the server won't honour.
   const roleFilter: MemberFilter = {};
-  for (const r of roleKeys) Object.assign(roleFilter, ROLE_FILTER[r]);
+  if (roleKeys.includes("noRoles")) {
+    Object.assign(roleFilter, ROLE_FILTER.noRoles);
+  } else {
+    for (const r of roleKeys) Object.assign(roleFilter, ROLE_FILTER[r]);
+  }
   const groupIds = asFacetInts(facets.groupId);
 
   const q = useMembers({
@@ -295,18 +346,35 @@ function PeoplePage() {
         <PageHeader
           title="People"
           subtitle={
-            q.data
-              ? `${members.length} member${members.length === 1 ? "" : "s"}`
-              : "Your organization roster"
+            tab === "guests"
+              ? "Guests booked on your reservations"
+              : q.data
+                ? `${members.length} member${members.length === 1 ? "" : "s"}`
+                : "Your organization roster"
           }
         />
 
-        {canManageMembers(roles) && <JoinRequestsPanel />}
-        {canManageMembers(roles) && <InstructionRequestsPanel />}
-        {toolbar}
+        {canViewGuests && (
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList>
+              <TabsTrigger value="members">Members</TabsTrigger>
+              <TabsTrigger value="guests">Guests</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
+
+        {tab === "members" && (
+          <>
+            {canManageMembers(roles) && <JoinRequestsPanel />}
+            {canManageMembers(roles) && <InstructionRequestsPanel />}
+            {toolbar}
+          </>
+        )}
       </TableView.Header>
 
-      {q.isPending ? (
+      {tab === "guests" ? (
+        <GuestsTable />
+      ) : q.isPending ? (
         <Card className="min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={8} cols={5} />
         </Card>

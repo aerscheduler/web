@@ -31,6 +31,7 @@ import type {
   ConfirmReviewGuestInput,
   Currency,
   CurrencyType,
+  Guest,
   OrgUserGroupInput,
   OrgUserGroup,
   ResourceGroupInput,
@@ -254,6 +255,21 @@ export function useRatings(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["ratings"],
     queryFn: () => api<OrganizationRating[]>("/organizations/ratings"),
+    ...opts,
+  });
+}
+
+/**
+ * Guests on the org's reservations — `GET /organizations/guests`.
+ *
+ * A Guest is NOT an OrgUser: it's a name/email/phone captured on a reservation,
+ * so it can't be a role facet on the roster and gets its own tab. The server
+ * serves this to admin, dispatcher and instructor.
+ */
+export function useGuests(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["guests"],
+    queryFn: () => api<Guest[]>("/organizations/guests"),
     ...opts,
   });
 }

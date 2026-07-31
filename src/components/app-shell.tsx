@@ -457,7 +457,7 @@ function Topbar() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   return (
-    <header className="sticky top-0 z-20 shrink-0 bg-background">
+    <header className="sticky top-0 z-50 shrink-0 bg-background">
       {/* Inner row shares the content's max-width + gutters so the search aligns
           with the page's left edge and the icons with its right edge. */}
       <div className="mx-auto flex h-12 w-full max-w-[1280px] items-center gap-2 px-4 md:px-10">

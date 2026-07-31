@@ -227,7 +227,7 @@ function SchedulePage() {
         <ListSearchBar
           value={search}
           onChange={setSearch}
-          placeholder="Search resources or bookings…"
+          placeholder="Search people, aircraft, dual, solo…"
           aria-label="Search schedule"
           facets={facetDefs}
           filterValues={facets}

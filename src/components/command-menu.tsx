@@ -147,8 +147,8 @@ const TYPE_FILTERS: {
   {
     type: "reservation",
     syntax: "flights:",
-    description: "search reservations only",
-    keywords: ["flight", "flights", "reservation", "booking", "schedule"],
+    description: "search by people, aircraft, or type",
+    keywords: ["flight", "flights", "reservation", "booking", "schedule", "dual", "solo", "instruction"],
   },
   {
     type: "squawk",

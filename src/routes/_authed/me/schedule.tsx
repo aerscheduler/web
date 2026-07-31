@@ -192,7 +192,7 @@ function MySchedulePage() {
         <ListSearchBar
           value={search}
           onChange={setSearch}
-          placeholder="Search flights…"
+          placeholder="Search people, aircraft, dual, solo…"
           aria-label="Search calendar"
           facets={facetDefs}
           filterValues={facets}

@@ -66,6 +66,12 @@ export function MemberInstructionSection({ ou }: { ou: OrganizationUser }) {
   const showInstructorBlock = subjectInstructorId != null;
   const showStudentBlock = subjectStudentId != null;
 
+  // Nothing instruction-related to show: plain members for non-admins. Admins
+  // still see a hint about Edit roles / Assign pair.
+  if (!showInstructorBlock && !showStudentBlock && !isAdmin) {
+    return null;
+  }
+
   const assignedForDialog =
     dialogMode === "assignStudent" || dialogMode === "unassignStudent"
       ? students.map((s) => s.id)
@@ -119,7 +125,7 @@ export function MemberInstructionSection({ ou }: { ou: OrganizationUser }) {
         )}
       </div>
 
-      {!showInstructorBlock && !showStudentBlock ? (
+      {!showInstructorBlock && !showStudentBlock && isAdmin ? (
         <p className="text-sm text-muted-foreground">
           This member isn&apos;t an instructor or student — add that role under Edit
           roles, or use <span className="font-medium text-foreground">Assign pair</span>{" "}

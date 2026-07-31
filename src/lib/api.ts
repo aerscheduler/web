@@ -1,5 +1,9 @@
 import { API_URL } from "./env";
 
+/** Injected by vite.config.ts at build time — `aerscheduler-web/<commit>`. */
+declare const __CLIENT_ID__: string;
+const CLIENT_ID = typeof __CLIENT_ID__ === "string" ? __CLIENT_ID__ : "aerscheduler-web";
+
 const TOKEN_KEY = "aer.token";
 
 export function getToken(): string | null {
@@ -46,6 +50,13 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
   const headers = new Headers({ Accept: "application/json" });
   const token = getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
+
+  // Identify the console to the API's request log. The browser's User-Agent
+  // already says "a browser on Windows", but not *which of our clients* nor
+  // which build — so a bug report can't be tied to a deploy. The app sends the
+  // same shape via its User-Agent (it has no shared request builder to add a
+  // header to); the server logs both.
+  headers.set("X-Client", CLIENT_ID);
 
   let url = `${API_URL}${path}`;
   if (opts.query) {

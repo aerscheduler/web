@@ -9,12 +9,22 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, getToken } from "@/lib/api";
 import { API_URL } from "@/lib/env";
 import type {
+  CompareMode,
   ReportCatalog,
   ReportConfig,
+  ReportOverview,
   ReportRunRequest,
   ReportRunResult,
   SavedReportView,
 } from "@/types/reports";
+import type {
+  DashboardConfig,
+  DashboardDocument,
+  Visualization,
+  VisualizationResult,
+} from "@/types/dashboard";
+import { MAX_TILES_PER_PANEL, placeAtBottom } from "@/lib/dashboard-layout";
+import { DEVICE_TIME_ZONE } from "@/lib/timezone";
 
 /**
  * What this user may run, with every column, filter and dropdown resolved.
@@ -29,6 +39,22 @@ export function useReportCatalog() {
     queryFn: () => api<ReportCatalog>("/reports/catalog"),
     staleTime: 5 * 60 * 1000,
   });
+}
+
+/**
+ * The clock this school's reporting days are measured on.
+ *
+ * Comes from the server with the catalog, so the console and the engine resolve
+ * "Last 30 days" identically — the alternative is each deciding for itself,
+ * which is exactly how a tile and its own report came to show different totals.
+ *
+ * Falls back to the browser's zone only while the catalog is still loading; the
+ * server would answer the same in that case, since the device zone is the step
+ * it uses when a school has set none.
+ */
+export function useReportTimeZone(): string {
+  const catalog = useReportCatalog();
+  return catalog.data?.timeZone ?? DEVICE_TIME_ZONE;
 }
 
 /**
@@ -95,6 +121,140 @@ export async function downloadReport(request: ReportRunRequest, format: "csv" = 
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/**
+ * The Overview — KPI tiles, needs-attention counts and trend series.
+ *
+ * One request rather than one per tile: the server runs each underlying report
+ * once and shares it across the tiles that read from it, which a fan-out of
+ * client calls could not do.
+ */
+export function useReportOverview(
+  range: { startDate: string; endDate: string } | null,
+  compare: CompareMode
+) {
+  return useQuery({
+    queryKey: ["report-overview", range, compare],
+    enabled: !!range,
+    queryFn: () =>
+      api<ReportOverview>("/reports/overview", {
+        query: { startDate: range!.startDate, endDate: range!.endDate, compare },
+      }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+// ---------------------------------------------------------------- dashboard
+
+export const DASHBOARD_QUERY_KEY = ["report-dashboard"] as const;
+
+const fetchDashboard = () => api<DashboardDocument>("/reports/dashboard");
+
+/** The caller's dashboard. Falls back to the built-in layout when none is saved. */
+export function useDashboard() {
+  return useQuery({
+    queryKey: DASHBOARD_QUERY_KEY,
+    queryFn: fetchDashboard,
+  });
+}
+
+/**
+ * Recover the dashboard query from a failed load.
+ *
+ * `refetch()` is the obvious call and it does NOT work here: once a query has
+ * settled into an error state React Query keeps serving that state, so the
+ * button appeared to do nothing (no request was even made). `resetQueries`
+ * clears the error and re-runs the query, which is what "Try again" has to mean.
+ */
+export function useRetryDashboard() {
+  const qc = useQueryClient();
+  return () => qc.resetQueries({ queryKey: DASHBOARD_QUERY_KEY });
+}
+
+/**
+ * Run every visualization in a config.
+ *
+ * The config is POSTed rather than read from storage so the builder can preview
+ * a tile that has not been saved. `placeholderData` keeps the previous numbers
+ * on screen while a range change reloads, so dragging a tile doesn't blank the
+ * whole board.
+ */
+export function useDashboardRun(config: DashboardConfig | null) {
+  return useQuery({
+    queryKey: ["report-dashboard-run", config],
+    enabled: !!config,
+    queryFn: () =>
+      api<{ results: VisualizationResult[] }>("/reports/dashboard/run", {
+        method: "POST",
+        body: { config },
+      }),
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useSaveDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (config: DashboardConfig) =>
+      api<DashboardDocument>("/reports/dashboard", { method: "PUT", body: { config } }),
+    onSuccess: (saved) => {
+      // Seed the cache rather than refetching: we already have the saved document.
+      qc.setQueryData(["report-dashboard"], saved);
+    },
+  });
+}
+
+/**
+ * Add one tile to the saved dashboard, without disturbing the rest of it.
+ *
+ * Pinning happens from a REPORT, where the board is very likely not loaded and
+ * may never have been this session — so this fetches the current document
+ * rather than reading whatever is in cache. Read-modify-write on the server's
+ * copy is the point: pinning must not resurrect a stale layout the user has
+ * since changed in another tab.
+ */
+export function usePinToDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (viz: Visualization) => {
+      const current = await qc.fetchQuery({
+        queryKey: DASHBOARD_QUERY_KEY,
+        queryFn: fetchDashboard,
+      });
+
+      const [panel, ...rest] = current.config.panels;
+      if (!panel) throw new Error("Your dashboard has no panel to pin this to");
+      if (panel.visualizations.length >= MAX_TILES_PER_PANEL) {
+        throw new Error(
+          `Your dashboard is full at ${MAX_TILES_PER_PANEL} tiles. Remove one and try again.`
+        );
+      }
+
+      const config: DashboardConfig = {
+        ...current.config,
+        panels: [
+          {
+            ...panel,
+            visualizations: [...panel.visualizations, placeAtBottom(panel.visualizations, viz)],
+          },
+          ...rest,
+        ],
+      };
+
+      return api<DashboardDocument>("/reports/dashboard", { method: "PUT", body: { config } });
+    },
+    onSuccess: (saved) => qc.setQueryData(DASHBOARD_QUERY_KEY, saved),
+  });
+}
+
+/** Discard the saved layout and go back to the built-in one. */
+export function useResetDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ config: DashboardConfig }>("/reports/dashboard", { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["report-dashboard"] }),
+  });
 }
 
 // ---------------------------------------------------------------- saved views

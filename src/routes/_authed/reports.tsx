@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Building2, FileBarChart } from "lucide-react";
-import { useReportCatalog } from "@/features/reports";
+import type { DateRange } from "react-day-picker";
+import { Building2, FileBarChart, LayoutDashboard } from "lucide-react";
+import { useReportCatalog, useReportTimeZone } from "@/features/reports";
 import { guardRoute } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
@@ -16,12 +17,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ReportView } from "@/components/reports/shell/report-view";
+import { Dashboard } from "@/components/reports/dashboard/dashboard";
+import { resolveRange } from "@/lib/report-format";
+import type { ReportFilterInput } from "@/types/reports";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/reports")({
   beforeLoad: guardRoute("/reports"),
   component: ReportsPage,
 });
+
+const OVERVIEW = "__overview__";
 
 /**
  * Reports.
@@ -33,25 +39,59 @@ export const Route = createFileRoute("/_authed/reports")({
  *
  * The catalog is already filtered to what this user may run, so a dispatcher
  * simply does not see a Financial section — there is nothing here to hide.
+ *
+ * Overview sits above the categories rather than inside one, because it is not a
+ * report: it is the summary of all of them, and every figure on it opens the
+ * report that produced it.
  */
 function ReportsPage() {
   const { organization } = useAuth();
   const catalog = useReportCatalog();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string>(OVERVIEW);
+
+  // The dashboard owns its own window and comparison now (a panel carries them,
+  // and each tile may override). This is only the fallback for a deep link that
+  // arrives without one.
+  const timeZone = useReportTimeZone();
+  const fallbackRange = resolveRange("past30", timeZone);
+
+  /**
+   * A deep link from the Overview. The nonce is what forces `ReportView` to
+   * remount, so the seeded filters become its initial state rather than having
+   * to be pushed into a live component.
+   */
+  const [link, setLink] = useState<{
+    reportId: string;
+    filters?: ReportFilterInput[];
+    range?: DateRange;
+    nonce: number;
+  } | null>(null);
 
   const reports = catalog.data?.reports ?? [];
   const categories = catalog.data?.categories ?? [];
-
-  // Open on the first report rather than an empty pane — the rail already shows
-  // what else there is, so an empty state here would just be a wasted click.
-  useEffect(() => {
-    if (!selectedId && reports.length > 0) setSelectedId(reports[0].id);
-  }, [reports, selectedId]);
 
   const selected = useMemo(
     () => reports.find((r) => r.id === selectedId) ?? null,
     [reports, selectedId]
   );
+
+  const openReport = (
+    reportId: string,
+    filters: ReportFilterInput[] | undefined,
+    range?: DateRange
+  ) => {
+    // The window comes from the tile that was clicked, since tiles can each
+    // carry their own — falling back to the page default when there isn't one.
+    setLink({ reportId, filters, range: range ?? fallbackRange, nonce: Date.now() });
+    setSelectedId(reportId);
+  };
+
+  const pickFromRail = (id: string) => {
+    // Choosing a report from the rail is a fresh start, not a continuation of
+    // whatever the last deep link asked.
+    setLink(null);
+    setSelectedId(id);
+  };
 
   if (!organization) {
     return (
@@ -67,6 +107,8 @@ function ReportsPage() {
       </div>
     );
   }
+
+  const seeded = link && link.reportId === selectedId ? link : null;
 
   return (
     <div className="space-y-5">
@@ -88,13 +130,14 @@ function ReportsPage() {
       ) : (
         <div className="flex flex-col gap-5 lg:flex-row">
           {/* On a phone the rail becomes a single select — a two-level list of
-              fourteen reports down the side of a 375px screen is unusable. */}
+              fifteen entries down the side of a 375px screen is unusable. */}
           <div className="lg:hidden">
-            <Select value={selectedId ?? undefined} onValueChange={setSelectedId}>
+            <Select value={selectedId} onValueChange={pickFromRail}>
               <SelectTrigger>
                 <SelectValue placeholder="Choose a report" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value={OVERVIEW}>Overview</SelectItem>
                 {categories.map((category) => (
                   <SelectGroupForCategory
                     key={category.key}
@@ -106,12 +149,24 @@ function ReportsPage() {
             </Select>
           </div>
 
-          <nav
-            aria-label="Reports"
-            className="hidden w-60 shrink-0 lg:block"
-          >
+          <nav aria-label="Reports" className="hidden w-60 shrink-0 lg:block">
             <ScrollArea className="max-h-[calc(100vh-12rem)]">
               <div className="space-y-4 pr-3">
+                <button
+                  type="button"
+                  onClick={() => pickFromRail(OVERVIEW)}
+                  aria-current={selectedId === OVERVIEW ? "page" : undefined}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                    selectedId === OVERVIEW
+                      ? "bg-muted font-medium text-foreground"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  )}
+                >
+                  <LayoutDashboard className="size-4 shrink-0" />
+                  Overview
+                </button>
+
                 {categories.map((category) => (
                   <div key={category.key}>
                     <h2 className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -124,7 +179,7 @@ function ReportsPage() {
                           <button
                             key={report.id}
                             type="button"
-                            onClick={() => setSelectedId(report.id)}
+                            onClick={() => pickFromRail(report.id)}
                             aria-current={report.id === selectedId ? "page" : undefined}
                             className={cn(
                               "block w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors",
@@ -144,7 +199,19 @@ function ReportsPage() {
           </nav>
 
           <div className="min-w-0 flex-1">
-            {selected && <ReportView key={selected.id} report={selected} />}
+            {selectedId === OVERVIEW ? (
+              <Dashboard onOpenReport={openReport} />
+            ) : (
+              selected && (
+                <ReportView
+                  key={`${selected.id}:${seeded?.nonce ?? "plain"}`}
+                  report={selected}
+                  initialFilters={seeded?.filters}
+                  initialRange={seeded?.range}
+                  onPinned={() => pickFromRail(OVERVIEW)}
+                />
+              )
+            )}
           </div>
         </div>
       )}

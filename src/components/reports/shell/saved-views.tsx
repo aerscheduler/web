@@ -9,10 +9,16 @@
  *
  * Only the author (or an admin) can overwrite one, enforced server-side; the UI
  * simply hides the controls it knows will 403.
+ *
+ * A view can also be PINNED to the dashboard, which is where a saved view stops
+ * being a bookmark you have to remember and becomes a number you see every
+ * morning. Anyone can pin any view they can see — the tile is their own copy on
+ * their own dashboard, so pinning a colleague's shared view takes nothing from
+ * them. See `pin-view.tsx` for what the tile inherits.
  */
 
 import { useState } from "react";
-import { Bookmark, Check, Loader2, Save, Trash2, Users } from "lucide-react";
+import { Bookmark, Check, Loader2, Pin, Save, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,33 +33,44 @@ import {
   useSavedViews,
   useUpdateSavedView,
 } from "@/features/reports";
-import type { ReportConfig, ReportFilterDef, SavedReportView } from "@/types/reports";
+import type { ReportConfig, ReportMeta, SavedReportView } from "@/types/reports";
 import { describeFilters } from "./filter-builder";
+import { PinViewDialog } from "@/components/reports/dashboard/pin-view";
 import { cn } from "@/lib/utils";
 
 export function SavedViews({
-  reportId,
-  filterDefs,
+  report,
   config,
   activeViewId,
   onApply,
+  onPinned,
 }: {
-  reportId: string;
-  filterDefs: ReportFilterDef[];
+  report: ReportMeta;
   /** The configuration currently on screen, saved as-is. */
   config: ReportConfig;
   activeViewId: number | null;
   onApply: (view: SavedReportView | null) => void;
+  /** Offered as a "View" action on the toast after pinning. */
+  onPinned?: () => void;
 }) {
+  const reportId = report.id;
   const views = useSavedViews(reportId);
   const create = useCreateSavedView();
   const update = useUpdateSavedView();
   const remove = useDeleteSavedView();
 
   const confirm = useConfirm();
+  const [listOpen, setListOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+  const [pinning, setPinning] = useState<SavedReportView | null>(null);
   const [name, setName] = useState("");
   const [shared, setShared] = useState(false);
+
+  /**
+   * A report with nothing summable — a document list, say — has no number to put
+   * on a tile, so the action isn't offered rather than failing when it's used.
+   */
+  const canPin = report.metrics.length > 0;
 
   const destroy = async (view: SavedReportView) => {
     const ok = await confirm({
@@ -105,7 +122,7 @@ export function SavedViews({
   return (
     <>
       <div className="flex items-center gap-1.5">
-        <Popover>
+        <Popover open={listOpen} onOpenChange={setListOpen}>
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="gap-2">
               <Bookmark className={cn("size-4", active && "fill-current")} />
@@ -151,17 +168,39 @@ export function SavedViews({
                         )}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
-                        {describeFilters(filterDefs, view.config.filters ?? []) ||
+                        {describeFilters(report.filters, view.config.filters ?? []) ||
                           (view.isShared && !view.isMine
                             ? `Shared by ${view.createdBy ?? "a colleague"}`
                             : "No filters")}
                       </span>
                     </button>
+                    {canPin && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        // Always visible, unlike delete: pinning is a feature
+                        // people have to be able to FIND, and a hover-only
+                        // control doesn't exist at all on the front-desk tablet.
+                        className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          // Close the list first: a dialog opened from inside an
+                          // open popover fights it for focus on the way out.
+                          setListOpen(false);
+                          setPinning(view);
+                        }}
+                        aria-label={`Pin ${view.name} to the dashboard`}
+                        title="Pin to dashboard"
+                      >
+                        <Pin className="size-3.5" />
+                      </Button>
+                    )}
                     {view.isMine && (
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="size-6 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive"
+                        // Destructive, so it stays tucked away — but revealed on
+                        // a touch screen, where there is no hover to reveal it.
+                        className="size-6 shrink-0 text-muted-foreground opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
                         onClick={() => destroy(view)}
                         aria-label={`Delete ${view.name}`}
                       >
@@ -246,6 +285,17 @@ export function SavedViews({
         </Popover>
       </div>
 
+      {pinning && (
+        <PinViewDialog
+          // Keyed so reopening on a different view rebuilds the form from it.
+          key={pinning.id}
+          open
+          onOpenChange={(open) => !open && setPinning(null)}
+          view={pinning}
+          report={report}
+          onPinned={onPinned}
+        />
+      )}
     </>
   );
 }

@@ -12,7 +12,7 @@
  * current value, with no translation layer to get out of step.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { Download, Group, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -26,10 +26,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
-import { downloadReport, useReportRun } from "@/features/reports";
+import { downloadReport, useReportRun, useReportTimeZone } from "@/features/reports";
 import { rangeToIso, resolveRange } from "@/lib/report-format";
 import type {
   ReportConfig,
+  ReportFilterInput,
   ReportMeta,
   ReportRunRequest,
   SavedReportView,
@@ -43,34 +44,52 @@ const PAGE_SIZE = 100;
 /** The sentinel for "no grouping" — a Radix Select item cannot have an empty value. */
 const NO_GROUP = "__none__";
 
-function defaultConfig(report: ReportMeta): ReportConfig {
+function defaultConfig(report: ReportMeta, filters?: ReportFilterInput[]): ReportConfig {
   return {
     columns: report.columns.filter((c) => c.default !== false).map((c) => c.key),
-    filters: [],
-    groupBy: report.defaultGroupBy,
+    filters: filters ?? [],
+    // A deep link arrives with the question already asked ("which flights were
+    // never invoiced"), so it lands on the rows rather than on a grouped summary
+    // the reader then has to expand.
+    groupBy: filters?.length ? null : report.defaultGroupBy,
     sort: report.defaultSort,
     range: report.defaultRange,
   };
 }
 
-export function ReportView({ report }: { report: ReportMeta }) {
-  const [config, setConfig] = useState<ReportConfig>(() => defaultConfig(report));
-  const [range, setRange] = useState<DateRange | undefined>(() => resolveRange(report.defaultRange));
+export function ReportView({
+  report,
+  initialFilters,
+  initialRange,
+  onPinned,
+}: {
+  report: ReportMeta;
+  /** Seeded by an Overview tile or attention item. */
+  initialFilters?: ReportFilterInput[];
+  /** The window the Overview was showing, so the number carries across. */
+  initialRange?: DateRange;
+  /** Show the dashboard a pinned tile just landed on. */
+  onPinned?: () => void;
+}) {
+  // Every window on this page is measured on the school's clock, not the
+  // browser's — see `lib/report-format.ts`.
+  const timeZone = useReportTimeZone();
+
+  const [config, setConfig] = useState<ReportConfig>(() => defaultConfig(report, initialFilters));
+  const [range, setRange] = useState<DateRange | undefined>(
+    () => initialRange ?? resolveRange(report.defaultRange, timeZone)
+  );
   const [page, setPage] = useState(1);
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  // Switching reports resets everything — carrying a filter or a sort key across
-  // reports would silently drop it (the keys don't exist on the new report) and
-  // look like the console had forgotten what you asked for.
-  useEffect(() => {
-    setConfig(defaultConfig(report));
-    setRange(resolveRange(report.defaultRange));
-    setPage(1);
-    setActiveViewId(null);
-  }, [report.id]);
+  // No reset effect: the caller keys this component on the report (and on the
+  // deep link), so switching reports remounts it and the initial state above IS
+  // the reset. An effect here would additionally have to avoid clobbering a
+  // seeded deep link on its first run — a reset that only exists because the
+  // component was kept alive unnecessarily.
 
-  const iso = rangeToIso(range);
+  const iso = rangeToIso(range, timeZone);
 
   // A filter you have added but not yet filled in must not narrow anything —
   // see `isCompleteFilter`. The row stays on screen; it just isn't sent yet.
@@ -132,7 +151,7 @@ export function ReportView({ report }: { report: ReportMeta }) {
     // A saved relative range ("month to date") is re-resolved rather than
     // restored as fixed dates, so the view still means something next month.
     const saved = view.config.range;
-    if (typeof saved === "string") setRange(resolveRange(saved));
+    if (typeof saved === "string") setRange(resolveRange(saved, timeZone));
     else if (saved) setRange({ from: new Date(saved.startDate), to: new Date(saved.endDate) });
     setPage(1);
   };
@@ -188,11 +207,11 @@ export function ReportView({ report }: { report: ReportMeta }) {
           />
 
           <SavedViews
-            reportId={report.id}
-            filterDefs={report.filters}
-            config={{ ...config, range: range ? rangeToIso(range) ?? undefined : undefined }}
+            report={report}
+            config={{ ...config, range: range ? rangeToIso(range, timeZone) ?? undefined : undefined }}
             activeViewId={activeViewId}
             onApply={applyView}
+            onPinned={onPinned}
           />
 
           <Button

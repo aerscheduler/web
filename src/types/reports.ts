@@ -86,11 +86,23 @@ export interface ReportMeta {
   defaultGroupBy: string | null;
   footnote: string | null;
   columns: ReportColumn[];
+  /**
+   * Column keys that can be a dashboard METRIC — aggregatable, or a ratio the
+   * engine re-derives. Sent by the server so the tile builder can only offer a
+   * choice that renders; a label column on a number card is an empty box.
+   */
+  metrics: string[];
   dimensions: ReportDimension[];
   filters: ReportFilterDef[];
 }
 
 export interface ReportCatalog {
+  /**
+   * The IANA zone every report window is measured in —
+   * `organization.timeZone → the viewer's browser → UTC`, resolved server-side.
+   * Read it through `useReportTimeZone()` rather than picking a zone locally.
+   */
+  timeZone: string;
   categories: { key: ReportCategoryKey; label: string }[];
   reports: ReportMeta[];
 }
@@ -133,6 +145,64 @@ export interface ReportRunResult {
   page: number;
   pageSize: number;
   total: number;
+}
+
+// ---------------------------------------------------------------- overview
+
+export type CompareMode = "previous" | "lastYear" | "none";
+
+/**
+ * A KPI tile.
+ *
+ * It carries the report and filters it was computed from, so clicking it opens
+ * the report showing the same number — the tile and the table are one execution
+ * path on the server, not two that have to be kept in agreement.
+ */
+export interface OverviewTile {
+  key: string;
+  label: string;
+  hint: string;
+  reportId: string;
+  column: string;
+  icon: string;
+  betterWhen?: "higher" | "lower";
+  filters?: ReportFilterInput[];
+  /** In the column's own unit — cents, deci-hours, 0..1. */
+  value: number | null;
+  previous: number | null;
+  /** Fractional change; null when there was no baseline worth comparing to. */
+  delta: number | null;
+}
+
+export interface OverviewAttention {
+  key: string;
+  label: string;
+  hint: string;
+  reportId: string;
+  filters: ReportFilterInput[];
+  tone: "danger" | "warning" | "info";
+  count: number;
+}
+
+export interface OverviewTrend {
+  key: string;
+  label: string;
+  reportId: string;
+  unit: "hours" | "money";
+  series: { key: string; label: string }[];
+  /**
+   * One entry per day that had activity; quiet days are absent, not zero.
+   * `date` is an ISO day; every other key is a series value in the unit above.
+   */
+  points: Record<string, string | number | null>[];
+}
+
+export interface ReportOverview {
+  range: { startDate: string; endDate: string };
+  comparison: { startDate: string; endDate: string; mode: CompareMode } | null;
+  tiles: OverviewTile[];
+  attention: OverviewAttention[];
+  trends: OverviewTrend[];
 }
 
 export interface SavedReportView {

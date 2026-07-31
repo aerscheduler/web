@@ -10,9 +10,10 @@
  * that shows them identically is one a school will stop trusting.
  */
 
-import { addDays, endOfDay, format, parseISO, startOfDay, startOfMonth, startOfYear } from "date-fns";
+import { addDays, format, parseISO, startOfMonth, startOfYear } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import type { ReportColumn, ReportColumnType, ReportDefaultRange } from "@/types/reports";
+import { wallClockInZone, zonedWallClockToUtc } from "@/lib/timezone";
 
 export const EMPTY_CELL = "—";
 
@@ -98,15 +99,53 @@ export const RANGE_LABELS: Record<ReportDefaultRange, string> = {
 };
 
 /**
- * A named window → real dates.
+ * Every window here is measured on the SCHOOL's clock, not the browser's.
+ *
+ * This used to use the device's midnight while the server used UTC's, so at
+ * UTC-6 the same words meant windows six hours apart at both ends and a
+ * dashboard tile disagreed with the report it opened — $84,956 against $86,015
+ * for one "Last 30 days". `timeZone` is a required argument for that reason:
+ * the zone comes from `/reports/catalog` (`organization.timeZone → this
+ * browser's → UTC`), so both sides resolve the same names the same way.
+ *
+ * The maths deliberately mirrors `server/src/reports/engine/window.ts`. If one
+ * changes, the other has to.
+ */
+
+/** The calendar date it is in `timeZone` right now, as a LOCAL Date carrying those parts. */
+function todayIn(timeZone: string): Date {
+  const { year, month, day } = wallClockInZone(new Date(), timeZone);
+  // A local Date whose y/m/d ARE the school's date: the picker and `format`
+  // read local components, so this is what makes them show the school's day.
+  return new Date(year, month - 1, day);
+}
+
+/** Midnight in the zone, for the calendar date this Date's local parts name. */
+function dayStartIn(day: Date, timeZone: string): Date {
+  return zonedWallClockToUtc(day.getFullYear(), day.getMonth() + 1, day.getDate(), 0, 0, timeZone);
+}
+
+/**
+ * The last millisecond of that date in the zone.
+ *
+ * Next midnight minus 1ms rather than "23:59:59.999", so the two days a year a
+ * zone shifts — and the handful of zones that shift AT midnight — are still
+ * covered to their real end. The server computes it the same way.
+ */
+function dayEndIn(day: Date, timeZone: string): Date {
+  const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+  return new Date(dayStartIn(next, timeZone).getTime() - 1);
+}
+
+/**
+ * A named window → the calendar dates the picker shows.
  *
  * Reports that look forwards (expirations, maintenance due) declare a forward
  * range, so opening one shows what is about to happen rather than what already
- * lapsed. Storing the NAME in a saved view rather than the dates is what keeps
- * "Month-end revenue" meaningful next month.
+ * lapsed.
  */
-export function resolveRange(name: ReportDefaultRange): DateRange {
-  const today = startOfDay(new Date());
+export function resolveRange(name: ReportDefaultRange, timeZone: string): DateRange {
+  const today = todayIn(timeZone);
   switch (name) {
     case "past7":
       return { from: addDays(today, -6), to: today };
@@ -126,11 +165,44 @@ export function resolveRange(name: ReportDefaultRange): DateRange {
   }
 }
 
-/** A picked range → the ISO window the API expects, or null if incomplete. */
-export function rangeToIso(range: DateRange | undefined): { startDate: string; endDate: string } | null {
+/**
+ * Picked dates → the ISO window the API expects, or null if incomplete.
+ *
+ * The dates are what the user pointed at on a calendar, so they are anchored in
+ * the school's zone rather than converted as instants — converting would slide
+ * the whole window by the offset between the two clocks.
+ */
+export function rangeToIso(
+  range: DateRange | undefined,
+  timeZone: string
+): { startDate: string; endDate: string } | null {
   if (!range?.from) return null;
   return {
-    startDate: startOfDay(range.from).toISOString(),
-    endDate: endOfDay(range.to ?? range.from).toISOString(),
+    startDate: dayStartIn(range.from, timeZone).toISOString(),
+    endDate: dayEndIn(range.to ?? range.from, timeZone).toISOString(),
   };
+}
+
+/**
+ * "Jul 2 – Jul 31" for a window that came back from the server.
+ *
+ * Formatted in the zone it was MEASURED in. Printing a server-computed window
+ * with the browser's clock is how a `past30` window computed over the school's
+ * days came out labelled "Jul 1 – Jul 31" while its own report said "Jul 2".
+ */
+export function formatWindow(
+  window: { startDate: string; endDate: string } | undefined,
+  timeZone: string
+): string {
+  if (!window) return "";
+  try {
+    const from = wallClockInZone(window.startDate, timeZone);
+    const to = wallClockInZone(window.endDate, timeZone);
+    const sameYear = from.year === wallClockInZone(new Date(), timeZone).year;
+    const asDate = (p: { year: number; month: number; day: number }) =>
+      new Date(p.year, p.month - 1, p.day);
+    return `${format(asDate(from), "MMM d")} – ${format(asDate(to), sameYear ? "MMM d" : "MMM d, yyyy")}`;
+  } catch {
+    return "";
+  }
 }

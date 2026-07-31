@@ -80,12 +80,23 @@
   --res-guest: #7256b0;
   --res-maintenance: #5e7290; /* steel-blue — legible + distinct from ground */
 
-  /* dashboard KPI chart series */
-  --chart-1: #1967d2;
-  --chart-2: #2c4589;
-  --chart-3: #0a7047;
-  --chart-4: #9a6a45;
-  --chart-5: #b7791f;
+  /* Chart series, in fixed categorical order — assigned by slot, never cycled.
+     Deliberately NOT the UI accent colours: the previous values here were two
+     near-identical blues (#1967d2, #2c4589), which a colour-blind reader cannot
+     tell apart as adjacent series. These are a validated set — checked against
+     this surface (#ffffff) for lightness band, chroma floor, CVD separation and
+     normal-vision separation.
+     --chart-3 sits below 3:1 on white, so any chart using it must ship a legend
+     and direct labels rather than leaning on the hue being seen at all.
+     Slots 1–3 are cleared for every chart form; past three series, re-validate
+     for the form in use (scatter/small-multiples are stricter than lines) or
+     fold the tail into "Other" rather than inventing a hue. */
+  --chart-1: #2a78d6; /* blue */
+  --chart-2: #eb6834; /* orange */
+  --chart-3: #1baf7a; /* aqua */
+  --chart-4: #eda100; /* yellow */
+  --chart-5: #e87ba4; /* magenta */
+  --chart-grid: #e3e5ea;
 }
 
 .dark {
@@ -144,11 +155,14 @@
   --res-guest: #a08bd6;
   --res-maintenance: #9aa4c0;
 
-  --chart-1: #4a8fe7;
-  --chart-2: #5a86d0;
-  --chart-3: #34d399;
-  --chart-4: #c08a63;
-  --chart-5: #f0b955;
+  /* The same hues re-stepped for the dark card surface (#151b2d) and validated
+     against it — all three of 1–3 clear 3:1 there. */
+  --chart-1: #3987e5;
+  --chart-2: #d95926;
+  --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-grid: #232b42;
 }
 
 @theme inline {

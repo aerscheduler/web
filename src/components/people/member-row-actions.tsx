@@ -39,10 +39,9 @@ export function MemberRowActions({
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { roles } = useAuth();
-  // Use the nested user's id, not FK_userId — the server strips every FK_* field
-  // from responses, so ou.FK_userId is always undefined (which would PATCH/POST
-  // to `.../undefined`). The /orgUsers list includes `user.id`.
-  const targetUserId = ou.user?.id ?? ou.FK_userId ?? 0;
+  // The member's USER id, from the nested relation — see the note in types/api.ts.
+  // The /orgUsers list includes `user.id`.
+  const targetUserId = ou.user?.id ?? 0;
   const orgUserMut = useUpdateMemberOrgUser(targetUserId);
   const name = memberName(ou);
   const [groundOpen, setGroundOpen] = useState(false);

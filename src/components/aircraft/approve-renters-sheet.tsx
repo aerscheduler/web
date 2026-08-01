@@ -43,7 +43,7 @@ export function ApproveRentersSheet({
   const tail = resource?.type?.plane?.tailNumber ?? "aircraft";
 
   function toggle(m: OrganizationUser, next: boolean) {
-    const userId = m.user?.id ?? m.FK_userId;
+    const userId = m.user?.id ?? 0;
     setApproved((prev) => ({ ...prev, [m.id]: next }));
     approve.mutate(
       { userId, approve: next },

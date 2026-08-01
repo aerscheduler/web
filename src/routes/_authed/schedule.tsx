@@ -125,11 +125,8 @@ function SchedulePage() {
     if (resourceIds?.length)
       list = list.filter((r) => resourceIds.includes(r.id));
     if (locationIds?.length)
-      list = list.filter(
-        (r) =>
-          locationIds.includes(r.FK_locationId) ||
-          (r.location?.id != null && locationIds.includes(r.location.id))
-      );
+      // Match on the nested location relation — see the note in types/api.ts.
+      list = list.filter((r) => r.location?.id != null && locationIds.includes(r.location.id));
     return list;
   }, [resources, resourceIds, locationIds]);
 

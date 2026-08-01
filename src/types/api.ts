@@ -1,5 +1,14 @@
 // Types mirrored from the server Prisma schema (see _local/insights/api-contract.md).
 // All DateTime columns arrive as ISO strings; all money fields are integer cents.
+//
+// There are deliberately NO `FK_*` fields here. The server strips every property
+// whose name contains "FK_" from outgoing JSON (server/src/middleware/
+// stripForeignKeys.ts), so declaring them would describe fields that are always
+// `undefined` at runtime — which is exactly how the dispatch board once grouped
+// every reservation into "Unassigned" and the location filter silently matched
+// nothing. Read the nested relation's id instead: `r.resource?.id`,
+// `r.location?.id`, `member.user?.id`. Leaving them off the types makes that a
+// compile error rather than a silent one.
 
 export type Role =
   | "owner"
@@ -21,7 +30,6 @@ export interface User {
   name: string;
   showInDirectory?: boolean;
   publicProfileImage?: string | null;
-  FK_organizationId?: number | null;
   orgUsers?: OrganizationUser[];
   organizations?: Organization[];
   details?: UserDetails;
@@ -151,7 +159,6 @@ export interface OrganizationBillingSettings {
 
 export interface RoleRow {
   id: number;
-  FK_orgUserId: number;
 }
 
 /**
@@ -199,8 +206,6 @@ export interface OrganizationUser {
   identifier: string | null;
   grounded: boolean;
   profileImage: string | null;
-  FK_userId: number;
-  FK_organizationId: number;
   adminRole?: RoleRow | null;
   ownerRole?: RoleRow | null;
   instructorRole?: InstructorRoleRow | null;
@@ -254,8 +259,6 @@ export interface Reservation {
   end: string;
   timeZoneName: string;
   notes: string | null;
-  FK_organizationId: number;
-  FK_resourceId: number | null;
   personnel?: ReservationPersonnel;
   resource?: Resource;
   /**
@@ -303,7 +306,6 @@ export interface ReservationReview {
 
 export interface ReservationReviewConfirmation {
   id: number;
-  FK_reviewedByOrgUserId?: number | null;
   reviewedBy?: OrganizationUser;
 }
 
@@ -318,8 +320,6 @@ export interface Resource {
   id: number;
   createdAt: string;
   featuredImage: string | null;
-  FK_locationId: number;
-  FK_organizationId: number;
   type?: ResourceType;
   location?: Location;
 }
@@ -382,7 +382,6 @@ export interface Room {
 export interface Location {
   id: number;
   name: string;
-  FK_organizationId: number;
   /**
    * The airport's IANA zone, e.g. "America/Boise" — the operational truth a schedule is
    * pinned to. Null falls back to the organization's, then to the viewer's own, which is
@@ -401,8 +400,6 @@ export interface Invoice {
   subtotal: number;
   tax: number | null;
   memo: string | null;
-  FK_reservationId: number | null;
-  FK_customerOrgUserId: number | null;
   /** QuickBooks Sales Receipt id when synced. */
   qboSalesReceiptId?: string | null;
   qboSyncedAt?: string | null;
@@ -595,7 +592,6 @@ export interface Squawk {
   title: string | null;
   description: string | null;
   grounding?: boolean;
-  FK_resourceId: number | null;
   resource?: Resource;
   reportedBy?: OrganizationUser;
 }
@@ -607,7 +603,6 @@ export interface MaintenanceReminder {
   dueAt: string | null;
   name: string | null;
   description: string | null;
-  FK_resourceId: number | null;
   resource?: Resource;
 }
 
@@ -930,7 +925,6 @@ export interface OrgUserBillingSettings {
 
 export interface CreateInvoiceInput {
   customer?: { id: number };
-  FK_customerOrgUserId?: number;
   memo?: string;
   dueAt?: string;
   dueIn?: number;

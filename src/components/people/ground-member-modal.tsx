@@ -48,9 +48,8 @@ export function GroundMemberModal({
   onOpenChange: (open: boolean) => void;
   member: OrganizationUser | null;
 }) {
-  // Prefer the nested user id: the server strips FK_* from every response, so
-  // ou.FK_userId is undefined and would PATCH to `.../undefined`.
-  const targetUserId = member?.user?.id ?? member?.FK_userId ?? 0;
+  // The member's USER id, from the nested relation — see the note in types/api.ts.
+  const targetUserId = member?.user?.id ?? 0;
   const mut = useUpdateMemberOrgUser(targetUserId);
 
   const [choice, setChoice] = React.useState<string>(PRESETS[0]);

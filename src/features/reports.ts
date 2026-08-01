@@ -25,6 +25,7 @@ import type {
 } from "@/types/dashboard";
 import { MAX_TILES_PER_PANEL, placeAtBottom } from "@/lib/dashboard-layout";
 import { DEVICE_TIME_ZONE } from "@/lib/timezone";
+import type { ReportSchedule, ScheduleInput } from "@/types/schedules";
 
 /**
  * What this user may run, with every column, filter and dropdown resolved.
@@ -254,6 +255,60 @@ export function useResetDashboard() {
   return useMutation({
     mutationFn: () => api<{ config: DashboardConfig }>("/reports/dashboard", { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["report-dashboard"] }),
+  });
+}
+
+// ------------------------------------------------------------------ schedules
+
+const SCHEDULES_KEY = ["report-schedules"] as const;
+
+/** Every schedule this caller may see — already filtered by report permission. */
+export function useReportSchedules() {
+  return useQuery({
+    queryKey: SCHEDULES_KEY,
+    queryFn: () => api<ReportSchedule[]>("/reports/schedules"),
+  });
+}
+
+export function useCreateSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: ScheduleInput) =>
+      api<ReportSchedule>("/reports/schedules", { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: SCHEDULES_KEY }),
+  });
+}
+
+export function useUpdateSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: Partial<ScheduleInput> & { id: number }) =>
+      api<ReportSchedule>(`/reports/schedules/${id}`, { method: "PATCH", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: SCHEDULES_KEY }),
+  });
+}
+
+export function useDeleteSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<{ id: number }>(`/reports/schedules/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: SCHEDULES_KEY }),
+  });
+}
+
+/**
+ * Send one now, without consuming its next real delivery.
+ *
+ * Worth its own button: until it first fires, a weekly schedule is
+ * indistinguishable from a broken one for six days.
+ */
+export function useSendScheduleNow() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      api<{ sent: boolean }>(`/reports/schedules/${id}/send`, { method: "POST" }),
+    // The send records lastRunAt and any error on the row.
+    onSuccess: () => qc.invalidateQueries({ queryKey: SCHEDULES_KEY }),
   });
 }
 

@@ -18,7 +18,7 @@
  */
 
 import { useState } from "react";
-import { Bookmark, Check, Loader2, Pin, Save, Trash2, Users } from "lucide-react";
+import { Bookmark, CalendarClock, Check, Loader2, Pin, Save, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,12 +30,14 @@ import { useConfirm } from "@/components/confirm-dialog";
 import {
   useCreateSavedView,
   useDeleteSavedView,
+  useReportSchedules,
   useSavedViews,
   useUpdateSavedView,
 } from "@/features/reports";
 import type { ReportConfig, ReportMeta, SavedReportView } from "@/types/reports";
 import { describeFilters } from "./filter-builder";
 import { PinViewDialog } from "@/components/reports/dashboard/pin-view";
+import { ScheduleDialog } from "./schedule-dialog";
 import { cn } from "@/lib/utils";
 
 export function SavedViews({
@@ -63,6 +65,7 @@ export function SavedViews({
   const [listOpen, setListOpen] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
   const [pinning, setPinning] = useState<SavedReportView | null>(null);
+  const [scheduling, setScheduling] = useState<SavedReportView | null>(null);
   const [name, setName] = useState("");
   const [shared, setShared] = useState(false);
 
@@ -90,6 +93,13 @@ export function SavedViews({
       toast.error(err?.message ?? "Could not delete the view");
     }
   };
+
+  // Which views already go out on a cadence. Shown on the row so a scheduled
+  // view is identifiable without opening anything.
+  const schedules = useReportSchedules();
+  const scheduledViewIds = new Set(
+    (schedules.data ?? []).filter((s) => s.isEnabled).map((s) => s.reportView?.id)
+  );
 
   const list = views.data ?? [];
   const active = list.find((v) => v.id === activeViewId) ?? null;
@@ -174,6 +184,28 @@ export function SavedViews({
                             : "No filters")}
                       </span>
                     </button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        "size-6 shrink-0",
+                        scheduledViewIds.has(view.id)
+                          ? "text-primary"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => {
+                        setListOpen(false);
+                        setScheduling(view);
+                      }}
+                      aria-label={
+                        scheduledViewIds.has(view.id)
+                          ? `Edit the schedule for ${view.name}`
+                          : `Schedule ${view.name}`
+                      }
+                      title={scheduledViewIds.has(view.id) ? "Scheduled — edit" : "Schedule by email"}
+                    >
+                      <CalendarClock className="size-3.5" />
+                    </Button>
                     {canPin && (
                       <Button
                         variant="ghost"
@@ -284,6 +316,15 @@ export function SavedViews({
           </PopoverContent>
         </Popover>
       </div>
+
+      {scheduling && (
+        <ScheduleDialog
+          key={scheduling.id}
+          open
+          onOpenChange={(open) => !open && setScheduling(null)}
+          view={scheduling}
+        />
+      )}
 
       {pinning && (
         <PinViewDialog

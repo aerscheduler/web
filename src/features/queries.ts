@@ -594,7 +594,10 @@ export function useInviteMember() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members"] });
       void qc.invalidateQueries({ queryKey: ["users"] });
-      void qc.invalidateQueries({ queryKey: ["invitations"] });
+      // No ["invitations"] invalidation: nothing in the console queries that key,
+      // so it was invalidating a cache entry that never existed. The API does
+      // have GET /invitations — a pending-invitations view would be a genuinely
+      // useful thing to build on it, at which point this line comes back.
     },
   });
 }

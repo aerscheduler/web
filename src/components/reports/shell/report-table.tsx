@@ -41,7 +41,9 @@ export function ReportTable({
     : 1;
 
   return (
-    <div className="relative overflow-auto">
+    // The page's one scroll container: the card bounds this box, so the rows move
+    // under a header and over a totals row that both stay put.
+    <div className="relative min-h-0 min-w-0 flex-1 overflow-auto">
       {/* Keep the previous table readable while the next one loads rather than
           collapsing to a spinner — paging should not blink. */}
       <table

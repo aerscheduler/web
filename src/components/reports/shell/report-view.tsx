@@ -14,17 +14,10 @@
 
 import { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
-import { Download, Group, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Card } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
 import { downloadReport, useReportRun, useReportTimeZone } from "@/features/reports";
 import { rangeToIso, resolveRange } from "@/lib/report-format";
@@ -35,14 +28,12 @@ import type {
   ReportRunRequest,
   SavedReportView,
 } from "@/types/reports";
-import { ColumnPicker } from "./column-picker";
-import { FilterBuilder, isCompleteFilter } from "./filter-builder";
+import { isCompleteFilter } from "./filter-builder";
 import { ReportTable } from "./report-table";
 import { SavedViews } from "./saved-views";
+import { ActiveFilterChips, ReportViewMenu } from "./view-menu";
 
 const PAGE_SIZE = 100;
-/** The sentinel for "no grouping" — a Radix Select item cannot have an empty value. */
-const NO_GROUP = "__none__";
 
 function defaultConfig(report: ReportMeta, filters?: ReportFilterInput[]): ReportConfig {
   return {
@@ -169,98 +160,95 @@ export function ReportView({
   };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold">{report.name}</h2>
-        <p className="text-sm text-muted-foreground">{report.description}</p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <DateRangePicker value={range} onChange={setRange} />
-        <span className="text-xs text-muted-foreground">by {report.dateBasis}</span>
-
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          {report.dimensions.length > 0 && (
-            <Select
-              value={config.groupBy ?? NO_GROUP}
-              onValueChange={(v) => update({ groupBy: v === NO_GROUP ? null : v })}
-            >
-              <SelectTrigger className="h-8 w-auto min-w-[10rem] gap-2 text-sm">
-                <Group className="size-4 shrink-0 opacity-70" />
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_GROUP}>No grouping</SelectItem>
-                {report.dimensions.map((d) => (
-                  <SelectItem key={d.key} value={d.key}>
-                    Group by {d.label.toLowerCase()}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-
-          <ColumnPicker
-            columns={report.columns}
-            selected={config.columns ?? []}
-            onChange={(columns) => update({ columns })}
-          />
-
-          <SavedViews
-            report={report}
-            config={{ ...config, range: range ? rangeToIso(range, timeZone) ?? undefined : undefined }}
-            activeViewId={activeViewId}
-            onApply={applyView}
-            onPinned={onPinned}
-          />
-
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2"
-            onClick={exportCsv}
-            disabled={exporting || !request || totalRows === 0}
-          >
-            {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-            Export
-          </Button>
+    // A column bounded by the page: title, toolbar and pager are fixed, and the
+    // rows are the only thing that scrolls — see `components/table-view.tsx`.
+    //
+    // `min-w-0` on every box between here and the table matters as much as
+    // `min-h-0`: a flex item's automatic minimum size is its CONTENT's, so a
+    // wide report would otherwise push this column past the viewport and scroll
+    // the whole page sideways instead of scrolling inside the card.
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+      <div className="shrink-0 space-y-3">
+        {/* On a phone the rail is a select showing this report's name, so
+            repeating it here costs a line of the little height there is — and
+            the description is clamped for the same reason. */}
+        <div>
+          <h2 className="hidden text-lg font-semibold lg:block">{report.name}</h2>
+          <p className="line-clamp-2 text-sm text-muted-foreground lg:line-clamp-none">
+            {report.description}
+          </p>
         </div>
+
+        {/* One row: the window on the left, what you're asking of it on the
+            right. The date basis sits UNDER the picker it qualifies rather than
+            beside it, so it reads as a caption instead of competing for the row. */}
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+          {/* What you're asking of the data — the window and how it's narrowed —
+              travels together on the left. What you do with the answer once you
+              have it is on the right. */}
+          <div className="flex min-w-0 flex-wrap items-start gap-2">
+            <div className="min-w-0">
+              <DateRangePicker value={range} onChange={setRange} />
+              <p className="mt-1 px-0.5 text-xs text-muted-foreground">by {report.dateBasis}</p>
+            </div>
+            <ReportViewMenu report={report} config={config} onChange={update} />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <SavedViews
+              report={report}
+              config={{ ...config, range: range ? rangeToIso(range, timeZone) ?? undefined : undefined }}
+              activeViewId={activeViewId}
+              onApply={applyView}
+              onPinned={onPinned}
+            />
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2"
+              onClick={exportCsv}
+              disabled={exporting || !request || totalRows === 0}
+            >
+              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              Export
+            </Button>
+          </div>
+        </div>
+
+        <ActiveFilterChips
+          report={report}
+          filters={config.filters ?? []}
+          onChange={(filters) => update({ filters })}
+        />
       </div>
 
-      <FilterBuilder
-        definitions={report.filters}
-        filters={config.filters ?? []}
-        onChange={(filters) => update({ filters })}
-      />
-
-      <Card className="overflow-hidden p-0">
-        <CardContent className="p-0">
-          {run.isError ? (
-            <div className="grid h-48 place-items-center px-6 text-center text-sm text-muted-foreground">
-              {(run.error as Error)?.message ?? "Could not run this report."}
-            </div>
-          ) : run.isLoading && !result ? (
-            <div className="m-6 h-48 animate-pulse rounded-md bg-muted" />
-          ) : rows.length === 0 ? (
-            <div className="grid h-48 place-items-center px-6 text-center text-sm text-muted-foreground">
-              Nothing matched. Try a wider date range
-              {activeFilters.length > 0 ? " or fewer filters." : "."}
-            </div>
-          ) : (
-            <ReportTable
-              columns={result?.columns ?? []}
-              rows={rows}
-              totals={result?.totals}
-              grouped={!!result?.groupBy}
-              sort={sort}
-              onSort={toggleSort}
-              loading={run.isFetching}
-            />
-          )}
-        </CardContent>
+      <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-0">
+        {run.isError ? (
+          <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
+            {(run.error as Error)?.message ?? "Could not run this report."}
+          </div>
+        ) : run.isLoading && !result ? (
+          <div className="m-6 flex-1 animate-pulse rounded-md bg-muted" />
+        ) : rows.length === 0 ? (
+          <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
+            Nothing matched. Try a wider date range
+            {activeFilters.length > 0 ? " or fewer filters." : "."}
+          </div>
+        ) : (
+          <ReportTable
+            columns={result?.columns ?? []}
+            rows={rows}
+            totals={result?.totals}
+            grouped={!!result?.groupBy}
+            sort={sort}
+            onSort={toggleSort}
+            loading={run.isFetching}
+          />
+        )}
       </Card>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-muted-foreground">
           {totalRows > 0 && (
             <>

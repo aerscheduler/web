@@ -1,5 +1,10 @@
 /**
- * The filter builder.
+ * The stacked filter builder, and the value conversions every filter UI shares.
+ *
+ * The rows below are the DIALOG form — the dashboard tile builder, where there is
+ * room to lay a question out and no table behind it. The report toolbar asks the
+ * same question from a nested menu instead (`view-menu.tsx`), so it costs one
+ * button rather than a row of chrome; both write the same `ReportFilterInput[]`.
  *
  * Filters are ANDed. That is a deliberate limit: an OR builder needs grouping,
  * nesting and a visual language for precedence, and every school we have watched
@@ -28,7 +33,7 @@ import {
 import type { ReportFilterDef, ReportFilterInput, ReportFilterOperator } from "@/types/reports";
 import { formatReportValue } from "@/lib/report-format";
 
-const OPERATOR_LABELS: Record<ReportFilterOperator, string> = {
+export const OPERATOR_LABELS: Record<ReportFilterOperator, string> = {
   eq: "is",
   ne: "is not",
   gt: "is more than",
@@ -52,7 +57,7 @@ const MULTI_VALUE: ReportFilterOperator[] = ["in", "notIn"];
  * converted to the cents and deci-hours the engine compares against. Asking
  * somebody to filter on "over 20 deci-hours" would be a bug report.
  */
-function toWire(raw: string, type: ReportFilterDef["type"]): number | string {
+export function toWire(raw: string, type: ReportFilterDef["type"]): number | string {
   const n = Number(raw);
   if (Number.isNaN(n)) return raw;
   if (type === "money") return Math.round(n * 100);
@@ -61,7 +66,7 @@ function toWire(raw: string, type: ReportFilterDef["type"]): number | string {
   return n;
 }
 
-function fromWire(value: unknown, type: ReportFilterDef["type"]): string {
+export function fromWire(value: unknown, type: ReportFilterDef["type"]): string {
   if (value == null) return "";
   if (typeof value !== "number") return String(value);
   if (type === "money") return String(value / 100);
@@ -70,7 +75,7 @@ function fromWire(value: unknown, type: ReportFilterDef["type"]): string {
   return String(value);
 }
 
-function unitHint(type: ReportFilterDef["type"]): string | null {
+export function unitHint(type: ReportFilterDef["type"]): string | null {
   if (type === "money") return "$";
   if (type === "hours") return "hours";
   if (type === "percent") return "%";

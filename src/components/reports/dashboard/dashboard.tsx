@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { useBlocker } from "@tanstack/react-router";
 import type { DateRange } from "react-day-picker";
 import { Check, LayoutGrid, Plus, RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useConfirm } from "@/components/confirm-dialog";
+import { DISCARD_DASHBOARD_EDITS } from "./unsaved-prompt";
 import {
   useDashboard,
   useDashboardRun,
@@ -47,8 +49,11 @@ import { rangeToIso, resolveRange } from "@/lib/report-format";
 
 export function Dashboard({
   onOpenReport,
+  onDirtyChange,
 }: {
   onOpenReport: (reportId: string, filters: ReportFilterInput[] | undefined, range?: DateRange) => void;
+  /** Lets the Reports page guard the rail, which swaps this component out. */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const catalog = useReportCatalog();
   const stored = useDashboard();
@@ -76,6 +81,28 @@ export function Dashboard({
 
   const config = draft ?? stored.data?.config ?? null;
   const panel = config?.panels[0] ?? null;
+
+  // Opening Customise and touching nothing isn't progress worth protecting —
+  // only a draft that actually differs from what the server holds.
+  const dirty =
+    editing &&
+    !!stored.data &&
+    JSON.stringify(config) !== JSON.stringify(stored.data.config);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    // Leaving via the rail unmounts us; the page must not stay armed afterwards.
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
+
+  // Covers leaving the route entirely (the sidebar, back/forward) and closing
+  // the tab. Leaving Overview for a report doesn't change the route, so the
+  // Reports page guards that one — see DISCARD_DASHBOARD_EDITS.
+  useBlocker({
+    disabled: !dirty,
+    enableBeforeUnload: () => dirty,
+    shouldBlockFn: async () => !(await confirm(DISCARD_DASHBOARD_EDITS)),
+  });
 
   const run = useDashboardRun(config);
   const results = useMemo(
@@ -153,8 +180,15 @@ export function Dashboard({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+    // Same bargain as a report: the toolbar is fixed and the board scrolls under
+    // it, so the window and comparison you are reading by never leave the screen.
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+      {/* Title and blurb first, controls on their own row underneath — the shape
+          every report view uses. Sharing one row with the blurb is what made the
+          board jump: Customise adds four buttons, the row runs out of width and
+          wraps, and everything below drops a line. On its own row the toolbar
+          has the width to grow into. */}
+      <div className="flex shrink-0 flex-col gap-3">
         <div className="min-w-0">
           <h2 className="text-lg font-semibold">Overview</h2>
           <p className="text-sm text-muted-foreground">
@@ -164,7 +198,7 @@ export function Dashboard({
           </p>
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Select
             value={typeof panel.range === "string" ? panel.range : "past30"}
             onValueChange={(v) => patchPanel({ range: v as ReportDefaultRange })}
@@ -192,75 +226,81 @@ export function Dashboard({
             </SelectContent>
           </Select>
 
-          {editing ? (
-            <>
-              <Button variant="outline" size="sm" onClick={() => { setEditingViz(null); setBuilderOpen(true); }}>
-                <Plus className="size-4" /> Add tile
+          {/* What you do with the board sits right, away from what the board is
+              showing — the same split as a report's toolbar. */}
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {editing ? (
+              <>
+                <Button variant="outline" size="sm" onClick={() => { setEditingViz(null); setBuilderOpen(true); }}>
+                  <Plus className="size-4" /> Add tile
+                </Button>
+                <Button variant="ghost" size="sm" onClick={resetAll}>
+                  <RotateCcw className="size-4" /> Reset
+                </Button>
+                <Button variant="ghost" size="sm" onClick={cancel}>
+                  <X className="size-4" /> Cancel
+                </Button>
+                <Button size="sm" onClick={commit} disabled={save.isPending}>
+                  <Check className="size-4" /> Done
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                <LayoutGrid className="size-4" /> Customise
               </Button>
-              <Button variant="ghost" size="sm" onClick={resetAll}>
-                <RotateCcw className="size-4" /> Reset
-              </Button>
-              <Button variant="ghost" size="sm" onClick={cancel}>
-                <X className="size-4" /> Cancel
-              </Button>
-              <Button size="sm" onClick={commit} disabled={save.isPending}>
-                <Check className="size-4" /> Done
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-              <LayoutGrid className="size-4" /> Customise
-            </Button>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
-      {panel.visualizations.length === 0 ? (
-        <Card className="grid h-48 place-items-center px-6 text-center text-sm text-muted-foreground">
-          No tiles yet. {editing ? "Add one to get started." : "Choose Customise to add one."}
-        </Card>
-      ) : (
-        <DashboardGrid
-          visualizations={panel.visualizations}
-          editing={editing}
-          onLayoutChange={(next) =>
-            setVisualizations(
-              panel.visualizations.map((v) => (next[v.id] ? { ...v, layout: next[v.id] } : v))
-            )
-          }
-        >
-          {(viz) => (
-            <VizTile
-              viz={viz}
-              report={catalog.data?.reports.find((r) => r.id === viz.reportId)}
-              result={results.get(viz.id)}
-              loading={run.isLoading}
-              editing={editing}
-              timeZone={timeZone}
-              onOpenReport={() => {
-                const result = results.get(viz.id);
-                onOpenReport(
-                  viz.reportId,
-                  viz.filters,
-                  result
-                    ? { from: new Date(result.window.startDate), to: new Date(result.window.endDate) }
-                    : undefined
-                );
-              }}
-              onEdit={() => { setEditingViz(viz); setBuilderOpen(true); }}
-              onRemove={() =>
-                setVisualizations(panel.visualizations.filter((v) => v.id !== viz.id))
-              }
-            />
-          )}
-        </DashboardGrid>
-      )}
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5">
+        {panel.visualizations.length === 0 ? (
+          <Card className="grid h-48 place-items-center px-6 text-center text-sm text-muted-foreground">
+            No tiles yet. {editing ? "Add one to get started." : "Choose Customise to add one."}
+          </Card>
+        ) : (
+          <DashboardGrid
+            visualizations={panel.visualizations}
+            editing={editing}
+            onLayoutChange={(next) =>
+              setVisualizations(
+                panel.visualizations.map((v) => (next[v.id] ? { ...v, layout: next[v.id] } : v))
+              )
+            }
+          >
+            {(viz) => (
+              <VizTile
+                viz={viz}
+                report={catalog.data?.reports.find((r) => r.id === viz.reportId)}
+                result={results.get(viz.id)}
+                loading={run.isLoading}
+                editing={editing}
+                timeZone={timeZone}
+                onOpenReport={() => {
+                  const result = results.get(viz.id);
+                  onOpenReport(
+                    viz.reportId,
+                    viz.filters,
+                    result
+                      ? { from: new Date(result.window.startDate), to: new Date(result.window.endDate) }
+                      : undefined
+                  );
+                }}
+                onEdit={() => { setEditingViz(viz); setBuilderOpen(true); }}
+                onRemove={() =>
+                  setVisualizations(panel.visualizations.filter((v) => v.id !== viz.id))
+                }
+              />
+            )}
+          </DashboardGrid>
+        )}
 
-      <AttentionStrip
-        items={overview.data?.attention ?? []}
-        loading={overview.isLoading}
-        onOpen={(item) => onOpenReport(item.reportId, item.filters)}
-      />
+        <AttentionStrip
+          items={overview.data?.attention ?? []}
+          loading={overview.isLoading}
+          onOpen={(item) => onOpenReport(item.reportId, item.filters)}
+        />
+      </div>
 
       <TileBuilder
         open={builderOpen}

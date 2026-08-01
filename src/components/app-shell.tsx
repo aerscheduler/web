@@ -1,37 +1,22 @@
 import { useState, type ReactNode } from "react";
-import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   CircleHelp,
-  CalendarDays,
   CalendarPlus,
-  CalendarX2,
   Check,
   ChevronsUpDown,
-  FileText,
-  Home,
-  ChartColumnBig,
-  LayoutDashboard,
   LogOut,
-  Megaphone,
   Menu,
-  MonitorPlay,
   MoreHorizontal,
-  PlaneTakeoff,
   Plus,
-  Receipt,
   Settings,
-  ShieldCheck,
   TerminalSquare,
   User as UserIcon,
-  Users,
-  Wallet,
-  Wrench,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
-  canAccess,
   canCreateReservation,
   canSelfBook,
   isAdmin,
@@ -39,7 +24,7 @@ import {
   isTechnician,
   selfBookableTypes,
 } from "@/lib/permissions";
-import type { Role } from "@/types/api";
+import { SidebarNav, useRecordRecentPage } from "@/components/nav/sidebar-nav";
 import { CommandMenuProvider, CommandMenuSearch } from "@/components/command-menu";
 import { ConfirmProvider } from "@/components/confirm-dialog";
 import { QuickCreateProvider, useQuickCreate } from "@/components/quick-create";
@@ -51,9 +36,6 @@ import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -78,72 +60,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
-type NavGroup = { label: string; items: NavItem[]; /** Secondary links — sidebar "More" menu. */ more?: NavItem[] };
-
-/**
- * Build the nav from the caller's roles. Every org item is filtered through the
- * same `canAccess` (ROUTE_ACCESS) the route guards use, so the sidebar can never
- * show a link the user can't actually open — and vice-versa. Everyone also gets
- * the personal "You" section.
- */
-function navForRoles(roles: string[]): NavGroup[] {
-  const R = roles as Role[];
-
-  const orgGroups: NavGroup[] = [
-    {
-      label: "Operations",
-      items: [
-        { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { to: "/schedule", label: "Schedule", icon: CalendarDays },
-        { to: "/people", label: "People", icon: Users },
-        { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
-        { to: "/facilities", label: "Facilities", icon: MonitorPlay },
-      ],
-      more: [
-        { to: "/operations/announcements", label: "Announcements", icon: Megaphone },
-        { to: "/operations/cancellations", label: "Cancellations", icon: CalendarX2 },
-      ],
-    },
-    {
-      label: "Money",
-      items: [
-        { to: "/billing", label: "Billing", icon: Receipt },
-        { to: "/reports", label: "Reports", icon: ChartColumnBig },
-      ],
-    },
-    { label: "Compliance", items: [{ to: "/compliance", label: "Go / No-Go", icon: ShieldCheck }] },
-    { label: "Maintenance", items: [{ to: "/maintenance", label: "Maintenance", icon: Wrench }] },
-  ];
-
-  const groups: NavGroup[] = orgGroups
-    .map((g) => ({
-      ...g,
-      items: g.items.filter((it) => canAccess(it.to, R)),
-      more: g.more?.filter((it) => canAccess(it.to, R)),
-    }))
-    .filter((g) => g.items.length > 0 || (g.more?.length ?? 0) > 0);
-
-  // Personal section — every member gets this. (Payment methods & availability
-  // moved to tabs under Profile; Profile itself is reachable from the account
-  // menu at the bottom of the rail, so it's not repeated here.)
-  const you: NavItem[] = [
-    { to: "/me", label: "Home", icon: Home },
-    { to: "/me/schedule", label: "Calendar", icon: CalendarDays },
-    // Only for roles that can actually be seated on a booking — a pure
-    // dispatcher books from the board, not here.
-    ...(canSelfBook(R) ? [{ to: "/me/book", label: "Book", icon: CalendarPlus }] : []),
-    { to: "/me/invoices", label: "Invoices", icon: Wallet },
-    { to: "/me/currencies", label: "Currencies", icon: ShieldCheck },
-    { to: "/me/documents", label: "Documents", icon: FileText },
-  ];
-  groups.push({ label: "You", items: you });
-
-  // Notifications + Settings live in the top bar (Stripe-style), not the left nav.
-  return groups;
-}
-
 export function AppShell({ children }: { children: ReactNode }) {
+  // Recorded here rather than in the rail so history keeps accruing while the
+  // rail is closed (mobile) — nav lives in `components/nav/sidebar-nav`.
+  useRecordRecentPage();
+
   return (
     <ConfirmProvider>
       <CommandMenuProvider>
@@ -189,10 +110,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 }
 
 function AppSidebar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { roles } = useAuth();
-  const groups = navForRoles(roles);
-
   return (
     <Sidebar collapsible="offcanvas">
       <SidebarHeader>
@@ -200,70 +117,13 @@ function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {groups.map((group) => (
-          <SidebarGroup key={group.label}>
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                {group.items.map((item) => {
-                  const active =
-                    item.to === "/me"
-                      ? pathname === "/me"
-                      : pathname === item.to || pathname.startsWith(item.to + "/");
-                  return (
-                    <SidebarMenuItem key={item.to}>
-                      <SidebarMenuButton asChild isActive={active} tooltip={item.label}>
-                        <Link to={item.to}>
-                          <item.icon />
-                          <span>{item.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  );
-                })}
-                {group.more && group.more.length > 0 && (
-                  <SidebarNavMore items={group.more} pathname={pathname} />
-                )}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        ))}
+        <SidebarNav />
       </SidebarContent>
 
       <SidebarFooter>
         <UserMenu />
       </SidebarFooter>
     </Sidebar>
-  );
-}
-
-/** Overflow links at the bottom of a nav group (Operations → Cancellations, …). */
-function SidebarNavMore({ items, pathname }: { items: NavItem[]; pathname: string }) {
-  const active = items.some(
-    (it) => pathname === it.to || pathname.startsWith(it.to + "/")
-  );
-
-  return (
-    <SidebarMenuItem>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <SidebarMenuButton isActive={active} tooltip="More">
-            <MoreHorizontal />
-            <span>More</span>
-          </SidebarMenuButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start" className="min-w-48">
-          {items.map((item) => (
-            <DropdownMenuItem key={item.to} asChild>
-              <Link to={item.to} className="gap-2">
-                <item.icon className="size-4 text-muted-foreground" />
-                {item.label}
-              </Link>
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </SidebarMenuItem>
   );
 }
 

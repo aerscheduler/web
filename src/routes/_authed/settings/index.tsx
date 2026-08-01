@@ -5,6 +5,7 @@ import {
   BadgeDollarSign,
   Building2,
   CreditCard,
+  KeyRound,
   FileCog,
   GraduationCap,
   Layers,
@@ -21,6 +22,7 @@ import { DocumentTypesTab } from "@/components/settings/document-types-tab";
 import { GroupsTab } from "@/components/settings/groups-tab";
 import { CurrencyTypesTab } from "@/components/settings/currency-types-tab";
 import { IntegrationsTab } from "@/components/settings/integrations-tab";
+import { ApiKeysTab } from "@/components/settings/api-keys-tab";
 
 type SettingsSearch = {
   tab?: string;
@@ -55,6 +57,7 @@ const TABS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "groups", label: "Groups", icon: Layers },
   { value: "currencies", label: "Currency rules", icon: ShieldCheck },
   { value: "integrations", label: "Integrations", icon: Puzzle },
+  { value: "api-keys", label: "API keys", icon: KeyRound },
 ];
 
 function SettingsPage() {
@@ -108,6 +111,10 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="integrations" className="w-full">
           <IntegrationsTab />
+        </TabsContent>
+
+        <TabsContent value="api-keys" className="w-full">
+          <ApiKeysTab />
         </TabsContent>
       </Tabs>
     </div>

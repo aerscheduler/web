@@ -17,6 +17,9 @@ import {
   type PresignedPost,
 } from "@/lib/upload";
 import type {
+  ApiKey,
+  ApiKeyInput,
+  ApiKeyWithSecret,
   Announcement,
   AppNotification,
   AvailabilityInput,
@@ -1480,6 +1483,49 @@ export function useOrgReport<T>(
 }
 
 // ---------------------------------------------------------------- documents
+
+//---------------------------------------------------------------------------------
+// API keys.
+//
+// Session-only by design: the server refuses these four routes to an API key,
+// even one holding the admin role, so a leaked key can never issue itself
+// replacements. That means this console is the only place they can be managed,
+// which is why this tab exists.
+//---------------------------------------------------------------------------------
+
+/** Every key in the org (`GET /apiKeys`). Never includes secrets. */
+export function useApiKeys(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["apiKeys"],
+    queryFn: () => api<ApiKey[]>("/apiKeys"),
+    ...opts,
+  });
+}
+
+/**
+ * Mint a key (admin only).
+ *
+ * The response is the ONLY time the secret exists outside the caller's hands —
+ * the server keeps a hash — so the caller must show it immediately and must not
+ * discard it on error paths.
+ */
+export function useCreateApiKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ApiKeyInput) =>
+      api<ApiKeyWithSecret>("/apiKeys", { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["apiKeys"] }),
+  });
+}
+
+/** Revoke a key. Takes effect on the next request; the row stays, marked revoked. */
+export function useRevokeApiKey() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/apiKeys/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["apiKeys"] }),
+  });
+}
 
 /** Org-defined document categories (`GET /userDocuments/types`). */
 export function useDocumentTypes(opts?: QueryOpts) {

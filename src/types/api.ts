@@ -694,6 +694,58 @@ export interface DocumentTypeInput {
   warningPeriod?: number | null;
 }
 
+/**
+ * Roles an API key may be granted. Mirrors the server's API_KEY_ROLES.
+ *
+ * `owner` is absent on purpose: it can delete the organization and change
+ * billing, so it stays with a person.
+ */
+export const API_KEY_ROLES = [
+  "admin",
+  "dispatcher",
+  "instructor",
+  "student",
+  "renter",
+  "technician",
+] as const;
+
+export type ApiKeyRole = (typeof API_KEY_ROLES)[number];
+
+/**
+ * A credential that lets software act on the organization's behalf.
+ *
+ * Never carries the secret — the server stores only a hash, so after creation
+ * there is nothing to return. `prefix` is the displayable head, enough to tell
+ * two keys apart and not enough to reconstruct one.
+ */
+export interface ApiKey {
+  id: number;
+  name: string;
+  prefix: string;
+  roles: ApiKeyRole[];
+  status: "active" | "expired" | "revoked";
+  createdAt: string;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  lastUsedAt: string | null;
+  createdBy?: { id: number; user?: { id: number; name: string } | null } | null;
+}
+
+/**
+ * The response to creating a key. `secret` appears here and in no other
+ * response, ever — if the user navigates away without copying it, the only
+ * remedy is to revoke and mint another.
+ */
+export interface ApiKeyWithSecret extends Omit<ApiKey, "status" | "revokedAt" | "lastUsedAt"> {
+  secret: string;
+}
+
+export interface ApiKeyInput {
+  name: string;
+  roles: ApiKeyRole[];
+  expiresAt?: string | null;
+}
+
 /** A member's uploaded document. `fileUrls` are short-lived signed URLs (view/download). */
 export interface UserDocument {
   id: number;

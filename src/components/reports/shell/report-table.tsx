@@ -32,13 +32,22 @@ export function ReportTable({
   onSort: (key: string) => void;
   loading?: boolean;
 }) {
-  const measure = grouped ? primaryMeasure(columns) : null;
-  const max = measure
-    ? Math.max(
-        1,
-        ...rows.map((r) => (typeof r[measure.key] === "number" ? (r[measure.key] as number) : 0))
-      )
-    : 1;
+  /**
+   * The bar is drawn only when a share is a real fact about the data.
+   *
+   * Two cases where it isn't, and both used to render a bar that actively
+   * misled. With ONE group the share is trivially 100%, so a bar says nothing.
+   * And when the chosen measure is zero across every row — a school with no tax
+   * rates configured opening the Tax report — every bar renders at the 2% floor,
+   * which reads as "this row is negligible" about a row that is 100% of the
+   * invoices and 100% of the gross.
+   */
+  const candidate = grouped ? primaryMeasure(columns) : null;
+  const values = candidate
+    ? rows.map((r) => (typeof r[candidate.key] === "number" ? (r[candidate.key] as number) : 0))
+    : [];
+  const measure = candidate && rows.length > 1 && values.some((v) => v > 0) ? candidate : null;
+  const max = Math.max(1, ...values);
 
   return (
     // The page's one scroll container: the card bounds this box, so the rows move
@@ -90,7 +99,11 @@ export function ReportTable({
                 </th>
               );
             })}
-            {measure && <th className="w-32 px-3 py-2 font-medium">Share</th>}
+            {measure && (
+              <th className="w-32 px-3 py-2 font-medium" title={`Each row\u2019s share of ${measure.label.toLowerCase()}`}>
+                Share of {measure.label.toLowerCase()}
+              </th>
+            )}
           </tr>
         </thead>
 

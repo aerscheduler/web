@@ -3,9 +3,11 @@ import { isAuthenticated, needsEmailVerification } from "@/lib/auth";
 import { SubscriptionGate } from "@/components/subscription/gate";
 
 export const Route = createFileRoute("/_authed")({
-  beforeLoad: () => {
+  beforeLoad: ({ location }) => {
     if (!isAuthenticated()) {
-      throw redirect({ to: "/login" });
+      // Remember the page so signing back in returns to it rather than dumping
+      // everyone on the dashboard.
+      throw redirect({ to: "/login", search: { redirect: location.href } });
     }
     // Email must be verified before using the app (matches the Flutter app;
     // bypassed on local dev).

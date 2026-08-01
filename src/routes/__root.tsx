@@ -4,6 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
+import { SessionWatcher } from "@/components/session-watcher";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -59,6 +60,7 @@ function RootLayout() {
     <ThemeProvider>
       <TooltipProvider delayDuration={200}>
         <RouteTitle />
+        <SessionWatcher />
         <Outlet />
         <Toaster closeButton position="bottom-right" />
       </TooltipProvider>

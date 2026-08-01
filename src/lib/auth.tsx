@@ -6,7 +6,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { apiRaw, getToken, setToken } from "./api";
+import { toast } from "sonner";
+import { apiRaw, getToken, isTokenExpired, setToken } from "./api";
 import { signInWithGoogle } from "./google";
 import { signInWithApple } from "./apple";
 import {
@@ -49,9 +50,14 @@ function saveSession(s: SessionState) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(s));
 }
 
-/** Read synchronously — used by the router guard before React renders. */
+/** Read synchronously — used by the router guard before React renders.
+ *
+ *  A token whose own `exp` has passed counts as signed out: the server would
+ *  reject it anyway, and catching it here means an expired tab goes to /login
+ *  instead of rendering the app and failing on the first request. */
 export function isAuthenticated(): boolean {
-  return Boolean(getToken());
+  const token = getToken();
+  return Boolean(token) && !isTokenExpired(token);
 }
 
 /** The caller's roles in the active org, read synchronously from the stored
@@ -170,6 +176,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const apply = useCallback((env: AuthEnvelope) => {
+    // Whatever was on screen belongs to the session that just ended — most of
+    // all the "you've been signed out" toast, which is actively wrong now.
+    toast.dismiss();
     setToken(env.auth.accessToken);
     const orgs =
       env.data.organizations ??

@@ -29,13 +29,13 @@ export function EmptyState({
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  const auth = error instanceof ApiError && error.status === 401;
+  // A genuinely expired session never reaches here — the API layer signs the
+  // user out and routes to /login. So a 401/403 that does land here means "you
+  // aren't allowed to see this", and retrying it would just fail again.
+  const auth = error instanceof ApiError && (error.status === 401 || error.status === 403);
   // Show the API's real message (a 400 can mean many things — don't assume "no org").
-  const message = auth
-    ? "Your session expired. Please sign in again."
-    : error instanceof ApiError
-      ? error.message
-      : "Something went wrong loading this data.";
+  const message =
+    error instanceof ApiError ? error.message : "Something went wrong loading this data.";
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
       <span className="grid size-12 place-items-center rounded-full bg-destructive/10 text-destructive">

@@ -11,15 +11,23 @@ import { GoogleButton, AppleButton, OrDivider } from "@/components/google-button
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
-  validateSearch: (search: Record<string, unknown>): { error?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { error?: string; redirect?: string } => ({
     error: typeof search.error === "string" ? search.error : undefined,
+    // Where to land after signing in — set when an expired session bounced the
+    // user out of a page they were already on. Same-origin paths only.
+    redirect:
+      typeof search.redirect === "string" &&
+      search.redirect.startsWith("/") &&
+      !search.redirect.startsWith("//")
+        ? search.redirect
+        : undefined,
   }),
 });
 
 function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const { error: oauthError } = Route.useSearch();
+  const { error: oauthError, redirect } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(
@@ -33,7 +41,15 @@ function LoginPage() {
     setBusy(true);
     try {
       await login(email.trim(), password);
-      await navigate({ to: postLoginPath() });
+      const next = postLoginPath();
+      // Send them back where they were bounced from — but only once the account
+      // is actually usable. A user who still has to verify or onboard has to go
+      // through that first, so the gate wins over the remembered page.
+      if (redirect && (next === "/dashboard" || next === "/me")) {
+        await navigate({ href: redirect });
+      } else {
+        await navigate({ to: next });
+      }
     } catch (err) {
       setError(
         err instanceof ApiError

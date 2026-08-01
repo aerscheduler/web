@@ -54,6 +54,7 @@ import type {
   SetupIntentResponse,
   MaintenanceReminder,
   Organization,
+  OrgOnboarding,
   TimeZonePreferences,
   OrgUserPreferences,
   OrganizationBillingSettings,
@@ -860,6 +861,27 @@ export function useUpdateOrganization() {
     mutationFn: (input: Record<string, unknown>) =>
       api<Organization>("/organizations/", { method: "PATCH", body: input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["organization"] }),
+  });
+}
+
+/** Setup-checklist state: the marketing source the org signed up from and what it
+ *  has waved off. Whether an item is DONE is derived from real data, not stored —
+ *  see `lib/onboarding-checklist.ts`. Admin-only on the server. */
+export function useOrgOnboarding(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["organization", "onboarding"],
+    queryFn: () => api<OrgOnboarding>("/organizations/onboarding"),
+    ...opts,
+  });
+}
+
+export function useUpdateOrgOnboarding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: { dismissedItems?: string[]; dismissedAt?: string | null }) =>
+      api<OrgOnboarding>("/organizations/onboarding", { method: "PATCH", body: patch }),
+    // Seed rather than refetch: the response is the new state.
+    onSuccess: (saved) => qc.setQueryData(["organization", "onboarding"], saved),
   });
 }
 
@@ -1694,6 +1716,34 @@ export function useMaintenanceReminders(filter?: ReminderListFilter, opts?: Quer
 // ── Google Calendar integration ─────────────────────────────────────────────
 /** Whether the caller has connected Google Calendar. GET /integrations/googleCalendar
  *  returns { data: true } when connected and 404 when not. */
+/**
+ * Create a recurring maintenance reminder (a "template" server-side).
+ *
+ * `remindHours`/`remindHoursBefore` are DECI-hours — 100 h is 1000 — matching the
+ * meter fields everywhere else. Attaching `templateResources` is what actually
+ * materialises reminder rows against each aircraft; a template with no resources is
+ * inert, so callers should always pass the tails it applies to.
+ */
+export function useCreateMaintenanceReminderTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      name: string;
+      repeat: boolean;
+      remindDays?: number;
+      remindDaysBefore?: number;
+      remindHours?: number;
+      remindHoursBefore?: number;
+      hourBasedOn?: "tach" | "hobbs";
+      templateResources?: { id: number; startDate?: string }[];
+    }) => api<unknown>("/maintenance/reminders/templates", { method: "POST", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reminders"] });
+      void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
+    },
+  });
+}
+
 export function useGoogleCalendarStatus(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["integration", "googleCalendar"],

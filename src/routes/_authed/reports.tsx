@@ -3,6 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { DateRange } from "react-day-picker";
 import { Building2, CalendarClock, FileBarChart, LayoutDashboard } from "lucide-react";
 import { useReportCatalog, useReportTimeZone } from "@/features/reports";
+import { useReportsReadiness } from "@/features/onboarding";
+import { hasEnoughData, ReportsWelcome } from "@/components/reports/welcome/reports-welcome";
 import { guardRoute } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
@@ -55,6 +57,12 @@ function ReportsPage() {
   const catalog = useReportCatalog();
   const confirm = useConfirm();
   const [selectedId, setSelectedId] = useState<string>(OVERVIEW);
+
+  // A school with nothing to report on gets shown what these dashboards WILL look
+  // like, not an accurate board of zeros. `hasEnoughData` is the whole switch, so
+  // this page goes back to normal on its own — see components/reports/welcome.
+  const readiness = useReportsReadiness(!!organization);
+  const [skippedWelcome, setSkippedWelcome] = useState(false);
 
   // Leaving Overview for a report is a state swap, not a navigation, so the
   // router's blocker never sees it — but it unmounts the dashboard and takes any
@@ -123,6 +131,20 @@ function ReportsPage() {
           />
         </Card>
       </div>
+    );
+  }
+
+  const showWelcome =
+    !skippedWelcome && !readiness.loading && !catalog.isLoading && !hasEnoughData(readiness);
+
+  if (showWelcome) {
+    return (
+      <TableView className="gap-5">
+        <TableView.Header>
+          <PageHeader title="Reports" subtitle="What you'll get, and what unlocks it." />
+        </TableView.Header>
+        <ReportsWelcome readiness={readiness} onSkip={() => setSkippedWelcome(true)} />
+      </TableView>
     );
   }
 

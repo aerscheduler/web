@@ -140,6 +140,27 @@ export interface OrganizationPreferences {
   newOrgOnboardingComplete: boolean;
   instructorsCanOverrideReservationPrices: boolean;
   personnelCanOnlyUseApprovedResources: boolean;
+  /** Students may only be booked with an instructor they're assigned to. */
+  studentsCanOnlyFlyWithTheirInstructors: boolean;
+  /** The mirror of the above, from the instructor's side. */
+  instructorsCanOnlyFlyWithTheirStudents: boolean;
+}
+
+/**
+ * Setup-checklist state for the org (`/organizations/onboarding`).
+ *
+ * Note what is NOT here: any record of which items are done. That is derived from the
+ * org's own data by `lib/onboarding-checklist.ts`, so this only carries the two things
+ * data can't answer — where they came from, and what they chose to ignore.
+ */
+export interface OrgOnboarding {
+  id: number;
+  /** Marketing entry point captured at signup ("quickbooks"); null for direct. */
+  source: string | null;
+  /** Item ids the org waved off. Ids are owned by the client. */
+  dismissedItems: string[];
+  /** Set when the whole checklist was dismissed. */
+  dismissedAt: string | null;
 }
 
 /** Org-wide booking policy defaults (1:1). Source of truth for schedule gates. */

@@ -563,14 +563,30 @@ function resourceLabel(r: Resource): string {
   return `Resource #${r.id}`;
 }
 
-function ResourceGroupFormModal({
-  open,
-  onOpenChange,
-  group,
+/**
+ * The aircraft-group form itself, with no container of its own.
+ *
+ * Split out from the modal below so onboarding's maintenance flow can create a group
+ * INSIDE its wizard rather than bouncing the user out to this settings page mid-task.
+ * One form, two hosts — same rule as the single ReservationForm. Add a field here and
+ * both get it; never copy this into a flow.
+ */
+export function ResourceGroupForm({
+  open = true,
+  group = null,
+  submitLabel,
+  cancelLabel = "Cancel",
+  onCancel,
+  onSaved,
 }: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  group: ResourceGroup | null;
+  /** Drives reset-on-open. A flow step that is simply mounted counts as open. */
+  open?: boolean;
+  group?: ResourceGroup | null;
+  submitLabel?: string;
+  cancelLabel?: string;
+  onCancel: () => void;
+  /** Fired after a successful save, with the group that was created or updated. */
+  onSaved: (group: ResourceGroup) => void;
 }) {
   const isEdit = !!group;
   const create = useCreateResourceGroup();
@@ -637,9 +653,9 @@ function ResourceGroupFormModal({
     };
 
     const done = {
-      onSuccess: () => {
+      onSuccess: (saved: ResourceGroup) => {
         toast.success(isEdit ? `"${name}" updated.` : `"${name}" created.`);
-        onOpenChange(false);
+        onSaved(saved);
       },
       onError: (e: unknown) => toast.error(errMessage(e, "Couldn't save this group.")),
     };
@@ -649,77 +665,98 @@ function ResourceGroupFormModal({
   }
 
   return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-1.5">
+        <Label htmlFor="rg-name">Name</Label>
+        <Input
+          id="rg-name"
+          autoFocus
+          maxLength={60}
+          placeholder="Complex singles"
+          value={form.name}
+          onChange={(e) => set("name", e.target.value)}
+          aria-invalid={showErrors && !!errors.name}
+        />
+        {showErrors && errors.name && (
+          <p className="text-xs text-destructive">{errors.name}</p>
+        )}
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="rg-description">Description</Label>
+        <Textarea
+          id="rg-description"
+          rows={2}
+          maxLength={500}
+          placeholder="What this group is for."
+          value={form.description}
+          onChange={(e) => set("description", e.target.value)}
+        />
+      </div>
+
+      <MemberPicker
+        legend="Members"
+        searchId="rg-search"
+        searchPlaceholder="Search aircraft…"
+        loading={resources.isLoading || detail.isLoading}
+        items={(resources.data ?? []).map((r) => ({
+          id: r.id,
+          label: resourceLabel(r),
+          sub: r.location?.name ?? undefined,
+        }))}
+        selected={form.resourceIds}
+        onChange={(ids) => set("resourceIds", ids)}
+        emptyText="No aircraft, rooms or simulators to pick from yet."
+      />
+
+      <AutoJoinFieldset
+        idPrefix="rg"
+        options={RESOURCE_AUTO_JOIN}
+        values={form}
+        onToggle={(key, value) => set(key, value)}
+      />
+
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          {cancelLabel}
+        </Button>
+        <Button type="submit" disabled={pending}>
+          {pending && <Loader2 className="size-4 animate-spin" />}
+          {submitLabel ?? (isEdit ? "Save changes" : "Create group")}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** The settings-page host: the same form, in a modal. */
+function ResourceGroupFormModal({
+  open,
+  onOpenChange,
+  group,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  group: ResourceGroup | null;
+}) {
+  return (
     <ResponsiveModal
       open={open}
       onOpenChange={onOpenChange}
       className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
-      title={isEdit ? `Edit ${group?.name}` : "Add aircraft group"}
+      title={group ? `Edit ${group.name}` : "Add aircraft group"}
       description="Currency rules apply to the aircraft in a group — pick them here, or let the group fill itself."
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="space-y-1.5">
-          <Label htmlFor="rg-name">Name</Label>
-          <Input
-            id="rg-name"
-            autoFocus
-            maxLength={60}
-            placeholder="Complex singles"
-            value={form.name}
-            onChange={(e) => set("name", e.target.value)}
-            aria-invalid={showErrors && !!errors.name}
-          />
-          {showErrors && errors.name && (
-            <p className="text-xs text-destructive">{errors.name}</p>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label htmlFor="rg-description">Description</Label>
-          <Textarea
-            id="rg-description"
-            rows={2}
-            maxLength={500}
-            placeholder="What this group is for."
-            value={form.description}
-            onChange={(e) => set("description", e.target.value)}
-          />
-        </div>
-
-        <MemberPicker
-          legend="Members"
-          searchId="rg-search"
-          searchPlaceholder="Search aircraft…"
-          loading={resources.isLoading || detail.isLoading}
-          items={(resources.data ?? []).map((r) => ({
-            id: r.id,
-            label: resourceLabel(r),
-            sub: r.location?.name ?? undefined,
-          }))}
-          selected={form.resourceIds}
-          onChange={(ids) => set("resourceIds", ids)}
-          emptyText="No aircraft, rooms or simulators to pick from yet."
-        />
-
-        <AutoJoinFieldset
-          idPrefix="rg"
-          options={RESOURCE_AUTO_JOIN}
-          values={form}
-          onToggle={(key, value) => set(key, value)}
-        />
-
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            {isEdit ? "Save changes" : "Create group"}
-          </Button>
-        </div>
-      </form>
+      <ResourceGroupForm
+        open={open}
+        group={group}
+        onCancel={() => onOpenChange(false)}
+        onSaved={() => onOpenChange(false)}
+      />
     </ResponsiveModal>
   );
 }
+
 
 // ── People group form ────────────────────────────────────────────────────────
 

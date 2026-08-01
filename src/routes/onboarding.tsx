@@ -7,28 +7,28 @@ import {
   Building2,
   Check,
   CheckCircle2,
+  CreditCard,
   Loader2,
-  PlaneTakeoff,
-  Rocket,
   Ticket,
   User as UserIcon,
 } from "lucide-react";
 import { isAuthenticated, needsEmailVerification, useAuth } from "@/lib/auth";
 import {
+  useConnectStripe,
   useCreateLocation,
   useCreatePlane,
-  useCreateReservation,
   useUpdateOrganization,
 } from "@/features/queries";
 import { api, ApiError } from "@/lib/api";
+import { attributionSource, clearAttribution } from "@/lib/attribution";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/money-input";
 import { LogoMark } from "@/components/logo";
-import { FinishSetup } from "@/components/onboarding/finish-setup";
-import { PerPlanePricingNote, PlanCard, useSubStatus } from "@/components/subscription/plan";
+import { SetupChecklistPreview } from "@/components/onboarding/setup-checklist";
+import { PerPlanePricingNote } from "@/components/subscription/plan";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/onboarding")({
@@ -81,29 +81,6 @@ function apiErr(e: unknown): string {
   return "Something went wrong. Your entries are safe — try again.";
 }
 
-/** Book the owner as the pilot so activation never blocks on a second person.
- *  "solo" + 1 instructor + a plane is a valid reservation type (validateReservationType);
- *  the owner has the instructor role on a freshly created org. */
-async function bookFirstFlight(
-  create: ReturnType<typeof useCreateReservation>,
-  opts: { resourceId: number; locationId: number; orgUserId: number }
-) {
-  const start = new Date();
-  start.setHours(start.getHours() + 1, 0, 0, 0);
-  const end = new Date(start);
-  end.setHours(end.getHours() + 1);
-  await create.mutateAsync({
-    title: "First flight",
-    type: "solo",
-    start: start.toISOString(),
-    end: end.toISOString(),
-    timeZoneName: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    resource: { id: opts.resourceId },
-    location: { id: opts.locationId },
-    personnel: { instructors: [{ id: opts.orgUserId }] },
-  });
-}
-
 // ---------------------------------------------------------------- orchestrator
 
 function Onboarding() {
@@ -115,8 +92,7 @@ function Onboarding() {
   }
   if (!persona) return <PersonaRouter onPick={setPersona} />;
   if (persona === "student") return <StudentFlow onBack={() => setPersona(null)} />;
-  if (persona === "instructor") return <InstructorFlow onBack={() => setPersona(null)} />;
-  return <SchoolFlow onBack={() => setPersona(null)} />;
+  return <OperationFlow persona={persona} onBack={() => setPersona(null)} />;
 }
 
 function AllSet({ name }: { name: string }) {
@@ -272,160 +248,7 @@ function StudentFlow({ onBack }: { onBack: () => void }) {
   );
 }
 
-// ---------------------------------------------------------------- instructor flow
-
-function InstructorFlow({ onBack }: { onBack: () => void }) {
-  const { user, orgUserId, createOrganization } = useAuth();
-  const navigate = useNavigate();
-  const qc = useQueryClient();
-  const createReservation = useCreateReservation();
-  const updateOrg = useUpdateOrganization();
-  const subStatus = useSubStatus();
-
-  const who = user?.name?.trim().split(" ")[0];
-  const [step, setStep] = React.useState(0);
-  const [busy, setBusy] = React.useState(false);
-  const [showErrors, setShowErrors] = React.useState(false);
-  const [orgName, setOrgName] = React.useState(who ? `${who}'s Flight Instruction` : "My Flight Instruction");
-  const [airport, setAirport] = React.useState("");
-  const [locationId, setLocationId] = React.useState<number | null>(null);
-  const [resourceId, setResourceId] = React.useState<number | null>(null);
-  const [tail, setTail] = React.useState("");
-
-  const STEPS = ["You", "Aircraft", "Book", "Plan"];
-
-  async function submitOrg() {
-    if (!orgName.trim()) {
-      setShowErrors(true);
-      document.getElementById("i-orgName")?.focus();
-      return;
-    }
-    setBusy(true);
-    try {
-      await createOrganization({
-        name: orgName.trim(),
-        organizationType: "solo_instructor" satisfies OrgType,
-        details: { email: user?.email ?? "", phone: "", address: { ...EMPTY_ADDRESS } },
-        location: { name: airport.trim() || orgName.trim(), address: { ...EMPTY_ADDRESS } },
-      });
-      try {
-        const locs = await api<{ id: number }[]>("/locations");
-        if (locs[0]) setLocationId(locs[0].id);
-      } catch {
-        /* the aircraft step re-checks and can create one if needed */
-      }
-      setStep(1);
-    } catch (e) {
-      toast.error(apiErr(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // Book (optionally) then advance to the Plan step. Mark onboarding complete here
-  // so nothing strands the user if they leave from the plan step.
-  async function toPlan(withBooking: boolean) {
-    setBusy(true);
-    try {
-      if (withBooking && resourceId && locationId && orgUserId) {
-        try {
-          await bookFirstFlight(createReservation, { resourceId, locationId, orgUserId });
-          toast.success("You're cleared for takeoff — first flight is on the schedule.");
-        } catch (e) {
-          toast.error(apiErr(e));
-        }
-      }
-      void updateOrg.mutateAsync({ preferences: { newOrgOnboardingComplete: true } }).catch(() => {});
-      setStep(3);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function finishToDashboard() {
-    qc.clear();
-    void navigate({ to: "/dashboard" });
-  }
-
-  return (
-    <Shell headline="Two minutes to a bookable aircraft." steps={STEPS} step={step}>
-      {step === 0 && (
-        <Step title="Name your operation" sub="Just enough to hang a schedule on — you can rename it anytime.">
-          <Field id="i-orgName" label="Operation name" error={showErrors && !orgName.trim() ? "Give your operation a name." : ""}>
-            <Input
-              id="i-orgName"
-              value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              autoFocus
-              aria-invalid={showErrors && !orgName.trim()}
-            />
-          </Field>
-          <Field id="i-airport" label="Home airport" hint="Identifier, e.g. KAPA">
-            <Input
-              id="i-airport"
-              value={airport}
-              onChange={(e) => setAirport(e.target.value.toUpperCase())}
-              placeholder="KAPA"
-            />
-          </Field>
-          <div className="flex items-center gap-2 pt-2">
-            <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back" disabled={busy}>
-              <ArrowLeft className="size-4" />
-            </Button>
-            <div className="flex-1" />
-            <Button onClick={submitOrg} disabled={busy}>
-              {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-              Continue
-              {!busy && <ArrowRight className="size-4" />}
-            </Button>
-          </div>
-        </Step>
-      )}
-
-      {step === 1 && (
-        <AircraftStep
-          title="Add the aircraft you fly"
-          sub="Don't own an aircraft? Skip for now — you can add one anytime from the Aircraft page."
-          locationId={locationId}
-          fallbackLocationName={airport.trim() || orgName.trim()}
-          onBack={() => setStep(0)}
-          onSkip={() => setStep(2)}
-          onCreated={(resId, locId, tailNo) => {
-            setResourceId(resId);
-            setLocationId(locId);
-            setTail(tailNo);
-            setStep(2);
-          }}
-        />
-      )}
-
-      {step === 2 && (
-        <BookingStep
-          tail={tail}
-          resourceId={resourceId}
-          busy={busy}
-          onBack={() => setStep(1)}
-          onPlace={() => toPlan(true)}
-          onSkip={() => toPlan(false)}
-        />
-      )}
-
-      {step === 3 && (
-        <Step title="Your plan" sub="You're on a free trial — no card needed to start.">
-          {subStatus && <PlanCard status={subStatus} />}
-          <div className="flex justify-end pt-2">
-            <Button onClick={finishToDashboard}>
-              <Rocket className="size-4" />
-              Go to dashboard
-            </Button>
-          </div>
-        </Step>
-      )}
-    </Shell>
-  );
-}
-
-// ---------------------------------------------------------------- school / club / FBO flow
+// ---------------------------------------------------------------- operation flow
 
 const SUBTYPES: { key: OrgType; label: string }[] = [
   { key: "flight_school", label: "Flight school" },
@@ -433,29 +256,45 @@ const SUBTYPES: { key: OrgType; label: string }[] = [
   { key: "rental", label: "Rental / FBO" },
 ];
 
-function SchoolFlow({ onBack }: { onBack: () => void }) {
-  const { user, orgUserId, organization, createOrganization } = useAuth();
+/**
+ * Everyone who is starting an operation — solo CFI, school, club, FBO.
+ *
+ * One flow rather than two, because after the type is chosen they differ only in
+ * wording: name it, add a tail, optionally connect billing, go. Three steps is the
+ * whole point — the rest of setup is a checklist on the dashboard, where it can be
+ * done in any order, by any admin, on any day.
+ *
+ * There is deliberately no "book your first flight" step. It used to create a solo
+ * reservation for the owner, which is a fiction at any operation where the owner
+ * isn't the one flying — and it put a placeholder on a real schedule board that
+ * somebody then had to cancel. Booking is the first item on the dashboard checklist
+ * instead, pointing at the real form.
+ */
+function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student">; onBack: () => void }) {
+  const { user, organization, createOrganization } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const createReservation = useCreateReservation();
   const updateOrg = useUpdateOrganization();
+
+  const solo = persona === "instructor";
+  const who = user?.name?.trim().split(" ")[0];
 
   const [step, setStep] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
   const [showErrors, setShowErrors] = React.useState(false);
-  const [subtype, setSubtype] = React.useState<OrgType>("flight_school");
-  const [orgName, setOrgName] = React.useState("");
+  const [subtype, setSubtype] = React.useState<OrgType>(solo ? "solo_instructor" : "flight_school");
+  const [orgName, setOrgName] = React.useState(
+    solo ? (who ? `${who}'s Flight Instruction` : "My Flight Instruction") : ""
+  );
   const [airport, setAirport] = React.useState("");
   const [locationId, setLocationId] = React.useState<number | null>(null);
-  const [resourceId, setResourceId] = React.useState<number | null>(null);
-  const [tail, setTail] = React.useState("");
 
-  const STEPS = ["You", "Aircraft", "Book", "Finish"];
+  const STEPS = ["Operation", "Aircraft", "Billing"];
 
   async function submitOrg() {
     if (!orgName.trim()) {
       setShowErrors(true);
-      document.getElementById("s-orgName")?.focus();
+      document.getElementById("op-orgName")?.focus();
       return;
     }
     setBusy(true);
@@ -465,7 +304,11 @@ function SchoolFlow({ onBack }: { onBack: () => void }) {
         organizationType: subtype,
         details: { email: user?.email ?? "", phone: "", address: { ...EMPTY_ADDRESS } },
         location: { name: airport.trim() || orgName.trim(), address: { ...EMPTY_ADDRESS } },
+        // Which marketing page sent them here, captured at landing. The checklist
+        // reads it back to lead with what they were already reading about.
+        source: attributionSource(),
       });
+      clearAttribution();
       try {
         const locs = await api<{ id: number }[]>("/locations");
         if (locs[0]) setLocationId(locs[0].id);
@@ -480,66 +323,69 @@ function SchoolFlow({ onBack }: { onBack: () => void }) {
     }
   }
 
-  /** Enter the finish-setup checklist. Mark onboarding complete here (they've
-   *  activated) so the checklist's deep-links can leave the wizard safely. */
-  async function toFinish(withBooking: boolean) {
-    setBusy(true);
-    try {
-      if (withBooking && resourceId && locationId && orgUserId) {
-        try {
-          await bookFirstFlight(createReservation, { resourceId, locationId, orgUserId });
-          toast.success("You're cleared for takeoff — first flight is on the schedule.");
-        } catch (e) {
-          toast.error(apiErr(e));
-        }
-      }
-      void updateOrg.mutateAsync({ preferences: { newOrgOnboardingComplete: true } }).catch(() => {});
-      setStep(3);
-    } finally {
-      setBusy(false);
-    }
+  /** Leaving the aircraft step is the point of no return: everything after it is
+   *  optional and can be abandoned — including a redirect out to Stripe — so the org
+   *  is marked set up here rather than at the end. */
+  function toBilling() {
+    void updateOrg.mutateAsync({ preferences: { newOrgOnboardingComplete: true } }).catch(() => {});
+    setStep(2);
   }
 
-  function goToDashboard() {
+  function finish() {
     qc.clear();
     void navigate({ to: "/dashboard" });
   }
 
   return (
-    <Shell headline="Set up your operation." steps={STEPS} step={step}>
+    <Shell
+      headline={solo ? "Two minutes to a bookable aircraft." : "Set up your operation."}
+      steps={STEPS}
+      step={step}
+    >
       {step === 0 && (
-        <Step title="Tell us about your operation" sub="This tailors your setup — you can change it later.">
-          <div>
-            <Label>Type</Label>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {SUBTYPES.map((s) => (
-                <button
-                  key={s.key}
-                  type="button"
-                  onClick={() => setSubtype(s.key)}
-                  className={cn(
-                    "rounded-lg border px-2 py-2 text-xs font-medium transition-colors",
-                    subtype === s.key ? "border-primary bg-primary/5 text-primary ring-1 ring-primary" : "hover:bg-accent"
-                  )}
-                >
-                  {s.label}
-                </button>
-              ))}
+        <Step
+          title={solo ? "Name your operation" : "Tell us about your operation"}
+          sub="Just enough to hang a schedule on — you can change any of it later."
+        >
+          {!solo && (
+            <div>
+              <Label>Type</Label>
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {SUBTYPES.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onClick={() => setSubtype(s.key)}
+                    className={cn(
+                      "rounded-lg border px-2 py-2 text-xs font-medium transition-colors",
+                      subtype === s.key
+                        ? "border-primary bg-primary/5 text-primary ring-1 ring-primary"
+                        : "hover:bg-accent"
+                    )}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <Field id="s-orgName" label="Operation name" error={showErrors && !orgName.trim() ? "Give your operation a name." : ""}>
+          )}
+          <Field
+            id="op-orgName"
+            label="Operation name"
+            error={showErrors && !orgName.trim() ? "Give your operation a name." : ""}
+          >
             <Input
-              id="s-orgName"
+              id="op-orgName"
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
-              placeholder="Blue Sky Aviation"
+              placeholder={solo ? undefined : "Blue Sky Aviation"}
               autoFocus
               aria-invalid={showErrors && !orgName.trim()}
             />
           </Field>
-          <Field id="s-airport" label="Home airport" hint="Identifier, e.g. KAPA">
+          <Field id="op-airport" label="Home airport" hint="Identifier, e.g. KAPA">
             <Input
-              id="s-airport"
+              id="op-airport"
               value={airport}
               onChange={(e) => setAirport(e.target.value.toUpperCase())}
               placeholder="KAPA"
@@ -552,7 +398,7 @@ function SchoolFlow({ onBack }: { onBack: () => void }) {
             <div className="flex-1" />
             <Button onClick={submitOrg} disabled={busy}>
               {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-              Create operation
+              {solo ? "Continue" : "Create operation"}
               {!busy && <ArrowRight className="size-4" />}
             </Button>
           </div>
@@ -561,36 +407,107 @@ function SchoolFlow({ onBack }: { onBack: () => void }) {
 
       {step === 1 && (
         <AircraftStep
-          title="Add your first aircraft"
-          sub="One tail is all we need to make the schedule real — add the rest later."
+          title={solo ? "Add the aircraft you fly" : "Add your first aircraft"}
+          sub={
+            solo
+              ? "Don't own an aircraft? Skip for now — you can add one anytime from the Aircraft page."
+              : "One tail is all we need to make the schedule real — add the rest later."
+          }
           locationId={locationId}
           fallbackLocationName={airport.trim() || orgName.trim()}
           onBack={() => setStep(0)}
-          onSkip={() => setStep(2)}
-          onCreated={(resId, locId, tailNo) => {
-            setResourceId(resId);
-            setLocationId(locId);
-            setTail(tailNo);
-            setStep(2);
-          }}
+          onSkip={toBilling}
+          onCreated={toBilling}
         />
       )}
 
       {step === 2 && (
-        <BookingStep
-          tail={tail}
-          resourceId={resourceId}
-          busy={busy}
-          onBack={() => setStep(1)}
-          onPlace={() => toFinish(true)}
-          onSkip={() => toFinish(false)}
-        />
-      )}
-
-      {step === 3 && (
-        <FinishSetup orgName={organization?.name ?? orgName} onGoToDashboard={goToDashboard} busy={busy} />
+        <BillingStep orgName={organization?.name ?? orgName} onBack={() => setStep(1)} onDone={finish} />
       )}
     </Shell>
+  );
+}
+
+/**
+ * Optional Stripe Connect, then out.
+ *
+ * Connect is what turns close-outs into money — invoices, card and ACH payments,
+ * QuickBooks — so it earns a place in the wizard. It does not earn the right to block
+ * anyone: "I'll do this later" is the equal-weight option, and the same item is
+ * waiting on the checklist either way.
+ *
+ * Note this is Connect (the school charging its members), not the per-aircraft
+ * subscription (us charging the school). The trial runs regardless and is shown on
+ * Settings → Plan.
+ */
+function BillingStep({
+  orgName,
+  onBack,
+  onDone,
+}: {
+  orgName: string;
+  onBack: () => void;
+  onDone: () => void;
+}) {
+  const connect = useConnectStripe();
+
+  async function startConnect() {
+    try {
+      const { url } = await connect.mutateAsync();
+      window.location.href = url;
+    } catch (e) {
+      toast.error(apiErr(e));
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 text-success">
+        <CheckCircle2 className="size-5" />
+        <span className="text-sm font-medium">You&rsquo;re live — {orgName || "your operation"} is set up.</span>
+      </div>
+
+      <Step
+        title="Get paid for it"
+        sub="Connect Stripe and close-outs turn into invoices your members can pay by card or ACH — and sync straight to QuickBooks. Payouts go to your own bank account."
+      >
+        <div className="rounded-xl border bg-card p-4">
+          <ul className="space-y-2 text-sm text-muted-foreground">
+            {[
+              "Invoices drafted from Hobbs or tach at close-out",
+              "Card and ACH payments, with autopay if members want it",
+              "QuickBooks sync, so your books close without re-keying",
+            ].map((t) => (
+              <li key={t} className="flex items-start gap-2.5">
+                <Check className="mt-0.5 size-4 shrink-0 text-primary" /> {t}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button className="flex-1" onClick={startConnect} disabled={connect.isPending}>
+            {connect.isPending ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
+            Connect Stripe
+          </Button>
+          <Button variant="outline" className="flex-1" onClick={onDone} disabled={connect.isPending}>
+            I&rsquo;ll do this later
+            <ArrowRight className="size-4" />
+          </Button>
+        </div>
+
+        <SetupChecklistPreview limit={3} />
+
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-xs text-muted-foreground hover:text-foreground"
+          disabled={connect.isPending}
+        >
+          ← Back
+        </button>
+      </Step>
+    </div>
   );
 }
 
@@ -773,54 +690,6 @@ function AircraftStep({
   );
 }
 
-function BookingStep({
-  tail,
-  resourceId,
-  busy,
-  onPlace,
-  onSkip,
-  onBack,
-}: {
-  tail: string;
-  resourceId: number | null;
-  busy: boolean;
-  onPlace: () => void;
-  onSkip: () => void;
-  onBack: () => void;
-}) {
-  return (
-    <Step
-      title="Put something on the schedule"
-      sub="One booking makes the whole thing real — ramp it in when the flight's done and we'll draft the invoice."
-    >
-      <div className="rounded-xl border bg-card p-4">
-        <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-lg bg-primary/10 text-primary">
-            <PlaneTakeoff className="size-5" />
-          </span>
-          <div className="text-sm">
-            <div className="font-medium">{tail ? tail : "Your aircraft"} · today</div>
-            <div className="text-muted-foreground">
-              {resourceId ? "A starter reservation, pre-filled and ready." : "Add an aircraft first to place a booking."}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button className="flex-1" onClick={onPlace} disabled={busy || !resourceId}>
-          {busy ? <Loader2 className="size-4 animate-spin" /> : <Rocket className="size-4" />}
-          Place booking &amp; continue
-        </Button>
-        <Button variant="outline" className="flex-1" onClick={onSkip} disabled={busy}>
-          Skip for now
-        </Button>
-      </div>
-      <button type="button" onClick={onBack} className="mt-2 text-xs text-muted-foreground hover:text-foreground">
-        ← Back
-      </button>
-    </Step>
-  );
-}
 
 // ---------------------------------------------------------------- primitives
 

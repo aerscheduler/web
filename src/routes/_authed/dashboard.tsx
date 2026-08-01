@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useInvoices, useMembers, usePlanes, useReservations } from "@/features/queries";
+import { SetupChecklist } from "@/components/onboarding/setup-checklist";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +58,22 @@ function DashboardPage() {
 
   if (organization === null) return <NoOrg />;
 
+  /**
+   * A day-one operation has nothing to put in these tiles, and four zeros and two
+   * empty panels is a worse first impression than an honest "this fills in as you
+   * go". The checklist above is what that screen is FOR.
+   *
+   * The test is ACTIVITY, not inventory: "1 aircraft, 1 person, 0 flights, $0" is
+   * still a board of zeros dressed up as data. Nothing flown and nothing billed means
+   * there is genuinely nothing here to read.
+   */
+  const loadingCounts = week.isLoading || unpaid.isLoading || recent.isLoading;
+  const noDataYet =
+    !loadingCounts &&
+    (week.data?.length ?? 0) === 0 &&
+    (unpaid.data?.length ?? 0) === 0 &&
+    (recent.data?.length ?? 0) === 0;
+
   return (
     <div>
       <PageHeader
@@ -64,6 +81,14 @@ function DashboardPage() {
         subtitle={`${organization?.name ?? "Your organization"} · ${format(now, "EEEE, MMM d")}`}
       />
 
+      {/* The dashboard IS the rest of onboarding. While setup is unfinished this
+          leads the page; it retires itself for good once everything's done. */}
+      <SetupChecklist className="mb-5" />
+
+      {noDataYet ? (
+        <FirstDayNote />
+      ) : (
+        <>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           label="Aircraft"
@@ -178,7 +203,33 @@ function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+        </>
+      )}
     </div>
+  );
+}
+
+/** Stands in for the tiles and panels before there is anything to put in them. */
+function FirstDayNote() {
+  return (
+    <Card>
+      <CardContent className="flex flex-col items-center gap-2 py-10 text-center">
+        <span className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary">
+          <PlaneTakeoff className="size-5" />
+        </span>
+        <div className="text-sm font-medium">Your dashboard fills in as you fly</div>
+        <p className="max-w-sm text-xs text-muted-foreground">
+          Today&rsquo;s board, outstanding money and fleet activity all show up here as soon as
+          there&rsquo;s something on the schedule. Book a flight and this page comes alive on its
+          own.
+        </p>
+        <Button asChild size="sm" variant="outline" className="mt-2">
+          <Link to="/schedule">
+            Open the schedule <ArrowUpRight className="size-3.5" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 

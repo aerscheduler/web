@@ -21,6 +21,9 @@ export interface ReportSchedule {
   dayOfMonth: number | null;
   isEnabled: boolean;
   recipientOrgUserIds: number[];
+  /** Addresses outside the school. Owner/admin only, and only delivered to while
+   *  the schedule's creator still has access to the report. */
+  recipientEmails: string[];
   lastRunAt: string | null;
   /** Why the last send failed. Shown rather than swallowed: a schedule that has
    *  stopped arriving is otherwise invisible. */
@@ -40,6 +43,7 @@ export interface ScheduleInput {
   weekday?: number | null;
   dayOfMonth?: number | null;
   recipientOrgUserIds: number[];
+  recipientEmails?: string[];
   isEnabled?: boolean;
 }
 

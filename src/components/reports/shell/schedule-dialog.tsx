@@ -16,7 +16,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Send, Trash2 } from "lucide-react";
+import { Loader2, Plus, Send, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -40,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useOrgUsers } from "@/features/queries";
+import { useAuth } from "@/lib/auth";
 import {
   useCreateSchedule,
   useDeleteSchedule,
@@ -50,9 +52,11 @@ import {
 } from "@/features/reports";
 import { describeCoverage, formatHour, CADENCES, WEEKDAYS } from "@/types/schedules";
 import type { Cadence } from "@/types/schedules";
-import type { SavedReportView } from "@/types/reports";
 import { zoneAbbreviation } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
+
+/** Deliberately loose: the server validates properly, this only catches typos. */
+const isEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
 const CADENCE_LABEL: Record<Cadence, string> = {
   daily: "Every day",
@@ -70,7 +74,11 @@ export function ScheduleDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  view: SavedReportView;
+  /**
+   * Only the id and the name are used, so the schedules page can pass the view
+   * summary that comes back on a schedule without refetching the full record.
+   */
+  view: { id: number; name: string };
 }) {
   const schedules = useReportSchedules();
   const create = useCreateSchedule();
@@ -80,6 +88,9 @@ export function ScheduleDialog({
   const members = useOrgUsers();
   const timeZone = useReportTimeZone();
   const confirm = useConfirm();
+  // Only an owner or admin may route a report out of the school; the server
+  // enforces it, and hiding the field keeps anyone else from finding a 403.
+  const { isAdmin } = useAuth();
 
   const existing = useMemo(
     () => (schedules.data ?? []).find((s) => s.reportView?.id === view.id) ?? null,
@@ -91,6 +102,8 @@ export function ScheduleDialog({
   const [weekday, setWeekday] = useState(1);
   const [dayOfMonth, setDayOfMonth] = useState(1);
   const [recipients, setRecipients] = useState<number[]>([]);
+  const [external, setExternal] = useState<string[]>([]);
+  const [draftEmail, setDraftEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   // Reset from whatever exists each time it opens, so editing never inherits a
@@ -102,6 +115,8 @@ export function ScheduleDialog({
     setWeekday(existing?.weekday ?? 1);
     setDayOfMonth(existing?.dayOfMonth ?? 1);
     setRecipients(existing?.recipientOrgUserIds ?? []);
+    setExternal(existing?.recipientEmails ?? []);
+    setDraftEmail("");
     setError(null);
   }, [open, existing]);
 
@@ -132,6 +147,18 @@ export function ScheduleDialog({
     return [...all.filter((p) => top.has(p.id)), ...all.filter((p) => !top.has(p.id))];
   }, [members.data, pinnedTop]);
 
+  const addExternal = () => {
+    const address = draftEmail.trim().toLowerCase();
+    if (!address) return;
+    if (!isEmail(address)) {
+      setError(`"${address}" doesn't look like an email address.`);
+      return;
+    }
+    setExternal((current) => [...new Set([...current, address])]);
+    setDraftEmail("");
+    setError(null);
+  };
+
   const toggle = (id: number) =>
     setRecipients((current) =>
       current.includes(id) ? current.filter((r) => r !== id) : [...current, id]
@@ -140,10 +167,18 @@ export function ScheduleDialog({
   const zoneLabel = zoneAbbreviation(new Date(), timeZone);
 
   const save = async () => {
-    if (recipients.length === 0) {
+    if (recipients.length === 0 && external.length === 0) {
       setError("Pick at least one person to send it to.");
       return;
     }
+    // A half-typed address is a common way to lose a recipient silently, so it
+    // is added rather than discarded — and rejected here if it isn't valid.
+    const pending = draftEmail.trim().toLowerCase();
+    if (pending && !isEmail(pending)) {
+      setError(`"${pending}" doesn't look like an email address.`);
+      return;
+    }
+    const allExternal = pending ? [...new Set([...external, pending])] : external;
     setError(null);
 
     const body = {
@@ -152,6 +187,7 @@ export function ScheduleDialog({
       weekday: cadence === "weekly" ? weekday : null,
       dayOfMonth: cadence === "monthly" ? dayOfMonth : null,
       recipientOrgUserIds: recipients,
+      ...(isAdmin ? { recipientEmails: allExternal } : {}),
     };
 
     try {
@@ -363,6 +399,65 @@ export function ScheduleDialog({
                 Anyone who loses access to this report stops receiving it automatically.
               </p>
             </div>
+
+            {isAdmin && (
+              <div className="space-y-1.5">
+                <Label htmlFor="external-email">Also send outside the school</Label>
+                {external.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {external.map((address) => (
+                      <span
+                        key={address}
+                        className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs"
+                      >
+                        {address}
+                        {!locked && (
+                          <button
+                            type="button"
+                            aria-label={`Remove ${address}`}
+                            className="text-muted-foreground hover:text-destructive"
+                            onClick={() => setExternal((c) => c.filter((e) => e !== address))}
+                          >
+                            <X className="size-3" />
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <Input
+                    id="external-email"
+                    type="email"
+                    value={draftEmail}
+                    disabled={locked}
+                    placeholder="accountant@example.com"
+                    onChange={(e) => setDraftEmail(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addExternal();
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={locked || !draftEmail.trim()}
+                    onClick={addExternal}
+                  >
+                    <Plus className="size-4" /> Add
+                  </Button>
+                </div>
+                {/* Says the limit out loud. An outside address has no role to
+                    re-check, so the compensating rule is worth knowing before
+                    you rely on it. */}
+                <p className="text-xs text-muted-foreground">
+                  Outside addresses keep receiving this only while you still have
+                  access to the report. Owners and admins only.
+                </p>
+              </div>
+            )}
 
             {existing && (
               <div className="space-y-2 rounded-md border border-border p-3">

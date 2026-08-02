@@ -20,6 +20,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
 import { Route as AuthedAircraftRouteImport } from './routes/_authed/aircraft'
+import { Route as AuthedAuditLogsRouteImport } from './routes/_authed/audit-logs'
 import { Route as AuthedBillingRouteImport } from './routes/_authed/billing'
 import { Route as AuthedBillingRegisterRedirectRouteImport } from './routes/_authed/billing-register-redirect'
 import { Route as AuthedComplianceRouteImport } from './routes/_authed/compliance'
@@ -99,6 +100,11 @@ const VerifyEmailRoute = VerifyEmailRouteImport.update({
 const AuthedAircraftRoute = AuthedAircraftRouteImport.update({
   id: '/aircraft',
   path: '/aircraft',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedAuditLogsRoute = AuthedAuditLogsRouteImport.update({
+  id: '/audit-logs',
+  path: '/audit-logs',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedBillingRoute = AuthedBillingRouteImport.update({
@@ -247,6 +253,7 @@ export interface FileRoutesByFullPath {
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
   '/aircraft': typeof AuthedAircraftRoute
+  '/audit-logs': typeof AuthedAuditLogsRoute
   '/billing': typeof AuthedBillingRoute
   '/billing-register-redirect': typeof AuthedBillingRegisterRedirectRoute
   '/compliance': typeof AuthedComplianceRoute
@@ -285,6 +292,7 @@ export interface FileRoutesByTo {
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
   '/aircraft': typeof AuthedAircraftRoute
+  '/audit-logs': typeof AuthedAuditLogsRoute
   '/billing': typeof AuthedBillingRoute
   '/billing-register-redirect': typeof AuthedBillingRegisterRedirectRoute
   '/compliance': typeof AuthedComplianceRoute
@@ -325,6 +333,7 @@ export interface FileRoutesById {
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
   '/_authed/aircraft': typeof AuthedAircraftRoute
+  '/_authed/audit-logs': typeof AuthedAuditLogsRoute
   '/_authed/billing': typeof AuthedBillingRoute
   '/_authed/billing-register-redirect': typeof AuthedBillingRegisterRedirectRoute
   '/_authed/compliance': typeof AuthedComplianceRoute
@@ -365,6 +374,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/verify-email'
     | '/aircraft'
+    | '/audit-logs'
     | '/billing'
     | '/billing-register-redirect'
     | '/compliance'
@@ -403,6 +413,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/verify-email'
     | '/aircraft'
+    | '/audit-logs'
     | '/billing'
     | '/billing-register-redirect'
     | '/compliance'
@@ -442,6 +453,7 @@ export interface FileRouteTypes {
     | '/signup'
     | '/verify-email'
     | '/_authed/aircraft'
+    | '/_authed/audit-logs'
     | '/_authed/billing'
     | '/_authed/billing-register-redirect'
     | '/_authed/compliance'
@@ -561,6 +573,13 @@ declare module '@tanstack/react-router' {
       path: '/aircraft'
       fullPath: '/aircraft'
       preLoaderRoute: typeof AuthedAircraftRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/audit-logs': {
+      id: '/_authed/audit-logs'
+      path: '/audit-logs'
+      fullPath: '/audit-logs'
+      preLoaderRoute: typeof AuthedAuditLogsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/billing': {
@@ -750,6 +769,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthedRouteChildren {
   AuthedAircraftRoute: typeof AuthedAircraftRoute
+  AuthedAuditLogsRoute: typeof AuthedAuditLogsRoute
   AuthedBillingRoute: typeof AuthedBillingRoute
   AuthedBillingRegisterRedirectRoute: typeof AuthedBillingRegisterRedirectRoute
   AuthedComplianceRoute: typeof AuthedComplianceRoute
@@ -779,6 +799,7 @@ interface AuthedRouteChildren {
 
 const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedAircraftRoute: AuthedAircraftRoute,
+  AuthedAuditLogsRoute: AuthedAuditLogsRoute,
   AuthedBillingRoute: AuthedBillingRoute,
   AuthedBillingRegisterRedirectRoute: AuthedBillingRegisterRedirectRoute,
   AuthedComplianceRoute: AuthedComplianceRoute,

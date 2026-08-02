@@ -13,6 +13,7 @@ import {
   MonitorPlay,
   PlaneTakeoff,
   Receipt,
+  ScrollText,
   Settings,
   ShieldCheck,
   TerminalSquare,
@@ -52,6 +53,7 @@ const OPERATIONS: NavItem[] = [
   { to: "/facilities", label: "Facilities", icon: MonitorPlay },
   { to: "/operations/announcements", label: "Announcements", icon: Megaphone },
   { to: "/operations/cancellations", label: "Cancellations", icon: CalendarX2 },
+  { to: "/audit-logs", label: "Audit Logs", icon: ScrollText },
 ];
 
 /**

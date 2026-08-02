@@ -52,6 +52,9 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   "/operations/cancellations": isStaff,
   "/compliance": isStaff,
   "/maintenance": (r) => isStaff(r) || isTechnician(r),
+  //Matches the server exactly: `GET /audit` is isOrgAdmin. A dispatcher offered this
+  //link would reach a page that could only 403.
+  "/audit-logs": isAdmin,
   "/settings": isAdmin,
 };
 

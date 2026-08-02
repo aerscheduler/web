@@ -99,7 +99,7 @@ export const CHECKLIST: ChecklistItem[] = [
     blurb: "Book a real lesson or rental — the board, close-out and invoice all follow from it.",
     icon: PlaneTakeoff,
     to: "/schedule",
-    cta: "Open the schedule",
+    cta: "Open the calendar",
     isDone: (f) => f.reservations > 0,
   },
   {

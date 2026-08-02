@@ -72,9 +72,9 @@ const NAV = [
   },
   {
     to: "/schedule",
-    label: "Schedule",
-    path: ["Operations", "Schedule"],
-    keywords: ["calendar", "flights", "bookings", "reservations"],
+    label: "Calendar",
+    path: ["Operations", "Calendar"],
+    keywords: ["schedule", "flights", "bookings", "reservations", "ramp", "board"],
     icon: CalendarDays,
   },
   {

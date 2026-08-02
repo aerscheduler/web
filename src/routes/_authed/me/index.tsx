@@ -174,7 +174,7 @@ function MyDayPage() {
               to="/me/schedule"
               className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
             >
-              Calendar
+              Schedule
             </Link>
           </CardHeader>
           <CardContent className="pt-0">
@@ -237,7 +237,7 @@ function MyDayPage() {
             </Button>
             <Button asChild variant="outline" className="justify-start">
               <Link to="/me/schedule">
-                <CalendarClock className="size-4" /> Calendar
+                <CalendarClock className="size-4" /> Schedule
               </Link>
             </Button>
             <Button asChild variant="outline" className="justify-start">

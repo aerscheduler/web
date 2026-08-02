@@ -135,7 +135,7 @@ function MySchedulePage() {
     return (
       <TableView>
         <TableView.Header>
-          <PageHeader title="Calendar" />
+          <PageHeader title="Schedule" />
         </TableView.Header>
         <Card className="min-h-0 flex-1">
           <EmptyState
@@ -152,7 +152,7 @@ function MySchedulePage() {
     <TableView>
       <TableView.Header>
         <PageHeader
-          title="Calendar"
+          title="Schedule"
           subtitle={
             maintenanceOnly
               ? "The maintenance you've scheduled."

@@ -259,7 +259,7 @@ const RECENT_SHOWN = 4;
 
 /**
  * Recently visited pages — but only ones the rail isn't already showing.
- * Repeating Schedule back at someone two inches under the Schedule link is
+ * Repeating Calendar back at someone two inches under the Calendar link is
  * noise; what earns the space is the page they had to dig for. That also makes
  * the pin affordance land where it's useful: the list is, by construction, the
  * shortlist of things worth promoting.

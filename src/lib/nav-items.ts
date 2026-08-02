@@ -37,15 +37,17 @@ export type NavItem = { to: string; label: string; icon: NavIcon };
  *
  * Order matters twice over: it is the out-of-the-box nav, and it is the fallback
  * position for any item a user hasn't explicitly placed (see `mergeNavOrder`).
+ * Calendar and Reports sit together near the top — the board and the numbers
+ * that follow from it — with Maintenance also in the visible five.
  */
 const OPERATIONS: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/schedule", label: "Schedule", icon: CalendarDays },
+  { to: "/schedule", label: "Calendar", icon: CalendarDays },
+  { to: "/reports", label: "Reports", icon: ChartColumnBig },
+  { to: "/maintenance", label: "Maintenance", icon: Wrench },
   { to: "/people", label: "People", icon: Users },
   { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
   { to: "/billing", label: "Billing", icon: Receipt },
-  { to: "/reports", label: "Reports", icon: ChartColumnBig },
-  { to: "/maintenance", label: "Maintenance", icon: Wrench },
   { to: "/compliance", label: "Go / No-Go", icon: ShieldCheck },
   { to: "/facilities", label: "Facilities", icon: MonitorPlay },
   { to: "/operations/announcements", label: "Announcements", icon: Megaphone },
@@ -71,7 +73,7 @@ export function youNav(roles: string[]): NavItem[] {
   const R = roles as Role[];
   return [
     { to: "/me", label: "Home", icon: Home },
-    { to: "/me/schedule", label: "Calendar", icon: CalendarDays },
+    { to: "/me/schedule", label: "Schedule", icon: CalendarDays },
     // Only roles that can actually be seated on a booking — a pure dispatcher
     // books from the board, not here.
     ...(canSelfBook(R) ? [{ to: "/me/book", label: "Book", icon: CalendarPlus }] : []),

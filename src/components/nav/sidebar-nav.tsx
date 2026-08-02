@@ -106,14 +106,16 @@ function OperationsGroup({
 }) {
   const reorder = useReorder(items, (order) => setNavOrder(orgId, order));
   const [openMore, setOpenMore] = React.useState(false);
-  const listRef = useFlipRows<HTMLUListElement>();
+  const listRef = useFlipRows<HTMLUListElement>(reorder.dragKey);
 
   const { list, dragging } = reorder;
   const overflow = list.slice(NAV_VISIBLE_COUNT);
   // Never strand the page you're on behind a closed disclosure — a rail that
   // can't show you where you are is worse than one link too many.
   const activeInOverflow = overflow.some((i) => isNavItemActive(i.to, pathname));
-  const expanded = openMore || dragging || activeInOverflow;
+  // Dragging alone does not open More — only hovering the More row (or an
+  // explicit click) does, so the rail stays calm while reordering the top five.
+  const expanded = openMore || activeInOverflow;
 
   if (list.length === 0) return null;
 
@@ -135,7 +137,10 @@ function OperationsGroup({
           Drag a link to reorder it, or focus it and press Alt with the up and down arrow
           keys. The first {NAV_VISIBLE_COUNT} links stay visible; the rest move under More.
         </p>
-        <SidebarMenu ref={listRef} onDragOver={(e) => dragging && e.preventDefault()}>
+        <SidebarMenu
+          ref={listRef}
+          onDragOver={(e) => reorder.isDragging() && e.preventDefault()}
+        >
           {list.map((item, index) => (
             <React.Fragment key={item.to}>
               {index === NAV_VISIBLE_COUNT && (
@@ -143,7 +148,11 @@ function OperationsGroup({
                   expanded={expanded}
                   dragging={dragging}
                   onToggle={() => setOpenMore((o) => !o)}
-                  onDragOver={() => reorder.over(NAV_VISIBLE_COUNT)}
+                  onDragOver={() => {
+                    setOpenMore(true);
+                    reorder.over(NAV_VISIBLE_COUNT);
+                  }}
+                  isDragging={reorder.isDragging}
                 />
               )}
               {(index < NAV_VISIBLE_COUNT || expanded) && (
@@ -176,17 +185,21 @@ function MoreRow({
   dragging,
   onToggle,
   onDragOver,
+  isDragging,
 }: {
   expanded: boolean;
   dragging: boolean;
   onToggle: () => void;
   onDragOver: () => void;
+  /** Ref-backed: true as soon as dragstart runs, before deferred UI state paints. */
+  isDragging: () => boolean;
 }) {
   return (
     <SidebarMenuItem
       onDragOver={(e) => {
-        if (!dragging) return;
+        if (!isDragging()) return;
         e.preventDefault();
+        // Boundary target (not a list row) — drop onto the More index directly.
         onDragOver();
       }}
     >
@@ -218,7 +231,7 @@ function PinnedGroup({
     [pinned]
   );
   const reorder = useReorder(items, (order) => setPinnedOrder(orgId, order));
-  const listRef = useFlipRows<HTMLUListElement>();
+  const listRef = useFlipRows<HTMLUListElement>(reorder.dragKey);
 
   if (items.length === 0) return null;
 
@@ -226,7 +239,10 @@ function PinnedGroup({
     <SidebarGroup>
       <SidebarGroupLabel>Pinned</SidebarGroupLabel>
       <SidebarGroupContent>
-        <SidebarMenu ref={listRef} onDragOver={(e) => reorder.dragging && e.preventDefault()}>
+        <SidebarMenu
+          ref={listRef}
+          onDragOver={(e) => reorder.isDragging() && e.preventDefault()}
+        >
           {reorder.list.map((item, index) => (
             <NavRow
               key={item.to}
@@ -358,15 +374,19 @@ const FLIP_MS = 180;
 /**
  * FLIP the rows to their new positions instead of letting them teleport.
  *
- * Reordering swaps two rows in one frame, and without this the list snaps — you
- * lose track of which slot you're hovering, which is exactly the feedback a drag
- * needs. So: measure every row before the paint that moves it, invert the delta
- * as a transform, then let the transform transition away. Both axes, because a
- * row crossing the More boundary changes indent as well as height.
+ * Used for keyboard reorder (Alt+↑/↓). During an HTML5 drag we intentionally
+ * do not animate: CSS transforms on siblings change hit-testing under the
+ * cursor, so dragging upward (where the rows between old and new index slide
+ * down through the pointer) oscillates — reorder → FLIP → different row under
+ * cursor → reorder → flicker. Live draft order without transforms is stable.
  */
-function useFlipRows<T extends HTMLElement>(): React.RefObject<T | null> {
+function useFlipRows<T extends HTMLElement>(
+  dragging?: string | null
+): React.RefObject<T | null> {
   const ref = React.useRef<T>(null);
   const prev = React.useRef(new Map<string, DOMRect>());
+  const draggingRef = React.useRef(dragging);
+  draggingRef.current = dragging;
 
   // Layout effect, not effect: the correction has to be applied in the same
   // frame as the reorder, or the row is visibly painted in its new slot first.
@@ -374,18 +394,32 @@ function useFlipRows<T extends HTMLElement>(): React.RefObject<T | null> {
     const root = ref.current;
     if (!root) return;
 
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     const next = new Map<string, DOMRect>();
+    for (const node of root.querySelectorAll<HTMLElement>("[data-flip-key]")) {
+      // Clear any in-flight FLIP so a transform can't linger into a drag.
+      if (draggingRef.current) {
+        node.style.transition = "";
+        node.style.transform = "";
+      }
+      next.set(node.dataset.flipKey!, node.getBoundingClientRect());
+    }
+
+    if (draggingRef.current) {
+      // Keep the baseline in sync with the live draft so the first keyboard
+      // move after a drag doesn't animate from a stale pre-drag rect.
+      prev.current = next;
+      return;
+    }
+
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
     for (const node of root.querySelectorAll<HTMLElement>("[data-flip-key]")) {
       const key = node.dataset.flipKey!;
-      const box = node.getBoundingClientRect();
-      next.set(key, box);
-
       // Rows with no previous box are new to the DOM (More just expanded);
       // sliding them in from a stale position would be worse than not moving.
       const was = prev.current.get(key);
-      if (!was || reduced) continue;
+      const box = next.get(key);
+      if (!was || !box || reduced) continue;
 
       const dx = was.left - box.left;
       const dy = was.top - box.top;
@@ -414,11 +448,23 @@ function useFlipRows<T extends HTMLElement>(): React.RefObject<T | null> {
  * The list previews the new order live in a local draft and only writes the
  * committed order on drop, so a drag across ten rows is one persisted change
  * rather than fifty.
+ *
+ * React state that restyles the drag source (opacity, More expand, FLIP) is
+ * deferred one frame after dragstart — mutating the source synchronously
+ * cancels the native drag in Chromium. Handlers read refs so the first
+ * dragover after start still works in that gap.
  */
 function useReorder(items: NavItem[], onCommit: (order: string[]) => void) {
   const { isMobile } = useSidebar();
   const [draft, setDraft] = React.useState<NavItem[] | null>(null);
   const [dragKey, setDragKey] = React.useState<string | null>(null);
+
+  const draftRef = React.useRef<NavItem[] | null>(null);
+  const dragKeyRef = React.useRef<string | null>(null);
+  const itemsRef = React.useRef(items);
+  const onCommitRef = React.useRef(onCommit);
+  itemsRef.current = items;
+  onCommitRef.current = onCommit;
 
   const list = draft ?? items;
 
@@ -426,22 +472,60 @@ function useReorder(items: NavItem[], onCommit: (order: string[]) => void) {
     list,
     dragKey,
     dragging: dragKey !== null,
+    isDragging: () => dragKeyRef.current !== null,
     // Touch has no HTML5 drag events, so don't advertise a gesture that can't
     // fire — the order still travels with the user from their desktop.
     enabled: !isMobile,
     start(to: string) {
-      setDragKey(to);
-      setDraft(items);
+      // Refs update synchronously so dragover can reorder before the deferred
+      // paint; state waits a frame so the browser can claim the drag image.
+      dragKeyRef.current = to;
+      draftRef.current = itemsRef.current;
+      requestAnimationFrame(() => {
+        // Drag may already have ended (cancelled) before this frame.
+        if (dragKeyRef.current !== to) return;
+        setDragKey(to);
+        // Don't clobber a draft `over` may have written in the same frame.
+        setDraft((current) => current ?? draftRef.current);
+      });
     },
-    over(index: number) {
+    over(index: number, clientY?: number, rowTop?: number, rowHeight?: number) {
+      const key = dragKeyRef.current;
+      if (!key) return;
       setDraft((current) => {
-        const base = current ?? items;
-        const from = base.findIndex((i) => i.to === dragKey);
-        return from === -1 || from === index ? base : moveItem(base, from, index);
+        const base = current ?? itemsRef.current;
+        const from = base.findIndex((i) => i.to === key);
+        if (from === -1) return current;
+
+        // Midpoint insertion: top half → before this row, bottom half → after.
+        // Mapping the hovered row's index alone oscillates when moving up/down,
+        // because the row under the cursor changes as soon as the draft shifts.
+        let to = index;
+        if (clientY != null && rowTop != null && rowHeight != null && rowHeight > 0) {
+          const insertAt = clientY < rowTop + rowHeight / 2 ? index : index + 1;
+          // moveItem removes `from` first, which shifts later slots down by one.
+          to = from < insertAt ? insertAt - 1 : insertAt;
+        }
+        to = Math.max(0, Math.min(to, base.length - 1));
+        if (from === to) return current;
+
+        const next = moveItem(base, from, to);
+        draftRef.current = next;
+        return next;
       });
     },
     end() {
-      if (draft && dragKey) onCommit(draft.map((i) => i.to));
+      const d = draftRef.current;
+      const key = dragKeyRef.current;
+      if (d && key) {
+        const next = d.map((i) => i.to);
+        const prev = itemsRef.current.map((i) => i.to);
+        if (next.length !== prev.length || next.some((t, i) => t !== prev[i])) {
+          onCommitRef.current(next);
+        }
+      }
+      draftRef.current = null;
+      dragKeyRef.current = null;
       setDraft(null);
       setDragKey(null);
     },
@@ -483,9 +567,11 @@ function NavRow({
         reorder.start(item.to);
       }}
       onDragOver={(e) => {
-        if (!reorder.dragging) return;
+        // Ref-backed: don't wait for the deferred dragstart paint.
+        if (!reorder.isDragging()) return;
         e.preventDefault();
-        reorder.over(index);
+        const rect = e.currentTarget.getBoundingClientRect();
+        reorder.over(index, e.clientY, rect.top, rect.height);
       }}
       onDrop={(e) => e.preventDefault()}
       onDragEnd={reorder.end}

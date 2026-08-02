@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Auth status</title>
+  </head>
+  <body>
+    <script>
+      /**
+       * Tiny cross-origin probe for www.aerscheduler.com.
+       * Reads the console JWT from this origin's localStorage and posts only
+       * { authenticated: boolean } to an allowlisted parent. No tokens leave.
+       */
+      (function () {
+        var MESSAGE_TYPE = "aerscheduler:auth-status";
+        var TOKEN_KEY = "aer.token";
+        var EXPIRY_SKEW_MS = 10000;
+
+        var ALLOWED_ORIGINS = {
+          "https://www.aerscheduler.com": true,
+          "https://aerscheduler.com": true,
+        };
+
+        function isAllowedOrigin(origin) {
+          if (!origin || typeof origin !== "string") return false;
+          if (ALLOWED_ORIGINS[origin]) return true;
+          try {
+            var host = new URL(origin).hostname;
+            return host === "localhost" || host === "127.0.0.1";
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function hasLiveToken() {
+          try {
+            var token = localStorage.getItem(TOKEN_KEY);
+            if (!token) return false;
+            var payload = token.split(".")[1];
+            if (!payload) return true;
+            var b64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+            while (b64.length % 4) b64 += "=";
+            var claims = JSON.parse(atob(b64));
+            if (typeof claims.exp === "number") {
+              return claims.exp * 1000 - EXPIRY_SKEW_MS > Date.now();
+            }
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+
+        function resolveTargetOrigin() {
+          var params = new URLSearchParams(window.location.search);
+          var requested = params.get("origin");
+          if (requested && isAllowedOrigin(requested)) return requested;
+          if (document.referrer) {
+            try {
+              var fromReferrer = new URL(document.referrer).origin;
+              if (isAllowedOrigin(fromReferrer)) return fromReferrer;
+            } catch (e) {
+              /* ignore */
+            }
+          }
+          return null;
+        }
+
+        if (!window.parent || window.parent === window) return;
+
+        var target = resolveTargetOrigin();
+        if (!target) return;
+
+        window.parent.postMessage(
+          { type: MESSAGE_TYPE, authenticated: hasLiveToken() },
+          target
+        );
+      })();
+    </script>
+  </body>
+</html>

@@ -1063,6 +1063,35 @@ export function resourceLabel(r: Resource): { name: string; kind: "Aircraft" | "
   return { name: `Resource #${r.id}`, kind: "Resource" };
 }
 
+/* ── Audit trail ─────────────────────────────────────────────────────────────── */
+
+/**
+ * One thing somebody did, as the server recorded it.
+ *
+ * `entityType`/`entityId` carry no `FK_` prefix deliberately — the response middleware
+ * deletes every `FK_*` field, and these two are what link an entry back to its booking.
+ * The relations arrive nested for the same reason.
+ */
+export interface AuditEvent {
+  id: number;
+  createdAt: string;
+  /** "reservation.rescheduled", "reservation.cancelled", … */
+  action: string;
+  entityType: string;
+  entityId: number;
+  /** A finished sentence, written server-side: "Moved 10:00 AM → 11:00 AM". */
+  summary: string | null;
+  /** Only the fields that moved. Shape is `{ field: { from, to } }`. */
+  changes: Record<string, { from: unknown; to: unknown }> | null;
+  /** web | ios | api | system — null when we couldn't tell. */
+  source: string | null;
+  /** Null for system-originated events (cron, webhooks). */
+  actor: { id: number; user?: User } | null;
+  /** The member the event is about, which is usually not the actor. */
+  subject: { id: number; user?: User } | null;
+  resource: Resource | null;
+}
+
 /* ── Cancellations (F12) ─────────────────────────────────────────────────────── */
 
 /**

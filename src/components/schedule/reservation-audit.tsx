@@ -1,5 +1,6 @@
 import { formatDistanceToNowStrict } from "date-fns";
-import type { Reservation } from "@/types/api";
+import type { AuditEvent, Reservation } from "@/types/api";
+import { useReservationAudit } from "@/features/queries";
 import { Separator } from "@/components/ui/separator";
 import { useTimeZone } from "@/lib/use-timezone";
 import { cn } from "@/lib/utils";
@@ -11,7 +12,7 @@ import { cn } from "@/lib/utils";
  * audit entry, it's a status, and it belongs in the close-out section instead. That rule is
  * why the guest review and the `updatedAt` roll-up are handled the way they are below.
  */
-type AuditEvent = {
+type TimelineEntry = {
   at: string;
   label: string;
   /** "Dana Whitfield" — omitted when the API can't tell us who. */
@@ -20,6 +21,8 @@ type AuditEvent = {
   detail?: string | null;
   /** Cancellations and voids read as red; everything else is neutral. */
   tone?: "default" | "destructive";
+  /** "from the app" — only set on entries that came from a recorded audit event. */
+  via?: string | null;
 };
 
 function personName(
@@ -42,8 +45,8 @@ function meters(hobbs: number | null | undefined, tach: number | null | undefine
  * Exported for its own sake: the same list drives the "needs attention" reasoning, and it is
  * far easier to test as a pure function than through the sheet.
  */
-export function auditEvents(r: Reservation): AuditEvent[] {
-  const events: AuditEvent[] = [];
+export function auditEvents(r: Reservation): TimelineEntry[] {
+  const events: TimelineEntry[] = [];
   const rev = r.review;
 
   events.push({
@@ -108,6 +111,94 @@ export function auditEvents(r: Reservation): AuditEvent[] {
   return events;
 }
 
+
+/**
+ * Which milestones the recorded audit trail supersedes.
+ *
+ * The derived timeline above is built from timestamps that happen to sit on the row, so it
+ * works for every booking ever made. The audit table only knows what has happened since it
+ * shipped. Merging them naively would double every event on a new booking and show nothing
+ * extra on an old one, so the two are partitioned by ACTION instead of by time:
+ *
+ *   - Anything in this set, the audit trail owns when it has rows — it knows who did it and
+ *     what changed, which the derived version cannot.
+ *   - Everything else (signed off, invoiced, paid, voided) stays derived; those aren't
+ *     instrumented yet.
+ *   - A booking with no audit rows at all — every booking from before this shipped — falls
+ *     back to the derived timeline entirely and looks exactly as it did.
+ */
+const AUDITABLE_LABELS = new Set(["Booked", "Ramped out", "Ramped in", "Cancelled"]);
+
+/** How an action reads in the timeline when the server didn't write a summary. */
+const ACTION_LABEL: Record<string, string> = {
+  "reservation.created": "Booked",
+  "reservation.rescheduled": "Rescheduled",
+  "reservation.updated": "Edited",
+  "reservation.cancelled": "Cancelled",
+  "reservation.rampedOut": "Ramped out",
+  "reservation.rampedIn": "Ramped in",
+  "reservation.reviewConfirmed": "Signed off",
+  "reservation.invoiced": "Invoiced",
+};
+
+/** "from the app" / "from the console" — only worth saying when we actually know. */
+function sourceLabel(source: string | null): string | null {
+  switch (source) {
+    case "web":
+      return "from the console";
+    case "ios":
+      return "from the app";
+    case "api":
+      return "via the API";
+    default:
+      return null;
+  }
+}
+
+function toEntry(e: AuditEvent): TimelineEntry {
+  const label = ACTION_LABEL[e.action] ?? e.action;
+  const destructive = e.action.endsWith(".cancelled") || e.action.endsWith(".voided");
+  return {
+    at: e.createdAt,
+    label,
+    //An automated event has no actor, and "by nobody" is worse than saying so plainly.
+    who: e.actor ? (e.actor.user?.name ?? e.actor.user?.email ?? null) : "AerScheduler",
+    //`summary` restates the label for the plain milestones ("Booked"); only show it when it
+    //carries something the label doesn't.
+    detail: e.summary && e.summary !== label ? e.summary : null,
+    tone: destructive ? "destructive" : "default",
+    via: sourceLabel(e.source),
+  };
+}
+
+/**
+ * The timeline as rendered: derived milestones, with recorded events taking over the ones
+ * they cover. Oldest first.
+ */
+export function mergeTimeline(r: Reservation, recorded: AuditEvent[] | undefined): TimelineEntry[] {
+  const derived = auditEvents(r);
+  if (!recorded || recorded.length === 0) return derived;
+
+  const entries = recorded.map(toEntry);
+
+  //Drop a derived milestone only when the recorded trail ACTUALLY supplies that milestone —
+  //not merely because some other event was recorded. A booking made before this shipped and
+  //edited after it has an audit row for the edit and none for the booking, and "Booked"
+  //still has to appear; keying off the static list instead silently ate it.
+  const supplied = new Set(entries.map((e) => e.label));
+  const kept = derived.filter((e) => {
+    //`Last edited` is the `updatedAt` roll-up — the placeholder that exists precisely
+    //because the row alone can't say what changed or who changed it. Any recorded event
+    //answers both, so the roll-up is strictly worse and goes.
+    if (e.label === "Last edited") return false;
+    return !(AUDITABLE_LABELS.has(e.label) && supplied.has(e.label));
+  });
+
+  const merged = [...kept, ...entries];
+  merged.sort((a, b) => a.at.localeCompare(b.at));
+  return merged;
+}
+
 /**
  * "2h ago" — only for the recent past, where it genuinely helps a dispatcher ("it went out
  * 3h ago" is the answer to a question someone is asking). Beyond a week it's noise, and for
@@ -129,7 +220,10 @@ function relative(iso: string): string | null {
  */
 export function ReservationAudit({ reservation }: { reservation: Reservation }) {
   const tz = useTimeZone(reservation.location);
-  const events = auditEvents(reservation);
+  //The trail is fetched, not derived, wherever the server has it. A failure here is not
+  //worth an error state: the derived timeline below is a complete fallback on its own.
+  const recorded = useReservationAudit(reservation.id);
+  const events = mergeTimeline(reservation, recorded.data);
   if (events.length === 0) return null;
 
   return (
@@ -156,6 +250,9 @@ export function ReservationAudit({ reservation }: { reservation: Reservation }) 
                     {e.label}
                     {e.who && (
                       <span className="font-normal text-muted-foreground"> by {e.who}</span>
+                    )}
+                    {e.via && (
+                      <span className="font-normal text-muted-foreground"> {e.via}</span>
                     )}
                   </div>
                   <div className="text-xs tabular-nums text-muted-foreground">

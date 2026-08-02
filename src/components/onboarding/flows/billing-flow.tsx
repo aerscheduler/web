@@ -16,6 +16,7 @@ import { CreditCard, ExternalLink, Loader2, Puzzle } from "lucide-react";
 import { toast } from "sonner";
 import { useBilling, useConnectStripe, useQuickBooksAuthorize, useQuickBooksSettings } from "@/features/queries";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import {
   FlowBenefits,
@@ -27,6 +28,7 @@ import {
 } from "./flow-shell";
 
 export function BillingFlow({ onClose }: FlowProps) {
+  const { isDemo } = useAuth();
   const billing = useBilling();
   const quickBooks = useQuickBooksSettings();
   const connect = useConnectStripe();
@@ -113,7 +115,11 @@ export function BillingFlow({ onClose }: FlowProps) {
               </div>
             </div>
           </div>
-          <Button className="mt-4 w-full" onClick={startStripe} disabled={connect.isPending}>
+          <Button
+            className="mt-4 w-full"
+            onClick={startStripe}
+            disabled={connect.isPending || isDemo}
+          >
             {connect.isPending ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
@@ -121,6 +127,7 @@ export function BillingFlow({ onClose }: FlowProps) {
             )}
             Connect Stripe
           </Button>
+          {isDemo && <DemoConnectNote />}
         </div>
       )}
 
@@ -150,7 +157,7 @@ export function BillingFlow({ onClose }: FlowProps) {
               className="mt-4 w-full"
               variant="outline"
               onClick={startQuickBooks}
-              disabled={authorizeQb.isPending}
+              disabled={authorizeQb.isPending || isDemo}
             >
               {authorizeQb.isPending ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -159,8 +166,19 @@ export function BillingFlow({ onClose }: FlowProps) {
               )}
               Connect QuickBooks
             </Button>
+            {isDemo && <DemoConnectNote />}
           </div>
         ))}
     </FlowModal>
+  );
+}
+
+/** Why a connect button is inert in the demo — the demo never links a real
+ *  third-party account (Stripe/QuickBooks) to a sandbox that resets. */
+function DemoConnectNote() {
+  return (
+    <p className="mt-2 text-center text-xs text-muted-foreground">
+      Connecting a real account isn&rsquo;t available in the demo.
+    </p>
   );
 }

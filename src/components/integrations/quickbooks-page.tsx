@@ -121,6 +121,7 @@ function SetupSteps({ row }: { row: QuickBooksSettings | null }) {
 }
 
 function QuickBooksOwnerPage() {
+  const { isDemo } = useAuth();
   const settings = useQuickBooksSettings();
   const items = useQuickBooksItems({
     enabled:
@@ -225,7 +226,7 @@ function QuickBooksOwnerPage() {
             variant="outline"
             size="sm"
             onClick={() => void onConnect()}
-            disabled={authorize.isPending}
+            disabled={authorize.isPending || isDemo}
           >
             Reauthorize
           </Button>
@@ -254,7 +255,12 @@ function QuickBooksOwnerPage() {
                 ? "Reconnect to finish setup and resume Sales Receipt sync."
                 : "Connect your Intuit company to start syncing paid flights."}
             </p>
-            <Button onClick={() => void onConnect()} disabled={authorize.isPending} className="gap-2">
+            <Button
+              onClick={() => void onConnect()}
+              disabled={authorize.isPending || isDemo}
+              className="gap-2"
+              title={isDemo ? "Connecting a real account isn't available in the demo" : undefined}
+            >
               {authorize.isPending ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (

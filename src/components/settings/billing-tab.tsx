@@ -66,76 +66,23 @@ export function BillingTab() {
     );
   }
 
-  // A 200 carrying `null` is not a failure — it is every organization that has never
-  // connected Stripe. The billing settings row is created lazily, by the Connect
-  // handshake (`StripeService.createStripeAccountAndReturnLinkUrlForOrg`), so a school
-  // that has not reached that point has no row to show. Treating that as an error told
-  // brand-new schools "something went wrong" on the very page they were sent to.
-  if (!q.data) return <BillingNotSetUp />;
-
-  return <BillingForms billing={q.data} />;
+  //A 200 carrying `null` is not a failure — it is every organization that has never
+  //connected Stripe. The row is created on first write now (stripeAccountId became
+  //optional), so rather than a dead end we render the real form seeded with the
+  //server's defaults: a school can set its instructor rate and service fee on day one,
+  //and the Stripe card inside the form is already the "Connect payouts" prompt.
+  return <BillingForms billing={q.data ?? UNCONFIGURED_BILLING} />;
 }
 
-/** Before Connect: there are no settings to edit yet, only one thing to do. */
-function BillingNotSetUp() {
-  const connect = useConnectStripe();
-
-  async function handleConnect() {
-    try {
-      const { url } = await connect.mutateAsync();
-      if (!url) throw new Error("No onboarding URL returned");
-      window.location.assign(url);
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Couldn't start Stripe onboarding"
-      );
-    }
-  }
-
-  return (
-    <Card className="max-w-2xl">
-      <CardHeader className="flex-row items-center gap-2.5">
-        <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
-          <CreditCard className="size-4" />
-        </span>
-        <div>
-          <CardTitle>Set up billing</CardTitle>
-          <CardDescription>
-            Connect Stripe to invoice your members and take card or ACH payments.
-          </CardDescription>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <ul className="space-y-2 text-sm text-muted-foreground">
-          {[
-            "Invoices drafted from Hobbs or tach when a flight is closed out",
-            "Card and ACH payments, with autopay if members want it",
-            "QuickBooks sync, so your books close without re-keying",
-            "Payouts go straight to your own bank account",
-          ].map((t) => (
-            <li key={t} className="flex items-start gap-2.5">
-              <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
-              {t}
-            </li>
-          ))}
-        </ul>
-        <p className="text-xs text-muted-foreground">
-          Rates, service fees and invoicing options appear here once Stripe is connected.
-        </p>
-      </CardContent>
-      <CardFooter>
-        <Button onClick={handleConnect} disabled={connect.isPending}>
-          {connect.isPending ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <ExternalLink className="size-4" />
-          )}
-          Connect Stripe
-        </Button>
-      </CardFooter>
-    </Card>
-  );
-}
+/** What the server would give a brand-new row. Editing and saving creates it. */
+const UNCONFIGURED_BILLING: OrganizationBillingSettings = {
+  id: 0,
+  enabled: false,
+  defaultInstructorRate: 0,
+  serviceFeePercent: null,
+  serviceFeeLabel: "Service Fee",
+  stripeEnabled: false,
+};
 
 function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
   const update = useUpdateBilling();

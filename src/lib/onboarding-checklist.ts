@@ -156,9 +156,9 @@ export const CHECKLIST: ChecklistItem[] = [
     search: { tab: "organization" },
     cta: "Review rules",
     // There's no "visited this page" flag to read, and inventing one would be a lie
-    // the moment someone changed a setting elsewhere. Instead: a rule is set when any
-    // gate is switched away from its default. An operation that genuinely wants the
-    // defaults dismisses this item.
+    // the moment someone changed a setting elsewhere. A gate flipped on elsewhere
+    // still marks this done; finishing the RulesFlow dismisses it even when every
+    // switch stays off (defaults are a valid answer).
     isDone: (f) =>
       Boolean(
         f.organization?.preferences?.private ||

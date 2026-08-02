@@ -17,7 +17,14 @@ import { toast } from "sonner";
 import { useBilling, useConnectStripe, useQuickBooksAuthorize, useQuickBooksSettings } from "@/features/queries";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { FlowBenefits, FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
+import {
+  FlowBenefits,
+  FlowClose,
+  FlowDone,
+  FlowModal,
+  FlowNav,
+  type FlowProps,
+} from "./flow-shell";
 
 export function BillingFlow({ onClose }: FlowProps) {
   const billing = useBilling();
@@ -52,6 +59,17 @@ export function BillingFlow({ onClose }: FlowProps) {
     }
   }
 
+  const footer =
+    step === 0 ? (
+      <FlowNav onNext={() => setStep(1)} onSkip={onClose} skipLabel="Not now" />
+    ) : step === 1 ? (
+      <FlowNav onBack={() => setStep(0)} onSkip={onClose} skipLabel="I'll do this later" />
+    ) : qbConnected ? (
+      <FlowClose onClose={onClose} />
+    ) : (
+      <FlowNav onSkip={onClose} skipLabel="Skip for now" />
+    );
+
   return (
     <FlowModal
       open
@@ -60,6 +78,7 @@ export function BillingFlow({ onClose }: FlowProps) {
       description="Three screens, and the last one is optional."
       step={step}
       stepCount={3}
+      footer={footer}
     >
       {step === 0 && (
         <div>
@@ -74,7 +93,6 @@ export function BillingFlow({ onClose }: FlowProps) {
               "Payouts go straight to your own bank — we never hold your money",
             ]}
           />
-          <FlowNav onNext={() => setStep(1)} onSkip={onClose} skipLabel="Not now" />
         </div>
       )}
 
@@ -103,7 +121,6 @@ export function BillingFlow({ onClose }: FlowProps) {
             )}
             Connect Stripe
           </Button>
-          <FlowNav onBack={() => setStep(0)} onSkip={onClose} skipLabel="I'll do this later" />
         </div>
       )}
 
@@ -112,7 +129,6 @@ export function BillingFlow({ onClose }: FlowProps) {
           <FlowDone
             headline="Billing is connected."
             body="Stripe and QuickBooks are both live. Close-outs will invoice, collect, and land in your books."
-            onClose={onClose}
           />
         ) : (
           <div>
@@ -143,7 +159,6 @@ export function BillingFlow({ onClose }: FlowProps) {
               )}
               Connect QuickBooks
             </Button>
-            <FlowNav onSkip={onClose} skipLabel="Skip for now" />
           </div>
         ))}
     </FlowModal>

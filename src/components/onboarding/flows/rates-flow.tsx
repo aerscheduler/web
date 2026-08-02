@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/money-input";
 import { cn } from "@/lib/utils";
-import { FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
+import { FlowClose, FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
 
 /** The certificates a school sells first. "Other" hands over to a free-text name. */
 const COMMON = ["Private Pilot", "Instrument", "Commercial", "Flight Review", "Other"];
@@ -51,12 +51,25 @@ export function RatesFlow({ onClose }: FlowProps) {
       onOpenChange={(o) => !o && onClose()}
       title="Set your instruction rate"
       description="One is enough to make lessons priceable. Add the rest in Settings."
+      footer={
+        done ? (
+          <FlowClose onClose={onClose} />
+        ) : (
+          <FlowNav
+            onNext={save}
+            nextLabel="Save rate"
+            nextDisabled={isOther && !custom.trim()}
+            busy={create.isPending}
+            onSkip={onClose}
+            skipLabel="Cancel"
+          />
+        )
+      }
     >
       {done ? (
         <FlowDone
           headline="Lessons are priceable."
           body={`${name} is set at $${(rate / 100).toFixed(2)}/hour. Close-outs will bill instruction automatically.`}
-          onClose={onClose}
         />
       ) : (
         <div className="space-y-4">
@@ -99,15 +112,6 @@ export function RatesFlow({ onClose }: FlowProps) {
             <Label htmlFor="rf-rate">Instructor rate, per hour</Label>
             <MoneyInput id="rf-rate" cents={rate} onCentsChange={setRate} />
           </div>
-
-          <FlowNav
-            onNext={save}
-            nextLabel="Save rate"
-            nextDisabled={isOther && !custom.trim()}
-            busy={create.isPending}
-            onSkip={onClose}
-            skipLabel="Cancel"
-          />
         </div>
       )}
     </FlowModal>

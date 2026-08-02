@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Combobox, type ComboOption } from "@/components/combobox";
-import { FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
+import { FlowClose, FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
 
 /** Same ordering as the settings card: the handful people actually pick, then the rest. */
 function zoneOptions(): ComboOption[] {
@@ -91,12 +91,19 @@ export function OrganizationFlow({ onClose }: FlowProps) {
       onOpenChange={(o) => !o && onClose()}
       title="Make it look like your operation"
       description="This is what shows up on invoices, emails, and your join page."
+      size="lg"
+      footer={
+        done ? (
+          <FlowClose onClose={onClose} />
+        ) : (
+          <FlowNav onNext={save} nextLabel="Save" busy={busy} onSkip={onClose} skipLabel="Cancel" />
+        )
+      }
     >
       {done ? (
         <FlowDone
           headline="Looking good."
           body="Your logo and details now appear on everything you send out."
-          onClose={onClose}
         />
       ) : (
         <div className="space-y-4">
@@ -176,8 +183,6 @@ export function OrganizationFlow({ onClose }: FlowProps) {
               everyone — including anyone travelling.
             </p>
           </div>
-
-          <FlowNav onNext={save} nextLabel="Save" busy={busy} onSkip={onClose} skipLabel="Cancel" />
         </div>
       )}
     </FlowModal>

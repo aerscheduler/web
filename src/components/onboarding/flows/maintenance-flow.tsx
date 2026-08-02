@@ -28,7 +28,14 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { ResourceGroupForm } from "@/components/settings/groups-tab";
-import { FlowChoice, FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
+import {
+  FlowChoice,
+  FlowClose,
+  FlowDone,
+  FlowModal,
+  FlowNav,
+  type FlowProps,
+} from "./flow-shell";
 
 /**
  * The four reminders essentially every school sets first.
@@ -161,22 +168,49 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
   // A school with no aircraft can't have a reminder — say so instead of failing later.
   if (!planes.isLoading && fleet.length === 0) {
     return (
-      <FlowModal open onOpenChange={(o) => !o && onClose()} title="Track maintenance">
+      <FlowModal
+        open
+        onOpenChange={(o) => !o && onClose()}
+        title="Track maintenance"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={onClose}>
+              Close
+            </Button>
+            <Button asChild onClick={onClose}>
+              <Link to="/aircraft">Add an aircraft</Link>
+            </Button>
+          </div>
+        }
+      >
         <p className="text-sm text-muted-foreground">
           Maintenance reminders hang off an aircraft, so there&rsquo;s nothing to track yet. Add
           your first tail and come back — this takes about a minute after that.
         </p>
-        <div className="mt-5 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>
-            Close
-          </Button>
-          <Button asChild onClick={onClose}>
-            <Link to="/aircraft">Add an aircraft</Link>
-          </Button>
-        </div>
       </FlowModal>
     );
   }
+
+  const footer =
+    step === "size" ? (
+      <FlowNav onNext={() => setStep(size === "one" ? "reminder" : "groups")} />
+    ) : step === "groups" ? (
+      <FlowNav
+        onBack={() => setStep("size")}
+        onNext={() => setStep("reminder")}
+        nextLabel={created.length > 0 ? "Next, set a reminder" : "Skip, set a reminder"}
+      />
+    ) : step === "reminder" ? (
+      <FlowNav
+        onBack={() => setStep(size === "one" ? "size" : "groups")}
+        onNext={submit}
+        nextLabel="Create reminder"
+        nextDisabled={!nameOk || !daysOk || selected.length === 0}
+        busy={create.isPending}
+      />
+    ) : (
+      <FlowClose onClose={onClose} />
+    );
 
   return (
     <FlowModal
@@ -186,6 +220,8 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
       description="One reminder is enough to start — you can add the rest later."
       step={progressIndex(step)}
       stepCount={STEP_ORDER.length}
+      size="xl"
+      footer={footer}
     >
       {step === "size" && (
         <div>
@@ -205,8 +241,6 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
               applied to them too.
             </p>
           )}
-
-          <FlowNav onNext={() => setStep(size === "one" ? "reminder" : "groups")} />
         </div>
       )}
 
@@ -248,12 +282,6 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
               onSaved={(g) => setCreated((list) => [...list, g.name])}
             />
           </div>
-
-          <FlowNav
-            onBack={() => setStep("size")}
-            onNext={() => setStep("reminder")}
-            nextLabel={created.length > 0 ? "Next, set a reminder" : "Skip, set a reminder"}
-          />
         </div>
       )}
 
@@ -323,14 +351,6 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
               </div>
             </div>
           )}
-
-          <FlowNav
-            onBack={() => setStep(size === "one" ? "size" : "groups")}
-            onNext={submit}
-            nextLabel="Create reminder"
-            nextDisabled={!nameOk || !daysOk || selected.length === 0}
-            busy={create.isPending}
-          />
         </div>
       )}
 
@@ -340,7 +360,6 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
           body={`We'll warn you before it comes due on ${
             selected.length === 1 ? "that aircraft" : `all ${selected.length} aircraft`
           }. Add more from the Maintenance page whenever you like.`}
-          onClose={onClose}
         >
           <Button asChild variant="outline" size="sm" onClick={onClose}>
             <Link to="/maintenance">

@@ -7,17 +7,18 @@
  * are the org's current values, so re-opening this is a review, not a reset.
  *
  * Everything here is also in Settings. This flow exists to make sure the questions get
- * ASKED once, not to be the only place they can be answered.
+ * ASKED once, not to be the only place they can be answered. Saving (even with every
+ * gate left off) dismisses the checklist item — keeping the defaults is a valid answer.
  */
 
 import * as React from "react";
 import { toast } from "sonner";
-import { useUpdateOrganization } from "@/features/queries";
+import { useOrgOnboarding, useUpdateOrganization, useUpdateOrgOnboarding } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
+import { FlowClose, FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
 
 type Rules = {
   private: boolean;
@@ -52,6 +53,8 @@ const QUESTIONS: { key: keyof Rules; label: string; hint: string }[] = [
 export function RulesFlow({ onClose }: FlowProps) {
   const { organization, rehydrate } = useAuth();
   const update = useUpdateOrganization();
+  const onboarding = useOrgOnboarding();
+  const updateOnboarding = useUpdateOrgOnboarding();
   const [done, setDone] = React.useState(false);
 
   const [rules, setRules] = React.useState<Rules>({
@@ -78,11 +81,26 @@ export function RulesFlow({ onClose }: FlowProps) {
         },
         bookingPolicy: { requirePaymentMethod: rules.requirePaymentMethod },
       });
-      await rehydrate();
-      setDone(true);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't save your booking rules");
+      return;
     }
+
+    // Checklist `isDone` only flips when a gate is on. Finishing this review with
+    // defaults is still answering the item — dismiss so the card leaves either way.
+    try {
+      const dismissed = onboarding.data?.dismissedItems ?? [];
+      if (!dismissed.includes("rules")) {
+        await updateOnboarding.mutateAsync({
+          dismissedItems: [...dismissed, "rules"],
+        });
+      }
+    } catch {
+      // Prefs already saved; the X on the card still works if this write fails.
+    }
+
+    await rehydrate();
+    setDone(true);
   }
 
   return (
@@ -91,35 +109,11 @@ export function RulesFlow({ onClose }: FlowProps) {
       onOpenChange={(o) => !o && onClose()}
       title="Set your booking rules"
       description="Four decisions. Change any of them later in Settings."
-    >
-      {done ? (
-        <FlowDone
-          headline="Booking rules saved."
-          body="The schedule enforces these from now on — for the app and the console alike."
-          onClose={onClose}
-        />
-      ) : (
-        <div>
-          <div className="space-y-3">
-            {QUESTIONS.map((q) => (
-              <div
-                key={q.key}
-                className="flex items-start justify-between gap-4 rounded-lg border p-3"
-              >
-                <div className="min-w-0">
-                  <Label htmlFor={`rule-${q.key}`} className="text-sm">
-                    {q.label}
-                  </Label>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{q.hint}</p>
-                </div>
-                <Switch
-                  id={`rule-${q.key}`}
-                  checked={rules[q.key]}
-                  onCheckedChange={(v) => setRules((r) => ({ ...r, [q.key]: v }))}
-                />
-              </div>
-            ))}
-          </div>
+      size="lg"
+      footer={
+        done ? (
+          <FlowClose onClose={onClose} />
+        ) : (
           <FlowNav
             onNext={save}
             nextLabel="Save rules"
@@ -127,6 +121,34 @@ export function RulesFlow({ onClose }: FlowProps) {
             onSkip={onClose}
             skipLabel="Cancel"
           />
+        )
+      }
+    >
+      {done ? (
+        <FlowDone
+          headline="Booking rules saved."
+          body="The schedule enforces these from now on — for the app and the console alike."
+        />
+      ) : (
+        <div className="space-y-3">
+          {QUESTIONS.map((q) => (
+            <div
+              key={q.key}
+              className="flex items-start justify-between gap-4 rounded-lg border p-3"
+            >
+              <div className="min-w-0">
+                <Label htmlFor={`rule-${q.key}`} className="text-sm">
+                  {q.label}
+                </Label>
+                <p className="mt-0.5 text-xs text-muted-foreground">{q.hint}</p>
+              </div>
+              <Switch
+                id={`rule-${q.key}`}
+                checked={rules[q.key]}
+                onCheckedChange={(v) => setRules((r) => ({ ...r, [q.key]: v }))}
+              />
+            </div>
+          ))}
         </div>
       )}
     </FlowModal>

@@ -19,7 +19,14 @@ import type { InviteInput } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FlowChoice, FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
+import {
+  FlowChoice,
+  FlowClose,
+  FlowDone,
+  FlowModal,
+  FlowNav,
+  type FlowProps,
+} from "./flow-shell";
 
 type Who = "instructor" | "student" | "renter" | "technician" | "office";
 
@@ -70,6 +77,21 @@ export function InviteFlow({ onClose, defaultWho }: FlowProps & { defaultWho: Wh
     setStep(2);
   }
 
+  const footer =
+    step === 0 ? (
+      <FlowNav onNext={() => setStep(1)} />
+    ) : step === 1 ? (
+      <FlowNav
+        onBack={() => setStep(0)}
+        onNext={send}
+        nextLabel={valid.length > 1 ? `Send ${valid.length} invitations` : "Send invitation"}
+        nextDisabled={valid.length === 0}
+        busy={invite.isPending}
+      />
+    ) : (
+      <FlowClose onClose={onClose} />
+    );
+
   return (
     <FlowModal
       open
@@ -78,12 +100,13 @@ export function InviteFlow({ onClose, defaultWho }: FlowProps & { defaultWho: Wh
       description="They'll get an email with a link that puts them straight in."
       step={step}
       stepCount={3}
+      size="lg"
+      footer={footer}
     >
       {step === 0 && (
         <div>
           <p className="mb-3 text-sm text-muted-foreground">Who are you inviting?</p>
           <FlowChoice options={LABELS} value={who} onChange={setWho} />
-          <FlowNav onNext={() => setStep(1)} />
         </div>
       )}
 
@@ -120,13 +143,6 @@ export function InviteFlow({ onClose, defaultWho }: FlowProps & { defaultWho: Wh
             They&rsquo;ll join as {LABELS.find((l) => l.value === who)?.label.toLowerCase()}. You can
             change anyone&rsquo;s roles later from People.
           </p>
-          <FlowNav
-            onBack={() => setStep(0)}
-            onNext={send}
-            nextLabel={valid.length > 1 ? `Send ${valid.length} invitations` : "Send invitation"}
-            nextDisabled={valid.length === 0}
-            busy={invite.isPending}
-          />
         </div>
       )}
 
@@ -134,7 +150,6 @@ export function InviteFlow({ onClose, defaultWho }: FlowProps & { defaultWho: Wh
         <FlowDone
           headline={sent > 1 ? `${sent} invitations sent.` : "Invitation sent."}
           body="They'll appear in People as soon as they accept. Nothing else to do here."
-          onClose={onClose}
         >
           <div className="flex gap-2">
             <Button

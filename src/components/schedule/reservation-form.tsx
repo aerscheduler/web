@@ -1118,7 +1118,7 @@ export function ReservationForm({
     <ResponsiveModal
       open={open}
       onOpenChange={closeModal}
-      className="sm:max-w-2xl"
+      size="xl"
       title={isEditing ? "Edit reservation" : "New reservation"}
       description={
         isEditing

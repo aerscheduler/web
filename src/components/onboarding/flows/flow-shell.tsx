@@ -20,7 +20,7 @@
 
 import * as React from "react";
 import { ArrowLeft, ArrowRight, Check, Loader2 } from "lucide-react";
-import { ResponsiveModal } from "@/components/responsive-modal";
+import { ResponsiveModal, type ResponsiveModalSize } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +37,8 @@ export function FlowModal({
   description,
   step,
   stepCount,
+  size = "md",
+  footer,
   children,
 }: {
   open: boolean;
@@ -46,6 +48,10 @@ export function FlowModal({
   /** 0-based. Omit both to hide the step dots — a one-screen flow doesn't need them. */
   step?: number;
   stepCount?: number;
+  /** Wider for dense steps (choice lists, embedded forms). Default matches other dialogs. */
+  size?: ResponsiveModalSize;
+  /** Sticky action row — pass `FlowNav` / `FlowClose` here, not inside `children`. */
+  footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -54,10 +60,8 @@ export function FlowModal({
       onOpenChange={onOpenChange}
       title={title}
       description={description}
-      /* Capped and scrollable: a step can host a full form (the maintenance flow
-         embeds the real aircraft-group form), and without this the dialog grows past
-         the viewport and takes its own title off the top of the screen. */
-      className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+      size={size}
+      footer={footer}
     >
       {stepCount && stepCount > 1 && step != null && (
         <div className="mb-4 flex items-center gap-1.5" aria-hidden>
@@ -132,7 +136,7 @@ export function FlowChoice<T extends string>({
   );
 }
 
-/** Back / skip / primary, laid out the same way in every flow. */
+/** Back / skip / primary — host in `FlowModal`'s `footer` so it stays pinned. */
 export function FlowNav({
   onBack,
   onNext,
@@ -151,7 +155,7 @@ export function FlowNav({
   skipLabel?: string;
 }) {
   return (
-    <div className="mt-5 flex items-center gap-2">
+    <div className="flex items-center gap-2">
       {onBack && (
         <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back" disabled={busy}>
           <ArrowLeft className="size-4" />
@@ -174,19 +178,15 @@ export function FlowNav({
   );
 }
 
-/** The last screen. Every flow ends on one of these so "am I finished?" is never a question. */
+/** Success-screen content. Pair with `FlowClose` in the modal footer. */
 export function FlowDone({
   headline,
   body,
   children,
-  onClose,
-  closeLabel = "Done",
 }: {
   headline: string;
   body?: string;
   children?: React.ReactNode;
-  onClose: () => void;
-  closeLabel?: string;
 }) {
   return (
     <div>
@@ -200,9 +200,21 @@ export function FlowDone({
         </div>
       </div>
       {children && <div className="mt-4">{children}</div>}
-      <div className="mt-5 flex justify-end">
-        <Button onClick={onClose}>{closeLabel}</Button>
-      </div>
+    </div>
+  );
+}
+
+/** Sticky "Done" for success screens — host in `FlowModal`'s `footer`. */
+export function FlowClose({
+  onClose,
+  closeLabel = "Done",
+}: {
+  onClose: () => void;
+  closeLabel?: string;
+}) {
+  return (
+    <div className="flex justify-end">
+      <Button onClick={onClose}>{closeLabel}</Button>
     </div>
   );
 }

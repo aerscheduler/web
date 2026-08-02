@@ -1,3 +1,4 @@
+import * as React from "react";
 import { addDays, format, isToday } from "date-fns";
 import { resourceLabel, type Reservation } from "@/types/api";
 import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
@@ -10,9 +11,16 @@ import { BLOCK_CLASS, personnelNames, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import { dimClass, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
+import type { DragGeometry, DropZone, ScheduleDrag } from "./use-schedule-drag";
+import { DragCallout, ResizeHandle, dragAriaLabel } from "./drag-affordances";
 
 const HOUR_HEIGHT = 48; // px per hour
 const MIN_BLOCK = 20; // px
+/** One arrow-key press sideways = one day, expressed in the hook's 15-minute slots. */
+const SLOTS_PER_DAY = (24 * 60) / 15;
+const KEY_HINT_MOVE =
+  "Up and down move it 15 minutes, left and right move it a day; Shift with up or down changes the end.";
+const KEY_HINT_END = "Shift with up or down changes the end.";
 
 /**
  * Minutes past the window's first hour for an instant, measured on the AIRPORT's clock.
@@ -50,6 +58,7 @@ export function WeekTimeGrid({
   onSelectDay,
   matchedIds,
   query,
+  drag,
 }: {
   weekStart: Date;
   reservations: Reservation[];
@@ -60,13 +69,41 @@ export function WeekTimeGrid({
   /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
   query?: string;
+  /** Drag-to-reschedule; here a sideways drag changes the DAY. See `use-schedule-drag.ts`. */
+  drag?: ScheduleDrag;
 }) {
   const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
   const tz = useTimeZone();
   const canCreate = onCreate != null;
   const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
+
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  const columnRefs = React.useRef(new Map<string, HTMLElement>());
+
+  //Which day column the pointer is over. Only X matters: the vertical axis is time, and the
+  //hook already turns that into a delta.
+  const hitTest = React.useCallback((x: number, _y: number): DropZone | null => {
+    for (const [dayKey, el] of columnRefs.current.entries()) {
+      const rect = el.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right) return { dayKey };
+    }
+    return null;
+  }, []);
+
+  const geom = React.useMemo<DragGeometry>(
+    () => ({ axis: "y", pxPerMin: HOUR_HEIGHT / 60, scrollRef, hitTest }),
+    [hitTest]
+  );
+
+  //Draw from the live drag position, so a block held over Thursday renders in Thursday's
+  //column rather than jumping there on drop.
+  const drawn = React.useMemo(
+    () => (drag ? reservations.map((r) => drag.previewOf(r)) : reservations),
+    [drag, reservations]
+  );
+
   // Computed over the WHOLE week, not per column, so all seven days share one time axis.
-  const { startHour, endHour } = hourWindow(reservations, tz.zone);
+  const { startHour, endHour } = hourWindow(drawn, tz.zone);
   const hours = endHour - startHour;
   const totalMin = hours * 60;
   const gridHeight = hours * HOUR_HEIGHT;
@@ -74,8 +111,11 @@ export function WeekTimeGrid({
   const nowMin = minutesInWindow(now, tz.zone, startHour);
   const showNow = nowMin >= 0 && nowMin <= totalMin;
 
+  const held = drag?.active?.moved ? drag.active : null;
+  const ghostDayKey = held ? dateKeyInZone(held.reservation.start, tz.zone) : null;
+
   return (
-    <div className="h-full min-h-0 overflow-auto">
+    <div ref={scrollRef} className="h-full min-h-0 overflow-auto">
       {/* The gutter column needs an EXPLICIT width: every hour label inside it is absolutely
           positioned, so an `auto` track has no in-flow content to measure and collapses to the
           1px border — the labels then overflow left and get clipped by the scroll container. */}
@@ -128,18 +168,25 @@ export function WeekTimeGrid({
           //Tokyo; isSameDay() on the viewer's clock puts it in the wrong column entirely,
           //which is a worse failure than drawing it at the wrong height.
           const dayKey = format(d, "yyyy-MM-dd");
-          const items = reservations.filter((r) => dateKeyInZone(r.start, tz.zone) === dayKey);
+          const items = drawn.filter((r) => dateKeyInZone(r.start, tz.zone) === dayKey);
           const { placed, tracks } = packTracks(items);
           const today = isToday(d);
+          const isDropColumn = held != null && dateKeyInZone(held.start, tz.zone) === dayKey;
           return (
             <div
               key={d.toISOString()}
+              ref={(el) => {
+                if (el) columnRefs.current.set(dayKey, el);
+                else columnRefs.current.delete(dayKey);
+              }}
               role={canCreate ? "button" : undefined}
               tabIndex={canCreate ? 0 : undefined}
               aria-label={canCreate ? `Book time on ${format(d, "EEEE, MMMM d")}` : undefined}
               onClick={
                 canCreate
                   ? (e) => {
+                      //A drop that finished over empty column space still lands a click here.
+                      if (drag?.consumeClick()) return;
                       const rect = e.currentTarget.getBoundingClientRect();
                       const y = e.clientY - rect.top;
                       const hour = Math.min(
@@ -165,7 +212,8 @@ export function WeekTimeGrid({
               className={cn(
                 "relative border-l border-border",
                 canCreate &&
-                  "cursor-copy focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                  "cursor-copy focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                isDropColumn && "bg-primary/5"
               )}
               style={{
                 height: gridHeight,
@@ -181,6 +229,14 @@ export function WeekTimeGrid({
                   <span className="absolute -left-1 -top-1 size-2 rounded-full bg-destructive" />
                 </div>
               )}
+              {held && ghostDayKey === dayKey && (
+                <WeekGhost
+                  r={held.reservation}
+                  zone={tz.zone}
+                  startHour={startHour}
+                  totalMin={totalMin}
+                />
+              )}
               {placed.map(({ r, track }) => {
                 const { top, height } = blockGeometry(r, tz.zone, startHour, totalMin);
                 return (
@@ -192,9 +248,10 @@ export function WeekTimeGrid({
                       height,
                       left: `${((track / tracks) * 100).toFixed(4)}%`,
                       width: `calc(${(100 / tracks).toFixed(4)}% - 2px)`,
+                      zIndex: held?.reservation.id === r.id ? 25 : undefined,
                     }}
                   >
-                    <WeekBlock r={r} onView={onView} marks={marks} />
+                    <WeekBlock r={r} onView={onView} marks={marks} drag={drag} geom={geom} />
                   </div>
                 );
               })}
@@ -206,14 +263,40 @@ export function WeekTimeGrid({
   );
 }
 
+/** The outline left behind at a block's original slot while it's being dragged. */
+function WeekGhost({
+  r,
+  zone,
+  startHour,
+  totalMin,
+}: {
+  r: Reservation;
+  zone: string;
+  startHour: number;
+  totalMin: number;
+}) {
+  const { top, height } = blockGeometry(r, zone, startHour, totalMin);
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-x-0 rounded-md border border-dashed border-muted-foreground/50 bg-muted/30"
+      style={{ top, height }}
+    />
+  );
+}
+
 function WeekBlock({
   r,
   onView,
   marks,
+  drag,
+  geom,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
   marks: BoardMarks;
+  drag?: ScheduleDrag;
+  geom: DragGeometry;
 }) {
   const tz = useTimeZone(r.location);
   const names = personnelNames(r);
@@ -223,42 +306,101 @@ function WeekBlock({
   // resourceLabel covers simulators and rooms too.
   const aircraft = r.resource ? resourceLabel(r.resource).name : null;
 
+  const ability = drag?.abilityFor(r);
+  const held = drag?.active?.reservation.id === r.id && drag.active.moved ? drag.active : null;
+  const saving = drag?.pendingId === r.id;
+  const grabbable = Boolean(drag && ability?.move);
+
+  const body = (
+    <button
+      type="button"
+      aria-label={dragAriaLabel(r, timeRange, ability, ability?.move ? KEY_HINT_MOVE : KEY_HINT_END)}
+      onPointerDown={
+        //Wired even when this booking can't be moved — see the note in lane-grid.tsx.
+        drag
+          ? (e) => {
+              if ((e.target as HTMLElement).closest("[data-drag-exempt]")) return;
+              drag.begin(e, r, "move", geom);
+            }
+          : undefined
+      }
+      onClick={(e) => {
+        e.stopPropagation();
+        if (drag?.consumeClick()) return;
+        onView(r);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.stopPropagation();
+          return;
+        }
+        if (!drag) return;
+        //Up/down is time, left/right is the day — the same two axes the pointer has.
+        if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+          e.preventDefault();
+          e.stopPropagation();
+          drag.nudge(r, e.shiftKey ? "resize-end" : "move", e.key === "ArrowUp" ? -1 : 1);
+        } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          e.stopPropagation();
+          drag.nudge(r, "move", e.key === "ArrowLeft" ? -SLOTS_PER_DAY : SLOTS_PER_DAY);
+        }
+      }}
+      className={cn(
+        "group relative flex h-full w-full flex-col overflow-hidden rounded-md border border-l-2 px-1.5 py-0.5 text-left shadow-sm",
+        BLOCK_CLASS[r.type],
+        dimClass(marks, r.id),
+        grabbable ? "cursor-grab select-none active:cursor-grabbing" : "cursor-pointer",
+        held && "cursor-grabbing shadow-lg ring-2 ring-primary/60",
+        held?.reason && "ring-destructive",
+        saving && "animate-pulse"
+      )}
+    >
+      {drag && ability?.resizeStart && (
+        <ResizeHandle
+          axis="y"
+          side="start"
+          onPointerDown={(e) => drag.begin(e, r, "resize-start", geom)}
+        />
+      )}
+      {drag && ability?.resizeEnd && (
+        <ResizeHandle axis="y" side="end" onPointerDown={(e) => drag.begin(e, r, "resize-end", geom)} />
+      )}
+      <span className="truncate text-[11px] font-semibold leading-tight text-foreground">
+        {highlightMatch(aircraft ? `${aircraft} · ${r.title}` : r.title, marks.query)}
+      </span>
+      <span className="truncate text-[10px] leading-tight opacity-80 tabular-nums">
+        {held ? tz.range(held.start, held.end) : tz.time(r.start)}
+      </span>
+    </button>
+  );
+
+  if (held) {
+    return (
+      <div className="relative h-full w-full">
+        {body}
+        <DragCallout reason={held.reason} label={tz.range(held.start, held.end)} />
+      </div>
+    );
+  }
+
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onView(r);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") e.stopPropagation();
-          }}
-          className={cn(
-            "flex h-full w-full flex-col overflow-hidden rounded-md border border-l-2 px-1.5 py-0.5 text-left shadow-sm",
-            BLOCK_CLASS[r.type],
-            dimClass(marks, r.id)
-          )}
-        >
-          <span className="truncate text-[11px] font-semibold leading-tight text-foreground">
-            {highlightMatch(aircraft ? `${aircraft} · ${r.title}` : r.title, marks.query)}
-          </span>
-          <span className="truncate text-[10px] leading-tight opacity-80 tabular-nums">
-            {tz.time(r.start)}
-          </span>
-        </button>
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{body}</TooltipTrigger>
       <TooltipContent>
-        <div className="text-xs">
+        <div className="max-w-[16rem] text-xs">
           <div className="font-medium">{aircraft ? `${aircraft} · ${r.title}` : r.title}</div>
           <div className="tabular-nums">{timeRange}</div>
           <div className="opacity-80">
             {typeLabel(r.type)}
             {names.length > 0 ? ` · ${names.join(", ")}` : ""}
           </div>
+          {drag && ability?.reason && (
+            <div className="mt-1 border-t border-border/50 pt-1 opacity-90">{ability.reason}</div>
+          )}
         </div>
       </TooltipContent>
     </Tooltip>
   );
 }
+

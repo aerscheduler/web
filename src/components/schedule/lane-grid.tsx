@@ -1,3 +1,4 @@
+import * as React from "react";
 import { format } from "date-fns";
 import { resourceLabel, type Reservation, type Resource } from "@/types/api";
 import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
@@ -11,12 +12,17 @@ import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
 import { dimClass, preferredName, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
+import type { DragGeometry, DropZone, ScheduleDrag } from "./use-schedule-drag";
+import { DragCallout, ResizeHandle, dragAriaLabel } from "./drag-affordances";
 
 const HOUR_WIDTH = 68; // px
 const LABEL_WIDTH = 176; // px
 const TRACK_HEIGHT = 46; // px
 const TRACK_GAP = 4; // px
 const LANE_PAD_Y = 8; // px
+/** Arrow-key hint spoken on a draggable block. */
+const KEY_HINT_MOVE = "Arrow keys move it 15 minutes; Shift with arrow keys changes the end.";
+const KEY_HINT_END = "Shift with arrow keys changes the end.";
 
 /**
  * Minutes past the window's first hour, measured on the AIRPORT's clock (unclamped).
@@ -70,6 +76,7 @@ export function LaneGrid({
   onCreate,
   matchedIds,
   query,
+  drag,
 }: {
   day: Date;
   resources: Resource[];
@@ -87,13 +94,45 @@ export function LaneGrid({
    */
   matchedIds?: Set<number> | null;
   query?: string;
+  /**
+   * Drag-to-reschedule. Omitted on a read-only board; per-reservation permission is still
+   * decided inside (a member can drag their own flight but not somebody else's).
+   */
+  drag?: ScheduleDrag;
 }) {
   const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
   const tz = useTimeZone();
   const canCreate = onCreate != null;
+
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  //Lane rects, kept fresh by React on every render, so a cross-lane drag can ask which row
+  //the pointer is over without re-querying the DOM by selector.
+  const laneRefs = React.useRef(new Map<string, { el: HTMLElement; zone: DropZone }>());
+
+  const hitTest = React.useCallback((_x: number, y: number): DropZone | null => {
+    for (const { el, zone } of laneRefs.current.values()) {
+      const rect = el.getBoundingClientRect();
+      if (y >= rect.top && y <= rect.bottom) return zone;
+    }
+    return null;
+  }, []);
+
+  const geom = React.useMemo<DragGeometry>(
+    () => ({ axis: "x", pxPerMin: HOUR_WIDTH / 60, scrollRef, hitTest }),
+    [hitTest]
+  );
+
+  //Draw from the live drag position, not the stored one. Everything downstream — grouping,
+  //packing, geometry — then works on the preview, so a block genuinely moves between lanes
+  //while it's held rather than being re-drawn somewhere else on drop.
+  const drawn = React.useMemo(
+    () => (drag ? reservations.map((r) => drag.previewOf(r)) : reservations),
+    [drag, reservations]
+  );
+
   const byResource = new Map<number, Reservation[]>();
   const unassigned: Reservation[] = [];
-  for (const r of reservations) {
+  for (const r of drawn) {
     // Group by the nested resource object's id, NOT the FK_resourceId scalar:
     // the server's stripForeignKeyFromData middleware deletes every FK_* field
     // from API responses, so r.FK_resourceId is always undefined here (which
@@ -133,7 +172,7 @@ export function LaneGrid({
 
   // Widened past the default 6a–10p by whatever this day's reservations need, so an early or
   // late booking gets its own hour instead of collapsing onto the edge of the ruler.
-  const { startHour, endHour } = hourWindow(reservations, tz.zone);
+  const { startHour, endHour } = hourWindow(drawn, tz.zone);
   const hours = endHour - startHour;
   const totalMin = hours * 60;
   const laneWidth = hours * HOUR_WIDTH;
@@ -144,8 +183,20 @@ export function LaneGrid({
   const nowMin = isToday ? minutesInWindow(new Date().toISOString(), tz.zone, startHour) : -1;
   const showNow = nowMin >= 0 && nowMin <= totalMin;
 
+  //Where the block was before the drag started — drawn as an outline so its old slot stays
+  //readable while it's in the air.
+  const held = drag?.active?.moved ? drag.active : null;
+  const ghost = held
+    ? {
+        r: held.reservation,
+        rowKey: held.reservation.resource?.id != null && laneIds.has(held.reservation.resource.id)
+          ? `res-${held.reservation.resource.id}`
+          : "other",
+      }
+    : null;
+
   return (
-    <div className="h-full min-h-0 overflow-auto">
+    <div ref={scrollRef} className="h-full min-h-0 overflow-auto">
       <div style={{ minWidth: LABEL_WIDTH + laneWidth }}>
         {/* Header — hour ruler (sticky while scrolling resource lanes) */}
         <div className="sticky top-0 z-30 flex border-b border-border bg-card">
@@ -189,6 +240,13 @@ export function LaneGrid({
             const h = laneHeight(tracks);
             const label = row.resource ? resourceLabel(row.resource) : null;
             const ResIcon = row.resource ? resourceIcon(row.resource) : null;
+            //A lane the held block would land on, highlighted so a cross-lane drop reads as
+            //deliberate rather than accidental.
+            const isDropLane =
+              held != null &&
+              (row.resource
+                ? held.resourceId === row.resource.id
+                : held.resourceId == null);
             return (
               <div key={row.key} className="flex border-b border-border last:border-b-0">
                 <div
@@ -217,12 +275,23 @@ export function LaneGrid({
                 </div>
 
                 <div
+                  ref={(el) => {
+                    if (el) {
+                      laneRefs.current.set(row.key, {
+                        el,
+                        zone: { resourceId: row.resource?.id ?? null, leftover: row.resource == null },
+                      });
+                    } else {
+                      laneRefs.current.delete(row.key);
+                    }
+                  }}
                   role={canCreate ? "button" : undefined}
                   tabIndex={canCreate ? 0 : undefined}
                   className={cn(
                     "relative shrink-0",
                     canCreate &&
-                      "cursor-copy focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      "cursor-copy focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    isDropLane && "bg-primary/5"
                   )}
                   style={{
                     width: laneWidth,
@@ -254,6 +323,9 @@ export function LaneGrid({
                   onClick={
                     canCreate
                       ? (e) => {
+                          //A drag that finished over empty lane space still lands a click
+                          //here. Without this, every drop would also open the booking form.
+                          if (drag?.consumeClick()) return;
                           const rect = e.currentTarget.getBoundingClientRect();
                           const x = e.clientX - rect.left;
                           const hour = Math.min(
@@ -272,6 +344,14 @@ export function LaneGrid({
                       : undefined
                   }
                 >
+                  {ghost?.rowKey === row.key && (
+                    <LaneGhost
+                      r={ghost.r}
+                      zone={tz.zone}
+                      startHour={startHour}
+                      totalMin={totalMin}
+                    />
+                  )}
                   {placed.map(({ r, track }) => {
                     const { leftPx, widthPx } = laneBlockGeometry(r, tz.zone, startHour, totalMin);
                     return (
@@ -283,6 +363,7 @@ export function LaneGrid({
                           width: widthPx,
                           top: LANE_PAD_Y + track * (TRACK_HEIGHT + TRACK_GAP),
                           height: TRACK_HEIGHT,
+                          zIndex: held?.reservation.id === r.id ? 25 : undefined,
                         }}
                       >
                         <LaneBlock
@@ -292,6 +373,8 @@ export function LaneGrid({
                           onDuplicate={onDuplicate}
                           onCancel={onCancel}
                           marks={marks}
+                          drag={drag}
+                          geom={geom}
                         />
                       </div>
                     );
@@ -306,6 +389,28 @@ export function LaneGrid({
   );
 }
 
+/** The outline left behind at a block's original slot while it's being dragged. */
+function LaneGhost({
+  r,
+  zone,
+  startHour,
+  totalMin,
+}: {
+  r: Reservation;
+  zone: string;
+  startHour: number;
+  totalMin: number;
+}) {
+  const { leftPx, widthPx } = laneBlockGeometry(r, zone, startHour, totalMin);
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute rounded-md border border-dashed border-muted-foreground/50 bg-muted/30"
+      style={{ left: leftPx, width: widthPx, top: LANE_PAD_Y, height: TRACK_HEIGHT }}
+    />
+  );
+}
+
 function LaneBlock({
   r,
   onView,
@@ -313,6 +418,8 @@ function LaneBlock({
   onDuplicate,
   onCancel,
   marks,
+  drag,
+  geom,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
@@ -320,6 +427,8 @@ function LaneBlock({
   onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
   marks: BoardMarks;
+  drag?: ScheduleDrag;
+  geom: DragGeometry;
 }) {
   //Per-reservation so a school with fields in two zones labels each block correctly.
   const tz = useTimeZone(r.location);
@@ -327,61 +436,125 @@ function LaneBlock({
   const shownName = preferredName(names, marks.query);
   const timeRange = tz.range(r.start, r.end);
 
+  const ability = drag?.abilityFor(r);
+  const held = drag?.active?.reservation.id === r.id && drag.active.moved ? drag.active : null;
+  const saving = drag?.pendingId === r.id;
+  const grabbable = Boolean(drag && ability?.move);
+
+  const body = (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={dragAriaLabel(r, timeRange, ability, ability?.move ? KEY_HINT_MOVE : KEY_HINT_END)}
+      onPointerDown={
+        //Wired even when this booking can't be moved: `begin` is what explains the refusal,
+        //and a block that answers nothing to a drag attempt is the confusion this feature
+        //exists to avoid.
+        drag
+          ? (e) => {
+              //Ignore presses that started on a resize handle or the ⋯ menu.
+              if ((e.target as HTMLElement).closest("[data-drag-exempt]")) return;
+              drag.begin(e, r, "move", geom);
+            }
+          : undefined
+      }
+      onClick={(e) => {
+        e.stopPropagation();
+        if (drag?.consumeClick()) return;
+        onView(r);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          onView(r);
+          return;
+        }
+        if (!drag || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+        //Arrow keys are the no-mouse route to the same rules: one 15-minute slot per press,
+        //Shift to stretch the end instead of moving the whole booking.
+        e.preventDefault();
+        e.stopPropagation();
+        const step = e.key === "ArrowLeft" ? -1 : 1;
+        drag.nudge(r, e.shiftKey ? "resize-end" : "move", step);
+      }}
+      className={cn(
+        "group relative flex h-full w-full items-center gap-1 overflow-hidden rounded-md border-l-2 border px-1.5 text-left shadow-sm",
+        BLOCK_CLASS[r.type],
+        dimClass(marks, r.id),
+        //A locked block still opens its details, so it reads as a pointer target rather than
+        //inheriting the lane's cursor-copy, which promises a booking it won't create.
+        grabbable ? "cursor-grab select-none active:cursor-grabbing" : "cursor-pointer",
+        held && "cursor-grabbing shadow-lg ring-2 ring-primary/60",
+        held?.reason && "ring-destructive",
+        saving && "animate-pulse"
+      )}
+    >
+      {/* Edge handles. Rendered only where that edge may actually move, so the cursor
+          never promises something the booking's state won't allow. */}
+      {drag && ability?.resizeStart && (
+        <ResizeHandle
+          axis="x"
+          side="start"
+          onPointerDown={(e) => drag.begin(e, r, "resize-start", geom)}
+        />
+      )}
+      {drag && ability?.resizeEnd && (
+        <ResizeHandle axis="x" side="end" onPointerDown={(e) => drag.begin(e, r, "resize-end", geom)} />
+      )}
+
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-semibold leading-tight text-foreground">
+          {highlightMatch(r.title, marks.query)}
+        </div>
+        <div className="truncate text-[11px] leading-tight opacity-80 tabular-nums">
+          {held ? timeRange : shownName ? highlightMatch(shownName, marks.query) : typeLabel(r.type)}
+        </div>
+      </div>
+      <div
+        data-drag-exempt
+        className="opacity-0 transition-opacity group-hover:opacity-100"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ReservationMenu
+          r={r}
+          onView={onView}
+          onEdit={onEdit}
+          onDuplicate={onDuplicate}
+          onCancel={onCancel}
+        />
+      </div>
+    </div>
+  );
+
+  //While a block is in the air its tooltip would fight the cursor, and the reason a drop is
+  //refused has to be readable without hovering — so that swaps to a pinned chip instead.
+  if (held) {
+    return (
+      <div className="relative h-full w-full">
+        {body}
+        <DragCallout reason={held.reason} label={tz.range(held.start, held.end)} />
+      </div>
+    );
+  }
+
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          role="button"
-          tabIndex={0}
-          onClick={(e) => {
-            e.stopPropagation();
-            onView(r);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              e.stopPropagation();
-              onView(r);
-            }
-          }}
-          className={cn(
-            "group flex h-full w-full items-center gap-1 overflow-hidden rounded-md border-l-2 border px-1.5 text-left shadow-sm",
-            BLOCK_CLASS[r.type],
-            dimClass(marks, r.id)
-          )}
-        >
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-xs font-semibold leading-tight text-foreground">
-              {highlightMatch(r.title, marks.query)}
-            </div>
-            <div className="truncate text-[11px] leading-tight opacity-80">
-              {shownName ? highlightMatch(shownName, marks.query) : typeLabel(r.type)}
-            </div>
-          </div>
-          <div
-            className="opacity-0 transition-opacity group-hover:opacity-100"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ReservationMenu
-              r={r}
-              onView={onView}
-              onEdit={onEdit}
-              onDuplicate={onDuplicate}
-              onCancel={onCancel}
-            />
-          </div>
-        </div>
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{body}</TooltipTrigger>
       <TooltipContent>
-        <div className="text-xs">
+        <div className="max-w-[16rem] text-xs">
           <div className="font-medium">{r.title}</div>
           <div className="tabular-nums">{timeRange}</div>
           <div className="opacity-80">
             {typeLabel(r.type)}
             {names.length > 0 ? ` · ${names.join(", ")}` : ""}
           </div>
+          {drag && ability?.reason && (
+            <div className="mt-1 border-t border-border/50 pt-1 opacity-90">{ability.reason}</div>
+          )}
         </div>
       </TooltipContent>
     </Tooltip>
   );
 }
+

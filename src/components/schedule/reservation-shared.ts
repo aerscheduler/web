@@ -2,6 +2,7 @@ import { resourceLabel } from "@/types/api";
 import type {
   CreateReservationInput,
   Location,
+  Reservation,
   Resource,
   ReservationType,
 } from "@/types/api";
@@ -221,5 +222,64 @@ export function buildReservationInput(fields: {
   if (fields.personnel && Object.keys(fields.personnel).length > 0) {
     input.personnel = fields.personnel;
   }
+  return input;
+}
+
+/**
+ * Re-express an existing reservation as a complete `PATCH /reservations/:id` body, with a
+ * new slot (and optionally a new resource) written over it. This is what a drag on the
+ * dispatch board sends.
+ *
+ * **The personnel echo is not optional.** `ReservationService.update` diffs the personnel
+ * it receives against the ones on the row and *disconnects the difference* — so a PATCH
+ * that omits `personnel` doesn't mean "leave the crew alone", it means "there is no crew",
+ * and the instructor and student are silently unassigned. Every side has to be sent back
+ * verbatim for a change that has nothing to do with people.
+ *
+ * The guest side carries its `id` on purpose: with one, the server updates that guest in
+ * place; without one it tries to CREATE a second guest and rejects the whole update with
+ * "A guest already exists on this reservation".
+ *
+ * `rating` is deliberately absent — the API doesn't return it on a list row, and Prisma
+ * reads an absent relation as "leave it alone", so omitting it preserves whatever is
+ * stored. Sending a guess would be the only way to lose it.
+ */
+export function reservationToInput(
+  r: Reservation,
+  next: { start: Date; end: Date; resourceId?: number | null }
+): CreateReservationInput {
+  const p = r.personnel;
+  const personnel: NonNullable<CreateReservationInput["personnel"]> = {};
+
+  if (p?.instructors?.length) personnel.instructors = p.instructors.map((ou) => ({ id: ou.id }));
+  if (p?.students?.length) personnel.students = p.students.map((ou) => ({ id: ou.id }));
+  if (p?.renters?.length) personnel.renters = p.renters.map((ou) => ({ id: ou.id }));
+  if (p?.guests?.length) {
+    personnel.guests = p.guests.map((g) => ({
+      id: g.id,
+      name: g.name,
+      email: g.email,
+      ...(g.phone ? { phone: g.phone } : {}),
+    }));
+  }
+
+  const input: CreateReservationInput = {
+    title: r.title,
+    type: r.type,
+    start: next.start.toISOString(),
+    end: next.end.toISOString(),
+    //Keep the zone the booking was made in. Overwriting it with the dragger's device zone
+    //would rewrite what the booking claims about itself every time someone tidies the board.
+    timeZoneName: r.timeZoneName || DEVICE_TZ,
+  };
+
+  if (r.notes) input.notes = r.notes;
+  if (r.location?.id != null) input.location = { id: r.location.id };
+
+  const resourceId = next.resourceId !== undefined ? next.resourceId : r.resource?.id ?? null;
+  if (resourceId != null) input.resource = { id: resourceId };
+
+  if (Object.keys(personnel).length > 0) input.personnel = personnel;
+
   return input;
 }

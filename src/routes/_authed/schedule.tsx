@@ -39,6 +39,7 @@ import {
   type ReservationDraft,
 } from "@/components/schedule/reservation-form";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
+import { useScheduleDrag } from "@/components/schedule/use-schedule-drag";
 import {
   BILLING_OPTIONS,
   RAMP_OPTIONS,
@@ -70,7 +71,7 @@ export const Route = createFileRoute("/_authed/schedule")({
 const REFRESH_MS = 20_000;
 
 function SchedulePage() {
-  const { roles } = useAuth();
+  const { roles, orgUserId } = useAuth();
   // Members see the board read-only and book via /me/book; only staff
   // (owner/admin/dispatcher) get the create-booking entry points. Mirrors the
   // server's guard on reservation creation.
@@ -132,17 +133,37 @@ function SchedulePage() {
   const locationsQ = useLocations();
   const peopleQ = useOrgUsers();
 
+  const reservations = React.useMemo(() => q.data ?? [], [q.data]);
+  const resources = useResolvedResources(resourcesQ.data, reservations, roles);
+
+  //Drag-to-reschedule. Instantiated once here and handed to every grid, so the day board
+  //and the week board share one set of rules, one optimistic write and one undo — see
+  //`use-schedule-drag.ts`. Permission is decided per booking inside, not per role here: a
+  //student may drag their own lesson even though they can't create one.
+  const drag = useScheduleDrag({
+    zone: tz.zone,
+    reservations,
+    resources,
+    roles,
+    orgUserId,
+  });
+
   // Live board: quietly re-pull the range on an interval (ref keeps the timer
   // stable across renders while always calling the latest refetch).
   const refetchRef = React.useRef(q.refetch);
   refetchRef.current = q.refetch;
+  //A refetch mid-drag would yank the block out from under the cursor, and one landing
+  //between the optimistic write and the server's answer would flash it back to where it
+  //started. Skipping a tick costs 20 seconds of staleness; both alternatives look broken.
+  const dragBusyRef = React.useRef(false);
+  dragBusyRef.current = drag.isBusy;
   React.useEffect(() => {
-    const id = window.setInterval(() => void refetchRef.current(), REFRESH_MS);
+    const id = window.setInterval(() => {
+      if (dragBusyRef.current) return;
+      void refetchRef.current();
+    }, REFRESH_MS);
     return () => window.clearInterval(id);
   }, []);
-
-  const reservations = React.useMemo(() => q.data ?? [], [q.data]);
-  const resources = useResolvedResources(resourcesQ.data, reservations, roles);
 
   // Narrow lanes when a resource/location facet is active (permission filter stays above).
   const filteredResources = React.useMemo(() => {
@@ -379,6 +400,7 @@ function SchedulePage() {
                 onView={openDetail}
                 onCreate={onCreate}
                 onSelectDay={selectDay}
+                drag={drag}
                 {...marks}
               />
             ) : (
@@ -400,6 +422,7 @@ function SchedulePage() {
               onDuplicate={setDuplicating}
               onCancel={handleCancel}
               onCreate={onCreate}
+              drag={drag}
               {...marks}
             />
           ) : (

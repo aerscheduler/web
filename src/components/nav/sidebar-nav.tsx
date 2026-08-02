@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ChevronDown, GripVertical, Pin, PinOff, RotateCcw } from "lucide-react";
+import { ChevronDown, GripVertical, Pin, PinOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   NAV_VISIBLE_COUNT,
@@ -14,7 +14,6 @@ import {
 } from "@/lib/nav-items";
 import {
   recordRecent,
-  resetNavOrder,
   setNavOrder,
   setPinnedOrder,
   togglePinned,
@@ -22,7 +21,6 @@ import {
 } from "@/lib/nav-prefs";
 import {
   SidebarGroup,
-  SidebarGroupAction,
   SidebarGroupContent,
   SidebarGroupLabel,
   SidebarMenu,
@@ -56,12 +54,7 @@ export function SidebarNav() {
   return (
     <>
       <PinnedGroup pinned={prefs.pinned} pathname={pathname} orgId={orgId} />
-      <OperationsGroup
-        items={ordered}
-        customized={prefs.order.length > 0}
-        pathname={pathname}
-        orgId={orgId}
-      />
+      <OperationsGroup items={ordered} pathname={pathname} orgId={orgId} />
       <PlainGroup label="You" items={you} pathname={pathname} />
       <RecentGroup
         recent={prefs.recent}
@@ -95,12 +88,10 @@ export function useRecordRecentPage() {
 
 function OperationsGroup({
   items,
-  customized,
   pathname,
   orgId,
 }: {
   items: NavItem[];
-  customized: boolean;
   pathname: string;
   orgId: number | null;
 }) {
@@ -125,18 +116,8 @@ function OperationsGroup({
   if (list.length === 0) return null;
 
   return (
-    <SidebarGroup className="group/nav-group">
+    <SidebarGroup>
       <SidebarGroupLabel>Operations</SidebarGroupLabel>
-      {customized && (
-        <SidebarGroupAction
-          title="Reset to the default order"
-          onClick={() => resetNavOrder(orgId)}
-          className="opacity-0 transition-opacity group-hover/nav-group:opacity-70 focus-visible:opacity-100 hover:opacity-100"
-        >
-          <RotateCcw />
-          <span className="sr-only">Reset nav order</span>
-        </SidebarGroupAction>
-      )}
       <SidebarGroupContent>
         <p className="sr-only">
           Drag a link to reorder it, or focus it and press Alt with the up and down arrow

@@ -106,6 +106,7 @@ function OperationsGroup({
 }) {
   const reorder = useReorder(items, (order) => setNavOrder(orgId, order));
   const [openMore, setOpenMore] = React.useState(false);
+  const listRef = useFlipRows<HTMLUListElement>();
 
   const { list, dragging } = reorder;
   const overflow = list.slice(NAV_VISIBLE_COUNT);
@@ -134,7 +135,7 @@ function OperationsGroup({
           Drag a link to reorder it, or focus it and press Alt with the up and down arrow
           keys. The first {NAV_VISIBLE_COUNT} links stay visible; the rest move under More.
         </p>
-        <SidebarMenu onDragOver={(e) => dragging && e.preventDefault()}>
+        <SidebarMenu ref={listRef} onDragOver={(e) => dragging && e.preventDefault()}>
           {list.map((item, index) => (
             <React.Fragment key={item.to}>
               {index === NAV_VISIBLE_COUNT && (
@@ -151,6 +152,7 @@ function OperationsGroup({
                   active={isNavItemActive(item.to, pathname)}
                   reorder={reorder}
                   index={index}
+                  indented={index >= NAV_VISIBLE_COUNT}
                 />
               )}
             </React.Fragment>
@@ -216,6 +218,7 @@ function PinnedGroup({
     [pinned]
   );
   const reorder = useReorder(items, (order) => setPinnedOrder(orgId, order));
+  const listRef = useFlipRows<HTMLUListElement>();
 
   if (items.length === 0) return null;
 
@@ -223,7 +226,7 @@ function PinnedGroup({
     <SidebarGroup>
       <SidebarGroupLabel>Pinned</SidebarGroupLabel>
       <SidebarGroupContent>
-        <SidebarMenu onDragOver={(e) => reorder.dragging && e.preventDefault()}>
+        <SidebarMenu ref={listRef} onDragOver={(e) => reorder.dragging && e.preventDefault()}>
           {reorder.list.map((item, index) => (
             <NavRow
               key={item.to}
@@ -350,6 +353,59 @@ function PlainGroup({
 
 type Reorder = ReturnType<typeof useReorder>;
 
+const FLIP_MS = 180;
+
+/**
+ * FLIP the rows to their new positions instead of letting them teleport.
+ *
+ * Reordering swaps two rows in one frame, and without this the list snaps — you
+ * lose track of which slot you're hovering, which is exactly the feedback a drag
+ * needs. So: measure every row before the paint that moves it, invert the delta
+ * as a transform, then let the transform transition away. Both axes, because a
+ * row crossing the More boundary changes indent as well as height.
+ */
+function useFlipRows<T extends HTMLElement>(): React.RefObject<T | null> {
+  const ref = React.useRef<T>(null);
+  const prev = React.useRef(new Map<string, DOMRect>());
+
+  // Layout effect, not effect: the correction has to be applied in the same
+  // frame as the reorder, or the row is visibly painted in its new slot first.
+  React.useLayoutEffect(() => {
+    const root = ref.current;
+    if (!root) return;
+
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const next = new Map<string, DOMRect>();
+
+    for (const node of root.querySelectorAll<HTMLElement>("[data-flip-key]")) {
+      const key = node.dataset.flipKey!;
+      const box = node.getBoundingClientRect();
+      next.set(key, box);
+
+      // Rows with no previous box are new to the DOM (More just expanded);
+      // sliding them in from a stale position would be worse than not moving.
+      const was = prev.current.get(key);
+      if (!was || reduced) continue;
+
+      const dx = was.left - box.left;
+      const dy = was.top - box.top;
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) continue;
+
+      node.style.transition = "none";
+      node.style.transform = `translate(${dx}px, ${dy}px)`;
+      void node.offsetHeight; // flush, so the transition below has a start value
+      node.style.transition = `transform ${FLIP_MS}ms cubic-bezier(0.2, 0, 0, 1)`;
+      node.style.transform = "";
+    }
+
+    // Replaced wholesale rather than merged, so a row that unmounts and comes
+    // back (More collapsed, then reopened) is treated as new.
+    prev.current = next;
+  });
+
+  return ref;
+}
+
 /**
  * Drag-to-reorder over a list of nav items, using native HTML5 drag and drop —
  * a dependency-free fit for a dozen rows, where a full DnD toolkit would be
@@ -404,17 +460,21 @@ function NavRow({
   index,
   reorder,
   action,
+  indented,
 }: {
   item: NavItem;
   active: boolean;
   index: number;
   reorder: Reorder;
   action?: React.ReactNode;
+  /** Sits under "More" — inset with a guide line so it reads as belonging to it. */
+  indented?: boolean;
 }) {
   const dragging = reorder.dragKey === item.to;
 
   return (
     <SidebarMenuItem
+      data-flip-key={item.to}
       draggable={reorder.enabled}
       onDragStart={(e) => {
         // Firefox refuses to start a drag without payload.
@@ -437,7 +497,12 @@ function NavRow({
       className={cn(
         "transition-opacity",
         dragging && "opacity-40",
-        reorder.enabled && "cursor-grab active:cursor-grabbing"
+        reorder.enabled && "cursor-grab active:cursor-grabbing",
+        // The hairline is bled 2px past each end to bridge the list's 4px gap,
+        // so the run of overflow rows shows one continuous guide rather than a
+        // dash beside each one.
+        indented &&
+          "pl-3.5 before:absolute before:-top-0.5 before:-bottom-0.5 before:left-1 before:w-px before:bg-sidebar-border before:content-['']"
       )}
     >
       <SidebarMenuButton asChild isActive={active}>

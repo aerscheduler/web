@@ -121,7 +121,7 @@ export function ReportsWelcome({
         label: `Schedule ${MIN_RESERVATIONS} reservations`,
         done: readiness.reservations >= MIN_RESERVATIONS,
         to: "/schedule",
-        cta: "Open the schedule",
+        cta: "Open the calendar",
       },
       render: () => (
         <div className="grid gap-4 sm:grid-cols-[minmax(0,9rem)_1fr]">

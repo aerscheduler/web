@@ -64,6 +64,48 @@ function nameOf(r: Resource | null | undefined): string {
   return r ? resourceLabel(r).name : "This resource";
 }
 
+/** A rostered person the org has grounded, as the board's roster reports them. */
+export interface GroundedPerson {
+  name: string;
+  reason: string | null;
+}
+
+/**
+ * Ask whether an org user is grounded. Supplied by the board, which already holds the
+ * roster for its Personnel filter — the reservation payload itself carries only ids and
+ * names for personnel, so this is the only place the flag is available client-side.
+ */
+export type GroundedLookup = (orgUserId: number) => GroundedPerson | null;
+
+/** Is this a resource the "grounded pilot" rule applies to? */
+function isAircraft(r: Resource | null | undefined): boolean {
+  return r != null && resourceLabel(r).kind === "Aircraft";
+}
+
+/**
+ * Whether anyone rostered on this booking is grounded, and how to say so.
+ *
+ * Mirrors step 2 of the server's `verifyOrgUserForReservationParams`, including its scope:
+ * being grounded only blocks an AIRCRAFT. A grounded instructor can still be moved around
+ * a ground-school room or a simulator, and the server agrees — it looks up whether the
+ * resource is a plane before rejecting.
+ */
+function groundedCrewReason(
+  r: Reservation,
+  targetIsAircraft: boolean,
+  lookup: GroundedLookup | undefined
+): string | null {
+  if (!targetIsAircraft || !lookup) return null;
+  for (const id of personnelIds(r)) {
+    const grounded = lookup(id);
+    if (grounded) {
+      const why = grounded.reason?.trim() ? ` (${grounded.reason.trim()})` : "";
+      return `${grounded.name} is grounded${why} — they can't be scheduled on an aircraft.`;
+    }
+  }
+  return null;
+}
+
 /** Grounding for a resource. Planes and simulators carry it; rooms can't be grounded. */
 function groundingOf(r: Resource | null | undefined): { grounded: boolean; reason: string | null } {
   const unit = r?.type?.plane ?? r?.type?.simulator ?? null;
@@ -100,7 +142,8 @@ export function dragAbility(
   r: Reservation,
   roles: Role[],
   orgUserId: number | null,
-  now: Date = new Date()
+  now: Date = new Date(),
+  groundedCrew?: GroundedLookup
 ): DragAbility {
   if (r.cancelledAt) {
     return locked("This booking was cancelled — book a new one instead of moving it.");
@@ -140,6 +183,13 @@ export function dragAbility(
   if (!mayChange(r, roles, orgUserId)) {
     return locked("Only dispatch or someone rostered on this flight can move it.");
   }
+
+  //Last, because it is the only lock that is about the CREW rather than the booking: the
+  //server refuses every update that would put a grounded pilot on an aircraft, so this one
+  //can't be dragged anywhere at all until the grounding is lifted. Saying that up front
+  //beats letting someone carry it round the board and be refused at each drop.
+  const crew = groundedCrewReason(r, isAircraft(r.resource), groundedCrew);
+  if (crew) return locked(crew);
 
   return FREE;
 }
@@ -290,8 +340,10 @@ export function validateDrop(args: {
   overLeftoverRow?: boolean;
   others: Reservation[];
   zone: string;
+  groundedCrew?: GroundedLookup;
 }): DropCheck {
-  const { r, next, targetResource, targetResourceId, overLeftoverRow, others, zone } = args;
+  const { r, next, targetResource, targetResourceId, overLeftoverRow, others, zone, groundedCrew } =
+    args;
   const startMs = next.start.getTime();
   const endMs = next.end.getTime();
 
@@ -350,6 +402,16 @@ export function validateDrop(args: {
       };
     }
   }
+
+  //Also checked against the TARGET, not just the booking's current aircraft: a booking with
+  //no aircraft yet has no crew lock, but dropping it onto one is exactly what the server
+  //would refuse.
+  const crewGrounded = groundedCrewReason(
+    r,
+    isAircraft(targetResource ?? r.resource),
+    groundedCrew
+  );
+  if (crewGrounded) return { ok: false, reason: crewGrounded };
 
   const effectiveResourceId = targetResourceId ?? currentResourceId;
   const crew = new Set(personnelIds(r));

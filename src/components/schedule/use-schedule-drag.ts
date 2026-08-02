@@ -15,6 +15,7 @@ import {
   validateDrop,
   type DragAbility,
   type DragMode,
+  type GroundedLookup,
 } from "./drag-rules";
 
 /**
@@ -64,10 +65,18 @@ export interface ActiveDrag {
   end: Date;
   /** The resource it would land on (unchanged unless the pointer crossed lanes). */
   resourceId: number | null;
+  /** The proposed slot, formatted on the board's clock — what the live callout reads. */
+  label: string;
   /** Non-null when the current position can't be committed — shown live on the block. */
   reason: string | null;
   /** False until the pointer has travelled far enough to be a drag rather than a click. */
   moved: boolean;
+  /**
+   * Viewport point the live callout hangs off: the cursor during a pointer drag, the
+   * focused block during a keyboard nudge. The callout is drawn at the top of the document
+   * rather than inside a lane, so it needs a coordinate rather than a DOM parent.
+   */
+  anchor: { x: number; y: number } | null;
 }
 
 /** How far the pointer must travel before a press stops being a click. */
@@ -106,8 +115,13 @@ export function useScheduleDrag(args: {
   resources: Resource[];
   roles: Role[];
   orgUserId: number | null;
+  /**
+   * Whether a rostered person is grounded. The board has the roster for its Personnel
+   * filter; a reservation's own personnel don't carry the flag.
+   */
+  groundedCrew?: GroundedLookup;
 }) {
-  const { zone, reservations, resources, roles, orgUserId } = args;
+  const { zone, reservations, resources, roles, orgUserId, groundedCrew } = args;
   const qc = useQueryClient();
   const update = useUpdateReservation();
 
@@ -119,8 +133,8 @@ export function useScheduleDrag(args: {
   const sessionRef = React.useRef<PointerSession | null>(null);
   const activeRef = React.useRef<ActiveDrag | null>(null);
   activeRef.current = active;
-  const dataRef = React.useRef({ reservations, resources, zone });
-  dataRef.current = { reservations, resources, zone };
+  const dataRef = React.useRef({ reservations, resources, zone, groundedCrew });
+  dataRef.current = { reservations, resources, zone, groundedCrew };
   const edgeRef = React.useRef(0);
   const rafRef = React.useRef(0);
   /** Tears down the current gesture's window listeners. Null when no drag is in progress. */
@@ -140,8 +154,8 @@ export function useScheduleDrag(args: {
   }, []);
 
   const abilityFor = React.useCallback(
-    (r: Reservation): DragAbility => dragAbility(r, roles, orgUserId),
-    [roles, orgUserId]
+    (r: Reservation): DragAbility => dragAbility(r, roles, orgUserId, new Date(), groundedCrew),
+    [roles, orgUserId, groundedCrew]
   );
 
   // ── cache writes ───────────────────────────────────────────────────────────
@@ -246,7 +260,8 @@ export function useScheduleDrag(args: {
       mode: DragMode,
       deltaMin: number,
       zoneHit: DropZone | null,
-      moved: boolean
+      moved: boolean,
+      anchor: { x: number; y: number } | null
     ): ActiveDrag => {
       const d = dataRef.current;
       const next = proposeTimes({
@@ -278,6 +293,7 @@ export function useScheduleDrag(args: {
         overLeftoverRow: overLeftover && targetResourceId !== currentResourceId,
         others: d.reservations,
         zone: d.zone,
+        groundedCrew: d.groundedCrew,
       });
 
       return {
@@ -286,8 +302,10 @@ export function useScheduleDrag(args: {
         start: next.start,
         end: next.end,
         resourceId: targetResourceId,
+        label: formatTimeRangeInZone(next.start, next.end, d.zone),
         reason: check.ok ? null : check.reason,
         moved,
+        anchor,
       };
     },
     []
@@ -398,8 +416,10 @@ export function useScheduleDrag(args: {
         start: new Date(r.start),
         end: new Date(r.end),
         resourceId: r.resource?.id ?? null,
+        label: formatTimeRangeInZone(r.start, r.end, dataRef.current.zone),
         reason: null,
         moved: false,
+        anchor: { x: e.clientX, y: e.clientY },
       });
 
       //Listeners are attached HERE, synchronously, rather than from an effect keyed on the
@@ -434,7 +454,10 @@ export function useScheduleDrag(args: {
             near < lo + EDGE_ZONE_PX ? -EDGE_SPEED_PX : near > hi - EDGE_ZONE_PX ? EDGE_SPEED_PX : 0;
         }
 
-        const next = evaluate(s.reservation, s.mode, deltaMin, hit, moved);
+        const next = evaluate(s.reservation, s.mode, deltaMin, hit, moved, {
+          x: ev.clientX,
+          y: ev.clientY,
+        });
         //Mirrored into the ref immediately: pointerup can arrive in the same task as this
         //move, before React has re-rendered, and the drop must commit what the last move
         //computed rather than the previous frame's position.
@@ -531,7 +554,13 @@ export function useScheduleDrag(args: {
           ? { ...prev.reservation, start: prev.start.toISOString(), end: prev.end.toISOString() }
           : r;
 
-      const stepped = evaluate(base, mode, slots * SLOT_MIN, null, true);
+      //No cursor to hang the callout off, so it anchors under the block the caller is
+      //stepping — which is the focused element, by construction.
+      const focused = document.activeElement as HTMLElement | null;
+      const box = focused?.getBoundingClientRect();
+      const anchor = box && box.width > 0 ? { x: box.left + box.width / 2, y: box.bottom } : null;
+
+      const stepped = evaluate(base, mode, slots * SLOT_MIN, null, true, anchor);
       //Report against the ORIGINAL row, so the eventual commit sends one change, not a chain.
       const draft: ActiveDrag = { ...stepped, reservation: r };
       setActive(draft);

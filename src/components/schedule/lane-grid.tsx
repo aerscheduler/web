@@ -13,7 +13,7 @@ import { ReservationMenu } from "./reservation-menu";
 import { dimClass, preferredName, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
 import type { DragGeometry, DropZone, ScheduleDrag } from "./use-schedule-drag";
-import { DragCallout, ResizeHandle, dragAriaLabel } from "./drag-affordances";
+import { ResizeHandle, dragAriaLabel } from "./drag-affordances";
 
 const HOUR_WIDTH = 68; // px
 const LABEL_WIDTH = 176; // px
@@ -122,13 +122,13 @@ export function LaneGrid({
     [hitTest]
   );
 
-  //Draw from the live drag position, not the stored one. Everything downstream — grouping,
-  //packing, geometry — then works on the preview, so a block genuinely moves between lanes
-  //while it's held rather than being re-drawn somewhere else on drop.
-  const drawn = React.useMemo(
-    () => (drag ? reservations.map((r) => drag.previewOf(r)) : reservations),
-    [drag, reservations]
-  );
+  //The board's LAYOUT is computed from the committed reservations, never from the live drag
+  //position. That is deliberate: `packTracks` gives overlapping bookings their own track, so
+  //previewing the drag through it meant that the moment you held a block over another one
+  //the lane grew a second track — the row got taller and the booking you were aiming at slid
+  //out from under the cursor. Freezing the layout keeps every other block exactly where it
+  //was; the held one is drawn separately, floating over the top (see `heldRowKey` below).
+  const drawn = reservations;
 
   const byResource = new Map<number, Reservation[]>();
   const unassigned: Reservation[] = [];
@@ -183,16 +183,15 @@ export function LaneGrid({
   const nowMin = isToday ? minutesInWindow(new Date().toISOString(), tz.zone, startHour) : -1;
   const showNow = nowMin >= 0 && nowMin <= totalMin;
 
-  //Where the block was before the drag started — drawn as an outline so its old slot stays
-  //readable while it's in the air.
+  //The held block leaves an outline in its committed slot (rendered in place of itself, so
+  //the lane keeps the same shape) and is redrawn floating over whichever lane the pointer is
+  //on. A target that isn't a drawn lane falls into the catch-all row, same as anything else.
   const held = drag?.active?.moved ? drag.active : null;
-  const ghost = held
-    ? {
-        r: held.reservation,
-        rowKey: held.reservation.resource?.id != null && laneIds.has(held.reservation.resource.id)
-          ? `res-${held.reservation.resource.id}`
-          : "other",
-      }
+  const heldPreview = held && drag ? drag.previewOf(held.reservation) : null;
+  const heldRowKey = held
+    ? held.resourceId != null && laneIds.has(held.resourceId)
+      ? `res-${held.resourceId}`
+      : "other"
     : null;
 
   return (
@@ -344,28 +343,21 @@ export function LaneGrid({
                       : undefined
                   }
                 >
-                  {ghost?.rowKey === row.key && (
-                    <LaneGhost
-                      r={ghost.r}
-                      zone={tz.zone}
-                      startHour={startHour}
-                      totalMin={totalMin}
-                    />
-                  )}
                   {placed.map(({ r, track }) => {
                     const { leftPx, widthPx } = laneBlockGeometry(r, tz.zone, startHour, totalMin);
+                    const style = {
+                      left: leftPx,
+                      width: widthPx,
+                      top: LANE_PAD_Y + track * (TRACK_HEIGHT + TRACK_GAP),
+                      height: TRACK_HEIGHT,
+                    };
+                    //The block being carried stays in the layout as an outline, so the lane
+                    //never re-packs mid-drag and its old slot stays readable.
+                    if (held?.reservation.id === r.id) {
+                      return <LaneGhost key={r.id} style={style} />;
+                    }
                     return (
-                      <div
-                        key={r.id}
-                        className="absolute"
-                        style={{
-                          left: leftPx,
-                          width: widthPx,
-                          top: LANE_PAD_Y + track * (TRACK_HEIGHT + TRACK_GAP),
-                          height: TRACK_HEIGHT,
-                          zIndex: held?.reservation.id === r.id ? 25 : undefined,
-                        }}
-                      >
+                      <div key={r.id} className="absolute" style={style}>
                         <LaneBlock
                           r={r}
                           onView={onView}
@@ -379,6 +371,32 @@ export function LaneGrid({
                       </div>
                     );
                   })}
+                  {/* The carried block. Rendered last so it paints over whatever is already
+                      in this lane — nothing underneath is displaced or hidden, which is the
+                      whole point: you can see what you are about to land on. */}
+                  {heldPreview && heldRowKey === row.key && (
+                    <div
+                      className="absolute"
+                      style={{
+                        ...(() => {
+                          const g = laneBlockGeometry(heldPreview, tz.zone, startHour, totalMin);
+                          return { left: g.leftPx, width: g.widthPx };
+                        })(),
+                        top: LANE_PAD_Y,
+                        height: TRACK_HEIGHT,
+                      }}
+                    >
+                      <LaneBlock
+                        r={heldPreview}
+                        onView={onView}
+                        onCancel={onCancel}
+                        marks={marks}
+                        drag={drag}
+                        geom={geom}
+                        floating
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -389,24 +407,16 @@ export function LaneGrid({
   );
 }
 
-/** The outline left behind at a block's original slot while it's being dragged. */
-function LaneGhost({
-  r,
-  zone,
-  startHour,
-  totalMin,
-}: {
-  r: Reservation;
-  zone: string;
-  startHour: number;
-  totalMin: number;
-}) {
-  const { leftPx, widthPx } = laneBlockGeometry(r, zone, startHour, totalMin);
+/**
+ * The outline a block leaves in its committed slot while it's being carried. It takes the
+ * block's own geometry, so the lane keeps exactly the shape it had before the drag started.
+ */
+function LaneGhost({ style }: { style: React.CSSProperties }) {
   return (
     <div
       aria-hidden
       className="pointer-events-none absolute rounded-md border border-dashed border-muted-foreground/50 bg-muted/30"
-      style={{ left: leftPx, width: widthPx, top: LANE_PAD_Y, height: TRACK_HEIGHT }}
+      style={style}
     />
   );
 }
@@ -420,6 +430,7 @@ function LaneBlock({
   marks,
   drag,
   geom,
+  floating,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
@@ -429,6 +440,8 @@ function LaneBlock({
   marks: BoardMarks;
   drag?: ScheduleDrag;
   geom: DragGeometry;
+  /** The carried copy drawn over the board: lifted, inert, and without its own controls. */
+  floating?: boolean;
 }) {
   //Per-reservation so a school with fields in two zones labels each block correctly.
   const tz = useTimeZone(r.location);
@@ -437,20 +450,27 @@ function LaneBlock({
   const timeRange = tz.range(r.start, r.end);
 
   const ability = drag?.abilityFor(r);
-  const held = drag?.active?.reservation.id === r.id && drag.active.moved ? drag.active : null;
-  const saving = drag?.pendingId === r.id;
-  const grabbable = Boolean(drag && ability?.move);
+  //`floating` is the carried copy: it already IS the live drag, so it takes no input of its
+  //own and shows no controls — the real block (now an outline) still owns focus and events.
+  const held = floating ? (drag?.active ?? null) : null;
+  const saving = !floating && drag?.pendingId === r.id;
+  const grabbable = Boolean(!floating && drag && ability?.move);
 
   const body = (
     <div
-      role="button"
-      tabIndex={0}
-      aria-label={dragAriaLabel(r, timeRange, ability, ability?.move ? KEY_HINT_MOVE : KEY_HINT_END)}
+      role={floating ? "presentation" : "button"}
+      aria-hidden={floating || undefined}
+      tabIndex={floating ? undefined : 0}
+      aria-label={
+        floating
+          ? undefined
+          : dragAriaLabel(r, timeRange, ability, ability?.move ? KEY_HINT_MOVE : KEY_HINT_END)
+      }
       onPointerDown={
         //Wired even when this booking can't be moved: `begin` is what explains the refusal,
         //and a block that answers nothing to a drag attempt is the confusion this feature
         //exists to avoid.
-        drag
+        drag && !floating
           ? (e) => {
               //Ignore presses that started on a resize handle or the ⋯ menu.
               if ((e.target as HTMLElement).closest("[data-drag-exempt]")) return;
@@ -459,6 +479,7 @@ function LaneBlock({
           : undefined
       }
       onClick={(e) => {
+        if (floating) return;
         e.stopPropagation();
         if (drag?.consumeClick()) return;
         onView(r);
@@ -470,7 +491,7 @@ function LaneBlock({
           onView(r);
           return;
         }
-        if (!drag || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
+        if (!drag || floating || (e.key !== "ArrowLeft" && e.key !== "ArrowRight")) return;
         //Arrow keys are the no-mouse route to the same rules: one 15-minute slot per press,
         //Shift to stretch the end instead of moving the whole booking.
         e.preventDefault();
@@ -485,21 +506,23 @@ function LaneBlock({
         //A locked block still opens its details, so it reads as a pointer target rather than
         //inheriting the lane's cursor-copy, which promises a booking it won't create.
         grabbable ? "cursor-grab select-none active:cursor-grabbing" : "cursor-pointer",
-        held && "cursor-grabbing shadow-lg ring-2 ring-primary/60",
-        held?.reason && "ring-destructive",
+        //Lifted: a shadow and a ring say "this one is in your hand", and a touch of
+        //translucency lets whatever it is passing over stay readable underneath.
+        floating && "pointer-events-none cursor-grabbing opacity-95 shadow-lg ring-2 ring-primary/70",
+        floating && held?.reason && "ring-destructive",
         saving && "animate-pulse"
       )}
     >
       {/* Edge handles. Rendered only where that edge may actually move, so the cursor
           never promises something the booking's state won't allow. */}
-      {drag && ability?.resizeStart && (
+      {drag && !floating && ability?.resizeStart && (
         <ResizeHandle
           axis="x"
           side="start"
           onPointerDown={(e) => drag.begin(e, r, "resize-start", geom)}
         />
       )}
-      {drag && ability?.resizeEnd && (
+      {drag && !floating && ability?.resizeEnd && (
         <ResizeHandle axis="x" side="end" onPointerDown={(e) => drag.begin(e, r, "resize-end", geom)} />
       )}
 
@@ -508,35 +531,30 @@ function LaneBlock({
           {highlightMatch(r.title, marks.query)}
         </div>
         <div className="truncate text-[11px] leading-tight opacity-80 tabular-nums">
-          {held ? timeRange : shownName ? highlightMatch(shownName, marks.query) : typeLabel(r.type)}
+          {floating ? timeRange : shownName ? highlightMatch(shownName, marks.query) : typeLabel(r.type)}
         </div>
       </div>
-      <div
-        data-drag-exempt
-        className="opacity-0 transition-opacity group-hover:opacity-100"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <ReservationMenu
-          r={r}
-          onView={onView}
-          onEdit={onEdit}
-          onDuplicate={onDuplicate}
-          onCancel={onCancel}
-        />
-      </div>
+      {!floating && (
+        <div
+          data-drag-exempt
+          className="opacity-0 transition-opacity group-hover:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ReservationMenu
+            r={r}
+            onView={onView}
+            onEdit={onEdit}
+            onDuplicate={onDuplicate}
+            onCancel={onCancel}
+          />
+        </div>
+      )}
     </div>
   );
 
-  //While a block is in the air its tooltip would fight the cursor, and the reason a drop is
-  //refused has to be readable without hovering — so that swaps to a pinned chip instead.
-  if (held) {
-    return (
-      <div className="relative h-full w-full">
-        {body}
-        <DragCallout reason={held.reason} label={tz.range(held.start, held.end)} />
-      </div>
-    );
-  }
+  //The carried copy takes no tooltip: the cursor is busy, and the live time and any refusal
+  //are on the callout that follows the pointer (see DragCallout).
+  if (floating) return body;
 
   return (
     <Tooltip>

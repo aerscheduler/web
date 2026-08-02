@@ -1,7 +1,9 @@
 import type * as React from "react";
+import { createPortal } from "react-dom";
 import type { Reservation } from "@/types/api";
 import { cn } from "@/lib/utils";
 import { isDraggable, type DragAbility } from "./drag-rules";
+import type { ActiveDrag } from "./use-schedule-drag";
 
 /**
  * The bits of drag UI both boards draw. They live together so the day lane grid and the
@@ -12,27 +14,58 @@ import { isDraggable, type DragAbility } from "./drag-rules";
 /** Thickness of a grab strip, in px. Wide enough to hit, narrow enough not to eat the block. */
 export const HANDLE_PX = 7;
 
+/** Gap between the cursor and the callout, and the margin it keeps off the viewport edge. */
+const CALLOUT_OFFSET_PX = 18;
+const CALLOUT_MARGIN_PX = 12;
+const CALLOUT_MAX_W_PX = 320;
+
 /**
- * The floating label a held block carries: the slot it would land on, or — when the drop
- * would be rejected — the reason, in the same place the time would have been.
+ * The live label a held block carries: the slot it would land on, or — when the drop would
+ * be rejected — the reason, in place of the time.
  *
- * A tooltip can't do this job: the cursor is busy, and the answer has to be visible at the
- * moment the block is over the bad slot, not after it's been let go.
+ * A **portal to the document, positioned `fixed` against the viewport**, for two reasons.
+ * It used to live inside the block, which put it inside a lane: it could be clipped by the
+ * board's scroll container, and — because a lane is sized to the tracks it holds — it read
+ * as though the row had grown to make space for it. Neither is true of a popover. Out here
+ * it can't affect any layout, can't be clipped, and can flip off the viewport edges.
+ *
+ * A tooltip can't do this job either: the cursor is busy holding a block, and the answer has
+ * to be readable while the block is over the bad slot, not after it's been let go.
  */
-export function DragCallout({ reason, label }: { reason: string | null; label: string }) {
-  return (
+export function DragCallout({ drag }: { drag: { active: ActiveDrag | null } }) {
+  const active = drag.active;
+  if (!active || !active.moved || !active.anchor || typeof document === "undefined") return null;
+
+  const { x, y } = active.anchor;
+  //Flip to the left / above rather than run off the edge. The height isn't known before
+  //layout, so the vertical flip uses a generous estimate — being early is harmless, and a
+  //callout half off the bottom of the screen is not.
+  const flipX = x + CALLOUT_OFFSET_PX + CALLOUT_MAX_W_PX > window.innerWidth - CALLOUT_MARGIN_PX;
+  const flipY = y + CALLOUT_OFFSET_PX + 96 > window.innerHeight - CALLOUT_MARGIN_PX;
+
+  return createPortal(
     <div
       role="status"
+      aria-live="polite"
+      style={{
+        position: "fixed",
+        left: flipX ? undefined : x + CALLOUT_OFFSET_PX,
+        right: flipX ? Math.max(CALLOUT_MARGIN_PX, window.innerWidth - x + CALLOUT_OFFSET_PX) : undefined,
+        top: flipY ? undefined : y + CALLOUT_OFFSET_PX,
+        bottom: flipY ? Math.max(CALLOUT_MARGIN_PX, window.innerHeight - y + CALLOUT_OFFSET_PX) : undefined,
+        maxWidth: CALLOUT_MAX_W_PX,
+      }}
       className={cn(
-        "pointer-events-none absolute left-0 top-full z-40 mt-1 w-max max-w-[20rem] rounded-md border px-2 py-1 text-[11px] shadow-md",
-        reason
+        "pointer-events-none z-[100] w-max rounded-md border px-2.5 py-1.5 text-xs shadow-lg",
+        active.reason
           ? "border-destructive/40 bg-destructive text-destructive-foreground"
           : "border-border bg-popover text-popover-foreground"
       )}
     >
-      <span className="tabular-nums">{label}</span>
-      {reason && <span className="block font-medium">{reason}</span>}
-    </div>
+      <span className="block tabular-nums font-medium">{active.label}</span>
+      {active.reason && <span className="mt-0.5 block">{active.reason}</span>}
+    </div>,
+    document.body
   );
 }
 

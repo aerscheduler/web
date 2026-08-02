@@ -12,7 +12,7 @@ import { packTracks } from "./pack";
 import { dimClass, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
 import type { DragGeometry, DropZone, ScheduleDrag } from "./use-schedule-drag";
-import { DragCallout, ResizeHandle, dragAriaLabel } from "./drag-affordances";
+import { ResizeHandle, dragAriaLabel } from "./drag-affordances";
 
 const HOUR_HEIGHT = 48; // px per hour
 const MIN_BLOCK = 20; // px
@@ -95,12 +95,11 @@ export function WeekTimeGrid({
     [hitTest]
   );
 
-  //Draw from the live drag position, so a block held over Thursday renders in Thursday's
-  //column rather than jumping there on drop.
-  const drawn = React.useMemo(
-    () => (drag ? reservations.map((r) => drag.previewOf(r)) : reservations),
-    [drag, reservations]
-  );
+  //LAYOUT comes from the committed reservations, never the live drag — see the same note in
+  //lane-grid.tsx. Packing a previewed block through `packTracks` split the column into extra
+  //tracks the moment it overlapped something, which shuffled and shrank every other booking
+  //in that day just as you were aiming at one of them.
+  const drawn = reservations;
 
   // Computed over the WHOLE week, not per column, so all seven days share one time axis.
   const { startHour, endHour } = hourWindow(drawn, tz.zone);
@@ -111,8 +110,11 @@ export function WeekTimeGrid({
   const nowMin = minutesInWindow(now, tz.zone, startHour);
   const showNow = nowMin >= 0 && nowMin <= totalMin;
 
+  //The carried block leaves an outline in its committed slot and is redrawn floating over
+  //whichever day column the pointer is on.
   const held = drag?.active?.moved ? drag.active : null;
-  const ghostDayKey = held ? dateKeyInZone(held.reservation.start, tz.zone) : null;
+  const heldPreview = held && drag ? drag.previewOf(held.reservation) : null;
+  const heldDayKey = held ? dateKeyInZone(held.start, tz.zone) : null;
 
   return (
     <div ref={scrollRef} className="h-full min-h-0 overflow-auto">
@@ -171,7 +173,7 @@ export function WeekTimeGrid({
           const items = drawn.filter((r) => dateKeyInZone(r.start, tz.zone) === dayKey);
           const { placed, tracks } = packTracks(items);
           const today = isToday(d);
-          const isDropColumn = held != null && dateKeyInZone(held.start, tz.zone) === dayKey;
+          const isDropColumn = heldDayKey === dayKey;
           return (
             <div
               key={d.toISOString()}
@@ -229,32 +231,33 @@ export function WeekTimeGrid({
                   <span className="absolute -left-1 -top-1 size-2 rounded-full bg-destructive" />
                 </div>
               )}
-              {held && ghostDayKey === dayKey && (
-                <WeekGhost
-                  r={held.reservation}
-                  zone={tz.zone}
-                  startHour={startHour}
-                  totalMin={totalMin}
-                />
-              )}
               {placed.map(({ r, track }) => {
                 const { top, height } = blockGeometry(r, tz.zone, startHour, totalMin);
+                const style = {
+                  top,
+                  height,
+                  left: `${((track / tracks) * 100).toFixed(4)}%`,
+                  width: `calc(${(100 / tracks).toFixed(4)}% - 2px)`,
+                };
+                //The block being carried stays in the layout as an outline, so the column
+                //never re-packs mid-drag.
+                if (held?.reservation.id === r.id) return <WeekGhost key={r.id} style={style} />;
                 return (
-                  <div
-                    key={r.id}
-                    className="absolute"
-                    style={{
-                      top,
-                      height,
-                      left: `${((track / tracks) * 100).toFixed(4)}%`,
-                      width: `calc(${(100 / tracks).toFixed(4)}% - 2px)`,
-                      zIndex: held?.reservation.id === r.id ? 25 : undefined,
-                    }}
-                  >
+                  <div key={r.id} className="absolute" style={style}>
                     <WeekBlock r={r} onView={onView} marks={marks} drag={drag} geom={geom} />
                   </div>
                 );
               })}
+              {/* The carried block, painted last so it sits over whatever is already in this
+                  column rather than displacing it. */}
+              {heldPreview && heldDayKey === dayKey && (
+                <div
+                  className="absolute inset-x-0"
+                  style={blockGeometry(heldPreview, tz.zone, startHour, totalMin)}
+                >
+                  <WeekBlock r={heldPreview} onView={onView} marks={marks} drag={drag} geom={geom} floating />
+                </div>
+              )}
             </div>
           );
         })}
@@ -263,24 +266,13 @@ export function WeekTimeGrid({
   );
 }
 
-/** The outline left behind at a block's original slot while it's being dragged. */
-function WeekGhost({
-  r,
-  zone,
-  startHour,
-  totalMin,
-}: {
-  r: Reservation;
-  zone: string;
-  startHour: number;
-  totalMin: number;
-}) {
-  const { top, height } = blockGeometry(r, zone, startHour, totalMin);
+/** The outline a block leaves in its committed slot while it's being carried. */
+function WeekGhost({ style }: { style: React.CSSProperties }) {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-0 rounded-md border border-dashed border-muted-foreground/50 bg-muted/30"
-      style={{ top, height }}
+      className="pointer-events-none absolute rounded-md border border-dashed border-muted-foreground/50 bg-muted/30"
+      style={style}
     />
   );
 }
@@ -291,12 +283,15 @@ function WeekBlock({
   marks,
   drag,
   geom,
+  floating,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
   marks: BoardMarks;
   drag?: ScheduleDrag;
   geom: DragGeometry;
+  /** The carried copy drawn over the board: lifted, inert, and without its own controls. */
+  floating?: boolean;
 }) {
   const tz = useTimeZone(r.location);
   const names = personnelNames(r);
@@ -307,17 +302,23 @@ function WeekBlock({
   const aircraft = r.resource ? resourceLabel(r.resource).name : null;
 
   const ability = drag?.abilityFor(r);
-  const held = drag?.active?.reservation.id === r.id && drag.active.moved ? drag.active : null;
-  const saving = drag?.pendingId === r.id;
-  const grabbable = Boolean(drag && ability?.move);
+  const held = floating ? (drag?.active ?? null) : null;
+  const saving = !floating && drag?.pendingId === r.id;
+  const grabbable = Boolean(!floating && drag && ability?.move);
 
   const body = (
     <button
       type="button"
-      aria-label={dragAriaLabel(r, timeRange, ability, ability?.move ? KEY_HINT_MOVE : KEY_HINT_END)}
+      aria-hidden={floating || undefined}
+      tabIndex={floating ? -1 : undefined}
+      aria-label={
+        floating
+          ? undefined
+          : dragAriaLabel(r, timeRange, ability, ability?.move ? KEY_HINT_MOVE : KEY_HINT_END)
+      }
       onPointerDown={
         //Wired even when this booking can't be moved — see the note in lane-grid.tsx.
-        drag
+        drag && !floating
           ? (e) => {
               if ((e.target as HTMLElement).closest("[data-drag-exempt]")) return;
               drag.begin(e, r, "move", geom);
@@ -325,6 +326,7 @@ function WeekBlock({
           : undefined
       }
       onClick={(e) => {
+        if (floating) return;
         e.stopPropagation();
         if (drag?.consumeClick()) return;
         onView(r);
@@ -334,7 +336,7 @@ function WeekBlock({
           e.stopPropagation();
           return;
         }
-        if (!drag) return;
+        if (!drag || floating) return;
         //Up/down is time, left/right is the day — the same two axes the pointer has.
         if (e.key === "ArrowUp" || e.key === "ArrowDown") {
           e.preventDefault();
@@ -351,38 +353,33 @@ function WeekBlock({
         BLOCK_CLASS[r.type],
         dimClass(marks, r.id),
         grabbable ? "cursor-grab select-none active:cursor-grabbing" : "cursor-pointer",
-        held && "cursor-grabbing shadow-lg ring-2 ring-primary/60",
-        held?.reason && "ring-destructive",
+        floating && "pointer-events-none cursor-grabbing opacity-95 shadow-lg ring-2 ring-primary/70",
+        floating && held?.reason && "ring-destructive",
         saving && "animate-pulse"
       )}
     >
-      {drag && ability?.resizeStart && (
+      {drag && !floating && ability?.resizeStart && (
         <ResizeHandle
           axis="y"
           side="start"
           onPointerDown={(e) => drag.begin(e, r, "resize-start", geom)}
         />
       )}
-      {drag && ability?.resizeEnd && (
+      {drag && !floating && ability?.resizeEnd && (
         <ResizeHandle axis="y" side="end" onPointerDown={(e) => drag.begin(e, r, "resize-end", geom)} />
       )}
       <span className="truncate text-[11px] font-semibold leading-tight text-foreground">
         {highlightMatch(aircraft ? `${aircraft} · ${r.title}` : r.title, marks.query)}
       </span>
       <span className="truncate text-[10px] leading-tight opacity-80 tabular-nums">
-        {held ? tz.range(held.start, held.end) : tz.time(r.start)}
+        {floating ? timeRange : tz.time(r.start)}
       </span>
     </button>
   );
 
-  if (held) {
-    return (
-      <div className="relative h-full w-full">
-        {body}
-        <DragCallout reason={held.reason} label={tz.range(held.start, held.end)} />
-      </div>
-    );
-  }
+  //No tooltip on the carried copy — the live time and any refusal ride the pointer-following
+  //callout instead.
+  if (floating) return body;
 
   return (
     <Tooltip>

@@ -226,6 +226,8 @@ export interface OrganizationUser {
   createdAt: string;
   identifier: string | null;
   grounded: boolean;
+  /** Why they were grounded, when whoever grounded them said. */
+  groundedReason?: string | null;
   profileImage: string | null;
   adminRole?: RoleRow | null;
   ownerRole?: RoleRow | null;

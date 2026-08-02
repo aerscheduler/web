@@ -40,6 +40,7 @@ import {
 } from "@/components/schedule/reservation-form";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 import { useScheduleDrag } from "@/components/schedule/use-schedule-drag";
+import { DragCallout } from "@/components/schedule/drag-affordances";
 import {
   BILLING_OPTIONS,
   RAMP_OPTIONS,
@@ -140,12 +141,27 @@ function SchedulePage() {
   //and the week board share one set of rules, one optimistic write and one undo — see
   //`use-schedule-drag.ts`. Permission is decided per booking inside, not per role here: a
   //student may drag their own lesson even though they can't create one.
+  //The roster is already loaded for the Personnel filter, and it is the only place the
+  //client can see who has been grounded — a reservation's personnel carry just id and name.
+  const groundedCrew = React.useCallback(
+    (id: number) => {
+      const ou = (peopleQ.data ?? []).find((p) => p.id === id);
+      if (!ou?.grounded) return null;
+      return {
+        name: ou.user?.name ?? ou.identifier ?? `Member #${id}`,
+        reason: ou.groundedReason ?? null,
+      };
+    },
+    [peopleQ.data]
+  );
+
   const drag = useScheduleDrag({
     zone: tz.zone,
     reservations,
     resources,
     roles,
     orgUserId,
+    groundedCrew,
   });
 
   // Live board: quietly re-pull the range on an interval (ref keeps the timer
@@ -457,6 +473,10 @@ function SchedulePage() {
           duplicating={duplicating}
         />
       )}
+
+      {/* One callout for every board — it's a viewport overlay that follows the cursor, not
+          something a lane owns, so it can't be clipped by the board or change its layout. */}
+      <DragCallout drag={drag} />
 
       <CancelReservationDialog {...cancelDialog} />
 

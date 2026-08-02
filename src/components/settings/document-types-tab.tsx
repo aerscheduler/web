@@ -1,12 +1,9 @@
 import * as React from "react";
 import { FileCog, Loader2, Lock, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  useCreateDocumentType,
-  useDeleteDocumentType,
-  useDocumentTypes,
-  useUpdateDocumentType,
-} from "@/features/queries";
+import { pageRows, useCreateDocumentType, useDeleteDocumentType, useDocumentTypesPage, useUpdateDocumentType } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
 import type { DocumentType, DocumentTypeInput } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -45,14 +42,15 @@ function errMessage(e: unknown, fallback: string) {
  * creatable from the mobile app.
  */
 export function DocumentTypesTab() {
-  const q = useDocumentTypes();
+  const paging = usePaging();
+  const q = useDocumentTypesPage(paging);
   const del = useDeleteDocumentType();
   const confirm = useConfirm();
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<DocumentType | null>(null);
 
-  const types = q.data ?? [];
+  const { rows: types, total } = pageRows(q);
 
   function openAdd() {
     setEditing(null);
@@ -110,7 +108,7 @@ export function DocumentTypesTab() {
           </div>
         ) : q.isError ? (
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
-        ) : types.length === 0 ? (
+        ) : total === 0 ? (
           <EmptyState
             icon={FileCog}
             title="No document types yet"
@@ -128,6 +126,13 @@ export function DocumentTypesTab() {
             ))}
           </ul>
         )}
+        <TablePagination
+          paging={paging}
+          total={total}
+          returned={types.length}
+          loading={q.isFetching}
+          className="px-1"
+        />
       </CardContent>
 
       <DocumentTypeFormModal open={formOpen} onOpenChange={setFormOpen} type={editing} />

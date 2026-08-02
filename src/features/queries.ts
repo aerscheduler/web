@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, ApiError, raw } from "@/lib/api";
+import { api, apiList, ApiError, raw } from "@/lib/api";
+import type { Paged, PagingState } from "@/lib/paging";
 import {
   coordinateKey,
   fetchNearestObservation,
@@ -83,6 +84,54 @@ import type {
 /** Options accepted by every read hook (currently just React Query's `enabled`). */
 export type QueryOpts = { enabled?: boolean };
 
+//---------------------------------------------------------------------------------
+// Paged reads.
+//
+// Two hooks exist for most collections and the difference matters:
+//
+//   useMembers(filter)             — up to the API's 1,000-row cap, as an array.
+//                                    For pickers, counts and anything that has to
+//                                    see the whole set. Paging a combobox to 25
+//                                    silently loses options.
+//   useMembersPage(filter, paging) — ONE page, plus the total. For tables.
+//
+// Anything rendered in a <DataTable> takes the `*Page` form; DataTable requires
+// the paging state, so this is enforced rather than remembered.
+//---------------------------------------------------------------------------------
+
+/**
+ * A paged list read.
+ *
+ * `placeholderData` holds the previous page on screen while the next one loads,
+ * so paging refines the table instead of blanking it — the same reason the
+ * report shell does it. Without it every page change flashes an empty table and
+ * the row heights jump.
+ */
+function usePagedList<T>(
+  key: unknown[],
+  path: string,
+  paging: PagingState,
+  filter?: Record<string, unknown>,
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: [...key, { ...(filter ?? {}), ...paging.query }],
+    queryFn: async (): Promise<Paged<T>> => {
+      const { data, pagination } = await apiList<T>(path, {
+        query: { ...(filter ?? {}), ...paging.query } as Record<string, string | number | boolean | undefined>,
+      });
+      return { rows: data, total: pagination.total, hasMore: pagination.hasMore };
+    },
+    placeholderData: (prev) => prev,
+    ...opts,
+  });
+}
+
+/** What a table reads off a paged query — safe before the first response lands. */
+export function pageRows<T>(q: { data?: Paged<T> }): { rows: T[]; total: number } {
+  return { rows: q.data?.rows ?? [], total: q.data?.total ?? 0 };
+}
+
 export type MemberFilter = Partial<
   Record<
     "admin" | "owner" | "instructor" | "student" | "renter" | "dispatcher" | "technician" | "noRoles",
@@ -154,6 +203,11 @@ export function useMembers(filter?: MemberFilter, opts?: QueryOpts) {
   });
 }
 
+/** One page of the roster, for the People table. */
+export function useMembersPage(filter: MemberFilter | undefined, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<OrganizationUser>(["members"], "/orgUsers", paging, filter, opts);
+}
+
 export function useOrgUsers(opts?: QueryOpts) {
   return useMembers(undefined, opts);
 }
@@ -174,6 +228,11 @@ export function usePlanes(filter?: ResourceListFilter, opts?: QueryOpts) {
   });
 }
 
+/** One page of the fleet, for the Aircraft table. */
+export function usePlanesPage(filter: ResourceListFilter | undefined, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<Resource>(["resources", "planes"], "/resources/planes", paging, filter, opts);
+}
+
 export function useResources(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["resources", "all"],
@@ -188,6 +247,14 @@ export function useSimulators(filter?: ResourceListFilter, opts?: QueryOpts) {
     queryFn: () => api<Resource[]>("/resources/simulators", { query: filter }),
     ...opts,
   });
+}
+
+export function useSimulatorsPage(filter: ResourceListFilter | undefined, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<Resource>(["resources", "simulators"], "/resources/simulators", paging, filter, opts);
+}
+
+export function useRoomsPage(filter: ResourceListFilter | undefined, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<Resource>(["resources", "rooms"], "/resources/rooms", paging, filter, opts);
 }
 
 export function useRooms(filter?: ResourceListFilter, opts?: QueryOpts) {
@@ -219,6 +286,38 @@ export function useReservations(
  * plane/sim meter readings; Flutter refetches this before ramp-out so Hobbs/tach are
  * present — the web detail sheet does the same.
  */
+/**
+ * One page of reservations in a window, for the tables built on them (Billing's
+ * unbilled list, Cancellations). The board views keep `useReservations` — a day
+ * grid draws every block in its window and has no page to be on.
+ */
+export function useReservationsPage(
+  startDate: string,
+  endDate: string,
+  filter:
+    | (ReservationListFilter & {
+        includeCanceled?: boolean;
+        /** Only bookings with no invoice yet — Billing's "unbilled flights". */
+        uninvoiced?: boolean;
+        /**
+         * Only bookings that have already finished. The date range is an overlap
+         * query, so narrowing `endDate` does NOT exclude a flight that is still out.
+         */
+        endedBefore?: string;
+      })
+    | undefined,
+  paging: PagingState,
+  opts?: QueryOpts
+) {
+  return usePagedList<Reservation>(
+    ["reservations", "page", startDate, endDate],
+    "/reservations",
+    paging,
+    { startDate, endDate, orderBy: "asc", includeCanceled: false, ...filter },
+    opts
+  );
+}
+
 export function useReservation(id: number | null, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["reservations", id],
@@ -234,6 +333,25 @@ export function useReservation(id: number | null, opts?: QueryOpts) {
  * read when a sheet is open, while the reservation itself is on every board. Its own key
  * also means a close-out mutation can invalidate the trail without refetching the board.
  */
+/** Filters the Audit Logs table sends to `GET /audit`. */
+export type AuditListFilter = {
+  entityType?: string;
+  actorOrgUserId?: number;
+  resourceId?: number;
+  startDate?: string;
+  endDate?: string;
+};
+
+/**
+ * The organization's audit feed, paged server-side like every other table.
+ *
+ * Admin-only on the server, so this is only ever mounted behind the same guard — a
+ * non-admin reaching it would get a 403 rather than an empty table.
+ */
+export function useAuditPage(filter: AuditListFilter | undefined, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<AuditEvent>(["audit"], "/audit", paging, filter, opts);
+}
+
 export function useReservationAudit(reservationId: number | null, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["audit", "reservation", reservationId],
@@ -255,6 +373,34 @@ export function useInvoices(filter?: InvoiceListFilter, opts?: QueryOpts) {
  * 404s when the reservation hasn't been invoiced, so only enable it once you know
  * an invoice exists (e.g. the close-out flow reached the `invoiced` step).
  */
+/**
+ * Invoice totals for a window — `GET /invoices/summary`.
+ *
+ * Aggregated by the database. The Billing cards used to be summed from
+ * `useInvoices()` in the browser, which stopped being merely slow and started
+ * being wrong once list responses were capped at 1,000 rows: a school with more
+ * invoices than that in the range was shown the total of an arbitrary thousand.
+ */
+export function useInvoiceSummary(
+  filter?: { startDate?: string; endDate?: string; q?: string },
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["invoices", "summary", filter ?? {}],
+    queryFn: () =>
+      api<{ revenue: number; paidCount: number; outstanding: number; outstandingCount: number }>(
+        "/invoices/summary",
+        { query: filter }
+      ),
+    ...opts,
+  });
+}
+
+/** One page of the org's invoices, for the Billing table. */
+export function useInvoicesPage(filter: InvoiceListFilter | undefined, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<Invoice>(["invoices"], "/invoices", paging, filter, opts);
+}
+
 export function useReservationInvoice(reservationId: number | null, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["invoices", "reservation", reservationId],
@@ -294,12 +440,31 @@ export function useGuests(opts?: QueryOpts) {
   });
 }
 
+/** One page of guests, for the Guests tab on People. */
+export function useGuestsPage(
+  paging: PagingState,
+  filter?: { q?: string },
+  opts?: QueryOpts
+) {
+  return usePagedList<Guest>(["guests"], "/organizations/guests", paging, filter, opts);
+}
+
 export function useCurrencyTypes(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["currencyTypes"],
     queryFn: () => api<CurrencyType[]>("/currencies/types"),
     ...opts,
   });
+}
+
+/** One page of currency types, for the Settings table. */
+export function useCurrencyTypesPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<CurrencyType>(["currencyTypes"], "/currencies/types", paging, undefined, opts);
+}
+
+/** One page of instruction rates, for the Settings table. */
+export function useRatingsPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<OrganizationRating>(["ratings"], "/organizations/ratings", paging, undefined, opts);
 }
 
 export function useBilling(opts?: QueryOpts) {
@@ -329,6 +494,15 @@ export function useAnnouncements(opts?: QueryOpts) {
  * `placeholderData: keepPrevious` keeps the last hits on screen while the next
  * request is in flight, so the list refines instead of blanking as you type.
  */
+/** One page of announcements, for the Announcements table. */
+export function useAnnouncementsPage(
+  filter: { q?: string; expired?: boolean } | undefined,
+  paging: PagingState,
+  opts?: QueryOpts
+) {
+  return usePagedList<Announcement>(["announcements"], "/announcements", paging, filter, opts);
+}
+
 export function useGlobalSearch(
   q: string,
   filter?: { types?: SearchEntityType[]; limit?: number },
@@ -585,6 +759,11 @@ export function useJoinRequests(opts?: QueryOpts) {
 }
 
 /** Accept a join request, optionally assigning an initial role. `POST /joinRequests/:id/accept`. */
+/** One page of pending join requests, for the People panel. */
+export function useJoinRequestsPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<JoinRequest>(["joinRequests"], "/joinRequests", paging, undefined, opts);
+}
+
 export function useAcceptJoinRequest() {
   const qc = useQueryClient();
   return useMutation({
@@ -763,6 +942,11 @@ export function useResourceGroups(opts?: QueryOpts) {
 }
 
 /** One group WITH its resources — the list endpoint omits them. */
+/** One page of aircraft groups, for the Settings table. */
+export function useResourceGroupsPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<ResourceGroup>(["groups", "resource"], "/groups/resource", paging, undefined, opts);
+}
+
 export function useResourceGroup(id: number | null, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["groups", "resource", id],
@@ -806,6 +990,11 @@ export function useOrgUserGroups(opts?: QueryOpts) {
 }
 
 /** One group WITH its members — the list endpoint omits them. */
+/** One page of people groups, for the Settings table. */
+export function useOrgUserGroupsPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<OrgUserGroup>(["groups", "orgUser"], "/groups/orgUser", paging, undefined, opts);
+}
+
 export function useOrgUserGroup(id: number | null, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["groups", "orgUser", id],
@@ -1107,6 +1296,11 @@ export function useMyBillingSettings(opts?: QueryOpts) {
 }
 
 /** Start a card SetupIntent so the member can save a card (`POST /stripe/setupIntent`). */
+/** One page of the caller's saved cards. */
+export function usePaymentMethodsPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<PaymentMethod>(["paymentMethods"], "/stripe/paymentMethods", paging, undefined, opts);
+}
+
 export function useCreateSetupIntent() {
   return useMutation({
     mutationFn: () => api<SetupIntentResponse>("/stripe/setupIntent", { method: "POST" }),
@@ -1175,6 +1369,44 @@ export function useMemberInvoices(
     queryFn: () => api<Invoice[]>(`/invoices/orgUsers/${orgUserId}`, { query: filter }),
     enabled: (opts?.enabled ?? true) && orgUserId != null,
   });
+}
+
+/** One page of a member's invoices, for the My invoices table. */
+export function useMemberInvoicesPage(
+  orgUserId: number | null,
+  filter: InvoiceListFilter | undefined,
+  paging: PagingState,
+  opts?: QueryOpts
+) {
+  return usePagedList<Invoice>(
+    ["invoices", "member", orgUserId],
+    `/invoices/orgUsers/${orgUserId}`,
+    paging,
+    filter,
+    { enabled: (opts?.enabled ?? true) && orgUserId != null }
+  );
+}
+
+/** One member's invoice totals — `GET /invoices/orgUsers/:id/summary`. */
+export function useMemberInvoiceSummary(
+  orgUserId: number | null,
+  filter?: { startDate?: string; endDate?: string; q?: string },
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["invoices", "member", orgUserId, "summary", filter ?? {}],
+    queryFn: () =>
+      api<{ revenue: number; paidCount: number; outstanding: number; outstandingCount: number }>(
+        `/invoices/orgUsers/${orgUserId}/summary`,
+        { query: filter }
+      ),
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
+  });
+}
+
+/** One page of the caller's currencies, for the My currencies table. */
+export function useMyCurrenciesPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<Currency>(["currencies", "me"], "/currencies", paging, undefined, opts);
 }
 
 /** The caller's currencies (medicals, flight reviews, checkouts…). */
@@ -1379,6 +1611,16 @@ export function useInstructorPairRequests(opts?: QueryOpts) {
   });
 }
 
+/** One page of pending student-pair requests, for the People panel. */
+export function useStudentPairRequestsPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<InstructionPairRequest>(["pairRequests", "students"], "/students/requests", paging, undefined, opts);
+}
+
+/** One page of pending instructor-pair requests, for the People panel. */
+export function useInstructorPairRequestsPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<InstructionPairRequest>(["pairRequests", "instructors"], "/instructors/requests", paging, undefined, opts);
+}
+
 export function useRespondStudentPairRequest() {
   const qc = useQueryClient();
   return useMutation({
@@ -1453,6 +1695,36 @@ export function useNotifications(filter?: NotificationListFilter, opts?: QueryOp
     queryFn: () => api<AppNotification[]>("/notifications", { query: filter }),
     ...opts,
   });
+}
+
+/**
+ * How many notifications are unread.
+ *
+ * Asks for a single row and reads `pagination.total`, rather than counting the
+ * unread ones in the list on screen — that list is one page, so the count would
+ * shrink as you paged forward. Cheap enough to be worth the extra request: the
+ * response is one notification, and the number is a real count of the whole set.
+ */
+export function useUnreadNotificationCount(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["notifications", "unreadCount"],
+    queryFn: async () => {
+      const { pagination } = await apiList<AppNotification>("/notifications", {
+        query: { status: "unread", limit: 1 },
+      });
+      return pagination.total;
+    },
+    ...opts,
+  });
+}
+
+/** One page of notifications, for the Notifications table. */
+export function useNotificationsPage(
+  filter: NotificationListFilter | undefined,
+  paging: PagingState,
+  opts?: QueryOpts
+) {
+  return usePagedList<AppNotification>(["notifications"], "/notifications", paging, filter, opts);
 }
 
 export function useMarkNotificationRead() {
@@ -1547,6 +1819,11 @@ export function useApiKeys(opts?: QueryOpts) {
  * the server keeps a hash — so the caller must show it immediately and must not
  * discard it on error paths.
  */
+/** One page of API keys, for the Settings table. */
+export function useApiKeysPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<ApiKey>(["apiKeys"], "/apiKeys", paging, undefined, opts);
+}
+
 export function useCreateApiKey() {
   const qc = useQueryClient();
   return useMutation({
@@ -1578,6 +1855,11 @@ export function useDocumentTypes(opts?: QueryOpts) {
  * Create a document type (admin only). The server rejects an expiring type with no
  * `warningPeriod` ("Missing warning period"), so the form requires one first.
  */
+/** One page of document types, for the Settings table. */
+export function useDocumentTypesPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<DocumentType>(["documentTypes"], "/userDocuments/types", paging, undefined, opts);
+}
+
 export function useCreateDocumentType() {
   const qc = useQueryClient();
   return useMutation({
@@ -1632,6 +1914,22 @@ export function useMemberDocuments(
  * the route compares it to the caller's own id with `!==`, so a numeric string would take the
  * on-behalf-of branch even when it names the caller.
  */
+/** One page of a member's documents, for the Documents table. */
+export function useMemberDocumentsPage(
+  orgUserId: number | null,
+  filter: DocumentListFilter | undefined,
+  paging: PagingState,
+  opts?: QueryOpts
+) {
+  return usePagedList<UserDocument>(
+    ["documents", orgUserId],
+    `/userDocuments/orgUsers/${orgUserId}`,
+    paging,
+    filter,
+    { enabled: (opts?.enabled ?? true) && orgUserId != null }
+  );
+}
+
 export function useUploadDocument() {
   const qc = useQueryClient();
   return useMutation({
@@ -1669,6 +1967,11 @@ export function useSquawks(filter?: SquawkListFilter, opts?: QueryOpts) {
     queryFn: () => api<Squawk[]>("/maintenance/squawks", { query: filter }),
     ...opts,
   });
+}
+
+/** One page of squawks, for the Maintenance table. */
+export function useSquawksPage(filter: SquawkListFilter | undefined, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<Squawk>(["squawks"], "/maintenance/squawks", paging, filter, opts);
 }
 
 export function useCreateSquawk() {
@@ -1719,6 +2022,15 @@ export function useResolveSquawk() {
       void qc.invalidateQueries({ queryKey: ["resources"] });
     },
   });
+}
+
+/** One page of maintenance reminders, for the Maintenance table. */
+export function useMaintenanceRemindersPage(
+  filter: ReminderListFilter | undefined,
+  paging: PagingState,
+  opts?: QueryOpts
+) {
+  return usePagedList<MaintenanceReminder>(["reminders"], "/maintenance/reminders", paging, filter, opts);
 }
 
 export function useMaintenanceReminders(filter?: ReminderListFilter, opts?: QueryOpts) {

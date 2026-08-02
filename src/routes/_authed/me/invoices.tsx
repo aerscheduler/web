@@ -9,7 +9,12 @@ import {
   Receipt,
   Wallet,
 } from "lucide-react";
-import { useMemberInvoices } from "@/features/queries";
+import {
+  pageRows,
+  useMemberInvoicesPage,
+  useMemberInvoiceSummary,
+} from "@/features/queries";
+import { usePaging } from "@/lib/paging";
 import { useAuth } from "@/lib/auth";
 import type { Invoice } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -56,6 +61,7 @@ function invoiceColumns(onView: (inv: Invoice) => void): ColumnDef<Invoice, unkn
   return [
     {
       id: "id",
+      meta: { sortKey: "id" },
       header: "Invoice #",
       accessorFn: (r) => r.id,
       cell: ({ row }) => (
@@ -70,6 +76,7 @@ function invoiceColumns(onView: (inv: Invoice) => void): ColumnDef<Invoice, unkn
     },
     {
       id: "created",
+      meta: { sortKey: "createdAt" },
       header: "Date",
       accessorFn: (r) => r.createdAt,
       cell: ({ getValue }) => (
@@ -80,6 +87,7 @@ function invoiceColumns(onView: (inv: Invoice) => void): ColumnDef<Invoice, unkn
     },
     {
       id: "due",
+      meta: { sortKey: "dueAt" },
       header: "Due",
       accessorFn: (r) => r.dueAt ?? "",
       cell: ({ row }) => (
@@ -91,12 +99,12 @@ function invoiceColumns(onView: (inv: Invoice) => void): ColumnDef<Invoice, unkn
     {
       id: "status",
       header: "Status",
-      enableSorting: false,
       accessorFn: (r) => invoiceStatus(r).label,
       cell: ({ row }) => <InvoiceStatusBadge invoice={row.original} />,
     },
     {
       id: "total",
+      meta: { sortKey: "total", numeric: true },
       header: "Total",
       accessorFn: (r) => r.total,
       cell: ({ getValue }) => (
@@ -106,7 +114,6 @@ function invoiceColumns(onView: (inv: Invoice) => void): ColumnDef<Invoice, unkn
     {
       id: "actions",
       header: "",
-      enableSorting: false,
       cell: ({ row }) => (
         <div className="text-right">
           <Tooltip>
@@ -178,40 +185,36 @@ function MyInvoicesPage() {
     !!facets.startDate ||
     !!facets.endDate;
 
-  // KPIs stay unfiltered so paid/date facets don't zero out the cards.
-  const statsQ = useMemberInvoices(orgUserId);
-  const invoicesQ = useMemberInvoices(orgUserId, {
+  // KPIs stay unfiltered so paid/date facets don't zero out the cards, and they
+  // are aggregated by the database rather than summed from the rows on screen —
+  // one page of invoices is not this member's balance.
+  const summaryQ = useMemberInvoiceSummary(orgUserId);
+
+  const invoiceFilter = {
     q: debouncedQ,
     paid: typeof facets.paid === "boolean" ? facets.paid : undefined,
     startDate: typeof facets.startDate === "string" ? facets.startDate : undefined,
     endDate: typeof facets.endDate === "string" ? facets.endDate : undefined,
+  };
+  const paging = usePaging({
+    resetKey: invoiceFilter,
+    defaultSort: { key: "createdAt", dir: "desc" },
   });
-  const invoices = useMemo(() => invoicesQ.data ?? [], [invoicesQ.data]);
-  const statsInvoices = useMemo(() => statsQ.data ?? [], [statsQ.data]);
+  const invoicesQ = useMemberInvoicesPage(orgUserId, invoiceFilter, paging);
+  const { rows: invoices, total } = pageRows(invoicesQ);
 
-  const stats = useMemo(() => {
-    let outstanding = 0;
-    let paid = 0;
-    for (const i of statsInvoices) {
-      if (i.paidAt) paid += i.total;
-      else if (!i.voidedAt) outstanding += i.total;
-    }
-    return { outstanding, paid };
-  }, [statsInvoices]);
+  const stats = {
+    outstanding: summaryQ.data?.outstanding ?? 0,
+    paid: summaryQ.data?.revenue ?? 0,
+  };
 
   const viewInvoice = useMemo(
-    () =>
-      invoices.find((i) => i.id === viewId) ??
-      statsInvoices.find((i) => i.id === viewId) ??
-      null,
-    [invoices, statsInvoices, viewId]
+    () => invoices.find((i) => i.id === viewId) ?? null,
+    [invoices, viewId]
   );
   const payInvoice = useMemo(
-    () =>
-      invoices.find((i) => i.id === payId) ??
-      statsInvoices.find((i) => i.id === payId) ??
-      null,
-    [invoices, statsInvoices, payId]
+    () => invoices.find((i) => i.id === payId) ?? null,
+    [invoices, payId]
   );
 
   const columns = useMemo(() => invoiceColumns((inv) => setViewId(inv.id)), []);
@@ -253,7 +256,7 @@ function MyInvoicesPage() {
           subtitle="Your flight-training charges — what you owe and what's settled."
         />
 
-        {statsQ.isPending ? (
+        {summaryQ.isPending ? (
           <StatSkeleton count={2} />
         ) : (
           <div className="grid grid-cols-2 gap-4">
@@ -283,7 +286,7 @@ function MyInvoicesPage() {
         <Card className="min-h-0 flex-1">
           <ErrorState error={invoicesQ.error} onRetry={() => invoicesQ.refetch()} />
         </Card>
-      ) : invoices.length === 0 && !filtersActive ? (
+      ) : total === 0 && !filtersActive ? (
         <Card className="min-h-0 flex-1">
           <EmptyState icon={Receipt} title="No invoices yet" body={EMPTY_COPY} />
         </Card>
@@ -292,6 +295,9 @@ function MyInvoicesPage() {
           fill
           columns={columns}
           data={invoices}
+          paging={paging}
+          total={total}
+          loading={invoicesQ.isFetching}
           toolbar={searchToolbar}
           mobileCard={(inv) => <InvoiceCard inv={inv} onView={(i) => setViewId(i.id)} />}
           emptyMessage="No invoices match your search."

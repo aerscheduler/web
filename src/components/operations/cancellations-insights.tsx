@@ -11,6 +11,7 @@ import {
 } from "@/types/api";
 import { downloadCsv, reportFilename } from "@/lib/csv";
 import { asFacetStrings } from "@/lib/list-query-state";
+import { useClientPage, usePaging } from "@/lib/paging";
 import type { ListFilterValues } from "@/components/list-filters";
 import { StatCard } from "@/components/stat-card";
 import { DataTable } from "@/components/data-table";
@@ -349,11 +350,21 @@ export function CancellationsDataTable({
     listQuery
   );
 
+  // Paged in the browser, unlike every other table here, because this is a
+  // report endpoint: it answers one object — the cancellations plus the summary
+  // charted above them — rather than a list, so it is not capped at 1,000 rows
+  // and the array really is the whole window. See `useClientPage`.
+  const paging = usePaging({ resetKey: [startDate, endDate, listQuery] });
+  const { rows: pageOfRows, total } = useClientPage(filteredRows, paging);
+
   return (
     <DataTable
       fill
       columns={CANCELLATION_TABLE_COLUMNS}
-      data={filteredRows}
+      data={pageOfRows}
+      paging={paging}
+      total={total}
+      loading={report.isFetching}
       onRowClick={onRowClick}
       emptyMessage={
         report.isLoading

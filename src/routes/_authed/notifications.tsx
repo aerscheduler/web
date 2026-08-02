@@ -2,10 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { BellOff, CheckCheck } from "lucide-react";
 import { toast } from "sonner";
 import {
-  useNotifications,
+  pageRows,
+  useNotificationsPage,
   useMarkNotificationRead,
   useClearNotifications,
+  useUnreadNotificationCount,
 } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
+import { cn } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ListSearch } from "@/components/list-search";
@@ -32,13 +37,17 @@ function NotificationsPage() {
     navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
     facetKeys: [...FACET_KEYS],
   });
-  const q = useNotifications({ q: debouncedQ });
+  const paging = usePaging({ resetKey: debouncedQ });
+  const q = useNotificationsPage({ q: debouncedQ }, paging);
+  const unreadQ = useUnreadNotificationCount();
   const markRead = useMarkNotificationRead();
   const clear = useClearNotifications();
   const confirm = useConfirm();
 
-  const notifications = q.data ?? [];
-  const unreadCount = notifications.filter((n) => n.readAt == null).length;
+  const { rows: notifications, total } = pageRows(q);
+  // The whole inbox, not the page — counting the unread rows on screen would
+  // make the badge fall as you paged forward.
+  const unreadCount = unreadQ.data ?? 0;
   const searching = !!debouncedQ;
 
   function onMarkRead(id: number) {
@@ -75,7 +84,7 @@ function NotificationsPage() {
               : "Your recent activity"
           }
           actions={
-            notifications.length > 0 && unreadCount > 0 ? (
+            unreadCount > 0 ? (
               <Button variant="outline" onClick={onMarkAllRead} disabled={clear.isPending}>
                 <CheckCheck className="size-4" /> Mark all read
               </Button>
@@ -98,7 +107,7 @@ function NotificationsPage() {
         <Card className="min-h-0 flex-1 p-0">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
-      ) : notifications.length === 0 && !searching ? (
+      ) : total === 0 && !searching ? (
         <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={BellOff}
@@ -106,7 +115,7 @@ function NotificationsPage() {
             body="Reservation changes, squawks, and account activity will show up here."
           />
         </Card>
-      ) : notifications.length === 0 ? (
+      ) : total === 0 ? (
         <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={BellOff}
@@ -115,18 +124,26 @@ function NotificationsPage() {
           />
         </Card>
       ) : (
-        <TableView.Body>
-          <div className="space-y-2.5">
-            {notifications.map((n) => (
-              <NotificationItem
-                key={n.id}
-                notification={n}
-                onMarkRead={onMarkRead}
-                marking={markRead.isPending}
-              />
-            ))}
-          </div>
-        </TableView.Body>
+        <>
+          <TableView.Body>
+            <div className={cn("space-y-2.5", q.isFetching && "opacity-60")}>
+              {notifications.map((n) => (
+                <NotificationItem
+                  key={n.id}
+                  notification={n}
+                  onMarkRead={onMarkRead}
+                  marking={markRead.isPending}
+                />
+              ))}
+            </div>
+          </TableView.Body>
+          <TablePagination
+            paging={paging}
+            total={total}
+            returned={notifications.length}
+            loading={q.isFetching}
+          />
+        </>
       )}
     </TableView>
   );

@@ -1,11 +1,14 @@
 import { toast } from "sonner";
 import { Check, GraduationCap, X } from "lucide-react";
 import {
-  useInstructorPairRequests,
+  pageRows,
+  useInstructorPairRequestsPage,
   useRespondInstructorPairRequest,
   useRespondStudentPairRequest,
-  useStudentPairRequests,
+  useStudentPairRequestsPage,
 } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
 import type { InstructionPairRequest } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -28,14 +31,19 @@ function personEmail(side: InstructionPairRequest["student"]): string | undefine
  */
 export function InstructionRequestsPanel() {
   const { isAdmin } = useAuth();
-  const studentsQ = useStudentPairRequests({ enabled: isAdmin });
-  const instructorsQ = useInstructorPairRequests({ enabled: isAdmin });
+  // Two independent queues rendered as one list, so each pages on its own —
+  // a shared pager would have to guess which side a page boundary fell on.
+  const studentPaging = usePaging();
+  const instructorPaging = usePaging();
+  const studentsQ = useStudentPairRequestsPage(studentPaging, { enabled: isAdmin });
+  const instructorsQ = useInstructorPairRequestsPage(instructorPaging, { enabled: isAdmin });
 
   if (!isAdmin) return null;
 
-  const studentReqs = studentsQ.data ?? [];
-  const instructorReqs = instructorsQ.data ?? [];
-  const total = studentReqs.length + instructorReqs.length;
+  const { rows: studentReqs, total: studentTotal } = pageRows(studentsQ);
+  const { rows: instructorReqs, total: instructorTotal } = pageRows(instructorsQ);
+  // The heading counts everything waiting, not what fits on screen.
+  const total = studentTotal + instructorTotal;
 
   if (studentsQ.isLoading || instructorsQ.isLoading || total === 0) return null;
 
@@ -45,17 +53,33 @@ export function InstructionRequestsPanel() {
         <GraduationCap className="size-4 text-primary" />
         <h2 className="text-sm font-semibold">
           Instruction pairing requests
-          <span className="ml-1.5 text-muted-foreground">({total})</span>
+          <span className="ml-1.5 text-muted-foreground">({total.toLocaleString()})</span>
         </h2>
       </div>
       <ul className="divide-y divide-border">
         {studentReqs.map((r) => (
           <StudentRequestRow key={`s-${r.id}`} request={r} />
         ))}
+      </ul>
+      <TablePagination
+        paging={studentPaging}
+        total={studentTotal}
+        returned={studentReqs.length}
+        loading={studentsQ.isFetching}
+        className="px-4 pb-2"
+      />
+      <ul className="divide-y divide-border">
         {instructorReqs.map((r) => (
           <InstructorRequestRow key={`i-${r.id}`} request={r} />
         ))}
       </ul>
+      <TablePagination
+        paging={instructorPaging}
+        total={instructorTotal}
+        returned={instructorReqs.length}
+        loading={instructorsQ.isFetching}
+        className="px-4 pb-3"
+      />
     </Card>
   );
 }

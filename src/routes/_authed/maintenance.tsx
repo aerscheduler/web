@@ -2,10 +2,14 @@ import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { CheckCircle2, ClipboardList, Plus, Wrench } from "lucide-react";
 import {
-  useSquawks,
-  useMaintenanceReminders,
+  pageRows,
+  useSquawksPage,
+  useMaintenanceRemindersPage,
   usePlanes,
 } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
+import { cn } from "@/lib/utils";
 import { resourceLabel, type Squawk } from "@/types/api";
 import { guardRoute } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
@@ -149,11 +153,13 @@ function OpenSquawks({
   q?: string;
   resourceId?: number | number[];
 }) {
-  const q = useSquawks({ resolved: false, q: searchQ, resourceId });
+  const filter = { resolved: false, q: searchQ, resourceId };
+  const paging = usePaging({ resetKey: filter, defaultSort: { key: "createdAt", dir: "desc" } });
+  const q = useSquawksPage(filter, paging);
   const [resolving, setResolving] = React.useState<Squawk | null>(null);
-  const squawks = q.data ?? [];
-  const empty = squawks.length === 0 && !searchQ && !hasResourceFilter(resourceId);
-  const noMatch = squawks.length === 0 && !empty;
+  const { rows: squawks, total } = pageRows(q);
+  const empty = total === 0 && !searchQ && !hasResourceFilter(resourceId);
+  const noMatch = total === 0 && !empty;
 
   return (
     <Frame isLoading={q.isLoading} error={q.error} onRetry={() => q.refetch()}>
@@ -175,18 +181,21 @@ function OpenSquawks({
           <EmptyState icon={ClipboardList} title="No matches" body="Nothing matches that search." />
         </Card>
       ) : (
-        <TableView.Body>
-          <div className="space-y-2.5">
-            {squawks.map((s) => (
-              <SquawkCard
-                key={s.id}
-                squawk={s}
-                onResolve={setResolving}
-                resolving={resolving?.id === s.id}
-              />
-            ))}
-          </div>
-        </TableView.Body>
+        <>
+          <TableView.Body>
+            <div className={cn("space-y-2.5", q.isFetching && "opacity-60")}>
+              {squawks.map((s) => (
+                <SquawkCard
+                  key={s.id}
+                  squawk={s}
+                  onResolve={setResolving}
+                  resolving={resolving?.id === s.id}
+                />
+              ))}
+            </div>
+          </TableView.Body>
+          <TablePagination paging={paging} total={total} returned={squawks.length} loading={q.isFetching} />
+        </>
       )}
 
       <ResolveSquawkModal
@@ -205,10 +214,12 @@ function ResolvedSquawks({
   q?: string;
   resourceId?: number | number[];
 }) {
-  const q = useSquawks({ resolved: true, q: searchQ, resourceId });
-  const squawks = q.data ?? [];
-  const empty = squawks.length === 0 && !searchQ && !hasResourceFilter(resourceId);
-  const noMatch = squawks.length === 0 && !empty;
+  const filter = { resolved: true, q: searchQ, resourceId };
+  const paging = usePaging({ resetKey: filter, defaultSort: { key: "resolvedAt", dir: "desc" } });
+  const q = useSquawksPage(filter, paging);
+  const { rows: squawks, total } = pageRows(q);
+  const empty = total === 0 && !searchQ && !hasResourceFilter(resourceId);
+  const noMatch = total === 0 && !empty;
 
   return (
     <Frame isLoading={q.isLoading} error={q.error} onRetry={() => q.refetch()}>
@@ -225,13 +236,16 @@ function ResolvedSquawks({
           <EmptyState icon={ClipboardList} title="No matches" body="Nothing matches that search." />
         </Card>
       ) : (
-        <TableView.Body>
-          <div className="space-y-2.5">
-            {squawks.map((s) => (
-              <SquawkCard key={s.id} squawk={s} />
-            ))}
-          </div>
-        </TableView.Body>
+        <>
+          <TableView.Body>
+            <div className={cn("space-y-2.5", q.isFetching && "opacity-60")}>
+              {squawks.map((s) => (
+                <SquawkCard key={s.id} squawk={s} />
+              ))}
+            </div>
+          </TableView.Body>
+          <TablePagination paging={paging} total={total} returned={squawks.length} loading={q.isFetching} />
+        </>
       )}
     </Frame>
   );
@@ -244,10 +258,12 @@ function Reminders({
   q?: string;
   resourceId?: number | number[];
 }) {
-  const q = useMaintenanceReminders({ q: searchQ, resourceId });
-  const reminders = q.data ?? [];
-  const empty = reminders.length === 0 && !searchQ && !hasResourceFilter(resourceId);
-  const noMatch = reminders.length === 0 && !empty;
+  const filter = { q: searchQ, resourceId };
+  const paging = usePaging({ resetKey: filter });
+  const q = useMaintenanceRemindersPage(filter, paging);
+  const { rows: reminders, total } = pageRows(q);
+  const empty = total === 0 && !searchQ && !hasResourceFilter(resourceId);
+  const noMatch = total === 0 && !empty;
 
   return (
     <Frame isLoading={q.isLoading} error={q.error} onRetry={() => q.refetch()}>
@@ -264,13 +280,16 @@ function Reminders({
           <EmptyState icon={Wrench} title="No matches" body="Nothing matches that search." />
         </Card>
       ) : (
-        <TableView.Body>
-          <div className="space-y-2.5">
-            {reminders.map((r) => (
-              <ReminderCard key={r.id} reminder={r} />
-            ))}
-          </div>
-        </TableView.Body>
+        <>
+          <TableView.Body>
+            <div className={cn("space-y-2.5", q.isFetching && "opacity-60")}>
+              {reminders.map((r) => (
+                <ReminderCard key={r.id} reminder={r} />
+              ))}
+            </div>
+          </TableView.Body>
+          <TablePagination paging={paging} total={total} returned={reminders.length} loading={q.isFetching} />
+        </>
       )}
     </Frame>
   );

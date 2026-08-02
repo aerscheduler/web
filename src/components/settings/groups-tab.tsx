@@ -11,19 +11,22 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  pageRows,
   useCreateOrgUserGroup,
   useCreateResourceGroup,
   useDeleteOrgUserGroup,
   useDeleteResourceGroup,
   useOrgUserGroup,
-  useOrgUserGroups,
+  useOrgUserGroupsPage,
   useOrgUsers,
   useResourceGroup,
-  useResourceGroups,
+  useResourceGroupsPage,
   useResources,
   useUpdateOrgUserGroup,
   useUpdateResourceGroup,
 } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
 import type {
   OrgUserGroup,
   OrgUserGroupInput,
@@ -85,14 +88,15 @@ export function GroupsTab() {
 // ── Aircraft groups ──────────────────────────────────────────────────────────
 
 function ResourceGroupsCard() {
-  const q = useResourceGroups();
+  const paging = usePaging();
+  const q = useResourceGroupsPage(paging);
   const del = useDeleteResourceGroup();
   const confirm = useConfirm();
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<ResourceGroup | null>(null);
 
-  const groups = q.data ?? [];
+  const { rows: groups, total } = pageRows(q);
 
   function openAdd() {
     setEditing(null);
@@ -132,7 +136,7 @@ function ResourceGroupsCard() {
           <RowsSkeleton />
         ) : q.isError ? (
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
-        ) : groups.length === 0 ? (
+        ) : total === 0 ? (
           <EmptyState
             icon={Plane}
             title="No aircraft groups yet"
@@ -155,6 +159,13 @@ function ResourceGroupsCard() {
             ))}
           </ul>
         )}
+        <TablePagination
+          paging={paging}
+          total={total}
+          returned={groups.length}
+          loading={q.isFetching}
+          className="px-1"
+        />
       </CardContent>
 
       <ResourceGroupFormModal
@@ -195,14 +206,15 @@ function ResourceGroupRow({
 // ── People groups ────────────────────────────────────────────────────────────
 
 function OrgUserGroupsCard() {
-  const q = useOrgUserGroups();
+  const paging = usePaging();
+  const q = useOrgUserGroupsPage(paging);
   const del = useDeleteOrgUserGroup();
   const confirm = useConfirm();
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<OrgUserGroup | null>(null);
 
-  const groups = q.data ?? [];
+  const { rows: groups, total } = pageRows(q);
 
   function openAdd() {
     setEditing(null);
@@ -242,7 +254,7 @@ function OrgUserGroupsCard() {
           <RowsSkeleton />
         ) : q.isError ? (
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
-        ) : groups.length === 0 ? (
+        ) : total === 0 ? (
           <EmptyState
             icon={Users}
             title="No people groups yet"
@@ -265,6 +277,13 @@ function OrgUserGroupsCard() {
             ))}
           </ul>
         )}
+        <TablePagination
+          paging={paging}
+          total={total}
+          returned={groups.length}
+          loading={q.isFetching}
+          className="px-1"
+        />
       </CardContent>
 
       <OrgUserGroupFormModal

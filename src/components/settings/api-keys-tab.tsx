@@ -9,7 +9,9 @@ import {
   ShieldOff,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/features/queries";
+import { pageRows, useApiKeysPage, useCreateApiKey, useRevokeApiKey } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
 import { API_KEY_ROLES, type ApiKey, type ApiKeyRole, type ApiKeyWithSecret } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -69,14 +71,15 @@ const relative = (iso: string | null): string => {
  * with a session token", which is not a thing to ask a flight school to do.
  */
 export function ApiKeysTab() {
-  const q = useApiKeys();
+  const paging = usePaging();
+  const q = useApiKeysPage(paging);
   const revoke = useRevokeApiKey();
   const confirm = useConfirm();
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [minted, setMinted] = React.useState<ApiKeyWithSecret | null>(null);
 
-  const keys = q.data ?? [];
+  const { rows: keys, total } = pageRows(q);
   const active = keys.filter((k) => k.status === "active");
 
   async function onRevoke(key: ApiKey) {
@@ -134,7 +137,7 @@ export function ApiKeysTab() {
           </div>
         ) : q.isError ? (
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
-        ) : keys.length === 0 ? (
+        ) : total === 0 ? (
           <EmptyState
             icon={KeyRound}
             title="No API keys yet"
@@ -152,6 +155,13 @@ export function ApiKeysTab() {
             ))}
           </ul>
         )}
+        <TablePagination
+          paging={paging}
+          total={total}
+          returned={keys.length}
+          loading={q.isFetching}
+          className="px-1"
+        />
       </CardContent>
 
       {active.length > 0 && (

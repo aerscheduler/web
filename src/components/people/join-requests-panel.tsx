@@ -2,10 +2,13 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Check, UserPlus, X } from "lucide-react";
 import {
+  pageRows,
   useAcceptJoinRequest,
   useDeclineJoinRequest,
-  useJoinRequests,
+  useJoinRequestsPage,
 } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
 import type { JoinRequest, Role } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { Card } from "@/components/ui/card";
@@ -35,10 +38,13 @@ const ROLE_OPTIONS: { value: string; label: string; role?: Role }[] = [
  * any; admins accept (assigning a starting role) or decline. Sits atop the People roster.
  */
 export function JoinRequestsPanel() {
-  const q = useJoinRequests();
-  const requests = q.data ?? [];
+  const paging = usePaging();
+  const q = useJoinRequestsPage(paging);
+  const { rows: requests, total } = pageRows(q);
 
-  if (q.isLoading || requests.length === 0) return null;
+  // The count in the heading is the whole queue, not the page — an admin
+  // needs to know there are 40 people waiting, not that 25 fit on screen.
+  if (q.isLoading || total === 0) return null;
 
   return (
     <Card className="mb-4 overflow-hidden border-[color-mix(in_oklch,var(--warning)_35%,transparent)]">
@@ -46,7 +52,7 @@ export function JoinRequestsPanel() {
         <UserPlus className="size-4 text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]" />
         <h2 className="text-sm font-semibold">
           Join requests
-          <span className="ml-1.5 text-muted-foreground">({requests.length})</span>
+          <span className="ml-1.5 text-muted-foreground">({total.toLocaleString()})</span>
         </h2>
       </div>
       <ul className="divide-y divide-border">
@@ -54,6 +60,13 @@ export function JoinRequestsPanel() {
           <JoinRequestRow key={r.id} request={r} />
         ))}
       </ul>
+      <TablePagination
+        paging={paging}
+        total={total}
+        returned={requests.length}
+        loading={q.isFetching}
+        className="px-4 pb-3"
+      />
     </Card>
   );
 }

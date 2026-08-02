@@ -3,7 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PlaneTakeoff, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { usePlanes, useLocations } from "@/features/queries";
+import { pageRows, usePlanesPage, useLocations } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
+import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { canManageResources } from "@/lib/permissions";
@@ -56,12 +59,14 @@ function AircraftPage() {
   const locations = locationsQ.data ?? [];
   const locationIds = asFacetInts(facets.locationId);
 
-  const q = usePlanes({
+  const fleetFilter = {
     q: debouncedQ,
     grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
     locationId: locationIds,
-  });
-  const planes = q.data ?? [];
+  };
+  const paging = usePaging({ resetKey: fleetFilter });
+  const q = usePlanesPage(fleetFilter, paging);
+  const { rows: planes, total } = pageRows(q);
 
   const filtersActive =
     !!debouncedQ ||
@@ -138,12 +143,12 @@ function AircraftPage() {
           title="Aircraft"
           subtitle={
             q.data
-              ? `${planes.length} ${planes.length === 1 ? "tail" : "tails"} in the fleet`
+              ? `${total.toLocaleString()} ${total === 1 ? "tail" : "tails"} in the fleet`
               : "Your fleet"
           }
           actions={
             <>
-              {(planes.length > 0 || filtersActive) && (
+              {(total > 0 || filtersActive) && (
                 <ViewModeToggle value={view} onChange={setView} />
               )}
               {addButton}
@@ -169,7 +174,7 @@ function AircraftPage() {
         <Card className="min-h-0 flex-1">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
-      ) : planes.length === 0 && !filtersActive ? (
+      ) : total === 0 && !filtersActive ? (
         <Card className="min-h-0 flex-1">
           <EmptyState
             icon={PlaneTakeoff}
@@ -178,7 +183,7 @@ function AircraftPage() {
             action={addButton}
           />
         </Card>
-      ) : planes.length === 0 ? (
+      ) : total === 0 ? (
         <Card className="min-h-0 flex-1">
           <EmptyState
             icon={PlaneTakeoff}
@@ -186,22 +191,25 @@ function AircraftPage() {
             body="Try a different tail number, make, or model."
           />
         </Card>
-      ) : view === "grid" ? (
-        <TableView.Body>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {planes.map((r) => (
-              <AircraftCard key={r.id} r={r} actions={actions} />
-            ))}
-          </div>
-        </TableView.Body>
       ) : (
-        <TableView.Body>
-          <Card className="divide-y divide-border overflow-hidden">
-            {planes.map((r) => (
-              <AircraftListRow key={r.id} r={r} actions={actions} />
-            ))}
-          </Card>
-        </TableView.Body>
+        <>
+          <TableView.Body>
+            {view === "grid" ? (
+              <div className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-3", q.isFetching && "opacity-60")}>
+                {planes.map((r) => (
+                  <AircraftCard key={r.id} r={r} actions={actions} />
+                ))}
+              </div>
+            ) : (
+              <Card className={cn("divide-y divide-border overflow-hidden", q.isFetching && "opacity-60")}>
+                {planes.map((r) => (
+                  <AircraftListRow key={r.id} r={r} actions={actions} />
+                ))}
+              </Card>
+            )}
+          </TableView.Body>
+          <TablePagination paging={paging} total={total} returned={planes.length} loading={q.isFetching} />
+        </>
       )}
 
       <AircraftFormModal

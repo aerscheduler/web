@@ -16,7 +16,15 @@ import {
   Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useInvoices, useRemindInvoice, useReservations, useUpdateInvoice } from "@/features/queries";
+import {
+  pageRows,
+  useInvoicesPage,
+  useInvoiceSummary,
+  useRemindInvoice,
+  useReservationsPage,
+  useUpdateInvoice,
+} from "@/features/queries";
+import { usePaging } from "@/lib/paging";
 import { guardRoute } from "@/lib/permissions";
 import type { Invoice, Reservation } from "@/types/api";
 import { resourceLabel } from "@/types/api";
@@ -87,12 +95,14 @@ function invoiceColumns(actions: InvoiceActions): ColumnDef<Invoice, unknown>[] 
   return [
     {
       id: "id",
+      meta: { sortKey: "id" },
       header: "Invoice #",
       accessorFn: (r) => r.id,
       cell: ({ row }) => <span className="font-mono text-sm font-medium">#{row.original.id}</span>,
     },
     {
       id: "customer",
+      meta: { sortKey: "customer.user.name" },
       header: "Customer",
       accessorFn: (r) => r.customer?.user?.name ?? r.customer?.user?.email ?? "",
       cell: ({ row }) => {
@@ -107,6 +117,7 @@ function invoiceColumns(actions: InvoiceActions): ColumnDef<Invoice, unknown>[] 
     },
     {
       id: "created",
+      meta: { sortKey: "createdAt" },
       header: "Created",
       accessorFn: (r) => r.createdAt,
       cell: ({ getValue }) => (
@@ -117,6 +128,7 @@ function invoiceColumns(actions: InvoiceActions): ColumnDef<Invoice, unknown>[] 
     },
     {
       id: "due",
+      meta: { sortKey: "dueAt" },
       header: "Due",
       accessorFn: (r) => r.dueAt ?? "",
       cell: ({ row }) => (
@@ -128,12 +140,12 @@ function invoiceColumns(actions: InvoiceActions): ColumnDef<Invoice, unknown>[] 
     {
       id: "status",
       header: "Status",
-      enableSorting: false,
       accessorFn: (r) => invoiceStatus(r).label,
       cell: ({ row }) => <InvoiceStatusBadge invoice={row.original} />,
     },
     {
       id: "total",
+      meta: { sortKey: "total", numeric: true },
       header: "Total",
       accessorFn: (r) => r.total,
       cell: ({ getValue }) => (
@@ -143,7 +155,6 @@ function invoiceColumns(actions: InvoiceActions): ColumnDef<Invoice, unknown>[] 
     {
       id: "actions",
       header: "",
-      enableSorting: false,
       cell: ({ row }) => <RowActions inv={row.original} actions={actions} />,
     },
   ];
@@ -222,6 +233,7 @@ function unbilledColumns(onBill: (r: Reservation) => void): ColumnDef<Reservatio
   return [
     {
       id: "flight",
+      meta: { sortKey: "title" },
       header: "Flight",
       accessorFn: (r) => r.title,
       cell: ({ row }) => (
@@ -235,6 +247,7 @@ function unbilledColumns(onBill: (r: Reservation) => void): ColumnDef<Reservatio
     },
     {
       id: "aircraft",
+      meta: { sortKey: "resource.type.plane.tailNumber" },
       header: "Aircraft",
       accessorFn: (r) => (r.resource ? resourceLabel(r.resource).name : ""),
       cell: ({ row }) => {
@@ -248,6 +261,7 @@ function unbilledColumns(onBill: (r: Reservation) => void): ColumnDef<Reservatio
     },
     {
       id: "flown",
+      meta: { sortKey: "end" },
       header: "Flown",
       accessorFn: (r) => r.end,
       cell: ({ getValue }) => (
@@ -259,7 +273,6 @@ function unbilledColumns(onBill: (r: Reservation) => void): ColumnDef<Reservatio
     {
       id: "action",
       header: "",
-      enableSorting: false,
       cell: ({ row }) => (
         <div className="text-right">
           <Button variant="outline" size="sm" onClick={() => onBill(row.original)}>
@@ -360,59 +373,61 @@ function BillingPage() {
       ? endOfDay(range.from).toISOString()
       : undefined;
 
-  const statsQ = useInvoices({ startDate: startISO, endDate: endISO });
-  const invoicesQ = useInvoices(
-    {
-      startDate: startISO,
-      endDate: endISO,
-      q: debouncedQ,
-      ...(paidFilter !== undefined ? { paid: paidFilter } : {}),
-    },
-    { enabled: showInvoices }
-  );
-  const reservationsQ = useReservations(startISO ?? "", endISO ?? "", undefined, {
-    enabled: !!startISO && !!endISO,
+  // Totals come from the database, not from adding up the rows on screen: the
+  // list is one page of at most a few dozen, and even unpaged the API caps at
+  // 1,000 — a school with more invoices than that in the range would have been
+  // shown the sum of an arbitrary thousand of them.
+  // A single instant for "has already flown", so the unbilled query key is
+  // stable across a render instead of changing on every millisecond.
+  const nowISO = useMemo(() => new Date().toISOString(), [startISO, endISO]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const statsQ = useInvoiceSummary({ startDate: startISO, endDate: endISO });
+
+  const invoiceFilter = {
+    startDate: startISO,
+    endDate: endISO,
+    q: debouncedQ,
+    ...(paidFilter !== undefined ? { paid: paidFilter } : {}),
+  };
+  const invoicePaging = usePaging({
+    resetKey: invoiceFilter,
+    defaultSort: { key: "createdAt", dir: "desc" },
   });
+  const invoicesQ = useInvoicesPage(invoiceFilter, invoicePaging, { enabled: showInvoices });
+
+  // "Unbilled" is a server filter now. Fetching the window and keeping the rows
+  // with no invoice worked only while the whole window arrived at once; against
+  // a page it would answer "the unbilled flights on this page".
+  const unbilledPaging = usePaging({
+    resetKey: [startISO, endISO],
+    defaultSort: { key: "end", dir: "desc" },
+  });
+  const reservationsQ = useReservationsPage(
+    startISO ?? "",
+    endISO ?? "",
+    { uninvoiced: true, endedBefore: nowISO },
+    unbilledPaging,
+    { enabled: !!startISO && !!endISO && showUnbilled }
+  );
 
   const update = useUpdateInvoice();
   const remind = useRemindInvoice();
 
-  const invoices = useMemo(() => invoicesQ.data ?? [], [invoicesQ.data]);
-  const statsInvoices = useMemo(() => statsQ.data ?? [], [statsQ.data]);
+  const { rows: invoices, total: invoiceTotal } = pageRows(invoicesQ);
+  const { rows: unbilled, total: unbilledTotal } = pageRows(reservationsQ);
 
-  const unbilled = useMemo(() => {
-    const now = Date.now();
-    return (reservationsQ.data ?? []).filter(
-      (r) => r.invoice == null && !r.cancelledAt && parseISO(r.end).getTime() < now
-    );
-  }, [reservationsQ.data]);
-
-  const stats = useMemo(() => {
-    let revenue = 0;
-    let outstanding = 0;
-    let paidCount = 0;
-    for (const i of statsInvoices) {
-      if (i.paidAt) {
-        revenue += i.total;
-        paidCount += 1;
-      } else if (!i.voidedAt) {
-        outstanding += i.total;
-      }
-    }
-    return { revenue, outstanding, paidCount };
-  }, [statsInvoices]);
+  const stats = statsQ.data ?? { revenue: 0, outstanding: 0, paidCount: 0, outstandingCount: 0 };
 
   const rows = useMemo(() => {
     if (wantsOutstanding && !wantsPaid) return invoices.filter((i) => i.voidedAt == null);
     return invoices;
   }, [invoices, wantsOutstanding, wantsPaid]);
 
+  // Only the page in hand can be resolved locally now, so the sheet falls back
+  // to fetching the one it was asked for.
   const viewInvoice = useMemo(
-    () =>
-      invoices.find((i) => i.id === viewId) ??
-      statsInvoices.find((i) => i.id === viewId) ??
-      null,
-    [invoices, statsInvoices, viewId]
+    () => invoices.find((i) => i.id === viewId) ?? null,
+    [invoices, viewId]
   );
 
   function markPaid(inv: Invoice) {
@@ -504,7 +519,7 @@ function BillingPage() {
           <ErrorState error={invoicesQ.error} onRetry={() => invoicesQ.refetch()} />
         </Card>
       );
-    if (statsInvoices.length === 0 && !debouncedQ && statuses.length === 0)
+    if (invoiceTotal === 0 && !debouncedQ && statuses.length === 0)
       return (
         <Card className="min-h-0 flex-1">
           <EmptyState icon={Receipt} title="No invoices yet" body={EMPTY_COPY} />
@@ -515,6 +530,9 @@ function BillingPage() {
         fill
         columns={columns}
         data={rows}
+        paging={invoicePaging}
+        total={invoiceTotal}
+        loading={invoicesQ.isFetching}
         mobileCard={(inv) => <InvoiceCard inv={inv} actions={actions} />}
         emptyMessage={emptyMessage}
       />
@@ -534,7 +552,7 @@ function BillingPage() {
           <ErrorState error={reservationsQ.error} onRetry={() => reservationsQ.refetch()} />
         </Card>
       );
-    if (unbilled.length === 0)
+    if (unbilledTotal === 0)
       return (
         <Card className="min-h-0 flex-1">
           <EmptyState
@@ -547,13 +565,16 @@ function BillingPage() {
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         <p className="shrink-0 text-sm text-muted-foreground">
-          {unbilled.length} past{" "}
-          {unbilled.length === 1 ? "flight hasn't" : "flights haven't"} been billed yet.
+          {unbilledTotal.toLocaleString()} past{" "}
+          {unbilledTotal === 1 ? "flight hasn't" : "flights haven't"} been billed yet.
         </p>
         <DataTable
           fill
           columns={unbilledCols}
           data={unbilled}
+          paging={unbilledPaging}
+          total={unbilledTotal}
+          loading={reservationsQ.isFetching}
           mobileCard={(r) => <UnbilledCard r={r} onBill={billReservation} />}
           emptyMessage="No unbilled flights."
         />

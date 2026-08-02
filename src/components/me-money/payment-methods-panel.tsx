@@ -55,6 +55,14 @@ export function PaymentMethodsPanel() {
   const setDefault = useSetDefaultPaymentMethod();
   const setAutoPay = useSetAutoPay();
 
+  // Deliberately NOT paged, unlike every table in the console.
+  //
+  // This is a set you act on as a whole, not a list you browse: `hasDefault`
+  // below gates autopay, and on a page it would answer "is the default card on
+  // screen" — which would switch autopay off for someone whose default sat on
+  // page two. Saved cards are a handful, so there is nothing to page anyway.
+  // `GET /stripe/paymentMethods` does page, so the API stays uniform; this
+  // caller just takes the whole (tiny) first page.
   const methods = methodsQ.data ?? [];
   const hasDefault = methods.some((m) => m.defaultPaymentMethod);
   const autoPay = billingQ.data?.autoPay ?? false;

@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { UserRound } from "lucide-react";
-import { useGuests } from "@/features/queries";
+import { pageRows, useGuestsPage } from "@/features/queries";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { usePaging } from "@/lib/paging";
 import type { Guest } from "@/types/api";
 import { DataTable } from "@/components/data-table";
 import { ListSearchBar } from "@/components/list-filters";
@@ -17,29 +19,22 @@ import { initials } from "@/lib/utils";
  * so they can't be a role filter on the roster and there is nothing to edit
  * here. The console had no guest list at all before this; the Flutter app did.
  *
- * `GET /organizations/guests` takes no query params, so search filters the
- * loaded rows client-side.
+ * The list pages, so search is a server `q` — filtering the loaded rows here
+ * would search the page on screen and call it a search of the guest list.
  */
 export function GuestsTable() {
-  const q = useGuests();
   const [search, setSearch] = useState("");
-
-  const guests = useMemo(() => {
-    const rows = q.data ?? [];
-    const needle = search.trim().toLowerCase();
-    if (!needle) return rows;
-    return rows.filter((g) =>
-      [g.name, g.email, g.phone ?? ""].some((f) =>
-        f.toLowerCase().includes(needle)
-      )
-    );
-  }, [q.data, search]);
+  const debouncedQ = useDebouncedValue(search, 250).trim() || undefined;
+  const paging = usePaging({ resetKey: debouncedQ, defaultSort: { key: "name", dir: "asc" } });
+  const q = useGuestsPage(paging, { q: debouncedQ });
+  const { rows: guests, total } = pageRows(q);
 
   const columns = useMemo<ColumnDef<Guest, unknown>[]>(
     () => [
       {
         id: "guest",
         header: "Guest",
+        meta: { sortKey: "name" },
         accessorFn: (g) => `${g.name} ${g.email}`,
         cell: ({ row }) => {
           const g = row.original;
@@ -61,6 +56,7 @@ export function GuestsTable() {
       {
         id: "phone",
         header: "Phone",
+        meta: { sortKey: "phone" },
         accessorFn: (g) => g.phone ?? "",
         cell: ({ getValue }) => (
           <span className="whitespace-nowrap text-muted-foreground">
@@ -88,7 +84,7 @@ export function GuestsTable() {
     );
   }
 
-  if ((q.data ?? []).length === 0) {
+  if (total === 0 && !debouncedQ) {
     return (
       <Card>
         <EmptyState
@@ -112,6 +108,9 @@ export function GuestsTable() {
         fill
         columns={columns}
         data={guests}
+        paging={paging}
+        total={total}
+        loading={q.isFetching}
         emptyMessage="No guests match your search."
         mobileCard={(g) => (
           <div className="flex items-center gap-3 p-4">

@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { DoorOpen, MonitorPlay, Plus } from "lucide-react";
-import { useLocations, useRooms, useSimulators } from "@/features/queries";
+import { pageRows, useLocations, useRoomsPage, useSimulatorsPage } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
 import { guardRoute } from "@/lib/permissions";
 import { useAuth } from "@/lib/auth";
 import type { Resource } from "@/types/api";
@@ -130,24 +132,20 @@ function FacilitiesPage() {
   const tab: TabKey = facets.tab === "rooms" ? "rooms" : "simulators";
   const locationIds = asFacetInts(facets.locationId);
 
-  const simsQ = useSimulators(
-    {
-      q: debouncedQ,
-      locationId: locationIds,
-      grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
-    },
-    { enabled: organization != null }
-  );
-  const roomsQ = useRooms(
-    {
-      q: debouncedQ,
-      locationId: locationIds,
-    },
-    { enabled: organization != null }
-  );
+  const simFilter = {
+    q: debouncedQ,
+    locationId: locationIds,
+    grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
+  };
+  const simPaging = usePaging({ resetKey: simFilter });
+  const simsQ = useSimulatorsPage(simFilter, simPaging, { enabled: organization != null });
 
-  const sims = simsQ.data ?? [];
-  const rooms = roomsQ.data ?? [];
+  const roomFilter = { q: debouncedQ, locationId: locationIds };
+  const roomPaging = usePaging({ resetKey: roomFilter });
+  const roomsQ = useRoomsPage(roomFilter, roomPaging, { enabled: organization != null });
+
+  const { rows: sims, total: simTotal } = pageRows(simsQ);
+  const { rows: rooms, total: roomTotal } = pageRows(roomsQ);
 
   const locationOptions = useMemo(
     () => locations.map((l) => ({ value: String(l.id), label: l.name })),
@@ -221,8 +219,8 @@ function FacilitiesPage() {
             actions={
               <>
                 {(tab === "simulators"
-                  ? sims.length > 0 || simFiltersActive
-                  : rooms.length > 0 || roomFiltersActive) && (
+                  ? simTotal > 0 || simFiltersActive
+                  : roomTotal > 0 || roomFiltersActive) && (
                   <ViewModeToggle value={view} onChange={setView} />
                 )}
                 {addButton}
@@ -252,7 +250,7 @@ function FacilitiesPage() {
               <Card>
                 <ErrorState error={simsQ.error} onRetry={() => simsQ.refetch()} />
               </Card>
-            ) : sims.length === 0 && !simFiltersActive ? (
+            ) : simTotal === 0 && !simFiltersActive ? (
               <Card>
                 <EmptyState
                   icon={MonitorPlay}
@@ -265,7 +263,7 @@ function FacilitiesPage() {
                   }
                 />
               </Card>
-            ) : sims.length === 0 ? (
+            ) : simTotal === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 No simulators match your search.
               </p>
@@ -283,6 +281,12 @@ function FacilitiesPage() {
               </Card>
             )}
           </div>
+          <TablePagination
+            paging={simPaging}
+            total={simTotal}
+            returned={sims.length}
+            loading={simsQ.isFetching}
+          />
         </TabsContent>
 
         <TabsContent value="rooms" className={tabPanelClass}>
@@ -302,7 +306,7 @@ function FacilitiesPage() {
               <Card>
                 <ErrorState error={roomsQ.error} onRetry={() => roomsQ.refetch()} />
               </Card>
-            ) : rooms.length === 0 && !roomFiltersActive ? (
+            ) : roomTotal === 0 && !roomFiltersActive ? (
               <Card>
                 <EmptyState
                   icon={DoorOpen}
@@ -315,7 +319,7 @@ function FacilitiesPage() {
                   }
                 />
               </Card>
-            ) : rooms.length === 0 ? (
+            ) : roomTotal === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
                 No rooms match your search.
               </p>
@@ -365,6 +369,12 @@ function FacilitiesPage() {
               </Card>
             )}
           </div>
+          <TablePagination
+            paging={roomPaging}
+            total={roomTotal}
+            returned={rooms.length}
+            loading={roomsQ.isFetching}
+          />
         </TabsContent>
       </Tabs>
 

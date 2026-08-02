@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { GraduationCap, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { useCreateRating, useRatings } from "@/features/queries";
+import { pageRows, useCreateRating, useRatingsPage } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
 import type { OrganizationRating } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import {
@@ -21,9 +23,10 @@ import { Field } from "@/components/settings/parts";
 import { formatMoney } from "@/lib/utils";
 
 export function RatesTab() {
-  const q = useRatings();
+  const paging = usePaging();
+  const q = useRatingsPage(paging);
   const [open, setOpen] = useState(false);
-  const ratings = q.data ?? [];
+  const { rows: ratings, total } = pageRows(q);
 
   return (
     <Card>
@@ -55,7 +58,7 @@ export function RatesTab() {
           </div>
         ) : q.isError ? (
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
-        ) : ratings.length === 0 ? (
+        ) : total === 0 ? (
           <EmptyState
             icon={GraduationCap}
             title="No ratings yet"
@@ -73,6 +76,13 @@ export function RatesTab() {
             ))}
           </ul>
         )}
+        <TablePagination
+          paging={paging}
+          total={total}
+          returned={ratings.length}
+          loading={q.isFetching}
+          className="px-1"
+        />
       </CardContent>
 
       <AddRatingModal open={open} onOpenChange={setOpen} />

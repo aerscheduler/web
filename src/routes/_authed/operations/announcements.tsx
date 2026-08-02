@@ -1,8 +1,10 @@
-import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { Megaphone } from "lucide-react";
 import { parseISO } from "date-fns";
-import { useAnnouncements } from "@/features/queries";
+import { pageRows, useAnnouncementsPage } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
+import { cn } from "@/lib/utils";
 import type { Announcement } from "@/types/api";
 import { formatDate } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
@@ -26,10 +28,9 @@ export const Route = createFileRoute("/_authed/operations/announcements")({
  * hit to. Read-only by design: posting is admin-only and already lives in the
  * app — the console's job here is finding one you were told about.
  *
- * `q` filters client-side. `GET /announcements` has no `q` param and returns
- * the org's whole list in one call, so a server round-trip per keystroke would
- * buy nothing. (The global search box does hit the server — that one searches
- * across every entity, not just this list.)
+ * Paged, searched and split live/expired by the server. All three used to
+ * happen here over one fetched array, which was fine only while the whole list
+ * arrived at once.
  */
 function AnnouncementsPage() {
   const routeSearch = Route.useSearch();
@@ -41,27 +42,21 @@ function AnnouncementsPage() {
     facetKeys: [],
   });
 
-  const q = useAnnouncements();
+  // Live and expired used to be two client-split sections of one fetched array.
+  // That stopped working the moment the list paged — page one could be entirely
+  // live, and the "Expired" heading would vanish while expired notices existed.
+  // Now it is one paged list, newest first, with expired rows dimmed and badged.
+  //
+  // There is deliberately no Expired FILTER, even though the API takes one:
+  // `AnnouncementService.deleteExpired()` hard-deletes expired notices on a
+  // schedule, so such a filter would almost always answer "none" and would be
+  // advertising a view of rows the server has already reaped.
+  const filter = { q: debouncedQ };
+  const paging = usePaging({ resetKey: filter });
+  const q = useAnnouncementsPage(filter, paging);
+  const { rows: announcements, total } = pageRows(q);
   const now = Date.now();
-
-  const { live, expired } = React.useMemo(() => {
-    const needle = (debouncedQ ?? "").trim().toLowerCase();
-    const matches = (a: Announcement) =>
-      !needle ||
-      a.title.toLowerCase().includes(needle) ||
-      (a.message ?? "").toLowerCase().includes(needle);
-
-    const all = (q.data ?? []).filter(matches);
-    const isLive = (a: Announcement) => !a.expireAt || parseISO(a.expireAt).getTime() >= now;
-    const byNewest = (a: Announcement, b: Announcement) => b.createdAt.localeCompare(a.createdAt);
-
-    return {
-      live: all.filter(isLive).sort(byNewest),
-      // Kept, but below the fold and labelled: an expired notice is history, and
-      // global search drops it entirely.
-      expired: all.filter((a) => !isLive(a)).sort(byNewest),
-    };
-  }, [q.data, debouncedQ, now]);
+  const isLive = (a: Announcement) => !a.expireAt || parseISO(a.expireAt).getTime() >= now;
 
   return (
     <TableView>
@@ -86,7 +81,7 @@ function AnnouncementsPage() {
         <Card className="min-h-0 flex-1 p-0">
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         </Card>
-      ) : live.length === 0 && expired.length === 0 ? (
+      ) : total === 0 ? (
         <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={Megaphone}
@@ -99,24 +94,21 @@ function AnnouncementsPage() {
           />
         </Card>
       ) : (
-        <TableView.Body>
-          <div className="space-y-4">
-            <div className="space-y-3">
-              {live.map((a) => (
-                <AnnouncementCard key={a.id} announcement={a} />
+        <>
+          <TableView.Body>
+            <div className={cn("space-y-3", q.isFetching && "opacity-60")}>
+              {announcements.map((a) => (
+                <AnnouncementCard key={a.id} announcement={a} expired={!isLive(a)} />
               ))}
             </div>
-
-            {expired.length > 0 && (
-              <div className="space-y-3">
-                <h2 className="text-sm font-medium text-muted-foreground">Expired</h2>
-                {expired.map((a) => (
-                  <AnnouncementCard key={a.id} announcement={a} expired />
-                ))}
-              </div>
-            )}
-          </div>
-        </TableView.Body>
+          </TableView.Body>
+          <TablePagination
+            paging={paging}
+            total={total}
+            returned={announcements.length}
+            loading={q.isFetching}
+          />
+        </>
       )}
     </TableView>
   );

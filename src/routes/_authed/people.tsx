@@ -2,7 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { UserPlus, Users, GraduationCap } from "lucide-react";
-import { useMembers, useOrgUserGroups, type MemberFilter } from "@/features/queries";
+import {
+  pageRows,
+  useMembers,
+  useMembersPage,
+  useOrgUserGroups,
+  type MemberFilter,
+} from "@/features/queries";
+import { usePaging } from "@/lib/paging";
 import { rolesOf, type OrganizationUser } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
@@ -186,13 +193,17 @@ function PeoplePage() {
   }
   const groupIds = asFacetInts(facets.groupId);
 
-  const q = useMembers({
+  const memberFilter: MemberFilter = {
     ...roleFilter,
     q: debouncedQ,
     grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
     groupId: groupIds,
-  });
-  const members = q.data ?? [];
+  };
+  // Re-filtering puts you back on page one — otherwise a search run from page 7
+  // answers "3 members" over an empty table.
+  const paging = usePaging({ resetKey: memberFilter, defaultSort: { key: "user.name", dir: "asc" } });
+  const q = useMembersPage(memberFilter, paging);
+  const { rows: members, total } = pageRows(q);
 
   const facetDefs = useMemo<FacetDef[]>(
     () => [
@@ -240,6 +251,10 @@ function PeoplePage() {
       {
         id: "member",
         header: "Member",
+        // The server orders by `user.name`; the accessor below is a composed
+        // string (name + email) that exists only to render, and there is no
+        // field behind it to sort on.
+        meta: { sortKey: "user.name" },
         accessorFn: (r) => `${memberName(r)} ${r.user?.email ?? ""}`,
         cell: ({ row }) => {
           const ou = row.original;
@@ -264,12 +279,12 @@ function PeoplePage() {
       {
         id: "roles",
         header: "Roles",
-        enableSorting: false,
         cell: ({ row }) => <RoleBadges roles={rolesOf(row.original)} />,
       },
       {
         id: "identifier",
         header: "Identifier",
+        meta: { sortKey: "identifier" },
         accessorFn: (r) => r.identifier ?? "",
         cell: ({ getValue }) => (
           <span className="tabular-nums text-muted-foreground">
@@ -280,7 +295,6 @@ function PeoplePage() {
       {
         id: "status",
         header: "Status",
-        enableSorting: false,
         cell: ({ row }) =>
           row.original.grounded ? (
             <Badge variant="danger">Grounded</Badge>
@@ -291,6 +305,7 @@ function PeoplePage() {
       {
         id: "joined",
         header: "Joined",
+        meta: { sortKey: "createdAt" },
         accessorFn: (r) => r.createdAt,
         cell: ({ getValue }) => (
           <span className="whitespace-nowrap text-muted-foreground">
@@ -301,7 +316,6 @@ function PeoplePage() {
       {
         id: "actions",
         header: "",
-        enableSorting: false,
         cell: ({ row }) => (
           <div className="flex justify-end">
             <MemberRowActions
@@ -349,7 +363,7 @@ function PeoplePage() {
             tab === "guests"
               ? "Guests booked on your reservations"
               : q.data
-                ? `${members.length} member${members.length === 1 ? "" : "s"}`
+                ? `${total.toLocaleString()} member${total === 1 ? "" : "s"}`
                 : "Your organization roster"
           }
         />
@@ -382,7 +396,7 @@ function PeoplePage() {
         <Card>
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
-      ) : members.length === 0 && !filtersActive ? (
+      ) : total === 0 && !filtersActive ? (
         <Card>
           <EmptyState
             icon={Users}
@@ -402,6 +416,9 @@ function PeoplePage() {
           fill
           columns={columns}
           data={members}
+          paging={paging}
+          total={total}
+          loading={q.isFetching}
           emptyMessage="No members match your filters."
           mobileCard={(ou) => (
             <MemberCard ou={ou} onView={setViewing} onEditRoles={setEditing} />

@@ -1,16 +1,35 @@
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import {
   flexRender,
   getCoreRowModel,
-  getFilteredRowModel,
-  getSortedRowModel,
   useReactTable,
   type ColumnDef,
-  type SortingState,
 } from "@tanstack/react-table";
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { TablePagination } from "@/components/table-pagination";
 import { useIsMobile } from "@/hooks/use-mobile";
+import type { PagingState } from "@/lib/paging";
+import { cn } from "@/lib/utils";
+
+/**
+ * Extra column facts this table understands.
+ *
+ * `sortKey` is the field the API orders by, as a dot path into the row — it is
+ * what makes a column sortable. A column without one renders a plain header,
+ * which is the honest outcome: a computed or composed column ("Aircraft · Type",
+ * a status derived from three fields) has nothing the server can order by, and
+ * a sort arrow that quietly reordered the current page only would be worse than
+ * no arrow at all.
+ */
+declare module "@tanstack/react-table" {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- both params are required by the interface
+  interface ColumnMeta<TData extends unknown, TValue> {
+    sortKey?: string;
+    /** Right-align numerics (money, hours, counts). */
+    numeric?: boolean;
+  }
+}
 
 function sortIcon(dir: false | "asc" | "desc") {
   if (dir === "asc") return <ChevronUp className="size-3.5" />;
@@ -18,51 +37,89 @@ function sortIcon(dir: false | "asc" | "desc") {
   return <ChevronsUpDown className="size-3.5 opacity-40" />;
 }
 
+/**
+ * The console's table.
+ *
+ * Paged and sorted BY THE SERVER, always — `paging` is required, and there is
+ * no unpaged mode. That is deliberate rather than strict: the API caps every
+ * list at 1,000 rows, so a table that renders whatever array it was handed
+ * doesn't show a big collection slowly, it shows a truncated one with no sign
+ * that anything is missing. Requiring the prop means a new table cannot be
+ * written that way by accident.
+ *
+ * For the same reason there is no client-side filter here. Search is a server
+ * `q` param on every list that has one; filtering the fifty rows in the browser
+ * would search the page, not the collection.
+ */
 export function DataTable<T>({
   columns,
   data,
+  paging,
+  total,
+  loading = false,
   toolbar,
-  globalFilter,
-  onGlobalFilterChange,
   mobileCard,
   emptyMessage = "Nothing here yet.",
   fill = false,
   onRowClick,
+  showPageSize,
 }: {
   columns: ColumnDef<T, unknown>[];
+  /** One page of rows, as the API returned them. */
   data: T[];
+  /** Page/sort state from `usePaging()`. Drives the pager and the column headers. */
+  paging: PagingState;
+  /** `pagination.total` — how many rows there are in all, not how many are on screen. */
+  total: number;
+  /** Fetching the next page: dims the rows instead of blanking them. */
+  loading?: boolean;
   /** Rendered above the table (search input, filters, actions). */
   toolbar?: ReactNode;
-  /** Controlled global filter string (client-side — the API has no server search). */
-  globalFilter?: string;
-  onGlobalFilterChange?: (v: string) => void;
   /** When provided and on a phone, rows render as stacked cards instead of a table. */
   mobileCard?: (row: T) => ReactNode;
   emptyMessage?: ReactNode;
   /**
-   * Fill the available height and scroll only the rows — the toolbar and column
-   * headers stay put. Use inside a <TableView> (or any `flex min-h-0 flex-1` column)
-   * so table pages don't scroll the whole page. Off by default (inline table).
+   * Fill the available height and scroll only the rows — the toolbar, column
+   * headers and pager stay put. Use inside a <TableView> (or any `flex min-h-0
+   * flex-1` column) so table pages don't scroll the whole page.
    */
   fill?: boolean;
   /** Opens a detail drawer/sheet when a row is clicked. */
   onRowClick?: (row: T) => void;
+  showPageSize?: boolean;
 }) {
-  const [sorting, setSorting] = useState<SortingState>([]);
   const isMobile = useIsMobile();
 
   const table = useReactTable({
     data,
     columns,
-    state: { sorting, globalFilter },
-    onSortingChange: setSorting,
-    onGlobalFilterChange,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
+    // The server already ordered and cut this page. Re-deriving either here
+    // would reorder the page in isolation and quietly contradict the pager.
+    manualPagination: true,
+    manualSorting: true,
   });
 
   const rows = table.getRowModel().rows;
+
+  /** asc → desc → unsorted, so a column can be put back the way it was found. */
+  function toggleSort(sortKey: string) {
+    const current = paging.sort;
+    if (current?.key !== sortKey) return paging.setSort({ key: sortKey, dir: "asc" });
+    if (current.dir === "asc") return paging.setSort({ key: sortKey, dir: "desc" });
+    return paging.setSort(null);
+  }
+
+  const pager = (
+    <TablePagination
+      paging={paging}
+      total={total}
+      returned={data.length}
+      loading={loading}
+      showPageSize={showPageSize}
+      className={fill ? "shrink-0" : undefined}
+    />
+  );
 
   return (
     // When fill, tag for the app-shell's :has() rule so the wrapper takes a
@@ -75,9 +132,10 @@ export function DataTable<T>({
 
       {isMobile && mobileCard ? (
         <div
-          className={
-            fill ? "min-h-0 flex-1 space-y-2.5 overflow-auto" : "space-y-2.5"
-          }
+          className={cn(
+            fill ? "min-h-0 flex-1 space-y-2.5 overflow-auto" : "space-y-2.5",
+            loading && "opacity-60"
+          )}
         >
           {rows.length === 0 ? (
             <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
@@ -89,31 +147,38 @@ export function DataTable<T>({
         </div>
       ) : (
         <Table
-          containerClassName={
-            fill
-              ? "min-h-0 flex-1 overflow-auto rounded-md border border-border"
-              : undefined
-          }
+          containerClassName={cn(
+            fill ? "min-h-0 flex-1 overflow-auto rounded-md border border-border" : undefined,
+            // Keep the previous page readable while the next one loads rather
+            // than collapsing to a spinner — paging should not blink.
+            loading && "opacity-60"
+          )}
         >
           <THead className={fill ? "sticky top-0 z-10 bg-background" : undefined}>
             {table.getHeaderGroups().map((hg) => (
               <TR key={hg.id} className="hover:bg-transparent">
-                {hg.headers.map((h) => (
-                  <TH key={h.id}>
-                    {h.isPlaceholder ? null : h.column.getCanSort() ? (
-                      <button
-                        type="button"
-                        onClick={h.column.getToggleSortingHandler()}
-                        className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
-                      >
-                        {flexRender(h.column.columnDef.header, h.getContext())}
-                        {sortIcon(h.column.getIsSorted())}
-                      </button>
-                    ) : (
-                      flexRender(h.column.columnDef.header, h.getContext())
-                    )}
-                  </TH>
-                ))}
+                {hg.headers.map((h) => {
+                  const sortKey = h.column.columnDef.meta?.sortKey;
+                  const sorted =
+                    sortKey && paging.sort?.key === sortKey ? paging.sort.dir : (false as const);
+                  return (
+                    <TH key={h.id} className={h.column.columnDef.meta?.numeric ? "text-right" : undefined}>
+                      {h.isPlaceholder ? null : sortKey ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleSort(sortKey)}
+                          aria-label={`Sort by ${h.column.id}`}
+                          className="inline-flex items-center gap-1 transition-colors hover:text-foreground"
+                        >
+                          {flexRender(h.column.columnDef.header, h.getContext())}
+                          {sortIcon(sorted)}
+                        </button>
+                      ) : (
+                        flexRender(h.column.columnDef.header, h.getContext())
+                      )}
+                    </TH>
+                  );
+                })}
               </TR>
             ))}
           </THead>
@@ -135,7 +200,10 @@ export function DataTable<T>({
                   onClick={onRowClick ? () => onRowClick(row.original) : undefined}
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <TD key={cell.id}>
+                    <TD
+                      key={cell.id}
+                      className={cell.column.columnDef.meta?.numeric ? "text-right" : undefined}
+                    >
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TD>
                   ))}
@@ -145,6 +213,8 @@ export function DataTable<T>({
           </TBody>
         </Table>
       )}
+
+      {pager}
     </div>
   );
 }

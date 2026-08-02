@@ -14,17 +14,9 @@ import {
   Users,
 } from "lucide-react";
 import { toast } from "sonner";
-import {
-  useCreateCurrencyType,
-  useCurrencyTypes,
-  useDeleteCurrencyType,
-  useDocumentTypes,
-  useOrgUserGroup,
-  useOrgUserGroups,
-  useResourceGroup,
-  useResourceGroups,
-  useUpdateCurrencyType,
-} from "@/features/queries";
+import { pageRows, useCreateCurrencyType, useCurrencyTypesPage, useDeleteCurrencyType, useDocumentTypes, useOrgUserGroup, useOrgUserGroups, useResourceGroup, useResourceGroups, useUpdateCurrencyType } from "@/features/queries";
+import { TablePagination } from "@/components/table-pagination";
+import { usePaging } from "@/lib/paging";
 import type { CurrencyType, CurrencyTypeInput } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -152,14 +144,15 @@ function formatDay(iso: string) {
  * names both aircraft groups and people groups — so this tab leads with that.
  */
 export function CurrencyTypesTab() {
-  const q = useCurrencyTypes();
+  const paging = usePaging();
+  const q = useCurrencyTypesPage(paging);
   const del = useDeleteCurrencyType();
   const confirm = useConfirm();
 
   const [formOpen, setFormOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<CurrencyType | null>(null);
 
-  const types = q.data ?? [];
+  const { rows: types, total } = pageRows(q);
   const inert = types.filter(
     (t) => !(t.resourceGroups?.length && t.orgUserGroups?.length)
   ).length;
@@ -225,7 +218,7 @@ export function CurrencyTypesTab() {
           </div>
         ) : q.isError ? (
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
-        ) : types.length === 0 ? (
+        ) : total === 0 ? (
           <EmptyState
             icon={ShieldCheck}
             title="No currency rules yet"
@@ -261,6 +254,13 @@ export function CurrencyTypesTab() {
             </ul>
           </>
         )}
+        <TablePagination
+          paging={paging}
+          total={total}
+          returned={types.length}
+          loading={q.isFetching}
+          className="px-1"
+        />
       </CardContent>
 
       <CurrencyTypeFormModal open={formOpen} onOpenChange={setFormOpen} type={editing} />

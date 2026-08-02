@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Building2, ExternalLink, FileText, Plus, Upload } from "lucide-react";
-import { useDocumentTypes, useMemberDocuments } from "@/features/queries";
+import { pageRows, useDocumentTypes, useMemberDocumentsPage } from "@/features/queries";
+import { usePaging } from "@/lib/paging";
 import { useAuth } from "@/lib/auth";
 import type { UserDocument } from "@/types/api";
 import { formatDate } from "@/lib/utils";
@@ -31,6 +32,7 @@ function fmt(iso: string | null | undefined) {
 const columns: ColumnDef<UserDocument, unknown>[] = [
   {
     id: "type",
+    meta: { sortKey: "documentType.name" },
     accessorFn: (d) => d.documentType.name,
     header: "Document",
     cell: ({ row }) => (
@@ -46,6 +48,7 @@ const columns: ColumnDef<UserDocument, unknown>[] = [
   },
   {
     id: "uploaded",
+    meta: { sortKey: "createdAt" },
     accessorFn: (d) => d.createdAt,
     header: "Uploaded",
     cell: ({ row }) => (
@@ -54,6 +57,7 @@ const columns: ColumnDef<UserDocument, unknown>[] = [
   },
   {
     id: "expires",
+    meta: { sortKey: "expiresAt" },
     accessorFn: (d) => d.expiresAt ?? "",
     header: "Expires",
     cell: ({ row }) => (
@@ -71,7 +75,6 @@ const columns: ColumnDef<UserDocument, unknown>[] = [
   {
     id: "actions",
     header: "",
-    enableSorting: false,
     cell: ({ row }) => {
       const href = row.original.fileUrls?.[0];
       if (!href) return null;
@@ -131,13 +134,15 @@ function MyDocumentsPage() {
       s === "expired" || s === "expiring" || s === "good"
   );
 
-  const q = useMemberDocuments(orgUserId, {
+  const docFilter = {
     q: debouncedQ,
     documentTypeId: documentTypeIds,
     status: statuses.length ? statuses : undefined,
     includeArchived: typeof facets.includeArchived === "boolean" ? facets.includeArchived : undefined,
-  });
-  const docs = q.data ?? [];
+  };
+  const paging = usePaging({ resetKey: docFilter, defaultSort: { key: "createdAt", dir: "desc" } });
+  const q = useMemberDocumentsPage(orgUserId, docFilter, paging);
+  const { rows: docs, total } = pageRows(q);
 
   const filtersActive =
     !!debouncedQ ||
@@ -220,7 +225,7 @@ function MyDocumentsPage() {
         <Card className="min-h-0 flex-1">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
-      ) : docs.length === 0 && !filtersActive ? (
+      ) : total === 0 && !filtersActive ? (
         <Card className="min-h-0 flex-1">
           <EmptyState
             icon={FileText}
@@ -238,6 +243,9 @@ function MyDocumentsPage() {
           fill
           columns={columns}
           data={docs}
+          paging={paging}
+          total={total}
+          loading={q.isFetching}
           toolbar={
             <ListSearchBar
               value={search}

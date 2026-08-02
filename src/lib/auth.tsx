@@ -17,6 +17,17 @@ import {
   readDevStash,
   writeDevStash,
 } from "./developer";
+import {
+  clearDemo,
+  decodeDemoOrgId,
+  getDemoMeta,
+  getDemoSessionRaw,
+  isDemoTab,
+  setDemoMeta,
+  setDemoSessionRaw,
+  setDemoToken,
+  type DemoMeta,
+} from "./demo";
 import { rolesOf, type Organization, type OrganizationUser, type Role, type User } from "@/types/api";
 
 interface AuthEnvelope {
@@ -36,9 +47,14 @@ interface SessionState {
 
 const SESSION_KEY = "aer.session";
 
+/**
+ * A demo tab keeps its session in per-tab sessionStorage instead, so a visitor
+ * trying the demo never overwrites their own signed-in session in another tab.
+ * Same reasoning as the token split in lib/api.ts — see lib/demo.ts.
+ */
 function loadSession(): SessionState {
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
+    const raw = isDemoTab() ? getDemoSessionRaw() : localStorage.getItem(SESSION_KEY);
     if (raw) return JSON.parse(raw) as SessionState;
   } catch {
     /* ignore */
@@ -47,6 +63,10 @@ function loadSession(): SessionState {
 }
 
 function saveSession(s: SessionState) {
+  if (isDemoTab()) {
+    setDemoSessionRaw(JSON.stringify(s));
+    return;
+  }
   localStorage.setItem(SESSION_KEY, JSON.stringify(s));
 }
 
@@ -101,6 +121,12 @@ export function isImpersonatingSync(): boolean {
   return decodeImpersonatedBy(getToken()) !== null;
 }
 
+/** True when this tab is driving the public demo sandbox. Read from the token so
+ *  it survives a refresh, and used by router guards before React renders. */
+export function isDemoSync(): boolean {
+  return decodeDemoOrgId(getToken()) !== null;
+}
+
 /** Whether the email-verification gate should apply. Bypassed on local dev
  *  (`npm run dev`) so onboarding is testable without a real verification link —
  *  the dev server talks to the prod API, which never auto-verifies. Enforced in
@@ -108,9 +134,14 @@ export function isImpersonatingSync(): boolean {
  *
  *  Also bypassed while impersonating: /verify-email is a dead end for a developer
  *  (you cannot click a link sent to someone else's inbox), and troubleshooting an
- *  unverified account is exactly when you need to get in and look. */
+ *  unverified account is exactly when you need to get in and look.
+ *
+ *  And bypassed in the demo, for the sharper version of the same reason: a demo
+ *  account's address is at a reserved domain that can never receive mail, so
+ *  /verify-email would be a wall with no door. The seed marks them verified, so
+ *  this is belt and braces rather than the only thing holding it up. */
 export function needsEmailVerification(): boolean {
-  return !import.meta.env.DEV && !isEmailVerifiedSync() && !isImpersonatingSync();
+  return !import.meta.env.DEV && !isEmailVerifiedSync() && !isImpersonatingSync() && !isDemoSync();
 }
 
 /** Where to send a user right after authenticating, based on the fresh session. */
@@ -166,9 +197,25 @@ interface AuthContextValue extends SessionState {
   loginAs: (email: string) => Promise<void>;
   /** Restore the parked developer session. Returns false if there wasn't one. */
   stopImpersonating: () => boolean;
+
+  /** True if this tab is driving the public demo sandbox. */
+  isDemo: boolean;
+  /** The sandbox's roles, clock and ids — null outside a demo. */
+  demo: DemoMeta | null;
+  /** Start a demo in THIS TAB. Anything already signed in elsewhere is untouched. */
+  startDemo: () => Promise<void>;
+  /** Become a different role inside the same sandbox. */
+  switchDemoRole: (orgUserId: number) => Promise<void>;
+  /** Rebuild the sandbox and pick up a fresh session for it. */
+  resetDemo: () => Promise<void>;
+  /** Leave the demo, dropping every trace of it from this tab. */
+  exitDemo: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/** In-flight `POST /demo/session`, shared across every caller — see startDemo. */
+let demoStartInFlight: Promise<AuthEnvelope & { demo: DemoMeta }> | null = null;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState>(() =>
@@ -290,6 +337,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [apply]);
 
   const logout = useCallback(() => {
+    // In a demo tab this must clear the DEMO session and nothing else. The
+    // localStorage session belongs to a real account the same person may have
+    // open in another tab, and signing out of a sandbox is not a reason to sign
+    // them out of their own school. Guarded here rather than at the call sites so
+    // no future caller has to remember.
+    if (isDemoTab()) {
+      clearDemo();
+      setSession({ user: null, organization: null, organizations: [] });
+      return;
+    }
+
     setToken(null);
     localStorage.removeItem(SESSION_KEY);
     // Signing out means signing out — never leave a parked developer token behind
@@ -328,6 +386,82 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     [apply, session.user?.email]
   );
+
+  //-------------------------------------------------------------------------------
+  // The public demo sandbox.
+  //
+  // Every one of these writes through the same `apply()` the real sign-in paths
+  // use — the server returns the identical envelope on purpose — so the demo needs
+  // no parallel session handling. The only demo-specific part is WHERE the token
+  // lands, and that is settled once, in getToken/setToken and loadSession/
+  // saveSession, by whether this tab is a demo tab.
+  //-------------------------------------------------------------------------------
+
+  const [demo, setDemo] = useState<DemoMeta | null>(() => getDemoMeta());
+
+  /** Apply a demo envelope. The token has to be stored BEFORE apply() runs. */
+  const applyDemo = useCallback(
+    (env: AuthEnvelope & { demo: DemoMeta }) => {
+      // Order matters: `isDemoTab()` is derived from the presence of the demo
+      // token, and apply() calls setToken()/saveSession(), which both branch on
+      // it. Writing the token first is what makes this tab a demo tab in time for
+      // the session to be stored beside it rather than over the real one.
+      setDemoToken(env.auth.accessToken);
+      setDemoMeta(env.demo);
+      setDemo(env.demo);
+      apply(env);
+    },
+    [apply]
+  );
+
+  const startDemo = useCallback(async () => {
+    // Collapse concurrent starts into ONE request, at module scope rather than in
+    // a component ref.
+    //
+    // The entry route guards with a ref, and that is not enough: a ref survives
+    // re-renders but not REMOUNTS, and applying the session re-renders the auth
+    // provider that sits above the router, which remounts the route that just
+    // asked for the session. Measured seven mints for one visit before this. That
+    // is mostly wasted work, but it also spends a per-IP budget deliberately set
+    // low — so the failure mode is a visitor locked out of the demo by the act of
+    // opening it.
+    //
+    // Same shape as the session probe in lib/api.ts, for the same reason: the
+    // request is the thing that must be de-duplicated, not the caller.
+    if (!demoStartInFlight) {
+      demoStartInFlight = apiRaw<AuthEnvelope & { demo: DemoMeta }>("/demo/session", { method: "POST" }).finally(
+        () => {
+          demoStartInFlight = null;
+        }
+      );
+    }
+    applyDemo(await demoStartInFlight);
+  }, [applyDemo]);
+
+  const switchDemoRole = useCallback(
+    async (orgUserId: number) => {
+      const env = await apiRaw<AuthEnvelope & { demo: DemoMeta }>("/demo/switch", {
+        method: "POST",
+        body: { orgUserId },
+      });
+      applyDemo(env);
+    },
+    [applyDemo]
+  );
+
+  const resetDemo = useCallback(async () => {
+    const env = await apiRaw<AuthEnvelope & { demo: DemoMeta }>("/demo/reset", { method: "POST" });
+    applyDemo(env);
+  }, [applyDemo]);
+
+  const exitDemo = useCallback(() => {
+    clearDemo();
+    setDemo(null);
+    // Not `logout()`: that clears the LOCALSTORAGE session, which in a demo tab
+    // belongs to a real account this visitor may well have open next door.
+    // Leaving the demo must leave that alone.
+    setSession({ user: null, organization: null, organizations: [] });
+  }, []);
 
   const stopImpersonating = useCallback(() => {
     const stash = readDevStash();
@@ -371,6 +505,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isDeveloper: isDeveloperEmail(session.user?.email),
       isImpersonating,
       impersonatorEmail: isImpersonating ? (readDevStash()?.developerEmail ?? null) : null,
+      // From the token, like `isImpersonating` and for the same reason: the banner
+      // is the only thing telling the visitor that none of this is real, so it has
+      // to survive a refresh.
+      isDemo: decodeDemoOrgId(getToken()) !== null,
     };
   }, [session]);
 
@@ -391,6 +529,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         rehydrate,
         loginAs,
         stopImpersonating,
+        demo,
+        startDemo,
+        switchDemoRole,
+        resetDemo,
+        exitDemo,
       }}
     >
       {children}

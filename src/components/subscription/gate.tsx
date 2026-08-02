@@ -8,6 +8,7 @@ import { isAdmin } from "@/lib/permissions";
 import { formatMonthly, PRICE_PER_AIRCRAFT_CENTS, type SubStatus } from "@/lib/subscription";
 import { AppShell } from "@/components/app-shell";
 import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
+import { DemoBanner } from "@/components/demo/demo-banner";
 import { LogoMark } from "@/components/logo";
 import { SubscribeButton, useSubStatus } from "@/components/subscription/plan";
 
@@ -50,6 +51,7 @@ export function SubscriptionGate() {
     return (
       <>
         <ImpersonationBanner />
+        <DemoBanner />
         {isAdmin(roles) ? <Paywall status={status} /> : <OrgPausedNotice orgName={organization.name} />}
       </>
     );

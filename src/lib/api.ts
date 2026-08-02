@@ -1,5 +1,6 @@
 import { API_URL } from "./env";
 import { DEVICE_TIME_ZONE } from "./timezone";
+import { getDemoToken, isDemoTab, setDemoToken } from "./demo";
 
 /** Injected by vite.config.ts at build time — `aerscheduler-web/<commit>`. */
 declare const __CLIENT_ID__: string;
@@ -7,10 +8,21 @@ const CLIENT_ID = typeof __CLIENT_ID__ === "string" ? __CLIENT_ID__ : "aerschedu
 
 const TOKEN_KEY = "aer.token";
 
+/**
+ * A demo tab reads and writes its own token, in sessionStorage. Routing it here
+ * — rather than at each of the ~20 call sites — is what keeps a demo from
+ * overwriting a real session the same person has open in another tab. See
+ * lib/demo.ts for why that is per-tab storage and not a flag.
+ */
 export function getToken(): string | null {
+  if (isDemoTab()) return getDemoToken();
   return localStorage.getItem(TOKEN_KEY);
 }
 export function setToken(token: string | null) {
+  if (isDemoTab()) {
+    setDemoToken(token);
+    return;
+  }
   if (token) localStorage.setItem(TOKEN_KEY, token);
   else localStorage.removeItem(TOKEN_KEY);
 }
@@ -80,6 +92,19 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
 }
 
 /**
+ * Called when the server says this demo sandbox is gone (410 `DEMO_ENDED`).
+ *
+ * Deliberately NOT the unauthorized handler. That one signs the user out and
+ * sends them to /login — which for a demo visitor is a sign-in form for an
+ * account they have never had, and reads as the product being broken. A demo
+ * that ends should offer another demo. Registered by <DemoWatcher>.
+ */
+let onDemoEnded: (() => void) | null = null;
+export function setDemoEndedHandler(fn: (() => void) | null) {
+  onDemoEnded = fn;
+}
+
+/**
  * Tear down the session, exactly once per token.
  *
  * The token guard matters: several requests are usually in flight together, so
@@ -127,6 +152,15 @@ export function tokenIsDead(token: string | null = getToken()): Promise<boolean>
 
   sessionProbe = { token, result };
   return result;
+}
+
+/** The machine-readable `code` the API attaches to a refusal it wants branched on. */
+function errorCode(parsed: unknown): string | null {
+  if (parsed && typeof parsed === "object" && "code" in parsed) {
+    const c = (parsed as Record<string, unknown>).code;
+    if (typeof c === "string") return c;
+  }
+  return null;
 }
 
 export async function raw(path: string, opts: ApiOptions): Promise<{ status: number; body: unknown }> {
@@ -187,6 +221,15 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
     }
   }
 
+  // The demo sandbox this tab was in has been rebuilt or retired, so every id in
+  // the token now points at a deleted row. Handled before the 401 path and kept
+  // separate from it on purpose: this is not a dead session to sign out of, it is
+  // a sandbox to replace, and the two need different offers.
+  if (res.status === 410 && errorCode(parsed) === "DEMO_ENDED") {
+    onDemoEnded?.();
+    throw new ApiError(410, "This demo has ended. Start a new one to keep exploring.", parsed);
+  }
+
   // Only a 401 on a request we actually authenticated can mean "session over".
   // An unauthenticated 401 (a wrong password on login) must fall through so the
   // server's real message ("Invalid email or password") is what gets shown.
@@ -222,4 +265,51 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
 export async function apiRaw<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
   const { body } = await raw(path, opts);
   return body as T;
+}
+
+/** The `pagination` block every list response carries beside `data`. */
+export type PaginationMeta = {
+  total: number;
+  limit: number;
+  offset: number;
+  returned: number;
+  hasMore: boolean;
+};
+
+/**
+ * Request a paged list, keeping the `pagination` block.
+ *
+ * `api()` cannot be used for a table: it unwraps the envelope down to `data`,
+ * which throws away the only thing that says how many rows there really are.
+ * Without `total` a pager has nothing to count and no way to know a collection
+ * was cut off at the API's 1,000-row cap.
+ *
+ * Endpoints that predate paging answer a bare array; those are reported as a
+ * single complete page rather than as zero rows, so a table pointed at one
+ * renders instead of looking empty.
+ */
+export async function apiList<T = unknown>(
+  path: string,
+  opts: ApiOptions = {}
+): Promise<{ data: T[]; pagination: PaginationMeta }> {
+  const { body } = await raw(path, opts);
+
+  const envelope = body && typeof body === "object" ? (body as Record<string, unknown>) : null;
+  const rows = Array.isArray(envelope?.data) ? (envelope!.data as T[]) : Array.isArray(body) ? (body as T[]) : [];
+
+  const meta = envelope?.pagination;
+  if (meta && typeof meta === "object") {
+    return { data: rows, pagination: meta as PaginationMeta };
+  }
+
+  return {
+    data: rows,
+    pagination: {
+      total: rows.length,
+      limit: rows.length,
+      offset: 0,
+      returned: rows.length,
+      hasMore: false,
+    },
+  };
 }

@@ -30,7 +30,7 @@ function overrideState(): SubState | null {
  * without a reload.
  */
 export function useSubStatus(): SubStatus | null {
-  const { organization } = useAuth();
+  const { organization, isDemo } = useAuth();
   const planes = usePlanes(undefined, { enabled: !!organization });
   // Whether the org bills through Stripe Connect — existing Connect users are
   // grandfathered off the per-aircraft model.
@@ -40,6 +40,25 @@ export function useSubStatus(): SubStatus | null {
 
   return React.useMemo(() => {
     if (!organization) return null;
+
+    // The demo sandbox is never billed and never paywalled. Without this a
+    // prospect who came to look at the product is met by "AerScheduler is moving
+    // to $20/mo — add a card" inside a fake school, and every button in that
+    // banner leads to a route the demo blocks. Whatever we want to say about
+    // pricing belongs on the pricing page, not in the middle of the demo.
+    if (isDemo) {
+      return {
+        state: "exempt" as const,
+        isExisting: false,
+        freeUntil: new Date(8.64e15),
+        daysLeft: Number.POSITIVE_INFINITY,
+        planeCount: planes.data?.length ?? 0,
+        monthlyCents: 0,
+        subscribed: true,
+        blocked: false,
+      };
+    }
+
     const s = sub.data;
     const serverSubscribed = Boolean(
       s?.hasSubscription && (s.status === "trialing" || s.status === "active")
@@ -50,7 +69,7 @@ export function useSubStatus(): SubStatus | null {
     });
     const ov = overrideState();
     return ov ? { ...base, state: ov, blocked: ov === "expired" } : base;
-  }, [organization, planes.data, billing.data, sub.data]);
+  }, [organization, isDemo, planes.data, billing.data, sub.data]);
 }
 
 /**

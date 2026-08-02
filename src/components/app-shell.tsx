@@ -30,6 +30,7 @@ import { ConfirmProvider } from "@/components/confirm-dialog";
 import { QuickCreateProvider, useQuickCreate } from "@/components/quick-create";
 import { LogoMark } from "@/components/logo";
 import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
+import { DemoBanner } from "@/components/demo/demo-banner";
 import { FeedbackModal } from "@/components/feedback/feedback-modal";
 import { initials } from "@/lib/utils";
 import {
@@ -77,6 +78,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   is `fixed`, so a banner spanning the full window would sit under
                   it and lose its first words. */}
               <ImpersonationBanner />
+              <DemoBanner />
               <Topbar />
               {/* main is the scroll container; the content wrapper adapts per page:
                   • Normal pages → `min-h-full`: fills the viewport when short and

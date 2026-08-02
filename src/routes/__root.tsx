@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { SessionWatcher } from "@/components/session-watcher";
+import { DemoWatcher } from "@/components/demo/demo-watcher";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -38,6 +39,7 @@ const TITLES: Array<[string, string]> = [
   ["/settings", "Settings"],
   ["/onboarding", "Get started"],
   ["/join", "Join a school"],
+  ["/demo", "Demo"],
   ["/login", "Sign in"],
   ["/signup", "Create account"],
   ["/auth/callback", "Signing in"],
@@ -61,6 +63,7 @@ function RootLayout() {
       <TooltipProvider delayDuration={200}>
         <RouteTitle />
         <SessionWatcher />
+        <DemoWatcher />
         <Outlet />
         <Toaster closeButton position="bottom-right" />
       </TooltipProvider>

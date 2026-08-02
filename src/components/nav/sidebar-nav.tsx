@@ -107,15 +107,20 @@ function OperationsGroup({
   const reorder = useReorder(items, (order) => setNavOrder(orgId, order));
   const [openMore, setOpenMore] = React.useState(false);
   const listRef = useFlipRows<HTMLUListElement>(reorder.dragKey);
+  // Opens More when you navigate to a page under it; does not re-force open on
+  // reorder or after you've closed it on the same path.
+  const openedForPath = React.useRef<string | null>(null);
 
   const { list, dragging } = reorder;
-  const overflow = list.slice(NAV_VISIBLE_COUNT);
-  // Never strand the page you're on behind a closed disclosure — a rail that
-  // can't show you where you are is worse than one link too many.
-  const activeInOverflow = overflow.some((i) => isNavItemActive(i.to, pathname));
-  // Dragging alone does not open More — only hovering the More row (or an
-  // explicit click) does, so the rail stays calm while reordering the top five.
-  const expanded = openMore || activeInOverflow;
+
+  React.useEffect(() => {
+    if (openedForPath.current === pathname) return;
+    openedForPath.current = pathname;
+    const underMore = items
+      .slice(NAV_VISIBLE_COUNT)
+      .some((i) => isNavItemActive(i.to, pathname));
+    if (underMore) setOpenMore(true);
+  }, [pathname, items]);
 
   if (list.length === 0) return null;
 
@@ -145,7 +150,7 @@ function OperationsGroup({
             <React.Fragment key={item.to}>
               {index === NAV_VISIBLE_COUNT && (
                 <MoreRow
-                  expanded={expanded}
+                  expanded={openMore}
                   dragging={dragging}
                   onToggle={() => setOpenMore((o) => !o)}
                   onDragOver={() => {
@@ -155,7 +160,7 @@ function OperationsGroup({
                   isDragging={reorder.isDragging}
                 />
               )}
-              {(index < NAV_VISIBLE_COUNT || expanded) && (
+              {(index < NAV_VISIBLE_COUNT || openMore) && (
                 <NavRow
                   item={item}
                   active={isNavItemActive(item.to, pathname)}

@@ -7,10 +7,10 @@ import {
   startOfWeek,
 } from "date-fns";
 import { CalendarClock, Plus } from "lucide-react";
-import { useLocations, useReservations, useResources } from "@/features/queries";
+import { useLocations, useOrgUsers, useReservations, useResources } from "@/features/queries";
 import { zonedStartOfDay, zonedEndOfDay } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
-import { resourceLabel, type Reservation, type Resource, type Role } from "@/types/api";
+import { resourceLabel, rolesOf, type Reservation, type Resource, type Role } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { canSeeRoomLanes, canSeeSimulatorLanes, isStaff } from "@/lib/permissions";
 import { useMediaQuery } from "@/hooks/use-mobile";
@@ -39,8 +39,28 @@ import {
   type ReservationDraft,
 } from "@/components/schedule/reservation-form";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
+import {
+  BILLING_OPTIONS,
+  RAMP_OPTIONS,
+  hasBoardFilters,
+  matchesBoardFilters,
+  type BoardMarks,
+} from "@/components/schedule/board-filters";
+import { TYPE_LABEL, TYPE_ORDER } from "@/components/schedule/meta";
 
-const FACET_KEYS = ["resourceId", "locationId"] as const;
+/**
+ * Facets that remove LANES from the board. Narrowing to two aircraft is honest — the rows
+ * you didn't ask for are visibly gone, so nothing claims to be free that isn't.
+ */
+const ROW_FACET_KEYS = ["resourceId", "locationId"] as const;
+
+/**
+ * Facets that mark BOOKINGS. These never remove anything: they dim non-matches so the
+ * board's occupancy stays true. See `board-filters.ts` for why that distinction matters.
+ */
+const BLOCK_FACET_KEYS = ["personId", "ramp", "billing", "type"] as const;
+
+const FACET_KEYS = [...ROW_FACET_KEYS, ...BLOCK_FACET_KEYS] as const;
 
 export const Route = createFileRoute("/_authed/schedule")({
   validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
@@ -99,13 +119,18 @@ function SchedulePage() {
   const resourceIds = asFacetInts(facets.resourceId);
   const locationIds = asFacetInts(facets.locationId);
 
+  //Only the ROW facets are sent to the server. `q` deliberately is not: the board dims
+  //non-matching bookings instead of dropping them, and it can't dim rows it was never
+  //given. Matching runs in the browser over the range we already fetched — see
+  //`board-filters.ts`. That also keeps one cache entry per date range rather than one per
+  //filter permutation, which is what makes the 20s auto-refresh below worth anything.
   const q = useReservations(startISO, endISO, {
-    q: debouncedQ,
     resourceId: resourceIds,
     locationId: locationIds,
   });
   const resourcesQ = useResources();
   const locationsQ = useLocations();
+  const peopleQ = useOrgUsers();
 
   // Live board: quietly re-pull the range on an interval (ref keeps the timer
   // stable across renders while always calling the latest refetch).
@@ -130,6 +155,29 @@ function SchedulePage() {
     return list;
   }, [resources, resourceIds, locationIds]);
 
+  //Which bookings the block filters mark. `null` when nothing is selected — the board then
+  //renders every block at full strength rather than treating "no filter" as "all match",
+  //which would still pay for a Set on every render and every auto-refresh.
+  //`debouncedQ` is undefined when blank (it was shaped for API params, where an empty `q`
+  //should be omitted). Everything below treats "no search" as the empty string.
+  const queryText = debouncedQ ?? "";
+  const dimming = hasBoardFilters(facets, queryText);
+  const matchedIds = React.useMemo(() => {
+    if (!dimming) return null;
+    //One `now` for the whole pass so "overdue" can't flip mid-list.
+    const now = new Date();
+    const ids = new Set<number>();
+    for (const r of reservations) {
+      if (matchesBoardFilters(r, facets, queryText, now)) ids.add(r.id);
+    }
+    return ids;
+  }, [dimming, reservations, facets, queryText]);
+
+  const locationNames = React.useMemo(
+    () => new Map((locationsQ.data ?? []).map((l) => [l.id, l.name])),
+    [locationsQ.data]
+  );
+
   const facetDefs = React.useMemo<FacetDef[]>(
     () => [
       {
@@ -138,9 +186,14 @@ function SchedulePage() {
         label: "Resource",
         allLabel: "All resources",
         multiple: true,
+        //`hint` is searched as well as shown, so typing an airport in the Resource filter
+        //surfaces every aircraft based there — the fleet list itself never says "KTEST".
+        //Resources carry only a { id } location stub, so the name is looked up from the
+        //locations list rather than read off the resource.
         options: resources.map((r) => ({
           value: String(r.id),
           label: resourceLabel(r).name,
+          hint: r.location?.id != null ? locationNames.get(r.location.id) : undefined,
         })),
       },
       {
@@ -154,8 +207,51 @@ function SchedulePage() {
           label: l.name,
         })),
       },
+      {
+        kind: "select",
+        key: "personId",
+        label: "Personnel",
+        allLabel: "Anyone",
+        multiple: true,
+        //Everyone in the org, not just those rostered today — a dispatcher pins an
+        //instructor and then pages through the week, and an option list rebuilt from the
+        //visible day would drop out from under them when they stepped to a day off.
+        //Role rides along as a searchable hint, so "instructor" narrows to the instructors
+        //without anyone having to remember which of forty names those are.
+        options: (peopleQ.data ?? [])
+          .map((ou) => ({
+            value: String(ou.id),
+            label: ou.user?.name ?? ou.user?.email ?? `#${ou.id}`,
+            hint: rolesOf(ou).join(" ") || undefined,
+          }))
+          .sort((a, b) => a.label.localeCompare(b.label)),
+      },
+      {
+        kind: "select",
+        key: "ramp",
+        label: "Ramp status",
+        allLabel: "Any status",
+        multiple: true,
+        options: RAMP_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+      },
+      {
+        kind: "select",
+        key: "billing",
+        label: "Billing",
+        allLabel: "Any billing",
+        multiple: true,
+        options: BILLING_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+      },
+      {
+        kind: "select",
+        key: "type",
+        label: "Type",
+        allLabel: "All types",
+        multiple: true,
+        options: TYPE_ORDER.map((t) => ({ value: t, label: TYPE_LABEL[t] })),
+      },
     ],
-    [resources, locationsQ.data]
+    [resources, locationsQ.data, locationNames, peopleQ.data]
   );
 
   // Modal state.
@@ -194,6 +290,10 @@ function SchedulePage() {
 
   const count = q.data ? reservations.length : null;
 
+  //Spread into every view so all five stay in agreement about what is lit — a booking
+  //dimmed on the lane board and solid in the agenda would be worse than not dimming.
+  const marks: BoardMarks = { matchedIds, query: queryText };
+
   return (
     <TableView>
       <TableView.Header>
@@ -220,11 +320,12 @@ function SchedulePage() {
           view={view}
           onViewChange={setView}
           count={count}
+          matchCount={matchedIds ? matchedIds.size : null}
         />
         <ListSearchBar
           value={search}
           onChange={setSearch}
-          placeholder="Search people, aircraft, dual, solo…"
+          placeholder="Search…"
           aria-label="Search schedule"
           facets={facetDefs}
           filterValues={facets}
@@ -259,6 +360,7 @@ function SchedulePage() {
                 onView={openDetail}
                 onCreate={onCreate}
                 onSelectDay={selectDay}
+                {...marks}
               />
             ) : (
               <MonthAgenda
@@ -266,6 +368,7 @@ function SchedulePage() {
                 onView={openDetail}
                 onEdit={startEdit}
                 onCancel={handleCancel}
+                {...marks}
               />
             )
           ) : view === "week" ? (
@@ -276,6 +379,7 @@ function SchedulePage() {
                 onView={openDetail}
                 onCreate={onCreate}
                 onSelectDay={selectDay}
+                {...marks}
               />
             ) : (
               <AgendaList
@@ -283,6 +387,7 @@ function SchedulePage() {
                 onView={openDetail}
                 onEdit={startEdit}
                 onCancel={handleCancel}
+                {...marks}
               />
             )
           ) : showBoard ? (
@@ -295,6 +400,7 @@ function SchedulePage() {
               onDuplicate={setDuplicating}
               onCancel={handleCancel}
               onCreate={onCreate}
+              {...marks}
             />
           ) : (
             <AgendaList
@@ -303,6 +409,7 @@ function SchedulePage() {
               onEdit={startEdit}
               onDuplicate={setDuplicating}
               onCancel={handleCancel}
+              {...marks}
             />
           )}
         </Card>

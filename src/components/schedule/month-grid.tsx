@@ -13,7 +13,9 @@ import { resourceLabel, type Reservation } from "@/types/api";
 import { cn } from "@/lib/utils";
 import { dateKeyInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
+import { highlightMatch } from "@/lib/highlight-match";
 import { BORDER_L_CLASS, CHIP_CLASS } from "./meta";
+import { dimClass, isMarked, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
 
 const MAX_CHIPS = 3;
@@ -30,6 +32,8 @@ export function MonthGrid({
   onView,
   onCreate,
   onSelectDay,
+  matchedIds,
+  query,
 }: {
   month: Date;
   reservations: Reservation[];
@@ -37,7 +41,11 @@ export function MonthGrid({
   /** Omitted for roles that may not create — the cells then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
   onSelectDay: (day: Date) => void;
+  /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
+  matchedIds?: Set<number> | null;
+  query?: string;
 }) {
+  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
   const tz = useTimeZone();
   const canCreate = onCreate != null;
   const days = eachDayOfInterval({
@@ -56,6 +64,21 @@ export function MonthGrid({
     else byDay.set(key, [r]);
   }
   for (const list of byDay.values()) list.sort((a, b) => a.start.localeCompare(b.start));
+
+  //A month cell only has room for MAX_CHIPS, so this is the one view where dimming alone
+  //isn't enough — a match sitting fourth would be swallowed by "+N more" and the filter
+  //would look like it found nothing. When filtering, float matches to the top of the cell
+  //(chronological within each group, so the day still reads in order either side of the
+  //split). The cell count is unchanged, so the day's real volume is still on screen.
+  if (marks.matchedIds) {
+    for (const list of byDay.values()) {
+      list.sort((a, b) => {
+        const am = isMarked(marks, a.id) ? 0 : 1;
+        const bm = isMarked(marks, b.id) ? 0 : 1;
+        return am - bm || a.start.localeCompare(b.start);
+      });
+    }
+  }
 
   return (
     <div className="h-full min-h-0 overflow-auto">
@@ -137,7 +160,8 @@ export function MonthGrid({
                     className={cn(
                       "flex w-full min-w-0 items-center gap-1 rounded border-l-2 px-1.5 py-0.5 text-left text-[11px] leading-tight",
                       BORDER_L_CLASS[r.type],
-                      CHIP_CLASS[r.type]
+                      CHIP_CLASS[r.type],
+                      dimClass(marks, r.id)
                     )}
                   >
                     <span className="shrink-0 tabular-nums opacity-80">
@@ -147,7 +171,10 @@ export function MonthGrid({
                       {/* Month cells have no resource lane either, and the stored title
                           is generic — lead with the aircraft so a day's chips are
                           distinguishable at a glance. */}
-                      {r.resource ? `${resourceLabel(r.resource).name} · ${r.title}` : r.title}
+                      {highlightMatch(
+                        r.resource ? `${resourceLabel(r.resource).name} · ${r.title}` : r.title,
+                        marks.query
+                      )}
                     </span>
                   </button>
                 ))}

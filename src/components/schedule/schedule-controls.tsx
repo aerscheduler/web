@@ -26,12 +26,20 @@ export function ScheduleControls({
   view,
   onViewChange,
   count,
+  matchCount,
 }: {
   day: Date;
   onDayChange: (d: Date) => void;
   view: ScheduleView;
   onViewChange: (v: ScheduleView) => void;
   count: number | null;
+  /**
+   * How many of `count` match the active block filters, or null when none are active.
+   *
+   * The board dims non-matches rather than dropping them, so without this the count would
+   * read "47 reservations" while only 12 are lit and give no hint that anything is filtered.
+   */
+  matchCount?: number | null;
 }) {
   const [calOpen, setCalOpen] = React.useState(false);
 
@@ -110,7 +118,16 @@ export function ScheduleControls({
       </Tabs>
 
       <div className={cn("ml-auto text-sm tabular-nums text-muted-foreground", count == null && "opacity-0")}>
-        {count ?? 0} reservation{count === 1 ? "" : "s"}
+        {matchCount != null ? (
+          <>
+            <span className="font-medium text-foreground">{matchCount}</span> of {count ?? 0}{" "}
+            matching
+          </>
+        ) : (
+          <>
+            {count ?? 0} reservation{count === 1 ? "" : "s"}
+          </>
+        )}
       </div>
     </div>
   );

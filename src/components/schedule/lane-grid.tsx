@@ -4,10 +4,12 @@ import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { highlightMatch } from "@/lib/highlight-match";
 import { hourLabel, hourWindow } from "./hours";
 import { BLOCK_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
+import { dimClass, preferredName, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
 
 const HOUR_WIDTH = 68; // px
@@ -66,6 +68,8 @@ export function LaneGrid({
   onDuplicate,
   onCancel,
   onCreate,
+  matchedIds,
+  query,
 }: {
   day: Date;
   resources: Resource[];
@@ -76,7 +80,15 @@ export function LaneGrid({
   onCancel: (r: Reservation) => void;
   /** Omitted for roles that may not create — the lanes then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
+  /**
+   * Block-filter marking. Non-matches are DIMMED, never removed — the lane geometry has to
+   * keep telling the truth about what's occupied, or a dispatcher books over a real flight
+   * because the filter made the slot look free. See `board-filters.ts`.
+   */
+  matchedIds?: Set<number> | null;
+  query?: string;
 }) {
+  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
   const tz = useTimeZone();
   const canCreate = onCreate != null;
   const byResource = new Map<number, Reservation[]>();
@@ -279,6 +291,7 @@ export function LaneGrid({
                           onEdit={onEdit}
                           onDuplicate={onDuplicate}
                           onCancel={onCancel}
+                          marks={marks}
                         />
                       </div>
                     );
@@ -299,16 +312,19 @@ function LaneBlock({
   onEdit,
   onDuplicate,
   onCancel,
+  marks,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
   onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
+  marks: BoardMarks;
 }) {
   //Per-reservation so a school with fields in two zones labels each block correctly.
   const tz = useTimeZone(r.location);
   const names = personnelNames(r);
+  const shownName = preferredName(names, marks.query);
   const timeRange = tz.range(r.start, r.end);
 
   return (
@@ -330,15 +346,16 @@ function LaneBlock({
           }}
           className={cn(
             "group flex h-full w-full items-center gap-1 overflow-hidden rounded-md border-l-2 border px-1.5 text-left shadow-sm",
-            BLOCK_CLASS[r.type]
+            BLOCK_CLASS[r.type],
+            dimClass(marks, r.id)
           )}
         >
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs font-semibold leading-tight text-foreground">
-              {r.title}
+              {highlightMatch(r.title, marks.query)}
             </div>
             <div className="truncate text-[11px] leading-tight opacity-80">
-              {names.length > 0 ? names[0] : typeLabel(r.type)}
+              {shownName ? highlightMatch(shownName, marks.query) : typeLabel(r.type)}
             </div>
           </div>
           <div

@@ -20,6 +20,11 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  SubmenuSearchBox,
+  optionMatches,
+  useSubmenuSearch,
+} from "@/components/submenu-search";
 import { asFacetStrings } from "@/lib/list-query-state";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +40,12 @@ export type SelectFacet = {
   kind: "select";
   key: string;
   label: string;
-  options: Array<{ value: string; label: string }>;
+  /**
+   * `hint` is secondary text shown muted beside the label — an aircraft's home field, a
+   * person's role. It is also SEARCHED, so typing an airport surfaces every aircraft based
+   * there even though no option is literally named after it.
+   */
+  options: Array<{ value: string; label: string; hint?: string }>;
   /** Label for the cleared / “any” choice. Ignored when `required`. */
   allLabel?: string;
   /** When true, omit the “any” choice — value is always one of `options`. */
@@ -259,89 +269,13 @@ export function ListFilters({
             }
 
             if (facet.kind === "select") {
-              if (facet.multiple) {
-                const selected = new Set(asFacetStrings(values[facet.key]));
-                return (
-                  <DropdownMenuSub key={facet.key}>
-                    <DropdownMenuSubTrigger>
-                      <span className="flex-1 truncate">{facet.label}</span>
-                      <span className="ml-2 max-w-24 truncate text-xs text-muted-foreground">
-                        {activeValueLabel(facet, values) ?? facet.allLabel ?? "Any"}
-                      </span>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="max-h-72 min-w-44 overflow-y-auto">
-                      {facet.options.map((o) => (
-                        <DropdownMenuCheckboxItem
-                          key={o.value}
-                          checked={selected.has(o.value)}
-                          onCheckedChange={(checked) =>
-                            onChange(
-                              toggleMultiValue(values, facet.key, o.value, checked === true)
-                            )
-                          }
-                          onSelect={(e) => e.preventDefault()}
-                        >
-                          {o.label}
-                        </DropdownMenuCheckboxItem>
-                      ))}
-                      {selected.size > 0 && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onSelect={(e) => {
-                              e.preventDefault();
-                              onChange(clearFacetValue(facet, values));
-                            }}
-                          >
-                            Clear {facet.label.toLowerCase()}
-                          </DropdownMenuItem>
-                        </>
-                      )}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                );
-              }
-
-              const current =
-                values[facet.key] !== undefined &&
-                values[facet.key] !== "" &&
-                !Array.isArray(values[facet.key])
-                  ? String(values[facet.key])
-                  : facet.required
-                    ? (facet.options[0]?.value ?? "all")
-                    : "all";
               return (
-                <DropdownMenuSub key={facet.key}>
-                  <DropdownMenuSubTrigger>
-                    <span className="flex-1 truncate">{facet.label}</span>
-                    <span className="ml-2 max-w-24 truncate text-xs text-muted-foreground">
-                      {activeValueLabel(facet, values) ?? "Any"}
-                    </span>
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="max-h-72 min-w-44 overflow-y-auto">
-                    <DropdownMenuRadioGroup
-                      value={current}
-                      onValueChange={(v) =>
-                        onChange({
-                          ...values,
-                          [facet.key]:
-                            !facet.required && v === "all" ? undefined : v,
-                        })
-                      }
-                    >
-                      {!facet.required && (
-                        <DropdownMenuRadioItem value="all">
-                          {facet.allLabel ?? "Any"}
-                        </DropdownMenuRadioItem>
-                      )}
-                      {facet.options.map((o) => (
-                        <DropdownMenuRadioItem key={o.value} value={o.value}>
-                          {o.label}
-                        </DropdownMenuRadioItem>
-                      ))}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
+                <SelectFacetSubmenu
+                  key={facet.key}
+                  facet={facet}
+                  values={values}
+                  onChange={onChange}
+                />
               );
             }
 
@@ -397,6 +331,160 @@ export function ListFilters({
         <FilterBadges chips={chips} values={values} onChange={onChange} facets={facets} />
       )}
     </div>
+  );
+}
+
+/**
+ * One facet's submenu, with a search box over its options.
+ *
+ * Its own component rather than inline in the `.map()` above because the query is per-facet
+ * state, and hooks can't be called from inside a loop.
+ *
+ * Every select facet gets the box, not just the long ones. A threshold would mean the
+ * control appears and disappears depending on how many aircraft a school owns, so the same
+ * menu behaves differently at two customers — and you can't build a habit on that.
+ */
+function SelectFacetSubmenu({
+  facet,
+  values,
+  onChange,
+}: {
+  facet: SelectFacet;
+  values: ListFilterValues;
+  onChange: (next: ListFilterValues) => void;
+}) {
+  // All the menu-keyboard repair lives in this hook — see its notes for why each piece
+  // is needed. Shared with the report filter menu so the two can't drift.
+  const search = useSubmenuSearch();
+  const visible = facet.options.filter((o) => optionMatches(o, search.query));
+
+  const searchBox = (
+    <SubmenuSearchBox
+      search={search}
+      placeholder={`Search ${facet.label.toLowerCase()}…`}
+      className="border-b-0"
+    />
+  );
+
+  const empty = (
+    <div className="px-2 py-3 text-center text-sm text-muted-foreground">No matches</div>
+  );
+
+  if (facet.multiple) {
+    const selected = new Set(asFacetStrings(values[facet.key]));
+    return (
+      <DropdownMenuSub onOpenChange={search.setOpen}>
+        <DropdownMenuSubTrigger onKeyDown={search.captureTyping}>
+          <span className="flex-1 truncate">{facet.label}</span>
+          <span className="ml-2 max-w-24 truncate text-xs text-muted-foreground">
+            {activeValueLabel(facet, values) ?? facet.allLabel ?? "Any"}
+          </span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent
+        ref={search.contentRef}
+        className="min-w-56"
+        onKeyDown={search.onContentKeyDown}
+      >
+          {searchBox}
+          <DropdownMenuSeparator />
+          <div className="max-h-64 overflow-y-auto">
+            {visible.length === 0
+              ? empty
+              : visible.map((o) => (
+                  <DropdownMenuCheckboxItem
+                    key={o.value}
+                    checked={selected.has(o.value)}
+                    onCheckedChange={(checked) =>
+                      onChange(toggleMultiValue(values, facet.key, o.value, checked === true))
+                    }
+                    onSelect={(e) => e.preventDefault()}
+                  >
+                    <span className="flex-1 truncate">{o.label}</span>
+                    {o.hint && (
+                      <span className="ml-2 shrink-0 text-xs text-muted-foreground">
+                        {o.hint}
+                      </span>
+                    )}
+                  </DropdownMenuCheckboxItem>
+                ))}
+          </div>
+          {selected.size > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  onChange(clearFacetValue(facet, values));
+                }}
+              >
+                Clear {facet.label.toLowerCase()}
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    );
+  }
+
+  const current =
+    values[facet.key] !== undefined &&
+    values[facet.key] !== "" &&
+    !Array.isArray(values[facet.key])
+      ? String(values[facet.key])
+      : facet.required
+        ? (facet.options[0]?.value ?? "all")
+        : "all";
+
+  // The "Any" row is a way to CLEAR the facet, not one of the things you're searching, so
+  // it drops out as soon as you type rather than sitting above the results as a near-match.
+  const showAny = !facet.required && !search.query.trim();
+
+  return (
+    <DropdownMenuSub onOpenChange={search.setOpen}>
+      <DropdownMenuSubTrigger onKeyDown={search.captureTyping}>
+        <span className="flex-1 truncate">{facet.label}</span>
+        <span className="ml-2 max-w-24 truncate text-xs text-muted-foreground">
+          {activeValueLabel(facet, values) ?? "Any"}
+        </span>
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent
+        ref={search.contentRef}
+        className="min-w-56"
+        onKeyDown={search.onContentKeyDown}
+      >
+        {searchBox}
+        <DropdownMenuSeparator />
+        <div className="max-h-64 overflow-y-auto">
+          {visible.length === 0 && !showAny ? (
+            empty
+          ) : (
+            <DropdownMenuRadioGroup
+              value={current}
+              onValueChange={(v) =>
+                onChange({
+                  ...values,
+                  [facet.key]: !facet.required && v === "all" ? undefined : v,
+                })
+              }
+            >
+              {showAny && (
+                <DropdownMenuRadioItem value="all">
+                  {facet.allLabel ?? "Any"}
+                </DropdownMenuRadioItem>
+              )}
+              {visible.map((o) => (
+                <DropdownMenuRadioItem key={o.value} value={o.value}>
+                  <span className="flex-1 truncate">{o.label}</span>
+                  {o.hint && (
+                    <span className="ml-2 shrink-0 text-xs text-muted-foreground">{o.hint}</span>
+                  )}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          )}
+        </div>
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }
 

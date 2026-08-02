@@ -179,18 +179,19 @@ export function ReportView({
           </p>
         </div>
 
-        {/* One row: the window on the left, what you're asking of it on the
-            right. The date basis sits UNDER the picker it qualifies rather than
-            beside it, so it reads as a caption instead of competing for the row. */}
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-          {/* What you're asking of the data — the window and how it's narrowed —
-              travels together on the left. What you do with the answer once you
-              have it is on the right. */}
-          <div className="flex min-w-0 flex-wrap items-start gap-2">
-            <div className="min-w-0">
-              <DateRangePicker value={range} onChange={setRange} />
-              <p className="mt-1 px-0.5 text-xs text-muted-foreground">by {report.dateBasis}</p>
-            </div>
+        {/* One row of controls: the window and how it's narrowed on the left, what you do
+            with the answer on the right. Every control is a direct child of that row so they
+            all align on it.
+
+            The date basis caption is NOT in this row. It used to sit in a wrapper with the
+            picker, which made that wrapper as wide as the LONGER of the two — so a lengthy
+            basis ("by close-out date") widened the box and shoved the Filters button away
+            from the picker. How far it moved depended on the report, which is why the
+            toolbar looked subtly different on each one. It gets its own line below instead,
+            where it can say anything without moving a control. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <DateRangePicker value={range} onChange={setRange} />
             <ReportViewMenu report={report} config={config} onChange={update} />
           </div>
 
@@ -215,6 +216,9 @@ export function ReportView({
             </Button>
           </div>
         </div>
+
+        {/* Still a caption for the picker above it — just on a line of its own. */}
+        <p className="px-0.5 text-xs text-muted-foreground">by {report.dateBasis}</p>
 
         <ActiveFilterChips
           report={report}

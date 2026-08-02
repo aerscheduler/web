@@ -16,6 +16,7 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { DOT_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { CloseOutSection } from "./close-out-section";
+import { ReservationAudit } from "./reservation-audit";
 import { canCancelReservation, canEditReservation } from "./close-out";
 import { formatTimeInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
@@ -127,6 +128,11 @@ export function ReservationDetailSheet({
               )}
 
               <CloseOutSection reservation={r} />
+
+              {/* Last, and always rendered — including on a cancelled booking, where
+                  CloseOutSection bails out entirely and this is the only thing left
+                  that explains what happened to it. */}
+              <ReservationAudit reservation={r} />
             </div>
 
             {(canEdit || canCancel) && (

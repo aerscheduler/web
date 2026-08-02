@@ -2,8 +2,12 @@ import { resourceLabel, type Reservation } from "@/types/api";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTimeZone } from "@/lib/use-timezone";
+import { highlightMatch } from "@/lib/highlight-match";
 import { BORDER_L_CLASS, personnelNames, typeLabel } from "./meta";
 import { ReservationMenu } from "./reservation-menu";
+import { dimClass, type BoardMarks } from "./board-filters";
+
+const NO_MARKS: BoardMarks = { matchedIds: null, query: "" };
 
 /**
  * A single reservation row for the vertical agenda lists (mobile day view and
@@ -15,12 +19,15 @@ export function AgendaRow({
   onEdit,
   onDuplicate,
   onCancel,
+  marks = NO_MARKS,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
   onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
+  /** Block-filter marking. Defaults to "nothing filtered" for the member-facing lists. */
+  marks?: BoardMarks;
 }) {
   const tz = useTimeZone();
   const res = r.resource ? resourceLabel(r.resource) : null;
@@ -30,7 +37,8 @@ export function AgendaRow({
     <li
       className={cn(
         "flex items-stretch gap-3 rounded-lg border border-l-4 border-border bg-card p-3 text-left transition-colors hover:bg-accent/40",
-        BORDER_L_CLASS[r.type]
+        BORDER_L_CLASS[r.type],
+        dimClass(marks, r.id)
       )}
     >
       <button
@@ -39,7 +47,7 @@ export function AgendaRow({
         className="min-w-0 flex-1 text-left focus:outline-none"
       >
         <div className="flex items-center gap-2">
-          <span className="truncate font-medium">{r.title}</span>
+          <span className="truncate font-medium">{highlightMatch(r.title, marks.query)}</span>
           <Badge variant="outline" className="shrink-0">
             {typeLabel(r.type)}
           </Badge>
@@ -48,9 +56,16 @@ export function AgendaRow({
           {tz.range(r.start, r.end)}
         </div>
         <div className="mt-0.5 truncate text-sm text-muted-foreground">
-          {res ? res.name : "Unassigned"}
-          {names.length > 0 ? ` · ${names.slice(0, 2).join(", ")}` : ""}
-          {names.length > 2 ? ` +${names.length - 2}` : ""}
+          {highlightMatch(
+            [
+              res ? res.name : "Unassigned",
+              names.slice(0, 2).join(", "),
+              names.length > 2 ? `+${names.length - 2}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            marks.query
+          )}
         </div>
       </button>
       <div className="flex flex-col items-end justify-between">

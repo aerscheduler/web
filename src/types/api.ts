@@ -273,7 +273,16 @@ export type ReservationType =
 export interface Reservation {
   id: number;
   createdAt: string;
+  /** Last change of any kind — rescheduling, personnel, notes. */
+  updatedAt?: string;
   cancelledAt: string | null;
+  /** Free text the canceller typed, and the fixed category they picked. */
+  cancellationReason?: string | null;
+  cancellationCategory?: string | null;
+  /** Who booked it. The nested relation survives the FK_* response strip. */
+  createdBy?: OrganizationUser | null;
+  /** Who cancelled it. Only meaningful alongside `cancelledAt`. */
+  cancelledBy?: OrganizationUser | null;
   title: string;
   type: ReservationType;
   start: string;
@@ -321,12 +330,28 @@ export interface ReservationReview {
   tachTimeOut: number | null;
   tachTimeIn: number | null;
   comments?: string[];
+  /**
+   * When the aircraft actually left and came back — the times, as opposed to the meter
+   * readings above. Null on anything ramped before these columns shipped (2026-08-02),
+   * and `rampedInAt` is null on a flight that is still out.
+   *
+   * Not interchangeable with `createdAt`/`updatedAt`: the review row is created with the
+   * reservation, so `createdAt` is booking time, and `updatedAt` moves on every later
+   * correction and sign-off.
+   */
+  rampedOutAt?: string | null;
+  rampedInAt?: string | null;
+  /** Row lifecycle — `createdAt` is when the booking was made, not when it flew. */
+  createdAt?: string;
+  updatedAt?: string;
   /** One row per pilot who has signed off; length === personnel count ⇒ fully reviewed. */
   reviewConfirmations?: ReservationReviewConfirmation[];
 }
 
 export interface ReservationReviewConfirmation {
   id: number;
+  /** When this pilot signed off. */
+  createdAt?: string;
   reviewedBy?: OrganizationUser;
 }
 

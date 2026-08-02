@@ -1,6 +1,7 @@
 import { format, isToday, parseISO } from "date-fns";
 import type { Reservation } from "@/types/api";
 import { AgendaRow } from "./agenda-row";
+import type { BoardMarks } from "./board-filters";
 
 type DayGroup = { date: Date; items: Reservation[] };
 
@@ -13,12 +14,18 @@ export function MonthAgenda({
   onView,
   onEdit,
   onCancel,
+  matchedIds,
+  query,
 }: {
   reservations: Reservation[];
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
+  /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
+  matchedIds?: Set<number> | null;
+  query?: string;
 }) {
+  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
   const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
   const groups = new Map<string, DayGroup>();
   for (const r of sorted) {
@@ -47,7 +54,14 @@ export function MonthAgenda({
           </div>
           <ul className="space-y-2 px-3">
             {items.map((r) => (
-              <AgendaRow key={r.id} r={r} onView={onView} onEdit={onEdit} onCancel={onCancel} />
+              <AgendaRow
+                key={r.id}
+                r={r}
+                onView={onView}
+                onEdit={onEdit}
+                onCancel={onCancel}
+                marks={marks}
+              />
             ))}
           </ul>
         </div>

@@ -22,8 +22,8 @@
  * you cannot see is a filter you forget you set.
  */
 
-import { useState, type KeyboardEvent, type ReactNode } from "react";
-import { Group, ListFilter, RotateCcw, Search, X } from "lucide-react";
+import { type ReactNode } from "react";
+import { Group, ListFilter, RotateCcw, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,6 +42,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatReportValue } from "@/lib/report-format";
+import {
+  SubmenuSearchBox,
+  optionMatches,
+  stopMenuTypeahead,
+  useSubmenuSearch,
+  type SubmenuSearch,
+} from "@/components/submenu-search";
 import type {
   ReportColumn,
   ReportConfig,
@@ -58,9 +65,6 @@ const NO_GROUP = "__none__";
 const NO_VALUE: ReportFilterOperator[] = ["isNull", "isNotNull"];
 const MULTI_VALUE: ReportFilterOperator[] = ["in", "notIn"];
 
-/** Below this a search box is more chrome than help. */
-const SEARCHABLE_FROM = 8;
-
 /** Short forms for the chip and the submenu trigger, where the row is the field. */
 const OPERATOR_SHORT: Partial<Record<ReportFilterOperator, string>> = {
   ne: "not",
@@ -74,25 +78,25 @@ const OPERATOR_SHORT: Partial<Record<ReportFilterOperator, string>> = {
 };
 
 /**
- * Keep a text box inside a menu usable.
- *
- * A menu treats every keystroke as typeahead and jumps focus to whatever item
- * starts with that letter, so an unguarded input loses focus on the first
- * character. Escape (close) and the arrow keys (walk into the list below) are
- * still the menu's to handle.
- */
-function typingStaysInTheBox(e: KeyboardEvent) {
-  if (e.key === "Escape" || e.key === "ArrowDown" || e.key === "ArrowUp") return;
-  e.stopPropagation();
-}
-
-/**
  * A submenu laid out as a box rather than a list: whatever is put after the
  * scrolling middle stays on screen no matter how long the choices are.
  */
-function SubmenuBox({ children, className }: { children: ReactNode; className?: string }) {
+function SubmenuBox({
+  children,
+  className,
+  contentRef,
+  onKeyDown,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** From `useSubmenuSearch` — lets the search box find the option rows to move focus to. */
+  contentRef?: React.RefObject<HTMLDivElement | null>;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+}) {
   return (
     <DropdownMenuSubContent
+      ref={contentRef}
+      onKeyDown={onKeyDown}
       className={"flex max-h-[24rem] w-64 flex-col p-0 " + (className ?? "")}
     >
       {children}
@@ -103,35 +107,6 @@ function SubmenuBox({ children, className }: { children: ReactNode; className?: 
 /** The part that scrolls. Everything outside it is pinned. */
 function SubmenuList({ children }: { children: ReactNode }) {
   return <div className="min-h-0 flex-1 overflow-y-auto p-1">{children}</div>;
-}
-
-function SubmenuSearch({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder: string;
-}) {
-  return (
-    <div className="shrink-0 border-b border-border p-1" onKeyDown={typingStaysInTheBox}>
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          aria-label={placeholder}
-          className="h-8 border-none pl-7 shadow-none focus-visible:ring-0"
-        />
-      </div>
-    </div>
-  );
-}
-
-function matches(label: string, query: string) {
-  return label.toLowerCase().includes(query.trim().toLowerCase());
 }
 
 function operatorOf(def: ReportFilterDef, filter: ReportFilterInput | undefined) {
@@ -176,7 +151,14 @@ export function summarizeFilter(
   return prefix ? `${prefix} ${label(filter.value)}` : label(filter.value);
 }
 
-/** The choices themselves — searchable once there are enough to hunt through. */
+/**
+ * The choices themselves — always searchable.
+ *
+ * There used to be a `>= 8 options` threshold, which meant the box appeared on Aircraft at
+ * one school and not at another, and never on short lists like Type or Status. A control that
+ * comes and goes with the size of somebody's fleet is one you can't build a habit on, so every
+ * field gets it.
+ */
 function OptionList({
   options,
   multi,
@@ -184,6 +166,7 @@ function OptionList({
   onToggle,
   onPick,
   searchPlaceholder,
+  search,
 }: {
   options: { value: string; label: string }[];
   multi: boolean;
@@ -193,15 +176,14 @@ function OptionList({
   /** Single-select: this is now the value. */
   onPick: (value: string) => void;
   searchPlaceholder: string;
+  /** Owned by the parent submenu, which wires the trigger and content handlers. */
+  search: SubmenuSearch;
 }) {
-  const [query, setQuery] = useState("");
-  const shown = query.trim() ? options.filter((o) => matches(o.label, query)) : options;
+  const shown = options.filter((o) => optionMatches(o, search.query));
 
   return (
     <>
-      {options.length >= SEARCHABLE_FROM && (
-        <SubmenuSearch value={query} onChange={setQuery} placeholder={searchPlaceholder} />
-      )}
+      <SubmenuSearchBox search={search} placeholder={searchPlaceholder} />
       <SubmenuList>
         {options.length === 0 ? (
           <p className="px-2 py-1.5 text-sm text-muted-foreground">Nothing to choose from yet.</p>
@@ -277,21 +259,26 @@ function FilterSubmenu({
 
   const put = (value: unknown) => onChange({ key: def.key, operator, value });
 
+  // Shared with the list-page filter menu — see `submenu-search.tsx` for the four separate
+  // things Radix breaks about putting a text box inside a menu.
+  const search = useSubmenuSearch();
+
   return (
-    <DropdownMenuSub>
-      <DropdownMenuSubTrigger>
+    <DropdownMenuSub onOpenChange={search.setOpen}>
+      <DropdownMenuSubTrigger onKeyDown={search.captureTyping}>
         <span className="flex-1 truncate">{def.label}</span>
         <span className="ml-2 max-w-28 truncate text-xs text-muted-foreground">
           {summary ?? "Any"}
         </span>
       </DropdownMenuSubTrigger>
 
-      <SubmenuBox>
+      <SubmenuBox contentRef={search.contentRef} onKeyDown={search.onContentKeyDown}>
         {takesValue && def.options && (
           <OptionList
             options={def.options}
             multi={isMulti}
             selected={selected}
+            search={search}
             searchPlaceholder={`Search ${def.label.toLowerCase()}…`}
             onToggle={(value, checked) => {
               const next = new Set(selected);
@@ -312,7 +299,7 @@ function FilterSubmenu({
             </p>
             <div
               className="flex items-center gap-1.5 px-2 pb-1"
-              onKeyDown={typingStaysInTheBox}
+              onKeyDown={stopMenuTypeahead}
             >
               {operator === "between" ? (
                 [0, 1].map((i) => (
@@ -405,9 +392,9 @@ function ColumnsSubmenu({
   selected: string[];
   onChange: (keys: string[]) => void;
 }) {
-  const [query, setQuery] = useState("");
+  const search = useSubmenuSearch();
   const chosen = new Set(selected);
-  const shown = query.trim() ? columns.filter((c) => matches(c.label, query)) : columns;
+  const shown = columns.filter((c) => optionMatches(c, search.query));
 
   const defaults = columns.filter((c) => c.default !== false).map((c) => c.key);
   const isDefault = selected.length === defaults.length && defaults.every((k) => chosen.has(k));
@@ -424,10 +411,8 @@ function ColumnsSubmenu({
   };
 
   return (
-    <SubmenuBox>
-      {columns.length >= SEARCHABLE_FROM && (
-        <SubmenuSearch value={query} onChange={setQuery} placeholder="Search columns…" />
-      )}
+    <SubmenuBox contentRef={search.contentRef} onKeyDown={search.onContentKeyDown}>
+      <SubmenuSearchBox search={search} placeholder="Search columns…" />
       <SubmenuList>
         {shown.length === 0 ? (
           <p className="px-2 py-1.5 text-sm text-muted-foreground">No matches.</p>

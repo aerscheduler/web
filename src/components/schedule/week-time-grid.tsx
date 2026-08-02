@@ -4,9 +4,11 @@ import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { highlightMatch } from "@/lib/highlight-match";
 import { hourLabel, hourWindow } from "./hours";
 import { BLOCK_CLASS, personnelNames, typeLabel } from "./meta";
 import { packTracks } from "./pack";
+import { dimClass, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
 
 const HOUR_HEIGHT = 48; // px per hour
@@ -46,6 +48,8 @@ export function WeekTimeGrid({
   onView,
   onCreate,
   onSelectDay,
+  matchedIds,
+  query,
 }: {
   weekStart: Date;
   reservations: Reservation[];
@@ -53,7 +57,11 @@ export function WeekTimeGrid({
   /** Omitted for roles that may not create — the columns then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
   onSelectDay: (day: Date) => void;
+  /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
+  matchedIds?: Set<number> | null;
+  query?: string;
 }) {
+  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
   const tz = useTimeZone();
   const canCreate = onCreate != null;
   const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
@@ -186,7 +194,7 @@ export function WeekTimeGrid({
                       width: `calc(${(100 / tracks).toFixed(4)}% - 2px)`,
                     }}
                   >
-                    <WeekBlock r={r} onView={onView} />
+                    <WeekBlock r={r} onView={onView} marks={marks} />
                   </div>
                 );
               })}
@@ -198,7 +206,15 @@ export function WeekTimeGrid({
   );
 }
 
-function WeekBlock({ r, onView }: { r: Reservation; onView: (r: Reservation) => void }) {
+function WeekBlock({
+  r,
+  onView,
+  marks,
+}: {
+  r: Reservation;
+  onView: (r: Reservation) => void;
+  marks: BoardMarks;
+}) {
   const tz = useTimeZone(r.location);
   const names = personnelNames(r);
   const timeRange = tz.range(r.start, r.end);
@@ -221,11 +237,12 @@ function WeekBlock({ r, onView }: { r: Reservation; onView: (r: Reservation) => 
           }}
           className={cn(
             "flex h-full w-full flex-col overflow-hidden rounded-md border border-l-2 px-1.5 py-0.5 text-left shadow-sm",
-            BLOCK_CLASS[r.type]
+            BLOCK_CLASS[r.type],
+            dimClass(marks, r.id)
           )}
         >
           <span className="truncate text-[11px] font-semibold leading-tight text-foreground">
-            {aircraft ? `${aircraft} · ${r.title}` : r.title}
+            {highlightMatch(aircraft ? `${aircraft} · ${r.title}` : r.title, marks.query)}
           </span>
           <span className="truncate text-[10px] leading-tight opacity-80 tabular-nums">
             {tz.time(r.start)}

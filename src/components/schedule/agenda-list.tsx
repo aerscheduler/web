@@ -2,6 +2,7 @@ import { wallClockInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import type { Reservation } from "@/types/api";
 import { AgendaRow } from "./agenda-row";
+import type { BoardMarks } from "./board-filters";
 
 /** Mobile / narrow layout: a vertical agenda grouped by hour. */
 /**
@@ -22,13 +23,19 @@ export function AgendaList({
   onEdit,
   onDuplicate,
   onCancel,
+  matchedIds,
+  query,
 }: {
   reservations: Reservation[];
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
   onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
+  /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
+  matchedIds?: Set<number> | null;
+  query?: string;
 }) {
+  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
   const tz = useTimeZone();
   const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
   const groups = new Map<string, Reservation[]>();
@@ -64,6 +71,7 @@ export function AgendaList({
                 onEdit={onEdit}
                 onDuplicate={onDuplicate}
                 onCancel={onCancel}
+                marks={marks}
               />
             ))}
           </ul>

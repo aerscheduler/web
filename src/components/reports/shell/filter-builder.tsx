@@ -19,10 +19,8 @@
 import { useState } from "react";
 import { Filter, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -30,6 +28,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Combobox, MultiCombobox } from "@/components/combobox";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import type { ReportFilterDef, ReportFilterInput, ReportFilterOperator } from "@/types/reports";
 import { formatReportValue } from "@/lib/report-format";
 
@@ -133,63 +140,24 @@ function FilterRow({
       </Select>
 
       {needsValue && isMulti && def.options && (
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="h-7 max-w-[16rem] justify-start text-sm">
-              <span className="truncate">
-                {selected.size === 0
-                  ? "Choose…"
-                  : selected.size === 1
-                    ? (def.options.find((o) => selected.has(o.value))?.label ?? `${selected.size}`)
-                    : `${selected.size} selected`}
-              </span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-64 p-0">
-            <ScrollArea className="max-h-72">
-              <div className="space-y-0.5 p-2">
-                {def.options.length === 0 && (
-                  <p className="px-2 py-1.5 text-sm text-muted-foreground">Nothing to choose from yet.</p>
-                )}
-                {def.options.map((option) => (
-                  <label
-                    key={option.value}
-                    className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
-                  >
-                    <Checkbox
-                      checked={selected.has(option.value)}
-                      onCheckedChange={() => {
-                        const next = new Set(selected);
-                        if (next.has(option.value)) next.delete(option.value);
-                        else next.add(option.value);
-                        onChange({ ...filter, value: [...next] });
-                      }}
-                    />
-                    <span className="truncate">{option.label}</span>
-                  </label>
-                ))}
-              </div>
-            </ScrollArea>
-          </PopoverContent>
-        </Popover>
+        <MultiCombobox
+          options={def.options}
+          values={[...selected]}
+          onChange={(next) => onChange({ ...filter, value: next })}
+          searchPlaceholder={`Search ${def.label.toLowerCase()}…`}
+          emptyText={def.options.length === 0 ? "Nothing to choose from yet." : "No matches."}
+        />
       )}
 
       {needsValue && !isMulti && def.options && (
-        <Select
-          value={filter.value != null ? String(filter.value) : ""}
-          onValueChange={(value) => onChange({ ...filter, value })}
-        >
-          <SelectTrigger className="h-7 w-auto min-w-[9rem] text-sm">
-            <SelectValue placeholder="Choose…" />
-          </SelectTrigger>
-          <SelectContent>
-            {def.options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <Combobox
+          options={def.options}
+          value={filter.value != null ? String(filter.value) : undefined}
+          onChange={(value) => onChange({ ...filter, value })}
+          placeholder="Choose…"
+          searchPlaceholder={`Search ${def.label.toLowerCase()}…`}
+          className="h-7 w-auto min-w-[9rem] text-sm"
+        />
       )}
 
       {needsValue && !def.options && !isBetween && (
@@ -290,26 +258,34 @@ export function FilterBuilder({
             {usable.length === 0 ? "Add a filter" : "And…"}
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-64 p-0">
-          <ScrollArea className="max-h-80">
-            <div className="p-1">
-              {definitions.map((def) => (
-                <button
-                  key={def.key}
-                  type="button"
-                  onClick={() => add(def.key)}
-                  className="block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
-                >
-                  <span className="block leading-tight">{def.label}</span>
-                  {def.description && (
-                    <span className="block text-xs leading-snug text-muted-foreground">
-                      {def.description}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </ScrollArea>
+        <PopoverContent align="start" className="w-72 p-0">
+          {/* Command rather than a plain list so this is searchable and arrow-navigable —
+              a report with thirty filterable fields is otherwise a scroll hunt. The
+              description is searched too, since people look for "the one about no-shows"
+              more often than they remember what the column is called. */}
+          <Command>
+            <CommandInput placeholder="Search filters…" />
+            <CommandList>
+              <CommandEmpty>No matches.</CommandEmpty>
+              <CommandGroup>
+                {definitions.map((def) => (
+                  <CommandItem
+                    key={def.key}
+                    value={`${def.label} ${def.description ?? ""}`}
+                    onSelect={() => add(def.key)}
+                    className="flex-col items-start gap-0"
+                  >
+                    <span className="leading-tight">{def.label}</span>
+                    {def.description && (
+                      <span className="text-xs leading-snug text-muted-foreground">
+                        {def.description}
+                      </span>
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
         </PopoverContent>
       </Popover>
     </div>

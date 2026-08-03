@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth";
+import { shortcutLabel } from "@/lib/platform";
 import { canAccess } from "@/lib/permissions";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -585,7 +586,7 @@ export function CommandMenuSearch() {
             ) : (
               !open && (
                 <kbd className="pointer-events-none hidden select-none items-center rounded bg-card px-1.5 font-mono text-[10px] font-medium text-muted-foreground shadow-sm sm:flex">
-                  ⌘K
+                  {shortcutLabel("K")}
                 </kbd>
               )
             )}

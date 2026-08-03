@@ -96,22 +96,30 @@ function OperationsGroup({
   orgId: number | null;
 }) {
   const reorder = useReorder(items, (order) => setNavOrder(orgId, order));
-  const [openMore, setOpenMore] = React.useState(false);
   const listRef = useFlipRows<HTMLUListElement>(reorder.dragKey);
-  // Opens More when you navigate to a page under it; does not re-force open on
-  // reorder or after you've closed it on the same path.
-  const openedForPath = React.useRef<string | null>(null);
 
   const { list, dragging } = reorder;
 
-  React.useEffect(() => {
-    if (openedForPath.current === pathname) return;
-    openedForPath.current = pathname;
-    const underMore = items
-      .slice(NAV_VISIBLE_COUNT)
-      .some((i) => isNavItemActive(i.to, pathname));
-    if (underMore) setOpenMore(true);
-  }, [pathname, items]);
+  /** Is the page we're on one of the ones hidden under More? */
+  const activeUnderMore = list
+    .slice(NAV_VISIBLE_COUNT)
+    .some((i) => isNavItemActive(i.to, pathname));
+
+  // Opens More when you navigate to a page under it; does not re-force open on
+  // reorder or after you've closed it on the same path.
+  //
+  // Adjusted DURING RENDER rather than in an effect, which is the whole point:
+  // an effect runs after paint, so landing on a page under More painted the
+  // collapsed rail first and then popped seven rows in — the nav visibly
+  // reassembling itself a frame after the page had already arrived. Setting
+  // state while rendering makes React re-run this component before it commits
+  // anything to the DOM, so the first paint already has the rows.
+  const [openMore, setOpenMore] = React.useState(activeUnderMore);
+  const [renderedPath, setRenderedPath] = React.useState(pathname);
+  if (renderedPath !== pathname) {
+    setRenderedPath(pathname);
+    if (activeUnderMore && !openMore) setOpenMore(true);
+  }
 
   if (list.length === 0) return null;
 

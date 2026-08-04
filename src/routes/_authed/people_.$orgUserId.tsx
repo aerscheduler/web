@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth";
 import { personViewAccess } from "@/lib/permissions";
 import { formatDate, initials } from "@/lib/utils";
 import { formatPhone } from "@/lib/phone";
-import { EmptyState, ErrorState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,8 @@ import {
   KeyValue,
   KeyValueList,
   MetaItem,
+  RecordNotFound,
+  isMissingRecord,
   useDetailTitle,
 } from "@/components/detail/detail-page";
 import { useDetailRange } from "@/components/detail/use-detail-range";
@@ -76,26 +78,39 @@ function PersonPage() {
   const isSelf = ou != null && viewerOrgUserId != null && ou.id === viewerOrgUserId;
   const access = personViewAccess(roles, isSelf);
 
-  if (!Number.isFinite(id)) {
+  // A bad id, someone in another organization, and a removed member all land
+  // here. The server answers 403 rather than 404 — it can't say "no such
+  // member" without confirming that member exists somewhere — so surfacing it
+  // verbatim would tell a person who mistyped a URL that they aren't
+  // authorized. This says the one true thing, and offers the way back.
+  const missing =
+    !Number.isFinite(id) ||
+    isMissingRecord(q.error) ||
+    // Nothing in flight and nothing to show. Any state that isn't "still
+    // asking" and isn't a record is this page's not-found, whatever React
+    // Query calls it internally.
+    (!q.isLoading && !q.isError && ou == null);
+
+  if (missing) {
     return (
       <PageFrame>
-        <Card>
-          <EmptyState
-            icon={UserRound}
-            title="No such member"
-            body="That link doesn't point at anyone in this organization."
-            action={
-              <Button asChild>
-                <Link to="/people">Back to People</Link>
-              </Button>
-            }
-          />
-        </Card>
+        <RecordNotFound
+          icon={UserRound}
+          title="Member not found"
+          body="That link doesn't point at anyone in this organization — they may have been removed."
+          backTo="/people"
+          backLabel="Back to People"
+        />
       </PageFrame>
     );
   }
 
-  if (q.isPending) {
+  // `isLoading`, not `isPending`: in React Query v5 `isPending` means "no data",
+  // which stays true for a query that has finished and has nothing to show —
+  // so a skeleton keyed on it can outlive the answer and spin forever. This
+  // page reproduced exactly that on a bad id. `isLoading` is `isPending &&
+  // isFetching`, i.e. a request is genuinely in flight.
+  if (q.isLoading) {
     return (
       <PageFrame>
         <div className="flex items-center gap-4">
@@ -114,30 +129,11 @@ function PersonPage() {
     );
   }
 
-  if (q.isError) {
+  if (q.isError || !ou) {
     return (
       <PageFrame>
         <Card>
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        </Card>
-      </PageFrame>
-    );
-  }
-
-  if (!ou) {
-    return (
-      <PageFrame>
-        <Card>
-          <EmptyState
-            icon={UserRound}
-            title="Member not found"
-            body="They may have been removed from this organization."
-            action={
-              <Button asChild>
-                <Link to="/people">Back to People</Link>
-              </Button>
-            }
-          />
         </Card>
       </PageFrame>
     );

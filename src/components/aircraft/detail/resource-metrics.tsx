@@ -8,7 +8,7 @@ import {
   hoursValue,
   moneyValue,
 } from "@/components/detail/metric-tile";
-import { ActivityBars } from "@/components/detail/activity-bars";
+import { ActivityBars, activityGranularity } from "@/components/detail/activity-bars";
 import {
   seriesPoints,
   sumSeries,
@@ -57,6 +57,7 @@ export function ResourceMetrics({
   const hours = sumSeries(flightTime.data);
   const flights = sumSeries(completed.data);
   const openSquawks = squawks.data;
+  const points = seriesPoints(flightTime.data);
 
   return (
     <div className="space-y-4">
@@ -119,7 +120,11 @@ export function ResourceMetrics({
 
       <DetailCard
         title="Utilization"
-        description="Hobbs hours per day. Gaps are days it didn't fly."
+        description={
+          activityGranularity(points.length) === "week"
+            ? "Hobbs hours per week. Gaps are weeks it didn't fly."
+            : "Hobbs hours per day. Gaps are days it didn't fly."
+        }
       >
         {flightTime.isError ? (
           <p className="py-1 text-[13px] text-muted-foreground">
@@ -127,7 +132,7 @@ export function ResourceMetrics({
           </p>
         ) : (
           <ActivityBars
-            points={seriesPoints(flightTime.data)}
+            points={points}
             formatValue={(count) => hoursValue(count)}
             emptyLabel="This aircraft didn't fly in this window."
           />

@@ -37,11 +37,13 @@ import {
   KeyValue,
   KeyValueList,
   MetaItem,
+  RecordNotFound,
+  isMissingRecord,
   useDetailTitle,
 } from "@/components/detail/detail-page";
 import { useDetailRange } from "@/components/detail/use-detail-range";
 import { useConfirm } from "@/components/confirm-dialog";
-import { EmptyState, ErrorState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,26 +72,38 @@ function AircraftDetailPage() {
   const q = useResource(Number.isFinite(id) ? id : null);
   const resource = q.data ?? null;
 
-  if (!Number.isFinite(id)) {
+  // A bad id, an id from another organization, and an id that has been deleted
+  // all land here. The server can't distinguish them for us without confirming
+  // records exist outside your org, so the page says the one true thing: it
+  // isn't here, and here's the way back.
+  const missing =
+    !Number.isFinite(id) ||
+    isMissingRecord(q.error) ||
+    // Nothing in flight and nothing to show. Any state that isn't "still
+    // asking" and isn't a record is this page's not-found, whatever React
+    // Query calls it internally.
+    (!q.isLoading && !q.isError && resource == null);
+
+  if (missing) {
     return (
       <PageFrame>
-        <Card>
-          <EmptyState
-            icon={PlaneTakeoff}
-            title="No such aircraft"
-            body="That link doesn't point at anything in this fleet."
-            action={
-              <Button asChild>
-                <Link to="/aircraft">Back to Aircraft</Link>
-              </Button>
-            }
-          />
-        </Card>
+        <RecordNotFound
+          icon={PlaneTakeoff}
+          title="Aircraft not found"
+          body="That link doesn't point at anything in this fleet — it may have been removed."
+          backTo="/aircraft"
+          backLabel="Back to Aircraft"
+        />
       </PageFrame>
     );
   }
 
-  if (q.isPending) {
+  // `isLoading`, not `isPending`: in React Query v5 `isPending` means "no data",
+  // which stays true for a query that has finished and has nothing to show —
+  // so a skeleton keyed on it can outlive the answer and spin forever. This
+  // page reproduced exactly that on a bad id. `isLoading` is `isPending &&
+  // isFetching`, i.e. a request is genuinely in flight.
+  if (q.isLoading) {
     return (
       <PageFrame>
         <div className="flex items-center gap-4">
@@ -108,30 +122,29 @@ function AircraftDetailPage() {
     );
   }
 
-  if (q.isError) {
+  // This page is the AIRCRAFT page — its copy says "didn't fly", its Edit opens
+  // the aircraft form, and its back link goes to the fleet. A simulator or a
+  // classroom reached by URL used to render inside all of that, which put the
+  // plane form on a sim. Facilities is where those live.
+  if (resource && !resource.type?.plane) {
     return (
       <PageFrame>
-        <Card>
-          <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        </Card>
+        <RecordNotFound
+          icon={PlaneTakeoff}
+          title={`${resourceKindLabel(resource)} — not an aircraft`}
+          body="Simulators and ground-school rooms are managed under Facilities."
+          backTo="/facilities"
+          backLabel="Go to Facilities"
+        />
       </PageFrame>
     );
   }
 
-  if (!resource) {
+  if (q.isError || !resource) {
     return (
       <PageFrame>
         <Card>
-          <EmptyState
-            icon={PlaneTakeoff}
-            title="Aircraft not found"
-            body="It may have been removed from this organization's fleet."
-            action={
-              <Button asChild>
-                <Link to="/aircraft">Back to Aircraft</Link>
-              </Button>
-            }
-          />
+          <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
       </PageFrame>
     );

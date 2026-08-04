@@ -16,6 +16,20 @@ import { cn } from "@/lib/utils";
  * day with nothing in it is drawn as an empty slot rather than being closed up,
  * so a two-week gap in someone's flying is visible as a gap.
  */
+/**
+ * Past this many points a daily bar is too thin to see.
+ *
+ * At a year's width each day gets about 2px, and `gap-px` eats a third of the
+ * chart — so a school that flew on one day of the year got a 2px sliver in a
+ * 1,100px field and read the chart as empty. Beyond this the bars are weekly
+ * totals, which is both legible and the honest summary of a long window.
+ */
+const MAX_DAILY_POINTS = 120;
+
+/** Whether a series of this length will be drawn as days or as weekly totals. */
+export const activityGranularity = (pointCount: number): "day" | "week" =>
+  pointCount > MAX_DAILY_POINTS ? "week" : "day";
+
 export function ActivityBars({
   points,
   /** Formats the accessible value on each bar, e.g. deci-hours to "1.4 h". */
@@ -28,28 +42,33 @@ export function ActivityBars({
   emptyLabel?: string;
   className?: string;
 }) {
+  const weekly = points.length > MAX_DAILY_POINTS;
+  const shown = useMemo(
+    () => (weekly ? bucketWeekly(points) : points),
+    [points, weekly]
+  );
   const max = useMemo(
-    () => points.reduce((m, p) => (p.count > m ? p.count : m), 0),
-    [points]
+    () => shown.reduce((m, p) => (p.count > m ? p.count : m), 0),
+    [shown]
   );
 
-  if (points.length === 0 || max <= 0) {
+  if (shown.length === 0 || max <= 0) {
     return <p className="py-1 text-[13px] text-muted-foreground">{emptyLabel}</p>;
   }
 
-  const first = points[0]!;
-  const last = points[points.length - 1]!;
+  const first = shown[0]!;
+  const last = shown[shown.length - 1]!;
 
   return (
     <div className={cn("select-none", className)}>
-      <div className="flex h-20 items-end gap-px" role="img" aria-label={ariaSummary(points, formatValue)}>
-        {points.map((p) => {
+      <div className="flex h-20 items-end gap-px" role="img" aria-label={ariaSummary(shown, formatValue, weekly)}>
+        {shown.map((p) => {
           const pct = (p.count / max) * 100;
           return (
             <div
               key={p.date}
               className="group relative flex h-full flex-1 items-end"
-              title={`${safeDay(p.date)} · ${formatValue(p.count)}`}
+              title={`${weekly ? `Week of ${safeDay(p.date)}` : safeDay(p.date)} · ${formatValue(p.count)}`}
             >
               <div
                 className={cn(
@@ -67,8 +86,11 @@ export function ActivityBars({
           );
         })}
       </div>
-      <div className="mt-1.5 flex justify-between text-[11px] tabular-nums text-muted-foreground">
+      <div className="mt-1.5 flex items-center justify-between text-[11px] tabular-nums text-muted-foreground">
         <span>{safeDay(first.date)}</span>
+        {/* Says which unit a bar is, so a long window can't be misread as a
+            sudden collapse in daily activity. */}
+        {weekly && <span className="tracking-normal">weekly totals</span>}
         <span>{safeDay(last.date)}</span>
       </div>
     </div>
@@ -83,9 +105,33 @@ function safeDay(iso: string): string {
   }
 }
 
+/**
+ * Sum a daily series into calendar weeks, keyed by the first day present in each.
+ *
+ * Buckets by 7-day blocks from the start of the window rather than by ISO week,
+ * so the first and last labels stay the window's own edges — the chart is read
+ * against the range you picked, not against a calendar.
+ */
+function bucketWeekly(points: DailyCount[]): DailyCount[] {
+  const out: DailyCount[] = [];
+  for (let i = 0; i < points.length; i += 7) {
+    const week = points.slice(i, i + 7);
+    out.push({
+      date: week[0]!.date,
+      count: week.reduce((sum, p) => sum + p.count, 0),
+    });
+  }
+  return out;
+}
+
 /** One sentence for a screen reader, since the bars themselves say nothing. */
-function ariaSummary(points: DailyCount[], formatValue: (n: number) => string): string {
+function ariaSummary(
+  points: DailyCount[],
+  formatValue: (n: number) => string,
+  weekly: boolean
+): string {
   const active = points.filter((p) => p.count > 0);
   const total = points.reduce((sum, p) => sum + p.count, 0);
-  return `Daily activity: ${formatValue(total)} across ${active.length} of ${points.length} days.`;
+  const unit = weekly ? "weeks" : "days";
+  return `${weekly ? "Weekly" : "Daily"} activity: ${formatValue(total)} across ${active.length} of ${points.length} ${unit}.`;
 }

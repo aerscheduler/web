@@ -1,8 +1,11 @@
 import { useEffect, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronLeft, type LucideIcon } from "lucide-react";
+import { ApiError } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyState } from "@/components/states";
 import { cn } from "@/lib/utils";
 
 /**
@@ -180,6 +183,59 @@ export function CardSkeleton({ rows = 3 }: { rows?: number }) {
 /** The quiet "nothing here" line inside a card — smaller than a full EmptyState. */
 export function CardEmpty({ children }: { children: ReactNode }) {
   return <p className="py-1 text-[13px] text-muted-foreground">{children}</p>;
+}
+
+/**
+ * Does this error mean "no such record" rather than "something went wrong"?
+ *
+ * A record page is reached by URL — a stale bookmark, an old notification, a
+ * pasted link, a typo — so a bad id is the *expected* failure, not an exotic
+ * one. The server can't say "not found" for an id outside your organization
+ * without confirming that it exists somewhere, so it answers 403 (people) or
+ * 400 (resources) instead. Surfacing those verbatim tells someone who mistyped
+ * a URL that they aren't authorized, which reads like an accusation and offers
+ * no way out.
+ *
+ * 404 is included for completeness; these routes don't currently return it.
+ */
+export function isMissingRecord(error: unknown): boolean {
+  return error instanceof ApiError && [400, 403, 404].includes(error.status);
+}
+
+/**
+ * The "this record isn't here" page, with a way back to the list.
+ *
+ * Rendered for a missing record AND for a query that has settled with nothing —
+ * see the note at each call site. A page whose only other option is an infinite
+ * skeleton has to have somewhere to land.
+ */
+export function RecordNotFound({
+  icon,
+  title,
+  body,
+  backTo,
+  backLabel,
+}: {
+  icon: LucideIcon;
+  title: string;
+  body: string;
+  backTo: string;
+  backLabel: string;
+}) {
+  return (
+    <Card>
+      <EmptyState
+        icon={icon}
+        title={title}
+        body={body}
+        action={
+          <Button asChild>
+            <Link to={backTo}>{backLabel}</Link>
+          </Button>
+        }
+      />
+    </Card>
+  );
 }
 
 /**

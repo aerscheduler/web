@@ -1,7 +1,7 @@
 import { CalendarCheck, GraduationCap, PlaneTakeoff, Receipt, Wallet } from "lucide-react";
 import type { Role } from "@/types/api";
 import { useMemberInvoiceSummary, useOrgUserReport, type ReportRange } from "@/features/queries";
-import { isInstructor, isRenter, isStudent } from "@/lib/permissions";
+import { isInstructor, isStudent } from "@/lib/permissions";
 import { DetailCard } from "@/components/detail/detail-page";
 import {
   MetricRow,
@@ -10,7 +10,7 @@ import {
   hoursValue,
   moneyValue,
 } from "@/components/detail/metric-tile";
-import { ActivityBars } from "@/components/detail/activity-bars";
+import { ActivityBars, activityGranularity } from "@/components/detail/activity-bars";
 import { seriesPoints, sumSeries, type DailyCount } from "@/components/detail/metrics";
 
 /**
@@ -55,6 +55,7 @@ export function PersonMetrics({
 
   const hours = sumSeries(flightTime.data);
   const flights = sumSeries(completed.data);
+  const points = seriesPoints(flightTime.data);
 
   return (
     <div className="space-y-4">
@@ -129,8 +130,8 @@ export function PersonMetrics({
       <DetailCard
         title="Flying activity"
         description={
-          isRenter(subjectRoles) && !isStudent(subjectRoles)
-            ? "Hobbs hours per day across the window."
+          activityGranularity(points.length) === "week"
+            ? "Hobbs hours per week — every closed-out flight they were on."
             : "Hobbs hours per day — every closed-out flight they were on."
         }
       >
@@ -140,7 +141,7 @@ export function PersonMetrics({
           </p>
         ) : (
           <ActivityBars
-            points={seriesPoints(flightTime.data)}
+            points={points}
             formatValue={(count) => hoursValue(count)}
             emptyLabel="No flying in this window."
           />

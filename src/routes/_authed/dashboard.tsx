@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { resourceLabel, type Reservation } from "@/types/api";
-import { guardRoute } from "@/lib/permissions";
+import { canManageBilling, guardRoute } from "@/lib/permissions";
 
 export const Route = createFileRoute("/_authed/dashboard")({
   beforeLoad: guardRoute("/dashboard"),
@@ -35,7 +35,19 @@ const RES_TONE: Record<string, string> = {
 };
 
 function DashboardPage() {
-  const { user, organization } = useAuth();
+  const { user, organization, roles } = useAuth();
+
+  /**
+   * This page is staff — admin OR dispatcher — but the money on it is admin-only
+   * on the server. A dispatcher used to load it and fire two 403s, then be shown
+   * "$0 outstanding" and "nothing billed in the last two weeks" built from the
+   * empty arrays those failures left behind. Blocked and zero are not the same
+   * answer, and the second one is a number somebody could act on.
+   *
+   * So the money is asked for only by the people allowed to have it, and the
+   * board simply doesn't carry those two panels for anyone else.
+   */
+  const canSeeMoney = canManageBilling(roles);
 
   const now = new Date();
   const todayStart = startOfDay(now).toISOString();
@@ -45,8 +57,8 @@ function DashboardPage() {
   const planes = usePlanes();
   const members = useMembers();
   const week = useReservations(todayStart, weekEnd);
-  const unpaid = useInvoices({ paid: false });
-  const recent = useInvoices({ startDate: twoWeeksAgo });
+  const unpaid = useInvoices({ paid: false }, { enabled: canSeeMoney });
+  const recent = useInvoices({ startDate: twoWeeksAgo }, { enabled: canSeeMoney });
 
   const outstanding = (unpaid.data ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
   const todays = (week.data ?? [])
@@ -67,12 +79,15 @@ function DashboardPage() {
    * still a board of zeros dressed up as data. Nothing flown and nothing billed means
    * there is genuinely nothing here to read.
    */
-  const loadingCounts = week.isLoading || unpaid.isLoading || recent.isLoading;
+  const loadingCounts =
+    week.isLoading || (canSeeMoney && (unpaid.isLoading || recent.isLoading));
   const noDataYet =
     !loadingCounts &&
     (week.data?.length ?? 0) === 0 &&
-    (unpaid.data?.length ?? 0) === 0 &&
-    (recent.data?.length ?? 0) === 0;
+    // For a dispatcher these two never ran, so they are not evidence of
+    // anything — only the schedule can say whether this school is new.
+    (!canSeeMoney ||
+      ((unpaid.data?.length ?? 0) === 0 && (recent.data?.length ?? 0) === 0));
 
   return (
     <div>
@@ -89,7 +104,13 @@ function DashboardPage() {
         <FirstDayNote />
       ) : (
         <>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div
+        className={
+          canSeeMoney
+            ? "grid grid-cols-2 gap-4 lg:grid-cols-4"
+            : "grid grid-cols-2 gap-4 lg:grid-cols-3"
+        }
+      >
         <StatCard
           label="Aircraft"
           value={planes.data?.length ?? 0}
@@ -111,17 +132,23 @@ function DashboardPage() {
           loading={week.isLoading}
           hint={`${todays.length} today`}
         />
-        <StatCard
-          label="Outstanding"
-          value={formatMoney(outstanding, { cents: false })}
-          icon={Receipt}
-          loading={unpaid.isLoading}
-          accent="warning"
-          hint={`${unpaid.data?.length ?? 0} unpaid invoices`}
-        />
+        {canSeeMoney && (
+          <StatCard
+            label="Outstanding"
+            value={formatMoney(outstanding, { cents: false })}
+            icon={Receipt}
+            loading={unpaid.isLoading}
+            accent="warning"
+            hint={`${unpaid.data?.length ?? 0} unpaid invoices`}
+          />
+        )}
       </div>
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+      <div
+        className={
+          canSeeMoney ? "mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]" : "mt-5 grid gap-4"
+        }
+      >
         {/* Today's schedule */}
         <Card>
           <CardHeader className="flex-row items-center justify-between">
@@ -154,7 +181,8 @@ function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Recent invoices */}
+        {/* Recent invoices — admin only; see canSeeMoney above. */}
+        {canSeeMoney && (
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Recent invoices</CardTitle>
@@ -202,6 +230,7 @@ function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        )}
       </div>
         </>
       )}

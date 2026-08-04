@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Ban, Eye, MoreHorizontal, Shield, Trash2, Undo2 } from "lucide-react";
+import { Archive, ArchiveRestore, Ban, Eye, MoreHorizontal, Shield, Trash2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import type { OrganizationUser } from "@/types/api";
-import { useUpdateMemberOrgUser } from "@/features/queries";
+import { useSetMemberArchived, useUpdateMemberOrgUser } from "@/features/queries";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { canManageMembers } from "@/lib/permissions";
@@ -52,8 +52,10 @@ export function MemberRowActions({
   // The /orgUsers list includes `user.id`.
   const targetUserId = ou.user?.id ?? 0;
   const orgUserMut = useUpdateMemberOrgUser(targetUserId);
+  const archiveMut = useSetMemberArchived(targetUserId);
   const name = memberName(ou);
   const [groundOpen, setGroundOpen] = useState(false);
+  const archived = !!ou.archivedAt;
 
   /**
    * Grounding opens a modal, because the reason is mandatory — the member is
@@ -80,6 +82,38 @@ export function MemberRowActions({
         onError: (e) => toast.error(errMessage(e, "Couldn't update this member.")),
       }
     );
+  }
+
+  /**
+   * Retiring somebody, and the reason this menu item exists at all.
+   *
+   * The only tool for tidying a roster used to be Ground, which emails the member. A
+   * school working through two years of dormant students therefore sent 107 unexpected
+   * "you have been grounded" notices in two hours. The confirm copy leads with the fact
+   * that this one is silent, because that is the whole difference between the two.
+   */
+  async function toggleArchived() {
+    const ok = await confirm(
+      archived
+        ? {
+            title: `Bring ${name} back?`,
+            description:
+              "They'll reappear on the roster, can be booked again, and will start receiving notifications from you.",
+            confirmLabel: "Return to roster",
+          }
+        : {
+            title: `Archive ${name}?`,
+            description:
+              "They're not told, and they'll stop receiving any email or notification from you. They come off the roster and can't be booked, but their flights, invoices and history are all kept — and you can bring them back any time.",
+            confirmLabel: "Archive member",
+          }
+    );
+    if (!ok) return;
+    archiveMut.mutate(!archived, {
+      onSuccess: () =>
+        toast.success(archived ? `${name} is back on the roster.` : `${name} archived.`),
+      onError: (e) => toast.error(errMessage(e, "Couldn't update this member.")),
+    });
   }
 
   async function remove() {
@@ -127,17 +161,32 @@ export function MemberRowActions({
               <DropdownMenuItem onSelect={() => onEditRoles(ou)}>
                 <Shield /> Edit roles
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => (ou.grounded ? void unground() : setGroundOpen(true))}
-              >
-                {ou.grounded ? (
-                <>
-                    <Undo2 /> Unground
-                </>
+              {/* Grounding an archived member would email somebody the school has
+                  already retired — the exact thing archiving exists to prevent. */}
+              {!archived && (
+                <DropdownMenuItem
+                  onSelect={() => (ou.grounded ? void unground() : setGroundOpen(true))}
+                >
+                  {ou.grounded ? (
+                  <>
+                      <Undo2 /> Unground
+                  </>
+                  ) : (
+                  <>
+                      <Ban /> Ground
+                  </>
+                  )}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onSelect={() => void toggleArchived()}>
+                {archived ? (
+                  <>
+                    <ArchiveRestore /> Return to roster
+                  </>
                 ) : (
-                <>
-                    <Ban /> Ground
-                </>
+                  <>
+                    <Archive /> Archive
+                  </>
                 )}
               </DropdownMenuItem>
               <DropdownMenuSeparator />

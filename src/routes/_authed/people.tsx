@@ -35,7 +35,7 @@ import { asFacetInts, asFacetStrings, useListQueryState, validateListSearch } fr
 import { canManageMembers, isInstructor, isStaff } from "@/lib/permissions";
 import { formatDate, initials } from "@/lib/utils";
 
-const PEOPLE_FACET_KEYS = ["role", "grounded", "groupId"] as const;
+const PEOPLE_FACET_KEYS = ["role", "grounded", "groupId", "archived"] as const;
 
 export const Route = createFileRoute("/_authed/people")({
   /**
@@ -196,10 +196,15 @@ function PeoplePage() {
   }
   const groupIds = asFacetInts(facets.groupId);
 
+  // The roster shows current members; `archived` swaps it for the retired one. The
+  // server treats "not asked" and "false" identically, so only `true` is ever sent.
+  const showingArchived = facets.archived === true;
+
   const memberFilter: MemberFilter = {
     ...roleFilter,
     q: debouncedQ,
     grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
+    archived: showingArchived ? true : undefined,
     groupId: groupIds,
   };
   // Re-filtering puts you back on page one — otherwise a search run from page 7
@@ -225,6 +230,19 @@ function PeoplePage() {
         trueLabel: "Grounded",
         falseLabel: "Active",
       },
+      // Not a status — a different roster. Archived members are absent from every
+      // other view in the product, so this is the only way to see or restore one.
+      {
+        kind: "boolean",
+        key: "archived",
+        label: "Roster",
+        trueLabel: "Archived",
+        falseLabel: "Current",
+        // NOT "Any": leaving this unset shows current members only, because the
+        // server excludes archived people by default. "Any" would promise a
+        // complete roster and quietly deliver a filtered one.
+        neutralLabel: "Current",
+      },
       {
         kind: "select",
         key: "groupId",
@@ -244,6 +262,7 @@ function PeoplePage() {
     !!debouncedQ ||
     roleKeys.length > 0 ||
     facets.grounded !== undefined ||
+    facets.archived !== undefined ||
     (groupIds?.length ?? 0) > 0;
 
   const emptyCopy =
@@ -304,12 +323,18 @@ function PeoplePage() {
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) =>
-          row.original.grounded ? (
+        cell: ({ row }) => {
+          const ou = row.original;
+          // Archived wins: a retired member's grounding is history, and showing
+          // "Grounded" on somebody the school has already filed away invites
+          // exactly the pointless ungrounding this feature exists to avoid.
+          if (ou.archivedAt) return <Badge variant="secondary">Archived</Badge>;
+          return ou.grounded ? (
             <Badge variant="danger">Grounded</Badge>
           ) : (
             <Badge variant="outline">Active</Badge>
-          ),
+          );
+        },
       },
       {
         id: "joined",
@@ -321,6 +346,28 @@ function PeoplePage() {
             {formatDate(getValue() as string | undefined)}
           </span>
         ),
+      },
+      {
+        // How a school finds the people worth archiving. Nothing in the console used
+        // to distinguish a current student from one who stopped showing up in 2023,
+        // which is why tidying the roster meant grounding everybody and hoping.
+        id: "lastActive",
+        header: "Last active",
+        meta: { sortKey: "user.lastActiveAt" },
+        accessorFn: (r) => r.user?.lastActiveAt ?? "",
+        cell: ({ row }) => {
+          const last = row.original.user?.lastActiveAt;
+          if (!last) return <span className="whitespace-nowrap text-muted-foreground">Never</span>;
+          const stale = Date.now() - new Date(last).getTime() > 365 * 24 * 60 * 60 * 1000;
+          return (
+            <span
+              className={`whitespace-nowrap ${stale ? "text-amber-600 dark:text-amber-500" : "text-muted-foreground"}`}
+              title={stale ? "No activity in over a year" : undefined}
+            >
+              {formatDate(last)}
+            </span>
+          );
+        },
       },
       {
         id: "actions",
@@ -371,9 +418,13 @@ function PeoplePage() {
           subtitle={
             tab === "guests"
               ? "Guests booked on your reservations"
-              : q.data
-                ? `${total.toLocaleString()} member${total === 1 ? "" : "s"}`
-                : "Your organization roster"
+              : showingArchived
+                ? q.data
+                  ? `${total.toLocaleString()} archived member${total === 1 ? "" : "s"} — they get no email or notifications from you`
+                  : "People you've retired from the roster"
+                : q.data
+                  ? `${total.toLocaleString()} member${total === 1 ? "" : "s"}`
+                  : "Your organization roster"
           }
         />
 
@@ -429,7 +480,11 @@ function PeoplePage() {
           total={total}
           loading={q.isFetching}
           onRowClick={viewProfile}
-          emptyMessage="No members match your filters."
+          emptyMessage={
+            showingArchived
+              ? "Nobody has been archived yet."
+              : "No members match your filters."
+          }
           mobileCard={(ou) => (
             <MemberCard ou={ou} onView={viewProfile} onEditRoles={setEditing} />
           )}

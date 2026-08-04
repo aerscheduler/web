@@ -34,6 +34,16 @@ export type BooleanFacet = {
   label: string;
   trueLabel?: string;
   falseLabel?: string;
+  /**
+   * What the unset state is called. Defaults to "Any", which is right when unset
+   * really does mean "don't filter".
+   *
+   * Override it when it doesn't. The People page's Roster facet is the case: leaving
+   * it unset shows CURRENT members, not everyone, because archived people are excluded
+   * server-side by default. Labelling that "Any" told the reader the roster was
+   * complete when two people were missing from it.
+   */
+  neutralLabel?: string;
 };
 
 export type SelectFacet = {
@@ -242,7 +252,7 @@ export function ListFilters({
                   <DropdownMenuSubTrigger>
                     <span className="flex-1 truncate">{facet.label}</span>
                     <span className="ml-2 truncate text-xs text-muted-foreground">
-                      {activeValueLabel(facet, values) ?? "Any"}
+                      {activeValueLabel(facet, values) ?? facet.neutralLabel ?? "Any"}
                     </span>
                   </DropdownMenuSubTrigger>
                   <DropdownMenuSubContent className="min-w-44">
@@ -255,7 +265,7 @@ export function ListFilters({
                         })
                       }
                     >
-                      <DropdownMenuRadioItem value="all">Any</DropdownMenuRadioItem>
+                      <DropdownMenuRadioItem value="all">{facet.neutralLabel ?? "Any"}</DropdownMenuRadioItem>
                       <DropdownMenuRadioItem value="true">
                         {facet.trueLabel ?? "Yes"}
                       </DropdownMenuRadioItem>

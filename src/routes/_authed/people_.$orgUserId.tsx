@@ -173,7 +173,9 @@ function PersonBody({
         title={name}
         badges={
           <>
-            {ou.grounded ? (
+            {ou.archivedAt ? (
+              <Badge variant="secondary">Archived</Badge>
+            ) : ou.grounded ? (
               <Badge variant="danger">Grounded</Badge>
             ) : (
               <Badge variant="outline">Active</Badge>
@@ -214,11 +216,22 @@ function PersonBody({
         }
       />
 
-      {ou.grounded && (
-        <div className="rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-destructive">
-          <span className="font-medium">Grounded:</span>{" "}
-          {ou.groundedReason?.trim() || "No reason recorded."}
+      {/* Archived is stated first and instead of the grounding banner: for a retired
+          member the grounding is history, and the fact that matters on this page is
+          that nothing you do here will reach them. */}
+      {ou.archivedAt ? (
+        <div className="rounded-lg border bg-muted/50 px-3.5 py-2.5 text-[13px] text-muted-foreground">
+          <span className="font-medium text-foreground">Archived {formatDate(ou.archivedAt)}.</span>{" "}
+          They're off the roster, can't be booked, and receive no email or notifications from you.
+          Their history is kept — return them to the roster to undo this.
         </div>
+      ) : (
+        ou.grounded && (
+          <div className="rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-destructive">
+            <span className="font-medium">Grounded:</span>{" "}
+            {ou.groundedReason?.trim() || "No reason recorded."}
+          </div>
+        )
       )}
 
       {/* The window drives every number below it, so it sits above them all

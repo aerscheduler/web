@@ -264,6 +264,14 @@ export interface OrganizationUser {
   grounded: boolean;
   /** Why they were grounded, when whoever grounded them said. */
   groundedReason?: string | null;
+  /**
+   * When they were retired from the roster; null for a current member.
+   *
+   * Not the same thing as `grounded`. Grounding is a live restriction on somebody who
+   * is still here and is deliberately noisy — they're emailed about it. Archiving is a
+   * filing decision, tells them nothing, and takes them out of every list.
+   */
+  archivedAt?: string | null;
   profileImage: string | null;
   adminRole?: RoleRow | null;
   ownerRole?: RoleRow | null;

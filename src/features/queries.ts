@@ -144,6 +144,12 @@ export type MemberFilter = Partial<
 > & {
   q?: string;
   grounded?: boolean;
+  /**
+   * `true` returns the ARCHIVED roster instead of the current one. Omitting it — like
+   * every caller that predates archiving — returns current members only, which is the
+   * server's default too. There is deliberately no "both".
+   */
+  archived?: boolean;
   /** One or more group IDs (OR). */
   groupId?: number | number[];
 };
@@ -1099,6 +1105,27 @@ export function useUpdateMemberOrgUser(userId: number) {
   return useMutation({
     mutationFn: (patch: Record<string, unknown>) =>
       api<User>(`/users/${userId}/orgUser`, { method: "PATCH", body: patch }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["members"] });
+      void qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
+}
+
+/**
+ * Retire a member from the roster, or bring them back.
+ *
+ * Its own endpoint rather than a key on the member PATCH above, and deliberately so:
+ * that PATCH carries the whole member record on every save, which is how the grounding
+ * email came to re-fire on edits that changed nothing. Archiving is a verb, not a field.
+ *
+ * Owner/admin only, server-side — a dispatcher gets a 403.
+ */
+export function useSetMemberArchived(userId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (archived: boolean) =>
+      api<User>(`/users/${userId}/orgUser/archive`, { method: "PATCH", body: { archived } }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members"] });
       void qc.invalidateQueries({ queryKey: ["users"] });

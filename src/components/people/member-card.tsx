@@ -35,7 +35,11 @@ export function MemberCard({
               )}
             </div>
             <div className="flex items-center gap-1.5">
-              {ou.grounded ? (
+              {/* Same precedence as the table's Status column: archived wins, because
+                  a retired member's grounding is history rather than a live state. */}
+              {ou.archivedAt ? (
+                <Badge variant="secondary">Archived</Badge>
+              ) : ou.grounded ? (
                 <Badge variant="danger">Grounded</Badge>
               ) : (
                 <Badge variant="outline">Active</Badge>

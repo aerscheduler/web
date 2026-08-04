@@ -17,6 +17,7 @@
 
 import {
   Building2,
+  Split,
   CreditCard,
   GraduationCap,
   Layers,
@@ -49,6 +50,14 @@ export type ChecklistFacts = {
   groups: number;
   stripeConnected: boolean;
   quickBooksConnected: boolean;
+  /**
+   * Has this operation decided how a shared booking's cost divides?
+   *
+   * Derived from whether any split rules EXIST, not from a stored "did the step" flag —
+   * same rule as every other item here. An org that has never opened the screen bills one
+   * person for the whole booking, which is the safe default and also what it always did.
+   */
+  splitRulesConfigured: boolean;
 };
 
 type Copy = string | ((orgType: OrgType) => string);
@@ -112,6 +121,23 @@ export const CHECKLIST: ChecklistItem[] = [
     search: { tab: "billing" },
     cta: "Connect Stripe",
     isDone: (f) => f.stripeConnected,
+  },
+  {
+    id: "cost-splitting",
+    title: "Decide how shared bookings are split",
+    blurb: (t) =>
+      isClubLike(t)
+        ? "When two members share an aircraft, who pays what? Pick your defaults once and every shared booking follows them."
+        : "Group ground school, two students in one aeroplane, co-renters on a cross-country — each person gets their own invoice, split by rules you set.",
+    icon: Split,
+    to: "/settings",
+    search: { tab: "cost-splitting" },
+    cta: "Set your rules",
+    isDone: (f) => f.splitRulesConfigured,
+    //Placed after billing on purpose: the rules decide how invoices divide, so it reads
+    //oddly before there is any way to send one. It is NOT gated on Stripe though — a
+    //school can set its rules before connecting, and the wizard shouldn't hide the item
+    //just because the money isn't wired up yet.
   },
   {
     id: "instructors",

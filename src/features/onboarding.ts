@@ -20,6 +20,7 @@ import {
   useOrgOnboarding,
   usePlanes,
   useQuickBooksSettings,
+  useSplitRules,
   useRatings,
   useReservations,
   useResourceGroups,
@@ -115,6 +116,7 @@ export function useChecklist(): ChecklistState {
   const groups = useResourceGroups(q);
   const billing = useBilling(q);
   const quickBooks = useQuickBooksSettings(q);
+  const splitRules = useSplitRules(q);
 
   const update = useUpdateOrgOnboarding();
 
@@ -130,6 +132,7 @@ export function useChecklist(): ChecklistState {
     groups: groups.data?.length ?? 0,
     stripeConnected: Boolean(billing.data?.stripeEnabled),
     quickBooksConnected: quickBooks.data?.status === "connected",
+    splitRulesConfigured: (splitRules.data?.rules.length ?? 0) > 0,
   };
 
   const orgType = (organization?.organizationType ?? null) as OrgType;

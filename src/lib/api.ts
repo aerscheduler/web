@@ -129,6 +129,31 @@ export function beaconDemoExit(): void {
 }
 
 /**
+ * Best-effort "still here" ping, sent while the demo tab is VISIBLE, so the server keeps
+ * this sandbox leased instead of reclaiming it as idle. The whole point of it is to let
+ * an abandoned tab's slot lapse quickly (the pool is small) while a tab someone is
+ * actually looking at stays theirs.
+ *
+ * A bare fetch and NOT apiRaw, on purpose: a heartbeat must stay SILENT. If the sandbox
+ * was already reclaimed it answers 410, and the visitor's next real action is what should
+ * turn that into the friendly "start another" flow — a background ping firing that toast
+ * would be startling. Reads the demo token directly and never throws.
+ */
+export function beaconDemoHeartbeat(): void {
+  const token = getDemoToken();
+  if (!token) return;
+  try {
+    void fetch(`${API_URL}/demo/heartbeat`, {
+      method: "POST",
+      keepalive: true,
+      headers: { Authorization: `Bearer ${token}`, "X-Client": CLIENT_ID },
+    }).catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
  * Tear down the session, exactly once per token.
  *
  * The token guard matters: several requests are usually in flight together, so

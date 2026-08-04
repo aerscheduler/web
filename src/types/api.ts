@@ -1294,3 +1294,83 @@ export interface SearchResponse {
   counts: Partial<Record<SearchEntityType, number>>;
   results: SearchResult[];
 }
+
+// ── Cost splitting ───────────────────────────────────────────────────────────
+/**
+ * How an organization divides the cost of a booking between the people on it.
+ *
+ * The vocabulary is SERVED rather than hardcoded (`GET /organizations/splitRules`
+ * returns `apportionments`, `chargeLines`, `presets`, `copy` and worked `examples`
+ * alongside the rules). That is deliberate: the server's engine is the authority on
+ * what these mean, and a client that kept its own list would eventually offer a rule
+ * the server rejects — or describe one differently from the way it actually bills.
+ *
+ * These string unions exist for editor help only. Treat a value that isn't in them as
+ * data, not an error: it means the server is newer than this build.
+ */
+export type Apportionment = "whole" | "equal" | "measured" | "full_to_each" | "weighted";
+
+export type ChargeLine = "aircraft" | "instruction";
+
+export type SplitRuleRow = {
+  id: number;
+  /** null = the organization-wide default for this charge. */
+  reservationType: string | null;
+  chargeLine: string;
+  apportionment: string;
+};
+
+/** Where a resolved rule came from — drives the "Default" vs "Set by you" badge. */
+export type SplitRuleSource = "override" | "type_rule" | "org_default" | "product_default";
+
+export type SplitPlan = {
+  lines: Record<ChargeLine, Apportionment>;
+  sources: Record<ChargeLine, SplitRuleSource>;
+};
+
+export type WorkedExamplePayer = {
+  name: string;
+  hours: string;
+  amount: string;
+  free?: boolean;
+};
+
+export type WorkedExample = {
+  chargeLine: ChargeLine;
+  apportionment: Apportionment;
+  scenario: string;
+  perPayer: WorkedExamplePayer[];
+  total: string;
+  totalNote: string;
+  /** Present instead of figures when this rule would refuse to price the example. */
+  refusal?: string;
+};
+
+export type SplitPreset = {
+  key: string;
+  label: string;
+  summary: string;
+  rules: {
+    reservationType: string | null;
+    chargeLine: ChargeLine;
+    apportionment: Apportionment;
+    rationale: string;
+  }[];
+};
+
+export type SplitRulesDescription = {
+  rules: SplitRuleRow[];
+  /** The effective plan for every bookable type, already resolved server-side. */
+  resolved: Record<string, SplitPlan>;
+  productDefault: Apportionment;
+  apportionments: Apportionment[];
+  chargeLines: ChargeLine[];
+  bookableTypes: string[];
+  personnelLimits: Record<string, Record<string, number>>;
+  examples: WorkedExample[];
+  copy: {
+    apportionments: Record<Apportionment, { label: string; blurb: string; bestFor: string }>;
+    chargeLines: Record<ChargeLine, { label: string; blurb: string }>;
+  };
+  presets: SplitPreset[];
+};

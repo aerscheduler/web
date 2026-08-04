@@ -81,6 +81,7 @@ import type {
   CancellationReport,
   UserDetails,
   EmergencyContact,
+  SplitRulesDescription,
 } from "@/types/api";
 
 /** Options accepted by every read hook (currently just React Query's `enabled`). */
@@ -2495,5 +2496,76 @@ export function useUpdateOrganizationTimeZone() {
 export function useSubmitFeedback() {
   return useMutation({
     mutationFn: (message: string) => api<void>("/support", { method: "POST", body: { message } }),
+  });
+}
+
+// ── Cost splitting ───────────────────────────────────────────────────────────
+/**
+ * The organization's split rules, plus everything needed to render them: the
+ * vocabulary, the human copy, and worked examples computed by the server's own
+ * apportionment engine.
+ *
+ * One call rather than several because a single rule change can alter what SEVERAL
+ * booking types resolve to — a new organization-wide default changes every type that
+ * has no rule of its own — so the screen always re-reads the whole description rather
+ * than patching a row in place and drifting.
+ *
+ * Admin-only on the server.
+ */
+export function useSplitRules(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["splitRules"],
+    queryFn: () => api<SplitRulesDescription>("/organizations/splitRules"),
+    ...opts,
+  });
+}
+
+/**
+ * Set one rule, or clear it.
+ *
+ * `apportionment: null` REMOVES the rule and returns that charge to the product
+ * default. The rules table is sparse — absence means "the default" — so removal has to
+ * be expressible; writing an explicit "whole" would not be the same thing, because it
+ * would survive a later change to what the default is.
+ */
+export function useSetSplitRule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      reservationType: string | null;
+      chargeLine: string;
+      apportionment: string | null;
+    }) => api<SplitRulesDescription>("/organizations/splitRules", { method: "PUT", body: input }),
+    onSuccess: (data) => {
+      // The response IS the new description, so seed it rather than refetching — the
+      // examples and the resolved plan for every type come back in the same payload.
+      qc.setQueryData(["splitRules"], data);
+      void qc.invalidateQueries({ queryKey: ["organization", "onboarding"] });
+    },
+  });
+}
+
+/** Replace the org's rules with a preset's. The UI shows the exact list first. */
+export function useApplySplitPreset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (preset: string) =>
+      api<SplitRulesDescription>("/organizations/splitRules/preset", { method: "POST", body: { preset } }),
+    onSuccess: (data) => {
+      qc.setQueryData(["splitRules"], data);
+      void qc.invalidateQueries({ queryKey: ["organization", "onboarding"] });
+    },
+  });
+}
+
+/** Back to one invoice and one payer everywhere — how it worked before splitting. */
+export function useClearSplitRules() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<SplitRulesDescription>("/organizations/splitRules", { method: "DELETE" }),
+    onSuccess: (data) => {
+      qc.setQueryData(["splitRules"], data);
+      void qc.invalidateQueries({ queryKey: ["organization", "onboarding"] });
+    },
   });
 }

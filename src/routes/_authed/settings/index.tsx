@@ -11,6 +11,7 @@ import {
   Layers,
   Puzzle,
   ShieldCheck,
+  Split,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,6 +24,7 @@ import { GroupsTab } from "@/components/settings/groups-tab";
 import { CurrencyTypesTab } from "@/components/settings/currency-types-tab";
 import { IntegrationsTab } from "@/components/settings/integrations-tab";
 import { ApiKeysTab } from "@/components/settings/api-keys-tab";
+import { CostSplittingTab } from "@/components/settings/cost-splitting-tab";
 
 type SettingsSearch = {
   tab?: string;
@@ -53,6 +55,7 @@ const TABS: { value: string; label: string; icon: LucideIcon }[] = [
   { value: "plan", label: "Plan", icon: BadgeDollarSign },
   { value: "billing", label: "Billing", icon: CreditCard },
   { value: "rates", label: "Instruction rates", icon: GraduationCap },
+  { value: "cost-splitting", label: "Cost splitting", icon: Split },
   { value: "documents", label: "Document types", icon: FileCog },
   { value: "groups", label: "Groups", icon: Layers },
   { value: "currencies", label: "Currency rules", icon: ShieldCheck },
@@ -96,6 +99,9 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="billing">
           <BillingTab />
+        </TabsContent>
+        <TabsContent value="cost-splitting">
+          <CostSplittingTab />
         </TabsContent>
         <TabsContent value="rates">
           <RatesTab />

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   CalendarPlus,
   Hash,
@@ -153,6 +153,7 @@ function PersonBody({
   isSelf: boolean;
   access: ReturnType<typeof personViewAccess>;
 }) {
+  const navigate = useNavigate();
   const { range, setRange, window } = useDetailRange(90);
   const [editingRoles, setEditingRoles] = useState<OrganizationUser | null>(null);
 
@@ -205,7 +206,11 @@ function PersonBody({
               </Button>
             )}
             {access.manage && (
-              <MemberRowActions ou={ou} onEditRoles={setEditingRoles} />
+              <MemberRowActions
+                ou={ou}
+                onEditRoles={setEditingRoles}
+                onRemoved={() => void navigate({ to: "/people" })}
+              />
             )}
           </>
         }

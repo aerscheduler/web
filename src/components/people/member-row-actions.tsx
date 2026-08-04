@@ -29,12 +29,20 @@ export function MemberRowActions({
   ou,
   onView,
   onEditRoles,
+  onRemoved,
   align = "end",
 }: {
   ou: OrganizationUser;
   /** Omitted on the profile page itself — "View profile" would go nowhere. */
   onView?: (ou: OrganizationUser) => void;
   onEditRoles: (ou: OrganizationUser) => void;
+  /**
+   * Called after a successful removal. On the roster the row just disappears, so
+   * there is nothing to do; on that member's own page the record you are looking
+   * at has ceased to exist, and without this you sit on a page that refetches
+   * into "Member not found".
+   */
+  onRemoved?: () => void;
   align?: "end" | "start";
 }) {
   const qc = useQueryClient();
@@ -88,6 +96,7 @@ export function MemberRowActions({
       void qc.invalidateQueries({ queryKey: ["members"] });
       void qc.invalidateQueries({ queryKey: ["users"] });
       toast.success(`${name} removed.`);
+      onRemoved?.();
     } catch (e) {
       toast.error(errMessage(e, "Couldn't remove this member."));
     }

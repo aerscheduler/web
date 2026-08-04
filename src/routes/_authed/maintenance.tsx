@@ -11,7 +11,8 @@ import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";
 import { cn } from "@/lib/utils";
 import { resourceLabel, type Squawk } from "@/types/api";
-import { guardRoute } from "@/lib/permissions";
+import { useAuth } from "@/lib/auth";
+import { canResolveSquawk, guardRoute } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
@@ -153,6 +154,8 @@ function OpenSquawks({
   q?: string;
   resourceId?: number | number[];
 }) {
+  const { roles } = useAuth();
+  const canResolve = canResolveSquawk(roles);
   const filter = { resolved: false, q: searchQ, resourceId };
   const paging = usePaging({ resetKey: filter, defaultSort: { key: "createdAt", dir: "desc" } });
   const q = useSquawksPage(filter, paging);
@@ -188,7 +191,10 @@ function OpenSquawks({
                 <SquawkCard
                   key={s.id}
                   squawk={s}
-                  onResolve={setResolving}
+                  // Omitted for a dispatcher, who can read this board but whom
+                  // the server won't let close a squawk. SquawkCard hides the
+                  // button when there's no handler.
+                  onResolve={canResolve ? setResolving : undefined}
                   resolving={resolving?.id === s.id}
                 />
               ))}

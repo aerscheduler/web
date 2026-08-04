@@ -324,7 +324,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
             <>
               <ResourceSquawks
                 resource={resource}
-                canResolve={access.manage || access.maintenance}
+                canResolve={access.resolveSquawks}
                 canReport={access.reportSquawk}
               />
               <ResourceReminders resourceId={resource.id} />

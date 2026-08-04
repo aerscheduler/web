@@ -101,6 +101,17 @@ export const canManageOrg = isAdmin;
 /** Open squawks are admin/dispatcher/technician-only on the server. */
 export const canViewSquawks = (r: Role[]) => isStaff(r) || isTechnician(r);
 
+/**
+ * Sign a squawk off as resolved or verified.
+ *
+ * Narrower than `canViewSquawks` and that difference is the whole point: the
+ * server lets admin *or technician* close one, and deliberately not a
+ * dispatcher — reading the fleet's discrepancies and declaring one fixed are
+ * different acts. Offering the button to a dispatcher gets them a bare "not
+ * authorized" toast on a job they can't do.
+ */
+export const canResolveSquawk = (r: Role[]) => isAdmin(r) || isTechnician(r);
+
 // ── What a record page shows, per viewer ─────────────────────────────────────
 /**
  * The person and aircraft pages are one route each, rendered very differently
@@ -160,6 +171,8 @@ export interface ResourceViewAccess {
   money: boolean;
   /** Squawks and maintenance reminders. Server: admin, dispatcher or technician. */
   maintenance: boolean;
+  /** Close a squawk out. Narrower than `maintenance` — server: admin or technician. */
+  resolveSquawks: boolean;
   /** Who is checked out on it. Derived from the roster, so staff only. */
   approvedPilots: boolean;
   /** Edit, ground, approve renters. Server: admin. */
@@ -181,6 +194,7 @@ export function resourceViewAccess(roles: Role[]): ResourceViewAccess {
     metrics: fleet,
     money: admin,
     maintenance: fleet,
+    resolveSquawks: canResolveSquawk(roles),
     approvedPilots: isStaff(roles),
     manage: admin,
     reportSquawk: true,

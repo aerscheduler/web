@@ -7,6 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ProfileCard } from "@/components/me-account/profile-card";
+import { ContactDetailsCard } from "@/components/me-account/contact-details-card";
+import { EmergencyContactsCard } from "@/components/me-account/emergency-contacts-card";
 import { MyTimeZoneCard } from "@/components/settings/time-zone-card";
 import { SecurityCard } from "@/components/me-account/security-card";
 import { GoogleCalendarCard } from "@/components/me-account/google-calendar-card";
@@ -31,7 +33,7 @@ export const Route = createFileRoute("/_authed/me/profile")({
 });
 
 function ProfilePage() {
-  const { roles } = useAuth();
+  const { roles, user } = useAuth();
   const navigate = Route.useNavigate();
   const { tab } = Route.useSearch();
   const instructor = isInstructor(roles);
@@ -86,6 +88,8 @@ function ProfilePage() {
 
         <TabsContent value="profile" className="space-y-4">
           <ProfileCard />
+          <ContactDetailsCard />
+          <EmergencyContactsCard userId={user?.id ?? null} />
           {/* Lives on the profile tab rather than its own: it's a personal preference, and
               most people will set it once when they first travel and never look again. */}
           <MyTimeZoneCard />

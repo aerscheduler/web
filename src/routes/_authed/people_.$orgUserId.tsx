@@ -14,6 +14,7 @@ import { useApprovedResources, useMember } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import { personViewAccess } from "@/lib/permissions";
 import { formatDate, initials } from "@/lib/utils";
+import { formatPhone } from "@/lib/phone";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +39,7 @@ import { EditRolesModal } from "@/components/people/edit-roles-modal";
 import { MemberRowActions } from "@/components/people/member-row-actions";
 import { MemberInstructionSection } from "@/components/people/member-instruction-section";
 import { PersonMetrics } from "@/components/people/detail/person-metrics";
+import { PersonContact } from "@/components/people/detail/person-contact";
 import { PersonFlights } from "@/components/people/detail/person-flights";
 import { PersonInvoices } from "@/components/people/detail/person-invoices";
 import {
@@ -161,7 +163,7 @@ function PersonBody({
   useDetailTitle(name);
   const subjectRoles = rolesOf(ou);
   const email = ou.user?.email;
-  const phone = ou.user?.details?.phone;
+  const phone = formatPhone(ou.user?.details?.phone, ou.user?.details?.phoneCountry);
 
   return (
     <PageFrame>
@@ -290,6 +292,11 @@ function PersonBody({
               </KeyValue>
             </KeyValueList>
           </DetailCard>
+
+          {/* Renders itself only when the server returned contact details — the
+              instructor-of-that-student rule can't be evaluated client-side, so
+              the payload IS the permission answer. See PersonContact. */}
+          <PersonContact ou={ou} isSelf={isSelf} />
 
           {access.currencies && <PersonCurrencies ou={ou} isSelf={isSelf} />}
           {access.documents && <PersonDocuments ou={ou} isSelf={isSelf} />}

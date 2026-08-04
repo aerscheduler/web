@@ -35,10 +35,46 @@ export interface User {
   details?: UserDetails;
 }
 
+/**
+ * A person's contact record.
+ *
+ * Optional on `User` and frequently absent: the server only returns it to the person
+ * themselves, an admin or dispatcher, or an instructor of that student. Treat a missing
+ * `details` as "you may not see this", not as "they haven't filled it in" — the two look
+ * the same from here and only the server can tell them apart.
+ *
+ * Every phone field is **E.164** (`+13035551234`). Render it through `formatPhone` from
+ * `@/lib/phone`; never print it raw.
+ */
 export interface UserDetails {
   id: number;
   phone: string | null;
+  /** ISO 3166-1 alpha-2 for `phone`, so it can be re-rendered in its own national format. */
+  phoneCountry?: string | null;
+  homePhone?: string | null;
+  workPhone?: string | null;
+  /** `YYYY-MM-DD`. A calendar date — no time, no zone. */
+  dateOfBirth?: string | null;
+  preferredName?: string | null;
+  sex?: string | null;
   address?: UserAddress;
+  emergencyContacts?: EmergencyContact[];
+}
+
+/** Who to call about a person in an emergency. Primary first, as returned. */
+export interface EmergencyContact {
+  id: number;
+  name: string;
+  relationship: string | null;
+  /** E.164. Required — a contact with no number isn't a contact. */
+  phone: string;
+  phoneCountry?: string | null;
+  altPhone: string | null;
+  altPhoneCountry?: string | null;
+  email: string | null;
+  notes: string | null;
+  isPrimary: boolean;
+  sortOrder: number;
 }
 
 export interface UserAddress {

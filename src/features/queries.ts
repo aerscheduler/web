@@ -79,6 +79,8 @@ import type {
   RevenueReport,
   CancellationCategory,
   CancellationReport,
+  UserDetails,
+  EmergencyContact,
 } from "@/types/api";
 
 /** Options accepted by every read hook (currently just React Query's `enabled`). */
@@ -1803,6 +1805,101 @@ export function useClearNotifications() {
 export function useUpdateProfile() {
   return useMutation({
     mutationFn: (input: { name: string }) => api("/users/", { method: "PATCH", body: input }),
+  });
+}
+
+//---------------------------------------------------------------------------------
+// Contact details and emergency contacts.
+//
+// One route family on the server keyed by user id, for your own record and somebody
+// else's alike — so these hooks all take a `userId` and the caller passes its own for
+// self-service. Who is actually allowed is decided server-side; a 403 here is a real
+// answer, not a bug.
+//
+// Everything invalidates BOTH the contact keys and the member keys, because a member's
+// phone rides along on `GET /orgUsers/{id}` for the profile header — editing a number
+// and watching the header keep the old one is the bug this prevents.
+//---------------------------------------------------------------------------------
+
+/** A person's contact record. Absent (403) when the caller may not see it. */
+export function useContactDetails(userId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["contactDetails", userId],
+    queryFn: () => api<UserDetails | null>(`/users/${userId}/details`),
+    enabled: (opts?.enabled ?? true) && userId != null,
+    ...opts,
+  });
+}
+
+export interface ContactDetailsInput {
+  phone?: string | null;
+  homePhone?: string | null;
+  workPhone?: string | null;
+  dateOfBirth?: string | null;
+  preferredName?: string | null;
+}
+
+export function useUpdateContactDetails(userId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ContactDetailsInput) =>
+      api<UserDetails>(`/users/${userId}/details`, { method: "PATCH", body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["contactDetails", userId] });
+      qc.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
+}
+
+export function useEmergencyContacts(userId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["emergencyContacts", userId],
+    queryFn: () => api<EmergencyContact[]>(`/users/${userId}/emergencyContacts`),
+    enabled: (opts?.enabled ?? true) && userId != null,
+    ...opts,
+  });
+}
+
+export interface EmergencyContactInput {
+  name?: string;
+  relationship?: string | null;
+  phone?: string;
+  altPhone?: string | null;
+  email?: string | null;
+  notes?: string | null;
+  isPrimary?: boolean;
+}
+
+export function useSaveEmergencyContact(userId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    // One hook for add and edit: the form is identical and the only difference is
+    // whether an id came with it.
+    mutationFn: ({ id, ...body }: EmergencyContactInput & { id?: number }) =>
+      id == null
+        ? api<EmergencyContact>(`/users/${userId}/emergencyContacts`, { method: "POST", body })
+        : api<EmergencyContact>(`/users/${userId}/emergencyContacts/${id}`, {
+            method: "PATCH",
+            body,
+          }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["emergencyContacts", userId] });
+      qc.invalidateQueries({ queryKey: ["contactDetails", userId] });
+      qc.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
+}
+
+export function useDeleteEmergencyContact(userId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      api(`/users/${userId}/emergencyContacts/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["emergencyContacts", userId] });
+      qc.invalidateQueries({ queryKey: ["contactDetails", userId] });
+      qc.invalidateQueries({ queryKey: ["members"] });
+    },
   });
 }
 

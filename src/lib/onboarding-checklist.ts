@@ -105,7 +105,7 @@ export const CHECKLIST: ChecklistItem[] = [
   {
     id: "reservation",
     title: "Put your first flight on the schedule",
-    blurb: "Book a real lesson or rental — the board, close-out and invoice all follow from it.",
+    blurb: "Book a real lesson or rental. The board, close-out and invoice all follow from it.",
     icon: PlaneTakeoff,
     to: "/schedule",
     cta: "Open the calendar",
@@ -128,7 +128,7 @@ export const CHECKLIST: ChecklistItem[] = [
     blurb: (t) =>
       isClubLike(t)
         ? "When two members share an aircraft, who pays what? Pick your defaults once and every shared booking follows them."
-        : "Group ground school, two students in one aeroplane, co-renters on a cross-country — each person gets their own invoice, split by rules you set.",
+        : "Group ground school, two students in one aeroplane, co-renters on a cross-country: each person gets their own invoice, split by rules you set.",
     icon: Split,
     to: "/settings",
     search: { tab: "cost-splitting" },
@@ -204,7 +204,7 @@ export const CHECKLIST: ChecklistItem[] = [
   {
     id: "facilities",
     title: "Add simulators and classrooms",
-    blurb: "Bookable on the same board as your aircraft — and they don't count toward your plan.",
+    blurb: "Bookable on the same board as your aircraft, and they don't count toward your plan.",
     icon: MonitorPlay,
     to: "/facilities",
     cta: "Add facilities",

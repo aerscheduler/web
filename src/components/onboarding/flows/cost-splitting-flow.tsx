@@ -151,7 +151,7 @@ function WhatThisDoes({
             <span className="text-foreground">
               {r.reservationType ? typeLabel(r.reservationType as ReservationType) : "Every booking"}
             </span>
-            {" — "}
+            {", "}
             {data.copy.chargeLines[r.chargeLine as keyof typeof data.copy.chargeLines]?.label.toLowerCase()}
             {": "}
             <span className="text-foreground">

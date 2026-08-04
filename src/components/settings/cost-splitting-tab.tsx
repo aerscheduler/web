@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AlertTriangle, Calculator, Loader2, Pencil, RotateCcw, Split } from "lucide-react";
+import { AlertTriangle, CircleHelp, Loader2, Pencil, RotateCcw, Split } from "lucide-react";
 import { toast } from "sonner";
 import { useClearSplitRules, useSetSplitRule, useSplitRules } from "@/features/queries";
 import type {
@@ -125,7 +125,7 @@ function Status({ data, onSetUp }: { data: SplitRulesDescription; onSetUp: () =>
           <CardDescription>
             {configured
               ? "Bookings with two or more people are split by the rules below. Each person gets their own invoice."
-              : "Every booking bills one person for the whole thing — the same as it always has."}
+              : "Every booking bills one person for the whole thing, the same as it always has."}
           </CardDescription>
         </div>
       </CardHeader>
@@ -347,11 +347,22 @@ function LineEditor({
   const current = plan?.lines[line] ?? data.productDefault;
   const isDefault = (plan?.sources[line] ?? "product_default") === "product_default";
 
+  // The example for what is CURRENTLY chosen, which is the question the help icon answers:
+  // "what does my setting do to the money?" One icon per section rather than one per option.
+  const example = data.examples.find(
+    (e) => e.chargeLine === line && e.apportionment === current
+  );
+
   return (
     <div>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <div className="text-sm font-medium">{data.copy.chargeLines[line].label}</div>
+          <div className="flex items-center gap-1">
+            <div className="text-sm font-medium">{data.copy.chargeLines[line].label}</div>
+            {example && (
+              <ExampleHelp example={example} sectionLabel={data.copy.chargeLines[line].label} />
+            )}
+          </div>
           <p className="text-xs text-muted-foreground">{data.copy.chargeLines[line].blurb}</p>
         </div>
         {!isDefault && (
@@ -378,46 +389,31 @@ function LineEditor({
       <div className="mt-2 grid gap-1.5">
         {data.apportionments.map((a) => {
           const active = a === current;
-          const forOption = data.examples.find(
-            (e) => e.chargeLine === line && e.apportionment === a
-          );
           return (
-            // The selectable option and its example trigger are SIBLINGS, not nested — a
-            // button inside a button is invalid and swallows one of the two clicks.
-            <div key={a} className="flex items-stretch gap-1.5">
-              <button
-                type="button"
-                disabled={set.isPending}
-                aria-pressed={active}
-                onClick={() =>
-                  set.mutate(
-                    { reservationType: type, chargeLine: line, apportionment: a },
-                    {
-                      onError: (e) =>
-                        toast.error(
-                          e instanceof ApiError ? e.message : "Could not save that rule."
-                        ),
-                    }
-                  )
-                }
-                className={[
-                  "flex-1 rounded-lg border p-2.5 text-left transition-colors",
-                  active ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-accent/40",
-                ].join(" ")}
-              >
-                <div className="text-sm font-medium">{data.copy.apportionments[a].label}</div>
-                <div className="text-xs text-muted-foreground">
-                  {data.copy.apportionments[a].blurb}
-                </div>
-              </button>
-
-              {forOption && (
-                <ExamplePopover
-                  example={forOption}
-                  optionLabel={data.copy.apportionments[a].label}
-                />
-              )}
-            </div>
+            <button
+              key={a}
+              type="button"
+              disabled={set.isPending}
+              aria-pressed={active}
+              onClick={() =>
+                set.mutate(
+                  { reservationType: type, chargeLine: line, apportionment: a },
+                  {
+                    onError: (e) =>
+                      toast.error(e instanceof ApiError ? e.message : "Could not save that rule."),
+                  }
+                )
+              }
+              className={[
+                "rounded-lg border p-2.5 text-left transition-colors",
+                active ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-accent/40",
+              ].join(" ")}
+            >
+              <div className="text-sm font-medium">{data.copy.apportionments[a].label}</div>
+              <div className="text-xs text-muted-foreground">
+                {data.copy.apportionments[a].blurb}
+              </div>
+            </button>
           );
         })}
       </div>
@@ -428,19 +424,22 @@ function LineEditor({
 // ── Worked examples ────────────────────────────────────────────────────────────────
 
 /**
- * A worked example, on request.
+ * A help icon beside a section title that opens a worked example of the current setting.
  *
- * A POPOVER rather than a tooltip, deliberately. The content is a small table — a line per
- * payer, a total, and sometimes a warning — and a hover tooltip is the wrong container for
- * that: it can't be read on a touch screen, vanishes when the pointer moves toward it, and
- * shouldn't hold anything a person needs a moment with. A click-triggered popover keeps the
- * lightness that was wanted without making the figures hard to actually read.
+ * One per section, not one per option. An icon on every option turned into five identical
+ * glyphs down the side of the list, which reads as a control you are meant to use rather
+ * than as help you can ignore.
+ *
+ * A POPOVER rather than a hover tooltip, deliberately. The content is a small table: a line
+ * per payer, a total, sometimes a warning. A hover tooltip cannot be read on a touch screen,
+ * disappears when the pointer moves toward it, and should not hold anything a person needs a
+ * moment with. Click to open keeps the lightness without making the figures hard to read.
  *
  * Nothing dangerous is hidden behind it. "Each pays in full" states the multiplication in
- * its own blurb, which stays on the row — the popover carries the arithmetic, not the
- * warning.
+ * its own blurb, which stays on the row, so the popover carries the arithmetic rather than
+ * the warning.
  */
-function ExamplePopover({ example, optionLabel }: { example: WorkedExample; optionLabel: string }) {
+function ExampleHelp({ example, sectionLabel }: { example: WorkedExample; sectionLabel: string }) {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -448,17 +447,17 @@ function ExamplePopover({ example, optionLabel }: { example: WorkedExample; opti
           type="button"
           variant="ghost"
           size="icon"
-          className="h-auto self-stretch text-muted-foreground"
-          aria-label={`See an example of "${optionLabel}"`}
+          className="size-5 text-muted-foreground"
+          aria-label={`See an example of how ${sectionLabel.toLowerCase()} is split`}
         >
-          <Calculator className="size-4" />
+          <CircleHelp className="size-3.5" />
         </Button>
       </PopoverTrigger>
       {/* No z-index override needed even though this opens inside a dialog: the popover
-          portals after the dialog in document order, so at equal z-index it still paints
-          on top. Verified rather than assumed — mid-animation screenshots of the fade-in
-          look exactly like a stacking bug, and chasing that costs more than checking. */}
-      <PopoverContent align="end">
+          portals after the dialog in document order, so at equal z-index it still paints on
+          top. Verified rather than assumed, because a screenshot taken mid fade-in looks
+          exactly like a stacking bug. */}
+      <PopoverContent align="start">
         <ExampleBlock example={example} />
       </PopoverContent>
     </Popover>
@@ -479,7 +478,7 @@ function ExampleBlock({ example }: { example: WorkedExample }) {
       {/* Labelled as an example because the rate isn't this org's — an unlabelled dollar
           figure on a billing screen reads as your own money. */}
       <div className="text-xs font-medium text-muted-foreground">
-        For example — {example.scenario}
+        For example: {example.scenario}
       </div>
 
       {example.refusal ? (

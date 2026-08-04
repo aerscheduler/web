@@ -7,7 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
-import { apiRaw, getToken, isTokenExpired, setToken } from "./api";
+import { apiRaw, beaconDemoExit, getToken, isTokenExpired, setToken } from "./api";
 import { signInWithGoogle } from "./google";
 import { signInWithApple } from "./apple";
 import {
@@ -455,6 +455,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [applyDemo]);
 
   const exitDemo = useCallback(() => {
+    // Tell the server first, while the token is still here to authenticate with, so
+    // the pool gets this sandbox back now rather than at lease expiry. Best-effort and
+    // fire-and-forget — see beaconDemoExit; the reaper reclaims it either way.
+    beaconDemoExit();
     clearDemo();
     setDemo(null);
     // Not `logout()`: that clears the LOCALSTORAGE session, which in a demo tab

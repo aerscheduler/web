@@ -49,12 +49,15 @@ function DemoEntry() {
         // landing: it is the screen the product is actually about.
         await navigate({ to: "/dashboard", replace: true });
       } catch (err) {
+        // The server's own message is the pool-aware one ("every sandbox is in use…"
+        // on a busy pool), so prefer it; fall back only when it's missing.
         setError(
-          err instanceof ApiError && err.status === 503
-            ? "The demo is being rebuilt. Try again in a moment."
-            : err instanceof ApiError
-              ? err.message
-              : "We couldn't reach the server. Check your connection and try again."
+          err instanceof ApiError
+            ? err.message ||
+                (err.status === 503
+                  ? "Every demo sandbox is in use right now. Try again in a moment."
+                  : "The demo isn’t available right now. Try again in a moment.")
+            : "We couldn't reach the server. Check your connection and try again."
         );
       }
     })();

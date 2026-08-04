@@ -105,6 +105,30 @@ export function setDemoEndedHandler(fn: (() => void) | null) {
 }
 
 /**
+ * Best-effort "I'm leaving the demo" ping, so the server can return this sandbox to
+ * the pool now instead of holding it for the rest of the lease.
+ *
+ * Deliberately a bare keepalive fetch and NOT apiRaw: it must not run the 410
+ * DEMO_ENDED interceptor (that would flash the "your demo ended" toast at someone who
+ * is calmly leaving), it must outlive the navigation that immediately follows it
+ * (`keepalive`), and there is nothing to do with the response. Reads the demo token
+ * directly because the caller clears it a beat later. Never throws.
+ */
+export function beaconDemoExit(): void {
+  const token = getDemoToken();
+  if (!token) return;
+  try {
+    void fetch(`${API_URL}/demo/exit`, {
+      method: "POST",
+      keepalive: true,
+      headers: { Authorization: `Bearer ${token}`, "X-Client": CLIENT_ID },
+    }).catch(() => {});
+  } catch {
+    /* fetch threw synchronously — nothing to salvage on the way out */
+  }
+}
+
+/**
  * Tear down the session, exactly once per token.
  *
  * The token guard matters: several requests are usually in flight together, so

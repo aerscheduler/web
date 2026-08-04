@@ -1,15 +1,10 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, Check, Loader2, RotateCcw, Split, Users } from "lucide-react";
+import { AlertTriangle, Loader2, RotateCcw, Split } from "lucide-react";
 import { toast } from "sonner";
-import {
-  useApplySplitPreset,
-  useClearSplitRules,
-  useSetSplitRule,
-  useSplitRules,
-} from "@/features/queries";
+import { useClearSplitRules, useSetSplitRule, useSplitRules } from "@/features/queries";
 import type {
   ChargeLine,
-  SplitPreset,
+  ReservationType,
   SplitRulesDescription,
   WorkedExample,
 } from "@/types/api";
@@ -27,30 +22,46 @@ import { ErrorState } from "@/components/states";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { ApiError } from "@/lib/api";
 import { typeLabel } from "@/components/schedule/meta";
-import type { ReservationType } from "@/types/api";
+import { CostSplittingFlow } from "@/components/onboarding/flows/cost-splitting-flow";
 
 /**
  * How this organization divides the cost of a booking between the people on it.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────
- * WHY THIS SCREEN IS MOSTLY EXPLANATION
+ * WHY THIS SCREEN IS MOSTLY A SUMMARY
  * ─────────────────────────────────────────────────────────────────────────────────────
  *
- * The setting itself is a five-way choice per charge line. The hard part is not making
- * the choice, it is understanding what it will do — and one of the five, "each pays in
- * full", MULTIPLIES what the school collects rather than dividing it. An operator who
- * picks it expecting a division would overcharge every student on every group booking
- * and find out from a parent.
+ * It used not to be, and that was the bug. This screen opened with three explanatory
+ * paragraphs and then rendered TWELVE live billing controls — six booking types × two
+ * charge lines — each with five options, a paragraph of its own, and a worked example
+ * with money in it. Below that, a reference section repeated all five examples again.
+ * Around seventeen money tables on one page.
  *
- * So every option carries a worked example with real money in it, and those examples are
- * computed BY THE SERVER'S OWN APPORTIONMENT ENGINE (`utils/splitExamples.ts`) rather
- * than written here as prose or re-derived in the browser. That is the whole point: the
- * figure shown on this screen is the figure that will land on the invoice, by
- * construction, and it cannot drift from the billing code because it IS the billing code.
+ * Every one of the twelve looked identical, because they were all on the default, so the
+ * repetition carried no information at all. The reaction to it was "a lot of words, and I
+ * felt scared to change anything" — which for a page that decides who gets invoiced is the
+ * worst outcome available. Worse, its own comment defended this as "mostly explanation",
+ * as though volume were thoroughness.
  *
- * The same applies to the vocabulary — the list of rules, the labels, the blurbs and the
- * per-type limits all arrive from the server. Nothing about what a rule means is
- * hardcoded here.
+ * The instinct behind it was right: nobody should choose "each pays in full" by accident,
+ * because it MULTIPLIES what the school collects instead of dividing it. The error was
+ * concluding that every explanation must therefore be on screen at all times. Explanation
+ * belongs at the moment of choosing. So now:
+ *
+ *  - **One decision up front.** Most operators want "bill groups the way a flight school
+ *    does", which is a preset. That is the primary action, and it opens the same flow the
+ *    setup checklist opens — one path to the decision, not two that can drift.
+ *  - **The matrix is a read-only summary**, one line per booking type in plain English,
+ *    scannable in a few seconds. Editing is per-type and opt-in.
+ *  - **The five options, their blurbs and their worked examples live inside that editor**,
+ *    where somebody has deliberately gone to make a choice — not on the landing view.
+ *  - **The two facts that remove the fear are stated once**, not per block: a booking with
+ *    one person is unaffected, and an invoice already raised never changes.
+ *
+ * The figures in the examples are still computed BY THE SERVER'S OWN APPORTIONMENT ENGINE
+ * (`utils/splitExamples.ts`), so what this screen shows is what will land on the invoice by
+ * construction. They use an illustrative aircraft and rate rather than this org's own, and
+ * are labelled as an example so nobody reads them as their real numbers.
  */
 export function CostSplittingTab() {
   const q = useSplitRules();
@@ -63,8 +74,8 @@ export function CostSplittingTab() {
           <Skeleton className="h-4 w-72" />
         </CardHeader>
         <CardContent className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full" />
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-full" />
           ))}
         </CardContent>
       </Card>
@@ -85,108 +96,56 @@ export function CostSplittingTab() {
 }
 
 function CostSplitting({ data }: { data: SplitRulesDescription }) {
-  const configured = data.rules.length > 0;
+  const [flowOpen, setFlowOpen] = useState(false);
 
   return (
     <div className="space-y-4">
-      <HowItWorks configured={configured} />
-      <Presets data={data} />
-      <RuleMatrix data={data} />
-      <Reference data={data} />
+      <Status data={data} onSetUp={() => setFlowOpen(true)} />
+      <Summary data={data} />
+      {flowOpen && <CostSplittingFlow onClose={() => setFlowOpen(false)} />}
     </div>
   );
 }
 
-// ── The explainer at the top ────────────────────────────────────────────────────────
+// ── Where you stand, and the one action ────────────────────────────────────────────
 
-function HowItWorks({ configured }: { configured: boolean }) {
+function Status({ data, onSetUp }: { data: SplitRulesDescription; onSetUp: () => void }) {
+  const configured = data.rules.length > 0;
+  const clear = useClearSplitRules();
+
   return (
     <Card>
       <CardHeader className="flex-row items-start gap-2.5">
         <span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
           <Split className="size-4" />
         </span>
-        <div>
+        <div className="min-w-0">
           <CardTitle>Cost splitting</CardTitle>
           <CardDescription>
-            When more than one person is on a booking, these rules decide who is charged what.
-            Each person gets their own invoice.
+            {configured
+              ? "Bookings with two or more people are split by the rules below. Each person gets their own invoice."
+              : "Every booking bills one person for the whole thing — the same as it always has."}
           </CardDescription>
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="rounded-md border bg-muted/40 p-3 text-muted-foreground">
-          <p className="mb-2">
-            A booking is priced in two parts, and each part can be split differently — a
-            classroom class can charge every student the full instruction rate while the room
-            itself is shared.
-          </p>
-          <p>
-            Rules only ever apply when there are <strong>two or more people</strong> on a
-            booking. A booking with one person is always invoiced exactly as it is today,
-            whatever these say.
-          </p>
-        </div>
 
-        {!configured && (
-          <div className="flex items-start gap-2 rounded-md border border-dashed p-3 text-muted-foreground">
-            <Users className="mt-0.5 size-4 shrink-0" />
-            <p>
-              You haven't set any rules yet, so every booking bills one person for the whole
-              thing — exactly as it always has. Pick the kind of operation you run below to
-              get sensible defaults, or set individual rules yourself.
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={onSetUp} variant={configured ? "outline" : "default"}>
+            {configured ? "Start from a preset" : "Set up cost splitting"}
+          </Button>
 
-// ── Presets ────────────────────────────────────────────────────────────────────────
-
-function Presets({ data }: { data: SplitRulesDescription }) {
-  const [preview, setPreview] = useState<SplitPreset | null>(null);
-  const apply = useApplySplitPreset();
-  const clear = useClearSplitRules();
-
-  return (
-    <>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Start from your kind of operation</CardTitle>
-          <CardDescription>
-            These are starting points, not modes — each one just writes the rules below, and
-            you can change any of them afterwards.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-2 sm:grid-cols-2">
-            {data.presets.map((p) => (
-              <button
-                key={p.key}
-                type="button"
-                onClick={() => setPreview(p)}
-                className="rounded-md border p-3 text-left transition-colors hover:border-primary/50 hover:bg-accent/40"
-              >
-                <div className="font-medium">{p.label}</div>
-                <div className="mt-0.5 text-sm text-muted-foreground">{p.summary}</div>
-              </button>
-            ))}
-          </div>
-
-          {data.rules.length > 0 && (
+          {configured && (
             <Button
               variant="ghost"
-              size="sm"
               disabled={clear.isPending}
-              onClick={() => {
+              onClick={() =>
                 clear.mutate(undefined, {
                   onSuccess: () => toast.success("Back to one invoice per booking."),
                   onError: (e) =>
                     toast.error(e instanceof ApiError ? e.message : "Could not clear the rules."),
-                });
-              }}
+                })
+              }
             >
               {clear.isPending ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -196,76 +155,20 @@ function Presets({ data }: { data: SplitRulesDescription }) {
               Clear all rules
             </Button>
           )}
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Shows the EXACT rules before committing. Nobody should have their billing
-          rewritten by a button whose effect they could not read first. */}
-      <ResponsiveModal
-        open={!!preview}
-        onOpenChange={(o) => !o && setPreview(null)}
-        title={preview ? `Use the ${preview.label.toLowerCase()} defaults?` : ""}
-        description={
-          preview
-            ? "This replaces every rule you have now with the ones below. Nothing is billed differently until your next close-out."
-            : ""
-        }
-      >
-        {preview && (
-          <div className="space-y-3">
-            <ul className="space-y-2">
-              {preview.rules.map((r, i) => (
-                <li key={i} className="rounded-md border p-2.5 text-sm">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant="secondary">
-                      {r.reservationType
-                        ? typeLabel(r.reservationType as ReservationType)
-                        : "All bookings"}
-                    </Badge>
-                    <span className="text-muted-foreground">
-                      {data.copy.chargeLines[r.chargeLine].label}
-                    </span>
-                    <span aria-hidden>→</span>
-                    <span className="font-medium">
-                      {data.copy.apportionments[r.apportionment].label}
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-muted-foreground">{r.rationale}</p>
-                </li>
-              ))}
-            </ul>
-
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" onClick={() => setPreview(null)}>
-                Cancel
-              </Button>
-              <Button
-                disabled={apply.isPending}
-                onClick={() => {
-                  apply.mutate(preview.key, {
-                    onSuccess: () => {
-                      toast.success(`Using the ${preview.label.toLowerCase()} defaults.`);
-                      setPreview(null);
-                    },
-                    onError: (e) =>
-                      toast.error(
-                        e instanceof ApiError ? e.message : "Could not apply those defaults."
-                      ),
-                  });
-                }}
-              >
-                {apply.isPending && <Loader2 className="size-4 animate-spin" />}
-                Use these rules
-              </Button>
-            </div>
-          </div>
-        )}
-      </ResponsiveModal>
-    </>
+        {/* The two facts that make this page safe to touch. Stated ONCE — they used to be
+            implied twelve times over and landed as noise rather than reassurance. */}
+        <ul className="space-y-1 text-sm text-muted-foreground">
+          <li>A booking with one person is always invoiced exactly as it is today.</li>
+          <li>Changing a rule only affects close-outs from now on. Invoices already raised never change.</li>
+        </ul>
+      </CardContent>
+    </Card>
   );
 }
 
-// ── The rule matrix ────────────────────────────────────────────────────────────────
+// ── The summary, and the editor behind it ──────────────────────────────────────────
 
 /** Booking types that can never hold two people have nothing to split. */
 function typeCanSplit(data: SplitRulesDescription, type: string): boolean {
@@ -273,40 +176,158 @@ function typeCanSplit(data: SplitRulesDescription, type: string): boolean {
   return !!limits && Object.values(limits).some((n) => n > 1);
 }
 
-function RuleMatrix({ data }: { data: SplitRulesDescription }) {
+function Summary({ data }: { data: SplitRulesDescription }) {
+  const [editing, setEditing] = useState<string | null>(null);
+  const [reference, setReference] = useState(false);
   const splittable = data.bookableTypes.filter((t) => typeCanSplit(data, t));
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Rules by booking type</CardTitle>
-        <CardDescription>
-          Set a rule for a specific kind of booking, or leave it on the default. Booking types
-          that only ever have one person paying aren't listed.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {splittable.map((type) => (
-          <div key={type} className="rounded-md border">
-            <div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-2">
-              <span className="font-medium">{typeLabel(type as ReservationType)}</span>
-              <span className="text-xs text-muted-foreground">
-                up to {Math.max(...Object.values(data.personnelLimits[type] ?? {}))} people
-              </span>
-            </div>
-            <div className="divide-y">
-              {data.chargeLines.map((line) => (
-                <RuleRow key={line} data={data} type={type} line={line} />
-              ))}
-            </div>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">By booking type</CardTitle>
+          <CardDescription>
+            Types that only ever have one person paying aren't listed.{" "}
+            <button
+              type="button"
+              onClick={() => setReference(true)}
+              className="text-primary underline-offset-2 hover:underline"
+            >
+              What do the options mean?
+            </button>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y border-t">
+            {splittable.map((type) => (
+              <SummaryRow key={type} data={data} type={type} onEdit={() => setEditing(type)} />
+            ))}
           </div>
-        ))}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {editing && (
+        <EditType data={data} type={editing} onClose={() => setEditing(null)} />
+      )}
+
+      <ResponsiveModal
+        open={reference}
+        onOpenChange={setReference}
+        title="What the options mean"
+        description="Every figure here is produced by the same code that prices your invoices."
+        size="lg"
+      >
+        <Reference data={data} />
+      </ResponsiveModal>
+    </>
   );
 }
 
-function RuleRow({
+/**
+ * One booking type's rules as a single readable phrase.
+ *
+ * Collapses when every charge line agrees, which is the overwhelmingly common case — an
+ * org on the defaults, or one that picked a preset splitting everything evenly. Spelling
+ * both lines out there produced "aircraft, simulator & room time: one person pays ·
+ * instruction: one person pays" on all six rows: the same words twice, six times over,
+ * which is the wordiness this redesign exists to remove. The labelled form is kept for
+ * when the two lines genuinely differ, because then the distinction is the whole point.
+ */
+function describe(data: SplitRulesDescription, type: string): string {
+  const plan = data.resolved[type];
+  const named = data.chargeLines.map((l) => ({
+    line: l,
+    apportionment: plan?.lines[l] ?? data.productDefault,
+  }));
+  const distinct = new Set(named.map((n) => n.apportionment));
+
+  if (distinct.size === 1) {
+    return data.copy.apportionments[named[0].apportionment].label;
+  }
+
+  return named
+    .map(
+      (n) =>
+        `${data.copy.chargeLines[n.line].label.toLowerCase()}: ${data.copy.apportionments[
+          n.apportionment
+        ].label.toLowerCase()}`
+    )
+    .join(" · ");
+}
+
+/** One booking type, its current rules in plain English. Read-only until asked. */
+function SummaryRow({
+  data,
+  type,
+  onEdit,
+}: {
+  data: SplitRulesDescription;
+  type: string;
+  onEdit: () => void;
+}) {
+  const plan = data.resolved[type];
+  const cap = Math.max(...Object.values(data.personnelLimits[type] ?? { a: 0 }));
+  const customised = data.chargeLines.some(
+    (l) => (plan?.sources[l] ?? "product_default") !== "product_default"
+  );
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium">{typeLabel(type as ReservationType)}</span>
+          <span className="text-xs text-muted-foreground">up to {cap}</span>
+          {customised && (
+            <Badge variant="secondary" className="text-xs font-normal">
+              Your rule
+            </Badge>
+          )}
+        </div>
+        <div className="mt-0.5 text-sm text-muted-foreground">{describe(data, type)}</div>
+      </div>
+
+      <Button variant="ghost" size="sm" onClick={onEdit}>
+        Change
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * The editor for ONE booking type — both of its charge lines, five options each.
+ *
+ * This is where the explanation and the worked example live now. The difference from
+ * before is not the content but the consent: somebody opened this because they want to
+ * change this type, rather than meeting twelve of them on arrival.
+ */
+function EditType({
+  data,
+  type,
+  onClose,
+}: {
+  data: SplitRulesDescription;
+  type: string;
+  onClose: () => void;
+}) {
+  return (
+    <ResponsiveModal
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title={`${typeLabel(type as ReservationType)} bookings`}
+      description="How each part of the cost divides when more than one person is on the booking."
+      size="lg"
+      footer={<Button onClick={onClose}>Done</Button>}
+    >
+      <div className="space-y-5">
+        {data.chargeLines.map((line) => (
+          <LineEditor key={line} data={data} type={type} line={line} />
+        ))}
+      </div>
+    </ResponsiveModal>
+  );
+}
+
+function LineEditor({
   data,
   type,
   line,
@@ -318,8 +339,7 @@ function RuleRow({
   const set = useSetSplitRule();
   const plan = data.resolved[type];
   const current = plan?.lines[line] ?? data.productDefault;
-  const source = plan?.sources[line] ?? "product_default";
-  const isDefault = source === "product_default";
+  const isDefault = (plan?.sources[line] ?? "product_default") === "product_default";
 
   const example = useMemo(
     () => data.examples.find((e) => e.chargeLine === line && e.apportionment === current),
@@ -327,24 +347,12 @@ function RuleRow({
   );
 
   return (
-    <div className="p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
+    <div>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
-          <div className="flex items-center gap-2 text-sm font-medium">
-            {data.copy.chargeLines[line].label}
-            {isDefault ? (
-              <Badge variant="outline" className="text-xs font-normal">
-                Default
-              </Badge>
-            ) : (
-              <Badge className="text-xs font-normal">
-                <Check className="mr-0.5 size-3" /> Set by you
-              </Badge>
-            )}
-          </div>
+          <div className="text-sm font-medium">{data.copy.chargeLines[line].label}</div>
           <p className="text-xs text-muted-foreground">{data.copy.chargeLines[line].blurb}</p>
         </div>
-
         {!isDefault && (
           <Button
             variant="ghost"
@@ -361,12 +369,12 @@ function RuleRow({
               )
             }
           >
-            Reset
+            Reset to default
           </Button>
         )}
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="mt-2 grid gap-1.5">
         {data.apportionments.map((a) => {
           const active = a === current;
           return (
@@ -374,35 +382,31 @@ function RuleRow({
               key={a}
               type="button"
               disabled={set.isPending}
+              aria-pressed={active}
               onClick={() =>
                 set.mutate(
                   { reservationType: type, chargeLine: line, apportionment: a },
                   {
                     onError: (e) =>
-                      toast.error(
-                        e instanceof ApiError ? e.message : "Could not save that rule."
-                      ),
+                      toast.error(e instanceof ApiError ? e.message : "Could not save that rule."),
                   }
                 )
               }
               className={[
-                "rounded-full border px-2.5 py-1 text-xs transition-colors",
-                active
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "hover:border-primary/50 hover:bg-accent",
+                "rounded-lg border p-2.5 text-left transition-colors",
+                active ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:bg-accent/40",
               ].join(" ")}
             >
-              {data.copy.apportionments[a].label}
+              <div className="text-sm font-medium">{data.copy.apportionments[a].label}</div>
+              <div className="text-xs text-muted-foreground">
+                {data.copy.apportionments[a].blurb}
+              </div>
             </button>
           );
         })}
       </div>
 
-      <p className="mt-2 text-xs text-muted-foreground">
-        {data.copy.apportionments[current].blurb}
-      </p>
-
-      {example && <ExampleBlock example={example} compact />}
+      {example && <ExampleBlock example={example} />}
     </div>
   );
 }
@@ -415,12 +419,16 @@ function RuleRow({
  * `totalNote` is rendered prominently on purpose: for "each pays in full" it is the line
  * that says the revenue MULTIPLIES, which is the one thing an operator must not miss.
  */
-function ExampleBlock({ example, compact }: { example: WorkedExample; compact?: boolean }) {
+function ExampleBlock({ example }: { example: WorkedExample }) {
   const multiplies = /NOT a division/i.test(example.totalNote);
 
   return (
-    <div className={["rounded-md border bg-muted/30 p-2.5", compact ? "mt-2" : "mt-0"].join(" ")}>
-      <div className="text-xs font-medium text-muted-foreground">{example.scenario}</div>
+    <div className="mt-2 rounded-md border bg-muted/30 p-2.5">
+      {/* Labelled as an example because the rate isn't this org's — an unlabelled dollar
+          figure on a billing screen reads as your own money. */}
+      <div className="text-xs font-medium text-muted-foreground">
+        For example — {example.scenario}
+      </div>
 
       {example.refusal ? (
         <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
@@ -451,7 +459,9 @@ function ExampleBlock({ example, compact }: { example: WorkedExample; compact?: 
           <p
             className={[
               "mt-1 text-xs",
-              multiplies ? "font-medium text-amber-600 dark:text-amber-500" : "text-muted-foreground",
+              multiplies
+                ? "font-medium text-amber-600 dark:text-amber-500"
+                : "text-muted-foreground",
             ].join(" ")}
           >
             {multiplies && <AlertTriangle className="mr-1 inline size-3" />}
@@ -463,60 +473,51 @@ function ExampleBlock({ example, compact }: { example: WorkedExample; compact?: 
   );
 }
 
-// ── Reference: what every option does ──────────────────────────────────────────────
+// ── Reference: what every option does, on request ──────────────────────────────────
 
 function Reference({ data }: { data: SplitRulesDescription }) {
   const [line, setLine] = useState<ChargeLine>(data.chargeLines[0]);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">What each option does</CardTitle>
-        <CardDescription>
-          Every figure below is produced by the same code that prices your invoices, so this
-          is exactly what would happen.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <div className="flex flex-wrap gap-1.5">
-          {data.chargeLines.map((l) => (
-            <button
-              key={l}
-              type="button"
-              onClick={() => setLine(l)}
-              className={[
-                "rounded-full border px-2.5 py-1 text-xs transition-colors",
-                l === line
-                  ? "border-primary bg-primary text-primary-foreground"
-                  : "hover:border-primary/50 hover:bg-accent",
-              ].join(" ")}
-            >
-              {data.copy.chargeLines[l].label}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-1.5">
+        {data.chargeLines.map((l) => (
+          <button
+            key={l}
+            type="button"
+            onClick={() => setLine(l)}
+            className={[
+              "rounded-full border px-2.5 py-1 text-xs transition-colors",
+              l === line
+                ? "border-primary bg-primary text-primary-foreground"
+                : "hover:border-primary/50 hover:bg-accent",
+            ].join(" ")}
+          >
+            {data.copy.chargeLines[l].label}
+          </button>
+        ))}
+      </div>
 
-        <div className="grid gap-3 lg:grid-cols-2">
-          {data.apportionments.map((a) => {
-            const example = data.examples.find(
-              (e) => e.chargeLine === line && e.apportionment === a
-            );
-            return (
-              <div key={a} className="rounded-md border p-3">
-                <div className="text-sm font-medium">{data.copy.apportionments[a].label}</div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {data.copy.apportionments[a].blurb}
-                </p>
-                <p className="mt-1.5 text-xs">
-                  <span className="text-muted-foreground">Best for: </span>
-                  {data.copy.apportionments[a].bestFor}
-                </p>
-                {example && <ExampleBlock example={example} compact />}
-              </div>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
+      <div className="space-y-3">
+        {data.apportionments.map((a) => {
+          const example = data.examples.find(
+            (e) => e.chargeLine === line && e.apportionment === a
+          );
+          return (
+            <div key={a} className="rounded-md border p-3">
+              <div className="text-sm font-medium">{data.copy.apportionments[a].label}</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {data.copy.apportionments[a].blurb}
+              </p>
+              <p className="mt-1.5 text-xs">
+                <span className="text-muted-foreground">Best for: </span>
+                {data.copy.apportionments[a].bestFor}
+              </p>
+              {example && <ExampleBlock example={example} />}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

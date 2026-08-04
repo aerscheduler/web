@@ -11,6 +11,7 @@
 import type { ComponentType } from "react";
 import type { FlowProps } from "./flow-shell";
 import { BillingFlow } from "./billing-flow";
+import { CostSplittingFlow } from "./cost-splitting-flow";
 import { InviteFlow } from "./invite-flow";
 import { MaintenanceFlow } from "./maintenance-flow";
 import { OrganizationFlow } from "./organization-flow";
@@ -25,6 +26,11 @@ export const FLOWS: Record<string, ComponentType<FlowProps>> = {
   rules: RulesFlow,
   rates: RatesFlow,
   profile: OrganizationFlow,
+  // Keyed on the item id, which is hyphenated. Without an entry this item navigated to
+  // Settings → Cost splitting, which is the case the comment above warns about: a settings
+  // screen is not a focused experience, and that one in particular opened twelve live
+  // billing controls at once.
+  "cost-splitting": CostSplittingFlow,
   // Same flow, different starting answer — the question it opens on is the only
   // difference between "invite your instructors" and "invite your students".
   instructors: (props) => <InviteFlow {...props} defaultWho="instructor" />,

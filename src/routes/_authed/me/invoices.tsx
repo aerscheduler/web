@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format, parseISO } from "date-fns";
@@ -35,12 +35,22 @@ import { formatMoney } from "@/lib/utils";
 const FACET_KEYS = ["paid", "startDate", "endDate"] as const;
 
 export const Route = createFileRoute("/_authed/me/invoices")({
-  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
+  /** `invoice` = which record the detail panel shows. Outside the facet list so it
+   *  is never persisted and reopened later; a number so the router doesn't
+   *  JSON-quote it into `?invoice=%22412%22`. */
+  validateSearch: (s) => {
+    const list = validateListSearch(s, [...FACET_KEYS]);
+    const invoice = Number.parseInt(String(s.invoice ?? ""), 10);
+    return {
+      ...list,
+      ...(Number.isFinite(invoice) ? { invoice } : {}),
+    };
+  },
   component: MyInvoicesPage,
 });
 
 const EMPTY_COPY =
-  "No invoices yet. They'll appear here after your flights are billed.";
+  "No invoices yet. They'll appear here after your reservations are billed.";
 
 const FACETS: FacetDef[] = [
   {
@@ -170,13 +180,26 @@ function MyInvoicesPage() {
   const { organization, orgUserId } = useAuth();
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
+  const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
+  const { invoice: openInvoiceId, ...listSearch } = routeSearch;
   const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
     storageKey: "me-invoices",
-    search: routeSearch,
-    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    search: listSearch,
+    navigate: navigateSearch,
     facetKeys: [...FACET_KEYS],
   });
-  const [viewId, setViewId] = useState<number | null>(null);
+  const viewId = openInvoiceId ?? null;
+  // `replace`, so ↑/↓ doesn't stack one history entry per invoice.
+  const setViewId = useCallback(
+    (id: number | null) => {
+      navigateSearch({
+        search: ({ invoice: _drop, ...rest }: Record<string, unknown>) =>
+          id == null ? rest : { ...rest, invoice: id },
+        replace: true,
+      });
+    },
+    [navigateSearch]
+  );
   const [payId, setPayId] = useState<number | null>(null);
 
   const filtersActive =
@@ -212,12 +235,28 @@ function MyInvoicesPage() {
     () => invoices.find((i) => i.id === viewId) ?? null,
     [invoices, viewId]
   );
+
+  /** ↑/↓ to the neighbouring invoice. Clamped at the page edges — paging under the
+   *  panel would move the list out from under the highlight. */
+  const stepInvoice = useCallback(
+    (delta: -1 | 1) => {
+      if (viewId == null) return;
+      const i = invoices.findIndex((x) => x.id === viewId);
+      if (i === -1) return;
+      const next = invoices[Math.min(invoices.length - 1, Math.max(0, i + delta))];
+      if (next && next.id !== viewId) setViewId(next.id);
+    },
+    [invoices, viewId, setViewId]
+  );
   const payInvoice = useMemo(
     () => invoices.find((i) => i.id === payId) ?? null,
     [invoices, payId]
   );
 
-  const columns = useMemo(() => invoiceColumns((inv) => setViewId(inv.id)), []);
+  // `setViewId` used to be a useState setter (stable, so `[]` was right); it now
+  // closes over the router's navigate, so it has to be a real dependency or the
+  // column's View action keeps calling yesterday's setter.
+  const columns = useMemo(() => invoiceColumns((inv) => setViewId(inv.id)), [setViewId]);
 
   const searchToolbar = (
     <ListSearchBar
@@ -235,7 +274,7 @@ function MyInvoicesPage() {
     return (
       <TableView>
         <TableView.Header>
-          <PageHeader title="Invoices" subtitle="Your flight-training charges." />
+          <PageHeader title="Invoices" subtitle="What your school has charged you." />
         </TableView.Header>
         <Card className="min-h-0 flex-1 p-0">
           <EmptyState
@@ -253,7 +292,7 @@ function MyInvoicesPage() {
       <TableView.Header>
         <PageHeader
           title="Invoices"
-          subtitle="Your flight-training charges — what you owe and what's settled."
+          subtitle="What your school has charged you — what you owe and what's settled."
         />
 
         {summaryQ.isPending ? (
@@ -300,6 +339,8 @@ function MyInvoicesPage() {
           loading={invoicesQ.isFetching}
           toolbar={searchToolbar}
           mobileCard={(inv) => <InvoiceCard inv={inv} onView={(i) => setViewId(i.id)} />}
+          onRowClick={(inv) => setViewId(inv.id)}
+          isRowSelected={(inv) => inv.id === viewId}
           emptyMessage="No invoices match your search."
         />
       )}
@@ -308,6 +349,7 @@ function MyInvoicesPage() {
         invoice={viewInvoice}
         open={viewId != null}
         onOpenChange={(o) => !o && setViewId(null)}
+        onStep={stepInvoice}
         onPay={(inv) => {
           setViewId(null);
           setPayId(inv.id);

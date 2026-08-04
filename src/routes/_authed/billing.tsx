@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { DateRange } from "react-day-picker";
@@ -57,7 +57,24 @@ const FACET_KEYS = ["status", "startDate", "endDate"] as const;
 
 export const Route = createFileRoute("/_authed/billing")({
   beforeLoad: guardRoute("/billing"),
-  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
+  /**
+   * `invoice` is which record the detail panel is showing. It rides in the URL
+   * rather than in component state so the panel survives a refresh and can be
+   * linked to — and it is kept OUT of the facet list on purpose: facets are
+   * remembered in localStorage and restored on the next visit, which would
+   * reopen a stale invoice days later.
+   */
+  validateSearch: (s) => {
+    const list = validateListSearch(s, [...FACET_KEYS]);
+    // Kept as a NUMBER, not a string: the router JSON-encodes string values, so
+    // a string id serializes as `?invoice=%225978%22` — unreadable, and not what
+    // anyone would type by hand.
+    const invoice = Number.parseInt(String(s.invoice ?? ""), 10);
+    return {
+      ...list,
+      ...(Number.isFinite(invoice) ? { invoice } : {}),
+    };
+  },
   component: BillingPage,
 });
 
@@ -70,7 +87,7 @@ type InvoiceActions = {
   busy: boolean;
 };
 
-const EMPTY_COPY = "No invoices in this range. They draft automatically when a flight ramps in.";
+const EMPTY_COPY = "No invoices in this range. They draft automatically when a reservation ramps in.";
 
 const STATUS_FACETS: FacetDef[] = [
   {
@@ -82,7 +99,7 @@ const STATUS_FACETS: FacetDef[] = [
     options: [
       { value: "outstanding", label: "Outstanding" },
       { value: "paid", label: "Paid" },
-      { value: "unbilled", label: "Unbilled flights" },
+      { value: "unbilled", label: "Unbilled reservations" },
     ],
   },
 ];
@@ -232,9 +249,9 @@ function InvoiceCard({ inv, actions }: { inv: Invoice; actions: InvoiceActions }
 function unbilledColumns(onBill: (r: Reservation) => void): ColumnDef<Reservation, unknown>[] {
   return [
     {
-      id: "flight",
+      id: "reservation",
       meta: { sortKey: "title" },
-      header: "Flight",
+      header: "Reservation",
       accessorFn: (r) => r.title,
       cell: ({ row }) => (
         <div className="min-w-0">
@@ -316,13 +333,37 @@ function BillingPage() {
   const confirm = useConfirm();
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
+  // One loosely-typed navigate for every search-param update on this page — the
+  // same cast `useListQueryState` already needs for its own reducers.
+  const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
+  // `invoice` is which record is open, not a list filter — it is split off here so
+  // it never reaches the facet machinery (which is string-valued, and which would
+  // also persist it to localStorage and reopen it on a later visit).
+  const { invoice: _openInvoice, ...listSearch } = routeSearch;
   const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
     storageKey: "billing",
-    search: routeSearch,
-    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    search: listSearch,
+    navigate: navigateSearch,
     facetKeys: [...FACET_KEYS],
   });
-  const [viewId, setViewId] = useState<number | null>(null);
+
+  /** Which invoice the detail panel is showing — read straight off the URL. */
+  const viewId = useMemo(() => {
+    const n = Number.parseInt(String(routeSearch.invoice ?? ""), 10);
+    return Number.isFinite(n) ? n : null;
+  }, [routeSearch.invoice]);
+
+  // `replace`, always: stepping through invoices with ↑/↓ would otherwise stack a
+  // history entry per record, and Back would then walk the panel backwards one
+  // invoice at a time instead of leaving Billing.
+  function setViewId(id: number | null) {
+    navigateSearch({
+      search: ({ invoice: _drop, ...rest }: Record<string, unknown>) =>
+        id == null ? rest : { ...rest, invoice: id },
+      replace: true,
+    });
+  }
+
   const [createOpen, setCreateOpen] = useState(false);
   const [draft, setDraft] = useState<InvoiceDraft | undefined>(undefined);
 
@@ -397,7 +438,7 @@ function BillingPage() {
 
   // "Unbilled" is a server filter now. Fetching the window and keeping the rows
   // with no invoice worked only while the whole window arrived at once; against
-  // a page it would answer "the unbilled flights on this page".
+  // a page it would answer "the unbilled reservations on this page".
   const unbilledPaging = usePaging({
     resetKey: [startISO, endISO],
     defaultSort: { key: "end", dir: "desc" },
@@ -423,12 +464,34 @@ function BillingPage() {
     return invoices;
   }, [invoices, wantsOutstanding, wantsPaid]);
 
-  // Only the page in hand can be resolved locally now, so the sheet falls back
+  // Only the page in hand can be resolved locally now, so the panel falls back
   // to fetching the one it was asked for.
   const viewInvoice = useMemo(
     () => invoices.find((i) => i.id === viewId) ?? null,
     [invoices, viewId]
   );
+
+  /**
+   * ↑/↓ to the neighbouring invoice, over `rows` — what is actually drawn, not
+   * the unfiltered page — so the panel never lands on a row that isn't there.
+   * Stops at the ends rather than wrapping or paging: silently jumping to
+   * another page would move the list out from under the highlight.
+   */
+  function stepInvoice(delta: -1 | 1) {
+    const i = rows.findIndex((r) => r.id === viewId);
+    if (i < 0) return;
+    const next = rows[i + delta];
+    if (next) setViewId(next.id);
+  }
+
+  // Keep the highlighted row on screen when the keyboard moved it. `nearest`
+  // scrolls only when the row has actually left the viewport, so clicking a row
+  // that is already visible doesn't jolt the table.
+  useEffect(() => {
+    if (viewId == null) return;
+    const row = document.querySelector<HTMLElement>("tr[data-selected]");
+    row?.scrollIntoView({ block: "nearest" });
+  }, [viewId]);
 
   function markPaid(inv: Invoice) {
     update.mutate(
@@ -535,6 +598,10 @@ function BillingPage() {
         loading={invoicesQ.isFetching}
         mobileCard={(inv) => <InvoiceCard inv={inv} actions={actions} />}
         emptyMessage={emptyMessage}
+        // The whole row opens the panel now. The ⋯ menu keeps its "View invoice"
+        // item: it is the only way in on a phone, where rows render as cards.
+        onRowClick={(inv) => setViewId(inv.id)}
+        isRowSelected={(inv) => inv.id === viewId}
       />
     );
   }
@@ -557,16 +624,16 @@ function BillingPage() {
         <Card className="min-h-0 flex-1">
           <EmptyState
             icon={CheckCircle2}
-            title="All flights billed"
-            body="Every past flight in this range already has an invoice."
+            title="Everything billed"
+            body="Every past reservation in this range already has an invoice."
           />
         </Card>
       );
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
+      <div className="flex flex-1 flex-col gap-3">
         <p className="shrink-0 text-sm text-muted-foreground">
           {unbilledTotal.toLocaleString()} past{" "}
-          {unbilledTotal === 1 ? "flight hasn't" : "flights haven't"} been billed yet.
+          {unbilledTotal === 1 ? "reservation hasn't" : "reservations haven't"} been billed yet.
         </p>
         <DataTable
           fill
@@ -576,7 +643,7 @@ function BillingPage() {
           total={unbilledTotal}
           loading={reservationsQ.isFetching}
           mobileCard={(r) => <UnbilledCard r={r} onBill={billReservation} />}
-          emptyMessage="No unbilled flights."
+          emptyMessage="No unbilled reservations."
         />
       </div>
     );
@@ -635,12 +702,12 @@ function BillingPage() {
               hint="Invoices settled"
             />
             <StatCard
-              label="Unbilled flights"
+              label="Unbilled"
               value={unbilled.length}
               icon={Plane}
               accent="warning"
               loading={reservationsQ.isLoading}
-              hint="Past flights, no invoice"
+              hint="Past reservations, no invoice"
             />
           </div>
         )}
@@ -649,13 +716,13 @@ function BillingPage() {
       </TableView.Header>
 
       {showInvoices && showUnbilled ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {renderInvoiceTable(emptyByStatus)}
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {renderUnbilled()}
-          </div>
+        // No `min-h-0`/`overflow-hidden` on the halves: each table keeps its own
+        // floor (see <TableView>), and clipping here would hide exactly the rows
+        // the floor exists to protect. Two tables that don't both fit push the
+        // page into scrolling, which beats two slivers.
+        <div className="flex flex-1 flex-col gap-4">
+          <div className="flex flex-1 flex-col">{renderInvoiceTable(emptyByStatus)}</div>
+          <div className="flex flex-1 flex-col">{renderUnbilled()}</div>
         </div>
       ) : showUnbilled ? (
         renderUnbilled()
@@ -665,11 +732,13 @@ function BillingPage() {
 
       <InvoiceDetailSheet
         invoice={viewInvoice}
+        invoiceId={viewId}
         open={viewId != null}
         onOpenChange={(o) => !o && setViewId(null)}
         onMarkPaid={markPaid}
         onVoid={voidInvoice}
         onRemind={remindInvoice}
+        onStep={stepInvoice}
         busy={update.isPending || remind.isPending}
       />
 

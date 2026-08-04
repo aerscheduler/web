@@ -15,6 +15,7 @@ export function MonthAgenda({
   onEdit,
   onCancel,
   matchedIds,
+  selectedId,
   query,
 }: {
   reservations: Reservation[];
@@ -23,9 +24,10 @@ export function MonthAgenda({
   onCancel: (r: Reservation) => void;
   /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
+  selectedId?: number | null;
   query?: string;
 }) {
-  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
+  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "", selectedId };
   const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
   const groups = new Map<string, DayGroup>();
   for (const r of sorted) {

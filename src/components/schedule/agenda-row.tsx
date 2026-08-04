@@ -5,7 +5,7 @@ import { useTimeZone } from "@/lib/use-timezone";
 import { highlightMatch } from "@/lib/highlight-match";
 import { BORDER_L_CLASS, personnelNames, typeLabel } from "./meta";
 import { ReservationMenu } from "./reservation-menu";
-import { dimClass, type BoardMarks } from "./board-filters";
+import { dimClass, selectedClass, type BoardMarks } from "./board-filters";
 
 const NO_MARKS: BoardMarks = { matchedIds: null, query: "" };
 
@@ -38,7 +38,8 @@ export function AgendaRow({
       className={cn(
         "flex items-stretch gap-3 rounded-lg border border-l-4 border-border bg-card p-3 text-left transition-colors hover:bg-accent/40",
         BORDER_L_CLASS[r.type],
-        dimClass(marks, r.id)
+        dimClass(marks, r.id),
+        selectedClass(marks, r.id)
       )}
     >
       <button

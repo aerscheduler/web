@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format, parseISO } from "date-fns";
@@ -338,11 +338,18 @@ export function CancellationsDataTable({
   endDate,
   listQuery,
   onRowClick,
+  selectedId,
+  onRowsChange,
 }: {
   startDate: string | undefined;
   endDate: string | undefined;
   listQuery: { q: string; facets: ListFilterValues };
   onRowClick: (row: CancelledReservation) => void;
+  /** The record open in the detail panel, so the table marks it. */
+  selectedId?: number | null;
+  /** The page currently on screen, so the page above can step ↑/↓ through it —
+   *  paging happens in here, so this is the only place that knows the order. */
+  onRowsChange?: (rows: CancelledReservation[]) => void;
 }) {
   const { report, allRows, filteredRows } = useFilteredCancellationReport(
     startDate,
@@ -357,6 +364,11 @@ export function CancellationsDataTable({
   const paging = usePaging({ resetKey: [startDate, endDate, listQuery] });
   const { rows: pageOfRows, total } = useClientPage(filteredRows, paging);
 
+  const notifyRows = onRowsChange;
+  useEffect(() => {
+    notifyRows?.(pageOfRows);
+  }, [notifyRows, pageOfRows]);
+
   return (
     <DataTable
       fill
@@ -366,6 +378,7 @@ export function CancellationsDataTable({
       total={total}
       loading={report.isFetching}
       onRowClick={onRowClick}
+      isRowSelected={(row) => row.id === selectedId}
       emptyMessage={
         report.isLoading
           ? "Loading…"

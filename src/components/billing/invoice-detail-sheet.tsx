@@ -3,14 +3,7 @@ import { Ban, Bell, Check, FileText, Plane, User } from "lucide-react";
 import type { Invoice } from "@/types/api";
 import { useInvoice } from "@/features/queries";
 import { resourceLabel } from "@/types/api";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetFooter,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { DetailPanel } from "@/components/detail-panel";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -35,43 +28,55 @@ function participants(inv: Invoice): string[] {
   ].filter((n): n is string => Boolean(n));
 }
 
-/** Read-only invoice drawer: line items, totals, and an audit trail. */
+/** Read-only invoice detail: line items, totals, and an audit trail. */
 export function InvoiceDetailSheet({
   invoice,
+  invoiceId,
   open,
   onOpenChange,
   onMarkPaid,
   onVoid,
   onRemind,
+  onStep,
   busy,
 }: {
+  /** The list row, when the invoice happens to be on the page in hand. */
   invoice: Invoice | null;
+  /**
+   * Which invoice to show, even when no row for it is loaded — a link straight
+   * to `?invoice=…` lands on page 1 of whatever filters were restored, and the
+   * record it names is usually not among those rows.
+   */
+  invoiceId?: number | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onMarkPaid: (inv: Invoice) => void;
   onVoid: (inv: Invoice) => void;
   onRemind?: (inv: Invoice) => void;
+  /** ↑/↓ to the previous/next invoice on screen while the panel is docked. */
+  onStep?: (delta: -1 | 1) => void;
   busy?: boolean;
 }) {
-  const inv = invoice;
-  const customerName = inv?.customer?.user?.name ?? inv?.customer?.user?.email ?? "No customer";
+  const id = invoiceId ?? invoice?.id ?? null;
   //The LIST endpoint doesn't select line items — only GET /invoices/:id does — so the
-  //row handed in from the table always has `items` undefined and the drawer rendered
+  //row handed in from the table always has `items` undefined and the panel rendered
   //"No line items on this invoice." for every invoice. Hydrate from the single-invoice
   //endpoint and fall back to the list row while it loads, so the header, totals and
   //status never flash empty.
-  const full = useInvoice(open ? (inv?.id ?? null) : null);
-  const display: Invoice | null =
-    inv == null
-      ? null
-      : full.data?.id === inv.id
-        ? { ...inv, ...full.data }
-        : inv;
+  const full = useInvoice(open ? id : null);
+  //The fetched record wins field by field, but the list row is kept underneath it so
+  //nothing flashes empty mid-flight. With no row at all — a deep link — the fetch is
+  //the whole record, which is why every read below goes through `display` rather than
+  //the row that may not exist.
+  const inv: Invoice | null =
+    full.data?.id === id ? { ...(invoice ?? ({} as Invoice)), ...full.data } : invoice;
+  const display = inv;
+  const customerName = inv?.customer?.user?.name ?? inv?.customer?.user?.email ?? "No customer";
   const items = display?.items ?? [];
   const subtotal = display?.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
 
   const events: Event[] = [];
-  if (inv) {
+  if (inv?.createdAt) {
     events.push({ label: "Invoice created", at: inv.createdAt });
     if (inv.reservation?.createdAt)
       events.push({ label: "Flight booked", at: inv.reservation.createdAt });
@@ -86,18 +91,45 @@ export function InvoiceDetailSheet({
   const canRemind = Boolean(isOpen && inv?.customer && onRemind);
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="flex w-full flex-col gap-0 sm:max-w-md">
-        <SheetHeader>
-          <div className="flex items-center justify-between gap-3">
-            <SheetTitle className="font-mono">Invoice #{inv?.id}</SheetTitle>
-            {display && <InvoiceStatusBadge invoice={display} />}
+    <DetailPanel
+      open={open}
+      onOpenChange={onOpenChange}
+      onStep={onStep}
+      title={<span className="font-mono">Invoice #{id ?? "—"}</span>}
+      description={customerName}
+      badge={display ? <InvoiceStatusBadge invoice={display} /> : undefined}
+      footer={
+        inv && isOpen ? (
+          <div className="flex flex-col gap-2">
+            {canRemind && (
+              <Button
+                variant="secondary"
+                className="w-full"
+                disabled={busy}
+                onClick={() => onRemind?.(inv)}
+              >
+                <Bell className="size-4" /> Send payment reminder
+              </Button>
+            )}
+            <div className="flex w-full flex-row gap-2">
+              <Button
+                variant="outline"
+                className="flex-1"
+                disabled={busy}
+                onClick={() => onVoid(inv)}
+              >
+                <Ban className="size-4" /> Void
+              </Button>
+              <Button className="flex-1" disabled={busy} onClick={() => onMarkPaid(inv)}>
+                <Check className="size-4" /> Mark paid
+              </Button>
+            </div>
           </div>
-          <SheetDescription>{customerName}</SheetDescription>
-        </SheetHeader>
-
+        ) : undefined
+      }
+    >
         {display && (
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pb-4">
+          <div className="space-y-5 pt-4">
             {display.memo && <p className="text-sm text-muted-foreground">{display.memo}</p>}
 
             <InvoiceQuickBooksSection invoice={display} />
@@ -126,8 +158,10 @@ export function InvoiceDetailSheet({
                         </TD>
                       </TR>
                     ) : (
-                      items.map((it) => (
-                        <TR key={it.id}>
+                      // Line items on a generated invoice come back without ids, so
+                      // fall back to the index rather than keying every row `undefined`.
+                      items.map((it, i) => (
+                        <TR key={it.id ?? i}>
                           <TD className="font-medium">{it.name}</TD>
                           <TD className="text-right tnum">{it.qty}</TD>
                           <TD className="text-right tnum">{formatMoney(it.unitPrice)}</TD>
@@ -212,35 +246,6 @@ export function InvoiceDetailSheet({
             </section>
           </div>
         )}
-
-        {inv && isOpen && (
-          <SheetFooter className="flex-col gap-2 border-t sm:flex-col">
-            {canRemind && (
-              <Button
-                variant="secondary"
-                className="w-full"
-                disabled={busy}
-                onClick={() => onRemind?.(inv)}
-              >
-                <Bell className="size-4" /> Send payment reminder
-              </Button>
-            )}
-            <div className="flex w-full flex-row gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                disabled={busy}
-                onClick={() => onVoid(inv)}
-              >
-                <Ban className="size-4" /> Void
-              </Button>
-              <Button className="flex-1" disabled={busy} onClick={() => onMarkPaid(inv)}>
-                <Check className="size-4" /> Mark paid
-              </Button>
-            </div>
-          </SheetFooter>
-        )}
-      </SheetContent>
-    </Sheet>
+    </DetailPanel>
   );
 }

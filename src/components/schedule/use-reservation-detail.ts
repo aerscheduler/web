@@ -4,52 +4,104 @@ import { useReservation } from "@/features/queries";
 import { useReservationActions } from "./use-reservation-actions";
 
 /**
- * Detail-sheet state for any surface that lists reservations — the dispatch
+ * Detail-panel state for any surface that lists reservations — the dispatch
  * board and the member pages both open the same `ReservationDetailSheet`, so
  * they share the wiring rather than each growing their own copy.
  *
  * Opens with the list row, then hydrates from `GET /reservations/:id` (same as
  * Flutter's detail sheet) so plane Hobbs/tach are available for ramp-out. While
  * that fetch is in flight — and after close-out mutations invalidate the list —
- * `detail` still tracks the live list row so the sheet advances through
+ * `detail` still tracks the live list row so the panel advances through
  * ramp out → ramp in → confirm.
+ *
+ * `selectedId`/`url` opt a surface into URL-backed selection: pass the id from
+ * the route's search params and a setter, and the open record survives a
+ * refresh and is linkable. Surfaces that don't (My day) fall back to local
+ * state and behave exactly as before.
  */
-export function useReservationDetail(reservations: Reservation[]) {
-  const [open, setOpen] = React.useState(false);
-  const [selected, setSelected] = React.useState<Reservation | null>(null);
+export function useReservationDetail(
+  reservations: Reservation[],
+  url?: {
+    selectedId: number | null;
+    setSelectedId: (id: number | null) => void;
+  }
+) {
+  const [localId, setLocalId] = React.useState<number | null>(null);
+  const selectedId = url ? url.selectedId : localId;
+  const setSelectedId = url ? url.setSelectedId : setLocalId;
+  // The list row we opened with. Kept so the panel can still render a booking
+  // that has since been filtered off the board (dimmed by a facet, or paged
+  // away) instead of blanking out under the reader.
+  const [opened, setOpened] = React.useState<Reservation | null>(null);
   const [editing, setEditing] = React.useState<Reservation | null>(null);
   const actions = useReservationActions();
 
-  const fullQ = useReservation(open ? (selected?.id ?? null) : null);
+  const open = selectedId != null;
+  const fullQ = useReservation(open ? selectedId : null);
 
   const detail = React.useMemo(() => {
-    const fromList = reservations.find((x) => x.id === selected?.id) ?? selected;
-    if (!fromList) return null;
-    // List drives close-out progress after mutations invalidate it. Overlay the
-    // full resource (Hobbs/tach) from GET /:id — those fields are omitted on the list.
+    if (selectedId == null) return null;
+    // List drives close-out progress after mutations invalidate it; the opened
+    // row covers a booking no longer in `reservations`; the single-record fetch
+    // is the only source when neither has it (a deep link, or a record on
+    // another page).
+    const fromList =
+      reservations.find((x) => x.id === selectedId) ??
+      (opened?.id === selectedId ? opened : null);
+    if (!fromList) return fullQ.data?.id === selectedId ? fullQ.data : null;
+    // Overlay the full resource (Hobbs/tach) from GET /:id — those fields are
+    // omitted on the list.
     if (fullQ.data?.id === fromList.id && fullQ.data.resource) {
       return { ...fromList, resource: fullQ.data.resource };
     }
     return fromList;
-  }, [reservations, selected, fullQ.data]);
+  }, [reservations, selectedId, opened, fullQ.data]);
 
-  const openDetail = (r: Reservation) => {
-    setSelected(r);
-    setOpen(true);
-  };
+  const openDetail = React.useCallback(
+    (r: Reservation) => {
+      setOpened(r);
+      setSelectedId(r.id);
+    },
+    [setSelectedId]
+  );
+
+  const setOpen = React.useCallback(
+    (next: boolean) => {
+      if (!next) setSelectedId(null);
+    },
+    [setSelectedId]
+  );
 
   /**
-   * Hand off to the edit form. The sheet closes first — stacking a modal on top
-   * of an open sheet traps focus between the two.
+   * ↑/↓ to the neighbouring booking. Clamped rather than wrapping — running off
+   * the end of a day's board and landing back at 6am reads as a glitch.
+   */
+  const step = React.useCallback(
+    (delta: -1 | 1) => {
+      if (selectedId == null || reservations.length === 0) return;
+      const i = reservations.findIndex((x) => x.id === selectedId);
+      if (i === -1) return;
+      const next = reservations[Math.min(reservations.length - 1, Math.max(0, i + delta))];
+      if (!next || next.id === selectedId) return;
+      setOpened(next);
+      setSelectedId(next.id);
+    },
+    [reservations, selectedId, setSelectedId]
+  );
+
+  /**
+   * Hand off to the edit form. The panel closes first — the edit form is a
+   * modal, and leaving the panel open behind it means two things claiming
+   * Escape at once.
    */
   const startEdit = (r: Reservation) => {
-    setOpen(false);
+    setSelectedId(null);
     setEditing(r);
   };
 
-  /** Cancel + close the sheet, so it can't linger on a reservation that's gone. */
+  /** Cancel + close, so the panel can't linger on a reservation that's gone. */
   const cancelReservation = async (r: Reservation) => {
-    if (await actions.cancelReservation(r)) setOpen(false);
+    if (await actions.cancelReservation(r)) setSelectedId(null);
   };
 
   return {
@@ -57,6 +109,8 @@ export function useReservationDetail(reservations: Reservation[]) {
     open,
     setOpen,
     openDetail,
+    selectedId,
+    step,
     cancelReservation,
     editing,
     setEditing,

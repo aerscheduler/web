@@ -8,6 +8,7 @@ import {
 import { ChevronDown, ChevronsUpDown, ChevronUp } from "lucide-react";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { TablePagination } from "@/components/table-pagination";
+import { FILL_BODY_MIN } from "@/components/table-view";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { PagingState } from "@/lib/paging";
 import { cn } from "@/lib/utils";
@@ -62,6 +63,7 @@ export function DataTable<T>({
   emptyMessage = "Nothing here yet.",
   fill = false,
   onRowClick,
+  isRowSelected,
   showPageSize,
 }: {
   columns: ColumnDef<T, unknown>[];
@@ -82,10 +84,22 @@ export function DataTable<T>({
    * Fill the available height and scroll only the rows — the toolbar, column
    * headers and pager stay put. Use inside a <TableView> (or any `flex min-h-0
    * flex-1` column) so table pages don't scroll the whole page.
+   *
+   * Takes effect on md+ only, in step with <TableView> and the app shell: on a
+   * phone there is no spare height to fill, and bounding the rows there is what
+   * squeezed them to a sliver under a tall header. On md+ the rows keep a
+   * FILL_BODY_MIN floor for the same reason — see <TableView>.
    */
   fill?: boolean;
-  /** Opens a detail drawer/sheet when a row is clicked. */
+  /** Opens a detail panel/sheet when a row is clicked. */
   onRowClick?: (row: T) => void;
+  /**
+   * Marks the row whose record is open in the detail panel. Worth passing
+   * wherever `onRowClick` opens one: the panel docks BESIDE the table rather
+   * than over it, so the list stays on screen, and without a highlight nothing
+   * says which of forty rows is the one being shown.
+   */
+  isRowSelected?: (row: T) => boolean;
   showPageSize?: boolean;
 }) {
   const isMobile = useIsMobile();
@@ -117,7 +131,7 @@ export function DataTable<T>({
       returned={data.length}
       loading={loading}
       showPageSize={showPageSize}
-      className={fill ? "shrink-0" : undefined}
+      className={fill ? "md:shrink-0" : undefined}
     />
   );
 
@@ -126,17 +140,14 @@ export function DataTable<T>({
     // definite height and these rows scroll internally (not the whole page).
     <div
       data-fill-page={fill ? "" : undefined}
-      className={fill ? "flex min-h-0 flex-1 flex-col gap-3" : "space-y-3"}
+      className={fill ? "flex flex-col gap-3 md:min-h-0 md:flex-1" : "space-y-3"}
     >
-      {toolbar ? <div className={fill ? "shrink-0" : undefined}>{toolbar}</div> : null}
+      {toolbar ? <div className={fill ? "md:shrink-0" : undefined}>{toolbar}</div> : null}
 
       {isMobile && mobileCard ? (
-        <div
-          className={cn(
-            fill ? "min-h-0 flex-1 space-y-2.5 overflow-auto" : "space-y-2.5",
-            loading && "opacity-60"
-          )}
-        >
+        // This branch only ever renders below md, so `fill` has nothing to fill:
+        // the cards run down the page and the page scrolls.
+        <div className={cn("space-y-2.5", loading && "opacity-60")}>
           {rows.length === 0 ? (
             <div className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
               {emptyMessage}
@@ -148,7 +159,9 @@ export function DataTable<T>({
       ) : (
         <Table
           containerClassName={cn(
-            fill ? "min-h-0 flex-1 overflow-auto rounded-md border border-border" : undefined,
+            fill
+              ? cn("rounded-md border border-border md:flex-1 md:overflow-auto", FILL_BODY_MIN)
+              : undefined,
             // Keep the previous page readable while the next one loads rather
             // than collapsing to a spinner — paging should not blink.
             loading && "opacity-60"
@@ -193,28 +206,45 @@ export function DataTable<T>({
                 </TD>
               </TR>
             ) : (
-              rows.map((row) => (
-                <TR
-                  key={row.id}
-                  className={onRowClick ? "cursor-pointer" : undefined}
-                  onClick={onRowClick ? () => onRowClick(row.original) : undefined}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TD
-                      key={cell.id}
-                      className={cell.column.columnDef.meta?.numeric ? "text-right" : undefined}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TD>
-                  ))}
-                </TR>
-              ))
+              rows.map((row) => {
+                const selected = isRowSelected?.(row.original) ?? false;
+                return (
+                  <TR
+                    key={row.id}
+                    // On the element itself, not only in the class list: it is what
+                    // the detail panel's keyboard stepper scrolls back into view.
+                    data-selected={selected ? "" : undefined}
+                    className={cn(
+                      onRowClick && "cursor-pointer",
+                      // A left rule as well as a fill — the fill alone is easy to lose
+                      // against the hover state while scanning down a long list.
+                      selected && "bg-accent hover:bg-accent [box-shadow:inset_2px_0_0_0_var(--primary)]"
+                    )}
+                    onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TD
+                        key={cell.id}
+                        className={cell.column.columnDef.meta?.numeric ? "text-right" : undefined}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TD>
+                    ))}
+                  </TR>
+                );
+              })
             )}
           </TBody>
         </Table>
       )}
 
       {pager}
+
+      {/* The page's bottom gutter — see <TableView>, which carries the same
+          spacer for pages that don't put a table here. `-mt-3` cancels this
+          column's own `gap-3` so the gutter is exactly the shell's 32px and not
+          the gap on top of it. */}
+      {fill && <div aria-hidden className="hidden md:-mt-3 md:block md:h-8 md:shrink-0" />}
     </div>
   );
 }

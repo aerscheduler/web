@@ -13,7 +13,7 @@ import {
 } from "date-fns";
 import { CalendarClock, CalendarPlus, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { bookActionLabel } from "@/lib/permissions";
+import { bookActionLabel, bookingNouns } from "@/lib/permissions";
 import { useLocations, useResources, useUserReservations } from "@/features/queries";
 import type { Reservation } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -34,7 +34,17 @@ import { resourceLabel } from "@/types/api";
 const FACET_KEYS = ["resourceId", "locationId"] as const;
 
 export const Route = createFileRoute("/_authed/me/schedule")({
-  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
+  /** `reservation` = which booking the detail panel shows. Outside the facet list
+   *  so it is never persisted and reopened on a later visit; a number so the
+   *  router doesn't JSON-quote it into `?reservation=%221204%22`. */
+  validateSearch: (s) => {
+    const list = validateListSearch(s, [...FACET_KEYS]);
+    const reservation = Number.parseInt(String(s.reservation ?? ""), 10);
+    return {
+      ...list,
+      ...(Number.isFinite(reservation) ? { reservation } : {}),
+    };
+  },
   component: MySchedulePage,
 });
 
@@ -68,15 +78,30 @@ function MySchedulePage() {
   const { organization, userId, roles } = useAuth();
   const bookLabel = bookActionLabel(roles);
   // A technician's calendar holds maintenance, not flights.
-  const maintenanceOnly = bookLabel === "Schedule maintenance";
+  const bookings = bookingNouns(roles);
+  const maintenanceOnly = bookings.many === "maintenance";
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
+  const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
+  const { reservation: openReservationId, ...listSearch } = routeSearch;
   const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
     storageKey: "me-schedule",
-    search: routeSearch,
-    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    search: listSearch,
+    navigate: navigateSearch,
     facetKeys: [...FACET_KEYS],
   });
+
+  // `replace`, so ↑/↓ doesn't stack one history entry per booking.
+  const setOpenReservationId = React.useCallback(
+    (id: number | null) => {
+      navigateSearch({
+        search: ({ reservation: _drop, ...rest }: Record<string, unknown>) =>
+          id == null ? rest : { ...rest, reservation: id },
+        replace: true,
+      });
+    },
+    [navigateSearch]
+  );
   const [range, setRange] = React.useState<Range>("upcoming");
 
   const now = React.useMemo(() => new Date(), []);
@@ -128,8 +153,22 @@ function MySchedulePage() {
 
   // Same detail sheet the dispatch board opens — cancel and the ramp-out /
   // ramp-in / close-out flow behave identically here.
-  const { detail, open, setOpen, openDetail, cancelReservation, editing, setEditing, startEdit, cancelDialog } =
-    useReservationDetail(reservations);
+  const {
+    detail,
+    open,
+    setOpen,
+    openDetail,
+    cancelReservation,
+    editing,
+    setEditing,
+    startEdit,
+    cancelDialog,
+    selectedId,
+    step,
+  } = useReservationDetail(reservations, {
+    selectedId: openReservationId ?? null,
+    setSelectedId: setOpenReservationId,
+  });
 
   if (organization === null) {
     return (
@@ -141,7 +180,7 @@ function MySchedulePage() {
           <EmptyState
             icon={UserRound}
             title="You're not in an organization yet"
-            body="Accept an invite or ask your school's admin to add you, and your flights will show up here."
+            body="Accept an invite or ask your school's admin to add you, and your schedule will show up here."
           />
         </Card>
       </TableView>
@@ -212,7 +251,7 @@ function MySchedulePage() {
         <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={CalendarClock}
-            title="No flights on your schedule"
+            title={`No ${bookings.many} on your schedule`}
             body="Book one to get started."
             action={
               <Button asChild>
@@ -243,7 +282,11 @@ function MySchedulePage() {
                   <ul className="space-y-2">
                     {items.map((r) => (
                       <li key={r.id}>
-                        <ReservationCard r={r} onOpen={openDetail} />
+                        <ReservationCard
+                          r={r}
+                          onOpen={openDetail}
+                          selected={r.id === selectedId}
+                        />
                       </li>
                     ))}
                   </ul>
@@ -271,6 +314,7 @@ function MySchedulePage() {
         onOpenChange={setOpen}
         onCancel={cancelReservation}
         onEdit={startEdit}
+        onStep={step}
       />
     </TableView>
   );

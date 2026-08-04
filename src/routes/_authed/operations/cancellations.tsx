@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { DateRange } from "react-day-picker";
 import { endOfDay, startOfDay } from "date-fns";
@@ -33,6 +33,21 @@ function CancellationsPage() {
   const navigate = Route.useNavigate();
   const [range, setRange] = useState<DateRange | undefined>(() => lastNDays(30));
   const [selected, setSelected] = useState<CancelledReservation | null>(null);
+  // The page on screen, reported up by the table (which owns the client-side
+  // paging), so ↑/↓ can walk it.
+  const [pageRows, setPageRows] = useState<CancelledReservation[]>([]);
+
+  /** ↑/↓ to the neighbouring cancellation, clamped at the page edges. */
+  const step = useCallback(
+    (delta: -1 | 1) => {
+      if (!selected) return;
+      const i = pageRows.findIndex((x) => x.id === selected.id);
+      if (i === -1) return;
+      const next = pageRows[Math.min(pageRows.length - 1, Math.max(0, i + delta))];
+      if (next && next.id !== selected.id) setSelected(next);
+    },
+    [pageRows, selected]
+  );
 
   const { setSearch, debouncedQ, facets, setFacets } = useListQueryState({
     storageKey: "operations-cancellations",
@@ -106,6 +121,8 @@ function CancellationsPage() {
           endDate={endISO}
           listQuery={listQuery}
           onRowClick={setSelected}
+          selectedId={selected?.id ?? null}
+          onRowsChange={setPageRows}
         />
       )}
 
@@ -113,6 +130,7 @@ function CancellationsPage() {
         cancellation={selected}
         open={selected != null}
         onOpenChange={(open) => !open && setSelected(null)}
+        onStep={step}
       />
     </TableView>
   );

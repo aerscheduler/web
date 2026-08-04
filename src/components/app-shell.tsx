@@ -27,6 +27,7 @@ import {
 import { SidebarNav, useRecordRecentPage } from "@/components/nav/sidebar-nav";
 import { CommandMenuProvider, CommandMenuSearch } from "@/components/command-menu";
 import { ConfirmProvider } from "@/components/confirm-dialog";
+import { DetailPanelOutlet, DetailPanelProvider } from "@/components/detail-panel";
 import { QuickCreateProvider, useQuickCreate } from "@/components/quick-create";
 import { LogoMark } from "@/components/logo";
 import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
@@ -70,16 +71,27 @@ export function AppShell({ children }: { children: ReactNode }) {
     <ConfirmProvider>
       <CommandMenuProvider>
         <QuickCreateProvider>
+         <DetailPanelProvider>
           <SidebarProvider className="h-svh overflow-hidden">
             <AppSidebar />
             <SidebarEdgeToggle />
-            <SidebarInset className="min-h-0">
+            {/* `min-w-0` as much as `min-h-0`: the inset is a flex item beside the
+                rail and defaults to `min-width:auto`, so it will not shrink below its
+                content's min-content width. The detail panel is a fixed 384px that
+                cannot shrink, so without this the inset grows to rail + content +
+                panel and the panel is silently clipped off the right of the window. */}
+            <SidebarInset className="min-h-0 min-w-0">
               {/* Above the topbar and inside the content column — the desktop rail
                   is `fixed`, so a banner spanning the full window would sit under
                   it and lose its first words. */}
               <ImpersonationBanner />
               <DemoBanner />
               <Topbar />
+              {/* The topbar spans the full width and the detail panel hangs below it,
+                  so search, notifications and quick-create stay reachable with a
+                  record open. `min-h-0` here is what keeps `main` a bounded scroll
+                  container once the panel is sitting beside it. */}
+              <div className="flex min-h-0 min-w-0 flex-1">
               {/* main is the scroll container; the content wrapper adapts per page:
                   • Normal pages → `min-h-full`: fills the viewport when short and
                     GROWS with tall content, so the py-8 bottom padding is always
@@ -90,21 +102,43 @@ export function AppShell({ children }: { children: ReactNode }) {
                     wrapper to a DEFINITE `h-full` so the flex-1 table is bounded
                     and its rows scroll internally. (min-height alone is indefinite,
                     so the table would expand to full content and scroll the whole
-                    page — the regression this rule prevents.) */}
+                    page — the regression this rule prevents.)
+                    md+ ONLY, and that gate is the point: a phone has no room to
+                    spend on chrome, so a pinned header — a title, four stat cards,
+                    a filter bar — can consume the whole viewport and leave the
+                    bounded rows a two-line sliver (Billing's invoice list did
+                    exactly that). Below md nothing is bounded, so the page simply
+                    scrolls, which is what a phone wants anyway. */}
               {/* `min-w-0` matters as much as `min-h-0`: main is a flex item beside
                   the sidebar, and a flex item defaults to `min-width:auto`, so it
                   refuses to shrink below its content's min-content width. A page with
                   a wide table (Reports) then pushes main past the viewport, where the
                   wrapper's `overflow-hidden` silently CLIPS the right-hand columns
                   rather than letting them scroll. Shrinking is what lets each page's
-                  own scroll container do its job. */}
+                  own scroll container do its job — and it is equally what lets the
+                  detail panel push the content in rather than sit on top of it. */}
+              {/* A fill page hands its bottom padding to the fill column itself
+                  (`md:pb-8` on <TableView>), so this wrapper drops its own — hence
+                  `pb-0`. The wrapper is a fixed `h-full` box, and a column that
+                  outgrows one (a header too tall to leave the table its floor)
+                  paints straight past the wrapper's padding, which is how the last
+                  row ended up flush against the window. Padding carried by the
+                  overflowing element travels with it. Note this can't be solved by
+                  moving the padding out to `main` either: a scroll container's end
+                  padding is not re-applied after descendant overflow. */}
               <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-                <div className="mx-auto flex min-h-full w-full max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 [&:has([data-fill-page])]:h-full">
+                <div className="mx-auto flex min-h-full w-full max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 md:[&:has([data-fill-page])]:h-full md:[&:has([data-fill-page])]:pb-0">
                   {children}
                 </div>
               </main>
+              {/* Deliberately OUTSIDE the max-w-[1280px] wrapper: on a wide monitor
+                  the panel spends the empty gutter, so the list barely narrows.
+                  Zero-width until a page docks a record into it. */}
+              <DetailPanelOutlet />
+              </div>
             </SidebarInset>
           </SidebarProvider>
+         </DetailPanelProvider>
         </QuickCreateProvider>
       </CommandMenuProvider>
     </ConfirmProvider>
@@ -173,7 +207,11 @@ function OrgSwitcher() {
       size="lg"
       className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
     >
-      <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg bg-sidebar-primary">
+      {/* Light tile, not the brand blue: the fallback mark is two-tone (navy
+          wing over a blue arch), so on a brand-blue fill its blue half
+          disappears and what's left reads as a stray navy tick. White backs it
+          in both themes — the mark has no dark-surface variant to switch to. */}
+      <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg border border-sidebar-border bg-white">
         {organization?.profileImage ? (
           <img
             src={organization.profileImage}
@@ -181,7 +219,7 @@ function OrgSwitcher() {
             className="size-full object-cover"
           />
         ) : (
-          <LogoMark onDark className="size-full p-1.5" />
+          <LogoMark className="size-full p-1" />
         )}
       </div>
       <div className="grid flex-1 text-left text-sm leading-tight">
@@ -241,6 +279,10 @@ function UserMenu() {
   const navigate = useNavigate();
   const avatarSrc = membership?.profileImage ?? undefined;
   const qc = useQueryClient();
+  // Same reason as the rail's links: this menu lives INSIDE the mobile drawer,
+  // so following one of these would leave the drawer over the page it opened.
+  const { isMobile, setOpenMobile } = useSidebar();
+  const dismiss = () => isMobile && setOpenMobile(false);
 
   return (
     <SidebarMenu>
@@ -281,20 +323,20 @@ function UserMenu() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/me/profile">
+              <Link to="/me/profile" onClick={dismiss}>
                 <UserIcon />
                 Account &amp; settings
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to="/me/notifications">
+              <Link to="/me/notifications" onClick={dismiss}>
                 <Bell />
                 Notification settings
               </Link>
             </DropdownMenuItem>
             {isDeveloper && (
               <DropdownMenuItem asChild>
-                <Link to="/developer">
+                <Link to="/developer" onClick={dismiss}>
                   <TerminalSquare />
                   Developer
                 </Link>

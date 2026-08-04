@@ -15,7 +15,7 @@ import { dateKeyInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { highlightMatch } from "@/lib/highlight-match";
 import { BORDER_L_CLASS, CHIP_CLASS } from "./meta";
-import { dimClass, isMarked, type BoardMarks } from "./board-filters";
+import { dimClass, selectedClass, isMarked, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
 
 const MAX_CHIPS = 3;
@@ -33,6 +33,7 @@ export function MonthGrid({
   onCreate,
   onSelectDay,
   matchedIds,
+  selectedId,
   query,
 }: {
   month: Date;
@@ -43,9 +44,10 @@ export function MonthGrid({
   onSelectDay: (day: Date) => void;
   /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
+  selectedId?: number | null;
   query?: string;
 }) {
-  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
+  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "", selectedId };
   const tz = useTimeZone();
   const canCreate = onCreate != null;
   const days = eachDayOfInterval({
@@ -161,7 +163,8 @@ export function MonthGrid({
                       "flex w-full min-w-0 items-center gap-1 rounded border-l-2 px-1.5 py-0.5 text-left text-[11px] leading-tight",
                       BORDER_L_CLASS[r.type],
                       CHIP_CLASS[r.type],
-                      dimClass(marks, r.id)
+                      dimClass(marks, r.id),
+                      selectedClass(marks, r.id)
                     )}
                   >
                     <span className="shrink-0 tabular-nums opacity-80">

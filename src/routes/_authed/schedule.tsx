@@ -65,7 +65,21 @@ const BLOCK_FACET_KEYS = ["personId", "ramp", "billing", "type"] as const;
 const FACET_KEYS = [...ROW_FACET_KEYS, ...BLOCK_FACET_KEYS] as const;
 
 export const Route = createFileRoute("/_authed/schedule")({
-  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
+  /**
+   * `reservation` is which booking the detail panel is showing — kept OUTSIDE the
+   * facet list on purpose. Facets are remembered in localStorage and restored on
+   * the next visit, and a booking reopened days later is not something anyone
+   * asked for. Held as a NUMBER because the router JSON-encodes strings, which
+   * would spell it `?reservation=%221204%22`.
+   */
+  validateSearch: (s) => {
+    const list = validateListSearch(s, [...FACET_KEYS]);
+    const reservation = Number.parseInt(String(s.reservation ?? ""), 10);
+    return {
+      ...list,
+      ...(Number.isFinite(reservation) ? { reservation } : {}),
+    };
+  },
   component: SchedulePage,
 });
 
@@ -80,12 +94,30 @@ function SchedulePage() {
   const tz = useTimeZone();
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
+  const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
+  // Which booking is open is not a list filter — split off so it never reaches the
+  // facet machinery (string-valued, and persisted to localStorage).
+  const { reservation: openReservationId, ...listSearch } = routeSearch;
   const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
     storageKey: "schedule",
-    search: routeSearch,
-    navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
+    search: listSearch,
+    navigate: navigateSearch,
     facetKeys: [...FACET_KEYS],
   });
+
+  // `replace`, always: stepping through bookings with ↑/↓ would otherwise stack a
+  // history entry per record, and Back would walk the panel backwards one booking
+  // at a time instead of leaving the board.
+  const setOpenReservationId = React.useCallback(
+    (id: number | null) => {
+      navigateSearch({
+        search: ({ reservation: _drop, ...rest }: Record<string, unknown>) =>
+          id == null ? rest : { ...rest, reservation: id },
+        replace: true,
+      });
+    },
+    [navigateSearch]
+  );
   const [day, setDay] = React.useState<Date>(() => new Date());
   const [view, setView] = usePersistedState<ScheduleView>("view:schedule-range", "day");
   const [presentation, setPresentation] = usePersistedState<ViewMode>(
@@ -307,7 +339,12 @@ function SchedulePage() {
     setEditing,
     startEdit,
     cancelDialog,
-  } = useReservationDetail(reservations);
+    selectedId,
+    step,
+  } = useReservationDetail(reservations, {
+    selectedId: openReservationId ?? null,
+    setSelectedId: setOpenReservationId,
+  });
 
   const openNew = () => {
     setDraft({ date: day });
@@ -329,7 +366,7 @@ function SchedulePage() {
 
   //Spread into every view so all five stay in agreement about what is lit — a booking
   //dimmed on the lane board and solid in the agenda would be worse than not dimming.
-  const marks: BoardMarks = { matchedIds, query: queryText };
+  const marks: BoardMarks = { matchedIds, query: queryText, selectedId };
 
   return (
     <TableView>
@@ -380,11 +417,11 @@ function SchedulePage() {
             <EmptyState
               icon={CalendarClock}
               title="Your dispatch board is clear"
-              body="Book a flight to see aircraft and instructors line up."
+              body="Book a reservation to see aircraft and instructors line up."
               action={
                 staff && (
                   <Button onClick={openNew}>
-                    <Plus className="size-4" /> Book a flight
+                    <Plus className="size-4" /> Book a reservation
                   </Button>
                 )
               }
@@ -486,6 +523,7 @@ function SchedulePage() {
         onOpenChange={setDetailOpen}
         onCancel={handleCancel}
         onEdit={startEdit}
+        onStep={step}
       />
     </TableView>
   );

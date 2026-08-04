@@ -24,6 +24,7 @@ export function AgendaList({
   onDuplicate,
   onCancel,
   matchedIds,
+  selectedId,
   query,
 }: {
   reservations: Reservation[];
@@ -33,9 +34,10 @@ export function AgendaList({
   onCancel: (r: Reservation) => void;
   /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
+  selectedId?: number | null;
   query?: string;
 }) {
-  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
+  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "", selectedId };
   const tz = useTimeZone();
   const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
   const groups = new Map<string, Reservation[]>();

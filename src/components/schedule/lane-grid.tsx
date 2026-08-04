@@ -10,7 +10,7 @@ import { hourLabel, hourWindow } from "./hours";
 import { BLOCK_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
-import { dimClass, preferredName, type BoardMarks } from "./board-filters";
+import { dimClass, selectedClass, preferredName, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
 import type { DragGeometry, DropZone, ScheduleDrag } from "./use-schedule-drag";
 import { ResizeHandle, dragAriaLabel } from "./drag-affordances";
@@ -75,6 +75,7 @@ export function LaneGrid({
   onCancel,
   onCreate,
   matchedIds,
+  selectedId,
   query,
   drag,
 }: {
@@ -93,6 +94,7 @@ export function LaneGrid({
    * because the filter made the slot look free. See `board-filters.ts`.
    */
   matchedIds?: Set<number> | null;
+  selectedId?: number | null;
   query?: string;
   /**
    * Drag-to-reschedule. Omitted on a read-only board; per-reservation permission is still
@@ -100,7 +102,7 @@ export function LaneGrid({
    */
   drag?: ScheduleDrag;
 }) {
-  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
+  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "", selectedId };
   const tz = useTimeZone();
   const canCreate = onCreate != null;
 
@@ -503,6 +505,7 @@ function LaneBlock({
         "group relative flex h-full w-full items-center gap-1 overflow-hidden rounded-md border-l-2 border px-1.5 text-left shadow-sm",
         BLOCK_CLASS[r.type],
         dimClass(marks, r.id),
+        selectedClass(marks, r.id),
         //A locked block still opens its details, so it reads as a pointer target rather than
         //inheriting the lane's cursor-copy, which promises a booking it won't create.
         grabbable ? "cursor-grab select-none active:cursor-grabbing" : "cursor-pointer",

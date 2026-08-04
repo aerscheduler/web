@@ -9,7 +9,7 @@ import { highlightMatch } from "@/lib/highlight-match";
 import { hourLabel, hourWindow } from "./hours";
 import { BLOCK_CLASS, personnelNames, typeLabel } from "./meta";
 import { packTracks } from "./pack";
-import { dimClass, type BoardMarks } from "./board-filters";
+import { dimClass, selectedClass, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
 import type { DragGeometry, DropZone, ScheduleDrag } from "./use-schedule-drag";
 import { ResizeHandle, dragAriaLabel } from "./drag-affordances";
@@ -57,6 +57,7 @@ export function WeekTimeGrid({
   onCreate,
   onSelectDay,
   matchedIds,
+  selectedId,
   query,
   drag,
 }: {
@@ -68,11 +69,12 @@ export function WeekTimeGrid({
   onSelectDay: (day: Date) => void;
   /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
+  selectedId?: number | null;
   query?: string;
   /** Drag-to-reschedule; here a sideways drag changes the DAY. See `use-schedule-drag.ts`. */
   drag?: ScheduleDrag;
 }) {
-  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "" };
+  const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "", selectedId };
   const tz = useTimeZone();
   const canCreate = onCreate != null;
   const days = Array.from({ length: 7 }).map((_, i) => addDays(weekStart, i));
@@ -352,6 +354,7 @@ function WeekBlock({
         "group relative flex h-full w-full flex-col overflow-hidden rounded-md border border-l-2 px-1.5 py-0.5 text-left shadow-sm",
         BLOCK_CLASS[r.type],
         dimClass(marks, r.id),
+        selectedClass(marks, r.id),
         grabbable ? "cursor-grab select-none active:cursor-grabbing" : "cursor-pointer",
         floating && "pointer-events-none cursor-grabbing opacity-95 shadow-lg ring-2 ring-primary/70",
         floating && held?.reason && "ring-destructive",

@@ -161,6 +161,8 @@ export type BoardMarks = {
   matchedIds: Set<number> | null;
   /** The live search text, for highlighting the matched substring inside a lit block. */
   query: string;
+  /** The booking open in the detail panel, so the board says which one you're reading. */
+  selectedId?: number | null;
 };
 
 /**
@@ -179,6 +181,20 @@ export function dimClass(marks: BoardMarks, id: number): string | undefined {
 /** True when this booking is one the filters singled out (and something is being filtered). */
 export function isMarked(marks: BoardMarks, id: number): boolean {
   return marks.matchedIds != null && marks.matchedIds.has(id);
+}
+
+/**
+ * Tailwind for the booking whose record is open in the detail panel.
+ *
+ * A ring rather than a fill or an opacity change: blocks already spend colour on
+ * type and opacity on the filter dimming, so selection needs a channel neither of
+ * those is using or the three states start cancelling each other out. Sits at full
+ * strength even on a dimmed block — you can open something the filters excluded,
+ * and while you're reading it, it should be the thing that stands out.
+ */
+export function selectedClass(marks: BoardMarks, id: number): string | undefined {
+  if (marks.selectedId == null || marks.selectedId !== id) return undefined;
+  return "opacity-100! saturate-100! ring-2 ring-primary ring-offset-1 ring-offset-background";
 }
 
 /**

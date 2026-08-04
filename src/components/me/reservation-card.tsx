@@ -24,11 +24,15 @@ export function ReservationCard({
   r,
   showDate = false,
   onOpen,
+  selected = false,
   className,
 }: {
   r: Reservation;
   showDate?: boolean;
   onOpen?: (r: Reservation) => void;
+  /** This card's record is open in the detail panel — worth marking, since the
+   *  panel sits beside the list rather than over it. */
+  selected?: boolean;
   className?: string;
 }) {
   const start = parseISO(r.start);
@@ -41,6 +45,9 @@ export function ReservationCard({
     BORDER_L_CLASS[r.type],
     onOpen &&
       "w-full text-left transition-colors hover:bg-accent/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    // The type stripe already owns the left border, so selection takes the fill
+    // and a ring rather than fighting it for the same edge.
+    selected && "bg-accent ring-2 ring-primary hover:bg-accent",
     className
   );
 

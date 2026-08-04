@@ -12,7 +12,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { bookActionLabel } from "@/lib/permissions";
+import { bookActionLabel, bookingNouns } from "@/lib/permissions";
 import {
   useAnnouncements,
   useMemberInvoices,
@@ -57,10 +57,23 @@ function MyDayPage() {
 
   const reservations = React.useMemo(() => reservationsQ.data ?? [], [reservationsQ.data]);
   const bookLabel = bookActionLabel(roles);
+  const bookings = bookingNouns(roles);
   // Same detail sheet the dispatch board opens — cancel and the ramp-out /
   // ramp-in / close-out flow behave identically here.
-  const { detail, open, setOpen, openDetail, cancelReservation, editing, setEditing, startEdit, cancelDialog } =
-    useReservationDetail(reservations);
+  // No `onStep` and no URL param: My day is a dashboard, not one ordered list, so
+  // there is no "next record" for ↑/↓ to mean and nothing worth linking to.
+  const {
+    detail,
+    open,
+    setOpen,
+    openDetail,
+    cancelReservation,
+    editing,
+    setEditing,
+    startEdit,
+    cancelDialog,
+    selectedId,
+  } = useReservationDetail(reservations);
 
   if (organization === null) {
     return (
@@ -70,7 +83,7 @@ function MyDayPage() {
           <EmptyState
             icon={UserRound}
             title="You're not in an organization yet"
-            body="Accept an invite or ask your school's admin to add you, and your flights, invoices and currencies will show up here."
+            body="Accept an invite or ask your school's admin to add you, and your schedule, invoices and currencies will show up here."
           />
         </Card>
       </div>
@@ -102,14 +115,14 @@ function MyDayPage() {
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
-          label="Next flight"
+          label={`Next ${bookings.one}`}
           value={next ? format(parseISO(next.start), "EEE h:mm a") : "None"}
           hint={next ? (nextResource ?? "Unassigned") : "Nothing on the books"}
           icon={PlaneTakeoff}
           loading={reservationsQ.isLoading}
         />
         <StatCard
-          label="Upcoming flights"
+          label={`Upcoming ${bookings.many}`}
           value={upcoming.length}
           hint={`next ${HORIZON_DAYS} days`}
           icon={CalendarClock}
@@ -185,7 +198,7 @@ function MyDayPage() {
             ) : upcoming.length === 0 ? (
               <EmptyState
                 icon={CalendarClock}
-                title="No upcoming flights"
+                title={`No upcoming ${bookings.many}`}
                 body={`${bookLabel} and it'll show up here.`}
                 action={
                   <Button asChild>
@@ -215,7 +228,12 @@ function MyDayPage() {
                   <ul className="space-y-2">
                     {upcoming.slice(0, MAX_UPCOMING).map((r) => (
                       <li key={r.id}>
-                        <ReservationCard r={r} showDate onOpen={openDetail} />
+                        <ReservationCard
+                          r={r}
+                          showDate
+                          onOpen={openDetail}
+                          selected={r.id === selectedId}
+                        />
                       </li>
                     ))}
                   </ul>

@@ -101,6 +101,92 @@ export const canManageOrg = isAdmin;
 /** Open squawks are admin/dispatcher/technician-only on the server. */
 export const canViewSquawks = (r: Role[]) => isStaff(r) || isTechnician(r);
 
+// ── What a record page shows, per viewer ─────────────────────────────────────
+/**
+ * The person and aircraft pages are one route each, rendered very differently
+ * depending on who opened them. These two functions are the whole difference.
+ *
+ * Every flag below is the CLIENT side of a guard the server already enforces,
+ * and the comment on each says which. That pairing is the point: a section shown
+ * to someone the server will refuse renders an error card where a useful page
+ * should be, and a section hidden from someone the server would have served is a
+ * feature nobody can find. Both failures are silent, so they're written down.
+ */
+
+export interface PersonViewAccess {
+  /** Hours flown, instruction given/received, bookings. `/reports/orgUser/*` is self-or-admin. */
+  metrics: boolean;
+  /** Spend, outstanding balance, invoices. `/invoices/orgUsers/:id` is self-or-admin. */
+  money: boolean;
+  /** Their bookings, past and upcoming. `/reservations/user/:id` is any member; narrowed
+   *  to people with a reason to look — staff run the board, an instructor teaches them. */
+  flights: boolean;
+  /** Medicals, flight reviews, checkouts. Reading someone else's is admin-or-dispatcher. */
+  currencies: boolean;
+  /** Their document vault. `/userDocuments/orgUsers/:id` is self, admin or dispatcher. */
+  documents: boolean;
+  /** Who they fly with. `/users/:id` is any member, but it's only meaningful to these. */
+  instruction: boolean;
+  /** Which tails they're checked out on. `/users/:id/approvedResources` is any member. */
+  approvedAircraft: boolean;
+  /** Edit roles, ground, remove. Server: admin. */
+  manage: boolean;
+}
+
+/**
+ * What this viewer may see on someone's page. `isSelf` is doing real work here —
+ * a student opening their own page gets everything an admin would see about
+ * them, which is the point of giving people a page at all.
+ */
+export function personViewAccess(roles: Role[], isSelf: boolean): PersonViewAccess {
+  const admin = isAdmin(roles);
+  const staff = isStaff(roles);
+  return {
+    metrics: admin || isSelf,
+    money: admin || isSelf,
+    flights: staff || isInstructor(roles) || isSelf,
+    currencies: staff || isSelf,
+    documents: admin || isDispatcher(roles) || isSelf,
+    instruction: staff || isInstructor(roles) || isSelf,
+    approvedAircraft: staff || isInstructor(roles) || isSelf,
+    manage: canManageMembers(roles),
+  };
+}
+
+export interface ResourceViewAccess {
+  /** Utilization and booking counts. `/reports/resource/*` fleet tier: admin, dispatcher, technician. */
+  metrics: boolean;
+  /** Revenue and payments for this tail. `/reports/resource/*` financial tier: admin only. */
+  money: boolean;
+  /** Squawks and maintenance reminders. Server: admin, dispatcher or technician. */
+  maintenance: boolean;
+  /** Who is checked out on it. Derived from the roster, so staff only. */
+  approvedPilots: boolean;
+  /** Edit, ground, approve renters. Server: admin. */
+  manage: boolean;
+  /** File a squawk against this aircraft. Server: any member. */
+  reportSquawk: boolean;
+}
+
+/**
+ * What this viewer may see on an aircraft's page. A technician gets the
+ * maintenance half and no money; a dispatcher gets utilization and no money;
+ * every other member still gets the aircraft itself and its schedule, which is
+ * what they already see on the fleet list.
+ */
+export function resourceViewAccess(roles: Role[]): ResourceViewAccess {
+  const admin = isAdmin(roles);
+  const fleet = isStaff(roles) || isTechnician(roles);
+  return {
+    metrics: fleet,
+    money: admin,
+    maintenance: fleet,
+    approvedPilots: isStaff(roles),
+    manage: admin,
+    reportSquawk: true,
+  };
+}
+
 // ── Reservation types by role ────────────────────────────────────────────────
 /**
  * Display order for reservation types. Also the canonical list of types the
@@ -203,6 +289,26 @@ export function bookActionLabel(r: Role[]): string {
   return types.length === 1 && types[0] === "maintenance"
     ? "Schedule maintenance"
     : "Book a flight";
+}
+
+/**
+ * What to call a person's own bookings in copy — "Next ___", "No upcoming ___",
+ * "___ on your schedule".
+ *
+ * "Flights" reads warmly and is frequently untrue. A technician never books one;
+ * a student's whole week can be ground lessons. Roles only tell us which kinds
+ * are *possible*, never which ones this person actually has, so the neutral noun
+ * is the honest default and the specific one is used only where the roles leave
+ * exactly one kind to book. Same shape as `bookActionLabel` above.
+ *
+ * "maintenance" is a mass noun, so both forms are the same word — which is why
+ * this returns a pair rather than pluralising a single string.
+ */
+export function bookingNouns(r: Role[]): { one: string; many: string } {
+  const types = selfBookableTypes(r);
+  return types.length === 1 && types[0] === "maintenance"
+    ? { one: "maintenance", many: "maintenance" }
+    : { one: "reservation", many: "reservations" };
 }
 /**
  * Anyone who can create a reservation in *some* form — staff create any type on

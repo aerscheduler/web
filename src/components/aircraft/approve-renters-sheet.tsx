@@ -1,7 +1,11 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { Users } from "lucide-react";
-import { useApproveResource, useMembers } from "@/features/queries";
+import {
+  useApproveResource,
+  useMembers,
+  useResourceApprovedPilots,
+} from "@/features/queries";
 import type { OrganizationUser, Resource } from "@/types/api";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -17,9 +21,16 @@ import {
 import { initials } from "@/lib/utils";
 
 /**
- * Toggle which renters may book a given aircraft. The API exposes no read of current
- * approvals on the resource, so toggles start from the caller's session actions —
- * flipping one on approves, off unapproves.
+ * Toggle which renters may book a given aircraft.
+ *
+ * The server has no "who is approved on this tail" read, so the current state is
+ * inverted from each renter's own approved list (`useResourceApprovedPilots`).
+ * That matters: this sheet used to open with every switch OFF regardless of the
+ * truth, so an already-approved renter looked unapproved, and toggling them on
+ * and off again to check would actually revoke them.
+ *
+ * Local overrides still win while the sheet is open, so a flip is instant rather
+ * than waiting on a refetch of every renter.
  */
 export function ApproveRentersSheet({
   open,
@@ -31,10 +42,17 @@ export function ApproveRentersSheet({
   resource: Resource | null;
 }) {
   const q = useMembers({ renter: true }, { enabled: open });
+  const approvedQ = useResourceApprovedPilots(resource?.id ?? null, { enabled: open });
   const approve = useApproveResource(resource?.id ?? 0);
   const renters = q.data ?? [];
 
-  // Session-local record of who has been approved/unapproved in this sheet.
+  const approvedIds = React.useMemo(
+    () => new Set((approvedQ.data ?? []).map((m) => m.id)),
+    [approvedQ.data]
+  );
+
+  // Only what this sheet has changed since it opened; everything else reads
+  // through to the server's answer above.
   const [approved, setApproved] = React.useState<Record<number, boolean>>({});
   React.useEffect(() => {
     if (open) setApproved({});
@@ -85,7 +103,7 @@ export function ApproveRentersSheet({
             <ul className="divide-y divide-border">
               {renters.map((m) => {
                 const name = m.user?.name ?? `Member #${m.id}`;
-                const isOn = approved[m.id] ?? false;
+                const isOn = approved[m.id] ?? approvedIds.has(m.id);
                 return (
                   <li key={m.id} className="flex items-center gap-3 py-3">
                     <Avatar className="size-9">

@@ -1,10 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { UserPlus, Users, GraduationCap } from "lucide-react";
 import {
   pageRows,
-  useMembers,
   useMembersPage,
   useOrgUserGroups,
   type MemberFilter,
@@ -27,7 +26,6 @@ import { JoinRequestsPanel } from "@/components/people/join-requests-panel";
 import { InstructionRequestsPanel } from "@/components/people/instruction-requests-panel";
 import { AdminAssignPairDialog } from "@/components/people/admin-assign-pair-dialog";
 import { MemberCard } from "@/components/people/member-card";
-import { MemberProfileSheet } from "@/components/people/member-profile-sheet";
 import { MemberRowActions } from "@/components/people/member-row-actions";
 import { GuestsTable } from "@/components/people/guests-table";
 import { memberName } from "@/components/people/util";
@@ -41,13 +39,15 @@ const PEOPLE_FACET_KEYS = ["role", "grounded", "groupId"] as const;
 
 export const Route = createFileRoute("/_authed/people")({
   /**
-   * `?member=<orgUserId>` opens that person's profile sheet — the deep link the
-   * ⌘K palette uses for a person, and for another member's currency or document
-   * (this sheet is the only place the console shows those for someone else).
+   * `?member=<orgUserId>` is the OLD deep link — it used to open a profile
+   * drawer over this table. That drawer is now the `/people/:orgUserId` page, so
+   * the param survives only as a redirect (see `deepLinkedId` below): bookmarks,
+   * pasted links and anything still emitting the old shape keep working instead
+   * of silently landing on an unfiltered roster.
    *
    * It is kept OUTSIDE the facet list on purpose: facets are remembered in
    * localStorage and restored on the next visit, and a one-shot deep link that
-   * came back days later would reopen a sheet nobody asked for.
+   * came back days later would redirect someone who was just opening People.
    */
   validateSearch: (s) => {
     const list = validateListSearch(s, [...PEOPLE_FACET_KEYS]);
@@ -154,29 +154,32 @@ function PeoplePage() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [assignPairOpen, setAssignPairOpen] = useState(false);
   const [editing, setEditing] = useState<OrganizationUser | null>(null);
-  const [viewing, setViewing] = useState<OrganizationUser | null>(null);
 
   const deepLinkedId = useMemo(() => {
     const n = Number.parseInt(String(routeSearch.member ?? ""), 10);
     return Number.isFinite(n) ? n : null;
   }, [routeSearch.member]);
 
-  // Resolved against the FULL roster, not the filtered list on screen: the page
-  // restores your last filters from localStorage, and a link to someone those
-  // filters exclude must still open — otherwise the palette silently no-ops.
-  const deepLinkQ = useMembers(undefined, { enabled: deepLinkedId != null });
-
+  // Forward the legacy `?member=` link to that person's page. `replace` so Back
+  // skips this table and returns to wherever the link was opened from, rather
+  // than bouncing through the redirect a second time.
   useEffect(() => {
     if (deepLinkedId == null) return;
-    const match = (deepLinkQ.data ?? []).find((m) => m.id === deepLinkedId);
-    if (!match) return;
-    setViewing(match);
-    // Consume the param so closing the sheet doesn't leave a URL that reopens it.
-    navigateSearch({
-      search: ({ member: _drop, ...rest }: Record<string, unknown>) => rest,
+    void navigate({
+      to: "/people/$orgUserId",
+      params: { orgUserId: String(deepLinkedId) },
       replace: true,
     });
-  }, [deepLinkedId, deepLinkQ.data, navigateSearch]);
+  }, [deepLinkedId, navigate]);
+
+  const viewProfile = useCallback(
+    (ou: OrganizationUser) =>
+      void navigate({
+        to: "/people/$orgUserId",
+        params: { orgUserId: String(ou.id) },
+      }),
+    [navigate]
+  );
 
   const groupsQ = useOrgUserGroups();
   const roleKeys = asFacetStrings(facets.role).filter(
@@ -261,7 +264,13 @@ function PeoplePage() {
           const name = memberName(ou);
           const email = ou.user?.email;
           return (
-            <div className="flex items-center gap-3">
+            // A real link, not just a clickable row: middle-click, ⌘-click and
+            // "copy link address" all have to work on a roster people share.
+            <Link
+              to="/people/$orgUserId"
+              params={{ orgUserId: String(ou.id) }}
+              className="flex items-center gap-3 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
               <Avatar className="size-9">
                 {ou.profileImage && <AvatarImage src={ou.profileImage} alt={name} />}
                 <AvatarFallback>{initials(name)}</AvatarFallback>
@@ -272,7 +281,7 @@ function PeoplePage() {
                   <div className="truncate text-xs text-muted-foreground">{email}</div>
                 )}
               </div>
-            </div>
+            </Link>
           );
         },
       },
@@ -320,14 +329,14 @@ function PeoplePage() {
           <div className="flex justify-end">
             <MemberRowActions
               ou={row.original}
-              onView={setViewing}
+              onView={viewProfile}
               onEditRoles={setEditing}
             />
           </div>
         ),
       },
     ],
-    []
+    [viewProfile]
   );
 
   const toolbar = (
@@ -419,9 +428,10 @@ function PeoplePage() {
           paging={paging}
           total={total}
           loading={q.isFetching}
+          onRowClick={viewProfile}
           emptyMessage="No members match your filters."
           mobileCard={(ou) => (
-            <MemberCard ou={ou} onView={setViewing} onEditRoles={setEditing} />
+            <MemberCard ou={ou} onView={viewProfile} onEditRoles={setEditing} />
           )}
         />
       )}
@@ -432,11 +442,6 @@ function PeoplePage() {
         member={editing}
         open={!!editing}
         onOpenChange={(o) => !o && setEditing(null)}
-      />
-      <MemberProfileSheet
-        member={viewing}
-        open={!!viewing}
-        onOpenChange={(o) => !o && setViewing(null)}
       />
     </TableView>
   );

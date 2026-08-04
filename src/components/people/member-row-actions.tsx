@@ -32,7 +32,8 @@ export function MemberRowActions({
   align = "end",
 }: {
   ou: OrganizationUser;
-  onView: (ou: OrganizationUser) => void;
+  /** Omitted on the profile page itself — "View profile" would go nowhere. */
+  onView?: (ou: OrganizationUser) => void;
   onEditRoles: (ou: OrganizationUser) => void;
   align?: "end" | "start";
 }) {
@@ -107,9 +108,11 @@ export function MemberRowActions({
           <TooltipContent>Actions</TooltipContent>
         </Tooltip>
         <DropdownMenuContent align={align} className="w-48">
-          <DropdownMenuItem onSelect={() => onView(ou)}>
-            <Eye /> View profile
-          </DropdownMenuItem>
+          {onView && (
+            <DropdownMenuItem onSelect={() => onView(ou)}>
+              <Eye /> View profile
+            </DropdownMenuItem>
+          )}
           {canManageMembers(roles) && (
           <>
               <DropdownMenuItem onSelect={() => onEditRoles(ou)}>

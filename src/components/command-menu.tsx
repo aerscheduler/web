@@ -359,6 +359,9 @@ export function CommandMenuSearch() {
       run(() =>
         navigate({
           to: link.to,
+          // People and aircraft resolve to a detail route, which needs its path
+          // param — without this the palette navigates to a literal `$orgUserId`.
+          ...(link.params ? { params: link.params } : {}),
           ...(link.search ? { search: link.search } : {}),
         } as Parameters<typeof navigate>[0])
       );

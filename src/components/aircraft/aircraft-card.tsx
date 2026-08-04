@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   TowerControl,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import type { Resource } from "@/types/api";
 import { planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
 import { Card } from "@/components/ui/card";
@@ -71,13 +72,13 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
       <div className="flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <button
-              type="button"
-              onClick={() => actions.onDetails(r)}
+            <Link
+              to="/aircraft/$resourceId"
+              params={{ resourceId: String(r.id) }}
               className="rounded font-mono text-lg font-semibold tracking-tight outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
             >
               {p.tailNumber}
-            </button>
+            </Link>
             <div className="truncate text-sm text-muted-foreground">{planeTitle(p)}</div>
           </div>
 

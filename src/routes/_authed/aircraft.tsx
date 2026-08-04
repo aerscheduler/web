@@ -1,5 +1,5 @@
 import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PlaneTakeoff, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -16,7 +16,6 @@ import { AircraftListRow } from "@/components/aircraft/aircraft-list-row";
 import { AircraftFormModal } from "@/components/aircraft/aircraft-form";
 import { GroundModal } from "@/components/aircraft/ground-modal";
 import { ApproveRentersSheet } from "@/components/aircraft/approve-renters-sheet";
-import { AircraftDetailSheet } from "@/components/aircraft/aircraft-detail-sheet";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
@@ -49,12 +48,15 @@ function AircraftPage() {
     facetKeys: [...FACET_KEYS],
   });
 
+  // A second navigate: `Route.useNavigate()` above is bound to this route's own
+  // search params, which the detail route doesn't have.
+  const goTo = useNavigate();
+
   const [view, setView] = usePersistedState<ViewMode>("view:aircraft", "grid");
   const [addOpen, setAddOpen] = React.useState(false);
   const [editing, setEditing] = React.useState<Resource | null>(null);
   const [grounding, setGrounding] = React.useState<Resource | null>(null);
   const [approving, setApproving] = React.useState<Resource | null>(null);
-  const [detail, setDetail] = React.useState<Resource | null>(null);
 
   const locations = locationsQ.data ?? [];
   const locationIds = asFacetInts(facets.locationId);
@@ -107,7 +109,8 @@ function AircraftPage() {
   const actions: AircraftActions = {
     onEdit: (r) => setEditing(r),
     onApprove: (r) => setApproving(r),
-    onDetails: (r) => setDetail(r),
+    onDetails: (r) =>
+      void goTo({ to: "/aircraft/$resourceId", params: { resourceId: String(r.id) } }),
     onToggleGround: async (r) => {
       const p = r.type?.plane;
       if (!p) return;
@@ -232,11 +235,6 @@ function AircraftPage() {
         open={!!approving}
         onOpenChange={(o) => !o && setApproving(null)}
         resource={approving}
-      />
-      <AircraftDetailSheet
-        open={!!detail}
-        onOpenChange={(o) => !o && setDetail(null)}
-        resource={detail}
       />
     </TableView>
   );

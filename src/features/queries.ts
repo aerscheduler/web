@@ -1491,6 +1491,62 @@ export function useApprovedResources(userId: number | null, opts?: QueryOpts) {
 }
 
 /**
+ * How many renters this fan-out will ask about. Approval is only readable
+ * per-person (`GET /users/:id/approvedResources`) — there is no "who is approved
+ * on this tail" endpoint — so the answer costs one request per renter.
+ *
+ * `truncated` on the result says when a school has more renters than this, so
+ * the card can say "of the first 60" instead of quietly under-reporting.
+ */
+const APPROVAL_FANOUT_LIMIT = 60;
+
+/**
+ * Who is checked out on one aircraft.
+ *
+ * Inverted client-side from each renter's approved list because the server has
+ * no read in the other direction. Only renters are asked: they are the role the
+ * approval gate actually governs, and they're who the approve sheet writes to.
+ */
+export function useResourceApprovedPilots(resourceId: number | null, opts?: QueryOpts) {
+  const enabled = (opts?.enabled ?? true) && resourceId != null;
+  const rentersQ = useMembers({ renter: true }, { enabled });
+  const allRenters = rentersQ.data ?? [];
+  const renters = allRenters.slice(0, APPROVAL_FANOUT_LIMIT);
+
+  const perRenter = useQueries({
+    queries: renters.map((m) => ({
+      queryKey: ["approvedResources", m.user?.id ?? null] as const,
+      queryFn: () => api<Resource[]>(`/users/${m.user?.id}/approvedResources`),
+      enabled: enabled && rentersQ.isSuccess && m.user?.id != null,
+    })),
+  });
+
+  const isPending = rentersQ.isPending || perRenter.some((q) => q.isPending);
+  const isError = rentersQ.isError || perRenter.some((q) => q.isError);
+  const settled = perRenter.map((q) => q.dataUpdatedAt).join(",");
+
+  const data = useMemo(() => {
+    if (!rentersQ.isSuccess) return undefined;
+    const approved: OrganizationUser[] = [];
+    renters.forEach((m, i) => {
+      const list = perRenter[i]?.data;
+      if (list?.some((r) => r.id === resourceId)) approved.push(m);
+    });
+    return approved;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on settled timestamps
+  }, [rentersQ.isSuccess, settled, resourceId]);
+
+  return {
+    data,
+    isPending,
+    isError,
+    /** How many renters exist in total, whether or not they were all checked. */
+    renterCount: allRenters.length,
+    truncated: allRenters.length > APPROVAL_FANOUT_LIMIT,
+  };
+}
+
+/**
  * Who this user is paired with for instruction — their assigned students (if
  * they instruct) and their assigned instructors (if they're a student).
  *
@@ -1789,6 +1845,92 @@ export function useOrgReport<T>(
         query: range ? { startDate: range.startDate, endDate: range.endDate } : undefined,
       }),
     enabled: (opts?.enabled ?? true) && (!rangeRequired || range != null),
+  });
+}
+
+/**
+ * One metric about ONE member — `GET /reports/orgUser/:orgUserId/:metric`.
+ *
+ * The server serves these to that member or to an admin, and nobody else. That
+ * rule is the whole reason the person page can show a student their own hours
+ * and money without an admin-only route: pass `enabled` from the caller's own
+ * `isAdmin || isSelf`, and a dispatcher simply never asks.
+ *
+ * Metrics: countFlightTime, countInstructionTimeGiven, countInstructionTimeReceived,
+ * countScheduledReservations, countCompletedReservations, countPendingAndProcessedPayments.
+ * All are deci-hours or cents — divide at the edge, never in the middle.
+ */
+export function useOrgUserReport<T>(
+  orgUserId: number | null,
+  metric: string,
+  range?: ReportRange,
+  opts?: QueryOpts & { rangeRequired?: boolean }
+) {
+  const rangeRequired = opts?.rangeRequired ?? true;
+  return useQuery({
+    queryKey: ["reports", "orgUser", orgUserId, metric, range ?? {}],
+    queryFn: () =>
+      api<T>(`/reports/orgUser/${orgUserId}/${metric}`, {
+        query: range ? { startDate: range.startDate, endDate: range.endDate } : undefined,
+      }),
+    enabled:
+      (opts?.enabled ?? true) && orgUserId != null && (!rangeRequired || range != null),
+  });
+}
+
+/**
+ * One metric about ONE aircraft — `GET /reports/resource/:resourceId/:metric`.
+ *
+ * Two access tiers server-side, and they are not interchangeable: utilization,
+ * bookings and squawk counts go to admin, dispatcher and technician, while
+ * `countPendingAndProcessedPayments` stays admin-only. Gate the money tiles on
+ * `isAdmin` at the call site — asking anyway is a 403, not an empty card.
+ */
+export function useResourceReport<T>(
+  resourceId: number | null,
+  metric: string,
+  range?: ReportRange,
+  opts?: QueryOpts & { rangeRequired?: boolean }
+) {
+  const rangeRequired = opts?.rangeRequired ?? true;
+  return useQuery({
+    queryKey: ["reports", "resource", resourceId, metric, range ?? {}],
+    queryFn: () =>
+      api<T>(`/reports/resource/${resourceId}/${metric}`, {
+        query: range ? { startDate: range.startDate, endDate: range.endDate } : undefined,
+      }),
+    enabled:
+      (opts?.enabled ?? true) && resourceId != null && (!rangeRequired || range != null),
+  });
+}
+
+/**
+ * One aircraft, by id (`GET /resources/:id`, any member).
+ *
+ * The detail page can't rely on finding its tail inside a list read: the fleet
+ * list is paged and filtered, so a deep link to page 3 of the fleet would show a
+ * "not found" for an aircraft that exists.
+ */
+export function useResource(id: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["resources", "one", id],
+    queryFn: () => api<Resource>(`/resources/${id}`),
+    enabled: (opts?.enabled ?? true) && id != null,
+  });
+}
+
+/**
+ * One member's roster row, by org-user id (`GET /orgUsers/:id`, any member).
+ *
+ * Same reason as `useResource`: the person page is deep-linkable and the roster
+ * it would otherwise be found in is paged and filtered, so resolving the person
+ * out of a list read would 404 anyone who happens to be on page 2.
+ */
+export function useMember(orgUserId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["members", "one", orgUserId],
+    queryFn: () => api<OrganizationUser>(`/orgUsers/${orgUserId}`),
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
   });
 }
 

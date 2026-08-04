@@ -15,13 +15,14 @@ import type { SearchEntityType, SearchResult } from "@/types/api";
 /**
  * Where a search hit goes when you pick it, and how it's labelled.
  *
- * The console has no per-entity detail ROUTES — lists own their rows and open
- * sheets from local state. So rather than invent nine new pages, a hit lands on
- * the page that already owns it with that page's own `?q=` pre-filled, which
- * leaves the row on screen, filtered, in its normal context. Two exceptions
- * carry an id instead: a person, and another member's currency or document,
- * open that member's profile sheet via `/people?member=<id>` — the only place
- * the console shows one member's currencies and documents together.
+ * People and aircraft have real detail routes, so those hits go straight to the
+ * record: `/people/:orgUserId` and `/aircraft/:resourceId`. So does anyone
+ * else's currency or document, since that person's page is where the console
+ * shows both together.
+ *
+ * Everything else still has no page of its own, and lands on the list that owns
+ * it with that list's `?q=` pre-filled — which leaves the row on screen,
+ * filtered, in its normal context.
  *
  * Pure and dependency-light on purpose: the palette should not be where you
  * discover that a link is wrong.
@@ -29,6 +30,8 @@ import type { SearchEntityType, SearchResult } from "@/types/api";
 
 export type SearchLink = {
   to: string;
+  /** Path params, for the routes that take one. */
+  params?: Record<string, string>;
   search?: Record<string, string>;
 };
 
@@ -81,22 +84,36 @@ const asInt = (value: unknown): number | null => {
  * Resolve a hit to a route.
  *
  * `viewerOrgUserId` decides whose currency/document this is: your own go to the
- * self-serve pages under /me, anyone else's to their profile sheet. Pass null
- * when the viewer is unknown and everything falls back to the roster, which is
- * reachable by any member.
+ * self-serve pages under /me, anyone else's to their page. Pass null when the
+ * viewer is unknown and everything falls back to the roster, which is reachable
+ * by any member.
  */
 export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | null): SearchLink {
   const ownerId = asInt(result.params.orgUserId);
   const isMine = ownerId != null && viewerOrgUserId != null && ownerId === viewerOrgUserId;
-  const memberSheet: SearchLink =
-    ownerId != null ? { to: "/people", search: { member: String(ownerId) } } : { to: "/people" };
+  // Falls back to the roster when the hit carries no owner id — better a list
+  // than a `/people/NaN` that renders "no such member".
+  const memberPage: SearchLink =
+    ownerId != null
+      ? { to: "/people/$orgUserId", params: { orgUserId: String(ownerId) } }
+      : { to: "/people" };
 
   switch (result.type) {
     case "person":
-      return memberSheet;
+      return memberPage;
 
-    case "resource":
-      return { to: "/aircraft", search: { q: result.title } };
+    case "resource": {
+      // Only aircraft have a detail page. Simulators and classrooms live on
+      // Facilities, which has no per-record page, so they land there filtered.
+      const resourceId = asInt(result.params.resourceId);
+      const kind = result.params.kind;
+      if (kind === "simulator" || kind === "room") {
+        return { to: "/facilities", search: { q: result.title } };
+      }
+      return resourceId != null
+        ? { to: "/aircraft/$resourceId", params: { resourceId: String(resourceId) } }
+        : { to: "/aircraft", search: { q: result.title } };
+    }
 
     case "location":
       return { to: "/facilities", search: { q: result.title } };
@@ -112,10 +129,10 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
       return { to: "/operations/announcements", search: { q: result.title } };
 
     case "currency":
-      return isMine ? { to: "/me/currencies" } : memberSheet;
+      return isMine ? { to: "/me/currencies" } : memberPage;
 
     case "document":
-      return isMine ? { to: "/me/documents" } : memberSheet;
+      return isMine ? { to: "/me/documents" } : memberPage;
 
     case "squawk":
       // Maintenance has no "all" view — it shows open OR resolved. Land on the

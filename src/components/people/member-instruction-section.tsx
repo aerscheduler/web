@@ -20,14 +20,24 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { initials } from "@/lib/utils";
+import { cn, initials } from "@/lib/utils";
 import { memberName } from "./util";
 
 /**
  * Instruction pairs on a People profile — admin assign/unassign, plus
  * instructor/student request & self-remove (Flutter personnel detail menu).
+ *
+ * `bare` drops the divider it grew for the old profile drawer, where it was one
+ * block in a scrolling stack. On the profile page it is its own card and the
+ * top border would read as a second, empty header.
  */
-export function MemberInstructionSection({ ou }: { ou: OrganizationUser }) {
+export function MemberInstructionSection({
+  ou,
+  bare,
+}: {
+  ou: OrganizationUser;
+  bare?: boolean;
+}) {
   const { isAdmin, roles, userId, membership } = useAuth();
   const confirm = useConfirm();
   const targetUserId = ou.user?.id ?? null;
@@ -78,9 +88,9 @@ export function MemberInstructionSection({ ou }: { ou: OrganizationUser }) {
       : instructors.map((i) => i.id);
 
   return (
-    <div className="border-t border-border px-4 py-4">
+    <div className={cn("px-4 py-4", !bare && "border-t border-border")}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-medium">Instruction</h3>
+        <h3 className="text-sm font-semibold leading-none tracking-tight">Instruction</h3>
         {isAdmin && (showInstructorBlock || showStudentBlock) && (
           <div className="flex flex-wrap gap-1.5">
             {showInstructorBlock && (

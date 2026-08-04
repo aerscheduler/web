@@ -1,7 +1,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { useCreateSquawk, usePlanes } from "@/features/queries";
-import { resourceLabel } from "@/types/api";
+import { resourceLabel, type Resource } from "@/types/api";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { Button } from "@/components/ui/button";
@@ -13,17 +13,27 @@ import { Switch } from "@/components/ui/switch";
 export function LogSquawkModal({
   open,
   onOpenChange,
+  fixedResource,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * Opened from one aircraft's page: the tail is decided by where you clicked,
+   * so it's shown rather than asked for. Leaving the picker editable there would
+   * let a squawk you filed from N12345's page land on a different tail.
+   */
+  fixedResource?: Resource | null;
 }) {
-  const planesQ = usePlanes();
+  const planesQ = usePlanes({}, { enabled: open && !fixedResource });
   const create = useCreateSquawk();
 
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [resourceId, setResourceId] = React.useState<string>("");
   const [grounding, setGrounding] = React.useState(false);
+
+  // A fixed tail is the value, not a default the user could have edited away.
+  const effectiveResourceId = fixedResource ? String(fixedResource.id) : resourceId;
 
   const options: ComboOption[] = React.useMemo(
     () =>
@@ -48,7 +58,7 @@ export function LogSquawkModal({
       await create.mutateAsync({
         title: trimmed,
         description: description.trim() || undefined,
-        resourceId: resourceId ? Number(resourceId) : undefined,
+        resourceId: effectiveResourceId ? Number(effectiveResourceId) : undefined,
         grounding,
       });
       toast.success(grounding ? "Squawk logged — aircraft grounded." : "Squawk logged.");
@@ -94,15 +104,21 @@ export function LogSquawkModal({
 
         <div className="space-y-1.5">
           <Label>Aircraft</Label>
-          <Combobox
-            options={options}
-            value={resourceId}
-            onChange={setResourceId}
-            placeholder={planesQ.isLoading ? "Loading fleet…" : "Select an aircraft"}
-            searchPlaceholder="Search tails…"
-            emptyText="No aircraft found."
-            disabled={planesQ.isLoading}
-          />
+          {fixedResource ? (
+            <div className="flex h-8 items-center rounded-md border border-border bg-muted/50 px-3 font-mono text-sm">
+              {resourceLabel(fixedResource).name}
+            </div>
+          ) : (
+            <Combobox
+              options={options}
+              value={resourceId}
+              onChange={setResourceId}
+              placeholder={planesQ.isLoading ? "Loading fleet…" : "Select an aircraft"}
+              searchPlaceholder="Search tails…"
+              emptyText="No aircraft found."
+              disabled={planesQ.isLoading}
+            />
+          )}
         </div>
 
         <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">

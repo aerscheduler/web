@@ -6,6 +6,7 @@ import {
   ShieldCheck,
   TowerControl,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import type { Resource } from "@/types/api";
 import type { AircraftActions } from "@/components/aircraft/aircraft-card";
 import { planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
@@ -39,9 +40,9 @@ export function AircraftListRow({
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5">
-      <button
-        type="button"
-        onClick={() => actions.onDetails(r)}
+      <Link
+        to="/aircraft/$resourceId"
+        params={{ resourceId: String(r.id) }}
         className="min-w-0 flex-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <div className="flex items-center gap-2">
@@ -60,7 +61,7 @@ export function AircraftListRow({
           )}
         </div>
         <div className="truncate text-xs text-muted-foreground">{planeTitle(p)}</div>
-      </button>
+      </Link>
 
       <div className="hidden gap-4 text-xs text-muted-foreground sm:flex">
         <Tooltip>

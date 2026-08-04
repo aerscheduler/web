@@ -233,7 +233,9 @@ export function ReportView({
             {(run.error as Error)?.message ?? "Could not run this report."}
           </div>
         ) : run.isLoading && !result ? (
-          <div className="m-6 flex-1 animate-pulse rounded-md bg-muted" />
+          // Explicit height too — a contentless flex-1 box measures zero once the
+          // page stops being bounded (below md), and the skeleton disappears.
+          <div className="m-6 min-h-48 flex-1 animate-pulse rounded-md bg-muted md:min-h-0" />
         ) : rows.length === 0 ? (
           <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
             Nothing matched. Try a wider date range

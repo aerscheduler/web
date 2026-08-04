@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, FlaskConical, LogOut, RotateCcw } from "lucide-react";
+import { ChevronDown, FlaskConical, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { roleLabel } from "@/lib/demo";
@@ -17,8 +17,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 /**
- * The standing "none of this is real" bar, and everything a visitor can do with
- * the sandbox: change who they are, put it back, or leave.
+ * The standing "none of this is real" bar, and what a visitor can do with the
+ * sandbox: change who they are, or leave.
+ *
+ * ONE LINE AT EVERY WIDTH. This sits above every page, so whatever it costs it
+ * costs everywhere — and on a phone the full sentence wrapped to three lines
+ * with the buttons on a fourth, roughly a fifth of the screen, permanently. So
+ * the prose is desktop-only and a phone gets the two facts that are actually
+ * load-bearing: that this is a demo, and who you are in it.
  *
  * Rendered ABOVE the subscription gate, alongside the impersonation banner and
  * for the same reason stated there — the gate can replace the entire app shell,
@@ -30,15 +36,15 @@ import {
  * seven sets of credentials to hand out is most of why the demo exists.
  */
 export function DemoBanner() {
-  const { isDemo, demo, user, roles, switchDemoRole, resetDemo, exitDemo } = useAuth();
+  const { isDemo, demo, user, roles, switchDemoRole, exitDemo } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const [busy, setBusy] = useState<null | "switch" | "reset">(null);
+  const [busy, setBusy] = useState(false);
 
   if (!isDemo || !demo) return null;
 
   const become = async (orgUserId: number, name: string) => {
-    setBusy("switch");
+    setBusy(true);
     try {
       await switchDemoRole(orgUserId);
       // Every cached query was answered for the previous role, and the roles see
@@ -53,21 +59,7 @@ export function DemoBanner() {
     } catch {
       toast.error("Couldn't switch role", { description: "Try again in a moment." });
     } finally {
-      setBusy(null);
-    }
-  };
-
-  const reset = async () => {
-    setBusy("reset");
-    try {
-      await resetDemo();
-      qc.clear();
-      toast.success("Demo reset", { description: "Everything is back the way you found it." });
-      await navigate({ to: "/dashboard" });
-    } catch {
-      toast.error("Couldn't reset the demo", { description: "Try again in a moment." });
-    } finally {
-      setBusy(null);
+      setBusy(false);
     }
   };
 
@@ -81,27 +73,29 @@ export function DemoBanner() {
 
   return (
     <div
-      className="flex flex-col gap-2 border-b border-sky-500/30 bg-sky-500/10 px-4 py-2 text-sm sm:flex-row sm:items-center sm:justify-between md:px-10"
+      className="flex items-center gap-2 border-b border-sky-500/30 bg-sky-500/10 px-4 py-2 text-sm md:px-10"
       data-testid="demo-banner"
     >
-      <div className="flex items-start gap-2.5">
-        <FlaskConical className="mt-0.5 size-4 shrink-0 text-sky-600 dark:text-sky-400" />
-        <div>
-          <span className="font-medium">
-            Demo — you&rsquo;re {user?.name ?? "a demo user"} ({current})
-          </span>{" "}
-          <span className="text-muted-foreground">
-            Sample data at a made-up flight school. Change anything you like.
-          </span>
-        </div>
-      </div>
+      <FlaskConical className="size-4 shrink-0 text-sky-600 dark:text-sky-400" />
 
-      <div className="flex shrink-0 items-center gap-2 self-start sm:self-auto">
+      {/* `min-w-0 truncate` rather than a breakpoint on the role: a visitor with
+          four grants would otherwise be the one case that wraps. */}
+      <p className="min-w-0 truncate">
+        <span className="font-medium">Demo</span>
+        <span className="text-muted-foreground"> &middot; {current}</span>
+        <span className="hidden text-muted-foreground lg:inline">
+          {" "}
+          &mdash; you&rsquo;re {user?.name ?? "a demo user"} at a made-up flight school. Change
+          anything you like.
+        </span>
+      </p>
+
+      <div className="ml-auto flex shrink-0 items-center gap-1.5">
         <TimeLeft />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="sm" variant="outline" disabled={busy !== null}>
+            <Button size="sm" variant="outline" disabled={busy}>
               Switch role
               <ChevronDown className="size-4" />
             </Button>
@@ -124,14 +118,17 @@ export function DemoBanner() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button size="sm" variant="outline" onClick={() => void reset()} disabled={busy !== null}>
-          <RotateCcw className="size-4" />
-          Reset
-        </Button>
-
-        <Button size="sm" variant="ghost" onClick={leave} disabled={busy !== null}>
+        {/* Icon-only until there's room for the word — this is the way out, so
+            it stays on the bar at every width rather than folding into a menu. */}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={leave}
+          disabled={busy}
+          className="max-sm:px-2"
+        >
           <LogOut className="size-4" />
-          Exit
+          <span className="max-sm:sr-only">Exit</span>
         </Button>
       </div>
     </div>

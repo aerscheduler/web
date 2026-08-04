@@ -68,6 +68,18 @@ export function SidebarNav() {
 }
 
 /**
+ * On a phone the rail is a sheet OVER the page, so following a link there
+ * navigates behind a drawer that is still covering the result. Every link in the
+ * rail closes it; on desktop the rail is permanent and this is a no-op.
+ */
+function useDismissOnNavigate() {
+  const { isMobile, setOpenMobile } = useSidebar();
+  return React.useCallback(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [isMobile, setOpenMobile]);
+}
+
+/**
  * Remember where the user has been. Lives in the shell rather than the rail so
  * it keeps recording while the rail is closed (mobile) or scrolled away.
  */
@@ -295,6 +307,8 @@ function RecentGroup({
       .slice(0, RECENT_SHOWN);
   }, [recent, pinned, onRail, pathname]);
 
+  const dismiss = useDismissOnNavigate();
+
   if (items.length === 0) return null;
 
   return (
@@ -305,7 +319,7 @@ function RecentGroup({
           {items.map((item) => (
             <SidebarMenuItem key={item.to}>
               <SidebarMenuButton asChild className="text-sidebar-foreground/80">
-                <Link to={item.to} draggable={false}>
+                <Link to={item.to} draggable={false} onClick={dismiss}>
                   <item.icon />
                   <span>{item.label}</span>
                 </Link>
@@ -336,6 +350,8 @@ function PlainGroup({
   items: NavItem[];
   pathname: string;
 }) {
+  const dismiss = useDismissOnNavigate();
+
   if (items.length === 0) return null;
 
   return (
@@ -346,7 +362,7 @@ function PlainGroup({
           {items.map((item) => (
             <SidebarMenuItem key={item.to}>
               <SidebarMenuButton asChild isActive={isNavItemActive(item.to, pathname)}>
-                <Link to={item.to} draggable={false}>
+                <Link to={item.to} draggable={false} onClick={dismiss}>
                   <item.icon />
                   <span>{item.label}</span>
                 </Link>
@@ -373,12 +389,19 @@ const FLIP_MS = 180;
  * cursor, so dragging upward (where the rows between old and new index slide
  * down through the pointer) oscillates — reorder → FLIP → different row under
  * cursor → reorder → flicker. Live draft order without transforms is stable.
+ *
+ * Positions are measured RELATIVE TO THE LIST, never the viewport. A row's
+ * viewport position also changes when the rail is scrolled or the window
+ * resized — neither of which renders, so the stored boxes silently go stale and
+ * the next render (any navigation) reads the difference as movement and slides
+ * every row. Relative offsets only change when the list actually reorders,
+ * which is the one thing this is for.
  */
 function useFlipRows<T extends HTMLElement>(
   dragging?: string | null
 ): React.RefObject<T | null> {
   const ref = React.useRef<T>(null);
-  const prev = React.useRef(new Map<string, DOMRect>());
+  const prev = React.useRef(new Map<string, { top: number; left: number }>());
   const draggingRef = React.useRef(dragging);
   draggingRef.current = dragging;
 
@@ -388,14 +411,19 @@ function useFlipRows<T extends HTMLElement>(
     const root = ref.current;
     if (!root) return;
 
-    const next = new Map<string, DOMRect>();
+    const origin = root.getBoundingClientRect();
+    const next = new Map<string, { top: number; left: number }>();
     for (const node of root.querySelectorAll<HTMLElement>("[data-flip-key]")) {
       // Clear any in-flight FLIP so a transform can't linger into a drag.
       if (draggingRef.current) {
         node.style.transition = "";
         node.style.transform = "";
       }
-      next.set(node.dataset.flipKey!, node.getBoundingClientRect());
+      const box = node.getBoundingClientRect();
+      next.set(node.dataset.flipKey!, {
+        top: box.top - origin.top,
+        left: box.left - origin.left,
+      });
     }
 
     if (draggingRef.current) {
@@ -549,6 +577,7 @@ function NavRow({
   indented?: boolean;
 }) {
   const dragging = reorder.dragKey === item.to;
+  const dismiss = useDismissOnNavigate();
 
   return (
     <SidebarMenuItem
@@ -588,7 +617,7 @@ function NavRow({
       <SidebarMenuButton asChild isActive={active}>
         {/* The anchor's own native drag would hand the browser a URL to drag
             around instead of letting the row reorder. */}
-        <Link to={item.to} draggable={false}>
+        <Link to={item.to} draggable={false} onClick={dismiss}>
           <item.icon />
           <span>{item.label}</span>
         </Link>

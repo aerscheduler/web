@@ -163,7 +163,10 @@ function ReportsPage() {
       </TableView.Header>
 
       {catalog.isLoading ? (
-        <div className="min-h-0 flex-1 animate-pulse rounded-lg bg-muted" />
+        // An explicit height as well as flex-1: the box has no content, so below
+        // md — where the page is no longer bounded — flex-1 alone measures zero
+        // and the loading state is invisible.
+        <div className="min-h-64 flex-1 animate-pulse rounded-lg bg-muted md:min-h-0" />
       ) : reports.length === 0 ? (
         <Card className="p-0">
           <EmptyState

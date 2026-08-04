@@ -210,6 +210,7 @@ export function resourceViewAccess(roles: Role[]): ResourceViewAccess {
 export const RESERVATION_TYPE_ORDER: ReservationType[] = [
   "dual",
   "solo",
+  "shared",
   "rental",
   "guest",
   "ground",
@@ -219,6 +220,7 @@ export const RESERVATION_TYPE_ORDER: ReservationType[] = [
 
 const STAFF_TYPES: ReservationType[] = [
   "solo",
+  "shared",
   "dual",
   "ground",
   "guest",
@@ -239,9 +241,11 @@ const TYPES_BY_ROLE: Record<Role, ReservationType[]> = {
   owner: STAFF_TYPES,
   admin: STAFF_TYPES,
   dispatcher: STAFF_TYPES,
-  instructor: ["solo", "dual", "ground", "guest", "sim"],
-  student: ["solo", "dual", "ground", "sim"],
-  renter: ["rental"],
+  instructor: ["solo", "shared", "dual", "ground", "guest", "sim"],
+  student: ["solo", "shared", "dual", "ground", "sim"],
+  //A shared flight is several pilots and no instructor, which is exactly what two
+  //renters splitting a cross-country are doing.
+  renter: ["rental", "shared"],
   technician: ["maintenance"],
 };
 

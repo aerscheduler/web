@@ -10,7 +10,7 @@ import { hourLabel, hourWindow } from "./hours";
 import { BLOCK_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
-import { dimClass, selectedClass, preferredName, type BoardMarks } from "./board-filters";
+import { dimClass, selectedClass, crewLabel, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
 import type { DragGeometry, DropZone, ScheduleDrag } from "./use-schedule-drag";
 import { ResizeHandle, dragAriaLabel } from "./drag-affordances";
@@ -448,7 +448,8 @@ function LaneBlock({
   //Per-reservation so a school with fields in two zones labels each block correctly.
   const tz = useTimeZone(r.location);
   const names = personnelNames(r);
-  const shownName = preferredName(names, marks.query);
+  //One name plus a count when a booking has a crew — see crewLabel.
+  const shownName = crewLabel(names, marks.query);
   const timeRange = tz.range(r.start, r.end);
 
   const ability = drag?.abilityFor(r);

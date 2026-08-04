@@ -219,3 +219,21 @@ export function preferredName(names: string[], query: string): string | undefine
   if (!needle) return names[0];
   return names.find((n) => n.toLowerCase().includes(needle)) ?? names[0];
 }
+
+/**
+ * What a calendar block calls its crew.
+ *
+ * One name plus a count once there are several — "Amy Reyes +2". A block only has room for
+ * one name, and showing just the first made a six-student ground school look exactly like a
+ * 1:1 at a glance: the dispatcher's whole job is reading the board, and it was hiding the
+ * thing that changes how a booking is staffed and billed.
+ *
+ * The +N is appended to whichever name was CHOSEN, so a search for a student who is third on
+ * the list surfaces them by name rather than burying them behind somebody else's.
+ */
+export function crewLabel(names: string[], query: string): string | undefined {
+  const shown = preferredName(names, query);
+  if (!shown) return undefined;
+  const others = names.length - 1;
+  return others > 0 ? `${shown} +${others}` : shown;
+}

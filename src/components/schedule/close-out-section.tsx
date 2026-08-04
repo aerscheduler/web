@@ -8,6 +8,7 @@ import {
   Receipt,
 } from "lucide-react";
 import type { Invoice, Reservation } from "@/types/api";
+import { WhoPaysSection } from "./who-pays-section";
 import { useAuth } from "@/lib/auth";
 import { useReservationInvoice } from "@/features/queries";
 import { Badge } from "@/components/ui/badge";
@@ -158,6 +159,13 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
             )}
           </div>
         )}
+
+        {/* Who pays what, on a booking with more than one person on it. Offered from the
+            moment the flight is back until it's billed — after that the invoices describe
+            the shares they were computed from, and the server refuses to change them.
+
+            Renders nothing for a one-person booking, which is the overwhelming majority. */}
+        {step !== "invoiced" && canRamp && <WhoPaysSection r={r} />}
 
         {step === "reviewed" && (
           <div className="flex items-start gap-2 text-sm text-muted-foreground">

@@ -79,12 +79,30 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     allows: ["instructors", "students"],
     requiresAll: [],
     requiresAny: ["instructors", "students"],
-    // Still ONE SIDE only — an instructor flying with a student is a `dual`. But the
-    // student side now takes several, because "two students splitting time in a rented
-    // aeroplane, no instructor" had no type at all before: solo meant one pilot and
-    // rental forbids students. The label the UI shows is widened to match.
+    // A solo has ONE pilot. An instructor flying with a student is a `dual`; several pilots
+    // with no instructor is a `shared`.
     exclusive: ["instructors", "students"],
-    maxPerSide: { students: 4 },
+    // ONE OCCUPANT, and this is regulatory rather than a product choice. 14 CFR 61.87
+    // defines solo flight as the time "during which a student pilot is the sole occupant of
+    // the aircraft", so a solo with two people on it is a false record.
+    maxPerSide: { instructors: 1, students: 1 },
+  },
+  /**
+   * Several pilots, no instructor: two pilots splitting a cross-country, or a safety-pilot
+   * arrangement for instrument practice under 91.109.
+   *
+   * Students and renters are BOTH allowed because the real world mixes them — a club member
+   * renting and a student building time can share a flight, and which roster each sits on is
+   * an artefact of how the school files people rather than of who was in the aeroplane.
+   */
+  shared: {
+    resource: "Aircraft",
+    resourceRequired: true,
+    allows: ["students", "renters"],
+    requiresAll: [],
+    requiresAny: ["students", "renters"],
+    exclusive: [],
+    maxPerSide: { students: 4, renters: 4 },
   },
   dual: {
     resource: "Aircraft",

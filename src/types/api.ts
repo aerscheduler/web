@@ -303,6 +303,16 @@ export type ReservationType =
   | "dual"
   | "instructor"
   | "solo"
+  /**
+   * Several pilots aboard with NO instructor — two pilots splitting a cross-country, or a
+   * safety-pilot arrangement for instrument practice.
+   *
+   * Distinct from `solo` for a regulatory reason: 14 CFR 61.87 defines solo flight as the
+   * time "during which a student pilot is the sole occupant of the aircraft", so a solo with
+   * two people on it is a false record — and dual-versus-solo is the split a training record
+   * and an examiner actually read.
+   */
+  | "shared"
   | "sim"
   | "rental"
   | "guest"
@@ -347,6 +357,11 @@ export interface Reservation {
   invoices?: Invoice[];
   /** Ramp/close-out readings + sign-offs. Present on the retrieve include set. */
   review?: ReservationReview | null;
+  /**
+   * Each person's stake in the cost, when anyone has one recorded. SPARSE — no row means
+   * "ordinary payer, split by the org's rules", so an empty list is the normal case.
+   */
+  payers?: ReservationPayer[] | null;
   /**
    * The staff member who closed out a guest reservation (guests never confirm with a PIN —
    * an admin, the instructor, or the creator reviews it via `confirmReviewGuest`). Non-null
@@ -1383,4 +1398,41 @@ export type SplitRulesDescription = {
     chargeLines: Record<ChargeLine, { label: string; blurb: string }>;
   };
   presets: SplitPreset[];
+};
+
+/**
+ * What each person on a booking was doing, and what they owe.
+ *
+ * `pilotRole` is the AUDIT half and prices nothing. Two pilots on one flight log different
+ * things, and under 14 CFR 61.51(e) both may log PIC — the sole manipulator of the controls
+ * and the acting pilot in command — so logged time across a crew can legitimately exceed the
+ * airframe's Hobbs. The meter fields must sum to what the aircraft ran; the role doesn't
+ * constrain them, and it is deliberately not coupled to whether somebody is billed.
+ */
+export const PILOT_ROLES = ["pic", "safety_pilot", "sic", "passenger"] as const;
+
+export type PilotRole = (typeof PILOT_ROLES)[number];
+
+export type ReservationPayerInput = {
+  /** Exactly one of these. */
+  orgUserId?: number | null;
+  guestId?: number | null;
+  /** Percentage share in basis points — 6000 is 60%. */
+  weightBps?: number | null;
+  /** This person's own readings, in TENTHS of an hour (the unit the meters use). */
+  hobbsOut?: number | null;
+  hobbsIn?: number | null;
+  tachOut?: number | null;
+  tachIn?: number | null;
+  instructionMinutes?: number | null;
+  waived?: boolean | null;
+  waivedReason?: string | null;
+  pilotRole?: PilotRole | null;
+};
+
+/** A stake as the server returns it, with the person hydrated. */
+export type ReservationPayer = ReservationPayerInput & {
+  id: number;
+  orgUser?: { id: number; user?: { id: number; name: string } | null } | null;
+  guest?: { id: number; name: string } | null;
 };

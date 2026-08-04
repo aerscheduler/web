@@ -82,6 +82,7 @@ import type {
   UserDetails,
   EmergencyContact,
   SplitRulesDescription,
+  ReservationPayerInput,
 } from "@/types/api";
 
 /** Options accepted by every read hook (currently just React Query's `enabled`). */
@@ -2566,6 +2567,25 @@ export function useClearSplitRules() {
     onSuccess: (data) => {
       qc.setQueryData(["splitRules"], data);
       void qc.invalidateQueries({ queryKey: ["organization", "onboarding"] });
+    },
+  });
+}
+
+/**
+ * Record who pays what on a booking — each person's own meter readings, their percentage,
+ * a waiver, and what they were doing on the flight.
+ *
+ * Replaces the whole set: shares have to total 100% across everybody, so merging one person
+ * into an existing set is how a total quietly stops adding up.
+ */
+export function useSetReservationPayers(reservationId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payers: ReservationPayerInput[]) =>
+      api<Reservation>(`/reservations/${reservationId}/payers`, { method: "PUT", body: { payers } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      void qc.invalidateQueries({ queryKey: ["reservation", reservationId] });
     },
   });
 }

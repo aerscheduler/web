@@ -45,7 +45,14 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const invoiceQ = useReservationInvoice(r.id, {
     enabled: step === "invoiced" && canViewReservationInvoice(r, orgUserId, isStaff),
   });
-  const invoice = invoiceQ.data ?? r.invoice ?? null;
+  //The detail fetch is authoritative. Falling back to the row, take the first LIVE
+  //invoice: on a split booking this is one payer's share rather than the booking's bill,
+  //which is why the summary beside it reports the whole set instead.
+  const invoice = invoiceQ.data ?? (r.invoices ?? []).find((i) => !i.voidedAt) ?? null;
+  //How many people were billed. Shown beside the invoice so a group close-out doesn't
+  //present one student's share as though it were the whole class's bill.
+  const invoiceCount = (r.invoices ?? []).filter((i) => !i.voidedAt).length;
+  const splitAcross = invoiceCount > 1 ? invoiceCount : null;
 
   // A pilot on the flight may confirm — but only once. The server rejects a second
   // confirmation from the same person, so after signing off they wait on their
@@ -160,7 +167,11 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         )}
 
         {step === "invoiced" && (
-          <InvoiceSummary invoice={invoice} loading={invoiceQ.isLoading && !invoice} />
+          <InvoiceSummary
+            invoice={invoice}
+            loading={invoiceQ.isLoading && !invoice}
+            splitAcross={splitAcross}
+          />
         )}
       </section>
 
@@ -197,7 +208,16 @@ function StepBadge({ step, invoice }: { step: CloseOutStep; invoice: Invoice | n
   return <Badge variant={s.variant}>{s.label}</Badge>;
 }
 
-function InvoiceSummary({ invoice, loading }: { invoice: Invoice | null; loading: boolean }) {
+function InvoiceSummary({
+  invoice,
+  loading,
+  splitAcross,
+}: {
+  invoice: Invoice | null;
+  loading: boolean;
+  /** How many people were billed, when it was more than one. */
+  splitAcross: number | null;
+}) {
   if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
@@ -213,6 +233,9 @@ function InvoiceSummary({ invoice, loading }: { invoice: Invoice | null; loading
     );
   }
 
+  //Says WHOSE share this is. Without it a group close-out shows one student's figures as
+  //though they were the class's bill — which is the same mistake, in the UI, that the
+  //server's old students[0] payer selection made in the money.
   const items = invoice.items ?? [];
   const subtotal = invoice.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
 
@@ -221,6 +244,11 @@ function InvoiceSummary({ invoice, loading }: { invoice: Invoice | null; loading
       <div className="flex items-center gap-2 text-sm font-medium">
         <Receipt className="size-4 shrink-0 text-muted-foreground" />
         Invoice #{invoice.id}
+        {splitAcross && (
+          <span className="ml-1.5 font-normal text-muted-foreground">
+            — one of {splitAcross} shares for this booking
+          </span>
+        )}
       </div>
 
       {items.length > 0 && (

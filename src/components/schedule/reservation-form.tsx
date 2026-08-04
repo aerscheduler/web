@@ -1,7 +1,7 @@
 import * as React from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { Ban, Loader2, Wrench } from "lucide-react";
+import { Ban, Loader2, Plus, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   useApprovedResources,
@@ -66,6 +66,7 @@ import {
   DEVICE_TZ,
   TYPE_REQUIREMENTS,
   buildReservationInput,
+  maxForSide,
   resolveLocationId,
   resourceMatchesType,
   validatePersonnelForType,
@@ -113,6 +114,132 @@ function memberOptions(
       label: ou.user?.name ?? ou.identifier ?? `Member #${ou.id}`,
       hint: ou.identifier ?? undefined,
     }));
+}
+
+/**
+ * One personnel side, which may hold several people.
+ *
+ * The FIRST person is the side's own single-select; anyone beyond them is added below it.
+ * That is a modelling choice, not a UI shortcut — the leading payer is meaningful. They
+ * are the one billed when the organization's rule for a charge is "one person pays", and
+ * they take the leftover cent of an uneven division, so the server's payer ordering
+ * depends on knowing who is first. A flat list would throw that away.
+ *
+ * Two exclusion sets, and they answer different questions. `assignedElsewhere` keeps
+ * somebody already seated on ANOTHER side out (one person can't be both the instructor
+ * and a student — the server rejects it, and it could never be closed out because a
+ * review confirmation is keyed on the person). `takenOnSide` keeps this side's own
+ * pickers from offering the same person twice.
+ */
+function PeopleOnSide({
+  label,
+  pluralLabel,
+  side,
+  type,
+  roster,
+  primaryId,
+  setPrimaryId,
+  extraIds,
+  setExtraIds,
+  assignedElsewhere,
+  takenOnSide,
+  searchPlaceholder,
+  emptyText,
+}: {
+  label: string;
+  pluralLabel: string;
+  side: "students" | "renters";
+  type: ReservationType;
+  roster: OrganizationUser[] | undefined;
+  primaryId: string;
+  setPrimaryId: (v: string) => void;
+  extraIds: string[];
+  setExtraIds: React.Dispatch<React.SetStateAction<string[]>>;
+  assignedElsewhere: ReadonlySet<string>;
+  takenOnSide: (side: "students" | "renters", exceptIndex?: number) => ReadonlySet<string>;
+  searchPlaceholder: string;
+  emptyText: string;
+}) {
+  const max = maxForSide(type, side);
+  const chosen = (primaryId ? 1 : 0) + extraIds.filter(Boolean).length;
+  const canAddMore = max > 1 && chosen < max && !!primaryId;
+
+  /** Everyone this picker must not offer: the other sides, plus this side's own picks. */
+  const excludeFor = (exceptIndex?: number) =>
+    new Set<string>([...assignedElsewhere, ...takenOnSide(side, exceptIndex)]);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between gap-2">
+        <Label>{max > 1 && chosen > 1 ? pluralLabel : label}</Label>
+        {max > 1 && chosen > 1 && (
+          <span className="text-xs text-muted-foreground">
+            {chosen} of up to {max}
+          </span>
+        )}
+      </div>
+
+      <Combobox
+        options={memberOptions(roster, excludeFor(-1))}
+        value={primaryId}
+        onChange={(v) => {
+          setPrimaryId(v);
+          //Clearing the leading person while others remain would leave the booking with a
+          //gap where its first payer should be, so promote the next one up.
+          if (!v && extraIds.filter(Boolean).length) {
+            const [next, ...rest] = extraIds.filter(Boolean);
+            setPrimaryId(next);
+            setExtraIds(rest);
+          }
+        }}
+        placeholder={`Assign ${label.toLowerCase()}`}
+        searchPlaceholder={searchPlaceholder}
+        emptyText={emptyText}
+      />
+
+      {extraIds.map((id, i) => (
+        <div key={`${side}-extra-${i}`} className="flex items-center gap-1.5">
+          <div className="min-w-0 flex-1">
+            <Combobox
+              options={memberOptions(roster, excludeFor(i))}
+              value={id}
+              onChange={(v) => setExtraIds((prev) => prev.map((x, j) => (j === i ? v : x)))}
+              placeholder={`Add another ${label.toLowerCase()}`}
+              searchPlaceholder={searchPlaceholder}
+              emptyText={emptyText}
+            />
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={`Remove this ${label.toLowerCase()}`}
+            onClick={() => setExtraIds((prev) => prev.filter((_, j) => j !== i))}
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      ))}
+
+      {canAddMore && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={() => setExtraIds((prev) => [...prev, ""])}
+        >
+          <Plus className="size-3.5" /> Add another {label.toLowerCase()}
+        </Button>
+      )}
+
+      {chosen > 1 && (
+        <p className="text-xs text-muted-foreground">
+          Everyone here gets their own invoice, split by your cost-splitting rules.
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ── Airworthiness ───────────────────────────────────────────────────────────
@@ -362,6 +489,18 @@ export function ReservationForm({
   const [instructorId, setInstructorId] = React.useState("");
   const [studentId, setStudentId] = React.useState("");
   const [renterId, setRenterId] = React.useState("");
+  /**
+   * Everyone on a side BEYOND the first — a group ground school's other students, or the
+   * co-renters on a shared cross-country.
+   *
+   * The first person on a side stays its own single-select rather than the whole side
+   * becoming a list, and that is a modelling choice rather than a shortcut: the leading
+   * payer is meaningful. They are the one billed when the org's rule for that charge is
+   * "one person pays", and they take the leftover cent of an uneven division. Making the
+   * side a flat list would lose the distinction the server's payer ordering relies on.
+   */
+  const [extraStudentIds, setExtraStudentIds] = React.useState<string[]>([]);
+  const [extraRenterIds, setExtraRenterIds] = React.useState<string[]>([]);
   const [ratingId, setRatingId] = React.useState("");
   const [guestName, setGuestName] = React.useState("");
   const [guestEmail, setGuestEmail] = React.useState("");
@@ -437,9 +576,37 @@ export function ReservationForm({
       add("instructors", effectiveInstructorId);
       add("students", effectiveStudentId);
       add("renters", effectiveRenterId);
+      //Also every ADDITIONAL person. Without this a group picker would keep offering
+      //someone who is already three rows above it, and the server would reject the
+      //booking for a duplicate the form had invited.
+      for (const id of extraStudentIds) add("students", id);
+      for (const id of extraRenterIds) add("renters", id);
       return taken;
     },
-    [type, effectiveInstructorId, effectiveStudentId, effectiveRenterId]
+    [type, effectiveInstructorId, effectiveStudentId, effectiveRenterId, extraStudentIds, extraRenterIds]
+  );
+
+  /**
+   * The ids already chosen on ONE side, so its own pickers don't offer the same person
+   * twice. Separate from assignedElsewhere, which is about the OTHER sides.
+   *
+   * `exceptIndex` is the picker ASKING, and it must be left out of its own exclusion set —
+   * a Combobox resolves its label by looking its value up in the options it was given, so
+   * a picker that excludes its own selection renders the placeholder instead of the person
+   * it is holding. `-1` means the leading picker; 0.. are the extras.
+   */
+  const takenOnSide = React.useCallback(
+    (side: "students" | "renters", exceptIndex?: number): ReadonlySet<string> => {
+      const primary = side === "students" ? effectiveStudentId : effectiveRenterId;
+      const extras = side === "students" ? extraStudentIds : extraRenterIds;
+      const taken = new Set<string>();
+      if (primary && exceptIndex !== -1) taken.add(primary);
+      extras.forEach((id, i) => {
+        if (id && i !== exceptIndex) taken.add(id);
+      });
+      return taken;
+    },
+    [effectiveStudentId, effectiveRenterId, extraStudentIds, extraRenterIds]
   );
 
   // Everyone assigned must be free for the slot — feed their USER ids to the
@@ -452,8 +619,17 @@ export function ReservationForm({
     // leave a stale id behind, and constraining the slot on it would hide times
     // that are actually free.
     if (allows.includes("instructors")) add(userIdOf(instructorsQ.data, effectiveInstructorId));
-    if (allows.includes("students")) add(userIdOf(studentsQ.data, effectiveStudentId));
-    if (allows.includes("renters")) add(userIdOf(rentersQ.data, effectiveRenterId));
+    if (allows.includes("students")) {
+      add(userIdOf(studentsQ.data, effectiveStudentId));
+      //EVERY additional person's availability gates the slot too. Missing them would
+      //offer a time that half the class can't make, and the server would then reject the
+      //booking naming somebody the picker never mentioned.
+      for (const id of extraStudentIds) add(userIdOf(studentsQ.data, id));
+    }
+    if (allows.includes("renters")) {
+      add(userIdOf(rentersQ.data, effectiveRenterId));
+      for (const id of extraRenterIds) add(userIdOf(rentersQ.data, id));
+    }
     //The member themselves may not appear in the lists above (a renter booking a
     //rental isn't in the instructor or student roster), so add them directly —
     //their own availability still gates the slot.
@@ -497,6 +673,11 @@ export function ReservationForm({
         setInstructorId(p?.instructors?.[0]?.id != null ? String(p.instructors[0].id) : "");
         setStudentId(p?.students?.[0]?.id != null ? String(p.students[0].id) : "");
         setRenterId(p?.renters?.[0]?.id != null ? String(p.renters[0].id) : "");
+        //Everyone beyond the first. Dropping them here would be silent: the form would
+        //look right, and submitting would DISCONNECT them, because update() replaces
+        //personnel wholesale.
+        setExtraStudentIds((p?.students ?? []).slice(1).map((x) => String(x.id)));
+        setExtraRenterIds((p?.renters ?? []).slice(1).map((x) => String(x.id)));
         setRatingId("");
         setGuestName(guest?.name ?? "");
         setGuestEmail(guest?.email ?? "");
@@ -521,6 +702,11 @@ export function ReservationForm({
         setInstructorId(p?.instructors?.[0]?.id != null ? String(p.instructors[0].id) : "");
         setStudentId(p?.students?.[0]?.id != null ? String(p.students[0].id) : "");
         setRenterId(p?.renters?.[0]?.id != null ? String(p.renters[0].id) : "");
+        //Everyone beyond the first. Dropping them here would be silent: the form would
+        //look right, and submitting would DISCONNECT them, because update() replaces
+        //personnel wholesale.
+        setExtraStudentIds((p?.students ?? []).slice(1).map((x) => String(x.id)));
+        setExtraRenterIds((p?.renters ?? []).slice(1).map((x) => String(x.id)));
         setRatingId("");
         setGuestName(guest?.name ?? "");
         setGuestEmail(guest?.email ?? "");
@@ -548,6 +734,8 @@ export function ReservationForm({
         setInstructorId("");
         setStudentId("");
         setRenterId("");
+        setExtraStudentIds([]);
+        setExtraRenterIds([]);
         setRatingId("");
         setGuestName("");
         setGuestEmail("");
@@ -669,12 +857,20 @@ export function ReservationForm({
       // left selected from a previous type would otherwise be sent along and
       // rejected (a maintenance booking must carry nobody at all).
       const req = TYPE_REQUIREMENTS[type];
+
+      //The leading payer FIRST, then anyone additional, in the order they were added.
+      //Order is not cosmetic: the server bills the first person on a side when the org's
+      //rule for a charge is "one person pays", and gives them the leftover cent of an
+      //uneven division.
+      const sideIds = (primary: string, extras: string[]) =>
+        [primary, ...extras].filter(Boolean).map((id) => ({ id: Number(id) }));
+
       if (effectiveInstructorId && req.allows.includes("instructors"))
         personnel.instructors = [{ id: Number(effectiveInstructorId) }];
       if (effectiveStudentId && req.allows.includes("students"))
-        personnel.students = [{ id: Number(effectiveStudentId) }];
+        personnel.students = sideIds(effectiveStudentId, extraStudentIds);
       if (effectiveRenterId && req.allows.includes("renters"))
-        personnel.renters = [{ id: Number(effectiveRenterId) }];
+        personnel.renters = sideIds(effectiveRenterId, extraRenterIds);
 
       // The server enforces per-type personnel + resource rules; validate here so
       // the happy path doesn't 400 with an opaque "Reservation type is not valid".
@@ -863,6 +1059,7 @@ export function ReservationForm({
                     //meaningless.
                     setInstructorId("");
                     setStudentId("");
+                    setExtraStudentIds([]);
                   }}
                 >
                   {opt.label}
@@ -1010,30 +1207,38 @@ export function ReservationForm({
               </div>
             )}
             {!isSelf && TYPE_REQUIREMENTS[type].allows.includes("students") && (
-              <div className="space-y-1.5">
-                <Label>Student</Label>
-                <Combobox
-                  options={memberOptions(studentsQ.data, assignedElsewhere("students"))}
-                  value={studentId}
-                  onChange={setStudentId}
-                  placeholder="Assign student"
-                  searchPlaceholder="Search students…"
-                  emptyText="No students."
-                />
-              </div>
+              <PeopleOnSide
+                label="Student"
+                pluralLabel="Students"
+                side="students"
+                type={type}
+                roster={studentsQ.data}
+                primaryId={studentId}
+                setPrimaryId={setStudentId}
+                extraIds={extraStudentIds}
+                setExtraIds={setExtraStudentIds}
+                assignedElsewhere={assignedElsewhere("students")}
+                takenOnSide={takenOnSide}
+                searchPlaceholder="Search students…"
+                emptyText="No students."
+              />
             )}
             {!isSelf && TYPE_REQUIREMENTS[type].allows.includes("renters") && (
-              <div className="space-y-1.5">
-                <Label>Renter</Label>
-                <Combobox
-                  options={memberOptions(rentersQ.data, assignedElsewhere("renters"))}
-                  value={renterId}
-                  onChange={setRenterId}
-                  placeholder="Assign renter"
-                  searchPlaceholder="Search renters…"
-                  emptyText="No renters."
-                />
-              </div>
+              <PeopleOnSide
+                label="Renter"
+                pluralLabel="Renters"
+                side="renters"
+                type={type}
+                roster={rentersQ.data}
+                primaryId={renterId}
+                setPrimaryId={setRenterId}
+                extraIds={extraRenterIds}
+                setExtraIds={setExtraRenterIds}
+                assignedElsewhere={assignedElsewhere("renters")}
+                takenOnSide={takenOnSide}
+                searchPlaceholder="Search renters…"
+                emptyText="No renters."
+              />
             )}
             <div className="space-y-1.5">
               <Label>Rating (optional)</Label>

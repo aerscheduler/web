@@ -151,7 +151,9 @@ export function dragAbility(
 
   // Money has been taken off the schedule and put on a bill. The times on that bill are
   // what the customer was charged against, so they stop being a scheduling question.
-  if (r.invoice) {
+  //Any live invoice locks the slot: its line items describe hours this booking claims to
+  //have flown, and moving it would leave them describing a flight that didn't happen.
+  if ((r.invoices ?? []).some((i) => !i.voidedAt)) {
     return locked("This flight is invoiced — its times are part of the bill and can't be dragged.");
   }
 

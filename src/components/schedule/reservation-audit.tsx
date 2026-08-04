@@ -80,10 +80,18 @@ export function auditEvents(r: Reservation): TimelineEntry[] {
     events.push({ at: c.createdAt, label: "Signed off", who: personName(c.reviewedBy) });
   }
 
-  if (r.invoice?.createdAt) events.push({ at: r.invoice.createdAt, label: "Invoiced" });
-  if (r.invoice?.paidAt) events.push({ at: r.invoice.paidAt, label: "Paid" });
-  if (r.invoice?.voidedAt)
-    events.push({ at: r.invoice.voidedAt, label: "Invoice voided", tone: "destructive" });
+  //A line per invoice, because a split booking has one per payer and collapsing them
+  //would hide that three of four students have paid. Named by the customer once there is
+  //more than one, so the timeline says WHOSE share settled rather than just "Paid" twice.
+  const invoices = r.invoices ?? [];
+  const named = invoices.length > 1;
+  for (const inv of invoices) {
+    const who = named ? personName(inv.customer) : undefined;
+    if (inv.createdAt) events.push({ at: inv.createdAt, label: "Invoiced", who });
+    if (inv.paidAt) events.push({ at: inv.paidAt, label: "Paid", who });
+    if (inv.voidedAt)
+      events.push({ at: inv.voidedAt, label: "Invoice voided", tone: "destructive", who });
+  }
 
   if (r.cancelledAt) {
     events.push({

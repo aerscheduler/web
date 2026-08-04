@@ -67,12 +67,22 @@ export function rampStatuses(r: Reservation, now: Date = new Date()): RampStatus
   return closeOutStep(r) === "reviewed" || closeOutStep(r) === "invoiced" ? ["closed"] : ["back"];
 }
 
+/**
+ * One status for a booking that may now carry several invoices, one per payer.
+ *
+ * The order of these tests is the whole design. "Unpaid" has to win over "paid" — a class
+ * where three of four students have settled up is a booking the school is still chasing,
+ * and showing it as paid would hide the one that matters. Void invoices are owed by nobody,
+ * so they are ignored unless they are ALL there is.
+ */
 export function billingStatus(r: Reservation): BillingStatus {
-  const inv = r.invoice;
-  if (!inv) return "notInvoiced";
-  if (inv.voidedAt) return "voided";
-  if (inv.paidAt) return "paid";
-  return "unpaid";
+  const all = r.invoices ?? [];
+  if (!all.length) return "notInvoiced";
+
+  const live = all.filter((i) => !i.voidedAt);
+  if (!live.length) return "voided";
+
+  return live.some((i) => !i.paidAt) ? "unpaid" : "paid";
 }
 
 /** Every org-user id rostered on this booking, whichever seat they're in. */

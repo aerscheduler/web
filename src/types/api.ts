@@ -334,7 +334,17 @@ export interface Reservation {
    * positions and formats against — the airport's clock, not the viewer's.
    */
   location?: Location | null;
-  invoice?: Invoice;
+  /**
+   * ONE PER PAYER. A booking split between several people mints an invoice each — a Stripe
+   * invoice bills exactly one customer, so splitting has to be N invoices rather than one
+   * invoice with shares underneath.
+   *
+   * Never read `invoices[0]` as "the invoice": on a group booking that is one student's
+   * share, and treating it as the booking's bill is the bug this feature exists to fix.
+   * Use the helpers in `components/schedule/board-filters.ts` (billingStatus) and
+   * `close-out.ts` (closeOutStep), which reason over the whole set.
+   */
+  invoices?: Invoice[];
   /** Ramp/close-out readings + sign-offs. Present on the retrieve include set. */
   review?: ReservationReview | null;
   /**

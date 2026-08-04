@@ -48,6 +48,27 @@ export interface TypeRequirement {
   requiresAny: PersonnelSide[];
   /** At most ONE of these may be present (empty = no such rule). */
   exclusive: PersonnelSide[];
+  /**
+   * Maximum people per side. Mirrors the server's
+   * `utils/reservationPersonnelLimits.ts` PERSONNEL_LIMITS, for the same reason the rest
+   * of this table mirrors `validateReservationType`: the form has to offer exactly what
+   * the server accepts, and a limit the client doesn't know about is either a feature
+   * nobody can reach or a 400 the user can't act on.
+   *
+   * An omitted side means 1 — which is what every side was before groups existed.
+   */
+  maxPerSide?: Partial<Record<PersonnelSide, number>>;
+}
+
+/** How many people this type will take on a side. Defaults to 1. */
+export function maxForSide(type: ReservationType, side: PersonnelSide): number {
+  return TYPE_REQUIREMENTS[type].maxPerSide?.[side] ?? 1;
+}
+
+/** Does this type take more than one person anywhere? Drives the "add another" affordance. */
+export function typeTakesGroup(type: ReservationType): boolean {
+  const max = TYPE_REQUIREMENTS[type].maxPerSide;
+  return !!max && Object.values(max).some((n) => (n ?? 1) > 1);
 }
 
 export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
@@ -58,8 +79,12 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     allows: ["instructors", "students"],
     requiresAll: [],
     requiresAny: ["instructors", "students"],
-    // A solo has ONE pilot. An instructor flying with a student is a `dual`.
+    // Still ONE SIDE only — an instructor flying with a student is a `dual`. But the
+    // student side now takes several, because "two students splitting time in a rented
+    // aeroplane, no instructor" had no type at all before: solo meant one pilot and
+    // rental forbids students. The label the UI shows is widened to match.
     exclusive: ["instructors", "students"],
+    maxPerSide: { students: 4 },
   },
   dual: {
     resource: "Aircraft",
@@ -68,6 +93,9 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     requiresAll: ["instructors", "students"],
     requiresAny: [],
     exclusive: [],
+    // Several students in one aeroplane with an instructor: a safety pilot for instrument
+    // work, or an observer in the back.
+    maxPerSide: { students: 4 },
   },
   ground: {
     resource: "Room",
@@ -76,6 +104,8 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     requiresAll: [],
     requiresAny: ["instructors", "students"],
     exclusive: [],
+    // A classroom ground school. 12 is a room, not a limit anyone will hit.
+    maxPerSide: { instructors: 2, students: 12 },
   },
   sim: {
     resource: "Simulator",
@@ -84,6 +114,7 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     requiresAll: [],
     requiresAny: ["instructors", "students"],
     exclusive: [],
+    maxPerSide: { instructors: 2, students: 6 },
   },
   rental: {
     resource: "Aircraft",
@@ -92,6 +123,8 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     requiresAll: ["renters"],
     requiresAny: [],
     exclusive: [],
+    // Two or more renters sharing one aircraft on a cross-country.
+    maxPerSide: { renters: 4 },
   },
   guest: {
     resource: "Aircraft",
@@ -161,6 +194,19 @@ export function validatePersonnelForType(
     const names = req.requiresAny.map((s) => SIDE_LABEL[s]).join(" or ");
     return `Pick ${names} for this ${type} reservation.`;
   }
+  // Count limits, mirroring the server's personnelLimitError. Checked before the
+  // exclusivity rule so "you've added 5 students" beats "only one of a student or an
+  // instructor" when both are true — the count is the thing they just did.
+  for (const side of ["instructors", "students", "renters", "guests"] as PersonnelSide[]) {
+    const count = personnel?.[side]?.length ?? 0;
+    const max = maxForSide(type, side);
+    if (count > max && max > 0) {
+      return `A ${type} reservation can have at most ${max} ${SIDE_LABEL[side].replace(/^an? /, "")}${
+        max === 1 ? "" : "s"
+      } — you've added ${count}.`;
+    }
+  }
+
   if (req.exclusive.filter(has).length > 1) {
     return type === "solo"
       ? "A solo has one pilot. Book a dual if an instructor is flying with a student."

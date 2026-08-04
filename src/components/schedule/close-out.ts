@@ -110,7 +110,11 @@ export function isRampedIn(r: Reservation): boolean {
 }
 
 export function closeOutStep(r: Reservation): CloseOutStep {
-  if (r.invoice) return "invoiced";
+  //ANY live invoice means the money side has started. A partial fan-out (invoice 2 of 3
+  //failed) is still "invoiced" as far as the close-out FLOW is concerned — the pilots have
+  //signed off and the readings are locked — and the retry lives on the billing side, which
+  //knows which payers are still owed one.
+  if ((r.invoices ?? []).some((i) => !i.voidedAt)) return "invoiced";
   if (!isRampedOut(r)) return "rampOut";
   if (!isRampedIn(r)) return "rampIn";
   // Guest reservations don't collect pilot PINs — they're closed out by staff/instructor.

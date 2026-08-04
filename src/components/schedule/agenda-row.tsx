@@ -5,7 +5,7 @@ import { useTimeZone } from "@/lib/use-timezone";
 import { highlightMatch } from "@/lib/highlight-match";
 import { BORDER_L_CLASS, personnelNames, typeLabel } from "./meta";
 import { ReservationMenu } from "./reservation-menu";
-import { dimClass, selectedClass, type BoardMarks } from "./board-filters";
+import { billingStatus, dimClass, selectedClass, type BoardMarks } from "./board-filters";
 
 const NO_MARKS: BoardMarks = { matchedIds: null, query: "" };
 
@@ -77,12 +77,18 @@ export function AgendaRow({
           onDuplicate={onDuplicate}
           onCancel={onCancel}
         />
-        {r.invoice &&
-          (r.invoice.paidAt ? (
+        {/* One badge for the booking even when it has an invoice per payer. "Unbilled"
+            wins while anybody's share is outstanding — a class where three of four
+            students have settled is still one the school is chasing. */}
+        {(() => {
+          const status = billingStatus(r);
+          if (status === "notInvoiced" || status === "voided") return null;
+          return status === "paid" ? (
             <Badge variant="success">Paid</Badge>
           ) : (
             <Badge variant="warning">Unbilled</Badge>
-          ))}
+          );
+        })()}
       </div>
     </li>
   );

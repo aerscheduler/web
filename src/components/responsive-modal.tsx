@@ -24,6 +24,8 @@ const SIZE_CLASS = {
   lg: "sm:max-w-xl",
   xl: "sm:max-w-2xl",
   "2xl": "sm:max-w-3xl",
+  "3xl": "sm:max-w-4xl",
+  "4xl": "sm:max-w-5xl",
 } as const;
 
 export type ResponsiveModalSize = keyof typeof SIZE_CLASS;

@@ -3,6 +3,7 @@ import { AlertTriangle, CircleHelp, Loader2, Pencil, RotateCcw, Split } from "lu
 import { toast } from "sonner";
 import { useClearSplitRules, useSetSplitRule, useSplitRules } from "@/features/queries";
 import type {
+  Apportionment,
   ChargeLine,
   ReservationType,
   SplitRulesDescription,
@@ -21,9 +22,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/states";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useConfirm } from "@/components/confirm-dialog";
 import { ApiError } from "@/lib/api";
 import { typeLabel } from "@/components/schedule/meta";
 import { CostSplittingFlow } from "@/components/onboarding/flows/cost-splitting-flow";
+import { cn } from "@/lib/utils";
 
 /**
  * How this organization divides the cost of a booking between the people on it.
@@ -113,6 +116,23 @@ function CostSplitting({ data }: { data: SplitRulesDescription }) {
 function Status({ data, onSetUp }: { data: SplitRulesDescription; onSetUp: () => void }) {
   const configured = data.rules.length > 0;
   const clear = useClearSplitRules();
+  const confirm = useConfirm();
+
+  async function onClear() {
+    const ok = await confirm({
+      title: "Clear all cost-splitting rules?",
+      description:
+        "Every booking goes back to one invoice for one person. Close-outs already done keep their invoices; only new ones change. This can't be undone from here — you'd set the rules up again.",
+      confirmLabel: "Clear all rules",
+      destructive: true,
+    });
+    if (!ok) return;
+    clear.mutate(undefined, {
+      onSuccess: () => toast.success("Back to one invoice per booking."),
+      onError: (e) =>
+        toast.error(e instanceof ApiError ? e.message : "Could not clear the rules."),
+    });
+  }
 
   return (
     <Card>
@@ -137,17 +157,7 @@ function Status({ data, onSetUp }: { data: SplitRulesDescription; onSetUp: () =>
           </Button>
 
           {configured && (
-            <Button
-              variant="ghost"
-              disabled={clear.isPending}
-              onClick={() =>
-                clear.mutate(undefined, {
-                  onSuccess: () => toast.success("Back to one invoice per booking."),
-                  onError: (e) =>
-                    toast.error(e instanceof ApiError ? e.message : "Could not clear the rules."),
-                })
-              }
-            >
+            <Button variant="ghost" disabled={clear.isPending} onClick={() => void onClear()}>
               {clear.isPending ? (
                 <Loader2 className="size-4 animate-spin" />
               ) : (
@@ -215,8 +225,8 @@ function Summary({ data }: { data: SplitRulesDescription }) {
         open={reference}
         onOpenChange={setReference}
         title="What the options mean"
-        description="Every figure here is produced by the same code that prices your invoices."
-        size="lg"
+        description="Pick an option to see what it does to the money. Figures come from the same code that prices your invoices."
+        size="4xl"
       >
         <Reference data={data} />
       </ResponsiveModal>
@@ -470,25 +480,35 @@ function ExampleHelp({ example, sectionLabel }: { example: WorkedExample; sectio
  * `totalNote` is rendered prominently on purpose: for "each pays in full" it is the line
  * that says the revenue MULTIPLIES, which is the one thing an operator must not miss.
  */
-function ExampleBlock({ example }: { example: WorkedExample }) {
+function ExampleBlock({ example, roomy }: { example: WorkedExample; roomy?: boolean }) {
   const multiplies = /NOT a division/i.test(example.totalNote);
 
   return (
-    <div className="mt-2 rounded-md border bg-muted/30 p-2.5">
+    <div
+      className={cn(
+        "rounded-md border bg-muted/30",
+        roomy ? "p-3.5" : "mt-2 p-2.5"
+      )}
+    >
       {/* Labelled as an example because the rate isn't this org's — an unlabelled dollar
           figure on a billing screen reads as your own money. */}
-      <div className="text-xs font-medium text-muted-foreground">
+      <div className={cn("font-medium text-muted-foreground", roomy ? "text-sm" : "text-xs")}>
         For example: {example.scenario}
       </div>
 
       {example.refusal ? (
-        <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+        <div
+          className={cn(
+            "mt-1.5 flex items-start gap-1.5 text-muted-foreground",
+            roomy ? "text-sm" : "text-xs"
+          )}
+        >
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
           <span>{example.refusal}</span>
         </div>
       ) : (
         <>
-          <ul className="mt-1.5 space-y-0.5 text-xs">
+          <ul className={cn("mt-1.5 space-y-0.5", roomy ? "text-sm" : "text-xs")}>
             {example.perPayer.map((p) => (
               <li key={p.name} className="flex items-baseline justify-between gap-3">
                 <span className={p.free ? "text-muted-foreground" : ""}>
@@ -502,18 +522,24 @@ function ExampleBlock({ example }: { example: WorkedExample }) {
             ))}
           </ul>
 
-          <div className="mt-1.5 flex items-baseline justify-between gap-3 border-t pt-1.5 text-xs">
+          <div
+            className={cn(
+              "mt-1.5 flex items-baseline justify-between gap-3 border-t pt-1.5",
+              roomy ? "text-sm" : "text-xs"
+            )}
+          >
             <span className="text-muted-foreground">You collect</span>
             <span className="font-semibold tabular-nums">{example.total}</span>
           </div>
 
           <p
-            className={[
-              "mt-1 text-xs",
+            className={cn(
+              "mt-1",
+              roomy ? "text-sm" : "text-xs",
               multiplies
                 ? "font-medium text-amber-600 dark:text-amber-500"
-                : "text-muted-foreground",
-            ].join(" ")}
+                : "text-muted-foreground"
+            )}
           >
             {multiplies && <AlertTriangle className="mr-1 inline size-3" />}
             {example.totalNote}
@@ -526,46 +552,158 @@ function ExampleBlock({ example }: { example: WorkedExample }) {
 
 // ── Reference: what every option does, on request ──────────────────────────────────
 
+/**
+ * Glossary for the five apportionments — master/detail, not a scroll of five cards.
+ *
+ * The old layout stacked every option's blurb, "best for", and money table into one
+ * narrow column. Reading it meant skimming seventeen money-ish blocks; the one option
+ * that MULTIPLIES revenue sat in the same visual weight as the four that divide.
+ *
+ * Now you pick one option on the left and read that one on the right. The dividing
+ * options sit together; "each pays in full" is separated and flagged, because missing
+ * that distinction is the expensive mistake this screen exists to prevent.
+ */
 function Reference({ data }: { data: SplitRulesDescription }) {
   const [line, setLine] = useState<ChargeLine>(data.chargeLines[0]);
+  const [selected, setSelected] = useState<Apportionment>(data.apportionments[0]);
+
+  const dividing = data.apportionments.filter((a) => a !== "full_to_each");
+  const multiplying = data.apportionments.filter((a) => a === "full_to_each");
+  const copy = data.copy.apportionments[selected];
+  const example = data.examples.find(
+    (e) => e.chargeLine === line && e.apportionment === selected
+  );
+  const multiplies = selected === "full_to_each";
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap gap-1.5">
-        {data.chargeLines.map((l) => (
-          <button
-            key={l}
-            type="button"
-            onClick={() => setLine(l)}
-            className={[
-              "rounded-full border px-2.5 py-1 text-xs transition-colors",
-              l === line
-                ? "border-primary bg-primary text-primary-foreground"
-                : "hover:border-primary/50 hover:bg-accent",
-            ].join(" ")}
-          >
-            {data.copy.chargeLines[l].label}
-          </button>
-        ))}
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Four ways to <span className="font-medium text-foreground">divide</span> one charge
+        between the people on a booking. One way that{" "}
+        <span className="font-medium text-foreground">multiplies</span> what you collect —
+        charged once per person, not split.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Example charge</span>
+        <div className="flex flex-wrap gap-1">
+          {data.chargeLines.map((l) => (
+            <button
+              key={l}
+              type="button"
+              onClick={() => setLine(l)}
+              className={cn(
+                "rounded-md border px-2.5 py-1 text-xs transition-colors",
+                l === line
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "hover:border-primary/50 hover:bg-accent"
+              )}
+            >
+              {data.copy.chargeLines[l].label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="space-y-3">
-        {data.apportionments.map((a) => {
-          const example = data.examples.find(
-            (e) => e.chargeLine === line && e.apportionment === a
-          );
-          return (
-            <div key={a} className="rounded-md border p-3">
-              <div className="text-sm font-medium">{data.copy.apportionments[a].label}</div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {data.copy.apportionments[a].blurb}
-              </p>
-              <p className="mt-1.5 text-xs">
-                <span className="text-muted-foreground">Best for: </span>
-                {data.copy.apportionments[a].bestFor}
-              </p>
-              {example && <ExampleBlock example={example} />}
+      <div className="grid gap-4 sm:grid-cols-[13rem_minmax(0,1fr)] sm:gap-5">
+        <nav aria-label="Split options" className="space-y-3">
+          <OptionGroup
+            label="Divides the charge"
+            options={dividing}
+            selected={selected}
+            onSelect={setSelected}
+            data={data}
+          />
+          {multiplying.length > 0 && (
+            <OptionGroup
+              label="Multiplies the charge"
+              options={multiplying}
+              selected={selected}
+              onSelect={setSelected}
+              data={data}
+              warn
+            />
+          )}
+        </nav>
+
+        <div
+          className={cn(
+            "rounded-lg border p-4 sm:p-5",
+            multiplies && "border-amber-500/40 bg-amber-500/5"
+          )}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <h3 className="text-base font-semibold">{copy.label}</h3>
+            {multiplies && (
+              <Badge variant="warning">
+                <AlertTriangle className="size-3" />
+                Not a split
+              </Badge>
+            )}
+          </div>
+
+          <p className="mt-2 text-sm text-muted-foreground">{copy.blurb}</p>
+
+          <p className="mt-3 text-sm">
+            <span className="font-medium">Best for </span>
+            <span className="text-muted-foreground">{copy.bestFor}</span>
+          </p>
+
+          {example && (
+            <div className="mt-4">
+              <div className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Worked example
+              </div>
+              <ExampleBlock example={example} roomy />
             </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OptionGroup({
+  label,
+  options,
+  selected,
+  onSelect,
+  data,
+  warn,
+}: {
+  label: string;
+  options: Apportionment[];
+  selected: Apportionment;
+  onSelect: (a: Apportionment) => void;
+  data: SplitRulesDescription;
+  warn?: boolean;
+}) {
+  return (
+    <div>
+      <h2 className="px-1 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {label}
+      </h2>
+      <div className="space-y-0.5">
+        {options.map((a) => {
+          const active = a === selected;
+          return (
+            <button
+              key={a}
+              type="button"
+              onClick={() => onSelect(a)}
+              aria-current={active ? "true" : undefined}
+              className={cn(
+                "flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
+                active
+                  ? warn
+                    ? "bg-amber-500/15 font-medium text-amber-900 dark:text-amber-200"
+                    : "bg-muted font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              )}
+            >
+              {warn && <AlertTriangle className="size-3.5 shrink-0" />}
+              {data.copy.apportionments[a].label}
+            </button>
           );
         })}
       </div>

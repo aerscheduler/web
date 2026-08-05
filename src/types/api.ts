@@ -1530,6 +1530,10 @@ export type Course = {
   rating?: { id: number; name: string; defaultInstructorRate: number } | null;
   versions: CourseVersionSummary[];
   _count?: { versions: number };
+  /** What the school charges to enroll, in cents. Null for a free course. */
+  enrollmentFeeCents?: number | null;
+  /** How the fee reads on the invoice line. Capped at 60 by `invoice_item.name`. */
+  enrollmentFeeLabel?: string | null;
 };
 
 export type LessonTask = {
@@ -1593,12 +1597,17 @@ export type EnrollmentSummary = {
   terminatedAt: string | null;
   transferredAt: string | null;
   certifiedAt: string | null;
+  /** The fee AS IT STOOD when this student enrolled, in cents. Not the course's price today. */
+  feeCents?: number | null;
+  feeStatus?: "none" | "owed" | "invoiced";
+  /** Re-exposed under a plain name; `FK_feeInvoiceId` is stripped at the response boundary. */
+  feeInvoiceId?: number | null;
   student?: { id: number; user?: { id: number; name: string; email: string } | null } | null;
   courseVersion?: {
     id: number;
     label: string;
     publishedAt: string | null;
-    course: { id: number; name: string; regulatoryPart: RegulatoryPart; certificateSought: string | null };
+    course: { id: number; name: string; regulatoryPart: RegulatoryPart; certificateSought: string | null; enrollmentFeeCents?: number | null; enrollmentFeeLabel?: string | null };
   } | null;
   _count?: { lessonRecords: number };
 };

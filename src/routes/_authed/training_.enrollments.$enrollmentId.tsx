@@ -42,6 +42,7 @@ import type { EnrollmentProgress, LessonRecord, Standing, SyllabusLesson } from 
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
 import { EndorsementsCard } from "@/components/training/endorsements-card";
+import { EnrollmentFeeCard } from "@/components/training/enrollment-fee-card";
 import { PaceBadge } from "@/components/training/pace-badge";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -163,6 +164,13 @@ function EnrollmentPage() {
       {/* Below the tabs rather than inside one: an endorsement is not a lesson, a
           requirement or a ledger entry, and a student's solo sign-off is something you want
           to see without first choosing a tab. */}
+      <EnrollmentFeeCard
+        enrollmentId={e.id}
+        feeCents={e.feeCents ?? null}
+        feeStatus={e.feeStatus}
+        feeInvoiceId={e.feeInvoiceId ?? null}
+      />
+
       <EndorsementsCard
         orgUserId={e.studentOrgUserId}
         isSelf={false}

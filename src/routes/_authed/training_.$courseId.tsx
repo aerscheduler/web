@@ -30,6 +30,7 @@ import type { CourseRequirement, CourseVersion, SyllabusLesson } from "@/types/a
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
 import { RequirementsEditor, SyllabusEditor } from "@/components/training/syllabus-editor";
+import { CourseFeeEditor } from "@/components/training/course-fee-editor";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -173,6 +174,12 @@ function CourseDetailPage() {
             )}
           </TabsContent>
           <TabsContent value="students" className="mt-4">
+            {/* Above the roster: what a student pays is the first thing you set before
+                enrolling anybody, and hunting for it under a published syllabus you
+                cannot edit is the wrong shape. */}
+            <div className="mb-4">
+              <CourseFeeEditor course={c} />
+            </div>
             <StudentsView courseId={c.id} />
           </TabsContent>
         </Tabs>

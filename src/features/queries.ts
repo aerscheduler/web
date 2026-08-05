@@ -2977,6 +2977,7 @@ export function useUpdateCourse() {
     mutationFn: ({ courseId, ...body }: {
       courseId: number; name?: string; description?: string | null;
       certificateSought?: string | null; targetDays?: number | null; archived?: boolean;
+      enrollmentFeeCents?: number | null; enrollmentFeeLabel?: string | null;
     }) => api<{ id: number }>(`/training/courses/${courseId}`, { method: "PATCH", body }),
     onSuccess: () => invalidateTraining(qc),
   });
@@ -3086,5 +3087,26 @@ export function useRevokeTrainingGrant() {
     mutationFn: (grantId: number) =>
       api<{ id: number }>(`/training/grants/${grantId}`, { method: "DELETE" }),
     onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+/**
+ * Raise the invoice for an enrollment's course fee.
+ *
+ * Invalidates invoices as well as training: the fee shows up in the ordinary Invoices
+ * list, and a stale list right after billing is the one place somebody would reasonably
+ * conclude it had not worked and press the button again.
+ */
+export function useBillEnrollmentFee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enrollmentId: number) =>
+      api<{ id: number; invoiceId: number }>(`/training/enrollments/${enrollmentId}/fee`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      invalidateTraining(qc);
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
   });
 }

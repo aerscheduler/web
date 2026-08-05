@@ -2648,7 +2648,7 @@ export function useSetReservationPayers(reservationId: number) {
 // Training
 //
 // One invalidation key, ["training"], for everything under it. The pieces are joined —
-// signing a lesson changes the record list, the ledger, the standings and the enrolment
+// signing a lesson changes the record list, the ledger, the standings and the enrollment
 // summary all at once — so invalidating them separately would only ever mean one of them
 // was briefly wrong on screen.
 //---------------------------------------------------------------------------------
@@ -2877,7 +2877,7 @@ export function useReverseRequirementCredit() {
 }
 
 //---------------------------------------------------------------------------------
-// Syllabus editing, endorsements, and the rest of the enrolment lifecycle
+// Syllabus editing, endorsements, and the rest of the enrollment lifecycle
 //---------------------------------------------------------------------------------
 
 export function useUpsertStage() {

@@ -20,7 +20,7 @@ import { formatDate } from "@/lib/utils";
  * no second endpoint to pick wrongly between — unlike currencies, where choosing
  * the wrong one 403s a member on their own page.
  *
- * Renders nothing at all when the person has no enrolments. Most members of most
+ * Renders nothing at all when the person has no enrollments. Most members of most
  * schools are not on a syllabus, and an empty "Training" card on every renter's
  * page is clutter that makes the ones that matter easier to miss.
  */

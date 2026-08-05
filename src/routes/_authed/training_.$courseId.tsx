@@ -356,7 +356,7 @@ function StudentsView({ courseId }: { courseId: number }) {
 
   if (enrollments.isLoading) return <Skeleton className="h-32 w-full" />;
   if (rows.length === 0) {
-    return <EmptyState icon={GraduationCap} title="Nobody enrolled yet" body="Enrol a student to start recording their training." />;
+    return <EmptyState icon={GraduationCap} title="Nobody enrolled yet" body="Enroll a student to start recording their training." />;
   }
 
   return (
@@ -513,12 +513,12 @@ function EnrollDialog({ versionId, courseName }: { versionId: number; courseName
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline">
-          <UserPlus className="size-4" /> Enrol a student
+          <UserPlus className="size-4" /> Enroll a student
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Enrol on {courseName}</DialogTitle>
+          <DialogTitle>Enroll on {courseName}</DialogTitle>
           <DialogDescription>
             The student is pinned to this version of the syllabus. Revising the course later will not change
             what they are being trained against.
@@ -553,7 +553,7 @@ function EnrollDialog({ versionId, courseName }: { versionId: number; courseName
               setOrgUserId("");
             }}
           >
-            Enrol
+            Enroll
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -564,8 +564,8 @@ function EnrollDialog({ versionId, courseName }: { versionId: number; courseName
 /**
  * Retire, and un-retire.
  *
- * Additive and reversible on purpose: it only stops NEW enrolments, and everyone already on
- * the version finishes on it. That is the whole reason an enrolment pins a version, so the
+ * Additive and reversible on purpose: it only stops NEW enrollments, and everyone already on
+ * the version finishes on it. That is the whole reason an enrollment pins a version, so the
  * copy says it rather than leaving an admin to guess whether this strands anyone.
  */
 function RetireButton({ version }: { version: CourseVersion }) {

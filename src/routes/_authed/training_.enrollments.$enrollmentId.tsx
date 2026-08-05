@@ -81,7 +81,7 @@ function EnrollmentPage() {
 
   if (progress.error) return <ErrorState error={progress.error} />;
   if (progress.isLoading) return <Skeleton className="h-96 w-full" />;
-  if (!progress.data) return <ErrorState error={new Error("That enrolment does not exist.")} />;
+  if (!progress.data) return <ErrorState error={new Error("That enrollment does not exist.")} />;
 
   const p = progress.data;
   const e = p.enrollment;
@@ -637,8 +637,8 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
           <DialogTitle>Graduate this student</DialogTitle>
           <DialogDescription>
             {is141
-              ? "Issues the §141.95 graduation certificate and closes the enrolment."
-              : "Closes the enrolment. Their record stays exactly as it is."}
+              ? "Issues the §141.95 graduation certificate and closes the enrollment."
+              : "Closes the enrollment. Their record stays exactly as it is."}
           </DialogDescription>
         </DialogHeader>
 
@@ -680,7 +680,7 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
  * Graduate, certify, terminate, transfer.
  *
  * All four together, because they are the same decision seen from different angles — this
- * enrolment is ending, and how it ends is what §141.101 asks the school to record. Splitting
+ * enrollment is ending, and how it ends is what §141.101 asks the school to record. Splitting
  * them across the page would make "they moved to another school" a hunt.
  */
 function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
@@ -709,11 +709,11 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
 
       <Dialog open={!!ending} onOpenChange={(o) => !o && setEnding(null)}>
         <Button variant="outline" onClick={() => setEnding("terminated")}>
-          End enrolment
+          End enrollment
         </Button>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>End this enrolment</DialogTitle>
+            <DialogTitle>End this enrollment</DialogTitle>
             <DialogDescription>
               Their record stays exactly as it is — §141.101 keeps it either way. This only records
               that they stopped, and why.

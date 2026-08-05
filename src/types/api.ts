@@ -1487,7 +1487,7 @@ export type ReservationPayer = ReservationPayerInput & {
 };
 
 //---------------------------------------------------------------------------------
-// Training — courses, syllabi, enrolments and the requirement ledger
+// Training — courses, syllabi, enrollments and the requirement ledger
 //
 // Hours are DECI-HOURS (tenths) everywhere, matching the server and the meters.
 // `deciHoursLabel` in lib/training.ts is the only thing that should turn them into

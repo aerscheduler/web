@@ -34,7 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
  * school sees rather than a simplified version. The one thing they can DO here is
  * countersign, which is their signature on what their instructor recorded.
  *
- * No route guard: the server already returns only this caller's own enrolments, and a
+ * No route guard: the server already returns only this caller's own enrollments, and a
  * guard would be a second place for the rule to drift from.
  */
 export const Route = createFileRoute("/_authed/me/training")({
@@ -60,7 +60,7 @@ function MyTrainingPage() {
         <EmptyState
           icon={GraduationCap}
           title="You're not on a course"
-          body="When your school enrols you on a syllabus, your lessons and hours appear here."
+          body="When your school enrolls you on a syllabus, your lessons and hours appear here."
         />
       ) : (
         <>

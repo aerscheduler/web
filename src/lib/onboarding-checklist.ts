@@ -179,7 +179,7 @@ export const CHECKLIST: ChecklistItem[] = [
       "Who may book what, whether renters need a card on file, and whether students fly only with their own instructor.",
     icon: ShieldCheck,
     to: "/settings",
-    search: { tab: "organization" },
+    search: { tab: "booking-preferences" },
     cta: "Review rules",
     // There's no "visited this page" flag to read, and inventing one would be a lie
     // the moment someone changed a setting elsewhere. A gate flipped on elsewhere

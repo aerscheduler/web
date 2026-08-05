@@ -11,6 +11,7 @@ import {
   Layers,
   Puzzle,
   ShieldCheck,
+  SlidersHorizontal,
   Split,
 } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
@@ -23,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { OrganizationTab } from "@/components/settings/organization-tab";
+import { BookingPreferencesTab } from "@/components/settings/booking-preferences-tab";
 import { PlanTab } from "@/components/settings/plan-tab";
 import { BillingTab } from "@/components/settings/billing-tab";
 import { RatesTab } from "@/components/settings/rates-tab";
@@ -76,6 +78,7 @@ const SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
     label: "School",
     tabs: [
       { value: "organization", label: "Organization", icon: Building2 },
+      { value: "booking-preferences", label: "Booking preferences", icon: SlidersHorizontal },
       { value: "groups", label: "Groups", icon: Layers },
       { value: "documents", label: "Document types", icon: FileCog },
     ],
@@ -175,6 +178,7 @@ function SettingsPage() {
 
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           {active === "organization" && <OrganizationTab />}
+          {active === "booking-preferences" && <BookingPreferencesTab />}
           {active === "plan" && <PlanTab />}
           {active === "billing" && <BillingTab />}
           {active === "cost-splitting" && <CostSplittingTab />}

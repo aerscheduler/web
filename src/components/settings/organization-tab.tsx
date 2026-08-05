@@ -7,10 +7,15 @@ import {
   KeyRound,
   Loader2,
   SlidersHorizontal,
+  TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { useUpdateOrganization, useUpdateOrgLogo } from "@/features/queries";
+import {
+  useMultiDayReadiness,
+  useUpdateOrganization,
+  useUpdateOrgLogo,
+} from "@/features/queries";
 import type { Organization, OrganizationDetails } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import {
@@ -89,17 +94,28 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   const [requirePaymentMethod, setRequirePaymentMethod] = useState(
     bookingPolicy?.requirePaymentMethod ?? false
   );
-  const [pending, setPending] = useState<PrefField | "requirePaymentMethod" | null>(null);
+  const [multiDay, setMultiDay] = useState(bookingPolicy?.multiDayEnabled ?? false);
+  const [pending, setPending] = useState<
+    PrefField | "requirePaymentMethod" | "multiDayEnabled" | null
+  >(null);
+
+  // Only asked for while the setting is OFF: that is the only state where the answer
+  // changes what the operator can do, and an org with it already on does not need telling
+  // what it would have had to fix.
+  const readiness = useMultiDayReadiness({ enabled: !multiDay });
+  const blocked = !multiDay && readiness.data?.ready === false;
 
   // Keep local state honest if the org changes underneath us (org switch, rehydrate).
   useEffect(() => {
     setOverridePrices(prefs?.instructorsCanOverrideReservationPrices ?? false);
     setApprovedOnly(prefs?.personnelCanOnlyUseApprovedResources ?? false);
     setRequirePaymentMethod(bookingPolicy?.requirePaymentMethod ?? false);
+    setMultiDay(bookingPolicy?.multiDayEnabled ?? false);
   }, [
     prefs?.instructorsCanOverrideReservationPrices,
     prefs?.personnelCanOnlyUseApprovedResources,
     bookingPolicy?.requirePaymentMethod,
+    bookingPolicy?.multiDayEnabled,
   ]);
 
   function savePref(field: PrefField, value: boolean, apply: (v: boolean) => void) {
@@ -138,6 +154,32 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
         },
         onError: (err) => {
           setRequirePaymentMethod(previous);
+          toast.error(
+            err instanceof ApiError ? err.message : "Couldn't save that preference"
+          );
+        },
+        onSettled: () => setPending(null),
+      }
+    );
+  }
+
+  function saveMultiDay(value: boolean) {
+    const previous = multiDay;
+    setMultiDay(value);
+    setPending("multiDayEnabled");
+    update.mutate(
+      { bookingPolicy: { multiDayEnabled: value } },
+      {
+        onSuccess: async () => {
+          await rehydrate();
+          toast.success(
+            value ? "Multi-day bookings turned on" : "Multi-day bookings turned off"
+          );
+        },
+        onError: (err) => {
+          setMultiDay(previous);
+          // The server refuses this one with a real explanation (which time zones are
+          // missing), so show its message rather than a generic failure.
           toast.error(
             err instanceof ApiError ? err.message : "Couldn't save that preference"
           );
@@ -186,6 +228,33 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
           disabled={pending !== null}
           saving={pending === "requirePaymentMethod"}
           onCheckedChange={saveRequirePaymentMethod}
+        />
+        <PreferenceToggle
+          label="Allow multi-day bookings"
+          description={
+            <>
+              <p>
+                Let a booking keep a resource overnight, for trips and cross-countries. A
+                multi-day booking overrides the resource's operating hours, so the aircraft
+                is simply unavailable until it is back rather than free again the next
+                morning.
+              </p>
+              {blocked && (
+                <p className="mt-1.5 flex gap-1.5 text-amber-700 dark:text-amber-500">
+                  <TriangleAlert className="mt-px size-3.5 shrink-0" />
+                  <span>{readiness.data?.problem}</span>
+                </p>
+              )}
+            </>
+          }
+          checked={multiDay}
+          // Blocked rather than allowed-then-refused: what stands behind this is that
+          // nights times the overnight minimum is money, and a night count that falls
+          // through to somebody's device means two people booking the same trip are
+          // billed differently.
+          disabled={pending !== null || blocked}
+          saving={pending === "multiDayEnabled"}
+          onCheckedChange={saveMultiDay}
         />
       </CardContent>
     </Card>
@@ -303,7 +372,7 @@ function LogoCard({ organization }: { organization: Organization }) {
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      toast.error("That image is over 5 MB — pick a smaller one.");
+      toast.error("That image is over 5 MB. Pick a smaller one.");
       return;
     }
     try {
@@ -355,7 +424,7 @@ function LogoCard({ organization }: { organization: Organization }) {
             )}
             {organization.profileImage ? "Replace logo" : "Upload logo"}
           </Button>
-          <p className="mt-1.5 text-xs text-muted-foreground">PNG, JPG, or SVG — up to 5 MB.</p>
+          <p className="mt-1.5 text-xs text-muted-foreground">PNG, JPG, or SVG, up to 5 MB.</p>
         </div>
       </CardContent>
     </Card>
@@ -415,7 +484,7 @@ function IdentityCard({ organization }: { organization: Organization }) {
       <Separator />
       <CardContent className="pt-4">
         <p className="text-xs text-muted-foreground">
-          Share the join code with instructors and students so they can join your organization —
+          Share the join code with instructors and students so they can join your organization:
           on the web they enter it at <span className="font-medium">app.aerscheduler.com/join</span>,
           or from the mobile app. Private schools review each request under People.
         </p>

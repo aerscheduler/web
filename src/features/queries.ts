@@ -56,6 +56,7 @@ import type {
   SetupIntentResponse,
   MaintenanceReminder,
   Organization,
+  MultiDayReadiness,
   OrgOnboarding,
   TimeZonePreferences,
   OrgUserPreferences,
@@ -1086,6 +1087,21 @@ export function useOrgOnboarding(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["organization", "onboarding"],
     queryFn: () => api<OrgOnboarding>("/organizations/onboarding"),
+    ...opts,
+  });
+}
+
+/**
+ * Whether this school may turn multi-day bookings on, and what to set first if not.
+ *
+ * Fetched so the toggle can explain itself BEFORE anybody clicks it. The same rule is
+ * enforced on the PATCH, so this is the explanation and not the gate: a stale answer here
+ * cannot let the setting through.
+ */
+export function useMultiDayReadiness(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["organization", "multiDayReadiness"],
+    queryFn: () => api<MultiDayReadiness>("/organizations/multiDayReadiness"),
     ...opts,
   });
 }

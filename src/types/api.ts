@@ -203,6 +203,30 @@ export interface OrgOnboarding {
 export interface OrganizationBookingPolicy {
   id?: number;
   requirePaymentMethod: boolean;
+  /**
+   * Whether a booking may keep the resource past local midnight.
+   *
+   * Off by default and deliberately opt-in, because a multi-day booking overrides the
+   * aircraft's operating hours (every other booking has to fit inside one contiguous free
+   * window, which is how a school says "this aeroplane flies 08:00 to 18:00") and it makes
+   * the booking's time zone decide the night count, which the overnight minimum turns into
+   * money. Gated on the school having a resolvable time zone: see MultiDayReadiness.
+   */
+  multiDayEnabled: boolean;
+}
+
+/**
+ * Whether a school may switch multi-day bookings on, and what to fix if not.
+ *
+ * Served by GET /organizations/multiDayReadiness purely so the toggle can say what is
+ * missing before anybody clicks it. The rule is enforced on the PATCH as well.
+ */
+export interface MultiDayReadiness {
+  ready: boolean;
+  /** Names of locations with no zone set. Empty when ready. */
+  locationsMissingZone: string[];
+  /** Prose naming what to fix. Present only when not ready. */
+  problem?: string;
 }
 
 export interface OrganizationBillingSettings {

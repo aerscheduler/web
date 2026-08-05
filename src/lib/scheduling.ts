@@ -205,6 +205,95 @@ export function isBookable(dayWindows: Window[], start: Date, end: Date): boolea
   return !!w && end.getTime() <= w.end.getTime();
 }
 
+// ── multi-day bookings ───────────────────────────────────────────────────────
+//
+// Everything above works a DAY at a time: `windowsForDay` clips the free windows to one
+// calendar day, so `endOptions` can only ever offer an end before the next midnight. That
+// is the reason a trip could not be booked from this form at all, whatever the server
+// allowed.
+//
+// These four work on the UNCLIPPED window list instead, so a booking may run to the end of
+// the contiguous free span it starts in, however many midnights that crosses. Only reached
+// when the school has turned multi-day bookings on AND the chosen end date differs from the
+// start date, so the same-day path above is untouched by design: it is the overwhelmingly
+// common case and it already works.
+
+/**
+ * The contiguous free window containing `t`, with no day boundary applied.
+ *
+ * `null` windows mean "nothing constrains" (no resource picked, still loading), which the
+ * day-based code treats as an open day. The equivalent here is an open booking horizon,
+ * because the whole point is that the booking is not confined to a day.
+ */
+export function containingWindow(windows: Window[] | null, t: Date, now: Date): Window | null {
+  const ms = t.getTime();
+  if (windows === null) {
+    const horizon = addDays(now, MAX_ADVANCE_DAYS);
+    return ms >= now.getTime() && ms < horizon.getTime()
+      ? { start: new Date(Math.max(ms, now.getTime())), end: horizon }
+      : null;
+  }
+  return windows.find((w) => ms >= w.start.getTime() && ms < w.end.getTime()) ?? null;
+}
+
+/**
+ * Valid END times on a specific later day, for a booking that starts at `start`.
+ *
+ * Bounded by the free window the START sits in, so a trip still cannot be booked straight
+ * through somebody else's reservation: if the aeroplane is booked out on the Saturday, the
+ * window containing Friday ends on Saturday and no Sunday end is offered.
+ *
+ * Includes the following midnight as a mark, matching the same-day picker (which offers
+ * 00:00 as an end for a booking that runs to the end of the day).
+ */
+export function endOptionsOnDay(
+  windows: Window[] | null,
+  start: Date,
+  endDay: Date,
+  now: Date
+): Date[] {
+  const w = containingWindow(windows, start, now);
+  if (!w) return [];
+
+  const dayStart = startOfDay(endDay);
+  const from = Math.max(dayStart.getTime(), addMinutes(start, MIN_DURATION_MIN).getTime());
+  const to = Math.min(addDays(dayStart, 1).getTime(), w.end.getTime());
+  if (to < from) return [];
+
+  return marksInWindow({ start: new Date(from), end: new Date(to) }).filter(
+    (m) => m.getTime() > start.getTime()
+  );
+}
+
+/**
+ * The last calendar day a booking starting at `start` could end on.
+ *
+ * Feeds the end-date picker's `max`, so a date that could never produce a valid end time is
+ * not offerable in the first place. An operator picking a date and finding the time list
+ * empty learns nothing about why.
+ */
+export function lastEndDay(windows: Window[] | null, start: Date, now: Date): Date | null {
+  const w = containingWindow(windows, start, now);
+  if (!w) return null;
+  // A window ending exactly at midnight cannot host an end time on that midnight's own day,
+  // so the last usable day is the one before it. Anything later in the day extends the day.
+  const end = w.end;
+  const atMidnight = end.getTime() === startOfDay(end).getTime();
+  return atMidnight ? startOfDay(addDays(end, -1)) : startOfDay(end);
+}
+
+/** As `isBookable`, but without confining the booking to the start's own day. */
+export function isBookableAcrossDays(
+  windows: Window[] | null,
+  start: Date,
+  end: Date,
+  now: Date
+): boolean {
+  if (end.getTime() <= start.getTime()) return false;
+  const w = containingWindow(windows, start, now);
+  return !!w && end.getTime() <= w.end.getTime();
+}
+
 /**
  * The earliest bookable START at or after `from` (never before `now`), scanning
  * the full (multi-day) free-window set — this powers "next available" even when

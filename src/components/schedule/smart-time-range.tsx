@@ -7,9 +7,12 @@ import { useResourceAvailability, useUsersAvailability } from "@/features/querie
 import {
   defaultEnd,
   endOptions,
+  endOptionsOnDay,
   intersectAvailability,
   withWindowRestored,
   isBookable,
+  isBookableAcrossDays,
+  lastEndDay,
   MAX_ADVANCE_DAYS,
   nextAvailable,
   parseWindows,
@@ -60,6 +63,7 @@ export function SmartTimeRange({
   disabled,
   restoreWindow = null,
   lockStart = false,
+  allowMultiDay = false,
 }: {
   /** "yyyy-MM-dd" of the selected day. */
   date: string;
@@ -86,6 +90,12 @@ export function SmartTimeRange({
   restoreWindow?: { start: Date; end: Date } | null;
   /** Lock the date and start — used once a flight has ramped out. */
   lockStart?: boolean;
+  /**
+   * Whether this school has turned multi-day bookings on. Off, the End field is a time on
+   * the same day, exactly as before. On, a second date picker appears so a booking can run
+   * to a later day, bounded by the free window it starts in.
+   */
+  allowMultiDay?: boolean;
 }) {
   const tz = useTimeZone();
   // Captured once so the past-clamp / memo keys stay stable while the form is open.
@@ -130,10 +140,40 @@ export function SmartTimeRange({
     [allWindows, day, now]
   );
   const starts = React.useMemo(() => valid(startOptions(dayWindows)), [dayWindows]);
-  const ends = React.useMemo(
-    () => (start ? valid(endOptions(dayWindows, start)) : []),
-    [dayWindows, start]
-  );
+
+  //The day the booking ENDS on, as "YYYY-MM-DD" at the field. Derived from the current end
+  //rather than held as separate state, so it cannot drift out of step with it: whatever the
+  //end instant is, the picker shows that instant's day. Defaults to the start's day, which
+  //is what makes the whole multi-day path opt-in per booking as well as per school.
+  const endDate = end ? dateKeyInZone(end, tz.zone) : date;
+  const spansDays = allowMultiDay && !!end && endDate !== date;
+
+  const endDay = React.useMemo(() => {
+    if (!endDate) return null;
+    const [yy, mm, dd] = endDate.split("-").map(Number);
+    if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return null;
+    return zonedWallClockToUtc(yy, mm, dd, 12, 0, tz.zone);
+  }, [endDate, tz.zone]);
+
+  //Two paths on purpose. Same-day keeps the day-clipped windows it has always used; a
+  //booking that ends on a later day has to ask the UNCLIPPED window list, because the
+  //day-clipped one cannot express an end past midnight at all.
+  const ends = React.useMemo(() => {
+    if (!start) return [];
+    if (!spansDays) return valid(endOptions(dayWindows, start));
+    return endDay ? valid(endOptionsOnDay(allWindows, start, endDay, now)) : [];
+  }, [dayWindows, allWindows, start, spansDays, endDay, now]);
+
+  //The furthest day this booking could end on, so a date that can only ever produce an
+  //empty time list is not offerable. Bounded by the free window the START sits in, which is
+  //what keeps a trip from being booked straight through somebody else's reservation.
+  const maxEndDate = React.useMemo(() => {
+    if (!allowMultiDay || !start) return date;
+    const last = lastEndDay(allWindows, start, now);
+    const horizon = addDays(now, MAX_ADVANCE_DAYS);
+    const capped = last && last.getTime() < horizon.getTime() ? last : horizon;
+    return dateKeyInZone(capped, tz.zone);
+  }, [allowMultiDay, allWindows, start, now, date, tz.zone]);
 
   // The earliest bookable slot from the selected day onward (may be a later day).
   const next = React.useMemo(
@@ -152,10 +192,17 @@ export function SmartTimeRange({
       onChange(null, null);
       return;
     }
-    if (!end || !isBookable(dayWindows, start, end)) {
+    //A multi-day end is judged against the unclipped windows. Checking it with `isBookable`
+    //would call every valid trip unbookable, because that asks whether the end fits inside
+    //the START's own day, which is precisely what a trip does not do. It would then "refit"
+    //the end back to the same day on every render.
+    const stillValid = spansDays
+      ? isBookableAcrossDays(allWindows, start, end!, now)
+      : !!end && isBookable(dayWindows, start, end);
+    if (!stillValid) {
       onChange(start, defaultEnd(dayWindows, start));
     }
-  }, [loading, start, end, starts, dayWindows, onChange]);
+  }, [loading, start, end, starts, dayWindows, allWindows, spansDays, now, onChange]);
 
   const pickStart = (iso: string) => {
     const s = new Date(iso);
@@ -163,6 +210,33 @@ export function SmartTimeRange({
   };
   const pickEnd = (iso: string) => {
     if (start) onChange(start, new Date(iso));
+  };
+
+  /**
+   * Moving the END DATE keeps the time of day where possible and re-picks an end on the new
+   * day. Falls back to the first valid mark on that day, then to the same-day default, so
+   * the field is never left holding an end the server would refuse.
+   */
+  const pickEndDate = (next: string) => {
+    if (!start || !next) return;
+    const [yy, mm, dd] = next.split("-").map(Number);
+    if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return;
+    const target = zonedWallClockToUtc(yy, mm, dd, 12, 0, tz.zone);
+
+    if (next === date) {
+      onChange(start, defaultEnd(dayWindows, start));
+      return;
+    }
+
+    const options = valid(endOptionsOnDay(allWindows, start, target, now));
+    if (!options.length) {
+      onChange(start, defaultEnd(dayWindows, start));
+      return;
+    }
+    //Hold the wall-clock time the operator already chose if that mark exists on the new day,
+    //so nudging the return date by one day does not silently move a 16:00 return to 00:15.
+    const wanted = end ? tz.time(end) : null;
+    onChange(start, options.find((o) => tz.time(o) === wanted) ?? options[0]);
   };
 
   const jumpToNextAvailable = () => {
@@ -179,9 +253,15 @@ export function SmartTimeRange({
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div
+        className={
+          allowMultiDay
+            ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
+            : "grid grid-cols-1 gap-3 sm:grid-cols-3"
+        }
+      >
         <div className="space-y-1.5">
-          <Label htmlFor="smart-date">Date</Label>
+          <Label htmlFor="smart-date">{allowMultiDay ? "Out on" : "Date"}</Label>
           <DatePickerField
             id="smart-date"
             value={date}
@@ -212,8 +292,24 @@ export function SmartTimeRange({
           </Select>
         </div>
 
+        {allowMultiDay && (
+          <div className="space-y-1.5">
+            <Label htmlFor="smart-end-date">Back on</Label>
+            <DatePickerField
+              id="smart-end-date"
+              value={endDate}
+              //Cannot return before it leaves, and cannot return after the free window it
+              //starts in closes.
+              min={date}
+              max={maxEndDate}
+              disabled={disabled || loading || !start}
+              onChange={pickEndDate}
+            />
+          </div>
+        )}
+
         <div className="space-y-1.5">
-          <Label htmlFor="smart-end">End</Label>
+          <Label htmlFor="smart-end">{allowMultiDay ? "Back at" : "End"}</Label>
           <Select
             value={isoValue(end)}
             onValueChange={pickEnd}

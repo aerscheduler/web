@@ -460,9 +460,15 @@ export function ReservationForm({
    */
   self?: { orgUserId: number; userId: number };
 }) {
-  const { roles } = useAuth();
+  const { roles, organization } = useAuth();
   const tz = useTimeZone();
   const navigate = useNavigate();
+
+  //Opt-in per school. Off, the End field is a time on the booking's own day, which is how
+  //every booking has worked until now; on, a "Back on" date appears beside it. Read from the
+  //org rather than passed in, because it is a property of the school and not of this form,
+  //and this is the one booking form both the dispatch and self variants share.
+  const allowMultiDay = organization?.bookingPolicy?.multiDayEnabled ?? false;
 
   const isSelf = variant === "self";
   //A self booking renders as a page card, so there is no modal to close.
@@ -1154,6 +1160,7 @@ export function ReservationForm({
             selectedResource ? resourceLabel(selectedResource).kind.toLowerCase() : "resource"
           }
           personnelUserIds={personnelUserIds}
+          allowMultiDay={allowMultiDay}
           restoreWindow={
             // The reservation we're editing occupies its own slot; without this
             // the picker would report its current time as unavailable.

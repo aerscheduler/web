@@ -50,7 +50,8 @@ export function PreferenceToggle({
   onCheckedChange,
 }: {
   label: string;
-  description?: string;
+  /** ReactNode, not string, so a gated toggle can explain what to fix underneath it. */
+  description?: ReactNode;
   checked: boolean;
   disabled?: boolean;
   saving?: boolean;

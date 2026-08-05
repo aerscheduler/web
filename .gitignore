@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# TanStack's local scratch dir (holds a `tmp` the dev server writes to)
+.tanstack/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

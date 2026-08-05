@@ -32,6 +32,7 @@ import { Route as AuthedNotificationsRouteImport } from './routes/_authed/notifi
 import { Route as AuthedPeopleRouteImport } from './routes/_authed/people'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedScheduleRouteImport } from './routes/_authed/schedule'
+import { Route as AuthedTrainingRouteImport } from './routes/_authed/training'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthedAircraftResourceIdRouteImport } from './routes/_authed/aircraft_.$resourceId'
 import { Route as AuthedMeIndexRouteImport } from './routes/_authed/me/index'
@@ -44,11 +45,14 @@ import { Route as AuthedMeNotificationsRouteImport } from './routes/_authed/me/n
 import { Route as AuthedMePaymentMethodsRouteImport } from './routes/_authed/me/payment-methods'
 import { Route as AuthedMeProfileRouteImport } from './routes/_authed/me/profile'
 import { Route as AuthedMeScheduleRouteImport } from './routes/_authed/me/schedule'
+import { Route as AuthedMeTrainingRouteImport } from './routes/_authed/me.training'
 import { Route as AuthedOperationsAnnouncementsRouteImport } from './routes/_authed/operations/announcements'
 import { Route as AuthedOperationsCancellationsRouteImport } from './routes/_authed/operations/cancellations'
 import { Route as AuthedPeopleOrgUserIdRouteImport } from './routes/_authed/people_.$orgUserId'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
+import { Route as AuthedTrainingCourseIdRouteImport } from './routes/_authed/training_.$courseId'
 import { Route as AuthedSettingsIntegrationsQuickbooksRouteImport } from './routes/_authed/settings/integrations/quickbooks'
+import { Route as AuthedTrainingEnrollmentsEnrollmentIdRouteImport } from './routes/_authed/training_.enrollments.$enrollmentId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -165,6 +169,11 @@ const AuthedScheduleRoute = AuthedScheduleRouteImport.update({
   path: '/schedule',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedTrainingRoute = AuthedTrainingRouteImport.update({
+  id: '/training',
+  path: '/training',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth/callback',
   path: '/auth/callback',
@@ -226,6 +235,11 @@ const AuthedMeScheduleRoute = AuthedMeScheduleRouteImport.update({
   path: '/me/schedule',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMeTrainingRoute = AuthedMeTrainingRouteImport.update({
+  id: '/me/training',
+  path: '/me/training',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedOperationsAnnouncementsRoute =
   AuthedOperationsAnnouncementsRouteImport.update({
     id: '/operations/announcements',
@@ -248,10 +262,21 @@ const AuthedSettingsIndexRoute = AuthedSettingsIndexRouteImport.update({
   path: '/settings/',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedTrainingCourseIdRoute = AuthedTrainingCourseIdRouteImport.update({
+  id: '/training_/$courseId',
+  path: '/training/$courseId',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedSettingsIntegrationsQuickbooksRoute =
   AuthedSettingsIntegrationsQuickbooksRouteImport.update({
     id: '/settings/integrations/quickbooks',
     path: '/settings/integrations/quickbooks',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedTrainingEnrollmentsEnrollmentIdRoute =
+  AuthedTrainingEnrollmentsEnrollmentIdRouteImport.update({
+    id: '/training_/enrollments/$enrollmentId',
+    path: '/training/enrollments/$enrollmentId',
     getParentRoute: () => AuthedRoute,
   } as any)
 
@@ -278,6 +303,7 @@ export interface FileRoutesByFullPath {
   '/people': typeof AuthedPeopleRoute
   '/reports': typeof AuthedReportsRoute
   '/schedule': typeof AuthedScheduleRoute
+  '/training': typeof AuthedTrainingRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/aircraft/$resourceId': typeof AuthedAircraftResourceIdRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
@@ -289,12 +315,15 @@ export interface FileRoutesByFullPath {
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
+  '/me/training': typeof AuthedMeTrainingRoute
   '/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/people/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
+  '/training/$courseId': typeof AuthedTrainingCourseIdRoute
   '/me/': typeof AuthedMeIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
+  '/training/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -319,6 +348,7 @@ export interface FileRoutesByTo {
   '/people': typeof AuthedPeopleRoute
   '/reports': typeof AuthedReportsRoute
   '/schedule': typeof AuthedScheduleRoute
+  '/training': typeof AuthedTrainingRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/aircraft/$resourceId': typeof AuthedAircraftResourceIdRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
@@ -330,12 +360,15 @@ export interface FileRoutesByTo {
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
+  '/me/training': typeof AuthedMeTrainingRoute
   '/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/people/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
+  '/training/$courseId': typeof AuthedTrainingCourseIdRoute
   '/me': typeof AuthedMeIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
+  '/training/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -362,6 +395,7 @@ export interface FileRoutesById {
   '/_authed/people': typeof AuthedPeopleRoute
   '/_authed/reports': typeof AuthedReportsRoute
   '/_authed/schedule': typeof AuthedScheduleRoute
+  '/_authed/training': typeof AuthedTrainingRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/_authed/aircraft_/$resourceId': typeof AuthedAircraftResourceIdRoute
   '/_authed/me/availability': typeof AuthedMeAvailabilityRoute
@@ -373,12 +407,15 @@ export interface FileRoutesById {
   '/_authed/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/_authed/me/profile': typeof AuthedMeProfileRoute
   '/_authed/me/schedule': typeof AuthedMeScheduleRoute
+  '/_authed/me/training': typeof AuthedMeTrainingRoute
   '/_authed/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/_authed/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/_authed/people_/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
+  '/_authed/training_/$courseId': typeof AuthedTrainingCourseIdRoute
   '/_authed/me/': typeof AuthedMeIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
+  '/_authed/training_/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -405,6 +442,7 @@ export interface FileRouteTypes {
     | '/people'
     | '/reports'
     | '/schedule'
+    | '/training'
     | '/auth/callback'
     | '/aircraft/$resourceId'
     | '/me/availability'
@@ -416,12 +454,15 @@ export interface FileRouteTypes {
     | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
+    | '/me/training'
     | '/operations/announcements'
     | '/operations/cancellations'
     | '/people/$orgUserId'
+    | '/training/$courseId'
     | '/me/'
     | '/settings/'
     | '/settings/integrations/quickbooks'
+    | '/training/enrollments/$enrollmentId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -446,6 +487,7 @@ export interface FileRouteTypes {
     | '/people'
     | '/reports'
     | '/schedule'
+    | '/training'
     | '/auth/callback'
     | '/aircraft/$resourceId'
     | '/me/availability'
@@ -457,12 +499,15 @@ export interface FileRouteTypes {
     | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
+    | '/me/training'
     | '/operations/announcements'
     | '/operations/cancellations'
     | '/people/$orgUserId'
+    | '/training/$courseId'
     | '/me'
     | '/settings'
     | '/settings/integrations/quickbooks'
+    | '/training/enrollments/$enrollmentId'
   id:
     | '__root__'
     | '/'
@@ -488,6 +533,7 @@ export interface FileRouteTypes {
     | '/_authed/people'
     | '/_authed/reports'
     | '/_authed/schedule'
+    | '/_authed/training'
     | '/auth/callback'
     | '/_authed/aircraft_/$resourceId'
     | '/_authed/me/availability'
@@ -499,12 +545,15 @@ export interface FileRouteTypes {
     | '/_authed/me/payment-methods'
     | '/_authed/me/profile'
     | '/_authed/me/schedule'
+    | '/_authed/me/training'
     | '/_authed/operations/announcements'
     | '/_authed/operations/cancellations'
     | '/_authed/people_/$orgUserId'
+    | '/_authed/training_/$courseId'
     | '/_authed/me/'
     | '/_authed/settings/'
     | '/_authed/settings/integrations/quickbooks'
+    | '/_authed/training_/enrollments/$enrollmentId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -684,6 +733,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedScheduleRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/training': {
+      id: '/_authed/training'
+      path: '/training'
+      fullPath: '/training'
+      preLoaderRoute: typeof AuthedTrainingRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/auth/callback': {
       id: '/auth/callback'
       path: '/auth/callback'
@@ -768,6 +824,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedMeScheduleRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/me/training': {
+      id: '/_authed/me/training'
+      path: '/me/training'
+      fullPath: '/me/training'
+      preLoaderRoute: typeof AuthedMeTrainingRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/operations/announcements': {
       id: '/_authed/operations/announcements'
       path: '/operations/announcements'
@@ -796,11 +859,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedSettingsIndexRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/training_/$courseId': {
+      id: '/_authed/training_/$courseId'
+      path: '/training/$courseId'
+      fullPath: '/training/$courseId'
+      preLoaderRoute: typeof AuthedTrainingCourseIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/settings/integrations/quickbooks': {
       id: '/_authed/settings/integrations/quickbooks'
       path: '/settings/integrations/quickbooks'
       fullPath: '/settings/integrations/quickbooks'
       preLoaderRoute: typeof AuthedSettingsIntegrationsQuickbooksRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/training_/enrollments/$enrollmentId': {
+      id: '/_authed/training_/enrollments/$enrollmentId'
+      path: '/training/enrollments/$enrollmentId'
+      fullPath: '/training/enrollments/$enrollmentId'
+      preLoaderRoute: typeof AuthedTrainingEnrollmentsEnrollmentIdRouteImport
       parentRoute: typeof AuthedRoute
     }
   }
@@ -820,6 +897,7 @@ interface AuthedRouteChildren {
   AuthedPeopleRoute: typeof AuthedPeopleRoute
   AuthedReportsRoute: typeof AuthedReportsRoute
   AuthedScheduleRoute: typeof AuthedScheduleRoute
+  AuthedTrainingRoute: typeof AuthedTrainingRoute
   AuthedAircraftResourceIdRoute: typeof AuthedAircraftResourceIdRoute
   AuthedMeAvailabilityRoute: typeof AuthedMeAvailabilityRoute
   AuthedMeBookRoute: typeof AuthedMeBookRoute
@@ -830,12 +908,15 @@ interface AuthedRouteChildren {
   AuthedMePaymentMethodsRoute: typeof AuthedMePaymentMethodsRoute
   AuthedMeProfileRoute: typeof AuthedMeProfileRoute
   AuthedMeScheduleRoute: typeof AuthedMeScheduleRoute
+  AuthedMeTrainingRoute: typeof AuthedMeTrainingRoute
   AuthedOperationsAnnouncementsRoute: typeof AuthedOperationsAnnouncementsRoute
   AuthedOperationsCancellationsRoute: typeof AuthedOperationsCancellationsRoute
   AuthedPeopleOrgUserIdRoute: typeof AuthedPeopleOrgUserIdRoute
+  AuthedTrainingCourseIdRoute: typeof AuthedTrainingCourseIdRoute
   AuthedMeIndexRoute: typeof AuthedMeIndexRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedSettingsIntegrationsQuickbooksRoute: typeof AuthedSettingsIntegrationsQuickbooksRoute
+  AuthedTrainingEnrollmentsEnrollmentIdRoute: typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -852,6 +933,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedPeopleRoute: AuthedPeopleRoute,
   AuthedReportsRoute: AuthedReportsRoute,
   AuthedScheduleRoute: AuthedScheduleRoute,
+  AuthedTrainingRoute: AuthedTrainingRoute,
   AuthedAircraftResourceIdRoute: AuthedAircraftResourceIdRoute,
   AuthedMeAvailabilityRoute: AuthedMeAvailabilityRoute,
   AuthedMeBookRoute: AuthedMeBookRoute,
@@ -862,13 +944,17 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMePaymentMethodsRoute: AuthedMePaymentMethodsRoute,
   AuthedMeProfileRoute: AuthedMeProfileRoute,
   AuthedMeScheduleRoute: AuthedMeScheduleRoute,
+  AuthedMeTrainingRoute: AuthedMeTrainingRoute,
   AuthedOperationsAnnouncementsRoute: AuthedOperationsAnnouncementsRoute,
   AuthedOperationsCancellationsRoute: AuthedOperationsCancellationsRoute,
   AuthedPeopleOrgUserIdRoute: AuthedPeopleOrgUserIdRoute,
+  AuthedTrainingCourseIdRoute: AuthedTrainingCourseIdRoute,
   AuthedMeIndexRoute: AuthedMeIndexRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
   AuthedSettingsIntegrationsQuickbooksRoute:
     AuthedSettingsIntegrationsQuickbooksRoute,
+  AuthedTrainingEnrollmentsEnrollmentIdRoute:
+    AuthedTrainingEnrollmentsEnrollmentIdRoute,
 }
 
 const AuthedRouteWithChildren =

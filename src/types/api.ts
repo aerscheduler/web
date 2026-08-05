@@ -1485,3 +1485,210 @@ export type ReservationPayer = ReservationPayerInput & {
   orgUser?: { id: number; user?: { id: number; name: string } | null } | null;
   guest?: { id: number; name: string } | null;
 };
+
+//---------------------------------------------------------------------------------
+// Training — courses, syllabi, enrolments and the requirement ledger
+//
+// Hours are DECI-HOURS (tenths) everywhere, matching the server and the meters.
+// `deciHoursLabel` in lib/training.ts is the only thing that should turn them into
+// something a human reads.
+//
+// Note the plain `requirementId` / `lessonId` fields rather than `FK_*`: every FK_
+// column is stripped at the response boundary, so the server re-exposes the ones a
+// screen has to join on under these names. See the note above `asCredit` in
+// server/src/services/curriculum.service.ts.
+//---------------------------------------------------------------------------------
+
+export const REGULATORY_PARTS = ["part61", "part141"] as const;
+export type RegulatoryPart = (typeof REGULATORY_PARTS)[number];
+
+export const LESSON_KINDS = ["ground", "flight", "sim"] as const;
+export type LessonKind = (typeof LESSON_KINDS)[number];
+
+export type CreditFrom = "flight" | "instruction" | "count";
+
+export type CourseVersionSummary = {
+  id: number;
+  label: string;
+  publishedAt: string | null;
+  approvedAt: string | null;
+  approvalReference?: string | null;
+  retiredAt: string | null;
+  gradingScale?: string[] | null;
+  _count?: { enrollments: number };
+};
+
+export type Course = {
+  id: number;
+  name: string;
+  description: string | null;
+  regulatoryPart: RegulatoryPart;
+  certificateSought: string | null;
+  archivedAt: string | null;
+  rating?: { id: number; name: string; defaultInstructorRate: number } | null;
+  versions: CourseVersionSummary[];
+  _count?: { versions: number };
+};
+
+export type LessonTask = {
+  id: number;
+  name: string;
+  position: number;
+  acsCode: string | null;
+  standard: string | null;
+};
+
+export type LessonCredit = { id: number; creditFrom: CreditFrom; requirementId: number };
+
+export type SyllabusLesson = {
+  id: number;
+  name: string;
+  position: number;
+  kind: LessonKind;
+  objectives: string | null;
+  completionStandards: string | null;
+  minFlightDeciHours: number | null;
+  minGroundDeciHours: number | null;
+  tasks: LessonTask[];
+  creditsWhat: LessonCredit[];
+};
+
+export type CourseStage = {
+  id: number;
+  name: string;
+  objective: string | null;
+  position: number;
+  requiresStageCheck: boolean;
+  lessons: SyllabusLesson[];
+};
+
+export type CourseRequirement = {
+  id: number;
+  code: string;
+  label: string;
+  minDeciHours: number | null;
+  minCount: number | null;
+  source: "part61" | "part141" | "school";
+  maxSimulatorBps: number | null;
+  maxTransferBps: number | null;
+};
+
+export type CourseVersion = CourseVersionSummary & {
+  course: Course;
+  stages: CourseStage[];
+  requirements: CourseRequirement[];
+};
+
+export type EnrollmentStatus = "enrolled" | "graduated" | "terminated" | "transferred";
+
+export type EnrollmentSummary = {
+  id: number;
+  status: EnrollmentStatus;
+  enrolledAt: string;
+  graduatedAt: string | null;
+  terminatedAt: string | null;
+  transferredAt: string | null;
+  certifiedAt: string | null;
+  student?: { id: number; user?: { id: number; name: string; email: string } | null } | null;
+  courseVersion?: {
+    id: number;
+    label: string;
+    publishedAt: string | null;
+    course: { id: number; name: string; regulatoryPart: RegulatoryPart; certificateSought: string | null };
+  } | null;
+  _count?: { lessonRecords: number };
+};
+
+export type LessonTaskGrade = { id: number; grade: string; notes: string | null; lessonTaskId: number };
+
+export type LessonRecord = {
+  id: number;
+  grade: string | null;
+  notes: string | null;
+  flightDeciHours: number | null;
+  instructionDeciHours: number | null;
+  simulatorDeciHours: number | null;
+  instructorSignedAt: string | null;
+  studentSignedAt: string | null;
+  createdAt: string;
+  lessonId: number;
+  reservationId: number | null;
+  supersedesId: number | null;
+  instructorOrgUserId: number | null;
+  instructor?: { id: number; user?: { id: number; name: string } | null } | null;
+  taskGrades: LessonTaskGrade[];
+};
+
+export type RequirementCredit = {
+  id: number;
+  createdAt: string;
+  deciHours: number | null;
+  count: number | null;
+  source: "lesson" | "transfer_141" | "transfer_61" | "simulator" | "manual" | "reversal";
+  notes: string | null;
+  requirementId: number;
+  lessonRecordId: number | null;
+  reversesId: number | null;
+};
+
+/** What the ledger adds up to against one requirement, after any ceiling. */
+export type Standing = {
+  requirementId: number;
+  code: string;
+  label: string;
+  requiredDeciHours: number | null;
+  requiredCount: number | null;
+  creditedDeciHours: number;
+  creditedCount: number;
+  /** Before the ceiling — so the UI can explain a difference rather than just show a smaller number. */
+  rawDeciHours: number;
+  disallowedDeciHours: number;
+  cappedBy: "simulator" | "transfer" | null;
+  remaining: number;
+  met: boolean;
+  /** Only an FAA-sourced shortfall can block a Part 141 graduation. */
+  faaSourced: boolean;
+};
+
+export type EnrollmentProgress = {
+  enrollment: EnrollmentSummary & {
+    studentOrgUserId: number;
+    courseVersionId: number;
+    enrollmentCertificateNumber: string | null;
+    graduationCertificateNumber: string | null;
+    terminationReason: string | null;
+    lessonRecords: LessonRecord[];
+    credits: RequirementCredit[];
+    courseVersion: CourseVersion;
+  };
+  standings: Standing[];
+  lessonsTotal: number;
+  lessonsComplete: number;
+  completedLessonIds: number[];
+  /** Non-null means graduation is refused, and this is why. */
+  graduationBlocker: string | null;
+};
+
+export type CurriculumTemplateSummary = {
+  key: string;
+  name: string;
+  description: string;
+  certificateSought: string;
+  stages: number;
+  lessons: number;
+  requirements: number;
+};
+
+/** A lesson this booking could be closing out. */
+export type CandidateLesson = SyllabusLesson & {
+  stageName: string;
+  stagePosition: number;
+  complete: boolean;
+};
+
+export type CandidateEnrollment = {
+  enrollmentId: number;
+  course: { id: number; name: string; regulatoryPart: RegulatoryPart };
+  versionLabel: string;
+  lessons: CandidateLesson[];
+};

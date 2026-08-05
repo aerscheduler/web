@@ -18,6 +18,12 @@ import {
   type PresignedPost,
 } from "@/lib/upload";
 import type {
+  CandidateEnrollment,
+  Course,
+  CourseVersion,
+  CurriculumTemplateSummary,
+  EnrollmentProgress,
+  EnrollmentSummary,
   ApiKey,
   ApiKeyInput,
   ApiKeyWithSecret,
@@ -2630,5 +2636,237 @@ export function useSetReservationPayers(reservationId: number) {
       void qc.invalidateQueries({ queryKey: ["reservations"] });
       void qc.invalidateQueries({ queryKey: ["reservation", reservationId] });
     },
+  });
+}
+
+//---------------------------------------------------------------------------------
+// Training
+//
+// One invalidation key, ["training"], for everything under it. The pieces are joined —
+// signing a lesson changes the record list, the ledger, the standings and the enrolment
+// summary all at once — so invalidating them separately would only ever mean one of them
+// was briefly wrong on screen.
+//---------------------------------------------------------------------------------
+
+const invalidateTraining = (qc: ReturnType<typeof useQueryClient>) =>
+  qc.invalidateQueries({ queryKey: ["training"] });
+
+export function useCourses(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["training", "courses"],
+    queryFn: () => api<Course[]>("/training/courses"),
+    ...opts,
+  });
+}
+
+export function useCourse(courseId: number | undefined, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["training", "course", courseId],
+    queryFn: () => api<Course>(`/training/courses/${courseId}`),
+    enabled: (opts?.enabled ?? true) && courseId != null,
+    ...opts,
+  });
+}
+
+export function useCourseVersion(versionId: number | undefined, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["training", "version", versionId],
+    queryFn: () => api<CourseVersion>(`/training/versions/${versionId}`),
+    enabled: (opts?.enabled ?? true) && versionId != null,
+    ...opts,
+  });
+}
+
+export function useCurriculumTemplates(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["training", "templates"],
+    queryFn: () => api<CurriculumTemplateSummary[]>("/training/templates"),
+    ...opts,
+  });
+}
+
+export function useEnrollments(
+  filter?: { orgUserId?: number; courseId?: number; status?: string },
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["training", "enrollments", filter ?? {}],
+    queryFn: () =>
+      api<EnrollmentSummary[]>("/training/enrollments", {
+        query: filter as Record<string, string | number | undefined>,
+      }),
+    ...opts,
+  });
+}
+
+export function useEnrollmentProgress(enrollmentId: number | undefined, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["training", "progress", enrollmentId],
+    queryFn: () => api<EnrollmentProgress>(`/training/enrollments/${enrollmentId}`),
+    enabled: (opts?.enabled ?? true) && enrollmentId != null,
+    ...opts,
+  });
+}
+
+/** Which lessons a booking could be closing out. Drives the close-out picker. */
+export function useCandidateLessons(
+  args: { orgUserId?: number; type?: string | null },
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["training", "candidates", args.orgUserId, args.type ?? null],
+    queryFn: () =>
+      api<CandidateEnrollment[]>("/training/candidates", {
+        query: { orgUserId: args.orgUserId!, type: args.type ?? undefined },
+      }),
+    enabled: (opts?.enabled ?? true) && args.orgUserId != null,
+    ...opts,
+  });
+}
+
+export function useCreateCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      name: string;
+      description?: string;
+      regulatoryPart?: string;
+      certificateSought?: string;
+      ratingId?: number | null;
+    }) => api<{ id: number }>("/training/courses", { method: "POST", body: input }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useCreateCourseFromTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, name }: { key: string; name?: string }) =>
+      api<{ id: number; versionId: number; lessons: number }>(`/training/templates/${key}`, {
+        method: "POST",
+        body: { name },
+      }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function usePublishCourseVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ versionId, approvalReference }: { versionId: number; approvalReference?: string }) =>
+      api<{ id: number }>(`/training/versions/${versionId}/publish`, {
+        method: "POST",
+        body: { approvalReference },
+      }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useCreateCourseVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ courseId, label, copyFromVersionId }: { courseId: number; label: string; copyFromVersionId?: number }) =>
+      api<{ id: number }>(`/training/courses/${courseId}/versions`, {
+        method: "POST",
+        body: { label, copyFromVersionId },
+      }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useEnrollStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { versionId: number; orgUserId: number; enrollmentCertificateNumber?: string }) =>
+      api<{ id: number }>("/training/enrollments", { method: "POST", body: input }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useSaveLessonRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      enrollmentId: number;
+      lessonId: number;
+      recordId?: number;
+      grade?: string | null;
+      notes?: string | null;
+      flightDeciHours?: number | null;
+      instructionDeciHours?: number | null;
+      simulatorDeciHours?: number | null;
+      reservationId?: number | null;
+      taskGrades?: { lessonTaskId: number; grade: string; notes?: string }[];
+    }) => api<{ id: number; warning: string | null }>("/training/records", { method: "POST", body: input }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useSignLessonRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ recordId, credits }: { recordId: number; credits?: { requirementId: number; deciHours?: number; count?: number }[] }) =>
+      api<{ id: number; creditsPosted: number }>(`/training/records/${recordId}/sign`, {
+        method: "POST",
+        body: { credits },
+      }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useCountersignLessonRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (recordId: number) =>
+      api<{ id: number }>(`/training/records/${recordId}/countersign`, { method: "POST" }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useAmendLessonRecord() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ recordId, reason }: { recordId: number; reason: string }) =>
+      api<{ id: number; reversed: number }>(`/training/records/${recordId}/amend`, {
+        method: "POST",
+        body: { reason },
+      }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useGraduateStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ enrollmentId, graduationCertificateNumber }: { enrollmentId: number; graduationCertificateNumber?: string }) =>
+      api<{ id: number }>(`/training/enrollments/${enrollmentId}/graduate`, {
+        method: "POST",
+        body: { graduationCertificateNumber },
+      }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function usePostRequirementCredit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      enrollmentId: number;
+      requirementId: number;
+      deciHours?: number | null;
+      count?: number | null;
+      source: string;
+      notes?: string;
+    }) => api<{ id: number }>("/training/credits", { method: "POST", body: input }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useReverseRequirementCredit() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ creditId, reason }: { creditId: number; reason: string }) =>
+      api<{ id: number }>(`/training/credits/${creditId}/reverse`, { method: "POST", body: { reason } }),
+    onSuccess: () => invalidateTraining(qc),
   });
 }

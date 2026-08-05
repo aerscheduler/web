@@ -51,6 +51,10 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   "/reports": (r) => isStaff(r) || isTechnician(r),
   "/operations/cancellations": isStaff,
   "/compliance": isStaff,
+  //Matches the server: designing a syllabus is isOrgAdmin, and an instructor offered this
+  //link would reach a page that could only 403. Instructors do grade — but they do it from
+  //the student's record and from close-out, not from the course library.
+  "/training": isAdmin,
   "/maintenance": (r) => isStaff(r) || isTechnician(r),
   //Matches the server exactly: `GET /audit` is isOrgAdmin. A dispatcher offered this
   //link would reach a page that could only 403.

@@ -7,6 +7,7 @@ import {
   Clock,
   CreditCard,
   FileText,
+  GraduationCap,
   Home,
   LayoutDashboard,
   Megaphone,
@@ -50,6 +51,7 @@ const OPERATIONS: NavItem[] = [
   { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff },
   { to: "/billing", label: "Billing", icon: Receipt },
   { to: "/compliance", label: "Go / No-Go", icon: ShieldCheck },
+  { to: "/training", label: "Training", icon: GraduationCap },
   { to: "/facilities", label: "Facilities", icon: MonitorPlay },
   { to: "/operations/announcements", label: "Announcements", icon: Megaphone },
   { to: "/operations/cancellations", label: "Cancellations", icon: CalendarX2 },
@@ -80,6 +82,11 @@ export function youNav(roles: string[]): NavItem[] {
     // books from the board, not here.
     ...(canSelfBook(R) ? [{ to: "/me/book", label: "Book", icon: CalendarPlus }] : []),
     { to: "/me/invoices", label: "Invoices", icon: Wallet },
+    // Only for people who can actually be on a syllabus. A dispatcher or technician
+    // has no training record, and an empty page in their personal nav reads as broken.
+    ...(R.includes("student") || R.includes("instructor")
+      ? [{ to: "/me/training", label: "My training", icon: GraduationCap }]
+      : []),
     { to: "/me/currencies", label: "Currencies", icon: ShieldCheck },
     { to: "/me/documents", label: "Documents", icon: FileText },
   ];
@@ -92,6 +99,7 @@ export function youNav(roles: string[]): NavItem[] {
  */
 const OFF_RAIL: NavItem[] = [
   { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/me/training", label: "My training", icon: GraduationCap },
   { to: "/settings/integrations/quickbooks", label: "QuickBooks", icon: Receipt },
   { to: "/notifications", label: "Notifications", icon: Bell },
   { to: "/me/profile", label: "Profile", icon: UserIcon },

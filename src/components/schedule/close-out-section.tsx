@@ -254,7 +254,7 @@ function InvoiceSummary({
         Invoice #{invoice.id}
         {splitAcross && (
           <span className="ml-1.5 font-normal text-muted-foreground">
-            — one of {splitAcross} shares for this booking
+            (one of {splitAcross} shares for this booking)
           </span>
         )}
       </div>

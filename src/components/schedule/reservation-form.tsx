@@ -89,11 +89,13 @@ export type ReservationDraft = {
 
 /**
  * What a member's booking is called. They never see a title field — dispatch names
- * bookings, and "N172TS — Dual" is what anyone would have typed.
+ * bookings, and "N172TS · Dual" is what anyone would have typed.
  */
 function autoTitle(resource: Resource | undefined, type: ReservationType): string {
   const name = resource ? resourceLabel(resource).name : "";
-  return name ? `${name} — ${typeLabel(type)}` : typeLabel(type);
+  // "·" rather than an em dash: this string is STORED as the booking's title and read by
+  // every member, and the app already uses the middot as its separator elsewhere.
+  return name ? `${name} · ${typeLabel(type)}` : typeLabel(type);
 }
 
 /**
@@ -828,7 +830,7 @@ export function ReservationForm({
     setError(null);
 
     //A member never sees a title field — naming the booking is dispatch's job, and
-    //"N172TS — Dual" is what they would have typed anyway.
+    //"N172TS · Dual" is what they would have typed anyway.
     const effectiveTitle = isSelf ? autoTitle(selectedResource, type) : title.trim();
     if (!effectiveTitle) return setError("Give the reservation a title.");
     if (!date) return setError("Pick a date.");
@@ -842,7 +844,7 @@ export function ReservationForm({
       // Guest flights bill an outside pilot: needs guest name + email + a plane, optional instructor.
       if (!guestName.trim()) return setError("Enter the guest's name.");
       if (!/.+@.+\..+/.test(guestEmail.trim()))
-        return setError("Enter a valid email — the guest's invoice is sent there.");
+        return setError("Enter a valid email. The guest's invoice is sent there.");
       if (!resourceId) return setError("Guest flights need an aircraft.");
       personnel.guests = [
         {
@@ -994,7 +996,7 @@ export function ReservationForm({
               id="res-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Pattern work — N12345"
+              placeholder="e.g. Pattern work in N12345"
               autoFocus
             />
           </div>
@@ -1087,6 +1089,11 @@ export function ReservationForm({
             setEndAt(e);
           }}
           resourceId={resourceId ? Number(resourceId) : null}
+          // Say "simulator" or "room" when that is what is booked. resourceLabel already
+          // classifies it for the picker's hint column, so there is no new lookup here.
+          resourceNoun={
+            selectedResource ? resourceLabel(selectedResource).kind.toLowerCase() : "resource"
+          }
           personnelUserIds={personnelUserIds}
           restoreWindow={
             // The reservation we're editing occupies its own slot; without this
@@ -1328,7 +1335,7 @@ export function ReservationForm({
       description={
         isEditing
           ? "Change the aircraft, crew or times for this reservation."
-          : "Book aircraft, instructors and students onto the dispatch board."
+          : "Book an aircraft, simulator or room, and the people on it."
       }
     >
       {body}

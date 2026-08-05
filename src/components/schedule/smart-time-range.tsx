@@ -55,6 +55,7 @@ export function SmartTimeRange({
   end,
   onChange,
   resourceId,
+  resourceNoun = "resource",
   personnelUserIds,
   disabled,
   restoreWindow = null,
@@ -68,6 +69,13 @@ export function SmartTimeRange({
   /** Emits the resolved start/end instants (or null while incomplete). */
   onChange: (start: Date | null, end: Date | null) => void;
   resourceId: number | null;
+  /**
+   * What to CALL the booked thing, lower-cased: "aircraft", "simulator", "room". A booking
+   * is not always a flight, and this text used to say "aircraft" regardless, which reads
+   * as a bug to anyone booking a classroom. Falls back to the neutral "resource", which is
+   * the word the dispatch board's own column header uses.
+   */
+  resourceNoun?: string;
   /** USER ids (not org-user ids) of everyone assigned to the reservation. */
   personnelUserIds: number[];
   disabled?: boolean;
@@ -248,7 +256,7 @@ export function SmartTimeRange({
       ) : (
         allWindows != null && (
           <p className="text-xs text-muted-foreground">
-            Only times when the aircraft and everyone assigned are free are shown.
+            Only times when the {resourceNoun} and everyone assigned are free are shown.
           </p>
         )
       )}

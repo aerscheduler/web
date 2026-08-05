@@ -29,6 +29,7 @@ import {
   PART_LABEL,
   STATUS_LABEL,
   cappedExplanation,
+  staleExplanation,
   creditedLabel,
   deciHours,
   deciHoursLabel,
@@ -189,6 +190,7 @@ function RequirementsProgress({ standings }: { standings: Standing[] }) {
     <Card className="divide-y p-0">
       {standings.map((s) => {
         const capped = cappedExplanation(s);
+        const stale = staleExplanation(s);
         return (
           <div key={s.requirementId} className="px-4 py-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -213,6 +215,15 @@ function RequirementsProgress({ standings }: { standings: Standing[] }) {
                 {/* Without this, a student who flew 20 hours in a sim sees "10.0 of 40.0"
                     and assumes the software lost their time. */}
                 {capped} Flown: {deciHoursLabel(s.rawDeciHours)}.
+              </p>
+            ) : null}
+            {stale ? (
+              <p className="mt-1.5 flex items-start gap-1.5 text-xs text-amber-600">
+                <Info className="mt-0.5 size-3 shrink-0" />
+                {/* Same reasoning as the cap above: the reduced number on its own reads
+                    as lost flying, and this one is worse because the hours were valid
+                    when they were flown. */}
+                {stale}
               </p>
             ) : null}
           </div>

@@ -59,6 +59,22 @@ export function cappedExplanation(s: Standing): string | null {
     : `${lost} of transferred credit is above the limit for previous training.`;
 }
 
+/**
+ * Why hours a student definitely flew are not counting toward this requirement.
+ *
+ * A handful of requirements go stale — the three hours of test preparation must be within
+ * two calendar months of the checkride. Showing the reduced number alone would read as the
+ * software losing somebody's flying, and an instructor would ring the school about it.
+ * Saying "3.0 flown, 1.0 still current" is a different sentence entirely, and it is the one
+ * that tells them to go and fly again.
+ */
+export function staleExplanation(s: Standing): string | null {
+  if (!s.staleDeciHours || s.staleDeciHours <= 0) return null;
+  const months = s.recencyCalendarMonths;
+  const stale = deciHoursLabel(s.staleDeciHours);
+  return `${stale} hrs no longer count: this has to be flown within ${months} calendar month${months === 1 ? "" : "s"} of the test.`;
+}
+
 export const LESSON_KIND_LABEL: Record<LessonKind, string> = {
   ground: "Ground",
   flight: "Flight",

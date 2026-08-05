@@ -1661,6 +1661,11 @@ export type Standing = {
   met: boolean;
   /** Only an FAA-sourced shortfall can block a Part 141 graduation. */
   faaSourced: boolean;
+  /** Hours flown that no longer count because they fell outside the requirement's window. */
+  staleDeciHours: number;
+  staleCount: number;
+  /** The window, so the UI can say why without re-deriving the rule. Null = never stale. */
+  recencyCalendarMonths: number | null;
 };
 
 export type EnrollmentProgress = {

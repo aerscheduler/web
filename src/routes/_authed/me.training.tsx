@@ -9,6 +9,7 @@ import {
   PART_LABEL,
   STATUS_LABEL,
   cappedExplanation,
+  staleExplanation,
   creditedLabel,
   deciHours,
   deciHoursLabel,
@@ -115,6 +116,7 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
       <div className="space-y-2.5">
         {p.standings.map((s) => {
           const capped = cappedExplanation(s);
+          const stale = staleExplanation(s);
           return (
             <div key={s.requirementId}>
               <div className="flex items-baseline justify-between text-sm">
@@ -130,6 +132,14 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
                 <p className="mt-1 flex items-start gap-1 text-xs text-amber-600">
                   <Info className="mt-0.5 size-3 shrink-0" />
                   {capped} You flew {deciHoursLabel(s.rawDeciHours)}.
+                </p>
+              ) : null}
+              {stale ? (
+                <p className="mt-1 flex items-start gap-1 text-xs text-amber-600">
+                  <Info className="mt-0.5 size-3 shrink-0" />
+                  {/* Worth telling a student directly: these hours were valid when they
+                      flew them, and the fix is to go and fly again, not to argue. */}
+                  {stale}
                 </p>
               ) : null}
             </div>

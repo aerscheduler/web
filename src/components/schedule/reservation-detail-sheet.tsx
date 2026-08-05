@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { DOT_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { CloseOutSection } from "./close-out-section";
+import { LessonSection } from "./lesson-section";
 import { ReservationAudit } from "./reservation-audit";
 import { canCancelReservation, canEditReservation } from "./close-out";
 import { formatTimeInZone } from "@/lib/timezone";
@@ -155,6 +156,14 @@ export function ReservationDetailSheet({
           )}
 
           <CloseOutSection reservation={r} />
+
+          {/* Grading, on the same screen as the close-out and directly after it, so one
+              pass produces the invoice AND the training record. Every competitor makes
+              this a second visit to a second place, and duplicate entry is the loudest
+              complaint about all of them.
+
+              Renders nothing unless this is instruction with an enrolled student on it. */}
+          {!r.cancelledAt && <LessonSection reservation={r} />}
 
           {/* Last, and always rendered — including on a cancelled booking, where
               CloseOutSection bails out entirely and this is the only thing left

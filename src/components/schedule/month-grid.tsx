@@ -11,7 +11,7 @@ import {
 } from "date-fns";
 import { resourceLabel, type Reservation } from "@/types/api";
 import { cn } from "@/lib/utils";
-import { dateKeyInZone } from "@/lib/timezone";
+import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { highlightMatch } from "@/lib/highlight-match";
 import { BORDER_L_CLASS, CHIP_CLASS } from "./meta";
@@ -60,10 +60,35 @@ export function MonthGrid({
   for (const r of reservations) {
     //The airport's calendar day, not the viewer's — a late-evening Mountain flight is
     //already tomorrow in UTC, and bucketing on the viewer's clock drops it in the wrong cell.
-    const key = dateKeyInZone(r.start, tz.zone);
-    const bucket = byDay.get(key);
-    if (bucket) bucket.push(r);
-    else byDay.set(key, [r]);
+    //
+    //EVERY day the booking occupies, not just the one it starts on. Bucketing on the start
+    //alone put an aeroplane that was away Friday to Sunday in Friday's cell only, so the
+    //Saturday and Sunday cells read as free — the same bug the week grid had, and the month
+    //is where somebody looks to find a free weekend.
+    const from = dateKeyInZone(r.start, tz.zone);
+    const to = dateKeyInZone(r.end, tz.zone);
+    //Walk by UTC midnights so the number of steps is exact regardless of daylight saving,
+    //then format each back to a key. Capped because a corrupt row with a runaway end date
+    //should not spin here; a booking cannot be made longer than the year-ahead horizon.
+    const startMs = Date.parse(`${from}T00:00:00Z`);
+    const endMs = Date.parse(`${to}T00:00:00Z`);
+    const spanDays =
+      Number.isFinite(startMs) && Number.isFinite(endMs)
+        ? Math.min(Math.max(0, Math.round((endMs - startMs) / 86_400_000)), 366)
+        : 0;
+
+    //A booking ending at exactly local midnight belongs to the day before, not to the day it
+    //touches for zero minutes: a 9pm-to-midnight flight must fill one cell, not two. Asked on
+    //the AIRPORT's clock, so it is right at any offset.
+    const endsAtMidnight = spanDays > 0 && minutesFromMidnightInZone(r.end, tz.zone) === 0;
+    const lastDay = endsAtMidnight ? spanDays - 1 : spanDays;
+
+    for (let i = 0; i <= lastDay; i++) {
+      const key = new Date(startMs + i * 86_400_000).toISOString().slice(0, 10);
+      const bucket = byDay.get(key);
+      if (bucket) bucket.push(r);
+      else byDay.set(key, [r]);
+    }
   }
   for (const list of byDay.values()) list.sort((a, b) => a.start.localeCompare(b.start));
 

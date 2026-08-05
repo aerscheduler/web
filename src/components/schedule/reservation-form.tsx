@@ -1,9 +1,10 @@
 import * as React from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
-import { Ban, Loader2, Plus, Wrench, X } from "lucide-react";
+import { Ban, Loader2, Moon, Plus, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import {
+  useBilling,
   useApprovedResources,
   useCreateReservation,
   useLocations,
@@ -53,6 +54,7 @@ import {
 import { cn } from "@/lib/utils";
 import { dateKeyInZone, zonedWallClockToUtc } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
+import { overnightDisclosure } from "@/lib/overnight-minimum";
 import { DOT_CLASS, typeLabel } from "./meta";
 import { SmartTimeRange } from "./smart-time-range";
 import {
@@ -299,6 +301,48 @@ export function airworthinessHint(r: Resource, openSquawks: number): string {
  * open squawks. Purely factual — it reports the aircraft's state and never
  * infers anything about why you're booking it.
  */
+/**
+ * Warns, before the booking is made, that keeping the aircraft overnight has a floor.
+ *
+ * Renders nothing for a same-day booking or a school with no minimum, so the form can mount
+ * it unconditionally. Informational rather than alarming on purpose: this is not a problem
+ * with the booking, it is a price the person is about to agree to, and styling it like a
+ * grounded aeroplane would teach people to dismiss it.
+ */
+export function OvernightMinimumNotice({
+  start,
+  end,
+  timeZone,
+  resource,
+  orgMinimumTenths,
+}: {
+  start: Date | null;
+  end: Date | null;
+  timeZone: string;
+  resource: Resource | undefined;
+  orgMinimumTenths?: number | null;
+}) {
+  const disclosure = overnightDisclosure({
+    start,
+    end,
+    timeZone,
+    aircraftMinimumTenths: resource?.type?.plane?.cost?.overnightMinimumTenths ?? null,
+    orgMinimumTenths,
+    resourceName: resource ? resourceLabel(resource).name : null,
+  });
+  if (!disclosure) return null;
+
+  return (
+    <div
+      className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 p-3 text-sm"
+      role="status"
+    >
+      <Moon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <span className="text-muted-foreground">{disclosure.message}</span>
+    </div>
+  );
+}
+
 export function AirworthinessNotice({
   resource,
   squawks,
@@ -471,6 +515,9 @@ export function ReservationForm({
   });
   // ONE request per form open for the whole fleet, grouped by resource below —
   // never one per option row.
+  // The org's default minimum, for the overnight disclosure. GET /organizations/billing is
+  // isOrgUser(), so a member booking themselves can read it too.
+  const billingQ = useBilling({ enabled: open });
   const squawksQ = useSquawks({ resolved: false }, { enabled: open && canSeeSquawks });
   const instructorsQ = useMembers({ instructor: true }, { enabled: open });
   const studentsQ = useMembers({ student: true }, { enabled: open });
@@ -1076,7 +1123,19 @@ export function ReservationForm({
             the aircraft's state, and the notice can't know what they're
             actually there to fix. */}
         {type !== "maintenance" && (
-          <AirworthinessNotice resource={selectedResource} squawks={selectedSquawks} />
+          <>
+            <AirworthinessNotice resource={selectedResource} squawks={selectedSquawks} />
+            {/* Said at the moment the dates are chosen, which is the only moment it can stop
+                somebody being surprised by the invoice. Inside the same maintenance guard as
+                the notice above: a maintenance booking is never invoiced. */}
+            <OvernightMinimumNotice
+              start={startAt}
+              end={endAt}
+              timeZone={tz.zone}
+              resource={selectedResource}
+              orgMinimumTenths={billingQ.data?.overnightMinimumTenths ?? null}
+            />
+          </>
         )}
 
         <SmartTimeRange

@@ -212,6 +212,15 @@ export interface OrganizationBillingSettings {
   serviceFeePercent: number | null;
   serviceFeeLabel: string;
   stripeEnabled: boolean;
+  /**
+   * Least billable time per NIGHT an aircraft is kept away, in TENTHS of an hour.
+   *
+   * Null means the school charges no overnight minimum, which is distinct from 0 and is
+   * what every org read before the setting existed. Nights rather than days because a
+   * same-day booking spans one day, so a day-based figure would bill every local circuit
+   * at the minimum.
+   */
+  overnightMinimumTenths: number | null;
 }
 
 export interface RoleRow {
@@ -470,6 +479,14 @@ export interface PlaneCost {
   dryRate: number | null;
   wetRate: number | null;
   billByHobbsTime: boolean;
+  /**
+   * This aeroplane's own overnight minimum, in TENTHS per night away, overriding the
+   * organization's figure.
+   *
+   * Null means inherit; 0 means explicitly exempt. Keep those apart or an org-wide minimum
+   * reappears on the one aeroplane a club excluded. See lib/overnight-minimum.ts.
+   */
+  overnightMinimumTenths?: number | null;
 }
 
 export interface Simulator {

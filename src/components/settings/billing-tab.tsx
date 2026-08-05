@@ -82,6 +82,8 @@ const UNCONFIGURED_BILLING: OrganizationBillingSettings = {
   serviceFeePercent: null,
   serviceFeeLabel: "Service Fee",
   stripeEnabled: false,
+  //Null, not 0: a new school charges no overnight minimum until it says otherwise.
+  overnightMinimumTenths: null,
 };
 
 function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
@@ -92,6 +94,24 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
   const [rateCents, setRateCents] = useState(billing.defaultInstructorRate);
   const [feeText, setFeeText] = useState(feeToText(billing.serviceFeePercent));
   const [feeLabel, setFeeLabel] = useState(billing.serviceFeeLabel ?? "");
+  const [overnightText, setOvernightText] = useState(
+    billing.overnightMinimumTenths == null ? "" : (billing.overnightMinimumTenths / 10).toFixed(1)
+  );
+
+  // Hours in the UI, TENTHS on the wire. Nobody thinks in tenths, and doing the conversion
+  // here keeps the one place that has to be right in one place. Blank means null, which is
+  // "no minimum" rather than zero hours; the server distinguishes them.
+  const nextOvernightTenths =
+    overnightText.trim() === "" ? null : Math.max(0, Math.round(parseFloat(overnightText) * 10));
+  // One hint, and it changes to answer the question the operator has at that moment: what
+  // this setting is when it's blank, and what it will actually DO once there's a number in
+  // it. A worked figure lands better than a definition, and it is the same arithmetic the
+  // server does, so it cannot mislead.
+  const overnightHint =
+    nextOvernightTenths == null || Number.isNaN(nextOvernightTenths) || nextOvernightTenths === 0
+      ? "Least billable time per night an aircraft is kept away. Blank charges nothing extra, and a booking back the same day is never affected."
+      : `Out Friday and back Sunday is 2 nights, so that trip would bill at least ` +
+        `${((nextOvernightTenths * 2) / 10).toFixed(1)} hours however little it flew. A booking back the same day is never affected.`;
 
   const nextBps = textToBps(feeText);
   const effectiveLabel = feeLabel.trim() || "Service Fee";
@@ -99,7 +119,8 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
     enabled !== billing.enabled ||
     rateCents !== billing.defaultInstructorRate ||
     nextBps !== billing.serviceFeePercent ||
-    effectiveLabel !== (billing.serviceFeeLabel ?? "");
+    effectiveLabel !== (billing.serviceFeeLabel ?? "") ||
+    nextOvernightTenths !== (billing.overnightMinimumTenths ?? null);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -110,6 +131,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
         defaultInstructorRate: rateCents,
         serviceFeePercent: nextBps,
         serviceFeeLabel: effectiveLabel,
+        overnightMinimumTenths: Number.isNaN(nextOvernightTenths as number) ? null : nextOvernightTenths,
       },
       {
         onSuccess: () => toast.success("Billing settings saved"),
@@ -198,6 +220,26 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
                 </div>
               </Field>
             </div>
+
+            <Field
+              label="Overnight minimum"
+              htmlFor="billing-overnight"
+              hint={overnightHint}
+            >
+              <div className="relative">
+                <Input
+                  id="billing-overnight"
+                  inputMode="decimal"
+                  value={overnightText}
+                  onChange={(e) => setOvernightText(e.target.value.replace(/[^0-9.]/g, ""))}
+                  placeholder="2.0"
+                  className="pr-14 tnum"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  hrs/night
+                </span>
+              </div>
+            </Field>
 
             <Field
               label="Service fee label"

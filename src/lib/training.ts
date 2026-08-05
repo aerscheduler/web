@@ -71,8 +71,11 @@ export function cappedExplanation(s: Standing): string | null {
 export function staleExplanation(s: Standing): string | null {
   if (!s.staleDeciHours || s.staleDeciHours <= 0) return null;
   const months = s.recencyCalendarMonths;
+  //deciHoursLabel already carries the unit. Appending another produced "5.0 hrs hrs",
+  //which shipped because the string was only ever read in a test that asserted on the
+  //number and the word "calendar".
   const stale = deciHoursLabel(s.staleDeciHours);
-  return `${stale} hrs no longer count: this has to be flown within ${months} calendar month${months === 1 ? "" : "s"} of the test.`;
+  return `${stale} no longer count: this has to be flown within ${months} calendar month${months === 1 ? "" : "s"} of the test.`;
 }
 
 export const LESSON_KIND_LABEL: Record<LessonKind, string> = {

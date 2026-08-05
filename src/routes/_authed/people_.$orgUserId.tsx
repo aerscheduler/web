@@ -41,6 +41,7 @@ import { EditRolesModal } from "@/components/people/edit-roles-modal";
 import { MemberRowActions } from "@/components/people/member-row-actions";
 import { MemberInstructionSection } from "@/components/people/member-instruction-section";
 import { PersonMetrics } from "@/components/people/detail/person-metrics";
+import { PersonTraining } from "@/components/people/detail/person-training";
 import { PersonContact } from "@/components/people/detail/person-contact";
 import { PersonFlights } from "@/components/people/detail/person-flights";
 import { PersonInvoices } from "@/components/people/detail/person-invoices";
@@ -307,6 +308,11 @@ function PersonBody({
               the payload IS the permission answer. See PersonContact. */}
           <PersonContact ou={ou} isSelf={isSelf} />
 
+          {/* Beside currencies and documents, because all three answer "is this person
+              ready to fly, and on what". Gated with `instruction` rather than a new flag:
+              the server already scopes the read (a student always gets only their own),
+              and instructors seeing who their students are training toward is the point. */}
+          {access.instruction && <PersonTraining ou={ou} isSelf={isSelf} />}
           {access.currencies && <PersonCurrencies ou={ou} isSelf={isSelf} />}
           {access.documents && <PersonDocuments ou={ou} isSelf={isSelf} />}
           {access.approvedAircraft && (

@@ -32,6 +32,7 @@ import {
   formatTimeInZone,
   formatTimeRangeInZone,
   formatDateInZone,
+  spansDaysInZone,
 } from "@/lib/timezone";
 import type { Location } from "@/types/api";
 
@@ -54,6 +55,8 @@ export interface TimeZoneContext {
   range: (start: Date | string, end: Date | string) => string;
   /** `Tue, Jul 28` / `Tuesday, July 28, 2026`, in the render zone. */
   date: (instant: Date | string, style?: "short" | "long") => string;
+  /** Does this booking end on a later day than it starts, in the render zone? */
+  spansDays: (start: Date | string, end: Date | string) => boolean;
 }
 
 /**
@@ -95,6 +98,7 @@ export function useTimeZone(location?: Location | null): TimeZoneContext {
       time: (instant) => formatTimeInZone(instant, zone),
       range: (start, end) => formatTimeRangeInZone(start, end, zone, viewerZone),
       date: (instant, style) => formatDateInZone(instant, zone, style),
+      spansDays: (start, end) => spansDaysInZone(start, end, zone),
     }),
     [zone, viewerZone, orgZone, locationZone]
   );

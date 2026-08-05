@@ -1,7 +1,7 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { resourceLabel, type Reservation, type Resource } from "@/types/api";
-import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
+import { dateKeyInZone, daysBetweenDateKeys, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -30,9 +30,16 @@ const KEY_HINT_END = "Shift with arrow keys changes the end.";
  * This used to read `d.getHours()` — the viewer's clock — which is what made the whole board
  * slide an hour when a dispatcher opened it from another zone. The instant is unchanged; only
  * the clock we measure it against is now the right one.
+ *
+ * `dayKey` anchors the count to the DISPLAYED day rather than to the instant's own day, which
+ * is what a multi-day booking needs: an aeroplane out Friday to Sunday must read as -900 on
+ * Saturday, not as 15:00 again. The day difference is added as whole days times 1440 while the
+ * position WITHIN the day stays a wall-clock count, so the block still lines up with the hour
+ * ruler on the two days a year the clocks change.
  */
-function minutesInWindow(iso: string, zone: string, startHour: number) {
-  return minutesFromMidnightInZone(iso, zone) - startHour * 60;
+function minutesInWindow(iso: string, zone: string, startHour: number, dayKey: string) {
+  const offsetDays = daysBetweenDateKeys(dayKey, dateKeyInZone(iso, zone));
+  return offsetDays * 1440 + minutesFromMidnightInZone(iso, zone) - startHour * 60;
 }
 
 /** Horizontal geometry for one block: left + width in px along the hour ruler. */
@@ -40,15 +47,17 @@ function laneBlockGeometry(
   r: Reservation,
   zone: string,
   startHour: number,
-  totalMin: number
+  totalMin: number,
+  dayKey: string
 ): { leftPx: number; widthPx: number } {
-  const s = minutesInWindow(r.start, zone, startHour);
-  const e = minutesInWindow(r.end, zone, startHour);
+  const s = minutesInWindow(r.start, zone, startHour, dayKey);
+  const e = minutesInWindow(r.end, zone, startHour, dayKey);
   const cs = Math.max(0, Math.min(totalMin, s));
   const ce = Math.max(0, Math.min(totalMin, e));
   if (ce <= 0 || cs >= totalMin || ce <= cs) {
-    // The window grows to fit its reservations, so this is now only reachable by one that
-    // wraps past midnight. Pin it to the nearest edge rather than dropping it.
+    // Now only reachable by a booking with no overlap with this day at all: the window grows
+    // to fit its reservations, and one that runs past midnight is clamped to the day's edges
+    // above rather than falling in here. Pin it to the nearest edge rather than dropping it.
     const left = cs >= totalMin ? totalMin - 30 : 0;
     return { leftPx: (left / 60) * HOUR_WIDTH, widthPx: 28 };
   }
@@ -174,15 +183,17 @@ export function LaneGrid({
 
   // Widened past the default 6a–10p by whatever this day's reservations need, so an early or
   // late booking gets its own hour instead of collapsing onto the edge of the ruler.
-  const { startHour, endHour } = hourWindow(drawn, tz.zone);
+  //The displayed day, as the key both the ruler and the block geometry measure against.
+  const dayKey = format(day, "yyyy-MM-dd");
+  const { startHour, endHour } = hourWindow(drawn, tz.zone, dayKey);
   const hours = endHour - startHour;
   const totalMin = hours * 60;
   const laneWidth = hours * HOUR_WIDTH;
   //"Is the selected day today" is asked at the AIRPORT, not here. A dispatcher opening the
   //board from Tokyo is looking at the school's day, so the now-line belongs on the school's
   //today. `day` is a picked calendar date, so its own local components ARE the date.
-  const isToday = dateKeyInZone(new Date(), tz.zone) === format(day, "yyyy-MM-dd");
-  const nowMin = isToday ? minutesInWindow(new Date().toISOString(), tz.zone, startHour) : -1;
+  const isToday = dateKeyInZone(new Date(), tz.zone) === dayKey;
+  const nowMin = isToday ? minutesInWindow(new Date().toISOString(), tz.zone, startHour, dayKey) : -1;
   const showNow = nowMin >= 0 && nowMin <= totalMin;
 
   //The held block leaves an outline in its committed slot (rendered in place of itself, so
@@ -346,7 +357,7 @@ export function LaneGrid({
                   }
                 >
                   {placed.map(({ r, track }) => {
-                    const { leftPx, widthPx } = laneBlockGeometry(r, tz.zone, startHour, totalMin);
+                    const { leftPx, widthPx } = laneBlockGeometry(r, tz.zone, startHour, totalMin, dayKey);
                     const style = {
                       left: leftPx,
                       width: widthPx,
@@ -381,7 +392,7 @@ export function LaneGrid({
                       className="absolute"
                       style={{
                         ...(() => {
-                          const g = laneBlockGeometry(heldPreview, tz.zone, startHour, totalMin);
+                          const g = laneBlockGeometry(heldPreview, tz.zone, startHour, totalMin, dayKey);
                           return { left: g.leftPx, width: g.widthPx };
                         })(),
                         top: LANE_PAD_Y,

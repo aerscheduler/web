@@ -199,6 +199,22 @@ export function dateKeyInZone(instant: Date | string, timeZone: string): string 
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+/**
+ * Whole calendar days from date key `from` to date key `to`. Negative when `to` is earlier.
+ *
+ * Both keys are read as UTC midnights, which is what makes the answer an exact integer
+ * however many daylight-saving transitions lie between them. That matters because the callers
+ * add `days * 1440` to a WALL-CLOCK minute count: a board's hour ruler is wall-clock hours,
+ * so measuring the position within a day in elapsed time would slide every block by an hour
+ * on the two days a year the clocks change.
+ */
+export function daysBetweenDateKeys(from: string, to: string): number {
+  const a = Date.parse(`${from}T00:00:00Z`);
+  const b = Date.parse(`${to}T00:00:00Z`);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
+  return Math.round((b - a) / 86_400_000);
+}
+
 /** Midnight at the start of a zone's calendar day, as a UTC instant. */
 export function startOfDayInZone(instant: Date | string, timeZone: string): Date {
   const { year, month, day } = wallClockInZone(instant, timeZone);
@@ -295,14 +311,39 @@ export function formatDateInZone(
  * The conditional label is deliberate. Everyone at the field sees exactly what they see
  * today; only the person who has travelled pays for the extra word, and they are the one who
  * needs it.
+ *
+ * WHEN THE BOOKING ENDS ON A LATER DAY the end carries its date: `3:00 PM – Sun, Aug 9 at
+ * 4:00 PM`. Without it a trip out Friday and back Sunday reads as a one-hour Friday flight,
+ * which is the single most misleading thing this function could say now that a booking can
+ * span nights. Judged by date key in the RENDER zone, so an evening flight that crosses
+ * midnight UTC is still one evening.
  */
+/**
+ * Does this booking end on a LATER DAY than it starts, in the zone it is shown in?
+ *
+ * Compares date keys rather than elapsed hours, so a daylight-saving night still counts as
+ * one crossing, and judged in the render zone so an evening flight west of Greenwich is not
+ * called an overnight because it crossed midnight UTC.
+ */
+export function spansDaysInZone(
+  start: Date | string,
+  end: Date | string,
+  timeZone: string
+): boolean {
+  return dateKeyInZone(start, timeZone) !== dateKeyInZone(end, timeZone);
+}
+
 export function formatTimeRangeInZone(
   start: Date | string,
   end: Date | string,
   timeZone: string,
   viewerZone?: string | null
 ): string {
-  const range = `${formatTimeInZone(start, timeZone)} – ${formatTimeInZone(end, timeZone)}`;
+  const spansDays = spansDaysInZone(start, end, timeZone);
+  const endText = spansDays
+    ? `${formatDateInZone(end, timeZone, "short")} at ${formatTimeInZone(end, timeZone)}`
+    : formatTimeInZone(end, timeZone);
+  const range = `${formatTimeInZone(start, timeZone)} – ${endText}`;
 
   if (zonesAgreeAt(start, timeZone, viewerZone)) return range;
 

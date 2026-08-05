@@ -93,9 +93,14 @@ export function ReservationDetailSheet({
               version formatted with r.timeZoneName — the zone of the DEVICE THAT BOOKED
               IT — and printed the raw "America/Boise" next to every booking whether or
               not it told the reader anything. */}
+          {/* A booking that ends on a later day says so. Without the date, a trip out
+              Friday and back Sunday read here as a one-hour Friday flight. */}
           <SheetDetailField icon={Clock} label="Time">
             <span className="tabular-nums">
-              {tz.time(r.start)} – {tz.time(r.end)}
+              {tz.time(r.start)} –{" "}
+              {tz.spansDays(r.start, r.end)
+                ? `${tz.date(r.end, "short")} at ${tz.time(r.end)}`
+                : tz.time(r.end)}
             </span>
             {tz.differs(r.start) && (
               <span className="ml-2 text-muted-foreground">

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { addDays, format, isToday } from "date-fns";
 import { resourceLabel, type Reservation } from "@/types/api";
-import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
+import { dateKeyInZone, daysBetweenDateKeys, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -28,8 +28,14 @@ const KEY_HINT_END = "Shift with up or down changes the end.";
  * Was `d.getHours()` — the viewer's clock — which is what slid the whole column an hour when
  * the board was opened from another zone.
  */
-function minutesInWindow(d: Date | string, zone: string, startHour: number) {
-  return minutesFromMidnightInZone(d, zone) - startHour * 60;
+function minutesInWindow(d: Date | string, zone: string, startHour: number, dayKey?: string) {
+  // Without a dayKey this is the instant's own day, as it always was. With one, the count is
+  // anchored to the COLUMN's day, so a booking that began on Friday reads as negative in
+  // Saturday's column instead of appearing at its Friday clock time all over again. Whole days
+  // are added as days x 1440 while the position within the day stays a wall-clock count, so a
+  // block still lines up with the hour ruler across a daylight-saving change.
+  const offsetDays = dayKey ? daysBetweenDateKeys(dayKey, dateKeyInZone(d, zone)) : 0;
+  return offsetDays * 1440 + minutesFromMidnightInZone(d, zone) - startHour * 60;
 }
 
 /** Vertical top/height (px) for a reservation block, clamped to the window. */
@@ -37,16 +43,39 @@ function blockGeometry(
   r: Reservation,
   zone: string,
   startHour: number,
-  totalMin: number
+  totalMin: number,
+  dayKey?: string
 ): { top: number; height: number } {
   // Clamp BOTH ends to the visible window and derive height from the clamped
   // span — otherwise a reservation starting before the window keeps its full
   // duration and draws too tall (past its real end). Mirrors the lane grid.
-  const s = Math.max(0, Math.min(totalMin, minutesInWindow(r.start, zone, startHour)));
-  const e = Math.max(0, Math.min(totalMin, minutesInWindow(r.end, zone, startHour)));
+  const s = Math.max(0, Math.min(totalMin, minutesInWindow(r.start, zone, startHour, dayKey)));
+  const e = Math.max(0, Math.min(totalMin, minutesInWindow(r.end, zone, startHour, dayKey)));
   const top = (s / 60) * HOUR_HEIGHT;
   const height = Math.max(MIN_BLOCK, ((e - s) / 60) * HOUR_HEIGHT);
   return { top, height };
+}
+
+/**
+ * Does this booking occupy any of the column for `dayKey`?
+ *
+ * Replaces a filter on the START day alone. That was right while every booking began and
+ * ended on one day, and silently wrong the moment one could not: an aeroplane booked out
+ * Friday to Sunday appeared in Friday's column only, and Saturday showed it as free.
+ *
+ * Measured against the VISIBLE window rather than the calendar day, so a booking ending
+ * exactly at midnight does not leave a stray sliver at the top of the next column.
+ */
+function occupiesDay(
+  r: Reservation,
+  zone: string,
+  startHour: number,
+  totalMin: number,
+  dayKey: string
+): boolean {
+  const s = minutesInWindow(r.start, zone, startHour, dayKey);
+  const e = minutesInWindow(r.end, zone, startHour, dayKey);
+  return e > 0 && s < totalMin;
 }
 
 /** Desktop week view: a vertical time grid, one column per day. */
@@ -172,7 +201,9 @@ export function WeekTimeGrid({
           //Tokyo; isSameDay() on the viewer's clock puts it in the wrong column entirely,
           //which is a worse failure than drawing it at the wrong height.
           const dayKey = format(d, "yyyy-MM-dd");
-          const items = drawn.filter((r) => dateKeyInZone(r.start, tz.zone) === dayKey);
+          //Every day the booking occupies, not only the one it starts on, so an aeroplane
+          //away for the weekend reads as unavailable on the Saturday too.
+          const items = drawn.filter((r) => occupiesDay(r, tz.zone, startHour, totalMin, dayKey));
           const { placed, tracks } = packTracks(items);
           const today = isToday(d);
           const isDropColumn = heldDayKey === dayKey;
@@ -234,7 +265,7 @@ export function WeekTimeGrid({
                 </div>
               )}
               {placed.map(({ r, track }) => {
-                const { top, height } = blockGeometry(r, tz.zone, startHour, totalMin);
+                const { top, height } = blockGeometry(r, tz.zone, startHour, totalMin, dayKey);
                 const style = {
                   top,
                   height,
@@ -255,7 +286,7 @@ export function WeekTimeGrid({
               {heldPreview && heldDayKey === dayKey && (
                 <div
                   className="absolute inset-x-0"
-                  style={blockGeometry(heldPreview, tz.zone, startHour, totalMin)}
+                  style={blockGeometry(heldPreview, tz.zone, startHour, totalMin, dayKey)}
                 >
                   <WeekBlock r={heldPreview} onView={onView} marks={marks} drag={drag} geom={geom} floating />
                 </div>

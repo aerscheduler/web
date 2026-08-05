@@ -138,3 +138,23 @@ export function nextLessonId(
   }
   return null;
 }
+
+/**
+ * Does the caller hold a training grant?
+ *
+ * `implied` is what their ROLE already gives them (an admin holds all four without a row),
+ * sent by the server rather than re-derived here so the bypass cannot drift between the
+ * two. `grants` is what has been granted explicitly.
+ *
+ * FAILS CLOSED. While the query is loading, or if it failed, this is false — an action
+ * button that appears optimistically and then 403s is worse than one that appears a
+ * moment late, and this is the exact shape of the most common bug in this codebase:
+ * the client offering something the server will refuse.
+ */
+export function holdsTrainingGrant(
+  mine: { grants: { grant: string; courseId: number | null }[]; implied: string[] } | undefined,
+  grant: string
+): boolean {
+  if (!mine) return false;
+  return mine.implied.includes(grant) || mine.grants.some((g) => g.grant === grant);
+}

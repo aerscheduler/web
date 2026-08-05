@@ -51,10 +51,26 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   "/reports": (r) => isStaff(r) || isTechnician(r),
   "/operations/cancellations": isStaff,
   "/compliance": isStaff,
-  //Matches the server: designing a syllabus is isOrgAdmin, and an instructor offered this
-  //link would reach a page that could only 403. Instructors do grade — but they do it from
-  //the student's record and from close-out, not from the course library.
-  "/training": isAdmin,
+  //This USED to say "matches the server: designing a syllabus is isOrgAdmin". It did, once.
+  //Then the four training grants landed and the server moved to
+  //`hasTrainingGrant("configureTraining")` — admin by bypass, or anybody the school has
+  //granted it to — and nobody moved this. The result was that the entire granular
+  //permissions feature was unreachable by the exact people it exists for: a chief
+  //instructor granted `configureTraining` opened /training and was redirected to /me,
+  //and the "give this to an FAA inspector" auditor grant handed the inspector a page
+  //they could not load.
+  //
+  //Staff or instructor, then, and the PAGE degrades: the course library only renders if
+  //the courses call succeeds, so somebody with `manageEnrollment` and no
+  //`configureTraining` gets the roster they are entitled to instead of an error card.
+  //Same reasoning as /reports directly above — gate the route on who might legitimately
+  //be here, and let the server decide what they actually see.
+  "/training": (r) => isStaff(r) || isInstructor(r),
+  //A student's training RECORD is not the course library. The server serves this to any
+  //member and scopes it per viewer (`canReadEnrollment`), and the person detail page —
+  //open to any member — links straight to it. Guarding it on admin made that link a
+  //dead end for the instructor whose student it is.
+  "/training/enrollments": anyMember,
   "/maintenance": (r) => isStaff(r) || isTechnician(r),
   //Matches the server exactly: `GET /audit` is isOrgAdmin. A dispatcher offered this
   //link would reach a page that could only 403.

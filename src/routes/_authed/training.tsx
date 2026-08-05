@@ -8,7 +8,9 @@ import {
   useCreateCourse,
   useEnrollments,
 } from "@/features/queries";
-import { guardRoute } from "@/lib/permissions";
+import { guardRoute, isAdmin } from "@/lib/permissions";
+import { rolesFromSession } from "@/lib/auth";
+import { ApiError } from "@/lib/api";
 import { PART_LABEL, STATUS_LABEL } from "@/lib/training";
 import type { Course, CourseVersionSummary } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -64,38 +66,51 @@ function VersionBadge({ version }: { version?: CourseVersionSummary }) {
 }
 
 function TrainingPage() {
+  const roles = rolesFromSession();
   const courses = useCourses();
   const enrollments = useEnrollments({ status: "enrolled" });
 
   const rows = courses.data ?? [];
   const active = enrollments.data ?? [];
 
-  if (courses.error) return <ErrorState error={courses.error} />;
+  //The course LIBRARY needs `configureTraining`; the roster below needs nothing beyond
+  //membership. Somebody holding only `manageEnrollment` — the front desk who enrolls and
+  //graduates people — is entitled to one and not the other, so a 403 on courses hides
+  //that section instead of replacing the whole page with an error card. Any other failure
+  //is a real failure and still says so.
+  const forbiddenCourses = (courses.error as ApiError | null)?.status === 403;
+  if (courses.error && !forbiddenCourses) return <ErrorState error={courses.error} />;
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Training"
         subtitle="Courses, syllabi and student progress. Hours credit themselves as lessons are signed."
-        actions={<NewCourseActions hasCourses={rows.length > 0} />}
+        actions={forbiddenCourses ? null : <NewCourseActions hasCourses={rows.length > 0} />}
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Courses" value={rows.length} icon={BookOpen} />
-        <StatCard
-          label="Published syllabi"
-          value={rows.filter((c) => c.versions.some((v) => v.publishedAt && !v.retiredAt)).length}
-          icon={Lock}
-        />
-        <StatCard label="Students in training" value={active.length} icon={GraduationCap} />
-        <StatCard
-          label="Part 141 courses"
-          value={rows.filter((c) => c.regulatoryPart === "part141").length}
-          icon={Sparkles}
-        />
-      </div>
+      {forbiddenCourses ? (
+        <div className="grid grid-cols-2 gap-4">
+          <StatCard label="Students in training" value={active.length} icon={GraduationCap} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <StatCard label="Courses" value={rows.length} icon={BookOpen} />
+          <StatCard
+            label="Published syllabi"
+            value={rows.filter((c) => c.versions.some((v) => v.publishedAt && !v.retiredAt)).length}
+            icon={Lock}
+          />
+          <StatCard label="Students in training" value={active.length} icon={GraduationCap} />
+          <StatCard
+            label="Part 141 courses"
+            value={rows.filter((c) => c.regulatoryPart === "part141").length}
+            icon={Sparkles}
+          />
+        </div>
+      )}
 
-      {courses.isLoading ? (
+      {forbiddenCourses ? null : courses.isLoading ? (
         <CardGridSkeleton />
       ) : rows.length === 0 ? (
         <EmptyCourses />
@@ -147,7 +162,9 @@ function TrainingPage() {
       )}
 
       <ActiveStudents />
-      <TrainingPermissions />
+      {/* GET /training/grants is isOrgAdmin. Handing out power stays an admin's job, so
+          somebody here on a grant sees the roster and not the grant table. */}
+      {isAdmin(roles) ? <TrainingPermissions /> : null}
     </div>
   );
 }

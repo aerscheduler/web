@@ -1,7 +1,7 @@
 import { Receipt } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import { useBillEnrollmentFee } from "@/features/queries";
-import { useAuth } from "@/lib/auth";
+import { useBillEnrollmentFee, useMyTrainingGrants } from "@/features/queries";
+import { holdsTrainingGrant } from "@/lib/training";
 import { formatMoney } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,8 +28,10 @@ export function EnrollmentFeeCard({
   feeStatus: "none" | "owed" | "invoiced" | undefined;
   feeInvoiceId: number | null;
 }) {
-  const { isStaff } = useAuth();
   const bill = useBillEnrollmentFee();
+  //POST /training/enrollments/:id/fee is `manageEnrollment`. Same reason as the lifecycle
+  //actions: this card renders on a page a student can open about themselves.
+  const canBill = holdsTrainingGrant(useMyTrainingGrants().data, "manageEnrollment");
 
   if (!feeCents || feeStatus === "none" || !feeStatus) return null;
 
@@ -58,7 +60,7 @@ export function EnrollmentFeeCard({
               </Button>
             ) : null}
           </div>
-        ) : isStaff ? (
+        ) : canBill ? (
           <Button size="sm" disabled={bill.isPending} onClick={() => bill.mutate(enrollmentId)}>
             {bill.isPending ? "Billing…" : `Bill ${formatMoney(feeCents)}`}
           </Button>

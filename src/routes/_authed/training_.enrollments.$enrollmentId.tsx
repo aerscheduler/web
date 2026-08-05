@@ -22,8 +22,10 @@ import {
   useSignLessonRecord,
   useCertifyEnrollment,
   useEndEnrollment,
+  useMyTrainingGrants,
 } from "@/features/queries";
 import { guardRoute } from "@/lib/permissions";
+import { holdsTrainingGrant } from "@/lib/training";
 import {
   LESSON_KIND_LABEL,
   PART_LABEL,
@@ -73,7 +75,11 @@ import {
 } from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authed/training_/enrollments/$enrollmentId")({
-  beforeLoad: guardRoute("/training"),
+  //A student's own record, their instructor's view of it, and an admin's are the same
+  //page; the SERVER decides which of them may open which record (`canReadEnrollment`).
+  //Guarded on /training this was admin-only, so the link the person detail page renders
+  //for an instructor went nowhere.
+  beforeLoad: guardRoute("/training/enrollments"),
   component: EnrollmentPage,
 });
 
@@ -707,9 +713,16 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
   const [reason, setReason] = useState("");
   const end = useEndEnrollment();
   const certify = useCertifyEnrollment();
+  const mine = useMyTrainingGrants();
 
   const e = progress.enrollment;
   if (e.status !== "enrolled") return null;
+
+  //Every action below is `hasTrainingGrant("manageEnrollment")` on the server. This page
+  //is open to any member — a student reads their own record here, and their instructor
+  //reads it too — so offering these unconditionally put a "Graduate" button in front of
+  //the student it would graduate. Fails closed while the grants load.
+  if (!holdsTrainingGrant(mine.data, "manageEnrollment")) return null;
 
   const is141 = e.courseVersion.course.regulatoryPart === "part141";
 

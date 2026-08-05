@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { useBilling, useRampIn, useRampOut } from "@/features/queries";
 import type { Reservation } from "@/types/api";
 import { ApiError } from "@/lib/api";
+import { usesBriefingNotMeters } from "@/components/schedule/close-out";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,7 +63,13 @@ export function RampModal({
   const rampIn = useRampIn(reservation?.id ?? 0);
   const busy = rampOut.isPending || rampIn.isPending;
 
-  const showBriefing = reservation?.type === "dual" || reservation?.type === "instructor";
+  //Instruction time is optional extra detail on a dual flight, and the ONLY figure a booking
+  //with no meters has — so a ground has to be offered it too, or its close-out has no field
+  //to fill in at all. `noMeters` is defined below, where the reservation is in scope.
+  const showBriefing =
+    reservation?.type === "dual" ||
+    reservation?.type === "instructor" ||
+    (reservation != null && usesBriefingNotMeters(reservation));
 
   const [hobbs, setHobbs] = React.useState("");
   const [tach, setTach] = React.useState("");
@@ -103,11 +110,35 @@ export function RampModal({
   const tachBackwards =
     mode === "in" && tachNum != null && outTachHrs != null && tachNum < outTachHrs;
 
+  //A ground lesson has no meters, so demanding a Hobbs reading made its close-out impossible
+  //to submit — the reported bug. Instruction time takes over as the required figure, which is
+  //what the schema says `briefing` is for. See `usesBriefingNotMeters` for why it keys on the
+  //reservation TYPE and not only on the resource.
+  const noMeters = reservation != null && usesBriefingNotMeters(reservation);
+
   // Per-field validity, derived every render so inline messages clear as you type.
   const backwardsMsg = "Ending readings can't be lower than the recorded out readings.";
-  const hobbsErr = hobbsNum == null ? "Enter the Hobbs reading" : hobbsBackwards ? backwardsMsg : null;
-  const tachErr = tachNum == null ? "Enter the tach reading" : tachBackwards ? backwardsMsg : null;
-  const briefingErr = briefing.trim() !== "" && briefingNum == null ? "Enter a valid number" : null;
+  const hobbsErr = noMeters
+    ? null
+    : hobbsNum == null
+      ? "Enter the Hobbs reading"
+      : hobbsBackwards
+        ? backwardsMsg
+        : null;
+  const tachErr = noMeters
+    ? null
+    : tachNum == null
+      ? "Enter the tach reading"
+      : tachBackwards
+        ? backwardsMsg
+        : null;
+  const briefingErr = noMeters
+    ? briefingNum == null
+      ? "Enter the instruction time"
+      : null
+    : briefing.trim() !== "" && briefingNum == null
+      ? "Enter a valid number"
+      : null;
 
   const hoursFlown =
     mode === "in" && hobbsNum != null && outHobbsHrs != null ? hobbsNum - outHobbsHrs : null;
@@ -158,8 +189,9 @@ export function RampModal({
   }
 
   const title = mode === "out" ? "Ramp out" : "Ramp in";
-  const description =
-    mode === "out"
+  const description = noMeters
+    ? "Record the instruction time to close out this lesson. There are no meter readings to take."
+    : mode === "out"
       ? "Record the starting Hobbs and tach readings before the flight departs."
       : "Record the ending Hobbs and tach readings to close out the flight.";
 
@@ -183,6 +215,9 @@ export function RampModal({
           </div>
         )}
 
+        {/* No aircraft, no meters to read — showing two boxes nobody can fill in is what made
+            the ground close-out look broken rather than merely blocked. */}
+        {!noMeters && (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="ramp-hobbs">{mode === "out" ? "Hobbs out" : "Hobbs in"}</Label>
@@ -212,8 +247,9 @@ export function RampModal({
             {showErrors && tachErr && <p className="text-xs text-destructive">{tachErr}</p>}
           </div>
         </div>
+        )}
 
-        {mode === "in" && showBriefing && (
+        {(noMeters || mode === "in") && showBriefing && (
           <div className="space-y-1.5">
             <Label htmlFor="ramp-briefing">Instruction time (hrs)</Label>
             <Input

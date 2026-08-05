@@ -99,13 +99,43 @@ export function canViewReservationInvoice(
   return isReservationPersonnel(r, orgUserId);
 }
 
+/**
+ * Is this a booking with no meters to read?
+ *
+ * A ground lesson has no aircraft, so no Hobbs or tach reading can ever exist for it. Both
+ * `isRampedOut` and `isRampedIn` used to be defined purely in terms of those readings, which
+ * made them permanently false here: `closeOutStep` sat at "rampOut" forever, asking the desk
+ * for a number nobody can produce, and the ramp modal refused to submit without it. Reported
+ * from the field against GROUP grounds, which is the shape a ground school actually books.
+ *
+ * `ReservationReview.briefing` is what ground time is measured with — the schema says so in
+ * as many words — so that is the reading that stands in.
+ *
+ * Keyed on the TYPE first rather than only on the resource, because schools run a ground
+ * lesson sitting in the aeroplane and that still has nothing to read at ramp-out. The
+ * resource checks then cover a classroom booking and a booking with nothing booked at all.
+ *
+ * The app reaches the same conclusion via `Reservation.briefingOnlyNoRampIn`, which is
+ * narrower — it requires an instructor, so a group ground with none still asks for Hobbs
+ * there. Worth aligning; this is the surface the bug was reported on.
+ */
+export function usesBriefingNotMeters(r: Reservation): boolean {
+  if (r.type === "ground") return true;
+  if (r.resource == null) return true;
+  return r.resource.type?.room != null;
+}
+
 export function isRampedOut(r: Reservation): boolean {
   const rev = r.review;
+  if (usesBriefingNotMeters(r)) return rev?.briefing != null;
   return rev?.hobbsTimeOut != null || rev?.tachTimeOut != null;
 }
 
 export function isRampedIn(r: Reservation): boolean {
   const rev = r.review;
+  //One briefing figure covers the whole lesson — there is no out-and-back to tell apart, so
+  //recording it satisfies both steps and the flow moves straight to the sign-offs.
+  if (usesBriefingNotMeters(r)) return rev?.briefing != null;
   return rev?.hobbsTimeIn != null || rev?.tachTimeIn != null;
 }
 

@@ -8,8 +8,10 @@ import { formatDate } from "@/lib/utils";
 import { DetailCard, CardEmpty, CardSkeleton } from "@/components/detail/detail-page";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
+import { SquawkDetailSheet } from "@/components/maintenance/squawk-detail-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const SHOWN = 6;
 
@@ -33,6 +35,7 @@ export function ResourceSquawks({
   const q = useSquawks({ resourceId: resource.id, resolved: false });
   const [logOpen, setLogOpen] = useState(false);
   const [resolving, setResolving] = useState<Squawk | null>(null);
+  const [viewing, setViewing] = useState<Squawk | null>(null);
 
   const squawks = useMemo(() => {
     return [...(q.data ?? [])].sort((a, b) => {
@@ -40,6 +43,16 @@ export function ResourceSquawks({
       return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
     });
   }, [q.data]);
+
+  const shown = squawks.slice(0, SHOWN);
+
+  const step = (delta: -1 | 1) => {
+    if (!viewing || shown.length === 0) return;
+    const i = shown.findIndex((s) => s.id === viewing.id);
+    if (i === -1) return;
+    const next = shown[Math.min(shown.length - 1, Math.max(0, i + delta))];
+    if (next) setViewing(next);
+  };
 
   return (
     <>
@@ -62,9 +75,19 @@ export function ResourceSquawks({
           <CardEmpty>Nothing outstanding — this aircraft is clean.</CardEmpty>
         ) : (
           <ul className="divide-y divide-border">
-            {squawks.slice(0, SHOWN).map((s) => (
-              <li key={s.id} className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                <div className="min-w-0">
+            {shown.map((s) => (
+              <li
+                key={s.id}
+                className={cn(
+                  "flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0 transition-colors",
+                  viewing?.id === s.id && "bg-muted/60"
+                )}
+              >
+                <button
+                  type="button"
+                  onClick={() => setViewing(s)}
+                  className="min-w-0 flex-1 text-left hover:opacity-80"
+                >
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="truncate text-[13px] font-medium">
                       {s.title || "Untitled squawk"}
@@ -75,7 +98,7 @@ export function ResourceSquawks({
                     Reported {formatDate(s.createdAt)}
                     {s.reportedBy?.user?.name ? ` by ${s.reportedBy.user.name}` : ""}
                   </div>
-                </div>
+                </button>
                 {canResolve && (
                   <Button
                     variant="outline"
@@ -102,6 +125,20 @@ export function ResourceSquawks({
       </DetailCard>
 
       <LogSquawkModal open={logOpen} onOpenChange={setLogOpen} fixedResource={resource} />
+      <SquawkDetailSheet
+        squawk={viewing}
+        open={viewing != null}
+        onOpenChange={(o) => !o && setViewing(null)}
+        onResolve={
+          canResolve
+            ? (s) => {
+                setViewing(null);
+                setResolving(s);
+              }
+            : undefined
+        }
+        onStep={step}
+      />
       <ResolveSquawkModal
         squawk={resolving}
         open={resolving != null}

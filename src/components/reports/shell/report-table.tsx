@@ -22,6 +22,7 @@ export function ReportTable({
   grouped,
   sort,
   onSort,
+  onRowClick,
   loading,
 }: {
   columns: ReportColumn[];
@@ -30,6 +31,12 @@ export function ReportTable({
   grouped: boolean;
   sort: { key: string; dir: "asc" | "desc" };
   onSort: (key: string) => void;
+  /**
+   * Ungrouped rows often carry a hidden `invoiceId` or `reservationId` from the
+   * engine. When the caller can open a detail panel for those, pass a handler
+   * and the row becomes clickable.
+   */
+  onRowClick?: (row: ReportRow) => void;
   loading?: boolean;
 }) {
   /**
@@ -108,52 +115,65 @@ export function ReportTable({
         </thead>
 
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className="border-b border-border/60 last:border-0 hover:bg-muted/40">
-              {columns.map((column) => {
-                const numeric = isNumericColumn(column);
-                const value = formatReportValue(row[column.key], column.type);
-                return (
-                  <td
-                    key={column.key}
-                    className={cn(
-                      "px-3 py-2",
-                      numeric && "text-right tabular-nums",
-                      value === EMPTY_CELL && "text-muted-foreground"
-                    )}
-                  >
-                    <span className={cn("whitespace-nowrap", numeric && "font-medium")}>
-                      {value}
-                    </span>
-                    {/* Grouped rows say how many records they stand for, so a
-                        one-flight aircraft doesn't read like a fifty-flight one.
-                        On its own line — inline it wraps mid-phrase and reads as
-                        part of the label ("N152TS 2 records"). */}
-                    {grouped && column.key === columns[0].key && row.__count != null && (
-                      <span className="block text-xs text-muted-foreground">
-                        {row.__count} {row.__count === 1 ? "record" : "records"}
+          {rows.map((row, i) => {
+            const clickable =
+              !grouped &&
+              onRowClick != null &&
+              (typeof row.invoiceId === "number" || typeof row.reservationId === "number");
+            return (
+              <tr
+                key={i}
+                onClick={clickable ? () => onRowClick(row) : undefined}
+                className={cn(
+                  "border-b border-border/60 last:border-0 hover:bg-muted/40",
+                  clickable && "cursor-pointer"
+                )}
+              >
+                {columns.map((column) => {
+                  const numeric = isNumericColumn(column);
+                  const value = formatReportValue(row[column.key], column.type);
+                  return (
+                    <td
+                      key={column.key}
+                      className={cn(
+                        "px-3 py-2",
+                        numeric && "text-right tabular-nums",
+                        value === EMPTY_CELL && "text-muted-foreground"
+                      )}
+                    >
+                      <span className={cn("whitespace-nowrap", numeric && "font-medium")}>
+                        {value}
                       </span>
-                    )}
+                      {/* Grouped rows say how many records they stand for, so a
+                          one-flight aircraft doesn't read like a fifty-flight one.
+                          On its own line — inline it wraps mid-phrase and reads as
+                          part of the label ("N152TS 2 records"). */}
+                      {grouped && column.key === columns[0].key && row.__count != null && (
+                        <span className="block text-xs text-muted-foreground">
+                          {row.__count} {row.__count === 1 ? "record" : "records"}
+                        </span>
+                      )}
+                    </td>
+                  );
+                })}
+                {measure && (
+                  <td className="px-3 py-2">
+                    <div className="h-2 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-primary/70"
+                        style={{
+                          width: `${Math.max(
+                            ((typeof row[measure.key] === "number" ? (row[measure.key] as number) : 0) / max) * 100,
+                            2
+                          )}%`,
+                        }}
+                      />
+                    </div>
                   </td>
-                );
-              })}
-              {measure && (
-                <td className="px-3 py-2">
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary/70"
-                      style={{
-                        width: `${Math.max(
-                          ((typeof row[measure.key] === "number" ? (row[measure.key] as number) : 0) / max) * 100,
-                          2
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </td>
-              )}
-            </tr>
-          ))}
+                )}
+              </tr>
+            );
+          })}
         </tbody>
 
         {totals && rows.length > 0 && (

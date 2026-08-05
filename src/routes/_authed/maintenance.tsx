@@ -19,6 +19,7 @@ import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { SquawkCard } from "@/components/maintenance/squawk-card";
+import { SquawkDetailSheet } from "@/components/maintenance/squawk-detail-sheet";
 import { ReminderCard } from "@/components/maintenance/reminder-card";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
@@ -160,9 +161,18 @@ function OpenSquawks({
   const paging = usePaging({ resetKey: filter, defaultSort: { key: "createdAt", dir: "desc" } });
   const q = useSquawksPage(filter, paging);
   const [resolving, setResolving] = React.useState<Squawk | null>(null);
+  const [viewing, setViewing] = React.useState<Squawk | null>(null);
   const { rows: squawks, total } = pageRows(q);
   const empty = total === 0 && !searchQ && !hasResourceFilter(resourceId);
   const noMatch = total === 0 && !empty;
+
+  const step = (delta: -1 | 1) => {
+    if (!viewing || squawks.length === 0) return;
+    const i = squawks.findIndex((s) => s.id === viewing.id);
+    if (i === -1) return;
+    const next = squawks[Math.min(squawks.length - 1, Math.max(0, i + delta))];
+    if (next) setViewing(next);
+  };
 
   return (
     <Frame isLoading={q.isLoading} error={q.error} onRetry={() => q.refetch()}>
@@ -191,11 +201,13 @@ function OpenSquawks({
                 <SquawkCard
                   key={s.id}
                   squawk={s}
+                  onOpen={setViewing}
                   // Omitted for a dispatcher, who can read this board but whom
                   // the server won't let close a squawk. SquawkCard hides the
                   // button when there's no handler.
                   onResolve={canResolve ? setResolving : undefined}
                   resolving={resolving?.id === s.id}
+                  selected={viewing?.id === s.id}
                 />
               ))}
             </div>
@@ -203,6 +215,21 @@ function OpenSquawks({
           <TablePagination paging={paging} total={total} returned={squawks.length} loading={q.isFetching} />
         </>
       )}
+
+      <SquawkDetailSheet
+        squawk={viewing}
+        open={viewing != null}
+        onOpenChange={(o) => !o && setViewing(null)}
+        onResolve={
+          canResolve
+            ? (s) => {
+                setViewing(null);
+                setResolving(s);
+              }
+            : undefined
+        }
+        onStep={step}
+      />
 
       <ResolveSquawkModal
         squawk={resolving}
@@ -224,8 +251,17 @@ function ResolvedSquawks({
   const paging = usePaging({ resetKey: filter, defaultSort: { key: "resolvedAt", dir: "desc" } });
   const q = useSquawksPage(filter, paging);
   const { rows: squawks, total } = pageRows(q);
+  const [viewing, setViewing] = React.useState<Squawk | null>(null);
   const empty = total === 0 && !searchQ && !hasResourceFilter(resourceId);
   const noMatch = total === 0 && !empty;
+
+  const step = (delta: -1 | 1) => {
+    if (!viewing || squawks.length === 0) return;
+    const i = squawks.findIndex((s) => s.id === viewing.id);
+    if (i === -1) return;
+    const next = squawks[Math.min(squawks.length - 1, Math.max(0, i + delta))];
+    if (next) setViewing(next);
+  };
 
   return (
     <Frame isLoading={q.isLoading} error={q.error} onRetry={() => q.refetch()}>
@@ -246,13 +282,25 @@ function ResolvedSquawks({
           <TableView.Body>
             <div className={cn("space-y-2.5", q.isFetching && "opacity-60")}>
               {squawks.map((s) => (
-                <SquawkCard key={s.id} squawk={s} />
+                <SquawkCard
+                  key={s.id}
+                  squawk={s}
+                  onOpen={setViewing}
+                  selected={viewing?.id === s.id}
+                />
               ))}
             </div>
           </TableView.Body>
           <TablePagination paging={paging} total={total} returned={squawks.length} loading={q.isFetching} />
         </>
       )}
+
+      <SquawkDetailSheet
+        squawk={viewing}
+        open={viewing != null}
+        onOpenChange={(o) => !o && setViewing(null)}
+        onStep={step}
+      />
     </Frame>
   );
 }

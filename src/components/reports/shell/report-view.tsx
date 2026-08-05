@@ -21,13 +21,23 @@ import { Card } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
 import { downloadReport, useReportRun, useReportTimeZone } from "@/features/reports";
 import { rangeToIso, resolveRange } from "@/lib/report-format";
+import { formatMoney } from "@/lib/utils";
 import type {
   ReportConfig,
   ReportFilterInput,
   ReportMeta,
+  ReportRow,
   ReportRunRequest,
   SavedReportView,
 } from "@/types/reports";
+import type { Invoice, Reservation } from "@/types/api";
+import { useRemindInvoice, useUpdateInvoice } from "@/features/queries";
+import { useConfirm } from "@/components/confirm-dialog";
+import { InvoiceDetailSheet } from "@/components/billing/invoice-detail-sheet";
+import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
+import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
+import { ReservationForm } from "@/components/schedule/reservation-form";
+import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 import { isCompleteFilter } from "./filter-builder";
 import { ReportTable } from "./report-table";
 import { SavedViews } from "./saved-views";
@@ -73,6 +83,12 @@ export function ReportView({
   const [page, setPage] = useState(1);
   const [activeViewId, setActiveViewId] = useState<number | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [invoiceId, setInvoiceId] = useState<number | null>(null);
+  const [reservationId, setReservationId] = useState<number | null>(null);
+
+  const confirm = useConfirm();
+  const updateInvoice = useUpdateInvoice();
+  const remindInvoiceMut = useRemindInvoice();
 
   // No reset effect: the caller keys this component on the report (and on the
   // deep link), so switching reports remounts it and the initial state above IS
@@ -114,6 +130,31 @@ export function ReportView({
   const rows = result?.rows ?? [];
   const totalRows = result?.total ?? 0;
   const pages = Math.max(1, Math.ceil(totalRows / PAGE_SIZE));
+
+  // Stub list so ↑/↓ can walk the page's bookings without a second fetch.
+  const reservationList = useMemo(
+    () =>
+      rows
+        .map((r) => r.reservationId)
+        .filter((id): id is number => typeof id === "number")
+        .map((id) => ({ id }) as Reservation),
+    [rows]
+  );
+
+  const {
+    detail: reservation,
+    open: reservationOpen,
+    setOpen: setReservationOpen,
+    step: stepReservation,
+    cancelReservation,
+    editing,
+    setEditing,
+    startEdit,
+    cancelDialog,
+  } = useReservationDetail(reservationList, {
+    selectedId: reservationId,
+    setSelectedId: setReservationId,
+  });
 
   const update = (patch: Partial<ReportConfig>) => {
     setConfig((c) => ({ ...c, ...patch }));
@@ -158,6 +199,77 @@ export function ReportView({
       setExporting(false);
     }
   };
+
+  const openRow = (row: ReportRow) => {
+    if (typeof row.invoiceId === "number") {
+      setReservationId(null);
+      setInvoiceId(row.invoiceId);
+      return;
+    }
+    if (typeof row.reservationId === "number") {
+      setInvoiceId(null);
+      setReservationId(row.reservationId);
+    }
+  };
+
+  const invoiceIds = useMemo(
+    () =>
+      rows
+        .map((r) => r.invoiceId)
+        .filter((id): id is number => typeof id === "number"),
+    [rows]
+  );
+
+  function stepInvoice(delta: -1 | 1) {
+    if (invoiceId == null || invoiceIds.length === 0) return;
+    const i = invoiceIds.indexOf(invoiceId);
+    if (i === -1) return;
+    const next = invoiceIds[Math.min(invoiceIds.length - 1, Math.max(0, i + delta))];
+    if (next != null) setInvoiceId(next);
+  }
+
+  function markPaid(inv: Invoice) {
+    updateInvoice.mutate(
+      { id: inv.id, patch: { markPaid: true } },
+      {
+        onSuccess: (res) =>
+          res.warning
+            ? toast.warning(res.warning, { duration: 8000 })
+            : toast.success(`Invoice #${inv.id} marked paid`),
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : "Couldn't update invoice"),
+      }
+    );
+  }
+
+  async function voidInvoice(inv: Invoice) {
+    const ok = await confirm({
+      title: `Void invoice #${inv.id}?`,
+      description: `This marks the ${formatMoney(inv.total)} invoice as void. This can't be undone.`,
+      confirmLabel: "Void invoice",
+      destructive: true,
+    });
+    if (!ok) return;
+    updateInvoice.mutate(
+      { id: inv.id, patch: { markVoided: true } },
+      {
+        onSuccess: (res) =>
+          res.warning
+            ? toast.warning(res.warning, { duration: 8000 })
+            : toast.success(`Invoice #${inv.id} voided`),
+        onError: (err) =>
+          toast.error(err instanceof Error ? err.message : "Couldn't void invoice"),
+      }
+    );
+  }
+
+  function sendReminder(inv: Invoice) {
+    remindInvoiceMut.mutate(inv.id, {
+      onSuccess: () => toast.success(`Reminder sent for invoice #${inv.id}`),
+      onError: (err) =>
+        toast.error(err instanceof Error ? err.message : "Couldn't send reminder"),
+    });
+  }
 
   return (
     // A column bounded by the page: title, toolbar and pager are fixed, and the
@@ -249,6 +361,7 @@ export function ReportView({
             grouped={!!result?.groupBy}
             sort={sort}
             onSort={toggleSort}
+            onRowClick={result?.groupBy ? undefined : openRow}
             loading={run.isFetching}
           />
         )}
@@ -287,6 +400,38 @@ export function ReportView({
           </div>
         )}
       </div>
+
+      <InvoiceDetailSheet
+        invoice={null}
+        invoiceId={invoiceId}
+        open={invoiceId != null}
+        onOpenChange={(o) => !o && setInvoiceId(null)}
+        onMarkPaid={markPaid}
+        onVoid={voidInvoice}
+        onRemind={sendReminder}
+        onStep={stepInvoice}
+        busy={updateInvoice.isPending || remindInvoiceMut.isPending}
+      />
+
+      <CancelReservationDialog {...cancelDialog} />
+
+      <ReservationDetailSheet
+        reservation={reservation}
+        open={reservationOpen}
+        onOpenChange={setReservationOpen}
+        onCancel={cancelReservation}
+        onEdit={startEdit}
+        onStep={stepReservation}
+      />
+
+      {editing && (
+        <ReservationForm
+          open
+          onOpenChange={(o) => !o && setEditing(null)}
+          draft={{ date: new Date(editing.start) }}
+          editing={editing}
+        />
+      )}
     </div>
   );
 }

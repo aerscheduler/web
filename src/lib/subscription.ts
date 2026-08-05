@@ -24,8 +24,18 @@ export const TRIAL_DAYS = 14;
  * Go-live date for per-aircraft pricing. Orgs created before this are treated as
  * existing customers (grace window from launch, not a signup trial). Set this to
  * the actual ship date before deploying.
+ *
+ * Reset to 2026-08-05 when the mobile app finally shipped (the original 2026-07-25
+ * date burned most of its 14-day grace while the App Store build was still pending).
  */
-export const PRICING_LAUNCH_DATE = new Date("2026-07-25T00:00:00Z");
+export const PRICING_LAUNCH_DATE = new Date("2026-08-05T00:00:00Z");
+
+/**
+ * Org join-codes that never see the per-aircraft paywall or reminder banner.
+ * `test` is Demo School — the App Store review account (test@test.com) lives there
+ * and must never be blocked mid-review.
+ */
+export const SUBSCRIPTION_EXEMPT_ORG_CODES = new Set(["test"]);
 
 /**
  * Stripe hosted subscription link ($20/mo per aircraft, 14-day trial, adjustable
@@ -65,7 +75,9 @@ export function subscriptionStatus(
   // Existing customers already billing through Stripe Connect are grandfathered on
   // their legacy plan (0.5% fee) — they never see the per-aircraft model. New orgs
   // pay per aircraft even if they later use Connect for their own rental billing.
-  const exempt = isExisting && (opts.connectEnabled ?? false);
+  // App Store review / internal orgs are hard-exempt by join code regardless.
+  const exemptByCode = SUBSCRIPTION_EXEMPT_ORG_CODES.has(org.code);
+  const exempt = exemptByCode || (isExisting && (opts.connectEnabled ?? false));
   const base = isExisting ? PRICING_LAUNCH_DATE : created;
   const freeUntil = new Date(base.getTime() + TRIAL_DAYS * DAY_MS);
   const now = Date.now();

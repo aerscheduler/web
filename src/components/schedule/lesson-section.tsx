@@ -36,20 +36,43 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
   const r = reservation;
   const { orgUserId, isStaff } = useAuth();
 
-  const student = r.personnel?.students?.[0] ?? null;
+  //EVERY student on the booking, not just the first. Two students in one aeroplane and a
+  //group ground school are both ordinary — split billing exists precisely because they
+  //are — and grading only the first would leave the second one's record silently blank.
+  const students = r.personnel?.students ?? [];
   const isInstructional = ["dual", "ground", "sim", "solo"].includes(r.type);
   //An instructor on the booking, or staff. A student cannot grade their own lesson.
   const canGrade =
     isStaff || (r.personnel?.instructors ?? []).some((i) => i.id === orgUserId);
 
-  const candidates = useCandidateLessons(
-    { orgUserId: student?.id, type: r.type },
-    { enabled: !!student && isInstructional && canGrade }
-  );
+  if (students.length === 0 || !isInstructional || !canGrade) return null;
 
+  return (
+    <>
+      <Separator />
+      <section className="space-y-3">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          Training record
+        </h3>
+        {students.map((s) => (
+          <StudentLessons key={s.id} student={s} reservation={r} />
+        ))}
+      </section>
+    </>
+  );
+}
+
+/** One student's courses on this booking. Renders nothing if they are enrolled on none. */
+function StudentLessons({
+  student,
+  reservation,
+}: {
+  student: { id: number; user?: { name?: string } | null };
+  reservation: Reservation;
+}) {
+  const candidates = useCandidateLessons({ orgUserId: student.id, type: reservation.type });
   const enrollments = (candidates.data ?? []).filter((e) => e.lessons.length > 0);
 
-  if (!student || !isInstructional || !canGrade) return null;
   if (candidates.isLoading) return null;
   //Not enrolled on anything this booking could be a lesson for. Silence is right: most
   //schools will never use curriculum, and a "no courses" notice on every dual booking
@@ -57,30 +80,21 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
   if (enrollments.length === 0) return null;
 
   return (
-    <>
-      <Separator />
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Training record
-          </h3>
-          <Badge variant="outline" className="gap-1">
-            <GraduationCap className="size-3" />
-            {student.user?.name ?? "Student"}
-          </Badge>
-        </div>
-
-        {enrollments.map((e) => (
-          <LessonGrader
-            key={e.enrollmentId}
-            enrollmentId={e.enrollmentId}
-            courseName={e.course.name}
-            lessons={e.lessons}
-            reservation={r}
-          />
-        ))}
-      </section>
-    </>
+    <div className="space-y-2">
+      <Badge variant="outline" className="gap-1">
+        <GraduationCap className="size-3" />
+        {student.user?.name ?? "Student"}
+      </Badge>
+      {enrollments.map((e) => (
+        <LessonGrader
+          key={e.enrollmentId}
+          enrollmentId={e.enrollmentId}
+          courseName={e.course.name}
+          lessons={e.lessons}
+          reservation={reservation}
+        />
+      ))}
+    </div>
   );
 }
 

@@ -10,7 +10,9 @@ import {
 import type { Invoice, Reservation } from "@/types/api";
 import { WhoPaysSection } from "./who-pays-section";
 import { useAuth } from "@/lib/auth";
-import { useReservationInvoice } from "@/features/queries";
+import { useBilling, useReservationInvoice } from "@/features/queries";
+import { useTimeZone } from "@/lib/use-timezone";
+import { OvernightMinimumNotice } from "./overnight-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -36,8 +38,11 @@ import { ConfirmGuestReviewModal } from "./confirm-guest-review-modal";
  */
 export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const { orgUserId, roles, isStaff } = useAuth();
+  const tz = useTimeZone();
   const r = reservation;
   const step = closeOutStep(r);
+  //Only needed while there is still a minimum to disclose; once billed the invoice speaks.
+  const billingQ = useBilling({ enabled: step !== "invoiced" });
 
   const [rampMode, setRampMode] = React.useState<"out" | "in" | null>(null);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -158,6 +163,23 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
               </p>
             )}
           </div>
+        )}
+
+        {/* The overnight minimum, from dispatch through to sign-off. Deliberately shown at
+            every step before the invoice exists rather than only at ramp-in: the person who
+            ramps the aeroplane back in is often not the person who booked it and saw the
+            notice on the form, and after "invoiced" the invoice itself is the honest answer.
+
+            Renders nothing for a same-day booking or a school with no minimum, which is
+            almost every booking. */}
+        {step !== "invoiced" && (
+          <OvernightMinimumNotice
+            start={new Date(r.start)}
+            end={new Date(r.end)}
+            timeZone={tz.zone}
+            resource={r.resource ?? undefined}
+            orgMinimumTenths={billingQ.data?.overnightMinimumTenths ?? null}
+          />
         )}
 
         {/* Who pays what, on a booking with more than one person on it. Offered from the

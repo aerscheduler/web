@@ -1,12 +1,15 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { useRampIn, useRampOut } from "@/features/queries";
+import { useBilling, useRampIn, useRampOut } from "@/features/queries";
 import type { Reservation } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Moon } from "lucide-react";
+import { overnightBilling } from "@/lib/overnight-minimum";
+import { useTimeZone } from "@/lib/use-timezone";
 
 type RampMode = "out" | "in";
 
@@ -48,6 +51,10 @@ export function RampModal({
   reservation: Reservation | null;
   mode: RampMode;
 }) {
+  const tz = useTimeZone();
+  //Only while the modal is open: this is the school's org-wide minimum, and there is no
+  //reason to hold it for every closed modal on the board.
+  const billingQ = useBilling({ enabled: open });
   const plane = reservation?.resource?.type?.plane ?? null;
   const review = reservation?.review ?? null;
 
@@ -104,6 +111,18 @@ export function RampModal({
 
   const hoursFlown =
     mode === "in" && hobbsNum != null && outHobbsHrs != null ? hobbsNum - outHobbsHrs : null;
+
+  //Recomputed as the reading is typed, from the same inputs and the same rules the server
+  //will price with (lib/overnight-minimum.ts mirrors utils/bookingMinimums.ts). Null unless
+  //the booking actually crossed a local midnight and the school actually sets a minimum.
+  const billing = overnightBilling({
+    start: reservation?.start ?? null,
+    end: reservation?.end ?? null,
+    timeZone: tz.zone,
+    flownTenths: hoursFlown == null ? null : Math.round(hoursFlown * 10),
+    aircraftMinimumTenths: plane?.cost?.overnightMinimumTenths ?? null,
+    orgMinimumTenths: billingQ.data?.overnightMinimumTenths ?? null,
+  });
 
   async function submit() {
     if (!reservation) return;
@@ -215,6 +234,25 @@ export function RampModal({
           <p className="text-sm text-muted-foreground">
             Hours flown:{" "}
             <span className="tnum font-medium text-foreground">{hoursFlown.toFixed(1)}</span>
+          </p>
+        )}
+
+        {/* What the minimum DOES to the number just typed, at the moment it is typed. The
+            notice on the booking form says what the floor is; this is the point where the
+            surprise would otherwise land, as an invoice for 4.0 hours on a 1.5-hour flight
+            with nothing on screen having mentioned it. */}
+        {billing?.applied && (
+          <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            <Moon className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Away {billing.nights === 1 ? "one night" : `${billing.nights} nights`}, and your
+              school&rsquo;s minimum is {(billing.minimumTenthsPerNight / 10).toFixed(1)} hours a
+              night. This will bill{" "}
+              <span className="tnum font-medium text-foreground">
+                {(billing.billedTenths / 10).toFixed(1)}
+              </span>{" "}
+              hours rather than the {(billing.flownTenths / 10).toFixed(1)} flown.
+            </span>
           </p>
         )}
 

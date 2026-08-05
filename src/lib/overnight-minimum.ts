@@ -90,3 +90,58 @@ export function overnightDisclosure(args: {
       `so this booking will bill a minimum of ${hours(floorTenths)} hours even if you fly less.`,
   };
 }
+
+export type OvernightBilling = {
+  nights: number;
+  minimumTenthsPerNight: number;
+  flownTenths: number;
+  /** What will actually be billed: the greater of flown and the floor. */
+  billedTenths: number;
+  /** True only when the minimum actually RAISED the bill. */
+  applied: boolean;
+};
+
+/**
+ * What the aircraft charge will come to once the meters are in, given the minimum.
+ *
+ * The disclosure before booking says what the floor IS. This says what it DOES to the
+ * numbers the person is typing at ramp-in, which is the moment the surprise would otherwise
+ * land: a member reads 1.5 off the Hobbs, ramps in, and an invoice for 4.0 appears with
+ * nothing on screen having mentioned it.
+ *
+ * Mirrors the server's `applyOvernightMinimum`: a FLOOR, so `applied` is false when the
+ * booking flew more than the minimum, and a booking home the same day can never reach it.
+ * Returns null when there is nothing to say.
+ */
+export function overnightBilling(args: {
+  start: Date | string | null;
+  end: Date | string | null;
+  timeZone: string;
+  flownTenths: number | null;
+  aircraftMinimumTenths?: number | null;
+  orgMinimumTenths?: number | null;
+}): OvernightBilling | null {
+  if (!args.start || !args.end || args.flownTenths == null) return null;
+
+  const minimumTenthsPerNight = effectiveOvernightMinimumTenths(args);
+  if (minimumTenthsPerNight <= 0) return null;
+
+  const nights = nightsAway(
+    typeof args.start === "string" ? new Date(args.start) : args.start,
+    typeof args.end === "string" ? new Date(args.end) : args.end,
+    args.timeZone
+  );
+  if (nights <= 0) return null;
+
+  const flownTenths = Math.max(0, Math.round(args.flownTenths));
+  const floorTenths = minimumTenthsPerNight * nights;
+  const billedTenths = Math.max(flownTenths, floorTenths);
+
+  return {
+    nights,
+    minimumTenthsPerNight,
+    flownTenths,
+    billedTenths,
+    applied: billedTenths > flownTenths,
+  };
+}

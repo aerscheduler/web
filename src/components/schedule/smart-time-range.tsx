@@ -51,6 +51,16 @@ function valid(dates: Date[]): Date[] {
   return dates.filter((d) => !Number.isNaN(d.getTime()));
 }
 
+/**
+ * A Date that can safely be formatted or compared.
+ *
+ * The singular counterpart to `valid` above. Needed because an Invalid Date is truthy, so a
+ * `d ? …` guard passes it straight into `Intl`, which throws rather than degrading.
+ */
+function usableDate(d: Date | null | undefined): d is Date {
+  return d instanceof Date && Number.isFinite(d.getTime());
+}
+
 export function SmartTimeRange({
   date,
   onDateChange,
@@ -145,8 +155,14 @@ export function SmartTimeRange({
   //rather than held as separate state, so it cannot drift out of step with it: whatever the
   //end instant is, the picker shows that instant's day. Defaults to the start's day, which
   //is what makes the whole multi-day path opt-in per booking as well as per school.
-  const endDate = end ? dateKeyInZone(end, tz.zone) : date;
-  const spansDays = allowMultiDay && !!end && endDate !== date;
+  //`usableDate`, not a truthiness check. An Invalid Date is an OBJECT, so `end ? …` lets it
+  //through, and `dateKeyInZone` formats via Intl, which THROWS `RangeError: Invalid time
+  //value` on a NaN time rather than returning anything. In a render that throw reaches the
+  //error boundary and takes the whole booking form down with it — which it did, because this
+  //form has a legitimate transient state where the end is momentarily invalid. That is
+  //exactly why `isoValue` and `valid` above exist; this line has to use the same discipline.
+  const endDate = usableDate(end) ? dateKeyInZone(end, tz.zone) : date;
+  const spansDays = allowMultiDay && usableDate(end) && endDate !== date;
 
   const endDay = React.useMemo(() => {
     if (!endDate) return null;
@@ -235,7 +251,8 @@ export function SmartTimeRange({
     }
     //Hold the wall-clock time the operator already chose if that mark exists on the new day,
     //so nudging the return date by one day does not silently move a 16:00 return to 00:15.
-    const wanted = end ? tz.time(end) : null;
+    //Same trap as `endDate` above: an Invalid Date is truthy and tz.time formats via Intl.
+    const wanted = usableDate(end) ? tz.time(end) : null;
     onChange(start, options.find((o) => tz.time(o) === wanted) ?? options[0]);
   };
 

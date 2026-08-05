@@ -20,8 +20,25 @@
 
 import { dateKeyInZone } from "./timezone";
 
+/**
+ * Is this a Date that can actually be formatted?
+ *
+ * `new Date("nonsense")` is an OBJECT, so it is truthy, and a `!start` guard sails straight
+ * past it — but its time value is NaN and `Intl.DateTimeFormat.formatToParts` throws
+ * `RangeError: Invalid time value` on it rather than returning something useless. Inside a
+ * React render that throw reaches the error boundary and takes the whole booking form down,
+ * which is what it did: the form has a legitimate half-built state where the end instant is
+ * momentarily invalid (see `isoValue`/`valid` in smart-time-range.tsx, which exist for the
+ * same reason), and the notice rendered during it.
+ */
+const usable = (d: Date | null | undefined): d is Date =>
+  d instanceof Date && Number.isFinite(d.getTime());
+
 /** Local midnights crossed between out and back. 0 for a booking home the same day. */
 export function nightsAway(start: Date, end: Date, timeZone: string): number {
+  //Checked here as well as at the entry points, because this is exported and the throw it
+  //prevents is not local to it.
+  if (!usable(start) || !usable(end)) return 0;
   const from = dateKeyInZone(start, timeZone);
   const to = dateKeyInZone(end, timeZone);
   const ms = Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`);
@@ -68,7 +85,8 @@ export function overnightDisclosure(args: {
   /** For "keeps N172TS out two nights". Falls back to a neutral noun. */
   resourceName?: string | null;
 }): OvernightDisclosure | null {
-  if (!args.start || !args.end) return null;
+  //`usable`, not a truthiness check: an Invalid Date is truthy and throws when formatted.
+  if (!usable(args.start) || !usable(args.end)) return null;
 
   const minimumTenthsPerNight = effectiveOvernightMinimumTenths(args);
   if (minimumTenthsPerNight <= 0) return null;
@@ -121,16 +139,16 @@ export function overnightBilling(args: {
   aircraftMinimumTenths?: number | null;
   orgMinimumTenths?: number | null;
 }): OvernightBilling | null {
-  if (!args.start || !args.end || args.flownTenths == null) return null;
+  const start = typeof args.start === "string" ? new Date(args.start) : args.start;
+  const end = typeof args.end === "string" ? new Date(args.end) : args.end;
+  //Same reasoning as overnightDisclosure: this runs while somebody is typing a Hobbs reading,
+  //so a momentarily unusable date must produce silence rather than a thrown render.
+  if (!usable(start) || !usable(end) || args.flownTenths == null) return null;
 
   const minimumTenthsPerNight = effectiveOvernightMinimumTenths(args);
   if (minimumTenthsPerNight <= 0) return null;
 
-  const nights = nightsAway(
-    typeof args.start === "string" ? new Date(args.start) : args.start,
-    typeof args.end === "string" ? new Date(args.end) : args.end,
-    args.timeZone
-  );
+  const nights = nightsAway(start, end, args.timeZone);
   if (nights <= 0) return null;
 
   const flownTenths = Math.max(0, Math.round(args.flownTenths));

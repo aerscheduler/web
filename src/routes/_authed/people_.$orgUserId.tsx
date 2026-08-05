@@ -42,6 +42,7 @@ import { MemberRowActions } from "@/components/people/member-row-actions";
 import { MemberInstructionSection } from "@/components/people/member-instruction-section";
 import { PersonMetrics } from "@/components/people/detail/person-metrics";
 import { PersonTraining } from "@/components/people/detail/person-training";
+import { EndorsementsCard } from "@/components/training/endorsements-card";
 import { PersonContact } from "@/components/people/detail/person-contact";
 import { PersonFlights } from "@/components/people/detail/person-flights";
 import { PersonInvoices } from "@/components/people/detail/person-invoices";
@@ -313,6 +314,9 @@ function PersonBody({
               the server already scopes the read (a student always gets only their own),
               and instructors seeing who their students are training toward is the point. */}
           {access.instruction && <PersonTraining ou={ou} isSelf={isSelf} />}
+          {/* Beside training, because the question "can they solo today?" is answered by an
+              endorsement and its expiry, not by a progress bar. */}
+          {access.instruction && <EndorsementsCard orgUserId={ou.id} isSelf={isSelf} />}
           {access.currencies && <PersonCurrencies ou={ou} isSelf={isSelf} />}
           {access.documents && <PersonDocuments ou={ou} isSelf={isSelf} />}
           {access.approvedAircraft && (

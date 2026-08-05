@@ -24,6 +24,8 @@ import type {
   CurriculumTemplateSummary,
   EnrollmentProgress,
   EnrollmentSummary,
+  Endorsement,
+  EndorsementTemplate,
   ApiKey,
   ApiKeyInput,
   ApiKeyWithSecret,
@@ -2867,6 +2869,164 @@ export function useReverseRequirementCredit() {
   return useMutation({
     mutationFn: ({ creditId, reason }: { creditId: number; reason: string }) =>
       api<{ id: number }>(`/training/credits/${creditId}/reverse`, { method: "POST", body: { reason } }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+//---------------------------------------------------------------------------------
+// Syllabus editing, endorsements, and the rest of the enrolment lifecycle
+//---------------------------------------------------------------------------------
+
+export function useUpsertStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ versionId, ...body }: { versionId: number; stageId?: number; name: string; objective?: string | null; position: number; requiresStageCheck?: boolean }) =>
+      api<{ id: number }>(`/training/versions/${versionId}/stages`, { method: "PUT", body }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useDeleteStage() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ versionId, stageId }: { versionId: number; stageId: number }) =>
+      api<{ id: number }>(`/training/versions/${versionId}/stages/${stageId}`, { method: "DELETE" }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useUpsertLesson() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ versionId, ...body }: {
+      versionId: number; lessonId?: number; stageId: number; name: string; position: number;
+      kind: string; objectives?: string | null; completionStandards?: string | null;
+      minFlightDeciHours?: number | null; minGroundDeciHours?: number | null;
+      requiresSignoff?: boolean; requiresNotes?: boolean;
+      credits?: { requirementId: number; creditFrom: string }[];
+    }) => api<{ id: number }>(`/training/versions/${versionId}/lessons`, { method: "PUT", body }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useDeleteLesson() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ versionId, lessonId }: { versionId: number; lessonId: number }) =>
+      api<{ id: number }>(`/training/versions/${versionId}/lessons/${lessonId}`, { method: "DELETE" }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useSetLessonTasks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ versionId, lessonId, tasks }: {
+      versionId: number; lessonId: number;
+      tasks: { name: string; position: number; acsCode?: string | null; standard?: string | null }[];
+    }) => api<{ count: number }>(`/training/versions/${versionId}/lessons/${lessonId}/tasks`, { method: "PUT", body: { tasks } }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useUpsertRequirement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ versionId, ...body }: {
+      versionId: number; requirementId?: number; code: string; label: string;
+      minDeciHours?: number | null; minCount?: number | null; source?: string;
+      maxSimulatorBps?: number | null; maxTransferBps?: number | null;
+    }) => api<{ id: number }>(`/training/versions/${versionId}/requirements`, { method: "PUT", body }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useDeleteRequirement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ versionId, requirementId }: { versionId: number; requirementId: number }) =>
+      api<{ id: number }>(`/training/versions/${versionId}/requirements/${requirementId}`, { method: "DELETE" }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useSetGradingScale() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ versionId, scale }: { versionId: number; scale: { code: string; passing: boolean }[] }) =>
+      api<{ id: number }>(`/training/versions/${versionId}/gradingScale`, { method: "PUT", body: { scale } }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useRetireCourseVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ versionId, retired }: { versionId: number; retired: boolean }) =>
+      api<{ id: number }>(`/training/versions/${versionId}/retire`, { method: "POST", body: { retired } }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useUpdateCourse() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ courseId, ...body }: {
+      courseId: number; name?: string; description?: string | null;
+      certificateSought?: string | null; targetDays?: number | null; archived?: boolean;
+    }) => api<{ id: number }>(`/training/courses/${courseId}`, { method: "PATCH", body }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useEndEnrollment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ enrollmentId, status, reason }: { enrollmentId: number; status: "terminated" | "transferred"; reason?: string }) =>
+      api<{ id: number }>(`/training/enrollments/${enrollmentId}/end`, { method: "POST", body: { status, reason } }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useCertifyEnrollment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (enrollmentId: number) =>
+      api<{ id: number }>(`/training/enrollments/${enrollmentId}/certify`, { method: "POST" }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useEndorsements(filter?: { orgUserId?: number; includeSuperseded?: boolean }, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["training", "endorsements", filter ?? {}],
+    queryFn: () =>
+      api<Endorsement[]>("/training/endorsements", {
+        query: filter as Record<string, string | number | boolean | undefined>,
+      }),
+    ...opts,
+  });
+}
+
+export function useEndorsementTemplates(orgUserId?: number, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["training", "endorsementTemplates", orgUserId ?? null],
+    queryFn: () =>
+      api<EndorsementTemplate[]>("/training/endorsements/templates", {
+        query: orgUserId ? { orgUserId } : undefined,
+      }),
+    ...opts,
+  });
+}
+
+export function useCreateEndorsement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      orgUserId: number; templateCode?: string | null; title: string; renderedText: string;
+      expiresAt?: string | null; enrollmentId?: number | null;
+      signerCertificateNumber?: string | null; supersedesId?: number | null;
+    }) => api<{ id: number }>("/training/endorsements", { method: "POST", body: input }),
     onSuccess: () => invalidateTraining(qc),
   });
 }

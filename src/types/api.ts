@@ -1525,6 +1525,8 @@ export type Course = {
   regulatoryPart: RegulatoryPart;
   certificateSought: string | null;
   archivedAt: string | null;
+  /** How long the school plans this course to take. Drives the pace read and nothing else. */
+  targetDays: number | null;
   rating?: { id: number; name: string; defaultInstructorRate: number } | null;
   versions: CourseVersionSummary[];
   _count?: { versions: number };
@@ -1549,6 +1551,8 @@ export type SyllabusLesson = {
   completionStandards: string | null;
   minFlightDeciHours: number | null;
   minGroundDeciHours: number | null;
+  requiresSignoff: boolean;
+  requiresNotes: boolean;
   tasks: LessonTask[];
   creditsWhat: LessonCredit[];
 };
@@ -1665,8 +1669,47 @@ export type EnrollmentProgress = {
   lessonsTotal: number;
   lessonsComplete: number;
   completedLessonIds: number[];
+  /** Advisory only — never gates anything. */
+  pace: Pace;
   /** Non-null means graduation is refused, and this is why. */
   graduationBlocker: string | null;
+};
+
+export type Endorsement = {
+  id: number;
+  templateCode: string | null;
+  title: string;
+  /** As signed. Never re-rendered — the AC gets revised and this must not. */
+  renderedText: string;
+  signedAt: string;
+  expiresAt: string | null;
+  signerCertificateNumber: string | null;
+  orgUserId: number;
+  signedByOrgUserId: number;
+  enrollmentId: number | null;
+  supersedesId: number | null;
+  student?: { id: number; user?: { id: number; name: string; email: string } | null } | null;
+  signedBy?: { id: number; user?: { id: number; name: string } | null } | null;
+};
+
+export type EndorsementTemplate = {
+  code: string;
+  title: string;
+  regulation: string;
+  /** The student's name is already substituted; other `{placeholders}` are the signer's to fill. */
+  body: string;
+  expiresInDays: number | null;
+  group: "presolo" | "solo" | "crossCountry" | "test" | "privileges";
+};
+
+export type PaceStatus = "onTrack" | "atRisk" | "behind" | "stalled" | "unknown";
+
+export type Pace = {
+  status: PaceStatus;
+  reason: string | null;
+  daysSinceLastLesson: number | null;
+  expectedFraction: number | null;
+  actualFraction: number;
 };
 
 export type CurriculumTemplateSummary = {

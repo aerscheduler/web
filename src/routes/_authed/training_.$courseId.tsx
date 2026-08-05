@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  Archive,
   ArrowLeft,
   BookOpen,
   CheckCircle2,
@@ -20,6 +21,7 @@ import {
   useEnrollments,
   useMembers,
   usePublishCourseVersion,
+  useRetireCourseVersion,
 } from "@/features/queries";
 import { guardRoute } from "@/lib/permissions";
 import { LESSON_KIND_LABEL, PART_LABEL, deciHoursLabel } from "@/lib/training";
@@ -27,6 +29,7 @@ import { rolesOf } from "@/types/api";
 import type { CourseRequirement, CourseVersion, SyllabusLesson } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
+import { RequirementsEditor, SyllabusEditor } from "@/components/training/syllabus-editor";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -104,7 +107,10 @@ function CourseDetailPage() {
               <PublishDialog version={version.data} />
             ) : null}
             {selected && version.data?.publishedAt ? (
-              <NewVersionDialog courseId={c.id} fromVersionId={selected} />
+              <>
+                <NewVersionDialog courseId={c.id} fromVersionId={selected} />
+                <RetireButton version={version.data} />
+              </>
             ) : null}
           </div>
         }
@@ -149,11 +155,22 @@ function CourseDetailPage() {
             <TabsTrigger value="students">Students</TabsTrigger>
           </TabsList>
 
+          {/* A draft gets the editor; a published version gets the read-only view. Not a
+              disabled editor: offering a greyed-out pencil on every row of a locked syllabus
+              reads as broken, where showing the syllabus plainly reads as finished. */}
           <TabsContent value="syllabus" className="mt-4">
-            <SyllabusView version={version.data} />
+            {version.data.publishedAt ? (
+              <SyllabusView version={version.data} />
+            ) : (
+              <SyllabusEditor version={version.data} />
+            )}
           </TabsContent>
           <TabsContent value="requirements" className="mt-4">
-            <RequirementsView version={version.data} />
+            {version.data.publishedAt ? (
+              <RequirementsView version={version.data} />
+            ) : (
+              <RequirementsEditor version={version.data} />
+            )}
           </TabsContent>
           <TabsContent value="students" className="mt-4">
             <StudentsView courseId={c.id} />
@@ -541,5 +558,37 @@ function EnrollDialog({ versionId, courseName }: { versionId: number; courseName
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Retire, and un-retire.
+ *
+ * Additive and reversible on purpose: it only stops NEW enrolments, and everyone already on
+ * the version finishes on it. That is the whole reason an enrolment pins a version, so the
+ * copy says it rather than leaving an admin to guess whether this strands anyone.
+ */
+function RetireButton({ version }: { version: CourseVersion }) {
+  const retire = useRetireCourseVersion();
+  const retired = !!version.retiredAt;
+
+  return (
+    <Button
+      variant="outline"
+      disabled={retire.isPending}
+      onClick={() => {
+        if (
+          !retired &&
+          !confirm(
+            `Retire ${version.label}? No new students can be enrolled on it. Anyone already on it finishes on it.`
+          )
+        ) {
+          return;
+        }
+        retire.mutate({ versionId: version.id, retired: !retired });
+      }}
+    >
+      <Archive className="size-4" /> {retired ? "Un-retire" : "Retire"}
+    </Button>
   );
 }

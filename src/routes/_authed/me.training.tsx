@@ -19,6 +19,7 @@ import {
 import type { EnrollmentProgress } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
+import { EndorsementsCard } from "@/components/training/endorsements-card";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -62,7 +63,14 @@ function MyTrainingPage() {
           body="When your school enrols you on a syllabus, your lessons and hours appear here."
         />
       ) : (
-        rows.map((e) => <EnrollmentCard key={e.id} enrollmentId={e.id} />)
+        <>
+          {rows.map((e) => <EnrollmentCard key={e.id} enrollmentId={e.id} />)}
+          {/* Their own endorsements. A student wanting to know whether their solo is still
+              current should not have to ask the front desk. */}
+          {rows[0]?.student?.id ? (
+            <EndorsementsCard orgUserId={rows[0].student.id} isSelf />
+          ) : null}
+        </>
       )}
     </div>
   );

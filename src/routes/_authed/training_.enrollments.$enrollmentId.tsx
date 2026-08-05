@@ -20,6 +20,8 @@ import {
   useGraduateStudent,
   useSaveLessonRecord,
   useSignLessonRecord,
+  useCertifyEnrollment,
+  useEndEnrollment,
 } from "@/features/queries";
 import { guardRoute } from "@/lib/permissions";
 import {
@@ -39,6 +41,8 @@ import {
 import type { EnrollmentProgress, LessonRecord, Standing, SyllabusLesson } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState, ErrorState } from "@/components/states";
+import { EndorsementsCard } from "@/components/training/endorsements-card";
+import { PaceBadge } from "@/components/training/pace-badge";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,7 +98,7 @@ function EnrollmentPage() {
       <PageHeader
         title={e.student?.user?.name ?? "Student"}
         subtitle={`${course.name} · ${e.courseVersion.label}`}
-        actions={<GraduateButton progress={p} />}
+        actions={<EnrollmentActions progress={p} />}
       />
 
       <div className="flex flex-wrap items-center gap-2">
@@ -109,6 +113,7 @@ function EnrollmentPage() {
             <FileSignature className="size-3" /> Record certified
           </Badge>
         ) : null}
+        <PaceBadge pace={p.pace} />
       </div>
 
       <Card className="p-4">
@@ -154,6 +159,15 @@ function EnrollmentPage() {
           <LedgerTab progress={p} />
         </TabsContent>
       </Tabs>
+
+      {/* Below the tabs rather than inside one: an endorsement is not a lesson, a
+          requirement or a ledger entry, and a student's solo sign-off is something you want
+          to see without first choosing a tab. */}
+      <EndorsementsCard
+        orgUserId={e.studentOrgUserId}
+        isSelf={false}
+        enrollmentId={e.id}
+      />
     </div>
   );
 }
@@ -659,5 +673,100 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Graduate, certify, terminate, transfer.
+ *
+ * All four together, because they are the same decision seen from different angles — this
+ * enrolment is ending, and how it ends is what §141.101 asks the school to record. Splitting
+ * them across the page would make "they moved to another school" a hunt.
+ */
+function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
+  const [ending, setEnding] = useState<"terminated" | "transferred" | null>(null);
+  const [reason, setReason] = useState("");
+  const end = useEndEnrollment();
+  const certify = useCertifyEnrollment();
+
+  const e = progress.enrollment;
+  if (e.status !== "enrolled") return null;
+
+  const is141 = e.courseVersion.course.regulatoryPart === "part141";
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {/* §141.85 — the chief instructor certifying the record. Only shown for Part 141,
+          because under Part 61 nobody is asking for it and a button that means nothing is
+          a button somebody will press anyway. */}
+      {is141 && !e.certifiedAt ? (
+        <Button variant="outline" disabled={certify.isPending} onClick={() => certify.mutate(e.id)}>
+          <FileSignature className="size-4" /> Certify record
+        </Button>
+      ) : null}
+
+      <GraduateButton progress={progress} />
+
+      <Dialog open={!!ending} onOpenChange={(o) => !o && setEnding(null)}>
+        <Button variant="outline" onClick={() => setEnding("terminated")}>
+          End enrolment
+        </Button>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>End this enrolment</DialogTitle>
+            <DialogDescription>
+              Their record stays exactly as it is — §141.101 keeps it either way. This only records
+              that they stopped, and why.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={ending === "terminated" ? "default" : "outline"}
+                onClick={() => setEnding("terminated")}
+              >
+                Terminated
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={ending === "transferred" ? "default" : "outline"}
+                onClick={() => setEnding("transferred")}
+              >
+                Transferred out
+              </Button>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="end-reason">Reason</Label>
+              <Textarea
+                id="end-reason"
+                rows={2}
+                value={reason}
+                onChange={(ev) => setReason(ev.target.value)}
+                placeholder="Moved away; transferring to another school."
+              />
+            </div>
+          </div>
+
+          {end.error ? <p className="text-sm text-destructive">{(end.error as Error).message}</p> : null}
+
+          <DialogFooter>
+            <Button
+              disabled={end.isPending || !ending}
+              onClick={async () => {
+                await end.mutateAsync({ enrollmentId: e.id, status: ending!, reason: reason.trim() || undefined });
+                setEnding(null);
+                setReason("");
+              }}
+            >
+              Record it
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

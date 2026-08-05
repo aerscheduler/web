@@ -36,6 +36,7 @@ import {
   reservationTypesForRoles,
   selfBookableTypes,
 } from "@/lib/permissions";
+import { NextLessonHint } from "@/components/training/next-lesson-hint";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1253,6 +1254,12 @@ export function ReservationForm({
                 searchPlaceholder="Search students…"
                 emptyText="No students."
               />
+            )}
+            {/* Where this student is in their syllabus, while the booking is still being
+                made. Both competitors surface this here, and it is the moment it is useful:
+                the person picking a slot is usually deciding what the lesson is. */}
+            {!isSelf && TYPE_REQUIREMENTS[type].allows.includes("students") && (
+              <NextLessonHint orgUserId={Number(effectiveStudentId) || null} type={type} />
             )}
             {!isSelf && TYPE_REQUIREMENTS[type].allows.includes("renters") && (
               <PeopleOnSide

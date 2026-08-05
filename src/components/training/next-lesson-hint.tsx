@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
  * Which lesson this booking is probably for, shown while it is still being booked.
  *
  * Both Flight Circle and Flight Schedule Pro put the student's current lesson on the
- * booking screen, and they are right to: the person choosing an aeroplane and a slot is
+ * booking screen, and they are right to: the person choosing an aircraft and a slot is
  * usually deciding what the lesson IS, and making them open the student's record to find
  * out is the reason schools keep a paper wall chart next to the desk.
  *

@@ -32,7 +32,7 @@ export function hourWindow(reservations: Reservation[], zone: string, dayKey?: s
   for (const r of reservations) {
     // `dayKey` is passed by the single-day board. Without it, an endpoint belonging to
     // ANOTHER day widens this day's ruler off a clock reading that has nothing to do with it:
-    // an aeroplane that left at 05:00 on Friday would pull Saturday's ruler back to 5am. The
+    // an aircraft that left at 05:00 on Friday would pull Saturday's ruler back to 5am. The
     // week grid deliberately passes no key, because its ruler is shared across seven days.
     const startsHere = !dayKey || dateKeyInZone(r.start, zone) === dayKey;
     const endsHere = !dayKey || dateKeyInZone(r.end, zone) === dayKey;

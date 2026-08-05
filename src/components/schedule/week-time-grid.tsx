@@ -60,7 +60,7 @@ function blockGeometry(
  * Does this booking occupy any of the column for `dayKey`?
  *
  * Replaces a filter on the START day alone. That was right while every booking began and
- * ended on one day, and silently wrong the moment one could not: an aeroplane booked out
+ * ended on one day, and silently wrong the moment one could not: an aircraft booked out
  * Friday to Sunday appeared in Friday's column only, and Saturday showed it as free.
  *
  * Measured against the VISIBLE window rather than the calendar day, so a booking ending
@@ -201,7 +201,7 @@ export function WeekTimeGrid({
           //Tokyo; isSameDay() on the viewer's clock puts it in the wrong column entirely,
           //which is a worse failure than drawing it at the wrong height.
           const dayKey = format(d, "yyyy-MM-dd");
-          //Every day the booking occupies, not only the one it starts on, so an aeroplane
+          //Every day the booking occupies, not only the one it starts on, so an aircraft
           //away for the weekend reads as unavailable on the Saturday too.
           const items = drawn.filter((r) => occupiesDay(r, tz.zone, startHour, totalMin, dayKey));
           const { placed, tracks } = packTracks(items);

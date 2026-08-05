@@ -208,7 +208,7 @@ export interface OrganizationBookingPolicy {
    *
    * Off by default and deliberately opt-in, because a multi-day booking overrides the
    * aircraft's operating hours (every other booking has to fit inside one contiguous free
-   * window, which is how a school says "this aeroplane flies 08:00 to 18:00") and it makes
+   * window, which is how a school says "this aircraft flies 08:00 to 18:00") and it makes
    * the booking's time zone decide the night count, which the overnight minimum turns into
    * money. Gated on the school having a resolvable time zone: see MultiDayReadiness.
    */
@@ -504,11 +504,11 @@ export interface PlaneCost {
   wetRate: number | null;
   billByHobbsTime: boolean;
   /**
-   * This aeroplane's own overnight minimum, in TENTHS per night away, overriding the
+   * This aircraft's own overnight minimum, in TENTHS per night away, overriding the
    * organization's figure.
    *
    * Null means inherit; 0 means explicitly exempt. Keep those apart or an org-wide minimum
-   * reappears on the one aeroplane a club excluded. See lib/overnight-minimum.ts.
+   * reappears on the one aircraft a club excluded. See lib/overnight-minimum.ts.
    */
   overnightMinimumTenths?: number | null;
 }

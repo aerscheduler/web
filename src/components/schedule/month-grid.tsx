@@ -62,7 +62,7 @@ export function MonthGrid({
     //already tomorrow in UTC, and bucketing on the viewer's clock drops it in the wrong cell.
     //
     //EVERY day the booking occupies, not just the one it starts on. Bucketing on the start
-    //alone put an aeroplane that was away Friday to Sunday in Friday's cell only, so the
+    //alone put an aircraft that was away Friday to Sunday in Friday's cell only, so the
     //Saturday and Sunday cells read as free — the same bug the week grid had, and the month
     //is where somebody looks to find a free weekend.
     const from = dateKeyInZone(r.start, tz.zone);

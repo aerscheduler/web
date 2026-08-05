@@ -32,7 +32,7 @@ const KEY_HINT_END = "Shift with arrow keys changes the end.";
  * the clock we measure it against is now the right one.
  *
  * `dayKey` anchors the count to the DISPLAYED day rather than to the instant's own day, which
- * is what a multi-day booking needs: an aeroplane out Friday to Sunday must read as -900 on
+ * is what a multi-day booking needs: an aircraft out Friday to Sunday must read as -900 on
  * Saturday, not as 15:00 again. The day difference is added as whole days times 1440 while the
  * position WITHIN the day stays a wall-clock count, so the block still lines up with the hour
  * ruler on the two days a year the clocks change.

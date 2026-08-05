@@ -240,7 +240,7 @@ export function containingWindow(windows: Window[] | null, t: Date, now: Date): 
  * Valid END times on a specific later day, for a booking that starts at `start`.
  *
  * Bounded by the free window the START sits in, so a trip still cannot be booked straight
- * through somebody else's reservation: if the aeroplane is booked out on the Saturday, the
+ * through somebody else's reservation: if the aircraft is booked out on the Saturday, the
  * window containing Friday ends on Saturday and no Sunday end is offered.
  *
  * Includes the following midnight as a mark, matching the same-day picker (which offers

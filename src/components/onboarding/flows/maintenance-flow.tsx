@@ -8,11 +8,11 @@
  *
  * Fleet size is ASKED, and the answer is theirs. It was briefly answered for them by
  * counting tails on file, which is wrong in the most common case there is: someone
- * evaluating the platform adds one aeroplane to get moving and actually operates ten.
+ * evaluating the platform adds one aircraft to get moving and actually operates ten.
  * Counting rows measures how far through data entry they are, not how big they are — so
  * it would hide groups from exactly the fleet that needs them.
  *
- * Groups are then OFFERED to the sizes they help, never imposed: a one-aeroplane
+ * Groups are then OFFERED to the sizes they help, never imposed: a one-aircraft
  * operation is taken straight to the reminder and never learns the concept exists.
  */
 

@@ -93,7 +93,7 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
    *
    * Students and renters are BOTH allowed because the real world mixes them — a club member
    * renting and a student building time can share a flight, and which roster each sits on is
-   * an artefact of how the school files people rather than of who was in the aeroplane.
+   * an artefact of how the school files people rather than of who was in the aircraft.
    */
   shared: {
     resource: "Aircraft",
@@ -111,7 +111,7 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     requiresAll: ["instructors", "students"],
     requiresAny: [],
     exclusive: [],
-    // Several students in one aeroplane with an instructor: a safety pilot for instrument
+    // Several students in one aircraft with an instructor: a safety pilot for instrument
     // work, or an observer in the back.
     maxPerSide: { students: 4 },
   },

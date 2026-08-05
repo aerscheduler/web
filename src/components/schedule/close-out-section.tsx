@@ -167,7 +167,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
 
         {/* The overnight minimum, from dispatch through to sign-off. Deliberately shown at
             every step before the invoice exists rather than only at ramp-in: the person who
-            ramps the aeroplane back in is often not the person who booked it and saw the
+            ramps the aircraft back in is often not the person who booked it and saw the
             notice on the form, and after "invoiced" the invoice itself is the honest answer.
 
             Renders nothing for a same-day booking or a school with no minimum, which is

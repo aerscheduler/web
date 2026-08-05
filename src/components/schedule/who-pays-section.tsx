@@ -160,7 +160,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
    * The reconciliation the server will do anyway, shown WHILE typing.
    *
    * The engine refuses a close-out whose individual legs don't add up to what the aircraft
-   * actually ran, because scaling them to fit would bill hours the aeroplane never flew.
+   * actually ran, because scaling them to fit would bill hours the aircraft never flew.
    * That refusal is correct but it arrives late — after the dispatcher has finished and hit
    * a button. Doing the same arithmetic here turns it into a running total they can watch
    * converge, so the refusal should never actually fire.

@@ -128,7 +128,7 @@ export const CHECKLIST: ChecklistItem[] = [
     blurb: (t) =>
       isClubLike(t)
         ? "When two members share an aircraft, who pays what? Pick your defaults once and every shared booking follows them."
-        : "Group ground school, two students in one aeroplane, co-renters on a cross-country: each person gets their own invoice, split by rules you set.",
+        : "Group ground school, two students in one aircraft, co-renters on a cross-country: each person gets their own invoice, split by rules you set.",
     icon: Split,
     to: "/settings",
     search: { tab: "cost-splitting" },

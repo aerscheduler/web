@@ -14,7 +14,7 @@ import { overnightDisclosure } from "@/lib/overnight-minimum";
  * Renders nothing for a same-day booking or a school with no minimum, so callers can mount it
  * unconditionally. Informational rather than alarming on purpose: this is not a problem with
  * the booking, it is a price the person is about to agree to, and styling it like a grounded
- * aeroplane would teach people to dismiss it.
+ * aircraft would teach people to dismiss it.
  */
 export function OvernightMinimumNotice({
   start,

@@ -36,7 +36,7 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
   const r = reservation;
   const { orgUserId, isStaff } = useAuth();
 
-  //EVERY student on the booking, not just the first. Two students in one aeroplane and a
+  //EVERY student on the booking, not just the first. Two students in one aircraft and a
   //group ground school are both ordinary — split billing exists precisely because they
   //are — and grading only the first would leave the second one's record silently blank.
   const students = r.personnel?.students ?? [];

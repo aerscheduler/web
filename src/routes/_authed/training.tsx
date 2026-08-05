@@ -12,6 +12,7 @@ import { guardRoute } from "@/lib/permissions";
 import { PART_LABEL, STATUS_LABEL } from "@/lib/training";
 import type { Course, CourseVersionSummary } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { TrainingPermissions } from "@/components/training/training-permissions";
 import { StatCard } from "@/components/stat-card";
 import { EmptyState, ErrorState, CardGridSkeleton } from "@/components/states";
 import { Card } from "@/components/ui/card";
@@ -146,6 +147,7 @@ function TrainingPage() {
       )}
 
       <ActiveStudents />
+      <TrainingPermissions />
     </div>
   );
 }

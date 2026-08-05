@@ -92,6 +92,9 @@ import type {
   EmergencyContact,
   SplitRulesDescription,
   ReservationPayerInput,
+  TrainingGrant,
+  TrainingGrantOption,
+  MyTrainingGrants,
 } from "@/types/api";
 
 /** Options accepted by every read hook (currently just React Query's `enabled`). */
@@ -3027,6 +3030,61 @@ export function useCreateEndorsement() {
       expiresAt?: string | null; enrollmentId?: number | null;
       signerCertificateNumber?: string | null; supersedesId?: number | null;
     }) => api<{ id: number }>("/training/endorsements", { method: "POST", body: input }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+//---------------------------------------------------------------------------------
+// Training grants
+//---------------------------------------------------------------------------------
+
+export function useTrainingGrantCatalog(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["training", "grantCatalog"],
+    queryFn: () => api<TrainingGrantOption[]>("/training/grants/catalog"),
+    //The four grants are a constant in the server's source; refetching them on every
+    //window focus is pure noise.
+    staleTime: Infinity,
+    ...opts,
+  });
+}
+
+export function useTrainingGrants(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["training", "grants"],
+    queryFn: () => api<TrainingGrant[]>("/training/grants"),
+    ...opts,
+  });
+}
+
+/**
+ * What the signed-in person may do in training.
+ *
+ * Deliberately asked of the server rather than derived from roles: the admin bypass lives
+ * in one place, and a client re-implementing it would drift the first time either changed.
+ */
+export function useMyTrainingGrants(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["training", "myGrants"],
+    queryFn: () => api<MyTrainingGrants>("/training/grants/mine"),
+    ...opts,
+  });
+}
+
+export function useCreateTrainingGrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { orgUserId: number; grant: string; courseId?: number | null }) =>
+      api<{ id: number }>("/training/grants", { method: "POST", body: input }),
+    onSuccess: () => invalidateTraining(qc),
+  });
+}
+
+export function useRevokeTrainingGrant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (grantId: number) =>
+      api<{ id: number }>(`/training/grants/${grantId}`, { method: "DELETE" }),
     onSuccess: () => invalidateTraining(qc),
   });
 }

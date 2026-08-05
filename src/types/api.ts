@@ -1735,3 +1735,31 @@ export type CandidateEnrollment = {
   versionLabel: string;
   lessons: CandidateLesson[];
 };
+
+/** One of the four grants, as the server describes it. */
+export type TrainingGrantOption = {
+  grant: string;
+  label: string;
+  description: string;
+  /** Only `checkInstructor` — §141.37 designates per approved course. */
+  courseScoped: boolean;
+};
+
+export type TrainingGrant = {
+  id: number;
+  grant: string;
+  createdAt: string;
+  /** Re-exposed by the read model; `FK_courseId` never survives the response boundary. */
+  orgUserId: number;
+  courseId: number | null;
+  orgUser?: { id: number; user?: { id: number; name: string | null; email: string | null } | null } | null;
+  course?: { id: number; name: string } | null;
+  grantedBy?: { user?: { name: string | null } | null } | null;
+};
+
+export type MyTrainingGrants = {
+  grants: { grant: string; courseId: number | null }[];
+  /** What the caller's role already gives them, so a client never re-derives the bypass. */
+  implied: string[];
+  canGrade: boolean;
+};

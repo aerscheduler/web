@@ -26,6 +26,7 @@ import {
 } from "@/features/queries";
 import { guardRoute } from "@/lib/permissions";
 import { holdsTrainingGrant } from "@/lib/training";
+import { AddCreditDialog } from "@/components/training/credit-dialog";
 import {
   LESSON_KIND_LABEL,
   PART_LABEL,
@@ -157,7 +158,12 @@ function EnrollmentPage() {
           <TabsTrigger value="ledger">Ledger</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="requirements" className="mt-4">
+        <TabsContent value="requirements" className="mt-4 space-y-3">
+          {/* Recording prior training is the first thing a switching school needs to do
+              and there was no way to do it in this console at all. */}
+          <div className="flex justify-end">
+            <AddCreditDialog enrollmentId={p.enrollment.id} standings={p.standings} />
+          </div>
           <RequirementsProgress standings={p.standings} />
         </TabsContent>
         <TabsContent value="lessons" className="mt-4">

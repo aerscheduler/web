@@ -2862,6 +2862,8 @@ export function usePostRequirementCredit() {
       count?: number | null;
       source: string;
       notes?: string;
+      /** When the training happened. Omitted means now — see the server's postCredit. */
+      occurredAt?: string;
     }) => api<{ id: number }>("/training/credits", { method: "POST", body: input }),
     onSuccess: () => invalidateTraining(qc),
   });

@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, FlaskConical, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { roleLabel } from "@/lib/demo";
-import { tokenExpiresAt } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -91,8 +90,6 @@ export function DemoBanner() {
       </p>
 
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
-        <TimeLeft />
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="sm" variant="outline" disabled={busy}>
@@ -133,42 +130,4 @@ export function DemoBanner() {
       </div>
     </div>
   );
-}
-
-/**
- * How long is left, from the token's own `exp`.
- *
- * Shown because silent expiry is the worst version of this: a visitor mid-click
- * when the sandbox goes is owed some warning. Reading the token rather than
- * counting down from a stored duration means a refresh does not restart the
- * clock — and means the number on screen is the same number the server will
- * enforce.
- */
-function TimeLeft() {
-  const [left, setLeft] = useState<number | null>(() => remaining());
-
-  useEffect(() => {
-    const id = setInterval(() => setLeft(remaining()), 30_000);
-    return () => clearInterval(id);
-  }, []);
-
-  if (left === null) return null;
-
-  const mins = Math.max(0, Math.round(left / 60_000));
-  return (
-    <span
-      className={
-        mins <= 5
-          ? "hidden text-xs font-medium text-amber-600 sm:inline dark:text-amber-500"
-          : "hidden text-xs text-muted-foreground sm:inline"
-      }
-    >
-      {mins > 0 ? `${mins} min left` : "Ending now"}
-    </span>
-  );
-}
-
-function remaining(): number | null {
-  const exp = tokenExpiresAt();
-  return exp === null ? null : exp - Date.now();
 }

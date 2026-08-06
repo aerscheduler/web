@@ -46,7 +46,7 @@ export function InspectionRow({
   const tone = dueTone(due);
   const badge = dueBadge(due);
   const percent = duePercent(due);
-  const name = due?.name ?? reminder.template?.name ?? "Maintenance reminder";
+  const name = due?.name ?? reminder.template?.name ?? "Inspection";
 
   const body = (
     <>

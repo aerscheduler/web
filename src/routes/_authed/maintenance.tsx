@@ -75,7 +75,7 @@ type ViewKey = "aircraft" | "open" | "resolved" | "reminders" | "templates";
  */
 const SECTIONS: RailSection[] = [
   {
-    label: "Reminders",
+    label: "Inspections",
     items: [
       { value: "aircraft", label: "By aircraft", icon: PlaneTakeoff },
       { value: "reminders", label: "All inspections", icon: ListChecks },

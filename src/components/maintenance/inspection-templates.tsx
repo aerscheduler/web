@@ -135,7 +135,7 @@ function TemplateRow({
       // as when it spans eleven aircraft.
       description:
         tails.length > 0
-          ? `This stops tracking it on ${tails.length} ${tails.length === 1 ? "aircraft" : "aircraft"} and removes their open reminders. Work already signed off stays on the record.`
+          ? `This stops tracking it on ${tails.length} aircraft. Work already signed off stays on the record.`
           : "Work already signed off stays on the record.",
       confirmLabel: "Delete",
       destructive: true,
@@ -182,7 +182,7 @@ function TemplateRow({
             aria-expanded={open}
             className="gap-1 text-muted-foreground"
           >
-            {tails.length} {tails.length === 1 ? "aircraft" : "aircraft"}
+            {tails.length} aircraft
             <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} />
           </Button>
           {canManage && (

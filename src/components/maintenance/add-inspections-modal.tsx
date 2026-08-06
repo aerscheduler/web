@@ -188,7 +188,7 @@ export function AddInspectionsModal({
         else toast.success(`Added ${wanted.length} ${wanted.length === 1 ? "inspection" : "inspections"}.`);
       } else {
         await create.mutateAsync(buildCustom());
-        toast.success(mode === "oneOff" ? "Reminder set." : "Inspection added.");
+        toast.success(mode === "oneOff" ? "One-off inspection set." : "Inspection added.");
       }
       reset();
       onOpenChange(false);
@@ -471,7 +471,7 @@ export function AddInspectionsModal({
             Cancel
           </Button>
           <Button onClick={submit} disabled={!canSubmit}>
-            {busy ? "Adding…" : mode === "oneOff" ? "Set reminder" : "Add"}
+            {busy ? "Adding…" : "Add"}
           </Button>
         </div>
       </div>

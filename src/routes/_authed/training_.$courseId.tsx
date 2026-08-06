@@ -28,6 +28,8 @@ import { LESSON_KIND_LABEL, PART_LABEL, deciHoursLabel } from "@/lib/training";
 import { rolesOf } from "@/types/api";
 import type { CourseRequirement, CourseVersion, SyllabusLesson } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { TableView } from "@/components/table-view";
+import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { EmptyState, ErrorState } from "@/components/states";
 import { RequirementsEditor, SyllabusEditor } from "@/components/training/syllabus-editor";
 import { CourseFeeEditor } from "@/components/training/course-fee-editor";
@@ -37,7 +39,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Collapsible,
   CollapsibleContent,
@@ -65,13 +66,40 @@ import {
 //underneath. See the add-page-or-notification checklist.
 export const Route = createFileRoute("/_authed/training_/$courseId")({
   beforeLoad: guardRoute("/training"),
+  validateSearch: (s: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof s.tab === "string" ? s.tab : undefined,
+  }),
   component: CourseDetailPage,
 });
 
+/**
+ * The three things a course is: what gets taught, what has to add up, and who is on it.
+ *
+ * A rail rather than tabs, like every other sectioned page in the console — and here it
+ * also buys the syllabus its own scroll, so the version selector and the published/draft
+ * badge stay on screen instead of scrolling away above thirty lessons.
+ */
+const SECTIONS: RailSection[] = [
+  {
+    items: [
+      { value: "syllabus", label: "Syllabus", icon: BookOpen },
+      { value: "requirements", label: "Requirements", icon: Target },
+      { value: "students", label: "Students", icon: GraduationCap },
+    ],
+  },
+];
+
 function CourseDetailPage() {
   const { courseId } = Route.useParams();
+  const { tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const course = useCourse(Number(courseId));
   const [versionId, setVersionId] = useState<number | null>(null);
+
+  const active = SECTIONS[0]!.items.some((i) => i.value === tab) ? tab! : "syllabus";
+  const pick = (next: string) => {
+    void navigate({ search: (prev) => ({ ...prev, tab: next }), replace: true });
+  };
 
   const versions = course.data?.versions ?? [];
   //Default to what students are actually being trained against; fall back to the newest
@@ -91,100 +119,104 @@ function CourseDetailPage() {
   const c = course.data;
 
   return (
-    <div className="space-y-5">
-      <Button asChild variant="ghost" size="sm" className="-ml-2">
-        <Link to="/training">
-          <ArrowLeft className="size-4" /> Training
-        </Link>
-      </Button>
+    <TableView className="gap-5">
+      <TableView.Header>
+        <Button asChild variant="ghost" size="sm" className="-ml-2">
+          <Link to="/training">
+            <ArrowLeft className="size-4" /> Training
+          </Link>
+        </Button>
 
-      <PageHeader
-        title={c.name}
-        subtitle={c.description ?? undefined}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            {selected ? <EnrollDialog versionId={selected} courseName={c.name} /> : null}
-            {selected && version.data && !version.data.publishedAt ? (
-              <PublishDialog version={version.data} />
-            ) : null}
-            {selected && version.data?.publishedAt ? (
-              <>
-                <NewVersionDialog courseId={c.id} fromVersionId={selected} />
-                <RetireButton version={version.data} />
-              </>
-            ) : null}
-          </div>
-        }
-      />
-
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={c.regulatoryPart === "part141" ? "default" : "outline"}>
-          {PART_LABEL[c.regulatoryPart]}
-        </Badge>
-        {versions.length > 1 ? (
-          <Select value={String(selected ?? "")} onValueChange={(v) => setVersionId(Number(v))}>
-            <SelectTrigger className="w-[220px]">
-              <SelectValue placeholder="Version" />
-            </SelectTrigger>
-            <SelectContent>
-              {versions.map((v) => (
-                <SelectItem key={v.id} value={String(v.id)}>
-                  {v.label}
-                  {v.publishedAt ? " · published" : " · draft"}
-                  {v.retiredAt ? " · retired" : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : null}
-        {version.data?.publishedAt ? (
-          <Badge variant="secondary" className="gap-1">
-            <Lock className="size-3" /> Locked — students are enrolled against these lessons
-          </Badge>
-        ) : (
-          <Badge variant="outline">Draft — safe to edit</Badge>
-        )}
-      </div>
-
-      {version.isLoading ? (
-        <Skeleton className="h-96 w-full" />
-      ) : version.data ? (
-        <Tabs defaultValue="syllabus">
-          <TabsList>
-            <TabsTrigger value="syllabus">Syllabus</TabsTrigger>
-            <TabsTrigger value="requirements">Requirements</TabsTrigger>
-            <TabsTrigger value="students">Students</TabsTrigger>
-          </TabsList>
-
-          {/* A draft gets the editor; a published version gets the read-only view. Not a
-              disabled editor: offering a greyed-out pencil on every row of a locked syllabus
-              reads as broken, where showing the syllabus plainly reads as finished. */}
-          <TabsContent value="syllabus" className="mt-4">
-            {version.data.publishedAt ? (
-              <SyllabusView version={version.data} />
-            ) : (
-              <SyllabusEditor version={version.data} />
-            )}
-          </TabsContent>
-          <TabsContent value="requirements" className="mt-4">
-            {version.data.publishedAt ? (
-              <RequirementsView version={version.data} />
-            ) : (
-              <RequirementsEditor version={version.data} />
-            )}
-          </TabsContent>
-          <TabsContent value="students" className="mt-4">
-            {/* Above the roster: what a student pays is the first thing you set before
-                enrolling anybody, and hunting for it under a published syllabus you
-                cannot edit is the wrong shape. */}
-            <div className="mb-4">
-              <CourseFeeEditor course={c} />
+        <PageHeader
+          title={c.name}
+          subtitle={c.description ?? undefined}
+          actions={
+            <div className="flex flex-wrap gap-2">
+              {selected ? <EnrollDialog versionId={selected} courseName={c.name} /> : null}
+              {selected && version.data && !version.data.publishedAt ? (
+                <PublishDialog version={version.data} />
+              ) : null}
+              {selected && version.data?.publishedAt ? (
+                <>
+                  <NewVersionDialog courseId={c.id} fromVersionId={selected} />
+                  <RetireButton version={version.data} />
+                </>
+              ) : null}
             </div>
-            <StudentsView courseId={c.id} />
-          </TabsContent>
-        </Tabs>
-      ) : null}
-    </div>
+          }
+        />
+
+        {/* Which version you are looking at governs all three sections, so it stays with
+            the page rather than sitting inside one of them. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={c.regulatoryPart === "part141" ? "default" : "outline"}>
+            {PART_LABEL[c.regulatoryPart]}
+          </Badge>
+          {versions.length > 1 ? (
+            <Select value={String(selected ?? "")} onValueChange={(v) => setVersionId(Number(v))}>
+              <SelectTrigger className="w-[220px]">
+                <SelectValue placeholder="Version" />
+              </SelectTrigger>
+              <SelectContent>
+                {versions.map((v) => (
+                  <SelectItem key={v.id} value={String(v.id)}>
+                    {v.label}
+                    {v.publishedAt ? " · published" : " · draft"}
+                    {v.retiredAt ? " · retired" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+          {version.data?.publishedAt ? (
+            <Badge variant="secondary" className="gap-1">
+              <Lock className="size-3" /> Locked — students are enrolled against these lessons
+            </Badge>
+          ) : (
+            <Badge variant="outline">Draft — safe to edit</Badge>
+          )}
+        </div>
+      </TableView.Header>
+
+      <div className={RAIL_ROW}>
+        <SectionRail label="Course" sections={SECTIONS} value={active} onChange={pick} />
+
+        <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">
+          {version.isLoading ? (
+            <Skeleton className="h-96 w-full" />
+          ) : version.data ? (
+            <>
+              {/* A draft gets the editor; a published version gets the read-only view. Not a
+                  disabled editor: offering a greyed-out pencil on every row of a locked syllabus
+                  reads as broken, where showing the syllabus plainly reads as finished. */}
+              {active === "syllabus" &&
+                (version.data.publishedAt ? (
+                  <SyllabusView version={version.data} />
+                ) : (
+                  <SyllabusEditor version={version.data} />
+                ))}
+
+              {active === "requirements" &&
+                (version.data.publishedAt ? (
+                  <RequirementsView version={version.data} />
+                ) : (
+                  <RequirementsEditor version={version.data} />
+                ))}
+
+              {active === "students" && (
+                <>
+                  {/* Above the roster: what a student pays is the first thing you set before
+                      enrolling anybody, and hunting for it under a published syllabus you
+                      cannot edit is the wrong shape. */}
+                  <CourseFeeEditor course={c} />
+                  <StudentsView courseId={c.id} />
+                </>
+              )}
+            </>
+          ) : null}
+        </div>
+      </div>
+    </TableView>
   );
 }
 

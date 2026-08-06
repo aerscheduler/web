@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookOpen, GraduationCap, Lock, PlusCircle, Sparkles } from "lucide-react";
+import { BookOpen, GraduationCap, Lock, PlusCircle, ShieldCheck, Sparkles } from "lucide-react";
 import {
   useCourses,
   useCurriculumTemplates,
@@ -14,6 +14,8 @@ import { ApiError } from "@/lib/api";
 import { PART_LABEL, STATUS_LABEL } from "@/lib/training";
 import type { Course, CourseVersionSummary } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { TableView } from "@/components/table-view";
+import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { TrainingPermissions } from "@/components/training/training-permissions";
 import { StatCard } from "@/components/stat-card";
 import { EmptyState, ErrorState, CardGridSkeleton } from "@/components/states";
@@ -34,6 +36,9 @@ import {
 
 export const Route = createFileRoute("/_authed/training")({
   beforeLoad: guardRoute("/training"),
+  validateSearch: (s: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof s.tab === "string" ? s.tab : undefined,
+  }),
   component: TrainingPage,
 });
 
@@ -65,8 +70,22 @@ function VersionBadge({ version }: { version?: CourseVersionSummary }) {
   return <Badge variant="outline">{version.label} · draft</Badge>;
 }
 
+/**
+ * Training is three separate jobs sharing a page: writing the syllabus, running the
+ * students on it, and deciding who is allowed to do either. They are a rail rather than
+ * one long scroll because they belong to different people — a chief instructor lives in
+ * Courses, the front desk in Students, and an owner visits Permissions twice a year.
+ *
+ * Which sections exist is a permission answer, not a layout one: `configureTraining`
+ * grants Courses and admin grants Permissions, so a front-desk account simply gets a
+ * one-item rail rather than tabs that 403.
+ */
+type TrainingTab = "courses" | "students" | "permissions";
+
 function TrainingPage() {
   const roles = rolesFromSession();
+  const navigate = Route.useNavigate();
+  const { tab } = Route.useSearch();
   const courses = useCourses();
   const enrollments = useEnrollments({ status: "enrolled" });
 
@@ -79,93 +98,130 @@ function TrainingPage() {
   //that section instead of replacing the whole page with an error card. Any other failure
   //is a real failure and still says so.
   const forbiddenCourses = (courses.error as ApiError | null)?.status === 403;
+
+  const sections = useMemo<RailSection[]>(
+    () => [
+      {
+        items: [
+          ...(forbiddenCourses
+            ? []
+            : [{ value: "courses", label: "Courses", icon: BookOpen }]),
+          { value: "students", label: "Students", icon: GraduationCap },
+          // GET /training/grants is isOrgAdmin. Handing out power stays an admin's job,
+          // so somebody here on a grant sees the roster and not the grant table.
+          ...(isAdmin(roles) ? [{ value: "permissions", label: "Permissions", icon: ShieldCheck }] : []),
+        ],
+      },
+    ],
+    [forbiddenCourses, roles]
+  );
+
+  const available = sections[0]!.items.map((i) => i.value);
+  const activeTab = (available.includes(tab ?? "") ? tab : available[0]) as TrainingTab;
+
+  const pick = (next: string) => {
+    void navigate({ search: (prev) => ({ ...prev, tab: next }), replace: true });
+  };
+
   if (courses.error && !forbiddenCourses) return <ErrorState error={courses.error} />;
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Training"
-        subtitle="Courses, syllabi and student progress. Hours credit themselves as lessons are signed."
-        actions={forbiddenCourses ? null : <NewCourseActions hasCourses={rows.length > 0} />}
-      />
+    <TableView className="gap-5">
+      <TableView.Header>
+        <PageHeader
+          title="Training"
+          subtitle="Courses, syllabi and student progress. Hours credit themselves as lessons are signed."
+          actions={
+            activeTab === "courses" ? <NewCourseActions hasCourses={rows.length > 0} /> : null
+          }
+        />
+      </TableView.Header>
 
-      {forbiddenCourses ? (
-        <div className="grid grid-cols-2 gap-4">
-          <StatCard label="Students in training" value={active.length} icon={GraduationCap} />
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard label="Courses" value={rows.length} icon={BookOpen} />
-          <StatCard
-            label="Published syllabi"
-            value={rows.filter((c) => c.versions.some((v) => v.publishedAt && !v.retiredAt)).length}
-            icon={Lock}
-          />
-          <StatCard label="Students in training" value={active.length} icon={GraduationCap} />
-          <StatCard
-            label="Part 141 courses"
-            value={rows.filter((c) => c.regulatoryPart === "part141").length}
-            icon={Sparkles}
-          />
-        </div>
-      )}
+      <div className={RAIL_ROW}>
+        <SectionRail label="Training" sections={sections} value={activeTab} onChange={pick} />
 
-      {forbiddenCourses ? null : courses.isLoading ? (
-        <CardGridSkeleton />
-      ) : rows.length === 0 ? (
-        <EmptyCourses />
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {rows.map((course) => {
-            const version = headlineVersion(course);
-            const enrolled = active.filter((e) => e.courseVersion?.course.id === course.id).length;
-            return (
-              <Card key={course.id} className="flex flex-col gap-3 p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <Link
-                      to="/training/$courseId"
-                      params={{ courseId: String(course.id) }}
-                      className="font-medium hover:underline"
-                    >
-                      {course.name}
-                    </Link>
-                    {course.description ? (
-                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{course.description}</p>
-                    ) : null}
-                  </div>
-                  <Badge variant={course.regulatoryPart === "part141" ? "default" : "outline"}>
-                    {PART_LABEL[course.regulatoryPart]}
-                  </Badge>
+        <div className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto">
+          {activeTab === "courses" && (
+            <>
+              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <StatCard label="Courses" value={rows.length} icon={BookOpen} />
+                <StatCard
+                  label="Published syllabi"
+                  value={
+                    rows.filter((c) => c.versions.some((v) => v.publishedAt && !v.retiredAt)).length
+                  }
+                  icon={Lock}
+                />
+                <StatCard label="Students in training" value={active.length} icon={GraduationCap} />
+                <StatCard
+                  label="Part 141 courses"
+                  value={rows.filter((c) => c.regulatoryPart === "part141").length}
+                  icon={Sparkles}
+                />
+              </div>
+
+              {courses.isLoading ? (
+                <CardGridSkeleton />
+              ) : rows.length === 0 ? (
+                <EmptyCourses />
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                  {rows.map((course) => {
+                    const version = headlineVersion(course);
+                    const enrolled = active.filter(
+                      (e) => e.courseVersion?.course.id === course.id
+                    ).length;
+                    return (
+                      <Card key={course.id} className="flex flex-col gap-3 p-4">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <Link
+                              to="/training/$courseId"
+                              params={{ courseId: String(course.id) }}
+                              className="font-medium hover:underline"
+                            >
+                              {course.name}
+                            </Link>
+                            {course.description ? (
+                              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                                {course.description}
+                              </p>
+                            ) : null}
+                          </div>
+                          <Badge variant={course.regulatoryPart === "part141" ? "default" : "outline"}>
+                            {PART_LABEL[course.regulatoryPart]}
+                          </Badge>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          <VersionBadge version={version} />
+                          {enrolled > 0 ? (
+                            <Badge variant="outline" className="gap-1">
+                              <GraduationCap className="size-3" /> {enrolled} in training
+                            </Badge>
+                          ) : null}
+                        </div>
+
+                        <div className="mt-auto flex gap-2 pt-1">
+                          <Button asChild size="sm" variant="outline" className="flex-1">
+                            <Link to="/training/$courseId" params={{ courseId: String(course.id) }}>
+                              Open syllabus
+                            </Link>
+                          </Button>
+                        </div>
+                      </Card>
+                    );
+                  })}
                 </div>
+              )}
+            </>
+          )}
 
-                <div className="flex flex-wrap items-center gap-2">
-                  <VersionBadge version={version} />
-                  {enrolled > 0 ? (
-                    <Badge variant="outline" className="gap-1">
-                      <GraduationCap className="size-3" /> {enrolled} in training
-                    </Badge>
-                  ) : null}
-                </div>
-
-                <div className="mt-auto flex gap-2 pt-1">
-                  <Button asChild size="sm" variant="outline" className="flex-1">
-                    <Link to="/training/$courseId" params={{ courseId: String(course.id) }}>
-                      Open syllabus
-                    </Link>
-                  </Button>
-                </div>
-              </Card>
-            );
-          })}
+          {activeTab === "students" && <ActiveStudents loading={enrollments.isLoading} />}
+          {activeTab === "permissions" && <TrainingPermissions />}
         </div>
-      )}
-
-      <ActiveStudents />
-      {/* GET /training/grants is isOrgAdmin. Handing out power stays an admin's job, so
-          somebody here on a grant sees the roster and not the grant table. */}
-      {isAdmin(roles) ? <TrainingPermissions /> : null}
-    </div>
+      </div>
+    </TableView>
   );
 }
 
@@ -334,10 +390,22 @@ function BlankCourseDialog() {
 }
 
 /** Everyone currently in training, so the page answers "who is where" without a click. */
-function ActiveStudents() {
+function ActiveStudents({ loading }: { loading: boolean }) {
   const enrollments = useEnrollments({ status: "enrolled" });
   const rows = enrollments.data ?? [];
-  if (enrollments.isLoading || rows.length === 0) return null;
+  if (loading || enrollments.isLoading) return <CardGridSkeleton count={1} />;
+
+  // Its own section now, so "nobody is on a course" has to be stated rather than
+  // rendering nothing — an empty pane reads as a page that failed to load.
+  if (rows.length === 0) {
+    return (
+      <EmptyState
+        icon={GraduationCap}
+        title="Nobody is in training"
+        body="Enroll a student on a course from their syllabus and their progress appears here."
+      />
+    );
+  }
 
   return (
     <Card className="p-4">

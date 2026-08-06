@@ -1,12 +1,10 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { UserRound } from "lucide-react";
 import { pageRows, useGuestsPage } from "@/features/queries";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { usePaging } from "@/lib/paging";
 import type { Guest } from "@/types/api";
 import { DataTable } from "@/components/data-table";
-import { ListSearchBar } from "@/components/list-filters";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -20,11 +18,11 @@ import { initials } from "@/lib/utils";
  * here. The console had no guest list at all before this; the Flutter app did.
  *
  * The list pages, so search is a server `q` — filtering the loaded rows here
- * would search the page on screen and call it a search of the guest list.
+ * would search the page on screen and call it a search of the guest list. The
+ * term is the People page's own: guests are one value of its Type filter, and a
+ * second search box under the first would be two ways to search one list.
  */
-export function GuestsTable() {
-  const [search, setSearch] = useState("");
-  const debouncedQ = useDebouncedValue(search, 250).trim() || undefined;
+export function GuestsTable({ q: debouncedQ }: { q?: string }) {
   const paging = usePaging({ resetKey: debouncedQ, defaultSort: { key: "name", dir: "asc" } });
   const q = useGuestsPage(paging, { q: debouncedQ });
   const { rows: guests, total } = pageRows(q);
@@ -97,40 +95,28 @@ export function GuestsTable() {
   }
 
   return (
-    <>
-      <ListSearchBar
-        value={search}
-        onChange={setSearch}
-        placeholder="Search name, email or phone…"
-        aria-label="Search guests"
-      />
-      <DataTable
-        fill
-        columns={columns}
-        data={guests}
-        paging={paging}
-        total={total}
-        loading={q.isFetching}
-        emptyMessage="No guests match your search."
-        mobileCard={(g) => (
-          <div className="flex items-center gap-3 p-4">
-            <Avatar className="size-9">
-              <AvatarFallback>{initials(g.name)}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0">
-              <div className="truncate font-medium">{g.name}</div>
-              <div className="truncate text-xs text-muted-foreground">
-                {g.email}
-              </div>
-              {g.phone && (
-                <div className="truncate text-xs text-muted-foreground">
-                  {g.phone}
-                </div>
-              )}
-            </div>
+    <DataTable
+      fill
+      columns={columns}
+      data={guests}
+      paging={paging}
+      total={total}
+      loading={q.isFetching}
+      emptyMessage="No guests match your search."
+      mobileCard={(g) => (
+        <div className="flex items-center gap-3 p-4">
+          <Avatar className="size-9">
+            <AvatarFallback>{initials(g.name)}</AvatarFallback>
+          </Avatar>
+          <div className="min-w-0">
+            <div className="truncate font-medium">{g.name}</div>
+            <div className="truncate text-xs text-muted-foreground">{g.email}</div>
+            {g.phone && (
+              <div className="truncate text-xs text-muted-foreground">{g.phone}</div>
+            )}
           </div>
-        )}
-      />
-    </>
+        </div>
+      )}
+    />
   );
 }

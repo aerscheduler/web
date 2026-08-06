@@ -29,13 +29,26 @@ import { MemberCard } from "@/components/people/member-card";
 import { MemberRowActions } from "@/components/people/member-row-actions";
 import { GuestsTable } from "@/components/people/guests-table";
 import { memberName } from "@/components/people/util";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
 import { asFacetInts, asFacetStrings, useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { canManageMembers, isInstructor, isStaff } from "@/lib/permissions";
 import { formatDate, initials } from "@/lib/utils";
 
-const PEOPLE_FACET_KEYS = ["role", "grounded", "groupId", "archived"] as const;
+/**
+ * `type` is Members vs Guests — a filter, not a tab.
+ *
+ * They were tabs, which put a second, competing navigation above a page that already
+ * has a filter bar: two controls that both narrow the list, in two different idioms.
+ * Guests are simply a different kind of person on this roster, so they are a value of
+ * a Type filter, exactly like Role or Group. It defaults to Members, and being a facet
+ * it is remembered and shareable like every other one.
+ */
+const PEOPLE_FACET_KEYS = ["type", "role", "grounded", "groupId", "archived"] as const;
+
+const TYPE_OPTIONS = [
+  { value: "members", label: "Members" },
+  { value: "guests", label: "Guests" },
+] as const;
 
 export const Route = createFileRoute("/_authed/people")({
   /**
@@ -52,10 +65,8 @@ export const Route = createFileRoute("/_authed/people")({
   validateSearch: (s) => {
     const list = validateListSearch(s, [...PEOPLE_FACET_KEYS]);
     const member = Number.parseInt(String(s.member ?? ""), 10);
-    const tab = s.tab === "guests" ? "guests" : undefined;
     return {
       ...list,
-      ...(tab ? { tab } : {}),
       ...(Number.isFinite(member) ? { member: String(member) } : {}),
     };
   },
@@ -139,17 +150,13 @@ function PeoplePage() {
     search: routeSearch,
     navigate: navigateSearch,
     facetKeys: [...PEOPLE_FACET_KEYS],
+    defaults: { type: "members" },
   });
   // Guests come from `GET /organizations/guests`, which the server serves to
-  // admin, dispatcher and instructor — mirror exactly that.
+  // admin, dispatcher and instructor — mirror exactly that. Someone without it
+  // sees the roster whatever the URL says, rather than an empty table.
   const canViewGuests = isStaff(roles) || isInstructor(roles);
-  const tab = canViewGuests && routeSearch.tab === "guests" ? "guests" : "members";
-  const setTab = (next: string) =>
-    navigateSearch({
-      search: ({ tab: _drop, ...rest }: Record<string, unknown>) =>
-        next === "guests" ? { ...rest, tab: "guests" } : rest,
-      replace: true,
-    });
+  const showingGuests = canViewGuests && facets.type === "guests";
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [assignPairOpen, setAssignPairOpen] = useState(false);
@@ -213,8 +220,26 @@ function PeoplePage() {
   const q = useMembersPage(memberFilter, paging);
   const { rows: members, total } = pageRows(q);
 
-  const facetDefs = useMemo<FacetDef[]>(
-    () => [
+  const facetDefs = useMemo<FacetDef[]>(() => {
+    const type: FacetDef[] = canViewGuests
+      ? [
+          {
+            kind: "select",
+            key: "type",
+            label: "Type",
+            required: true,
+            options: TYPE_OPTIONS.map((o) => ({ value: o.value, label: o.label })),
+          },
+        ]
+      : [];
+
+    // Nothing below applies to a guest: they hold no role, join no group, and are
+    // never grounded or archived. Offering those controls here would be four
+    // filters that silently do nothing.
+    if (showingGuests) return type;
+
+    return [
+      ...type,
       {
         kind: "select",
         key: "role",
@@ -254,9 +279,8 @@ function PeoplePage() {
           label: g.name,
         })),
       },
-    ],
-    [groupsQ.data]
-  );
+    ];
+  }, [groupsQ.data, canViewGuests, showingGuests]);
 
   const filtersActive =
     !!debouncedQ ||
@@ -390,13 +414,14 @@ function PeoplePage() {
     <ListSearchBar
       value={search}
       onChange={setSearch}
-      placeholder="Search name or email…"
-      aria-label="Search members"
+      placeholder={showingGuests ? "Search name, email or phone…" : "Search name or email…"}
+      aria-label={showingGuests ? "Search guests" : "Search members"}
       facets={facetDefs}
       filterValues={facets}
       onFilterChange={setFacets}
       trailing={
-        canManageMembers(roles) ? (
+        // Nobody invites a guest — they arrive by being booked on a reservation.
+        canManageMembers(roles) && !showingGuests ? (
           <div className="flex flex-wrap gap-2 sm:w-auto">
             <Button variant="outline" onClick={() => setAssignPairOpen(true)} className="sm:w-auto">
               <GraduationCap className="size-4" /> Assign pair
@@ -416,7 +441,7 @@ function PeoplePage() {
         <PageHeader
           title="People"
           subtitle={
-            tab === "guests"
+            showingGuests
               ? "Guests booked on your reservations"
               : showingArchived
                 ? q.data
@@ -428,26 +453,17 @@ function PeoplePage() {
           }
         />
 
-        {canViewGuests && (
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList>
-              <TabsTrigger value="members">Members</TabsTrigger>
-              <TabsTrigger value="guests">Guests</TabsTrigger>
-            </TabsList>
-          </Tabs>
-        )}
-
-        {tab === "members" && (
+        {!showingGuests && canManageMembers(roles) && (
           <>
-            {canManageMembers(roles) && <JoinRequestsPanel />}
-            {canManageMembers(roles) && <InstructionRequestsPanel />}
-            {toolbar}
+            <JoinRequestsPanel />
+            <InstructionRequestsPanel />
           </>
         )}
+        {toolbar}
       </TableView.Header>
 
-      {tab === "guests" ? (
-        <GuestsTable />
+      {showingGuests ? (
+        <GuestsTable q={debouncedQ} />
       ) : q.isPending ? (
         <Card className="min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={8} cols={5} />

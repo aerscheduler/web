@@ -449,12 +449,18 @@ function SelectFacetSubmenu({
   // it drops out as soon as you type rather than sitting above the results as a near-match.
   const showAny = !facet.required && !search.query.trim();
 
+  // A required facet always has a value, so the trigger names it — including the default.
+  // "Any" there would be a lie: People's Type is always Members or Guests, never both.
+  const triggerLabel = facet.required
+    ? (facet.options.find((o) => o.value === current)?.label ?? current)
+    : (activeValueLabel(facet, values) ?? "Any");
+
   return (
     <DropdownMenuSub onOpenChange={search.setOpen}>
       <DropdownMenuSubTrigger onKeyDown={search.captureTyping}>
         <span className="flex-1 truncate">{facet.label}</span>
         <span className="ml-2 max-w-24 truncate text-xs text-muted-foreground">
-          {activeValueLabel(facet, values) ?? "Any"}
+          {triggerLabel}
         </span>
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent

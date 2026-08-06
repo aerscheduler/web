@@ -11,13 +11,7 @@ import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { EmptyState } from "@/components/states";
 import { Card } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { ReportView } from "@/components/reports/shell/report-view";
 import { SchedulesPage } from "@/components/reports/shell/schedules-page";
 import { Dashboard } from "@/components/reports/dashboard/dashboard";
@@ -25,7 +19,6 @@ import { DISCARD_DASHBOARD_EDITS } from "@/components/reports/dashboard/unsaved-
 import { useConfirm } from "@/components/confirm-dialog";
 import { resolveRange } from "@/lib/report-format";
 import type { ReportFilterInput } from "@/types/reports";
-import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authed/reports")({
   beforeLoad: guardRoute("/reports"),
@@ -97,6 +90,26 @@ function ReportsPage() {
   const selected = useMemo(
     () => reports.find((r) => r.id === selectedId) ?? null,
     [reports, selectedId]
+  );
+
+  // Overview and Scheduled reports lead as an ungrouped run, above the category
+  // headings: neither is a report, and both are about all of them.
+  const sections = useMemo<RailSection[]>(
+    () => [
+      {
+        items: [
+          { value: OVERVIEW, label: "Overview", icon: LayoutDashboard },
+          { value: SCHEDULES, label: "Scheduled reports", icon: CalendarClock },
+        ],
+      },
+      ...categories.map((category) => ({
+        label: category.label,
+        items: reports
+          .filter((r) => r.category === category.key)
+          .map((r) => ({ value: r.id, label: r.name })),
+      })),
+    ],
+    [categories, reports]
   );
 
   const openReport = async (
@@ -176,94 +189,14 @@ function ReportsPage() {
           />
         </Card>
       ) : (
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-5 lg:flex-row">
-          {/* On a phone the rail becomes a single select — a two-level list of
-              fifteen entries down the side of a 375px screen is unusable. */}
-          <div className="shrink-0 lg:hidden">
-            <Select value={selectedId} onValueChange={pickFromRail}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a report" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={OVERVIEW}>Overview</SelectItem>
-                <SelectItem value={SCHEDULES}>Scheduled reports</SelectItem>
-                {categories.map((category) => (
-                  <SelectGroupForCategory
-                    key={category.key}
-                    label={category.label}
-                    reports={reports.filter((r) => r.category === category.key)}
-                  />
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* The rail is bounded by the page, not by a guess at the chrome above
-              it: it scrolls on its own only when there are more reports than fit. */}
-          <nav
-            aria-label="Reports"
-            className="hidden w-60 shrink-0 overflow-y-auto lg:block"
-          >
-            <div className="space-y-4 pr-3">
-              <button
-                type="button"
-                onClick={() => pickFromRail(OVERVIEW)}
-                aria-current={selectedId === OVERVIEW ? "page" : undefined}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                  selectedId === OVERVIEW
-                    ? "bg-muted font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                )}
-              >
-                <LayoutDashboard className="size-4 shrink-0" />
-                Overview
-              </button>
-
-              <button
-                type="button"
-                onClick={() => pickFromRail(SCHEDULES)}
-                aria-current={selectedId === SCHEDULES ? "page" : undefined}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                  selectedId === SCHEDULES
-                    ? "bg-muted font-medium text-foreground"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                )}
-              >
-                <CalendarClock className="size-4 shrink-0" />
-                Scheduled reports
-              </button>
-
-              {categories.map((category) => (
-                <div key={category.key}>
-                  <h2 className="px-2 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {category.label}
-                  </h2>
-                  <div className="space-y-0.5">
-                    {reports
-                      .filter((r) => r.category === category.key)
-                      .map((report) => (
-                        <button
-                          key={report.id}
-                          type="button"
-                          onClick={() => pickFromRail(report.id)}
-                          aria-current={report.id === selectedId ? "page" : undefined}
-                          className={cn(
-                            "block w-full rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                            report.id === selectedId
-                              ? "bg-muted font-medium text-foreground"
-                              : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                          )}
-                        >
-                          {report.name}
-                        </button>
-                      ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </nav>
+        <div className={RAIL_ROW}>
+          <SectionRail
+            label="Reports"
+            sections={sections}
+            value={selectedId}
+            onChange={pickFromRail}
+            placeholder="Choose a report"
+          />
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             {selectedId === SCHEDULES ? (
@@ -285,28 +218,5 @@ function ReportsPage() {
         </div>
       )}
     </TableView>
-  );
-}
-
-/** Radix Select has no nested grouping helper here, so render a label + items. */
-function SelectGroupForCategory({
-  label,
-  reports,
-}: {
-  label: string;
-  reports: { id: string; name: string }[];
-}) {
-  if (reports.length === 0) return null;
-  return (
-    <>
-      <div className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-        {label}
-      </div>
-      {reports.map((r) => (
-        <SelectItem key={r.id} value={r.id}>
-          {r.name}
-        </SelectItem>
-      ))}
-    </>
   );
 }

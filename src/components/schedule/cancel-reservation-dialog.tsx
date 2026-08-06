@@ -11,9 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -29,15 +29,21 @@ import {
  * dispatch board" as the reason for every cancellation the console ever made. Nobody
  * could report on that, which is exactly the complaint this answers.
  *
- * Two fields, deliberately:
+ * Two fields, deliberately, and BOTH required:
  *  - the **type** is a fixed list, because it is the only thing you can count. "wx",
  *    "weather" and "Weather" are three answers to the same question.
  *  - the **note** is free text, because the type never carries the detail a person
  *    actually needs later ("ceiling 600 overcast", "student called, car trouble").
  *
+ * The server enforces both as of the same change, so this is no longer the only thing
+ * standing between an empty note and the report.
+ *
  * For a booking in a repeating series it also asks Google Calendar's question: this one,
  * this and all later, or the whole series.
  */
+
+/** Matches CANCELLATION_REASON_MAX_LENGTH server-side, and the column behind it. */
+const REASON_MAX_LENGTH = 200;
 
 export type CancelSubmission = {
   reason: string;
@@ -120,20 +126,40 @@ export function CancelReservationDialog({
 
           <div className="grid gap-2">
             <Label htmlFor="cancel-reason">What happened?</Label>
-            <Input
+            {/* A textarea rather than a single line: the field takes 200 characters now,
+                and an input that scrolls sideways past what you typed reads as a much
+                shorter field than it is. */}
+            <Textarea
               id="cancel-reason"
               value={reason}
-              maxLength={60}
-              placeholder="Ceiling 600 overcast"
+              rows={2}
+              maxLength={REASON_MAX_LENGTH}
+              placeholder="Ceiling 600 overcast at the field, forecast to lift after 1400"
               aria-invalid={touched && missingReason}
               onChange={(e) => setReason(e.target.value)}
               onKeyDown={(e) => {
-                if (e.key === "Enter") submit();
+                //Enter submits, Shift+Enter breaks the line — the textarea would
+                //otherwise swallow the key that used to send this dialog.
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  submit();
+                }
               }}
             />
-            {touched && missingReason && (
-              <p className="text-xs text-destructive">Add a short note.</p>
-            )}
+            <div className="flex items-start justify-between gap-2">
+              {touched && missingReason ? (
+                <p className="text-xs text-destructive">Say briefly what happened.</p>
+              ) : (
+                <span />
+              )}
+              {/* Only once it's close enough to matter, so the dialog isn't nagging
+                  somebody who typed four words. */}
+              {reason.length > REASON_MAX_LENGTH - 40 && (
+                <p className="shrink-0 text-xs text-muted-foreground">
+                  {REASON_MAX_LENGTH - reason.length} left
+                </p>
+              )}
+            </div>
           </div>
 
           {reservation.series && (

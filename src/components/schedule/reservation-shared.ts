@@ -178,6 +178,29 @@ export function resourceMatchesType(resource: Resource, type: ReservationType): 
   return resourceLabel(resource).kind === TYPE_REQUIREMENTS[type].resource;
 }
 
+/**
+ * The type implied by booking THIS resource — for the calendar, where clicking a lane says
+ * what you want before any type has been chosen.
+ *
+ * Rooms and simulators each have exactly one type that books them, so the lane settles the
+ * question: opening on the role's default instead (usually `solo`, which wants an aircraft)
+ * silently threw the clicked room straight back out of the picker.
+ *
+ * Aircraft returns null on purpose. Every remaining type books an aircraft — solo, dual,
+ * shared, rental, guest, maintenance — so the tail says nothing about which one is meant,
+ * and the role default is the better guess.
+ */
+export function typeForResource(resource: Resource): ReservationType | null {
+  switch (resourceLabel(resource).kind) {
+    case "Room":
+      return "ground";
+    case "Simulator":
+      return "sim";
+    default:
+      return null;
+  }
+}
+
 const SIDE_LABEL: Record<PersonnelSide, string> = {
   instructors: "an instructor",
   students: "a student",

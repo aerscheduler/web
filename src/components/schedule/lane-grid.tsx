@@ -12,6 +12,7 @@ import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
 import { dimClass, selectedClass, crewLabel, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
+import { typeForResource } from "./reservation-shared";
 import type { DragGeometry, DropZone, ScheduleDrag } from "./use-schedule-drag";
 import { ResizeHandle, dragAriaLabel } from "./drag-affordances";
 
@@ -252,6 +253,11 @@ export function LaneGrid({
             const h = laneHeight(tracks);
             const label = row.resource ? resourceLabel(row.resource) : null;
             const ResIcon = row.resource ? resourceIcon(row.resource) : null;
+            //What booking this lane implies. A room is a ground lesson and a simulator is a
+            //sim session; an aircraft could be any of six types, so it says nothing and the
+            //form keeps its own default. Undefined for the leftover row, which has no
+            //resource at all.
+            const laneType = row.resource ? typeForResource(row.resource) ?? undefined : undefined;
             //A lane the held block would land on, highlighted so a cross-lane drop reads as
             //deliberate rather than accidental.
             const isDropLane =
@@ -325,6 +331,7 @@ export function LaneGrid({
                             onCreate?.({
                               date: day,
                               resourceId: row.resource?.id,
+                              type: laneType,
                               start: "09:00",
                               end: "10:00",
                             });
@@ -349,6 +356,7 @@ export function LaneGrid({
                           onCreate?.({
                             date: day,
                             resourceId: row.resource?.id,
+                            type: laneType,
                             start: `${hh}:00`,
                             end: `${eh}:00`,
                           });

@@ -12,7 +12,13 @@ import { zonedStartOfDay, zonedEndOfDay } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { resourceLabel, rolesOf, type Reservation, type Resource, type Role } from "@/types/api";
 import { useAuth } from "@/lib/auth";
-import { canSeeRoomLanes, canSeeSimulatorLanes, isStaff } from "@/lib/permissions";
+import {
+  bookActionLabel,
+  canSeeRoomLanes,
+  canSeeSimulatorLanes,
+  canSelfBook,
+  isStaff,
+} from "@/lib/permissions";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { PageHeader } from "@/components/page-header";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
@@ -86,11 +92,21 @@ export const Route = createFileRoute("/_authed/schedule")({
 const REFRESH_MS = 20_000;
 
 function SchedulePage() {
-  const { roles, orgUserId } = useAuth();
-  // Members see the board read-only and book via /me/book; only staff
-  // (owner/admin/dispatcher) get the create-booking entry points. Mirrors the
-  // server's guard on reservation creation.
+  const { roles, orgUserId, userId } = useAuth();
+  //Who may open a booking from the board, and as what.
+  //
+  //Staff dispatch: they assign other people, from a full picker.
+  //
+  //Everyone else self-books — the same form /me/book shows, in a modal, with them
+  //already on it. This board used to be flatly read-only for them, which made the
+  //calendar the one place in the product where clicking an empty Tuesday morning did
+  //nothing at all: the Book page would take the reservation, the mobile app's calendar
+  //takes it on a tap, and a student staring at the gap they wanted had to go find
+  //another page and re-enter the slot by hand.
   const staff = isStaff(roles);
+  const selfBooks =
+    !staff && canSelfBook(roles) && orgUserId != null && userId != null;
+  const canBook = staff || selfBooks;
   const tz = useTimeZone();
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -358,9 +374,17 @@ function SchedulePage() {
     setDay(d);
     setView("day");
   };
-  // Members are read-only on the board (they book via /me/book), so they get no
-  // click-to-create regions at all rather than ones that silently do nothing.
-  const onCreate = staff ? openCreate : undefined;
+  //Anyone who can't book at all still gets no click-to-create regions, rather than ones
+  //that silently do nothing.
+  const onCreate = canBook ? openCreate : undefined;
+  //"New reservation" when you're dispatching someone else; "Book a flight" — or
+  //"Schedule maintenance" for a technician — when the booking is your own.
+  const bookLabel = staff ? "New reservation" : bookActionLabel(roles);
+  //Spread onto every CREATE form on this page so the empty-slot click and "Book another
+  //like this" can't drift into showing a member two different booking forms.
+  const selfProps = selfBooks
+    ? { variant: "self" as const, self: { orgUserId: orgUserId!, userId: userId! } }
+    : {};
 
   const count = q.data ? reservations.length : null;
 
@@ -379,9 +403,9 @@ function SchedulePage() {
               {isDesktop && (
                 <ViewModeToggle value={presentation} onChange={setPresentation} />
               )}
-              {staff && (
+              {canBook && (
                 <Button onClick={openNew}>
-                  <Plus className="size-4" /> New reservation
+                  <Plus className="size-4" /> {bookLabel}
                 </Button>
               )}
             </>
@@ -419,9 +443,9 @@ function SchedulePage() {
               title="Your dispatch board is clear"
               body="Book a reservation to see aircraft and instructors line up."
               action={
-                staff && (
+                canBook && (
                   <Button onClick={openNew}>
-                    <Plus className="size-4" /> Book a reservation
+                    <Plus className="size-4" /> {bookLabel}
                   </Button>
                 )
               }
@@ -491,7 +515,18 @@ function SchedulePage() {
         </Card>
       </TableView.Body>
 
-      <ReservationForm open={formOpen} onOpenChange={setFormOpen} draft={draft} />
+      {/* One form, two audiences — see ReservationForm. A member gets the SAME component
+          /me/book renders, with themselves already seated on the booking, drawn as a
+          modal so the slot they clicked isn't traded for a page navigation. */}
+      {canBook && (
+        <ReservationForm
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          draft={draft}
+          presentation="modal"
+          {...selfProps}
+        />
+      )}
 
       {editing && (
         <ReservationForm
@@ -502,12 +537,19 @@ function SchedulePage() {
         />
       )}
 
+      {/* "Book another like this" is a CREATE, so it takes the same variant the empty-slot
+          click does. Left on dispatch it would be the one place a student got the other
+          form — a Title field and two full personnel pickers — from the same menu.
+          Editing above deliberately stays on dispatch: an update REPLACES personnel, and
+          the self shape would quietly reseat a booking somebody else is already on. */}
       {duplicating && (
         <ReservationForm
           open
           onOpenChange={(o) => !o && setDuplicating(null)}
           draft={{ date: new Date(duplicating.start) }}
           duplicating={duplicating}
+          presentation="modal"
+          {...selfProps}
         />
       )}
 

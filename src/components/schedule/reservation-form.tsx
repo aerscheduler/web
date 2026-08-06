@@ -88,6 +88,12 @@ export type ReservationDraft = {
   resourceId?: number;
   start?: string; // "HH:mm"
   end?: string; // "HH:mm"
+  /**
+   * The type the click implied — a room lane means a ground lesson, a simulator lane a sim
+   * session. Only honoured when the caller may actually create it; otherwise the role's own
+   * default stands. See `typeForResource`.
+   */
+  type?: ReservationType;
 };
 
 /**
@@ -366,10 +372,15 @@ export function AirworthinessNotice({
  * `variant: "dispatch"` — the staff board. Assigns other people: an instructor, a
  * student or a renter, each from a full picker.
  *
- * `variant: "self"` — a member booking themselves (/me/book). This is NOT a second
+ * `variant: "self"` — a member booking themselves (/me/book, and the calendar when a
+ * student, instructor, renter or technician clicks an empty slot). This is NOT a second
  * form: booking yourself is the same reservation with one personnel side already
  * filled in with you. Someone who is both an instructor and a student picks which
  * seat they're in, and the other side becomes the counterpart picker.
+ *
+ * `variant` is WHO is booking; `presentation` is where the form is drawn. They're
+ * independent on purpose: the calendar hands a member the self variant in a modal, so
+ * the slot they clicked survives instead of being traded for a trip to /me/book.
  *
  * They were two separate components until 2026-07-27, and they drifted in both
  * directions — dispatch had repeat/duplicate/edit/title that self lacked, self had
@@ -385,6 +396,7 @@ export function ReservationForm({
   editing,
   duplicating,
   variant = "dispatch",
+  presentation,
   self,
 }: {
   /** Modal-only. A page-rendered self form is always "open". */
@@ -413,6 +425,15 @@ export function ReservationForm({
   /** Who this form is for. See the component doc. */
   variant?: "dispatch" | "self";
   /**
+   * Which shell the form wears. Defaults to a page card for `self` (it IS the
+   * /me/book page) and a modal for dispatch.
+   *
+   * The calendar passes "modal" for both: a student clicking an empty slot gets the
+   * same form in the same place a dispatcher does, without being thrown off the board
+   * to /me/book and losing the slot they just clicked.
+   */
+  presentation?: "page" | "modal";
+  /**
    * Required when `variant === "self"`: the member doing the booking. Their
    * org-user id goes onto the reservation as the personnel; their user id loads
    * the fleet they're checked out on and their instruction partners.
@@ -430,7 +451,10 @@ export function ReservationForm({
   const allowMultiDay = organization?.bookingPolicy?.multiDayEnabled ?? false;
 
   const isSelf = variant === "self";
-  //A self booking renders as a page card, so there is no modal to close.
+  //A self booking on /me/book renders as a page card, so there is no modal to close and
+  //nowhere to go back to — Cancel and a successful create both leave for /me/schedule.
+  //Opened from the calendar it is an ordinary modal, and every one of those closes.
+  const asPage = (presentation ?? (isSelf ? "page" : "modal")) === "page";
   const closeModal = React.useCallback(
     (next: boolean) => onOpenChange?.(next),
     [onOpenChange]
@@ -460,6 +484,19 @@ export function ReservationForm({
       ? "dual"
       : defaultReservationType(roles) ?? typeOptions[0] ?? "dual";
   }, [roles, typeOptions, isSelf]);
+
+  /**
+   * What a fresh form opens on. The lane that was clicked wins where it says anything —
+   * a room can only be a ground lesson — and the role default covers the rest.
+   *
+   * Still filtered through `typeOptions`, because the lanes a role can SEE and the types it
+   * may CREATE are two different lists: a renter looking at a simulator lane would otherwise
+   * open on `sim`, which the server refuses them.
+   */
+  const seedType = React.useMemo<ReservationType>(
+    () => (draft.type && typeOptions.includes(draft.type) ? draft.type : initialType),
+    [draft.type, typeOptions, initialType]
+  );
 
   /**
    * Someone holding BOTH the instructor and student roles has to say which seat
@@ -497,6 +534,12 @@ export function ReservationForm({
   const [title, setTitle] = React.useState("");
   const [type, setType] = React.useState<ReservationType>(initialType);
   const [resourceId, setResourceId] = React.useState("");
+  /**
+   * The aircraft the calendar seeded that this member may not book — the name, so it can
+   * be said out loud. Only a renter can reach it: their pool is the fleet they're checked
+   * out on, and the board they clicked shows every lane.
+   */
+  const [unapprovedResource, setUnapprovedResource] = React.useState<string | null>(null);
   const [date, setDate] = React.useState("");
   const [startAt, setStartAt] = React.useState<Date | null>(null);
   const [endAt, setEndAt] = React.useState<Date | null>(null);
@@ -668,6 +711,7 @@ export function ReservationForm({
   React.useEffect(() => {
     if (open && !wasOpen.current) {
       setError(null);
+      setUnapprovedResource(null);
 
       if (editing) {
         // Re-open the reservation exactly as it stands; the server revalidates
@@ -740,7 +784,7 @@ export function ReservationForm({
           return zonedWallClockToUtc(yy, mm, dd, h, m, tz.zone);
         };
         setTitle("");
-        setType(initialType);
+        setType(seedType);
         setResourceId(draft.resourceId != null ? String(draft.resourceId) : "");
         setDate(format(draft.date, "yyyy-MM-dd"));
         setStartAt(seed(draft.start));
@@ -760,7 +804,7 @@ export function ReservationForm({
       setRecurrence(defaultRecurrence(null, format(draft.date, "yyyy-MM-dd")));
     }
     wasOpen.current = open;
-  }, [open, draft, initialType, editing, duplicating]);
+  }, [open, draft, seedType, editing, duplicating]);
 
   const openSquawksByResourceId = React.useMemo(
     () => groupSquawksByResource(squawksQ.data),
@@ -822,12 +866,30 @@ export function ReservationForm({
 
   const selectedResource = eligibleResources.find((r) => String(r.id) === resourceId);
 
+  //Which fleet request has to land before the picker means anything. A renter booking a
+  //rental is limited to the aircraft they're checked out on; everyone else draws from the
+  //org's fleet.
+  const fleetQ = isSelf && type === "rental" ? approvedQ : resourcesQ;
+
   // Switching type can strand a resource of the wrong kind in the picker's value.
   React.useEffect(() => {
+    //Never while the fleet is still in flight. `eligibleResources` is empty until it
+    //lands, so clearing on it would throw away the aircraft the calendar seeded — and a
+    //renter's approved fleet is NEVER warm here, because nothing but this form asks for
+    //it. The lane they clicked would just come up blank.
+    if (fleetQ.isPending) return;
     if (resourceId && !eligibleResources.some((r) => String(r.id) === resourceId)) {
+      //Say so when the reason is "not yours" rather than "wrong kind". A renter who
+      //clicks the lane of a tail they aren't checked out on is otherwise handed an empty
+      //Aircraft field with no explanation — the one case where the picker is narrower
+      //than the board they clicked.
+      if (isSelf && type === "rental") {
+        const name = (resourcesQ.data ?? []).find((r) => String(r.id) === resourceId);
+        setUnapprovedResource(name ? resourceLabel(name).name : null);
+      }
       setResourceId("");
     }
-  }, [resourceId, eligibleResources]);
+  }, [resourceId, eligibleResources, fleetQ.isPending, isSelf, type, resourcesQ.data]);
   const selectedSquawks = selectedResource
     ? openSquawksByResourceId.get(selectedResource.id) ?? []
     : [];
@@ -934,9 +996,10 @@ export function ReservationForm({
       toast.success(
         input.recurrence ? "Repeating booking created" : "Reservation booked"
       );
-      if (isSelf) {
-        //A member books from a page, not a modal — send them to their schedule so
-        //they can see what they just booked.
+      if (isSelf && asPage) {
+        ///me/book is a page with nothing behind it — send them to their schedule so they
+        //can see what they just booked. From the calendar there's somewhere to go back
+        //TO: the booking they made is already drawn on the board behind the modal.
         await navigate({ to: "/me/schedule" });
         return;
       }
@@ -952,50 +1015,38 @@ export function ReservationForm({
     }
   }
 
-  // The fleet has to load before the member can pick anything, and a page can show
-  // that honestly where a modal can't. Dispatch keeps its inline "Loading…"
-  // placeholder in the picker.
-  const fleetQ = isSelf && type === "rental" ? approvedQ : resourcesQ;
-  if (isSelf && fleetQ.isPending) {
-    return (
-      <Card>
-        <CardContent className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" /> Loading…
-        </CardContent>
-      </Card>
-    );
-  }
-  if (isSelf && fleetQ.isError) {
-    return (
-      <Card>
-        <CardContent className="p-0">
-          <ErrorState error={fleetQ.error} onRetry={() => void fleetQ.refetch()} />
-        </CardContent>
-      </Card>
-    );
-  }
-  if (isSelf && eligibleResources.length === 0 && TYPE_REQUIREMENTS[type].resourceRequired) {
-    const kindName = TYPE_REQUIREMENTS[type].resource;
-    return (
-      <Card>
-        <CardContent className="p-0">
-          <EmptyState
-            icon={Ban}
-            title={
-              type === "rental"
-                ? "You're not checked out on any aircraft"
-                : `No ${kindName.toLowerCase()}s to book`
-            }
-            body={
-              type === "rental"
-                ? "Ask your school to approve you on the fleet you can fly."
-                : `Your school hasn't set up any ${kindName.toLowerCase()}s yet.`
-            }
-          />
-        </CardContent>
-      </Card>
-    );
-  }
+  /**
+   * When the self form can't be filled in at all: the fleet is still loading, the request
+   * failed, or this member has nothing of that kind to book. Dispatch has none of these —
+   * it keeps its inline "Loading…" placeholder in the picker.
+   *
+   * A NODE rather than an early return, because the form now wears two shells: this has
+   * to render inside whichever one it is in, and a bare Card floating over the calendar
+   * (with no way to dismiss it) is what returning early would have produced.
+   */
+  const selfGate = !isSelf ? null : fleetQ.isPending ? (
+    <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+      <Loader2 className="size-4 animate-spin" /> Loading…
+    </div>
+  ) : fleetQ.isError ? (
+    <ErrorState error={fleetQ.error} onRetry={() => void fleetQ.refetch()} />
+  ) : eligibleResources.length === 0 && TYPE_REQUIREMENTS[type].resourceRequired ? (
+    <EmptyState
+      icon={Ban}
+      title={
+        type === "rental"
+          ? "You're not checked out on any aircraft"
+          : `No ${TYPE_REQUIREMENTS[type].resource.toLowerCase()}s to book`
+      }
+      body={
+        type === "rental"
+          ? "Ask your school to approve you on the fleet you can fly."
+          : `Your school hasn't set up any ${TYPE_REQUIREMENTS[
+              type
+            ].resource.toLowerCase()}s yet.`
+      }
+    />
+  ) : null;
 
   const body = (
       <form onSubmit={submit} className="space-y-4">
@@ -1038,11 +1089,20 @@ export function ReservationForm({
             <Combobox
               options={resourceOptions}
               value={resourceId}
-              onChange={setResourceId}
+              onChange={(v) => {
+                setResourceId(v);
+                setUnapprovedResource(null);
+              }}
               placeholder={resourcesQ.isLoading ? "Loading…" : "Select resource"}
               searchPlaceholder="Search fleet…"
               emptyText={`No ${TYPE_REQUIREMENTS[type].resource.toLowerCase()}s set up.`}
             />
+            {unapprovedResource && (
+              <p className="text-xs text-muted-foreground">
+                You're not checked out on {unapprovedResource} — pick one you're approved
+                to fly, or ask your school.
+              </p>
+            )}
           </div>
         </div>
 
@@ -1325,7 +1385,7 @@ export function ReservationForm({
             type="button"
             variant="outline"
             onClick={() =>
-              isSelf ? void navigate({ to: "/me/schedule" }) : closeModal(false)
+              isSelf && asPage ? void navigate({ to: "/me/schedule" }) : closeModal(false)
             }
           >
             Cancel
@@ -1343,16 +1403,23 @@ export function ReservationForm({
       </form>
   );
 
+  const content = selfGate ?? body;
+
   //Wider than the default dialog: this form carries two person pickers, a smart time
   //range and the repeat control, and the narrower column was making rows of controls
-  //overflow rather than wrap. A member books from a page, so it gets a card instead.
-  if (isSelf) {
+  //overflow rather than wrap. /me/book is a page, so it gets a card instead.
+  if (asPage) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle>Book a reservation</CardTitle>
-        </CardHeader>
-        <CardContent>{body}</CardContent>
+        {/* The gate states are whole-card empty/error states and bring their own
+            framing — a header over "You're not checked out on any aircraft" reads as
+            a form that failed rather than an answer. */}
+        {!selfGate && (
+          <CardHeader>
+            <CardTitle>Book a reservation</CardTitle>
+          </CardHeader>
+        )}
+        <CardContent className={cn(selfGate && "p-0")}>{content}</CardContent>
       </Card>
     );
   }
@@ -1362,14 +1429,16 @@ export function ReservationForm({
       open={open}
       onOpenChange={closeModal}
       size="xl"
-      title={isEditing ? "Edit reservation" : "New reservation"}
+      title={isEditing ? "Edit reservation" : isSelf ? "Book yourself in" : "New reservation"}
       description={
         isEditing
           ? "Change the aircraft, crew or times for this reservation."
-          : "Book an aircraft, simulator or room, and the people on it."
+          : isSelf
+            ? "You're on this reservation — pick what you're booking and when."
+            : "Book an aircraft, simulator or room, and the people on it."
       }
     >
-      {body}
+      {content}
     </ResponsiveModal>
   );
 }

@@ -3,6 +3,7 @@ import { Loader2, Save, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useSetReservationPayers } from "@/features/queries";
 import { PILOT_ROLES, type PilotRole, type Reservation, type ReservationPayerInput } from "@/types/api";
+import { usesBriefingNotMeters } from "./close-out";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,14 +11,45 @@ import { Badge } from "@/components/ui/badge";
 import { ApiError } from "@/lib/api";
 
 /**
- * Who pays what, on a booking with more than one person on it.
+ * Who pays what, on a booking with more than one PAYER on it.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────
- * WHY THIS IS ALWAYS OFFERED, NOT GATED ON THE ORG'S RULE
+ * IT LISTS PAYERS, NOT PEOPLE — AND THAT IS NOT COSMETIC
  * ─────────────────────────────────────────────────────────────────────────────────────
  *
- * The obvious design is to show the hours fields only when the organization's rule for that
- * charge is "each pays their own time". It isn't possible, and it wouldn't be right anyway.
+ * This used to list everyone on the booking, instructors included, which put an instructor
+ * in a table headed "who pays" and asked a dispatcher to give them a share. An instructor
+ * flying with students is being PAID, not billed. `buildPayers` in the server's
+ * splitInvoicing.ts settles this once — students and renters, else the instructors, and on
+ * a guest booking the guest — and this mirrors it exactly rather than inventing a second
+ * answer.
+ *
+ * The mismatch was not merely confusing, it produced close-outs the server then refuses.
+ * Two students and an instructor on a dual, split by set shares: the panel showed three
+ * rows and asked for 100% across them, so 33/33/34 looked correct here and reached the
+ * engine as two students holding 66% of the booking, which is `weights_invalid`. The same
+ * hole ran through the meter reconciliation, where the instructor's leg was counted into a
+ * total the engine computes without it.
+ *
+ * The people who are on the booking but not billed are named in the header instead, because
+ * "where did the instructor go" is a fair question and the answer is one sentence.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * ONLY THE FIELDS THE BOOKING CAN ACTUALLY HAVE
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ *
+ * A ground lesson has no aircraft, so it has no Hobbs reading, nobody is pilot in command
+ * of a classroom, and the one figure that does divide is instruction time — which was the
+ * single field this panel never offered. It asked for the three that cannot exist and
+ * omitted the one that does. `usesBriefingNotMeters` is the same helper the ramp modal
+ * keys on, so the two screens agree about what a booking is measured with.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ * WHY THIS IS STILL NOT GATED ON THE ORG'S RULE
+ * ─────────────────────────────────────────────────────────────────────────────────────
+ *
+ * The obvious next step is to show the hours fields only when the organization's rule for
+ * that charge is "each pays their own time". It isn't possible, and it wouldn't be right.
  *
  * Not possible: the split rules are admin-only (`GET /organizations/splitRules` is behind
  * `isOrgAdmin`), and the person closing out a flight is usually the instructor or the
@@ -25,8 +57,8 @@ import { ApiError } from "@/lib/api";
  *
  * Not right: recording who flew which leg is worth doing regardless of how the money
  * divides. It is the honest record of the flight, and the engine simply ignores the fields
- * its rule doesn't need. So everything is offered, and the copy says so rather than
- * pretending the entry is mandatory.
+ * its rule doesn't need. So everything the booking CAN have is offered, and the copy says
+ * so rather than pretending the entry is mandatory.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────
  * HOURS ARE TENTHS, AND THE INPUT SAYS SO
@@ -36,9 +68,16 @@ import { ApiError } from "@/lib/api";
  * dispatcher types "1014.2"; what goes over the wire is 10142. Doing that conversion at the
  * boundary keeps the whole rest of the stack in one unit, and stops a decimal point becoming
  * a factor-of-ten billing error.
+ *
+ * Instruction is the exception, and only in the wire format: `ReservationPayer` stores it in
+ * MINUTES. It is entered here in hours like everything else on the close-out, and converted
+ * as whole tenths (`hours → tenths → ×6 minutes`) so the value is always a multiple of six.
+ * That matters because the engine converts back by dividing by six: anything else would
+ * round on the way in, and a figure that changes when you reopen the screen reads as the
+ * software losing your entry.
  */
 
-/** A person on the booking who can hold a stake. */
+/** A person on the booking who holds a stake. */
 type Party = {
   key: string;
   name: string;
@@ -52,7 +91,8 @@ type Party = {
 type Draft = {
   hobbsOut: string;
   hobbsIn: string;
-  instructionMinutes: string;
+  /** Hours, not minutes. See the header. */
+  instructionHours: string;
   sharePercent: string;
   waived: boolean;
   waivedReason: string;
@@ -62,7 +102,7 @@ type Draft = {
 const EMPTY: Draft = {
   hobbsOut: "",
   hobbsIn: "",
-  instructionMinutes: "",
+  instructionHours: "",
   sharePercent: "",
   waived: false,
   waivedReason: "",
@@ -99,22 +139,91 @@ function percentToBps(v: string): number | null {
   return Math.round(n * 100);
 }
 
-function partiesOf(r: Reservation): Party[] {
+const nameOf = (o: { id: number; user?: { name?: string | null } | null }) =>
+  o.user?.name ?? `Member #${o.id}`;
+
+const asParty = (o: { id: number; user?: { name?: string | null } | null }, side: string): Party => ({
+  key: `o${o.id}`,
+  name: nameOf(o),
+  orgUserId: o.id,
+  side,
+});
+
+/**
+ * Who owes money on this booking, in the server's order.
+ *
+ * A straight mirror of `buildPayers` (server/src/utils/splitInvoicing.ts): students and
+ * renters, or the instructors when there is nobody else, and on a guest booking the guest.
+ * Order matters there — it decides who takes a `whole` line and who gets the leftover cent —
+ * so it is preserved here too, and the row order a dispatcher sees is the order the money
+ * follows.
+ */
+function payersOf(r: Reservation): Party[] {
   const p = r.personnel;
-  const out: Party[] = [];
-  for (const s of p?.students ?? [])
-    out.push({ key: `o${s.id}`, name: s.user?.name ?? `Member #${s.id}`, orgUserId: s.id, side: "Student" });
-  for (const s of p?.renters ?? [])
-    out.push({ key: `o${s.id}`, name: s.user?.name ?? `Member #${s.id}`, orgUserId: s.id, side: "Renter" });
-  for (const s of p?.instructors ?? [])
-    out.push({ key: `o${s.id}`, name: s.user?.name ?? `Member #${s.id}`, orgUserId: s.id, side: "Instructor" });
-  for (const g of p?.guests ?? []) out.push({ key: `g${g.id}`, name: g.name, guestId: g.id, side: "Guest" });
-  return out;
+
+  // A discovery flight has one customer paying, whoever else is aboard.
+  if (r.type === "guest") {
+    return (p?.guests ?? []).map((g) => ({ key: `g${g.id}`, name: g.name, guestId: g.id, side: "Guest" }));
+  }
+
+  const students = (p?.students ?? []).map((s) => asParty(s, "Student"));
+  const renters = (p?.renters ?? []).map((s) => asParty(s, "Renter"));
+  const instructors = (p?.instructors ?? []).map((s) => asParty(s, "Instructor"));
+
+  // An instructor is a payer only when there is nobody else: flying alone, they are renting
+  // the aircraft. With a student aboard they are being paid.
+  return students.length || renters.length ? [...students, ...renters] : instructors;
 }
 
+/**
+ * On the booking, but not billed for it. Named in the header so their absence isn't a puzzle.
+ *
+ * Only instructors can land here, and that falls out of `payersOf` rather than being assumed:
+ * students and renters are always billed when present, an instructor is billed when there is
+ * nobody else, and the sides a guest booking forbids mean the guest's crew is the instructor.
+ * So the sentence can say WHY they aren't billed, which is the thing worth saying.
+ */
+function nonPayersOf(r: Reservation, payers: Party[]): string[] {
+  const billed = new Set(payers.map((x) => x.key));
+  return (r.personnel?.instructors ?? [])
+    .map((s) => asParty(s, "Instructor"))
+    .filter((x) => !billed.has(x.key))
+    .map((x) => x.name);
+}
+
+/** "Ann", "Ann and Bo", "Ann, Bo and Cy". */
+function listNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/** Static class strings, because Tailwind can't see an interpolated one. */
+const GRID_COLS: Record<number, string> = {
+  1: "sm:grid-cols-1",
+  2: "sm:grid-cols-2",
+  3: "sm:grid-cols-3",
+  4: "sm:grid-cols-4",
+  5: "sm:grid-cols-3 lg:grid-cols-5",
+};
+
 export function WhoPaysSection({ r }: { r: Reservation }) {
-  const parties = React.useMemo(() => partiesOf(r), [r]);
+  const parties = React.useMemo(() => payersOf(r), [r]);
+  const notBilled = React.useMemo(() => nonPayersOf(r, parties), [r, parties]);
   const save = useSetReservationPayers(r.id);
+
+  // What this booking can be measured with. A ground lesson has no meters and no pilot in
+  // command; a classroom has no rate at all, so instruction is the only thing to divide.
+  const hasMeters = !usesBriefingNotMeters(r);
+  // The instruction line exists on the same terms payment.ts prices it: an instructor with
+  // somebody to instruct. An instructor flying alone is renting, not teaching.
+  const hasInstruction =
+    (r.personnel?.instructors?.length ?? 0) > 0 &&
+    ((r.personnel?.students?.length ?? 0) > 0 || r.type === "guest");
+  // Pilot roles are a property of a flight. Nobody is second in command of a simulator or a
+  // briefing room, and offering the field there invites a record that isn't true.
+  const hasRoles = r.resource?.type?.plane != null;
+
+  const fieldCount = (hasMeters ? 2 : 0) + (hasInstruction ? 1 : 0) + 1 /* share */ + (hasRoles ? 1 : 0);
 
   // Seed from what's stored. A booking with no stakes recorded is the normal case, and it
   // seeds empty — which reads correctly as "nothing entered", not as "everyone owes zero".
@@ -128,7 +237,8 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
         ? {
             hobbsOut: tenthsToHours(stored.hobbsOut),
             hobbsIn: tenthsToHours(stored.hobbsIn),
-            instructionMinutes: stored.instructionMinutes == null ? "" : String(stored.instructionMinutes),
+            instructionHours:
+              stored.instructionMinutes == null ? "" : tenthsToHours(Math.round(stored.instructionMinutes / 6)),
             sharePercent: stored.weightBps == null ? "" : String(stored.weightBps / 100),
             waived: !!stored.waived,
             waivedReason: stored.waivedReason ?? "",
@@ -190,21 +300,42 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
 
   const legsReconcile = flightTenths != null && legsTenths === flightTenths;
 
+  // The same running total for instruction, against the booking's own briefing figure. Only
+  // meaningful when the school splits instruction by each person's own time: a class charged
+  // per head is four students each owing the whole two hours, and that is SUPPOSED to come to
+  // more than the lesson ran. So this reports rather than scolds, and names the condition.
+  const briefingTenths = r.review?.briefing ?? null;
+
+  const instructionTenths = billed.reduce((sum, p) => {
+    const v = hoursToTenths(drafts[p.key]?.instructionHours ?? "");
+    return v != null ? sum + v : sum;
+  }, 0);
+
+  const anyInstructionEntered = billed.some((p) => hoursToTenths(drafts[p.key]?.instructionHours ?? "") != null);
+  const allInstructionEntered =
+    billed.length > 0 && billed.every((p) => hoursToTenths(drafts[p.key]?.instructionHours ?? "") != null);
+  const instructionReconciles = briefingTenths != null && instructionTenths === briefingTenths;
+
   const shareTotal = billed.reduce((sum, p) => sum + (percentToBps(drafts[p.key]?.sharePercent ?? "") ?? 0), 0);
   const anyShareEntered = billed.some((p) => percentToBps(drafts[p.key]?.sharePercent ?? "") != null);
 
   const submit = () => {
     const payers: ReservationPayerInput[] = parties.map((party) => {
       const d = drafts[party.key];
+      const instructionTenthsForPayer = hasInstruction ? hoursToTenths(d.instructionHours) : null;
       return {
         ...(party.orgUserId != null ? { orgUserId: party.orgUserId } : { guestId: party.guestId }),
-        hobbsOut: hoursToTenths(d.hobbsOut),
-        hobbsIn: hoursToTenths(d.hobbsIn),
-        instructionMinutes: d.instructionMinutes.trim() ? Number(d.instructionMinutes) : null,
+        // Never send a figure for something this booking can't have. A stale Hobbs reading
+        // left on a booking that was later changed to a ground lesson would otherwise be
+        // rewritten back with every save.
+        hobbsOut: hasMeters ? hoursToTenths(d.hobbsOut) : null,
+        hobbsIn: hasMeters ? hoursToTenths(d.hobbsIn) : null,
+        // Tenths back to minutes, always a whole multiple of six. See the header.
+        instructionMinutes: instructionTenthsForPayer == null ? null : instructionTenthsForPayer * 6,
         weightBps: percentToBps(d.sharePercent),
         waived: d.waived,
         waivedReason: d.waived && d.waivedReason.trim() ? d.waivedReason.trim() : null,
-        pilotRole: d.pilotRole || null,
+        pilotRole: hasRoles ? d.pilotRole || null : null,
       };
     });
 
@@ -217,9 +348,15 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
     });
   };
 
-  // One person on a booking is billed the whole thing under every rule, so there is nothing
-  // here for them to decide.
+  // One payer is billed the whole booking under every rule, so there is nothing here for
+  // them to decide. This is why an ordinary ground lesson (one instructor, one student)
+  // shows nothing: only the student is billed.
   if (parties.length < 2) return null;
+
+  // Nothing on this booking costs anything to divide — a classroom with no instructor on it
+  // has neither a resource rate nor an instruction line. Asking for shares of nothing is
+  // worse than asking nothing at all.
+  if (!hasMeters && !hasInstruction) return null;
 
   return (
     <div className="rounded-md border">
@@ -229,8 +366,15 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
           <div>
             <div className="text-sm font-medium">Who pays what</div>
             <p className="text-xs text-muted-foreground">
-              {parties.length} people on this booking. Fill in only what your cost-splitting rules
-              use — anything else is ignored.
+              {parties.length} people are billed for this booking. Fill in only what your
+              cost-splitting rules use. Anything else is ignored.
+              {notBilled.length > 0 && (
+                <>
+                  {" "}
+                  {listNames(notBilled)} {notBilled.length === 1 ? "is" : "are"} instructing, so they
+                  aren't billed.
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -272,27 +416,43 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
                   className="h-8 text-sm"
                 />
               ) : (
-                <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-4">
-                  <div className="space-y-1">
-                    <Label className="whitespace-nowrap text-xs text-muted-foreground">Hobbs out</Label>
-                    <Input
-                      value={d.hobbsOut}
-                      onChange={(e) => set(party.key, { hobbsOut: e.target.value })}
-                      inputMode="decimal"
-                      placeholder="e.g. 1014.2"
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="whitespace-nowrap text-xs text-muted-foreground">Hobbs in</Label>
-                    <Input
-                      value={d.hobbsIn}
-                      onChange={(e) => set(party.key, { hobbsIn: e.target.value })}
-                      inputMode="decimal"
-                      placeholder="e.g. 1015.6"
-                      className="h-8 text-sm"
-                    />
-                  </div>
+                <div className={`grid grid-cols-2 items-end gap-2 ${GRID_COLS[fieldCount] ?? "sm:grid-cols-4"}`}>
+                  {hasMeters && (
+                    <>
+                      <div className="space-y-1">
+                        <Label className="whitespace-nowrap text-xs text-muted-foreground">Hobbs out</Label>
+                        <Input
+                          value={d.hobbsOut}
+                          onChange={(e) => set(party.key, { hobbsOut: e.target.value })}
+                          inputMode="decimal"
+                          placeholder="e.g. 1014.2"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="whitespace-nowrap text-xs text-muted-foreground">Hobbs in</Label>
+                        <Input
+                          value={d.hobbsIn}
+                          onChange={(e) => set(party.key, { hobbsIn: e.target.value })}
+                          inputMode="decimal"
+                          placeholder="e.g. 1015.6"
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
+                  {hasInstruction && (
+                    <div className="space-y-1">
+                      <Label className="whitespace-nowrap text-xs text-muted-foreground">Instruction (hrs)</Label>
+                      <Input
+                        value={d.instructionHours}
+                        onChange={(e) => set(party.key, { instructionHours: e.target.value })}
+                        inputMode="decimal"
+                        placeholder="e.g. 1.5"
+                        className="h-8 text-sm"
+                      />
+                    </div>
+                  )}
                   <div className="space-y-1">
                     <Label className="whitespace-nowrap text-xs text-muted-foreground">Share %</Label>
                     <Input
@@ -303,21 +463,23 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
                       className="h-8 text-sm"
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="whitespace-nowrap text-xs text-muted-foreground">Role</Label>
-                    <select
-                      value={d.pilotRole}
-                      onChange={(e) => set(party.key, { pilotRole: e.target.value as PilotRole | "" })}
-                      className="h-8 w-full rounded-md border bg-transparent px-2 text-sm"
-                    >
-                      <option value="">—</option>
-                      {PILOT_ROLES.map((role) => (
-                        <option key={role} value={role}>
-                          {ROLE_LABEL[role]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {hasRoles && (
+                    <div className="space-y-1">
+                      <Label className="whitespace-nowrap text-xs text-muted-foreground">Role</Label>
+                      <select
+                        value={d.pilotRole}
+                        onChange={(e) => set(party.key, { pilotRole: e.target.value as PilotRole | "" })}
+                        className="h-8 w-full rounded-md border bg-transparent px-2 text-sm"
+                      >
+                        <option value="">—</option>
+                        {PILOT_ROLES.map((role) => (
+                          <option key={role} value={role}>
+                            {ROLE_LABEL[role]}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -325,9 +487,9 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
         })}
       </div>
 
-      {/* The running totals. Both only appear once somebody has started entering the thing
-          they describe — an untouched close-out shouldn't be shouting about a mismatch. */}
-      {(anyLegEntered || anyShareEntered) && (
+      {/* The running totals. Each only appears once somebody has started entering the thing
+          it describes — an untouched close-out shouldn't be shouting about a mismatch. */}
+      {(anyLegEntered || anyInstructionEntered || anyShareEntered) && (
         <div className="space-y-1 border-t px-3 py-2 text-xs">
           {anyLegEntered && flightTenths != null && (
             <div
@@ -341,14 +503,23 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
               aircraft flew
               {allLegsEntered &&
                 !legsReconcile &&
-                ` — off by ${Math.abs((legsTenths - flightTenths) / 10).toFixed(1)}. These have to match, or we can't bill it.`}
-              {allLegsEntered && legsReconcile && " — adds up."}
+                `, off by ${Math.abs((legsTenths - flightTenths) / 10).toFixed(1)}. These have to match, or we can't bill it.`}
+              {allLegsEntered && legsReconcile && ". That adds up."}
             </div>
           )}
           {anyLegEntered && flightTenths == null && (
             <div className="text-muted-foreground">
               The aircraft's own readings aren't in yet, so there's nothing to check these against
               until it's ramped in.
+            </div>
+          )}
+          {anyInstructionEntered && briefingTenths != null && (
+            <div className="text-muted-foreground">
+              Instruction: {(instructionTenths / 10).toFixed(1)} of {(briefingTenths / 10).toFixed(1)}{" "}
+              recorded for the lesson
+              {allInstructionEntered &&
+                !instructionReconciles &&
+                ". That's fine if each person is charged for the whole lesson, but if you split it by each person's own time these have to match."}
             </div>
           )}
           {anyShareEntered && (
@@ -358,7 +529,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
               }
             >
               Shares total {(shareTotal / 100).toFixed(shareTotal % 100 === 0 ? 0 : 2)}%
-              {shareTotal !== 10_000 && " — has to be 100%."}
+              {shareTotal !== 10_000 && ". That has to be 100%."}
             </div>
           )}
         </div>

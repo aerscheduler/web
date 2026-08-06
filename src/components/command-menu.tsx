@@ -2,21 +2,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  CalendarDays,
-  CalendarX2,
-  ChevronRight,
-  LayoutDashboard,
-  Loader2,
-  LogOut,
-  PlaneTakeoff,
-  Receipt,
-  Search as SearchIcon,
-  Settings,
-  ShieldCheck,
-  Users,
-  X,
-} from "lucide-react";
+import { ChevronRight, Loader2, LogOut, Search as SearchIcon, X } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -27,9 +13,9 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
-import { useAuth } from "@/lib/auth";
+import { isDeveloperSync, useAuth } from "@/lib/auth";
 import { shortcutLabel } from "@/lib/platform";
-import { canAccess } from "@/lib/permissions";
+import { commandPages, type CommandPage } from "@/lib/nav-items";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTimeZone } from "@/lib/use-timezone";
@@ -60,67 +46,14 @@ export function useCommandMenu() {
 }
 
 /**
- * Nav destinations with a Stripe-style breadcrumb path for the "Go to" section.
- * `keywords` catch alternate names so "gng" / "go no go" still surface compliance.
+ * How many "Go to" hits to show at once.
+ *
+ * There are now roughly forty destinations (every rail page, the personal section, and
+ * each Settings section on its own `?tab=`), so an unbounded list buries the record hits
+ * under a wall of pages the moment somebody types a common letter. Ranked by how well
+ * they match — see {@link rankPages} — and cut here.
  */
-const NAV = [
-  {
-    to: "/dashboard",
-    label: "Dashboard",
-    path: ["Operations", "Dashboard"],
-    keywords: ["home", "overview"],
-    icon: LayoutDashboard,
-  },
-  {
-    to: "/schedule",
-    label: "Calendar",
-    path: ["Operations", "Calendar"],
-    keywords: ["schedule", "flights", "bookings", "reservations", "ramp", "board"],
-    icon: CalendarDays,
-  },
-  {
-    to: "/people",
-    label: "People",
-    path: ["Operations", "People"],
-    keywords: ["members", "roster", "students", "instructors"],
-    icon: Users,
-  },
-  {
-    to: "/aircraft",
-    label: "Aircraft",
-    path: ["Operations", "Aircraft"],
-    keywords: ["planes", "fleet", "resources", "n-number"],
-    icon: PlaneTakeoff,
-  },
-  {
-    to: "/billing",
-    label: "Billing",
-    path: ["Money", "Billing"],
-    keywords: ["invoices", "payments", "money"],
-    icon: Receipt,
-  },
-  {
-    to: "/compliance",
-    label: "Go / No-Go",
-    path: ["Compliance", "Go / No-Go"],
-    keywords: ["gng", "go no go", "currency", "documents"],
-    icon: ShieldCheck,
-  },
-  {
-    to: "/operations/cancellations",
-    label: "Cancellations",
-    path: ["Operations", "Cancellations"],
-    keywords: ["cancelled", "cancel"],
-    icon: CalendarX2,
-  },
-  {
-    to: "/settings",
-    label: "Settings",
-    path: ["Settings"],
-    keywords: ["preferences", "config", "organization"],
-    icon: Settings,
-  },
-] as const;
+const NAV_RESULT_LIMIT = 5;
 
 /**
  * Stripe-style suggested filters. Selecting one scopes `GET /search` to that
@@ -187,6 +120,24 @@ const TYPE_FILTERS: {
     description: "search ratings only",
     keywords: ["rating", "ratings", "rate", "rates"],
   },
+  {
+    type: "enrollment",
+    syntax: "training:",
+    description: "search training records",
+    keywords: ["training", "enrollment", "enrollments", "record", "records", "progress", "student"],
+  },
+  {
+    type: "course",
+    syntax: "courses:",
+    description: "search courses only",
+    keywords: ["course", "courses", "syllabus", "syllabi", "curriculum", "part 141", "part 61"],
+  },
+  {
+    type: "endorsement",
+    syntax: "endorsements:",
+    description: "search endorsements only",
+    keywords: ["endorsement", "endorsements", "solo", "signoff", "sign off", "61.65"],
+  },
 ];
 
 /** Parse `people: jane` → { type: person, text: "jane" }. */
@@ -243,16 +194,49 @@ const BADGE_VARIANT: Record<string, React.ComponentProps<typeof Badge>["variant"
   Resolved: "warning",
   Verified: "success",
   Cancelled: "outline",
+  // Training. Graduating is the good ending and reads as one; the other three are states
+  // rather than problems — a terminated enrollment is a record, not a failure to fix.
+  Graduated: "success",
+  "In training": "secondary",
+  Terminated: "outline",
+  Transferred: "outline",
+  Archived: "outline",
 };
 
-function navMatchesQuery(item: (typeof NAV)[number], q: string): boolean {
-  if (!q) return true;
-  const hay = [item.label, ...item.path, ...item.keywords].join(" ").toLowerCase();
-  return q
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean)
-    .every((token) => hay.includes(token));
+/**
+ * The pages matching `q`, best first.
+ *
+ * Every token has to match SOMETHING (label, breadcrumb or keyword), so "booking pref"
+ * finds Booking preferences and "xyz booking" finds nothing. Ranking then decides which
+ * five survive: a page whose own name starts with what you typed beats one that merely
+ * mentions it in a keyword, which is what stops "cost" offering Settings → Billing above
+ * Settings → Cost splitting.
+ *
+ * With no query at all this is the browse list, and it stays in registry order — the rail's
+ * own order, so the first things offered are the first things on screen.
+ */
+function rankPages(pages: CommandPage[], q: string): CommandPage[] {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return pages.slice(0, NAV_RESULT_LIMIT);
+
+  const tokens = needle.split(/\s+/).filter(Boolean);
+
+  const scored = pages
+    .map((page, index) => {
+      const label = page.label.toLowerCase();
+      const hay = [page.label, ...page.path, ...page.keywords].join(" ").toLowerCase();
+      if (!tokens.every((token) => hay.includes(token))) return null;
+
+      const score =
+        label === needle ? 0 : label.startsWith(needle) ? 1 : label.includes(needle) ? 2 : hay.startsWith(needle) ? 3 : 4;
+      return { page, score, index };
+    })
+    .filter((entry): entry is { page: CommandPage; score: number; index: number } => entry !== null);
+
+  return scored
+    .sort((a, b) => a.score - b.score || a.index - b.index)
+    .slice(0, NAV_RESULT_LIMIT)
+    .map((entry) => entry.page);
 }
 
 /**
@@ -396,7 +380,9 @@ export function CommandMenuSearch() {
   const typed = highlightQuery.length > 0;
   const permittedTypes = search.data?.types ?? SEARCH_TYPE_ORDER;
 
-  const navItems = NAV.filter((item) => canAccess(item.to, R) && navMatchesQuery(item, highlightQuery));
+  // Every page this member can open, from the same registry the rail renders.
+  const pages = React.useMemo(() => commandPages(R, { isDeveloper: isDeveloperSync() }), [R]);
+  const navItems = React.useMemo(() => rankPages(pages, highlightQuery), [pages, highlightQuery]);
 
   // Suggested filters: keyword prefix match (Stripe "da" → date:), limited to
   // types this caller may actually search. Hidden once a filter is already on.
@@ -450,7 +436,15 @@ export function CommandMenuSearch() {
       fallbackZone={tz.zone}
       prefersOwnZone={prefersOwnZone}
       onApplyFilter={applyFilter}
-      onNavigate={(to) => run(() => navigate({ to }))}
+      onNavigate={(page) =>
+        run(() =>
+          navigate({
+            to: page.to,
+            // Settings sections share one route and differ only by `?tab=`.
+            ...(page.search ? { search: page.search } : {}),
+          } as Parameters<typeof navigate>[0])
+        )
+      }
       onOpenResult={openResult}
       onSignOut={() =>
         run(() => {
@@ -654,14 +648,14 @@ function SearchResults({
   typed: boolean;
   highlightQuery: string;
   suggestedFilters: Array<(typeof TYPE_FILTERS)[number]>;
-  navItems: Array<(typeof NAV)[number]>;
+  navItems: CommandPage[];
   grouped: Array<{ type: SearchEntityType; results: SearchResult[] }>;
   browsing: boolean;
   showActions: boolean;
   fallbackZone: string;
   prefersOwnZone: boolean;
   onApplyFilter: (type: SearchEntityType) => void;
-  onNavigate: (to: (typeof NAV)[number]["to"]) => void;
+  onNavigate: (page: CommandPage) => void;
   onOpenResult: (result: SearchResult) => void;
   onSignOut: () => void;
 }) {
@@ -707,9 +701,10 @@ function SearchResults({
           <CommandGroup heading="Go to">
             {navItems.map((item) => (
               <CommandItem
-                key={item.to}
+                // Settings sections all live at `/settings`, so the tab is part of the key.
+                key={item.search ? `${item.to}?${new URLSearchParams(item.search)}` : item.to}
                 value={`nav ${item.label} ${item.path.join(" ")} ${item.keywords.join(" ")}`}
-                onSelect={() => onNavigate(item.to)}
+                onSelect={() => onNavigate(item)}
                 className="gap-3"
               >
                 <item.icon className="text-muted-foreground" />

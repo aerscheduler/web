@@ -1,12 +1,15 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { isPast } from "date-fns";
 import { Plus } from "lucide-react";
-import type { Resource, Squawk } from "@/types/api";
+import type { MaintenanceReminder, Resource, Squawk } from "@/types/api";
 import { useMaintenanceReminders, useSquawks } from "@/features/queries";
+import { fleetSummary } from "@/lib/maintenance";
 import { formatDate } from "@/lib/utils";
 import { DetailCard, CardEmpty, CardSkeleton } from "@/components/detail/detail-page";
+import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
+import { InspectionRow } from "@/components/maintenance/inspection-row";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
+import { ResolveReminderModal } from "@/components/maintenance/resolve-reminder-modal";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
 import { SquawkDetailSheet } from "@/components/maintenance/squawk-detail-sheet";
 import { Badge } from "@/components/ui/badge";
@@ -149,58 +152,138 @@ export function ResourceSquawks({
 }
 
 /**
- * What's coming due on this tail. Overdue first — a 100-hour that lapsed last
- * week matters more than an annual three months out, and date order alone
- * wouldn't say so.
+ * What's due on this tail, and how much is left on each.
+ *
+ * This is the panel a mechanic opens the page for. It answers, in order: is anything
+ * overdue, what's next, and how much room is left before it is. The counts across the top
+ * exist so that question is answered before you read a single row — on a fleet where most
+ * tails are fine, the useful signal is "nothing here", and it should take no reading.
+ *
+ * Ordering is the server's `urgency`, not date order: an hour-based 100-hour has no due
+ * date at all, so sorting on `dueAt` — which is what this panel used to do — silently
+ * pushed every meter-based inspection to the bottom regardless of how close it was.
  */
-export function ResourceReminders({ resourceId }: { resourceId: number }) {
+export function ResourceReminders({
+  resourceId,
+  resource,
+  canManage,
+}: {
+  resourceId: number;
+  /** Passed so "Add" can fix the tail rather than asking which one you meant. */
+  resource?: Resource;
+  /** Admin or technician: can add inspections and sign them off. */
+  canManage: boolean;
+}) {
   const q = useMaintenanceReminders({ resourceId, resolved: false });
+  const [adding, setAdding] = useState(false);
+  const [resolving, setResolving] = useState<MaintenanceReminder | null>(null);
 
-  const reminders = useMemo(() => {
-    return [...(q.data ?? [])].sort((a, b) => {
-      // Nulls last: a reminder with no due date can't be overdue and can't be next.
-      if (!a.dueAt) return 1;
-      if (!b.dueAt) return -1;
-      return a.dueAt.localeCompare(b.dueAt);
-    });
-  }, [q.data]);
+  // Already worst-first from the server. Re-deriving the order here is how this panel and
+  // the Maintenance list end up disagreeing about which item matters most.
+  const reminders = q.data ?? [];
+  const summary = useMemo(() => fleetSummary(reminders), [reminders]);
+  const shown = reminders.slice(0, SHOWN);
 
   return (
-    <DetailCard title="Maintenance due" description="Open reminders on this aircraft.">
-      {q.isPending ? (
-        <CardSkeleton rows={2} />
-      ) : q.isError ? (
-        <CardEmpty>Couldn&apos;t load reminders.</CardEmpty>
-      ) : reminders.length === 0 ? (
-        <CardEmpty>Nothing scheduled.</CardEmpty>
-      ) : (
-        <ul className="divide-y divide-border">
-          {reminders.slice(0, SHOWN).map((m) => {
-            const due = m.dueAt ? new Date(m.dueAt) : null;
-            const overdue = due != null && isPast(due);
-            return (
-              <li key={m.id} className="flex items-start justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-[13px] font-medium">
-                      {m.name || "Maintenance reminder"}
-                    </span>
-                    {overdue && <Badge variant="danger">Overdue</Badge>}
-                  </div>
-                  {m.description && (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                      {m.description}
-                    </p>
-                  )}
-                </div>
-                <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                  {m.dueAt ? formatDate(m.dueAt) : "No due date"}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
+    <>
+      <DetailCard
+        title="Inspections"
+        description="What's tracked on this aircraft and how much is left."
+        action={
+          canManage ? (
+            <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+              <Plus className="size-4" /> Add
+            </Button>
+          ) : undefined
+        }
+      >
+        {q.isPending ? (
+          <CardSkeleton rows={3} />
+        ) : q.isError ? (
+          <CardEmpty>Couldn&apos;t load inspections.</CardEmpty>
+        ) : reminders.length === 0 ? (
+          <CardEmpty>
+            Nothing tracked on this tail yet.
+            {canManage && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  onClick={() => setAdding(true)}
+                  className="underline underline-offset-2"
+                >
+                  Add the standard AVIATES set
+                </button>{" "}
+                to get its annual, 100-hour and the rest on the clock.
+              </>
+            )}
+          </CardEmpty>
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              {summary.overdue > 0 && (
+                <Badge variant="danger">
+                  {summary.overdue} overdue
+                </Badge>
+              )}
+              {summary.dueSoon > 0 && (
+                <Badge variant="warning">{summary.dueSoon} due soon</Badge>
+              )}
+              {summary.overdue === 0 && summary.dueSoon === 0 && (
+                <Badge variant="success">All current</Badge>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {summary.total} tracked
+              </span>
+            </div>
+
+            <ul className="divide-y divide-border">
+              {shown.map((m) => (
+                <InspectionRow
+                  key={m.id}
+                  reminder={m}
+                  action={
+                    canManage ? (
+                      <Button variant="ghost" size="sm" onClick={() => setResolving(m)}>
+                        Sign off
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              ))}
+            </ul>
+
+            {reminders.length > SHOWN && (
+              <p className="mt-3 text-[13px] text-muted-foreground">
+                {reminders.length - SHOWN} more —{" "}
+                <Link
+                  to="/maintenance"
+                  search={{ view: "reminders", resourceId: String(resourceId) }}
+                  className="underline underline-offset-2"
+                >
+                  see all for this tail
+                </Link>
+                .
+              </p>
+            )}
+          </>
+        )}
+      </DetailCard>
+
+      {canManage && (
+        <>
+          <AddInspectionsModal
+            open={adding}
+            onOpenChange={setAdding}
+            fixedResource={resource ?? null}
+          />
+          <ResolveReminderModal
+            reminder={resolving}
+            open={resolving != null}
+            onOpenChange={(o) => !o && setResolving(null)}
+          />
+        </>
       )}
-    </DetailCard>
+    </>
   );
 }

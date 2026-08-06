@@ -1,6 +1,9 @@
 import {
   CalendarDays,
+  ClipboardList,
+  FileSignature,
   FileText,
+  GraduationCap,
   Megaphone,
   MapPin,
   PlaneTakeoff,
@@ -15,10 +18,11 @@ import type { SearchEntityType, SearchResult } from "@/types/api";
 /**
  * Where a search hit goes when you pick it, and how it's labelled.
  *
- * People and aircraft have real detail routes, so those hits go straight to the
- * record: `/people/:orgUserId` and `/aircraft/:resourceId`. So does anyone
- * else's currency or document, since that person's page is where the console
- * shows both together.
+ * People, aircraft, courses and training records have real detail routes, so those hits go
+ * straight to the record: `/people/:orgUserId`, `/aircraft/:resourceId`,
+ * `/training/:courseId`, `/training/enrollments/:enrollmentId`. So does anyone else's
+ * currency, document or endorsement, since that person's page is where the console shows
+ * all three together.
  *
  * Everything else still has no page of its own, and lands on the list that owns
  * it with that list's `?q=` pre-filled — which leaves the row on screen,
@@ -45,6 +49,11 @@ export const SEARCH_TYPE_LABEL: Record<SearchEntityType, string> = {
   currency: "Currencies",
   document: "Documents",
   squawk: "Squawks",
+  course: "Courses",
+  //Not "Enrollments": the console calls this a training record everywhere else, and it is
+  //what somebody is actually looking for when they search a student's name.
+  enrollment: "Training records",
+  endorsement: "Endorsements",
 };
 
 export const SEARCH_TYPE_ICON: Record<SearchEntityType, LucideIcon> = {
@@ -57,19 +66,29 @@ export const SEARCH_TYPE_ICON: Record<SearchEntityType, LucideIcon> = {
   currency: ShieldCheck,
   document: FileText,
   squawk: Wrench,
+  course: GraduationCap,
+  enrollment: ClipboardList,
+  endorsement: FileSignature,
 };
 
 /**
  * Display order — the sequence the palette groups hits in. Deliberately not the
  * server's order: what you're most likely to be hunting for goes first.
+ *
+ * The training block sits with the other per-person records rather than at the end: a
+ * school searching a student's name wants that student's record next to their currencies,
+ * not below the location list.
  */
 export const SEARCH_TYPE_ORDER: SearchEntityType[] = [
   "person",
   "resource",
   "reservation",
   "squawk",
+  "enrollment",
   "currency",
+  "endorsement",
   "document",
+  "course",
   "announcement",
   "location",
   "rating",
@@ -104,11 +123,16 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
 
     case "resource": {
       // Only aircraft have a detail page. Simulators and classrooms live on
-      // Facilities, which has no per-record page, so they land there filtered.
+      // Facilities, which has no per-record page, so they land there filtered —
+      // and on the right section, or a room hit lands among the simulators and
+      // gets filtered straight back out of the page it just took you to.
       const resourceId = asInt(result.params.resourceId);
       const kind = result.params.kind;
       if (kind === "simulator" || kind === "room") {
-        return { to: "/facilities", search: { q: result.title } };
+        return {
+          to: "/facilities",
+          search: { q: result.title, tab: kind === "room" ? "rooms" : "simulators" },
+        };
       }
       return resourceId != null
         ? { to: "/aircraft/$resourceId", params: { resourceId: String(resourceId) } }
@@ -119,8 +143,10 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
       return { to: "/facilities", search: { q: result.title } };
 
     case "rating":
-      // Ratings are org configuration; Settings → Rates is where they're edited.
-      return { to: "/settings" };
+      // Ratings are org configuration; Settings → Instruction rates is where they're
+      // edited. Settings is eleven screens behind one URL, so the tab is the whole link:
+      // without it the hit lands on Organization and the rating is nowhere on screen.
+      return { to: "/settings", search: { tab: "rates" } };
 
     case "reservation":
       return { to: "/schedule", search: { q: result.title } };
@@ -145,5 +171,27 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
           view: result.badge === "Open" ? "open" : "resolved",
         },
       };
+
+    case "course": {
+      const courseId = asInt(result.params.courseId);
+      return courseId != null
+        ? { to: "/training/$courseId", params: { courseId: String(courseId) } }
+        : { to: "/training" };
+    }
+
+    case "enrollment": {
+      // The record has a page of its own, and it is the same page whether it's yours or
+      // a student's — /me/training is a list, this is the record. Anyone who could
+      // search up an enrollment can open it (`canReadEnrollment` scopes both).
+      const enrollmentId = asInt(result.params.enrollmentId);
+      return enrollmentId != null
+        ? { to: "/training/enrollments/$enrollmentId", params: { enrollmentId: String(enrollmentId) } }
+        : { to: "/training" };
+    }
+
+    case "endorsement":
+      // No page of its own — it's a card on a person, exactly like a currency or a
+      // document, so it follows the same self-vs-someone-else rule those two do.
+      return isMine ? { to: "/me/training" } : memberPage;
   }
 }

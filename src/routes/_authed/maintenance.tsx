@@ -1,32 +1,52 @@
 import * as React from "react";
-import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, ClipboardList, Plus, Wrench } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import {
+  CheckCircle2,
+  ClipboardCheck,
+  ClipboardList,
+  ListChecks,
+  PlaneTakeoff,
+  Plus,
+  SlidersHorizontal,
+  Wrench,
+} from "lucide-react";
 import {
   pageRows,
   useSquawksPage,
   useMaintenanceRemindersPage,
   usePlanes,
+  type MaintenanceDueStatus,
 } from "@/features/queries";
 import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";
 import { cn } from "@/lib/utils";
-import { resourceLabel, type Squawk } from "@/types/api";
+import { resourceLabel, type MaintenanceReminder, type Squawk } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { canResolveSquawk, guardRoute } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
-import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
+import {
+  useListQueryState,
+  asFacetInts,
+  asFacetStrings,
+  validateListSearch,
+} from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
+import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { SquawkCard } from "@/components/maintenance/squawk-card";
 import { SquawkDetailSheet } from "@/components/maintenance/squawk-detail-sheet";
-import { ReminderCard } from "@/components/maintenance/reminder-card";
+import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
+import { FleetStatus } from "@/components/maintenance/fleet-status";
+import { InspectionRow } from "@/components/maintenance/inspection-row";
+import { InspectionTemplates } from "@/components/maintenance/inspection-templates";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
+import { ResolveReminderModal } from "@/components/maintenance/resolve-reminder-modal";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-const FACET_KEYS = ["view", "resourceId"] as const;
+const FACET_KEYS = ["view", "resourceId", "status"] as const;
 
 export const Route = createFileRoute("/_authed/maintenance")({
   beforeLoad: guardRoute("/maintenance"),
@@ -34,7 +54,46 @@ export const Route = createFileRoute("/_authed/maintenance")({
   component: MaintenancePage,
 });
 
-type ViewKey = "open" | "resolved" | "reminders";
+/**
+ * `aircraft` leads because that is how the work is actually organised — you deal with a
+ * tail, not with the school's reminders in the abstract. Squawks sit behind it; they are
+ * the exception, and a flat list of open squawks answers nothing about whether the annual
+ * on N12345 is close.
+ */
+type ViewKey = "aircraft" | "open" | "resolved" | "reminders" | "templates";
+
+/**
+ * The two halves of maintenance, as a rail rather than one "Show" dropdown.
+ *
+ * Reminders and squawks are different work — what an aircraft owes on a schedule, versus
+ * what somebody found broken — and burying that distinction inside a filter meant the page
+ * never said what it held. The rail states both, and says which of the five you are on
+ * without opening anything.
+ *
+ * `?view=` keeps its old key and values: the command palette lands a squawk hit on
+ * `view=open|resolved`, and an aircraft's panel links to `view=reminders` for one tail.
+ */
+const SECTIONS: RailSection[] = [
+  {
+    label: "Reminders",
+    items: [
+      { value: "aircraft", label: "By aircraft", icon: PlaneTakeoff },
+      { value: "reminders", label: "All inspections", icon: ListChecks },
+      { value: "templates", label: "Set up", icon: SlidersHorizontal },
+    ],
+  },
+  {
+    label: "Squawks",
+    items: [
+      { value: "open", label: "Open", icon: ClipboardList },
+      { value: "resolved", label: "Resolved", icon: ClipboardCheck },
+    ],
+  },
+];
+
+const VIEWS: ViewKey[] = SECTIONS.flatMap((s) => s.items.map((i) => i.value as ViewKey));
+
+const isView = (v: unknown): v is ViewKey => VIEWS.some((x) => x === v);
 
 function MaintenancePage() {
   const routeSearch = Route.useSearch();
@@ -44,30 +103,29 @@ function MaintenancePage() {
     search: routeSearch,
     navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
     facetKeys: [...FACET_KEYS],
-    defaults: { view: "open" },
+    defaults: { view: "aircraft" },
   });
+  const { roles } = useAuth();
+  const canManage = canResolveSquawk(roles);
+  const [squawkOpen, setSquawkOpen] = React.useState(false);
   const [addOpen, setAddOpen] = React.useState(false);
   const planesQ = usePlanes();
 
-  const view: ViewKey =
-    facets.view === "resolved" || facets.view === "reminders" ? facets.view : "open";
+  const view: ViewKey = isView(facets.view) ? facets.view : "aircraft";
   const resourceIds = asFacetInts(facets.resourceId);
   const q = debouncedQ;
+  const statuses = asFacetStrings(facets.status);
 
-  const facetDefs = React.useMemo<FacetDef[]>(
-    () => [
-      {
-        kind: "select",
-        key: "view",
-        label: "Show",
-        required: true,
-        options: [
-          { value: "open", label: "Open squawks" },
-          { value: "resolved", label: "Resolved" },
-          { value: "reminders", label: "Reminders" },
-        ],
-      },
-      {
+  const showsSquawks = view === "open" || view === "resolved";
+
+  const facetDefs = React.useMemo<FacetDef[]>(() => {
+    const defs: FacetDef[] = [];
+
+    // The tail filter is meaningless on the set-up view, which lists rules rather than
+    // anything belonging to an aircraft. Offering it there would be a control that
+    // silently does nothing.
+    if (view !== "templates") {
+      defs.push({
         kind: "select",
         key: "resourceId",
         label: "Aircraft",
@@ -77,41 +135,98 @@ function MaintenancePage() {
           value: String(r.id),
           label: resourceLabel(r).name,
         })),
-      },
-    ],
-    [planesQ.data]
-  );
+      });
+    }
+
+    // Filtering on the computed band, which only the inspection list can honour.
+    if (view === "reminders") {
+      defs.push({
+        kind: "select",
+        key: "status",
+        label: "Status",
+        allLabel: "Any status",
+        multiple: true,
+        options: [
+          { value: "overdue", label: "Overdue" },
+          { value: "dueSoon", label: "Due soon" },
+          { value: "ok", label: "Not yet due" },
+        ],
+      });
+    }
+
+    return defs;
+  }, [planesQ.data, view]);
 
   return (
-    <TableView>
+    <TableView className="gap-5">
       <TableView.Header>
         <PageHeader
           title="Maintenance"
-          subtitle="Squawks and upcoming maintenance across the fleet."
+          subtitle="What each aircraft owes, and what's been squawked."
           actions={
-            <Button onClick={() => setAddOpen(true)}>
-              <Plus className="size-4" /> Log a squawk
-            </Button>
+            <>
+              {canManage && (
+                <Button variant="outline" onClick={() => setAddOpen(true)}>
+                  <Wrench className="size-4" /> Add inspections
+                </Button>
+              )}
+              <Button onClick={() => setSquawkOpen(true)}>
+                <Plus className="size-4" /> Log a squawk
+              </Button>
+            </>
           }
-        />
-        <ListSearchBar
-          value={search}
-          onChange={setSearch}
-          placeholder="Search squawks or reminders…"
-          aria-label="Search maintenance"
-          facets={facetDefs}
-          filterValues={facets}
-          onFilterChange={setFacets}
         />
       </TableView.Header>
 
-      {view === "open" && (
-        <OpenSquawks onLog={() => setAddOpen(true)} q={q} resourceId={resourceIds} />
-      )}
-      {view === "resolved" && <ResolvedSquawks q={q} resourceId={resourceIds} />}
-      {view === "reminders" && <Reminders q={q} resourceId={resourceIds} />}
+      <div className={RAIL_ROW}>
+        <SectionRail
+          label="Maintenance"
+          sections={SECTIONS}
+          value={view}
+          onChange={(v) => setFacets({ ...facets, view: v })}
+        />
 
-      <LogSquawkModal open={addOpen} onOpenChange={setAddOpen} />
+        {/* The search and filters belong to the section, not to the page: what
+            they search changes with it, and Set up has nothing to filter by tail. */}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
+          <ListSearchBar
+            value={search}
+            onChange={setSearch}
+            placeholder={showsSquawks ? "Search squawks…" : "Search aircraft or inspections…"}
+            aria-label="Search maintenance"
+            facets={facetDefs}
+            filterValues={facets}
+            onFilterChange={setFacets}
+          />
+
+          {view === "aircraft" && (
+            <TableView.Body>
+              <FleetStatus q={q} resourceId={resourceIds} />
+            </TableView.Body>
+          )}
+          {view === "templates" && (
+            <TableView.Body>
+              <InspectionTemplates q={q} canManage={canManage} onAdd={() => setAddOpen(true)} />
+            </TableView.Body>
+          )}
+          {view === "open" && (
+            <OpenSquawks onLog={() => setSquawkOpen(true)} q={q} resourceId={resourceIds} />
+          )}
+          {view === "resolved" && <ResolvedSquawks q={q} resourceId={resourceIds} />}
+          {view === "reminders" && (
+            <Reminders
+              q={q}
+              resourceId={resourceIds}
+              status={statuses}
+              canManage={canManage}
+              onAdd={() => setAddOpen(true)}
+            />
+          )}
+        </div>
+      </div>
+
+      <LogSquawkModal open={squawkOpen} onOpenChange={setSquawkOpen} />
+      {canManage && <AddInspectionsModal open={addOpen} onOpenChange={setAddOpen} />}
     </TableView>
   );
 }
@@ -305,18 +420,39 @@ function ResolvedSquawks({
   );
 }
 
+/**
+ * Every live inspection in the school, worst first.
+ *
+ * `resolved: false` is baked in rather than offered as a filter: this view is a work
+ * queue, and a signed-off item belongs to the aircraft's history, not to the queue. The
+ * server sorts by urgency, so the page order is the same order the aircraft cards and the
+ * per-tail panel use.
+ */
 function Reminders({
   q: searchQ,
   resourceId,
+  status,
+  canManage,
+  onAdd,
 }: {
   q?: string;
   resourceId?: number | number[];
+  status?: string[];
+  canManage: boolean;
+  onAdd: () => void;
 }) {
-  const filter = { q: searchQ, resourceId };
+  const filter = {
+    q: searchQ,
+    resourceId,
+    resolved: false,
+    status: status?.length ? (status as MaintenanceDueStatus[]) : undefined,
+  };
   const paging = usePaging({ resetKey: filter });
   const q = useMaintenanceRemindersPage(filter, paging);
   const { rows: reminders, total } = pageRows(q);
-  const empty = total === 0 && !searchQ && !hasResourceFilter(resourceId);
+  const [resolving, setResolving] = React.useState<MaintenanceReminder | null>(null);
+  const filtered = !!searchQ || hasResourceFilter(resourceId) || !!status?.length;
+  const empty = total === 0 && !filtered;
   const noMatch = total === 0 && !empty;
 
   return (
@@ -325,26 +461,63 @@ function Reminders({
         <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={Wrench}
-            title="No maintenance reminders"
-            body="Recurring inspections and due-by items will appear here as they're scheduled."
+            title="Nothing being tracked yet"
+            body="Add the AVIATES set and every aircraft you pick starts counting down its annual, 100-hour, transponder and the rest."
+            action={
+              canManage ? (
+                <Button onClick={onAdd}>
+                  <Wrench className="size-4" /> Add inspections
+                </Button>
+              ) : undefined
+            }
           />
         </Card>
       ) : noMatch ? (
         <Card className="min-h-0 flex-1 p-0">
-          <EmptyState icon={Wrench} title="No matches" body="Nothing matches that search." />
+          <EmptyState icon={Wrench} title="No matches" body="Nothing matches those filters." />
         </Card>
       ) : (
         <>
           <TableView.Body>
-            <div className={cn("space-y-2.5", q.isFetching && "opacity-60")}>
+            <Card className={cn("divide-y divide-border p-0", q.isFetching && "opacity-60")}>
               {reminders.map((r) => (
-                <ReminderCard key={r.id} reminder={r} />
+                <div key={r.id} className="px-3.5 py-3">
+                  <InspectionRow
+                    reminder={r}
+                    className="py-0"
+                    action={
+                      canManage ? (
+                        <Button variant="ghost" size="sm" onClick={() => setResolving(r)}>
+                          Sign off
+                        </Button>
+                      ) : undefined
+                    }
+                  />
+                  {/* Which tail, on the list that spans the whole fleet. The per-aircraft
+                      panel omits it — there it would repeat on every row. */}
+                  {r.resource && (
+                    <Link
+                      to="/aircraft/$resourceId"
+                      params={{ resourceId: String(r.resource.id) }}
+                      className="mt-1.5 inline-flex items-center gap-1 font-mono text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+                    >
+                      <PlaneTakeoff className="size-3" />
+                      {resourceLabel(r.resource).name}
+                    </Link>
+                  )}
+                </div>
               ))}
-            </div>
+            </Card>
           </TableView.Body>
           <TablePagination paging={paging} total={total} returned={reminders.length} loading={q.isFetching} />
         </>
       )}
+
+      <ResolveReminderModal
+        reminder={resolving}
+        open={resolving != null}
+        onOpenChange={(o) => !o && setResolving(null)}
+      />
     </Frame>
   );
 }

@@ -335,12 +335,18 @@ function ResourceBody({ resource }: { resource: Resource }) {
 
           {access.maintenance && (
             <>
+              {/* Inspections above squawks: what's coming due is the standing question a
+                  mechanic opens this page with, and squawks are the exception. */}
+              <ResourceReminders
+                resourceId={resource.id}
+                resource={resource}
+                canManage={access.resolveSquawks}
+              />
               <ResourceSquawks
                 resource={resource}
                 canResolve={access.resolveSquawks}
                 canReport={access.reportSquawk}
               />
-              <ResourceReminders resourceId={resource.id} />
             </>
           )}
 

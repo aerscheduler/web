@@ -1450,7 +1450,13 @@ export type SearchEntityType =
   | "announcement"
   | "currency"
   | "document"
-  | "squawk";
+  | "squawk"
+  //Training. `course` is the syllabus library and only reaches someone who may configure
+  //training; the other two are per-person and are narrowed to the viewer's own unless
+  //they teach or administer — so never assume any of the three is in `types`.
+  | "course"
+  | "enrollment"
+  | "endorsement";
 
 export interface SearchResult {
   type: SearchEntityType;

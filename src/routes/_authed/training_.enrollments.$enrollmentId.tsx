@@ -676,8 +676,11 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
         <DialogHeader>
           <DialogTitle>Graduate this student</DialogTitle>
           <DialogDescription>
+            {/* "Issues" promised a document. Nothing is generated — the number below is
+                typed in and stored against the record, which is what a school needs for the
+                audit trail and is not the same as producing the certificate. */}
             {is141
-              ? "Issues the §141.95 graduation certificate and closes the enrollment."
+              ? "Records the §141.95 graduation certificate number against this student and closes the enrollment. Their record stays exactly as it is."
               : "Closes the enrollment. Their record stays exactly as it is."}
           </DialogDescription>
         </DialogHeader>

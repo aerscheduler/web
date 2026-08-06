@@ -301,8 +301,13 @@ function BlankCourseDialog() {
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
+              {/* Only ONE of the three things this used to promise is actually enforced.
+                  `blockGraduationOnMinimums` is real — `graduate` refuses on
+                  `graduationBlocker`. `enforceLessonOrder` and `enforceStageChecks` are
+                  declared in the enforcement profile and read by nothing, and stage-check
+                  records do not exist to enforce against. Say the one that is true. */}
               {part === "part141"
-                ? "Lessons run in order, stages need a check, and a student cannot graduate short. This cannot be changed later."
+                ? "A student cannot graduate until every requirement of the approved course is met, and a published syllabus can never be edited. This cannot be changed later."
                 : "A real syllabus and a real record, with nothing in the way. This cannot be changed later."}
             </p>
           </div>

@@ -760,14 +760,106 @@ export interface Squawk {
   reportedBy?: OrganizationUser;
 }
 
+/**
+ * How much is left on an inspection, computed by the server on read.
+ *
+ * This console used to declare `dueAt` and `name` directly on the reminder and the server
+ * never sent either, so every row said "Maintenance reminder — No due date" no matter what
+ * was actually coming due. The countdown needs three things at once — the template's
+ * interval, the reminder's starting point, and the aircraft's current meters — so it is
+ * worked out once on the server rather than reassembled here. See
+ * `server/src/utils/maintenanceDue.ts`.
+ */
+export interface MaintenanceDue {
+  kind: "hours" | "days" | "date" | "unknown";
+  /** `dueSoon` is the template's own warning period — the same threshold that emails. */
+  status: "overdue" | "dueSoon" | "ok" | "resolved";
+  name: string | null;
+  notes: string | null;
+  /** Whether coming due takes the aircraft off the line. */
+  grounds: boolean;
+  /** Null on a meter-based interval: nobody can know the date it'll be flown to. */
+  dueAt: string | null;
+  daysRemaining: number | null;
+  basis: "tach" | "hobbs" | null;
+  /** DECI-hours, like every meter field: 3000 is 300.0 on the clock. */
+  dueAtHours: number | null;
+  hoursRemaining: number | null;
+  currentHours: number | null;
+  /** 0 fresh, 1 due now, >1 overdue. Null when the interval can't be measured. */
+  progress: number | null;
+  /** Ascending is most-urgent-first, comparable across all three kinds. */
+  urgency: number;
+}
+
 export interface MaintenanceReminder {
   id: number;
   createdAt: string;
   resolvedAt: string | null;
-  dueAt: string | null;
-  name: string | null;
-  description: string | null;
+  startedAt: string | null;
+  /** DECI-hours the interval started at. */
+  startHours: number | null;
+  completedAt: string | null;
+  notes: string | null;
+  due?: MaintenanceDue;
+  template?: MaintenanceReminderTemplate;
   resource?: Resource;
+}
+
+/** The rule a reminder repeats on. One template spans many aircraft. */
+export interface MaintenanceReminderTemplate {
+  id: number;
+  createdAt: string;
+  name: string | null;
+  notes: string | null;
+  repeat: boolean;
+  /** Ground the aircraft when this comes due. */
+  ground: boolean;
+  remindDays: number | null;
+  remindDaysBefore: number | null;
+  /** DECI-hours. */
+  remindHours: number | null;
+  remindHoursBefore: number | null;
+  hourBasedOn: "tach" | "hobbs" | null;
+  /** Set only on a one-off: a date that happens once and doesn't recur. */
+  remindDate: string | null;
+  resources?: Resource[];
+  reminders?: MaintenanceReminder[];
+}
+
+/**
+ * A ready-made inspection interval — the AVIATES set plus the common shop intervals.
+ *
+ * Served from `GET /maintenance/reminders/presets` rather than hard-coded here, so the
+ * regulation text has one home across this console and the mobile app.
+ */
+export interface InspectionPreset {
+  id: string;
+  /** Which AVIATES letter this covers. Null for the presets outside the mnemonic. */
+  letter: string | null;
+  name: string;
+  regulation: string | null;
+  interval: string;
+  /** Where the default doesn't apply to every aircraft — rendered as a caution. */
+  caveat: string | null;
+  ground: boolean;
+  payload: CreateReminderTemplateInput;
+}
+
+export interface CreateReminderTemplateInput {
+  name: string;
+  notes?: string;
+  repeat: boolean;
+  ground?: boolean;
+  remindDays?: number;
+  remindDaysBefore?: number;
+  /** DECI-hours. */
+  remindHours?: number;
+  remindHoursBefore?: number;
+  hourBasedOn?: "tach" | "hobbs";
+  /** A one-off deadline. The server forces `repeat: false` when this is set. */
+  remindDate?: string;
+  templateResources?: { id: number; startDate?: string; startHour?: number }[];
 }
 
 // ---- Mutation input payloads (see _local/insights/api-contract.md §4) ----
@@ -1595,6 +1687,14 @@ export type CourseRequirement = {
   source: "part61" | "part141" | "school";
   maxSimulatorBps: number | null;
   maxTransferBps: number | null;
+  /**
+   * Training older than this many CALENDAR months stops counting toward this requirement.
+   *
+   * Missing from this type was why the syllabus editor could not round-trip it: the editor
+   * never read it, so it never sent it, and the server treats an absent value as "clear the
+   * window" — meaning editing a requirement's label silently deleted it.
+   */
+  recencyCalendarMonths: number | null;
 };
 
 export type CourseVersion = CourseVersionSummary & {

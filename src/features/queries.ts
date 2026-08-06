@@ -62,7 +62,10 @@ import type {
   OrgUserBillingSettings,
   PaymentMethod,
   SetupIntentResponse,
+  CreateReminderTemplateInput,
+  InspectionPreset,
   MaintenanceReminder,
+  MaintenanceReminderTemplate,
   Organization,
   MultiDayReadiness,
   OrgOnboarding,
@@ -201,7 +204,11 @@ export type ReminderListFilter = {
   resolved?: boolean;
   warned?: boolean;
   resourceId?: number | number[];
+  /** Filters on the server's computed band, which no column could have filtered on. */
+  status?: MaintenanceDueStatus | MaintenanceDueStatus[];
 };
+
+export type MaintenanceDueStatus = "overdue" | "dueSoon" | "ok" | "resolved";
 
 export type NotificationListFilter = {
   q?: string;
@@ -2336,6 +2343,93 @@ export function useMaintenanceReminders(filter?: ReminderListFilter, opts?: Quer
   });
 }
 
+/** The rules behind the reminders — one template spanning many aircraft. */
+export function useMaintenanceReminderTemplates(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["reminder-templates"],
+    queryFn: () => api<MaintenanceReminderTemplate[]>("/maintenance/reminders/templates"),
+    ...opts,
+  });
+}
+
+/** One template, including which aircraft it's on and where each of them stands. */
+export function useMaintenanceReminderTemplate(id: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["reminder-templates", id],
+    queryFn: () => api<MaintenanceReminderTemplate>(`/maintenance/reminders/templates/${id}`),
+    enabled: id != null,
+    ...opts,
+  });
+}
+
+/**
+ * The AVIATES inspections, ready to apply.
+ *
+ * Fetched rather than hard-coded so the regulation text and intervals match the mobile
+ * app's exactly. Long `staleTime`: it's static reference data, not a record.
+ */
+export function useInspectionPresets(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["inspection-presets"],
+    queryFn: () => api<InspectionPreset[]>("/maintenance/reminders/presets"),
+    staleTime: 60 * 60 * 1000,
+    ...opts,
+  });
+}
+
+/**
+ * Change which aircraft a template applies to, or rename it.
+ *
+ * `templateResources` is a PUT, not a PATCH — send the complete list of aircraft the
+ * template should end up on. Omitting a tail DETACHES it and deletes its unresolved
+ * reminder, so never send a partial list thinking it will merge.
+ */
+export function useUpdateMaintenanceReminderTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: { id: number } & Partial<CreateReminderTemplateInput>) =>
+      api<MaintenanceReminderTemplate>(`/maintenance/reminders/templates/${id}`, { method: "PATCH", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reminders"] });
+      void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
+      void qc.invalidateQueries({ queryKey: ["resource"] });
+    },
+  });
+}
+
+export function useDeleteMaintenanceReminderTemplate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/maintenance/reminders/templates/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reminders"] });
+      void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
+      void qc.invalidateQueries({ queryKey: ["resource"] });
+    },
+  });
+}
+
+/**
+ * Sign a reminder off as done.
+ *
+ * POST rather than PATCH, for historical reasons the server documents. `completedHours` is
+ * DECI-hours and is what the NEXT interval counts from — send the meter reading the work
+ * was actually done at, not today's, or the new interval starts short.
+ */
+export function useResolveMaintenanceReminder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; completedAt: string; completedHours?: number; notes?: string }) =>
+      api<MaintenanceReminder>(`/maintenance/reminders/${id}`, { method: "POST", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reminders"] });
+      void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
+      void qc.invalidateQueries({ queryKey: ["resource"] });
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+    },
+  });
+}
+
 // ── Google Calendar integration ─────────────────────────────────────────────
 /** Whether the caller has connected Google Calendar. GET /integrations/googleCalendar
  *  returns { data: true } when connected and 404 when not. */
@@ -2350,19 +2444,15 @@ export function useMaintenanceReminders(filter?: ReminderListFilter, opts?: Quer
 export function useCreateMaintenanceReminderTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: {
-      name: string;
-      repeat: boolean;
-      remindDays?: number;
-      remindDaysBefore?: number;
-      remindHours?: number;
-      remindHoursBefore?: number;
-      hourBasedOn?: "tach" | "hobbs";
-      templateResources?: { id: number; startDate?: string }[];
-    }) => api<unknown>("/maintenance/reminders/templates", { method: "POST", body: input }),
+    mutationFn: (input: CreateReminderTemplateInput) =>
+      api<MaintenanceReminderTemplate>("/maintenance/reminders/templates", { method: "POST", body: input }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["reminders"] });
       void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
+      // The aircraft page embeds its own reminders, so a new template has to reach it too
+      // — otherwise the inspection you just added doesn't show up on the tail you added it
+      // to until a reload, which reads as the action having failed.
+      void qc.invalidateQueries({ queryKey: ["resource"] });
     },
   });
 }
@@ -2941,6 +3031,8 @@ export function useUpsertRequirement() {
       versionId: number; requirementId?: number; code: string; label: string;
       minDeciHours?: number | null; minCount?: number | null; source?: string;
       maxSimulatorBps?: number | null; maxTransferBps?: number | null;
+      /** Always send it. The server treats an omitted value as "clear the window". */
+      recencyCalendarMonths?: number | null;
     }) => api<{ id: number }>(`/training/versions/${versionId}/requirements`, { method: "PUT", body }),
     onSuccess: () => invalidateTraining(qc),
   });

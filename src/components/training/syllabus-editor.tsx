@@ -790,6 +790,7 @@ function RequirementDialog({
   const [source, setSource] = useState("part61");
   const [simCap, setSimCap] = useState("");
   const [transferCap, setTransferCap] = useState("");
+  const [recency, setRecency] = useState("");
   const [seeded, setSeeded] = useState<number | null>(null);
   const save = useUpsertRequirement();
 
@@ -805,11 +806,18 @@ function RequirementDialog({
     setSource(req?.source ?? "part61");
     setSimCap(req?.maxSimulatorBps != null ? String(req.maxSimulatorBps / 100) : "");
     setTransferCap(req?.maxTransferBps != null ? String(req.maxTransferBps / 100) : "");
+    setRecency(req?.recencyCalendarMonths != null ? String(req.recencyCalendarMonths) : "");
   }
 
   const pct = (v: string) => {
     const n = Number(v);
     return v.trim() === "" || Number.isNaN(n) ? null : Math.round(n * 100);
+  };
+
+  /** Whole months, or null for a requirement with no window. */
+  const whole = (v: string) => {
+    const n = Number(v);
+    return v.trim() === "" || !Number.isFinite(n) || n <= 0 ? null : Math.round(n);
   };
 
   return (
@@ -885,6 +893,26 @@ function RequirementDialog({
               </div>
             </div>
           ) : null}
+
+          {/* Outside the hours-only block above: a recency window applies just as much to
+              a count. §61.109(a)(4) is hours, but "three landings in the last 90 days" is
+              the same idea measured the other way. */}
+          <div className="space-y-1">
+            <Label htmlFor="req-recency">Only count training from the last … months</Label>
+            <Input
+              id="req-recency"
+              inputMode="numeric"
+              value={recency}
+              onChange={(e) => setRecency(e.target.value)}
+              placeholder="Leave blank — most requirements never go stale"
+            />
+            <p className="text-xs text-muted-foreground">
+              Calendar months, not days: §61.109(a)(4) wants the three hours of test
+              preparation within 2 calendar months of the test, so on 5 August that window
+              opens on 1 June. Older training stays on the record and stops counting toward
+              this row.
+            </p>
+          </div>
         </div>
 
         {save.error ? <p className="text-sm text-destructive">{(save.error as Error).message}</p> : null}
@@ -904,6 +932,11 @@ function RequirementDialog({
                 source,
                 maxSimulatorBps: measure === "hours" ? pct(simCap) : null,
                 maxTransferBps: measure === "hours" ? pct(transferCap) : null,
+                //Sent unconditionally. The server writes this field whether or not it
+                //arrives, so leaving it out of the body does not mean "leave it alone" —
+                //it means "clear it". Editing a requirement's label used to silently
+                //delete its recency window, and nothing said the value had ever existed.
+                recencyCalendarMonths: whole(recency),
               });
               setSeeded(null);
               onClose();

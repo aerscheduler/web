@@ -34,13 +34,22 @@ import { dateKeyInZone } from "./timezone";
 const usable = (d: Date | null | undefined): d is Date =>
   d instanceof Date && Number.isFinite(d.getTime());
 
-/** Local midnights crossed between out and back. 0 for a booking home the same day. */
+/**
+ * Local midnights crossed between out and back. 0 for a booking home the same day.
+ *
+ * Measured to the last instant the booking OCCUPIES — its end minus a millisecond — because
+ * a booking is `[start, end)` and its end is a boundary, not a moment the aircraft is out.
+ * Only visible at midnight, and there it is the whole answer: 10 pm → midnight is an evening
+ * flight the picker offers as the last slot of every day, and reading the boundary's own
+ * date called it a night away. Mirrors `lastOccupiedInstant` in server/src/utils/
+ * multiDayBooking.ts, which the server's night count and its multi-day gate both use.
+ */
 export function nightsAway(start: Date, end: Date, timeZone: string): number {
   //Checked here as well as at the entry points, because this is exported and the throw it
   //prevents is not local to it.
   if (!usable(start) || !usable(end)) return 0;
   const from = dateKeyInZone(start, timeZone);
-  const to = dateKeyInZone(end, timeZone);
+  const to = dateKeyInZone(new Date(end.getTime() - 1), timeZone);
   const ms = Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`);
   if (!Number.isFinite(ms)) return 0;
   return Math.max(0, Math.round(ms / 86_400_000));

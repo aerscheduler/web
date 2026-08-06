@@ -163,6 +163,31 @@ export function RampModal({
       document.getElementById(firstInvalid)?.focus();
       return;
     }
+    // A BOOKING WITH NO METERS SUBMITS ITS BRIEFING, AND NOTHING ELSE.
+    //
+    // This is handled before the guard below rather than inside the mode branch, because
+    // that guard (`hobbsNum == null || tachNum == null`) is exactly what made the web
+    // console unable to close out a ground lesson AT ALL: the fields don't exist, so both
+    // readings are null, so the guard returned — silently, with the form valid and the
+    // button enabled. Nothing happened and nothing said why.
+    //
+    // It calls rampIn regardless of which mode opened it. `briefing` is a ramp-IN field on
+    // the server, and one briefing figure covers the whole lesson (see `isRampedIn` in
+    // close-out.ts), so the lesson goes from "not started" straight to awaiting sign-off.
+    // That is the same single step the Flutter app takes, which reaches this sheet from a
+    // button labelled "Review" for the same bookings.
+    if (noMeters) {
+      if (briefingNum == null) return;
+      try {
+        await rampIn.mutateAsync({ briefing: toDeci(briefingNum) });
+        toast.success("Times saved");
+        onOpenChange(false);
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : "Couldn't save the times");
+      }
+      return;
+    }
+
     if (hobbsNum == null || tachNum == null) return;
     try {
       if (mode === "out") {
@@ -188,7 +213,9 @@ export function RampModal({
     }
   }
 
-  const title = mode === "out" ? "Ramp out" : "Ramp in";
+  //Nothing ramps anywhere in a classroom, so don't head the sheet with it. Matches the
+  //Flutter sheet, which titles the same booking "Review Times".
+  const title = noMeters ? "Review times" : mode === "out" ? "Ramp out" : "Ramp in";
   const description = noMeters
     ? "Record the instruction time to close out this lesson. There are no meter readings to take."
     : mode === "out"
@@ -262,7 +289,15 @@ export function RampModal({
               className="tnum"
             />
             {showErrors && briefingErr && <p className="text-xs text-destructive">{briefingErr}</p>}
-            <p className="text-xs text-muted-foreground">Optional — billed at the instructor rate.</p>
+            {/* On a flight this is extra detail alongside the meters. On a lesson with no
+                meters it is the ONLY figure, and `briefingErr` already refuses an empty one,
+                so calling it optional there contradicts the validation the reader is about
+                to hit. */}
+            <p className="text-xs text-muted-foreground">
+              {noMeters
+                ? "Billed at the instructor rate."
+                : "Optional. Billed at the instructor rate."}
+            </p>
           </div>
         )}
 

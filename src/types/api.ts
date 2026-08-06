@@ -1077,11 +1077,21 @@ export interface RampOutInput {
 
 /**
  * Ramp-in readings — `hobbsTimeIn`/`tachTimeIn` are the ending meter readings; `briefing`
- * is optional instruction time (decimal hours). `comments[0]` is appended to the review.
+ * is instruction time (decimal hours). `comments[0]` is appended to the review.
+ *
+ * EVERY FIELD IS OPTIONAL, because a booking with no aircraft has no meters to send. The
+ * server has always supported this — `ReservationService.rampIn` passes each field straight
+ * to Prisma, where `undefined` means "leave it alone", and its own comment says so ("For
+ * reservations that don't have a resource, we will only update the briefing"). It is what
+ * the Flutter app sends for a ground lesson.
+ *
+ * Typing the meters as required was therefore a client-side invention, and it did real
+ * damage: it forced the ramp modal to bail out before calling this at all when the readings
+ * were null, so a ground lesson could not be closed out from the console.
  */
 export interface RampInInput {
-  hobbsTimeIn: number;
-  tachTimeIn: number;
+  hobbsTimeIn?: number;
+  tachTimeIn?: number;
   briefing?: number;
   comments?: string[];
 }

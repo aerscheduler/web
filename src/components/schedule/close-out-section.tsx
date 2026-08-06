@@ -22,6 +22,7 @@ import {
   canRampReservation,
   canViewReservationInvoice,
   closeOutStep,
+  usesBriefingNotMeters,
   confirmationCount,
   hasConfirmedReview,
   isReservationPersonnel,
@@ -77,11 +78,17 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   // A cancelled reservation is off the board — nothing to dispatch or close out.
   if (r.cancelledAt) return null;
 
+  // A lesson with no aircraft is never dispatched and never ramps. It has one figure to
+  // record (the instruction time) and then the sign-offs, so it gets its own wording all
+  // the way through this section rather than being told to wait for an aeroplane that
+  // isn't on the booking. Same helper the ramp modal and the Flutter app key on.
+  const noMeters = usesBriefingNotMeters(r);
+
   // Before the aircraft is ramped out the flight is simply scheduled — frame it
   // as "Dispatch", not "Close-out" (which only makes sense once it has flown).
   // Mirrors the Flutter detail view, which shows a neutral "Not Started" status
   // and a plain "Ramp Out" action rather than an overdue close-out prompt.
-  const heading = step === "rampOut" ? "Dispatch" : "Close-out";
+  const heading = step === "rampOut" && !noMeters ? "Dispatch" : "Close-out";
 
   return (
     <>
@@ -98,10 +105,20 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
           (canRamp ? (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                Ready to dispatch — ramp out when the aircraft departs.
+                {noMeters
+                  ? "Record the instruction time once the lesson is done."
+                  : "Ready to dispatch. Ramp out when the aircraft departs."}
               </p>
               <Button className="w-full" onClick={() => setRampMode("out")}>
-                <PlaneTakeoff className="size-4" /> Ramp out
+                {noMeters ? (
+                  <>
+                    <ClipboardCheck className="size-4" /> Review times
+                  </>
+                ) : (
+                  <>
+                    <PlaneTakeoff className="size-4" /> Ramp out
+                  </>
+                )}
               </Button>
             </div>
           ) : (
@@ -124,7 +141,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         {step === "confirm" && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Flown — needs pilot sign-off.{" "}
+              {noMeters ? "Times recorded. Needs sign-off." : "Flown. Needs pilot sign-off."}{" "}
               <span className="tnum text-foreground">
                 {done} of {needed}
               </span>{" "}

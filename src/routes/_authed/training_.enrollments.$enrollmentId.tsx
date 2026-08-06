@@ -263,7 +263,16 @@ function LessonsTab({ progress }: { progress: EnrollmentProgress }) {
     [p.enrollment.courseVersion.stages, p.completedLessonIds]
   );
 
-  const editable = p.enrollment.status === "enrolled";
+  //"Enrolled" says the RECORD is open. It does not say the viewer may write to it, and
+  //conflating the two put a Grade button on a student's own lessons the moment this page
+  //stopped being admin-only — the classic client-offers-what-the-server-refuses failure.
+  //
+  //`canGrade` comes from the server on /training/grants/mine rather than being re-derived
+  //here, for the same reason the admin bypass is sent rather than reimplemented: two
+  //copies of a permission rule drift the first time either changes. Fails closed while
+  //the query is in flight.
+  const mine = useMyTrainingGrants();
+  const editable = p.enrollment.status === "enrolled" && mine.data?.canGrade === true;
 
   return (
     <div className="space-y-4">

@@ -137,6 +137,7 @@ export interface ChannelNotificationPreferences {
   squawks?: boolean;
   userDocumentReminders?: boolean;
   currencyReminders?: boolean;
+  endorsementReminders?: boolean;
   grounded?: boolean;
 }
 
@@ -735,7 +736,12 @@ export interface AppNotification {
    * payload, so every notification rendered with its text missing.
    */
   subtitle?: string | null;
-  /** Where the notification points, e.g. "/announcements". Not yet used for navigation. */
+  /**
+   * Where the notification points, e.g. "/announcements".
+   *
+   * A FLUTTER go_router location, not a console route — see `lib/notification-link.ts`,
+   * which translates the shapes this console has a destination for and ignores the rest.
+   */
   link?: string | null;
   body?: string | null;
   message?: string | null;

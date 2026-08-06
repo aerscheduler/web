@@ -182,6 +182,13 @@ export interface OverviewAttention {
   filters: ReportFilterInput[];
   tone: "danger" | "warning" | "info";
   count: number;
+  /**
+   * The resolved window the count was taken over, so opening the report lands on exactly
+   * the period the number came from. Dates rather than a range name deliberately: the
+   * server's `next30` is open backwards (already lapsed OR due soon) and this client's is
+   * not, so passing the name made the two disagree.
+   */
+  window: { startDate: string; endDate: string };
 }
 
 export interface OverviewTrend {

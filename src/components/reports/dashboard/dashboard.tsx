@@ -298,7 +298,17 @@ export function Dashboard({
         <AttentionStrip
           items={overview.data?.attention ?? []}
           loading={overview.isLoading}
-          onOpen={(item) => onOpenReport(item.reportId, item.filters)}
+          //Open on the window the COUNT was taken over, not the dashboard's current
+          //range. A strip reading "3 endorsements expiring" that opened a table reading
+          //"Nothing matched" is what this fixes — the tiles each declare their own window
+          //precisely because "what is overdue" is not a question about the period you
+          //happen to be looking at.
+          onOpen={(item) =>
+            onOpenReport(item.reportId, item.filters, {
+              from: new Date(item.window.startDate),
+              to: new Date(item.window.endDate),
+            })
+          }
         />
       </div>
 

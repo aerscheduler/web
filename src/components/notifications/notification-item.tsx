@@ -1,6 +1,8 @@
 import { formatDistanceToNow } from "date-fns";
+import { useNavigate } from "@tanstack/react-router";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { notificationHref } from "@/lib/notification-link";
 import type { AppNotification } from "@/types/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +17,10 @@ export function NotificationItem({
   onMarkRead: (id: number) => void;
   marking?: boolean;
 }) {
+  const navigate = useNavigate();
+  //Null for any link shape the console has no destination for, which is most of them today
+  //— those rows keep exactly the behaviour they have always had.
+  const href = notificationHref(notification.link);
   const unread = notification.readAt == null;
   const title = notification.title ?? notification.message ?? "Notification";
   // `subtitle` first: that is the field the server actually sends. Without it every
@@ -34,9 +40,21 @@ export function NotificationItem({
       className={cn(
         "flex items-start gap-3 p-4 transition-colors",
         unread && "border-primary/30 bg-primary/5",
-        unread && "cursor-pointer hover:bg-primary/10"
+        (unread || href) && "cursor-pointer hover:bg-primary/10"
       )}
-      onClick={unread && !marking ? () => onMarkRead(notification.id) : undefined}
+      //Reading and opening are one gesture: somebody clicking a notification wants the
+      //thing it is about, and marking it read on the way is what they meant. The tick
+      //button stays mark-read-only via stopPropagation, for when they do not.
+      onClick={
+        marking
+          ? undefined
+          : href || unread
+            ? () => {
+                if (unread) onMarkRead(notification.id);
+                if (href) navigate({ to: href });
+              }
+            : undefined
+      }
     >
       <span
         className={cn(

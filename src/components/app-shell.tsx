@@ -81,17 +81,20 @@ export function AppShell({ children }: { children: ReactNode }) {
                 cannot shrink, so without this the inset grows to rail + content +
                 panel and the panel is silently clipped off the right of the window. */}
             <SidebarInset className="min-h-0 min-w-0">
+              {/* The detail panel is a sibling of the WHOLE content column — banners
+                  and topbar included — so opening a record pushes the nav in beside
+                  it rather than sliding under it. The panel then runs the full height
+                  of the window and the topbar's right-hand icons stop sitting on top
+                  of it. `min-h-0` here is what keeps `main` a bounded scroll container
+                  once the panel is beside it. */}
+              <div className="flex min-h-0 min-w-0 flex-1">
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
               {/* Above the topbar and inside the content column — the desktop rail
                   is `fixed`, so a banner spanning the full window would sit under
                   it and lose its first words. */}
               <ImpersonationBanner />
               <DemoBanner />
               <Topbar />
-              {/* The topbar spans the full width and the detail panel hangs below it,
-                  so search, notifications and quick-create stay reachable with a
-                  record open. `min-h-0` here is what keeps `main` a bounded scroll
-                  container once the panel is sitting beside it. */}
-              <div className="flex min-h-0 min-w-0 flex-1">
               {/* main is the scroll container; the content wrapper adapts per page:
                   • Normal pages → `min-h-full`: fills the viewport when short and
                     GROWS with tall content, so the py-8 bottom padding is always
@@ -131,6 +134,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   {children}
                 </div>
               </main>
+              </div>
               {/* Deliberately OUTSIDE the max-w-[1280px] wrapper: on a wide monitor
                   the panel spends the empty gutter, so the list barely narrows.
                   Zero-width until a page docks a record into it. */}

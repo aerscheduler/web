@@ -7,7 +7,7 @@ import { Bell, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { isAdmin, isTechnician } from "@/lib/permissions";
+import { isAdmin, isInstructor, isTechnician } from "@/lib/permissions";
 import {
   useOrgUserPreferences,
   useUpdateOrgUserPreferences,
@@ -90,6 +90,16 @@ const CURRENCY_ROWS: PrefRow[] = [
   },
 ];
 
+const ENDORSEMENT_ROWS: PrefRow[] = [
+  {
+    key: "endorsementReminders",
+    label: "Endorsement expirations",
+    //Only instructors and admins are ever sent these — a student cannot sign their own
+    //replacement — so the hint says who it is about rather than implying it is about you.
+    hint: "Solo and other timed sign-offs your students are about to lose.",
+  },
+];
+
 const STATUS_ROWS: PrefRow[] = [
   {
     key: "grounded",
@@ -169,6 +179,10 @@ export function NotificationPreferencesPanel() {
 
   const showAdmin = isAdmin(roles);
   const showMaintenance = isAdmin(roles) || isTechnician(roles);
+  //Only instructors and admins are ever sent an endorsement digest — a student cannot sign
+  //their own replacement. Offering everyone else a switch that changes nothing is how a
+  //preferences screen stops being trustworthy.
+  const showEndorsements = isAdmin(roles) || isInstructor(roles);
   const saving = update.isPending;
 
   return (
@@ -233,6 +247,15 @@ export function NotificationPreferencesPanel() {
                 saving={saving}
                 onChange={patchEmailPref}
               />
+              {showEndorsements && (
+              <PrefSection
+                title="Endorsements"
+                rows={ENDORSEMENT_ROWS}
+                email={email}
+                saving={saving}
+                onChange={patchEmailPref}
+              />
+              )}
               {showMaintenance && (
                 <PrefSection
                   title="Maintenance"

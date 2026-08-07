@@ -285,6 +285,39 @@ export function formatTimeInZone(instant: Date | string, timeZone: string): stri
   }
 }
 
+/**
+ * `9:00` in the given zone: hour and minute, no meridiem.
+ *
+ * For the month grid's chips, where three bookings share a narrow cell and the title has to
+ * survive. It is the zone-aware replacement for `format(d, "h:mm")`, and exists only so
+ * fixing the ZONE did not also have to change what the chip looks like. Everywhere with
+ * room uses `formatTimeInZone`, which keeps the AM/PM.
+ */
+export function formatCompactTimeInZone(instant: Date | string, timeZone: string): string {
+  const date = typeof instant === "string" ? new Date(instant) : instant;
+
+  const build = (zone?: string) =>
+    new Intl.DateTimeFormat("en-US", {
+      ...(zone ? { timeZone: zone } : {}),
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    })
+      .formatToParts(date)
+      //Dropping the parts rather than slicing the string: the separator between the time and
+      //the meridiem is a non-breaking space in some engines, so a `.replace(" AM", "")` is a
+      //no-op on exactly the browsers nobody tests in.
+      .filter((part) => part.type !== "dayPeriod" && part.type !== "literal")
+      .map((part) => (part.type === "minute" ? `:${part.value}` : part.value))
+      .join("");
+
+  try {
+    return build(timeZone);
+  } catch {
+    return build();
+  }
+}
+
 /** `Tue, Jul 28` / `Tuesday, July 28, 2026` in the given zone. */
 export function formatDateInZone(
   instant: Date | string,

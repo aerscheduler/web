@@ -49,7 +49,9 @@ const ROLE_HELP: Record<ApiKeyRole, string> = {
   instructor: "Book and close out instruction; read the schedule and their students.",
   student: "Book their own lessons and read their own records.",
   renter: "Book rentals and read their own records.",
-  technician: "Squawks, maintenance reminders, and grounding aircraft.",
+  //NOT grounding: that is `PATCH /resources/:id`, which is admin-only. A key issued on this
+  //description would 403 on the one call the integration was written for.
+  technician: "Squawks and maintenance reminders. Grounding an aircraft is an administrator action.",
 };
 
 const relative = (iso: string | null): string => {

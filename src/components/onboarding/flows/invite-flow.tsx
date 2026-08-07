@@ -44,7 +44,11 @@ const LABELS: { value: Who; label: string; hint: string }[] = [
   { value: "instructor", label: "Instructor", hint: "Teaches, and closes out their own flights" },
   { value: "student", label: "Student", hint: "Books lessons and pays their own invoices" },
   { value: "renter", label: "Renter", hint: "Rents aircraft solo, within your rules" },
-  { value: "technician", label: "Technician", hint: "Maintenance, squawks, and grounding" },
+  //Grounding was in this hint and is not in the role. Taking an aircraft off the line runs
+  //through the aircraft record, which is administrator-only, and the Ground button is hidden
+  //from technicians. Somebody hired a mechanic on the strength of this line and then found
+  //they had to ring an admin to ground the aeroplane they had just failed.
+  { value: "technician", label: "Technician", hint: "Inspections and squawks, no settings or billing" },
   { value: "office", label: "Office staff", hint: "Runs the dispatch board — no settings or billing" },
 ];
 

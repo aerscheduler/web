@@ -18,8 +18,8 @@ export function NotificationItem({
   marking?: boolean;
 }) {
   const navigate = useNavigate();
-  //Null for any link shape the console has no destination for, which is most of them today
-  //— those rows keep exactly the behaviour they have always had.
+  //Null for any link shape the console has no destination for. Those rows keep exactly the
+  //behaviour they have always had: readable, not clickable.
   const href = notificationHref(notification.link);
   const unread = notification.readAt == null;
   const title = notification.title ?? notification.message ?? "Notification";
@@ -51,7 +51,10 @@ export function NotificationItem({
           : href || unread
             ? () => {
                 if (unread) onMarkRead(notification.id);
-                if (href) navigate({ to: href });
+                //`href` rather than `to`: these paths are resolved at runtime from the
+                //server's link, so they cannot be typed against the route tree, and some
+                //of them carry a query the router has to parse rather than be handed.
+                if (href) navigate({ href });
               }
             : undefined
       }

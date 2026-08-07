@@ -5,13 +5,12 @@ import {
   format,
   isSameMonth,
   isToday,
-  parseISO,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
 import { resourceLabel, type Reservation } from "@/types/api";
 import { cn } from "@/lib/utils";
-import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
+import { dateKeyInZone, formatCompactTimeInZone, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { highlightMatch } from "@/lib/highlight-match";
 import { BORDER_L_CLASS, CHIP_CLASS } from "./meta";
@@ -193,7 +192,12 @@ export function MonthGrid({
                     )}
                   >
                     <span className="shrink-0 tabular-nums opacity-80">
-                      {format(parseISO(r.start), "h:mm")}
+                      {/* Airport time, like the day board, the week grid and the detail
+                          panel. This alone formatted in the reader's device zone, so the
+                          same booking read 09:00 on the month and 10:00 everywhere else,
+                          and the chip disagreed with the very cell it sits in: the day
+                          buckets above are already keyed on `tz.zone`. */}
+                      {formatCompactTimeInZone(r.start, tz.zone)}
                     </span>
                     <span className="truncate font-medium text-foreground">
                       {/* Month cells have no resource lane either, and the stored title

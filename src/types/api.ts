@@ -254,6 +254,16 @@ export interface OrganizationBillingSettings {
    * school, simulators and rooms are unaffected. Paying releases the member automatically.
    */
   groundUserUnpaidInvoices: number | null;
+  /**
+   * May dispatchers raise an invoice by hand, outside a reservation's close-out?
+   *
+   * Admins and owners always can, so this only ever WIDENS. The server checks it in
+   * `validateCustomInvoiceValues` on `POST /invoices`, which means it is a real permission
+   * and not a UI hint: with it off, a dispatcher's attempt is refused by the API.
+   */
+  dispatchersCanManuallyCreateInvoices: boolean;
+  /** The same grant for instructors. Independent of the dispatcher one, not a hierarchy. */
+  instructorsCanManuallyCreateInvoices: boolean;
 }
 
 export interface RoleRow {

@@ -1,15 +1,19 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
   CreditCard,
   ExternalLink,
   Loader2,
   Receipt,
   ShieldCheck,
+  TriangleAlert,
+  UserRoundCog,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useBilling, useConnectStripe, useUpdateBilling } from "@/features/queries";
 import type { OrganizationBillingSettings } from "@/types/api";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
+import { canManageBillingSettings } from "@/lib/permissions";
 import {
   Card,
   CardContent,
@@ -26,7 +30,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/states";
 import { MoneyInput } from "@/components/money-input";
-import { Field } from "@/components/settings/parts";
+import { Field, PreferenceToggle } from "@/components/settings/parts";
 
 /** serviceFeePercent is stored as hundredths of a percent (500 = 5%, 50 = 0.5%). */
 function feeToText(bps: number | null): string {
@@ -86,6 +90,9 @@ const UNCONFIGURED_BILLING: OrganizationBillingSettings = {
   overnightMinimumTenths: null,
   //Off until a school opts in — grounding somebody by surprise is worse than not grounding.
   groundUserUnpaidInvoices: null,
+  //Both match the column defaults: a new school bills through admins until it says otherwise.
+  dispatchersCanManuallyCreateInvoices: false,
+  instructorsCanManuallyCreateInvoices: false,
 };
 
 function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
@@ -176,133 +183,137 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-      <Card>
-        <form onSubmit={handleSubmit}>
-          <CardHeader className="flex-row items-center gap-2.5">
-            <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
-              <CreditCard className="size-4" />
-            </span>
-            <div>
-              <CardTitle>Billing settings</CardTitle>
-              <CardDescription>
-                Control invoicing, instructor rates, and service fees.
-              </CardDescription>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-3">
-              <div className="min-w-0">
-                <Label htmlFor="billing-enabled" className="text-sm">
-                  Billing enabled
-                </Label>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Generate invoices for reservations and flight time.
-                </p>
+      <div className="flex flex-col gap-4">
+        <Card>
+          <form onSubmit={handleSubmit}>
+            <CardHeader className="flex-row items-center gap-2.5">
+              <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+                <CreditCard className="size-4" />
+              </span>
+              <div>
+                <CardTitle>Billing settings</CardTitle>
+                <CardDescription>
+                  Control invoicing, instructor rates, and service fees.
+                </CardDescription>
               </div>
-              <Switch
-                id="billing-enabled"
-                checked={enabled}
-                onCheckedChange={setEnabled}
-                aria-label="Billing enabled"
-              />
-            </div>
-
-            <div className="grid gap-5 sm:grid-cols-2">
-              <Field
-                label="Default instructor rate"
-                htmlFor="billing-rate"
-                hint="Applied per hour when no rating-specific rate is set."
-              >
-                <MoneyInput
-                  id="billing-rate"
-                  cents={rateCents}
-                  onCentsChange={setRateCents}
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-3">
+                <div className="min-w-0">
+                  <Label htmlFor="billing-enabled" className="text-sm">
+                    Billing enabled
+                  </Label>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Generate invoices for reservations and flight time.
+                  </p>
+                </div>
+                <Switch
+                  id="billing-enabled"
+                  checked={enabled}
+                  onCheckedChange={setEnabled}
+                  aria-label="Billing enabled"
                 />
-              </Field>
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <Field
+                  label="Default instructor rate"
+                  htmlFor="billing-rate"
+                  hint="Applied per hour when no rating-specific rate is set."
+                >
+                  <MoneyInput
+                    id="billing-rate"
+                    cents={rateCents}
+                    onCentsChange={setRateCents}
+                  />
+                </Field>
+                <Field
+                  label="Service fee"
+                  htmlFor="billing-fee"
+                  hint="Percentage added to each invoice."
+                >
+                  <div className="relative">
+                    <Input
+                      id="billing-fee"
+                      inputMode="decimal"
+                      value={feeText}
+                      onChange={(e) =>
+                        setFeeText(e.target.value.replace(/[^0-9.]/g, ""))
+                      }
+                      placeholder="0.5"
+                      className="pr-7 tnum"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      %
+                    </span>
+                  </div>
+                </Field>
+              </div>
+
               <Field
-                label="Service fee"
-                htmlFor="billing-fee"
-                hint="Percentage added to each invoice."
+                label="Overnight minimum"
+                htmlFor="billing-overnight"
+                hint={overnightHint}
               >
                 <div className="relative">
                   <Input
-                    id="billing-fee"
+                    id="billing-overnight"
                     inputMode="decimal"
-                    value={feeText}
-                    onChange={(e) =>
-                      setFeeText(e.target.value.replace(/[^0-9.]/g, ""))
-                    }
-                    placeholder="0.5"
-                    className="pr-7 tnum"
+                    value={overnightText}
+                    onChange={(e) => setOvernightText(e.target.value.replace(/[^0-9.]/g, ""))}
+                    placeholder="2.0"
+                    className="pr-14 tnum"
                   />
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                    %
+                    hrs/night
                   </span>
                 </div>
               </Field>
-            </div>
 
-            <Field
-              label="Overnight minimum"
-              htmlFor="billing-overnight"
-              hint={overnightHint}
-            >
-              <div className="relative">
+              <Field
+                label="Ground members with unpaid invoices"
+                htmlFor="billing-ground"
+                hint={groundHint}
+              >
+                <div className="relative">
+                  <Input
+                    id="billing-ground"
+                    inputMode="numeric"
+                    value={groundText}
+                    onChange={(e) => setGroundText(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="Off"
+                    className="pr-20 tnum"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    invoices
+                  </span>
+                </div>
+              </Field>
+
+              <Field
+                label="Service fee label"
+                htmlFor="billing-fee-label"
+                hint="Shown as the fee's line item on invoices."
+              >
                 <Input
-                  id="billing-overnight"
-                  inputMode="decimal"
-                  value={overnightText}
-                  onChange={(e) => setOvernightText(e.target.value.replace(/[^0-9.]/g, ""))}
-                  placeholder="2.0"
-                  className="pr-14 tnum"
+                  id="billing-fee-label"
+                  value={feeLabel}
+                  onChange={(e) => setFeeLabel(e.target.value)}
+                  placeholder="Service Fee"
                 />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  hrs/night
-                </span>
-              </div>
-            </Field>
+              </Field>
+            </CardContent>
+            <CardFooter className="justify-end gap-2">
+              <Button type="submit" disabled={!dirty || update.isPending}>
+                {update.isPending && <Loader2 className="size-4 animate-spin" />}
+                Save changes
+              </Button>
+            </CardFooter>
+          </form>
+        </Card>
 
-            <Field
-              label="Ground members with unpaid invoices"
-              htmlFor="billing-ground"
-              hint={groundHint}
-            >
-              <div className="relative">
-                <Input
-                  id="billing-ground"
-                  inputMode="numeric"
-                  value={groundText}
-                  onChange={(e) => setGroundText(e.target.value.replace(/[^0-9]/g, ""))}
-                  placeholder="Off"
-                  className="pr-20 tnum"
-                />
-                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  invoices
-                </span>
-              </div>
-            </Field>
-
-            <Field
-              label="Service fee label"
-              htmlFor="billing-fee-label"
-              hint="Shown as the fee's line item on invoices."
-            >
-              <Input
-                id="billing-fee-label"
-                value={feeLabel}
-                onChange={(e) => setFeeLabel(e.target.value)}
-                placeholder="Service Fee"
-              />
-            </Field>
-          </CardContent>
-          <CardFooter className="justify-end gap-2">
-            <Button type="submit" disabled={!dirty || update.isPending}>
-              {update.isPending && <Loader2 className="size-4 animate-spin" />}
-              Save changes
-            </Button>
-          </CardFooter>
-        </form>
-      </Card>
+        <ManualInvoiceCard billing={billing} />
+      </div>
 
       <Card className="h-fit">
         <CardHeader className="flex-row items-center gap-2.5">
@@ -347,5 +358,126 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+/** The two grants below, which are the only fields this card writes. */
+type ManualInvoiceField =
+  | "dispatchersCanManuallyCreateInvoices"
+  | "instructorsCanManuallyCreateInvoices";
+
+/**
+ * Who besides owners and admins may raise an invoice by hand.
+ *
+ * Live toggles rather than fields on the billing form above, and that is deliberate: these
+ * are permission grants, so the school wants the answer to "is it on?" to be what the screen
+ * shows, not what an unsaved form is holding. Same PreferenceToggle contract as booking
+ * preferences, per-toggle spinner and all.
+ *
+ * Both are real server permissions, not UI hints. `validateCustomInvoiceValues` reads them on
+ * every `POST /invoices`, so a dispatcher whose grant is off is refused by the API even if
+ * some client offered them the button. Writing them is owner-only (`PATCH
+ * /organizations/billing` is `isOrgOwner`), which is why a non-owner admin gets a read-only
+ * view here instead of a switch that could only 403.
+ */
+function ManualInvoiceCard({ billing }: { billing: OrganizationBillingSettings }) {
+  const { roles } = useAuth();
+  const update = useUpdateBilling();
+  const canEdit = canManageBillingSettings(roles);
+
+  // Local mirror so each switch flips instantly, reconciled from the refetched settings.
+  const [dispatchers, setDispatchers] = useState(billing.dispatchersCanManuallyCreateInvoices);
+  const [instructors, setInstructors] = useState(billing.instructorsCanManuallyCreateInvoices);
+  const [pending, setPending] = useState<ManualInvoiceField | null>(null);
+
+  useEffect(() => {
+    setDispatchers(billing.dispatchersCanManuallyCreateInvoices);
+    setInstructors(billing.instructorsCanManuallyCreateInvoices);
+  }, [
+    billing.dispatchersCanManuallyCreateInvoices,
+    billing.instructorsCanManuallyCreateInvoices,
+  ]);
+
+  function saveGrant(field: ManualInvoiceField, value: boolean, apply: (v: boolean) => void) {
+    const previous = field === "dispatchersCanManuallyCreateInvoices" ? dispatchers : instructors;
+    apply(value);
+    setPending(field);
+    // A PATCH carrying only this key. The server leaves every other billing field alone when
+    // its key is absent, so one toggle cannot quietly rewrite the rate or the service fee.
+    const patch =
+      field === "dispatchersCanManuallyCreateInvoices"
+        ? { dispatchersCanManuallyCreateInvoices: value }
+        : { instructorsCanManuallyCreateInvoices: value };
+    update.mutate(patch, {
+      onSuccess: () => toast.success(value ? "Permission granted" : "Permission removed"),
+      onError: (err) => {
+        apply(previous);
+        toast.error(err instanceof ApiError ? err.message : "Couldn't save that permission");
+      },
+      onSettled: () => setPending(null),
+    });
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center gap-2.5">
+        <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+          <UserRoundCog className="size-4" />
+        </span>
+        <div>
+          <CardTitle>Manual invoices</CardTitle>
+          <CardDescription>
+            {canEdit
+              ? "Who can bill outside a reservation. Owners and admins always can."
+              : "Only the organization owner can change these. Owners and admins always can bill outside a reservation."}
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <CardContent className="divide-y divide-border">
+        <PreferenceToggle
+          label="Dispatchers can manually generate invoices"
+          description={
+            <>
+              <p>
+                Let a dispatcher raise a one-off invoice that no reservation created, for fuel,
+                a hangar night, or supplies. Turning it off leaves invoices they already sent
+                exactly as they are.
+              </p>
+              {!billing.stripeEnabled && <StripeNeeded />}
+            </>
+          }
+          checked={dispatchers}
+          disabled={!canEdit || pending !== null}
+          saving={pending === "dispatchersCanManuallyCreateInvoices"}
+          onCheckedChange={(v) =>
+            saveGrant("dispatchersCanManuallyCreateInvoices", v, setDispatchers)
+          }
+        />
+        <PreferenceToggle
+          label="Instructors can manually generate invoices"
+          description="The same for instructors, so a CFI can bill for ground instruction or a checkride fee without waiting on an admin. Independent of the dispatcher grant, not a step above it."
+          checked={instructors}
+          disabled={!canEdit || pending !== null}
+          saving={pending === "instructorsCanManuallyCreateInvoices"}
+          onCheckedChange={(v) =>
+            saveGrant("instructorsCanManuallyCreateInvoices", v, setInstructors)
+          }
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Said once, under the first toggle. The grant saves and holds either way, but no invoice of
+ * any kind can be raised until Stripe is connected, so a school that turns this on with no
+ * payouts account would otherwise be waiting on a button that keeps failing.
+ */
+function StripeNeeded() {
+  return (
+    <p className="mt-1.5 flex gap-1.5 text-amber-700 dark:text-amber-500">
+      <TriangleAlert className="mt-px size-3.5 shrink-0" />
+      <span>Connect Stripe before anyone can send an invoice.</span>
+    </p>
   );
 }

@@ -15,7 +15,7 @@
 
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { CalendarClock, ChevronDown, Gauge, Plus, Trash2, Wrench } from "lucide-react";
+import { CalendarClock, ChevronDown, Gauge, PlaneTakeoff, Plus, Trash2, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import type { MaintenanceReminderTemplate } from "@/types/api";
 import { resourceLabel } from "@/types/api";
@@ -23,6 +23,7 @@ import { useDeleteMaintenanceReminderTemplate, useMaintenanceReminderTemplates }
 import { intervalLabel, warningLabel } from "@/lib/maintenance";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
+import { EditCoverageModal } from "@/components/maintenance/edit-coverage-modal";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -122,6 +123,7 @@ function TemplateRow({
   canManage: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
   const confirm = useConfirm();
   const del = useDeleteMaintenanceReminderTemplate();
 
@@ -189,6 +191,17 @@ function TemplateRow({
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => setEditing(true)}
+              aria-label={`Choose which aircraft ${template.name ?? "this inspection"} covers`}
+              title="Which aircraft this covers"
+            >
+              <PlaneTakeoff className="size-3.5" />
+            </Button>
+          )}
+          {canManage && (
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={remove}
               disabled={del.isPending}
               aria-label={`Delete ${template.name ?? "inspection"}`}
@@ -203,10 +216,18 @@ function TemplateRow({
         <div className="mt-2.5 flex flex-wrap gap-1.5 border-t border-border pt-2.5">
           {tails.length === 0 ? (
             // An inert template looks identical to a working one until you notice it never
-            // fires. Say it plainly rather than showing an empty row.
-            <p className="text-xs text-muted-foreground">
-              Not on any aircraft, so it never comes due. Attach it from an aircraft&rsquo;s page.
-            </p>
+            // fires. Say it plainly, and offer the fix here rather than sending somebody to
+            // a different page to apply it one tail at a time.
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Not on any aircraft, so it never comes due.
+              </p>
+              {canManage && (
+                <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                  <PlaneTakeoff className="size-3.5" /> Choose aircraft
+                </Button>
+              )}
+            </div>
           ) : (
             tails.map((r) => (
               <Link
@@ -220,6 +241,10 @@ function TemplateRow({
             ))
           )}
         </div>
+      )}
+
+      {canManage && (
+        <EditCoverageModal template={template} open={editing} onOpenChange={setEditing} />
       )}
     </div>
   );

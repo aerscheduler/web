@@ -1,28 +1,42 @@
-import { format, parseISO } from "date-fns";
-import { AlertTriangle, CalendarClock, Check, FileText, PlaneTakeoff, User } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CalendarClock,
+  Check,
+  ClipboardCheck,
+  FileText,
+  PlaneTakeoff,
+  User,
+} from "lucide-react";
 import type { Squawk } from "@/types/api";
 import { resourceLabel } from "@/types/api";
+import { formatDate } from "@/lib/utils";
 import { DetailPanel } from "@/components/detail-panel";
 import { SheetDetailField } from "@/components/sheet-detail-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-function fmt(iso: string | null | undefined) {
-  return iso ? format(parseISO(iso), "MMM d, yyyy 'at' h:mm a") : null;
-}
+const STAMP = "MMM d, yyyy 'at' h:mm a";
 
 /**
- * Squawk detail — same docked/sheet chrome as invoices and bookings.
+ * Squawk detail, same docked/sheet chrome as invoices and bookings.
  *
- * The list card already shows the gist; this is the full write-up plus who
- * reported it and when it was signed off. Resolve stays a deliberate action
- * (footer), not the act of opening the panel.
+ * The list card already shows the gist; this is the full write-up plus who reported it and
+ * when it was signed off. Both stamps stay deliberate actions in the footer, not something
+ * you do by opening the panel.
+ *
+ * Verify and Resolve are two different acts against two different columns, so they are two
+ * buttons. Verify disappears once the squawk carries either stamp: after it is resolved
+ * there is nothing left to confirm, and stamping it then records the two steps in an order
+ * that never happened.
  */
 export function SquawkDetailSheet({
   squawk,
   open,
   onOpenChange,
   onResolve,
+  onVerify,
   onStep,
 }: {
   squawk: Squawk | null;
@@ -30,14 +44,17 @@ export function SquawkDetailSheet({
   onOpenChange: (open: boolean) => void;
   /** Open the resolve modal. Omitted when the viewer can't sign squawks off. */
   onResolve?: (squawk: Squawk) => void;
+  /** Open the verify modal. Omitted for the same viewers as `onResolve`. */
+  onVerify?: (squawk: Squawk) => void;
   onStep?: (delta: -1 | 1) => void;
 }) {
   const s = squawk;
   const aircraft = s?.resource ? resourceLabel(s.resource).name : null;
-  const reported = fmt(s?.createdAt);
-  const resolved = fmt(s?.resolvedAt);
-  const verified = fmt(s?.verifiedAt);
+  const reported = formatDate(s?.reportedAt ?? s?.createdAt, STAMP, "");
+  const resolved = formatDate(s?.resolvedAt, STAMP, "");
+  const verified = formatDate(s?.verifiedAt, STAMP, "");
   const openSquawk = s != null && !s.resolvedAt;
+  const showVerify = s != null && onVerify != null && !s.verifiedAt && !s.resolvedAt;
 
   return (
     <DetailPanel
@@ -50,6 +67,8 @@ export function SquawkDetailSheet({
         s ? (
           s.resolvedAt ? (
             <Badge variant="success">Resolved</Badge>
+          ) : s.verifiedAt ? (
+            <Badge>Verified</Badge>
           ) : s.grounding ? (
             <Badge variant="danger">Grounding</Badge>
           ) : (
@@ -58,10 +77,19 @@ export function SquawkDetailSheet({
         ) : undefined
       }
       footer={
-        openSquawk && onResolve ? (
-          <Button className="w-full" onClick={() => onResolve(s)}>
-            <Check className="size-4" /> Resolve squawk
-          </Button>
+        s && (showVerify || (openSquawk && onResolve)) ? (
+          <div className="flex w-full gap-2">
+            {showVerify && (
+              <Button variant="outline" className="flex-1" onClick={() => onVerify(s)}>
+                <ClipboardCheck className="size-4" /> Verify
+              </Button>
+            )}
+            {openSquawk && onResolve && (
+              <Button className="flex-1" onClick={() => onResolve(s)}>
+                <Check className="size-4" /> Resolve squawk
+              </Button>
+            )}
+          </div>
         ) : undefined
       }
     >
@@ -94,14 +122,18 @@ export function SquawkDetailSheet({
           )}
 
           <SheetDetailField icon={User} label="Reported by">
-            {s.reportedBy?.user?.name ?? (
-              <span className="text-muted-foreground">—</span>
-            )}
+            {s.reportedBy?.user?.name ?? <span className="text-muted-foreground">Unknown</span>}
           </SheetDetailField>
 
           {reported && (
             <SheetDetailField icon={CalendarClock} label="Reported">
               <span className="tabular-nums">{reported}</span>
+            </SheetDetailField>
+          )}
+
+          {verified && (
+            <SheetDetailField icon={ClipboardCheck} label="Verified">
+              <span className="tabular-nums">{verified}</span>
             </SheetDetailField>
           )}
 
@@ -111,11 +143,16 @@ export function SquawkDetailSheet({
             </SheetDetailField>
           )}
 
-          {verified && (
-            <SheetDetailField icon={Check} label="Verified">
-              <span className="tabular-nums">{verified}</span>
-            </SheetDetailField>
-          )}
+          {/* The panel is a peek at a row in a list. The record page is the thing you can
+              bookmark, link a colleague to, and land on from a notification. */}
+          <Link
+            to="/maintenance/squawks/$squawkId"
+            params={{ squawkId: String(s.id) }}
+            className="inline-flex items-center gap-1 text-[13px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+          >
+            Open the full write-up
+            <ArrowUpRight className="size-3.5" />
+          </Link>
         </div>
       )}
     </DetailPanel>

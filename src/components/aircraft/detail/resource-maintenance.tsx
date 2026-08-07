@@ -12,6 +12,7 @@ import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
 import { ResolveReminderModal } from "@/components/maintenance/resolve-reminder-modal";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
 import { SquawkDetailSheet } from "@/components/maintenance/squawk-detail-sheet";
+import { VerifySquawkModal } from "@/components/maintenance/verify-squawk-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,7 @@ export function ResourceSquawks({
   const q = useSquawks({ resourceId: resource.id, resolved: false });
   const [logOpen, setLogOpen] = useState(false);
   const [resolving, setResolving] = useState<Squawk | null>(null);
+  const [verifying, setVerifying] = useState<Squawk | null>(null);
   const [viewing, setViewing] = useState<Squawk | null>(null);
 
   const squawks = useMemo(() => {
@@ -140,12 +142,27 @@ export function ResourceSquawks({
               }
             : undefined
         }
+        //Same viewers as resolve: the server lets admin or technician write either stamp,
+        //and deliberately not a dispatcher.
+        onVerify={
+          canResolve
+            ? (s) => {
+                setViewing(null);
+                setVerifying(s);
+              }
+            : undefined
+        }
         onStep={step}
       />
       <ResolveSquawkModal
         squawk={resolving}
         open={resolving != null}
         onOpenChange={(o) => !o && setResolving(null)}
+      />
+      <VerifySquawkModal
+        squawk={verifying}
+        open={verifying != null}
+        onOpenChange={(o) => !o && setVerifying(null)}
       />
     </>
   );

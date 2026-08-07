@@ -43,6 +43,7 @@ import { InspectionTemplates } from "@/components/maintenance/inspection-templat
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
 import { ResolveReminderModal } from "@/components/maintenance/resolve-reminder-modal";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
+import { VerifySquawkModal } from "@/components/maintenance/verify-squawk-modal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -276,6 +277,7 @@ function OpenSquawks({
   const paging = usePaging({ resetKey: filter, defaultSort: { key: "createdAt", dir: "desc" } });
   const q = useSquawksPage(filter, paging);
   const [resolving, setResolving] = React.useState<Squawk | null>(null);
+  const [verifying, setVerifying] = React.useState<Squawk | null>(null);
   const [viewing, setViewing] = React.useState<Squawk | null>(null);
   const { rows: squawks, total } = pageRows(q);
   const empty = total === 0 && !searchQ && !hasResourceFilter(resourceId);
@@ -343,6 +345,17 @@ function OpenSquawks({
               }
             : undefined
         }
+        //Verifying is a judgement about a fault you have just read, so it is offered from
+        //the write-up rather than as a second button on every row of the board. Same
+        //placement the phone uses, and the same viewers as resolve.
+        onVerify={
+          canResolve
+            ? (s) => {
+                setViewing(null);
+                setVerifying(s);
+              }
+            : undefined
+        }
         onStep={step}
       />
 
@@ -350,6 +363,12 @@ function OpenSquawks({
         squawk={resolving}
         open={resolving != null}
         onOpenChange={(o) => !o && setResolving(null)}
+      />
+
+      <VerifySquawkModal
+        squawk={verifying}
+        open={verifying != null}
+        onOpenChange={(o) => !o && setVerifying(null)}
       />
     </Frame>
   );

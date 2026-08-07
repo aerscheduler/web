@@ -2292,6 +2292,23 @@ export function useSquawksPage(filter: SquawkListFilter | undefined, paging: Pag
   return usePagedList<Squawk>(["squawks"], "/maintenance/squawks", paging, filter, opts);
 }
 
+/**
+ * One squawk, in full, for the record page a notification deep-links to.
+ *
+ * Carries more than the list rows do: `notes`, plus the `resolvedBy` / `verifiedBy` people
+ * behind the two stamps. Keyed under `["squawks", id]` so every squawk mutation's existing
+ * `["squawks"]` invalidation reaches it by prefix, and a page open on a squawk somebody
+ * just verified refreshes without anyone remembering to add a key.
+ */
+export function useSquawk(id: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["squawks", id],
+    queryFn: () => api<Squawk>(`/maintenance/squawks/${id}`),
+    enabled: id != null,
+    ...opts,
+  });
+}
+
 export function useCreateSquawk() {
   const qc = useQueryClient();
   return useMutation({

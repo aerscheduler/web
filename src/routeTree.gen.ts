@@ -51,6 +51,7 @@ import { Route as AuthedOperationsCancellationsRouteImport } from './routes/_aut
 import { Route as AuthedPeopleOrgUserIdRouteImport } from './routes/_authed/people_.$orgUserId'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedTrainingCourseIdRouteImport } from './routes/_authed/training_.$courseId'
+import { Route as AuthedMaintenanceSquawksSquawkIdRouteImport } from './routes/_authed/maintenance_.squawks.$squawkId'
 import { Route as AuthedSettingsIntegrationsQuickbooksRouteImport } from './routes/_authed/settings/integrations/quickbooks'
 import { Route as AuthedTrainingEnrollmentsEnrollmentIdRouteImport } from './routes/_authed/training_.enrollments.$enrollmentId'
 
@@ -267,6 +268,12 @@ const AuthedTrainingCourseIdRoute = AuthedTrainingCourseIdRouteImport.update({
   path: '/training/$courseId',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMaintenanceSquawksSquawkIdRoute =
+  AuthedMaintenanceSquawksSquawkIdRouteImport.update({
+    id: '/maintenance_/squawks/$squawkId',
+    path: '/maintenance/squawks/$squawkId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedSettingsIntegrationsQuickbooksRoute =
   AuthedSettingsIntegrationsQuickbooksRouteImport.update({
     id: '/settings/integrations/quickbooks',
@@ -322,6 +329,7 @@ export interface FileRoutesByFullPath {
   '/training/$courseId': typeof AuthedTrainingCourseIdRoute
   '/me/': typeof AuthedMeIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
+  '/maintenance/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
   '/training/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
@@ -367,6 +375,7 @@ export interface FileRoutesByTo {
   '/training/$courseId': typeof AuthedTrainingCourseIdRoute
   '/me': typeof AuthedMeIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
+  '/maintenance/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
   '/training/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
@@ -414,6 +423,7 @@ export interface FileRoutesById {
   '/_authed/training_/$courseId': typeof AuthedTrainingCourseIdRoute
   '/_authed/me/': typeof AuthedMeIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
+  '/_authed/maintenance_/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/_authed/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
   '/_authed/training_/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
@@ -461,6 +471,7 @@ export interface FileRouteTypes {
     | '/training/$courseId'
     | '/me/'
     | '/settings/'
+    | '/maintenance/squawks/$squawkId'
     | '/settings/integrations/quickbooks'
     | '/training/enrollments/$enrollmentId'
   fileRoutesByTo: FileRoutesByTo
@@ -506,6 +517,7 @@ export interface FileRouteTypes {
     | '/training/$courseId'
     | '/me'
     | '/settings'
+    | '/maintenance/squawks/$squawkId'
     | '/settings/integrations/quickbooks'
     | '/training/enrollments/$enrollmentId'
   id:
@@ -552,6 +564,7 @@ export interface FileRouteTypes {
     | '/_authed/training_/$courseId'
     | '/_authed/me/'
     | '/_authed/settings/'
+    | '/_authed/maintenance_/squawks/$squawkId'
     | '/_authed/settings/integrations/quickbooks'
     | '/_authed/training_/enrollments/$enrollmentId'
   fileRoutesById: FileRoutesById
@@ -866,6 +879,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedTrainingCourseIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/maintenance_/squawks/$squawkId': {
+      id: '/_authed/maintenance_/squawks/$squawkId'
+      path: '/maintenance/squawks/$squawkId'
+      fullPath: '/maintenance/squawks/$squawkId'
+      preLoaderRoute: typeof AuthedMaintenanceSquawksSquawkIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/settings/integrations/quickbooks': {
       id: '/_authed/settings/integrations/quickbooks'
       path: '/settings/integrations/quickbooks'
@@ -915,6 +935,7 @@ interface AuthedRouteChildren {
   AuthedTrainingCourseIdRoute: typeof AuthedTrainingCourseIdRoute
   AuthedMeIndexRoute: typeof AuthedMeIndexRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
+  AuthedMaintenanceSquawksSquawkIdRoute: typeof AuthedMaintenanceSquawksSquawkIdRoute
   AuthedSettingsIntegrationsQuickbooksRoute: typeof AuthedSettingsIntegrationsQuickbooksRoute
   AuthedTrainingEnrollmentsEnrollmentIdRoute: typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
@@ -951,6 +972,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedTrainingCourseIdRoute: AuthedTrainingCourseIdRoute,
   AuthedMeIndexRoute: AuthedMeIndexRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
+  AuthedMaintenanceSquawksSquawkIdRoute: AuthedMaintenanceSquawksSquawkIdRoute,
   AuthedSettingsIntegrationsQuickbooksRoute:
     AuthedSettingsIntegrationsQuickbooksRoute,
   AuthedTrainingEnrollmentsEnrollmentIdRoute:

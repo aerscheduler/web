@@ -772,16 +772,35 @@ export interface AppNotification {
   type?: string | null;
 }
 
+/**
+ * A reported discrepancy, and the two separate stamps it collects.
+ *
+ * Verifying and resolving are NOT the same act and the server keeps them apart: verifying
+ * says somebody qualified reproduced the fault, resolving says the work is done. A squawk
+ * can be resolved having never been verified, so never treat `verifiedAt` as a stage
+ * `resolvedAt` must have passed through.
+ *
+ * `notes`, `resolvedBy` and `verifiedBy` are only populated by `GET /maintenance/squawks/:id`,
+ * not by the list, so they are optional here.
+ */
 export interface Squawk {
   id: number;
   createdAt: string;
+  /** Stamped by the server on create. Null on rows written before it existed. */
+  reportedAt?: string | null;
   resolvedAt: string | null;
   verifiedAt: string | null;
   title: string | null;
   description: string | null;
   grounding?: boolean;
+  /** What was done to clear it, written at resolve time. */
+  notes?: string | null;
+  /** When the work was actually finished, as opposed to when it was signed off. */
+  completedAt?: string | null;
   resource?: Resource;
   reportedBy?: OrganizationUser;
+  resolvedBy?: OrganizationUser | null;
+  verifiedBy?: OrganizationUser | null;
 }
 
 /**

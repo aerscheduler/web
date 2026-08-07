@@ -160,17 +160,23 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
     case "document":
       return isMine ? { to: "/me/documents" } : memberPage;
 
-    case "squawk":
-      // Maintenance has no "all" view — it shows open OR resolved. Land on the
-      // one this squawk is actually in, or a resolved hit gets filtered straight
-      // back out of the page it just took you to.
-      return {
-        to: "/maintenance",
-        search: {
-          q: result.title,
-          view: result.badge === "Open" ? "open" : "resolved",
-        },
-      };
+    case "squawk": {
+      // Now a record of its own, so a hit opens the write-up instead of filtering a board
+      // down to it. The old behaviour is still the fallback, and it has to stay correct:
+      // Maintenance has no "all" view, it shows open OR resolved, so a hit with no id
+      // lands on the one this squawk is actually in or it gets filtered straight back out
+      // of the page it just took you to.
+      const squawkId = asInt(result.params.squawkId);
+      return squawkId != null
+        ? { to: "/maintenance/squawks/$squawkId", params: { squawkId: String(squawkId) } }
+        : {
+            to: "/maintenance",
+            search: {
+              q: result.title,
+              view: result.badge === "Open" ? "open" : "resolved",
+            },
+          };
+    }
 
     case "course": {
       const courseId = asInt(result.params.courseId);

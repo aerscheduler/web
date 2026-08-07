@@ -52,7 +52,7 @@ export function TrainingPermissions() {
   if (catalog.isPending || grants.isPending) return null;
 
   return (
-    <Card className="p-4">
+    <Card className="p-4" data-doc-shot="training-permissions-tab">
       <div className="mb-1 flex items-center gap-2">
         <KeyRound className="size-4 text-muted-foreground" />
         <h2 className="text-sm font-medium">Training permissions</h2>

@@ -163,7 +163,10 @@ function EnrollmentPage() {
       <div className={RAIL_ROW}>
         <SectionRail label="Enrollment" sections={SECTIONS} value={active} onChange={pick} />
 
-        <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">
+        <div
+          className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto"
+          data-doc-shot={active === "overview" ? "enrollment-overview" : undefined}
+        >
           {active === "overview" && (
             <>
               <Card className="p-4">
@@ -240,7 +243,7 @@ function RequirementsProgress({ standings }: { standings: Standing[] }) {
   }
 
   return (
-    <Card className="divide-y p-0">
+    <Card className="divide-y p-0" data-doc-shot="enrollment-requirements">
       {standings.map((s) => {
         const capped = cappedExplanation(s);
         const stale = staleExplanation(s);
@@ -316,7 +319,7 @@ function LessonsTab({ progress }: { progress: EnrollmentProgress }) {
   const editable = p.enrollment.status === "enrolled" && mine.data?.canGrade === true;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-doc-shot="enrollment-lessons">
       {p.enrollment.courseVersion.stages.map((stage) => (
         <Card key={stage.id} className="p-4">
           <h2 className="mb-3 font-medium">{stage.name}</h2>
@@ -495,7 +498,7 @@ function GradeDialog({
           <PenLine className="size-3.5" /> {existing ? "Continue" : "Grade"}
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-doc-shot="grade-lesson-dialog">
         <DialogHeader>
           <DialogTitle>{lesson.name}</DialogTitle>
           <DialogDescription>
@@ -610,7 +613,7 @@ function AmendDialog({ recordId }: { recordId: number }) {
           <RotateCcw className="size-3" /> Amend
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-doc-shot="amend-record-dialog">
         <DialogHeader>
           <DialogTitle>Amend this record</DialogTitle>
           <DialogDescription>
@@ -681,7 +684,7 @@ function LedgerTab({ progress }: { progress: EnrollmentProgress }) {
   }
 
   return (
-    <Card className="divide-y p-0">
+    <Card className="divide-y p-0" data-doc-shot="enrollment-ledger">
       {rows.map((c) => {
         const requirement = requirements.get(c.requirementId);
         const isReversal = c.source === "reversal";
@@ -808,7 +811,7 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
           <GraduationCap className="size-4" /> Graduate
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-doc-shot="graduate-dialog">
         <DialogHeader>
           <DialogTitle>Graduate this student</DialogTitle>
           <DialogDescription>

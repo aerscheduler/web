@@ -136,7 +136,7 @@ export function AddCreditDialog({
           Add credit
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-doc-shot="add-credit-dialog">
         <DialogHeader>
           <DialogTitle>Credit training from elsewhere</DialogTitle>
           <DialogDescription>

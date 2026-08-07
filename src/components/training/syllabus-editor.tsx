@@ -65,7 +65,7 @@ export function SyllabusEditor({ version }: { version: CourseVersion }) {
   const deleteLesson = useDeleteLesson();
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-doc-shot="syllabus-stages-lessons">
       {version.stages.length === 0 ? (
         <EmptyState
           icon={BookOpen}
@@ -449,7 +449,7 @@ function LessonDialog({
 
           {/* The fan-out, chosen here. This is the single most consequential thing on the
               form and the least obvious, so it says what it does rather than assuming. */}
-          <div className="space-y-1.5 rounded-md border p-3">
+          <div className="space-y-1.5 rounded-md border p-3" data-doc-shot="syllabus-lesson-dialog-credits">
             <div className="text-sm font-medium">Credits toward</div>
             <p className="text-xs text-muted-foreground">
               Signing this lesson posts its hours to everything ticked here — one flight can credit
@@ -638,7 +638,7 @@ export function RequirementsEditor({ version }: { version: CourseVersion }) {
     <div className="space-y-4">
       <GradingScaleCard version={version} />
 
-      <Card className="p-0">
+      <Card className="p-0" data-doc-shot="syllabus-requirements-tab">
         <div className="flex items-center justify-between gap-2 border-b p-3">
           <div>
             <h2 className="text-sm font-medium">Requirements</h2>
@@ -704,7 +704,7 @@ function GradingScaleCard({ version }: { version: CourseVersion }) {
   const save = useSetGradingScale();
 
   return (
-    <Card className="p-3">
+    <Card className="p-3" data-doc-shot="syllabus-grading-scale">
       <div className="mb-1 text-sm font-medium">Grading scale</div>
       <p className="mb-2 text-xs text-muted-foreground">
         {/* The pass column is the point. "3" passes at a school marking 1–4 and fails at one

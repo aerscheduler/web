@@ -147,7 +147,10 @@ function TrainingPage() {
       <div className={RAIL_ROW}>
         <SectionRail label="Training" sections={sections} value={activeTab} onChange={pick} />
 
-        <div className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto">
+        <div
+          className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto"
+          data-doc-shot={activeTab === "courses" ? "training-courses-list" : undefined}
+        >
           {activeTab === "courses" && (
             <>
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -290,7 +293,7 @@ function TemplateDialog({ primary }: { primary: boolean }) {
           <Sparkles className="size-4" /> Start from a template
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-doc-shot="training-template-picker">
         <DialogHeader>
           <DialogTitle>Start from a template</DialogTitle>
           <DialogDescription>
@@ -349,7 +352,7 @@ function BlankCourseDialog() {
           <PlusCircle className="size-4" /> New course
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-doc-shot="training-new-course-dialog">
         <DialogHeader>
           <DialogTitle>New course</DialogTitle>
           <DialogDescription>An empty syllabus you build yourself.</DialogDescription>

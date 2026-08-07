@@ -149,7 +149,7 @@ function CourseDetailPage() {
 
         {/* Which version you are looking at governs all three sections, so it stays with
             the page rather than sitting inside one of them. */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2" data-doc-shot="syllabus-published-locked">
           <Badge variant={c.regulatoryPart === "part141" ? "default" : "outline"}>
             {PART_LABEL[c.regulatoryPart]}
           </Badge>
@@ -440,7 +440,7 @@ function PublishDialog({ version }: { version: CourseVersion }) {
           <Lock className="size-4" /> Publish
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-doc-shot="syllabus-publish-dialog">
         <DialogHeader>
           <DialogTitle>Publish {version.label}?</DialogTitle>
           <DialogDescription>
@@ -564,7 +564,7 @@ function EnrollDialog({ versionId, courseName }: { versionId: number; courseName
           <UserPlus className="size-4" /> Enroll a student
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-doc-shot="training-enroll-dialog">
         <DialogHeader>
           <DialogTitle>Enroll on {courseName}</DialogTitle>
           <DialogDescription>

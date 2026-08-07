@@ -42,7 +42,7 @@ export function CourseFeeEditor({ course }: { course: Course }) {
     label.trim() !== (course.enrollmentFeeLabel ?? "");
 
   return (
-    <Card className="p-4">
+    <Card className="p-4" data-doc-shot="course-enrollment-fee-card">
       <div className="mb-1 flex items-center gap-2">
         <Receipt className="size-4 text-muted-foreground" />
         <h2 className="text-sm font-medium">Enrollment fee</h2>

@@ -107,8 +107,26 @@ export function guardRoute(path: string) {
 }
 
 // ── Action capabilities (mirror the server's per-action guards) ──────────────
-/** Manage members: roles, invites, ground/remove, join requests. Server: admin. */
+/** Manage members: roles, invites, archive/remove, join requests. Server: admin. */
 export const canManageMembers = isAdmin;
+
+/**
+ * Ground a member, or reinstate one.
+ *
+ * Deliberately WIDER than `canManageMembers`, and the two must not be merged. The
+ * server's grounding path is `PATCH /users/:id/orgUser`, whose guard is admin OR
+ * DISPATCHER (routes/user.ts); archiving is a separate route that is owner/admin only,
+ * and removal likewise. The app has always drawn the line in that same place
+ * (`personnel_detailed_page.dart` gates ground/unground on
+ * `isOrgAdmin() || isOrgDispatcher()`).
+ *
+ * The console gated the whole member menu on admin, so the one surface a front desk
+ * actually runs was the only one that couldn't do it: a dispatcher had to be handed the
+ * admin role, or phone somebody, to perform a call they could already make from their
+ * phone. Grounding is an operational decision made at six in the morning. Archiving and
+ * removal are records management, and stay where they are.
+ */
+export const canGroundMembers = isStaff;
 /** Create/edit/ground/approve aircraft & facilities. Server: admin. */
 export const canManageResources = isAdmin;
 /** Create/void/mark-paid invoices; view the billing console. Server: admin. */
@@ -160,8 +178,12 @@ export interface PersonViewAccess {
   instruction: boolean;
   /** Which tails they're checked out on. `/users/:id/approvedResources` is any member. */
   approvedAircraft: boolean;
-  /** Edit roles, ground, remove. Server: admin. */
+  /** Edit roles, archive, remove. Server: admin. */
   manage: boolean;
+  /** Ground them, or reinstate them. Server: admin OR dispatcher, so this is wider than
+   *  `manage` (see `canGroundMembers`). A dispatcher gets the ground action on this page
+   *  and none of the roster-management ones. */
+  ground: boolean;
   /** Their membership plan and dues. Server: admin — `/memberships/*` is isOrgAdmin, and
    *  what a member pays is exactly what org-wide billing was made admin-only to protect.
    *  Deliberately NOT self: a member reads their own at `/memberships/me`, on their profile. */
@@ -185,6 +207,7 @@ export function personViewAccess(roles: Role[], isSelf: boolean): PersonViewAcce
     instruction: staff || isInstructor(roles) || isSelf,
     approvedAircraft: staff || isInstructor(roles) || isSelf,
     manage: canManageMembers(roles),
+    ground: canGroundMembers(roles),
     membership: admin,
   };
 }

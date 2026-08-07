@@ -6,7 +6,7 @@ import type { OrganizationUser } from "@/types/api";
 import { useSetMemberArchived, useUpdateMemberOrgUser } from "@/features/queries";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { canManageMembers } from "@/lib/permissions";
+import { canGroundMembers, canManageMembers } from "@/lib/permissions";
 import { useConfirm } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +56,19 @@ export function MemberRowActions({
   const name = memberName(ou);
   const [groundOpen, setGroundOpen] = useState(false);
   const archived = !!ou.archivedAt;
+
+  /**
+   * Two permissions, not one, and they are deliberately different sets.
+   *
+   * `manage` (owner/admin) covers the roster: roles, archiving, removal.
+   * `ground` also includes the DISPATCHER, matching the server's own split (grounding is
+   * `PATCH /users/:id/orgUser`, admin or dispatcher; archiving is its own admin-only
+   * route) and matching the app, which has offered a dispatcher ground/unground all
+   * along. Gating this whole menu on `manage` is what forced a front desk running the
+   * console to hold the admin role or pick up a phone.
+   */
+  const manage = canManageMembers(roles);
+  const ground = canGroundMembers(roles);
 
   /**
    * Grounding opens a modal, because the reason is mandatory — the member is
@@ -156,28 +169,30 @@ export function MemberRowActions({
               <Eye /> View profile
             </DropdownMenuItem>
           )}
-          {canManageMembers(roles) && (
-          <>
-              <DropdownMenuItem onSelect={() => onEditRoles(ou)}>
-                <Shield /> Edit roles
-              </DropdownMenuItem>
-              {/* Grounding an archived member would email somebody the school has
-                  already retired — the exact thing archiving exists to prevent. */}
-              {!archived && (
-                <DropdownMenuItem
-                  onSelect={() => (ou.grounded ? void unground() : setGroundOpen(true))}
-                >
-                  {ou.grounded ? (
-                  <>
-                      <Undo2 /> Unground
-                  </>
-                  ) : (
-                  <>
-                      <Ban /> Ground
-                  </>
-                  )}
-                </DropdownMenuItem>
+          {manage && (
+            <DropdownMenuItem onSelect={() => onEditRoles(ou)}>
+              <Shield /> Edit roles
+            </DropdownMenuItem>
+          )}
+          {/* Grounding an archived member would email somebody the school has
+              already retired: the exact thing archiving exists to prevent. */}
+          {ground && !archived && (
+            <DropdownMenuItem
+              onSelect={() => (ou.grounded ? void unground() : setGroundOpen(true))}
+            >
+              {ou.grounded ? (
+                <>
+                  <Undo2 /> Unground
+                </>
+              ) : (
+                <>
+                  <Ban /> Ground
+                </>
               )}
+            </DropdownMenuItem>
+          )}
+          {manage && (
+            <>
               <DropdownMenuItem onSelect={() => void toggleArchived()}>
                 {archived ? (
                   <>
@@ -193,7 +208,7 @@ export function MemberRowActions({
               <DropdownMenuItem variant="destructive" onSelect={() => void remove()}>
                 <Trash2 /> Remove
               </DropdownMenuItem>
-          </>
+            </>
           )}
         </DropdownMenuContent>
       </DropdownMenu>

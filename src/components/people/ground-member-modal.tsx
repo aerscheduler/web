@@ -54,21 +54,39 @@ export function GroundMemberModal({
 
   const [choice, setChoice] = React.useState<string>(PRESETS[0]);
   const [custom, setCustom] = React.useState("");
+  //Validation happens on submit, not by greying the button out: a disabled control that
+  //says nothing is the one thing this form must never do to somebody who is trying to
+  //ground an aircraft's worth of people before the first lesson.
+  const [error, setError] = React.useState<string | null>(null);
+  const customRef = React.useRef<HTMLTextAreaElement>(null);
 
   React.useEffect(() => {
     if (open) {
       setChoice(PRESETS[0]);
       setCustom("");
+      setError(null);
     }
   }, [open]);
 
   const name = member ? memberName(member) : "this member";
   const reason = (choice === OTHER ? custom : choice).trim();
   const tooLong = reason.length > MAX_REASON;
-  const canSubmit = reason.length > 0 && !tooLong && !mut.isPending;
 
   function handleGround() {
-    if (!member || !canSubmit) return;
+    if (!member || mut.isPending) return;
+
+    if (reason.length === 0) {
+      setError(`Say why. ${name.split(" ")[0]} is sent this and nothing else.`);
+      customRef.current?.focus();
+      return;
+    }
+    if (tooLong) {
+      setError(`Keep it to ${MAX_REASON} characters.`);
+      customRef.current?.focus();
+      return;
+    }
+    setError(null);
+
     mut.mutate(
       { grounded: true, groundedReason: reason },
       {
@@ -92,7 +110,14 @@ export function GroundMemberModal({
       <div className="space-y-4">
         <div className="space-y-2">
           <Label>Reason</Label>
-          <RadioGroup value={choice} onValueChange={setChoice} className="gap-2">
+          <RadioGroup
+            value={choice}
+            onValueChange={(v) => {
+              setChoice(v);
+              setError(null);
+            }}
+            className="gap-2"
+          >
             {[...PRESETS, OTHER].map((value) => {
               const isOther = value === OTHER;
               const checked = choice === value;
@@ -121,12 +146,18 @@ export function GroundMemberModal({
             <Label htmlFor="ground-reason-custom">Your reason</Label>
             <Textarea
               id="ground-reason-custom"
+              ref={customRef}
               autoFocus
               rows={2}
               maxLength={MAX_REASON}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? "ground-reason-error" : undefined}
               placeholder="e.g. Missing rental agreement and TSA docs"
               value={custom}
-              onChange={(e) => setCustom(e.target.value)}
+              onChange={(e) => {
+                setCustom(e.target.value);
+                if (error) setError(null);
+              }}
             />
             <p
               className={cn(
@@ -136,6 +167,11 @@ export function GroundMemberModal({
             >
               {custom.trim().length}/{MAX_REASON}
             </p>
+            {error && (
+              <p id="ground-reason-error" className="text-xs text-destructive">
+                {error}
+              </p>
+            )}
           </div>
         )}
 
@@ -151,7 +187,7 @@ export function GroundMemberModal({
           <Button
             type="button"
             onClick={handleGround}
-            disabled={!canSubmit}
+            disabled={mut.isPending}
             className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
           >
             {mut.isPending ? "Grounding…" : "Ground member"}

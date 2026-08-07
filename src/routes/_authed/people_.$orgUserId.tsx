@@ -251,7 +251,10 @@ function PersonBody({
                   </Link>
                 </Button>
               )}
-              {access.manage && (
+              {/* `ground` as well as `manage`: a dispatcher may ground and reinstate,
+                  and this menu is where that lives. It renders per-item, so a dispatcher
+                  opens it to Ground alone and an admin still gets the full set. */}
+              {(access.manage || access.ground) && (
                 <MemberRowActions
                   ou={ou}
                   onEditRoles={setEditingRoles}

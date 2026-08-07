@@ -56,6 +56,7 @@ export function ConfirmReviewModal({
       description="Enter your confirmation PIN to sign off this flight."
     >
       <form
+        data-doc-shot="confirm-review-pin-modal"
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();

@@ -47,6 +47,7 @@ export function DragCallout({ drag }: { drag: { active: ActiveDrag | null } }) {
     <div
       role="status"
       aria-live="polite"
+      data-doc-shot="drag-callout-conflict"
       style={{
         position: "fixed",
         left: flipX ? undefined : x + CALLOUT_OFFSET_PX,

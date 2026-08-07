@@ -324,6 +324,7 @@ export function AirworthinessNotice({
 
   return (
     <div
+      data-doc-shot="airworthiness-notice"
       className={cn(
         "flex items-start gap-2.5 rounded-lg border p-3 text-sm",
         alarm
@@ -1049,7 +1050,7 @@ export function ReservationForm({
   ) : null;
 
   const body = (
-      <form onSubmit={submit} className="space-y-4">
+      <form onSubmit={submit} data-doc-shot="reservation-form-dispatch" className="space-y-4">
         {/* Dispatch names its bookings; a member's is generated from the aircraft
             and the type — see autoTitle. */}
         {!isSelf && (

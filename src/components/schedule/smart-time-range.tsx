@@ -269,7 +269,7 @@ export function SmartTimeRange({
   const noSlots = !loading && day != null && starts.length === 0;
 
   return (
-    <div className="space-y-2">
+    <div data-doc-shot="overnight-booking-fields" className="space-y-2">
       <div
         className={
           allowMultiDay

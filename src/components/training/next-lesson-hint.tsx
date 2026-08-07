@@ -32,7 +32,7 @@ export function NextLessonHint({
   if (q.isPending || withLessons.length === 0) return null;
 
   return (
-    <div className="rounded-md border bg-muted/40 p-2.5">
+    <div data-doc-shot="booking-next-up-hint" className="rounded-md border bg-muted/40 p-2.5">
       {withLessons.map((e) => {
         const next = e.lessons.find((l) => !l.complete) ?? e.lessons[0];
         const done = e.lessons.filter((l) => l.complete).length;

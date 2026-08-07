@@ -224,7 +224,16 @@ export function RampModal({
 
   return (
     <ResponsiveModal open={open} onOpenChange={onOpenChange} title={title} description={description}>
-      <div className="space-y-4">
+      <div
+        data-doc-shot={
+          noMeters
+            ? "review-times-modal-ground"
+            : mode === "out"
+              ? "ramp-out-modal"
+              : "ramp-in-modal-hours-flown"
+        }
+        className="space-y-4"
+      >
         {mode === "in" && (review?.hobbsTimeOut != null || review?.tachTimeOut != null) && (
           <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/40 p-3 text-sm">
             <div>
@@ -313,7 +322,10 @@ export function RampModal({
             surprise would otherwise land, as an invoice for 4.0 hours on a 1.5-hour flight
             with nothing on screen having mentioned it. */}
         {billing?.applied && (
-          <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          <p
+            data-doc-shot="ramp-in-overnight-notice"
+            className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground"
+          >
             <Moon className="mt-0.5 size-4 shrink-0" />
             <span>
               Away {billing.nights === 1 ? "one night" : `${billing.nights} nights`}, and your

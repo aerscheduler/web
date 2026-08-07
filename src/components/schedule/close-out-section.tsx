@@ -153,7 +153,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   return (
     <>
       <Separator />
-      <section className="space-y-3">
+      <section data-doc-shot="close-out-not-started" className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {heading}
@@ -199,7 +199,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         )}
 
         {step === "confirm" && (
-          <div className="space-y-3">
+          <div data-doc-shot="reservation-detail-awaiting-signoff" className="space-y-3">
             <p className="text-sm text-muted-foreground">
               {noMeters ? "Times recorded. Needs sign-off." : "Flown. Needs pilot sign-off."}{" "}
               <span className="tnum text-foreground">
@@ -445,7 +445,10 @@ function InvoiceSummary({
   const subtotal = invoice.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
 
   return (
-    <div className="space-y-3 rounded-lg border border-border bg-muted/40 p-3">
+    <div
+      data-doc-shot="close-out-invoice-summary"
+      className="space-y-3 rounded-lg border border-border bg-muted/40 p-3"
+    >
       <div className="flex items-center gap-2 text-sm font-medium">
         <Receipt className="size-4 shrink-0 text-muted-foreground" />
         Invoice #{invoice.id}

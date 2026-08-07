@@ -51,7 +51,7 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
   return (
     <>
       <Separator />
-      <section className="space-y-3">
+      <section data-doc-shot="closeout-training-section" className="space-y-3">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Training record
         </h3>

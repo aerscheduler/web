@@ -432,7 +432,10 @@ function SchedulePage() {
       </TableView.Header>
 
       <TableView.Body className="flex flex-col overflow-hidden">
-        <Card className="flex min-h-0 flex-1 flex-col overflow-hidden p-0">
+        <Card
+          data-doc-shot="board-filters-dimmed"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+        >
           {q.isPending ? (
             <CalendarGridSkeleton />
           ) : q.isError ? (

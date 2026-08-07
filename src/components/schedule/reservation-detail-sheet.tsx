@@ -89,7 +89,7 @@ export function ReservationDetailSheet({
       }
     >
       {r && (
-        <div className="space-y-5 pt-4">
+        <div data-doc-shot="reservation-detail-panel" className="space-y-5 pt-4">
           {/* Airport time, and only says so when the reader is somewhere else. The old
               version formatted with r.timeZoneName — the zone of the DEVICE THAT BOOKED
               IT — and printed the raw "America/Boise" next to every booking whether or

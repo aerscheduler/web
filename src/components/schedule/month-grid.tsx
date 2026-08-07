@@ -107,7 +107,7 @@ export function MonthGrid({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-auto">
+    <div data-doc-shot="schedule-month-grid" className="h-full min-h-0 overflow-auto">
       {/* Weekday header */}
       <div className="sticky top-0 z-10 grid grid-cols-7 border-b border-border bg-card">
         {weekdays.map((d) => (

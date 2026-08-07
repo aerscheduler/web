@@ -89,6 +89,7 @@ export function ConfirmGuestReviewModal({
       description="Review the flight and bill the guest. Confirm their details so the invoice reaches them."
     >
       <form
+        data-doc-shot="guest-close-out-modal"
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();

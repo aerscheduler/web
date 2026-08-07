@@ -95,7 +95,7 @@ export function CancelReservationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent data-doc-shot="cancel-reservation-dialog" className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Cancel this reservation?</DialogTitle>
           <DialogDescription>

@@ -378,7 +378,7 @@ export function RecurrenceField({
   };
 
   return (
-    <div className="space-y-2">
+    <div data-doc-shot="repeat-dropdown-presets" className="space-y-2">
       <Label htmlFor="repeat">Repeat</Label>
       <Select value={selected} onValueChange={choose} disabled={disabled}>
         <SelectTrigger id="repeat" className="w-full">

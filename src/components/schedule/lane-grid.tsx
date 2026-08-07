@@ -209,7 +209,7 @@ export function LaneGrid({
     : null;
 
   return (
-    <div ref={scrollRef} className="h-full min-h-0 overflow-auto">
+    <div ref={scrollRef} data-doc-shot="schedule-day-board" className="h-full min-h-0 overflow-auto">
       <div style={{ minWidth: LABEL_WIDTH + laneWidth }}>
         {/* Header — hour ruler (sticky while scrolling resource lanes) */}
         <div className="sticky top-0 z-30 flex border-b border-border bg-card">
@@ -266,7 +266,11 @@ export function LaneGrid({
                 ? held.resourceId === row.resource.id
                 : held.resourceId == null);
             return (
-              <div key={row.key} className="flex border-b border-border last:border-b-0">
+              <div
+                key={row.key}
+                data-doc-shot={row.resource == null ? "schedule-unassigned-row" : undefined}
+                className="flex border-b border-border last:border-b-0"
+              >
                 <div
                   className="sticky left-0 z-10 flex shrink-0 items-center gap-2 border-r border-border bg-card px-3"
                   style={{ width: LABEL_WIDTH, minHeight: h }}

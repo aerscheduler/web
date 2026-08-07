@@ -359,7 +359,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   if (!hasMeters && !hasInstruction) return null;
 
   return (
-    <div className="rounded-md border">
+    <div data-doc-shot="who-pays-what-panel" className="rounded-md border">
       <div className="flex flex-wrap items-start justify-between gap-2 border-b bg-muted/40 px-3 py-2">
         <div className="flex items-center gap-2">
           <Users className="size-4 text-muted-foreground" />

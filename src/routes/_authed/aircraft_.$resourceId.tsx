@@ -3,19 +3,22 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Ban,
+  CalendarClock,
   Fuel,
+  Gauge,
   MapPin,
   Pencil,
   PlaneTakeoff,
   Undo2,
   UserCheck,
+  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Resource } from "@/types/api";
 import { useLocations, useResource, useResourceApprovedPilots } from "@/features/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { resourceViewAccess } from "@/lib/permissions";
+import { resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
 import { formatDate, formatMoney, initials } from "@/lib/utils";
 import { planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
 import { AircraftFormModal } from "@/components/aircraft/aircraft-form";
@@ -44,6 +47,8 @@ import {
 import { useDetailRange } from "@/components/detail/use-detail-range";
 import { useConfirm } from "@/components/confirm-dialog";
 import { ErrorState } from "@/components/states";
+import { TableView } from "@/components/table-view";
+import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,8 +66,14 @@ import { Skeleton } from "@/components/ui/skeleton";
  * for the squawks and the meters, a dispatcher for utilization and the board, an
  * admin for all of it plus what the tail earned. Everyone else still gets the
  * aircraft and its schedule, which is what the fleet list already showed them.
+ *
+ * Sections sit in a left rail (same shell as Settings / course detail) so the
+ * page can grow without stacking every card into one scroll.
  */
 export const Route = createFileRoute("/_authed/aircraft_/$resourceId")({
+  validateSearch: (s: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof s.tab === "string" ? s.tab : undefined,
+  }),
   component: AircraftDetailPage,
 });
 
@@ -153,6 +164,23 @@ function AircraftDetailPage() {
   return <ResourceBody resource={resource} />;
 }
 
+function sectionsFor(access: ResourceViewAccess): RailSection[] {
+  const items = [
+    { value: "overview", label: "Overview", icon: PlaneTakeoff },
+    ...(access.metrics
+      ? [{ value: "metrics", label: "Utilization", icon: Gauge }]
+      : []),
+    { value: "schedule", label: "Schedule", icon: CalendarClock },
+    ...(access.maintenance
+      ? [{ value: "maintenance", label: "Maintenance", icon: Wrench }]
+      : []),
+    ...(access.approvedPilots
+      ? [{ value: "approved-renters", label: "Approved renters", icon: UserCheck }]
+      : []),
+  ];
+  return [{ items }];
+}
+
 function ResourceBody({ resource }: { resource: Resource }) {
   const { roles } = useAuth();
   const access = resourceViewAccess(roles);
@@ -160,6 +188,15 @@ function ResourceBody({ resource }: { resource: Resource }) {
   const confirm = useConfirm();
   const qc = useQueryClient();
   const locationsQ = useLocations({ enabled: access.manage });
+  const navigate = Route.useNavigate();
+  const { tab } = Route.useSearch();
+
+  const sections = sectionsFor(access);
+  const allowed = sections.flatMap((s) => s.items.map((i) => i.value));
+  const active = tab && allowed.includes(tab) ? tab : "overview";
+  const pick = (next: string) => {
+    void navigate({ search: (prev) => ({ ...prev, tab: next }), replace: true });
+  };
 
   const [editing, setEditing] = useState(false);
   const [grounding, setGrounding] = useState(false);
@@ -202,138 +239,148 @@ function ResourceBody({ resource }: { resource: Resource }) {
     });
   }
 
+  const needsRange = active === "metrics" || active === "schedule";
+
   return (
-    <PageFrame>
-      <DetailHeader
-        media={
-          <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-muted text-muted-foreground">
-            {resource.featuredImage ? (
-              <img
-                src={resource.featuredImage}
-                alt={title}
-                className="size-full object-cover"
-              />
-            ) : (
-              <PlaneTakeoff className="size-7" />
-            )}
-          </span>
-        }
-        title={title}
-        titleClassName="font-mono"
-        badges={status ? <Badge variant={status.variant}>{status.label}</Badge> : undefined}
-        subtitle={plane ? planeTitle(plane) : resourceKindLabel(resource)}
-        meta={
-          <>
-            <MetaItem icon={MapPin}>{resource.location?.name ?? "No home base"}</MetaItem>
-            {rate && (
-              <MetaItem icon={PlaneTakeoff}>
-                {formatMoney(rate.cents)} {rate.basis}
-                {rate.per}
-              </MetaItem>
-            )}
-            {plane?.fuelCapacity != null && (
-              <MetaItem icon={Fuel}>
-                {plane.fuelCapacity} {plane.fuelMeasurement ?? "gallons"}
-              </MetaItem>
-            )}
-          </>
-        }
-        actions={
-          access.manage ? (
+    <TableView className="gap-5">
+      <TableView.Header>
+        <DetailBack to="/aircraft" label="Aircraft" />
+
+        <DetailHeader
+          media={
+            <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-muted text-muted-foreground">
+              {resource.featuredImage ? (
+                <img
+                  src={resource.featuredImage}
+                  alt={title}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <PlaneTakeoff className="size-7" />
+              )}
+            </span>
+          }
+          title={title}
+          titleClassName="font-mono"
+          badges={status ? <Badge variant={status.variant}>{status.label}</Badge> : undefined}
+          subtitle={plane ? planeTitle(plane) : resourceKindLabel(resource)}
+          meta={
             <>
-              <Button variant="outline" onClick={() => setEditing(true)}>
-                <Pencil className="size-4" /> Edit
-              </Button>
-              <Button variant="outline" onClick={() => setApproving(true)}>
-                <UserCheck className="size-4" /> Approve renters
-              </Button>
-              <Button
-                variant={plane?.grounded ? "outline" : "destructive"}
-                onClick={() => void toggleGround()}
-                disabled={!plane || unground.isPending}
-              >
-                {plane?.grounded ? (
+              <MetaItem icon={MapPin}>{resource.location?.name ?? "No home base"}</MetaItem>
+              {rate && (
+                <MetaItem icon={PlaneTakeoff}>
+                  {formatMoney(rate.cents)} {rate.basis}
+                  {rate.per}
+                </MetaItem>
+              )}
+              {plane?.fuelCapacity != null && (
+                <MetaItem icon={Fuel}>
+                  {plane.fuelCapacity} {plane.fuelMeasurement ?? "gallons"}
+                </MetaItem>
+              )}
+            </>
+          }
+          actions={
+            access.manage ? (
+              <>
+                <Button variant="outline" onClick={() => setEditing(true)}>
+                  <Pencil className="size-4" /> Edit
+                </Button>
+                <Button variant="outline" onClick={() => setApproving(true)}>
+                  <UserCheck className="size-4" /> Approve renters
+                </Button>
+                <Button
+                  variant={plane?.grounded ? "outline" : "destructive"}
+                  onClick={() => void toggleGround()}
+                  disabled={!plane || unground.isPending}
+                >
+                  {plane?.grounded ? (
+                    <>
+                      <Undo2 className="size-4" /> Return to service
+                    </>
+                  ) : (
+                    <>
+                      <Ban className="size-4" /> Ground
+                    </>
+                  )}
+                </Button>
+              </>
+            ) : undefined
+          }
+        />
+
+        {plane?.grounded && (
+          <div className="rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-destructive">
+            <span className="font-medium">Grounded:</span>{" "}
+            {plane.groundedReason?.trim() || "No reason recorded."}
+          </div>
+        )}
+      </TableView.Header>
+
+      <div className={RAIL_ROW}>
+        <SectionRail label="Aircraft" sections={sections} value={active} onChange={pick} />
+
+        <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">
+          {needsRange && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-[13px] text-muted-foreground">
+                {active === "metrics"
+                  ? `Utilization${access.money ? " and revenue" : ""} over the selected window.`
+                  : "Flights on this aircraft over the selected window."}
+              </p>
+              <DateRangePicker value={range} onChange={setRange} />
+            </div>
+          )}
+
+          {active === "overview" && (
+            <DetailCard title="Aircraft">
+              <KeyValueList>
+                {plane && (
                   <>
-                    <Undo2 className="size-4" /> Return to service
-                  </>
-                ) : (
-                  <>
-                    <Ban className="size-4" /> Ground
+                    <KeyValue label="Hobbs" mono>
+                      {(plane.hobbsTime / 10).toFixed(1)}
+                    </KeyValue>
+                    <KeyValue label="Tach" mono>
+                      {(plane.tachTime / 10).toFixed(1)}
+                    </KeyValue>
+                    <KeyValue label="Rate">
+                      {rate ? (
+                        <span className="tabular-nums">
+                          {formatMoney(rate.cents)}
+                          <span className="ml-1 text-xs font-normal text-muted-foreground">
+                            {rate.basis}
+                            {rate.per}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Not set</span>
+                      )}
+                    </KeyValue>
+                    <KeyValue label="Billed on">
+                      {plane.cost?.billByHobbsTime ? "Hobbs time" : "Tach time"}
+                    </KeyValue>
+                    <KeyValue label="Category & class">{plane.categoryClass || "—"}</KeyValue>
                   </>
                 )}
-              </Button>
-            </>
-          ) : undefined
-        }
-      />
+                <KeyValue label="Home base">{resource.location?.name ?? "—"}</KeyValue>
+                <KeyValue label="Added">{formatDate(resource.createdAt)}</KeyValue>
+              </KeyValueList>
+            </DetailCard>
+          )}
 
-      {plane?.grounded && (
-        <div className="rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-destructive">
-          <span className="font-medium">Grounded:</span>{" "}
-          {plane.groundedReason?.trim() || "No reason recorded."}
-        </div>
-      )}
+          {active === "metrics" && access.metrics && (
+            <ResourceMetrics
+              resourceId={resource.id}
+              range={window}
+              showMoney={access.money}
+            />
+          )}
 
-      {/* Every viewer gets the recent-flights list, and that list is scoped to
-          this window — so the control ships with it, not only with the tiles. */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[13px] text-muted-foreground">
-          {access.metrics
-            ? `Utilization${access.money ? " and revenue" : ""} over the selected window.`
-            : "Flights on this aircraft over the selected window."}
-        </p>
-        <DateRangePicker value={range} onChange={setRange} />
-      </div>
+          {active === "schedule" && (
+            <ResourceSchedule resourceId={resource.id} range={window} canBook />
+          )}
 
-      {access.metrics && (
-        <ResourceMetrics
-          resourceId={resource.id}
-          range={window}
-          showMoney={access.money}
-        />
-      )}
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          <ResourceSchedule resourceId={resource.id} range={window} canBook />
-        </div>
-
-        <div className="space-y-4">
-          <DetailCard title="Aircraft">
-            <KeyValueList>
-              {plane && (
-                <>
-                  <KeyValue label="Hobbs" mono>
-                    {(plane.hobbsTime / 10).toFixed(1)}
-                  </KeyValue>
-                  <KeyValue label="Tach" mono>
-                    {(plane.tachTime / 10).toFixed(1)}
-                  </KeyValue>
-                  <KeyValue label="Rate">
-                    {rate ? (
-                      <span className="tabular-nums">
-                        {formatMoney(rate.cents)}
-                        <span className="ml-1 text-xs font-normal text-muted-foreground">
-                          {rate.basis}
-                          {rate.per}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">Not set</span>
-                    )}
-                  </KeyValue>
-                  <KeyValue label="Billed on">
-                    {plane.cost?.billByHobbsTime ? "Hobbs time" : "Tach time"}
-                  </KeyValue>
-                  <KeyValue label="Category & class">{plane.categoryClass || "—"}</KeyValue>
-                </>
-              )}
-              <KeyValue label="Home base">{resource.location?.name ?? "—"}</KeyValue>
-              <KeyValue label="Added">{formatDate(resource.createdAt)}</KeyValue>
-            </KeyValueList>
-          </DetailCard>
-
-          {access.maintenance && (
+          {active === "maintenance" && access.maintenance && (
             <>
               {/* Inspections above squawks: what's coming due is the standing question a
                   mechanic opens this page with, and squawks are the exception. */}
@@ -350,7 +397,9 @@ function ResourceBody({ resource }: { resource: Resource }) {
             </>
           )}
 
-          {access.approvedPilots && <ApprovedPilots resource={resource} />}
+          {active === "approved-renters" && access.approvedPilots && (
+            <ApprovedPilots resource={resource} />
+          )}
         </div>
       </div>
 
@@ -374,7 +423,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
           />
         </>
       )}
-    </PageFrame>
+    </TableView>
   );
 }
 

@@ -77,6 +77,7 @@ export function DataTable<T>({
   onRowClick,
   isRowSelected,
   showPageSize,
+  docShot,
 }: {
   columns: ColumnDef<T, unknown>[];
   /** One page of rows, as the API returned them. */
@@ -113,6 +114,14 @@ export function DataTable<T>({
    */
   isRowSelected?: (row: T) => boolean;
   showPageSize?: boolean;
+  /**
+   * Crop target for the help documentation's screenshots. The page passes it
+   * rather than this component writing one: every list in the console renders
+   * this table, so a literal attribute here would have all of them answer to a
+   * single id and the capture would photograph whichever loaded first. Inert,
+   * nothing styles or queries it.
+   */
+  docShot?: string;
 }) {
   const isMobile = useIsMobile();
 
@@ -152,6 +161,7 @@ export function DataTable<T>({
     // definite height and these rows scroll internally (not the whole page).
     <div
       data-fill-page={fill ? "" : undefined}
+      data-doc-shot={docShot}
       className={fill ? "flex flex-col gap-3 md:min-h-0 md:flex-1" : "space-y-3"}
     >
       {toolbar ? <div className={fill ? "md:shrink-0" : undefined}>{toolbar}</div> : null}

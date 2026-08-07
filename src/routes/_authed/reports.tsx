@@ -22,13 +22,35 @@ import type { ReportFilterInput } from "@/types/reports";
 
 export const Route = createFileRoute("/_authed/reports")({
   beforeLoad: guardRoute("/reports"),
+  /**
+   * Which pane the rail is on, kept in the URL.
+   *
+   * "Send me the link to the utilization report" is a sentence people say, and
+   * while the selection lived in component state every link to this page meant
+   * Overview and nothing else.
+   *
+   * The same key convention as the console's other rails: Settings runs off
+   * `?tab=`, Maintenance off `?view=`, and in both the rail item's value IS the
+   * search value. Absent still means Overview, so a plain /reports is unchanged.
+   */
+  validateSearch: (s: Record<string, unknown>): { report?: string } => ({
+    report: typeof s.report === "string" ? s.report : undefined,
+  }),
   component: ReportsPage,
 });
 
-const OVERVIEW = "__overview__";
-/** Not a report — a list of what the school emails out. Sits with Overview
+/**
+ * The two panes that are not reports, as `?report=` values.
+ *
+ * Readable names rather than the old `__overview__` sentinels, now that they are
+ * in a URL somebody pastes. Neither may become an id in the server's report
+ * registry: the rail's value is the search value, so a report called "overview"
+ * would be a report nobody could open.
+ */
+const OVERVIEW = "overview";
+/** Not a report. A list of what the school emails out, sitting with Overview
  *  above the categories for the same reason: it is about all of them. */
-const SCHEDULES = "__schedules__";
+const SCHEDULES = "scheduled";
 
 /**
  * Reports.
@@ -49,7 +71,8 @@ function ReportsPage() {
   const { organization } = useAuth();
   const catalog = useReportCatalog();
   const confirm = useConfirm();
-  const [selectedId, setSelectedId] = useState<string>(OVERVIEW);
+  const navigate = Route.useNavigate();
+  const { report: requested } = Route.useSearch();
 
   // A school with nothing to report on gets shown what these dashboards WILL look
   // like, not an accurate board of zeros. `hasEnoughData` is the whole switch, so
@@ -87,6 +110,23 @@ function ReportsPage() {
   const reports = catalog.data?.reports ?? [];
   const categories = catalog.data?.categories ?? [];
 
+  /**
+   * The pane in hand.
+   *
+   * An id this catalog does not hold falls back to Overview rather than to a
+   * blank pane. A link to a financial report opened by a dispatcher is a report
+   * that genuinely is not theirs, and the page they can see is the honest answer.
+   *
+   * Held as asked while the catalog is still loading, though: resolving it
+   * against an empty list would drop a deep link on Overview for a moment and
+   * then move it, which reads as the link having failed.
+   */
+  const selectedId = useMemo(() => {
+    if (!requested || requested === OVERVIEW) return OVERVIEW;
+    if (requested === SCHEDULES || catalog.isLoading) return requested;
+    return reports.some((r) => r.id === requested) ? requested : OVERVIEW;
+  }, [requested, catalog.isLoading, reports]);
+
   const selected = useMemo(
     () => reports.find((r) => r.id === selectedId) ?? null,
     [reports, selectedId]
@@ -112,6 +152,17 @@ function ReportsPage() {
     [categories, reports]
   );
 
+  /**
+   * Move the rail, which now means navigating.
+   *
+   * `replace`, so working down a rail of twenty reports does not bury the page
+   * you arrived from under twenty history entries. Back therefore still leaves
+   * Reports, which is where the dashboard's unsaved-edits blocker is mounted.
+   */
+  const show = (id: string) => {
+    void navigate({ search: (prev) => ({ ...prev, report: id }), replace: true });
+  };
+
   const openReport = async (
     reportId: string,
     filters: ReportFilterInput[] | undefined,
@@ -121,7 +172,7 @@ function ReportsPage() {
     // The window comes from the tile that was clicked, since tiles can each
     // carry their own — falling back to the page default when there isn't one.
     setLink({ reportId, filters, range: range ?? fallbackRange, nonce: Date.now() });
-    setSelectedId(reportId);
+    show(reportId);
   };
 
   const pickFromRail = async (id: string) => {
@@ -129,7 +180,7 @@ function ReportsPage() {
     // Choosing a report from the rail is a fresh start, not a continuation of
     // whatever the last deep link asked.
     setLink(null);
-    setSelectedId(id);
+    show(id);
   };
 
   if (!organization) {
@@ -192,6 +243,9 @@ function ReportsPage() {
         <div className={RAIL_ROW}>
           <SectionRail
             label="Reports"
+            // The help docs photograph this rail once per role. One id for all
+            // three: it is the same rail, and what differs is who is signed in.
+            docShot="reports-rail"
             sections={sections}
             value={selectedId}
             onChange={pickFromRail}

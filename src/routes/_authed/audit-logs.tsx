@@ -446,6 +446,9 @@ function AuditLogsPage() {
       ) : (
         <DataTable<AuditEvent>
           fill
+          //The help docs photograph this feed. The id sits here rather than in
+          //DataTable, which every list in the console renders.
+          docShot="audit-logs-table"
           columns={columns}
           data={rows}
           paging={paging}

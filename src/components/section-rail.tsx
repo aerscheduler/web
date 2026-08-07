@@ -54,6 +54,7 @@ export function SectionRail({
   label,
   placeholder = "Choose a section",
   className,
+  docShot,
 }: {
   sections: RailSection[];
   value: string;
@@ -62,6 +63,13 @@ export function SectionRail({
   label: string;
   placeholder?: string;
   className?: string;
+  /**
+   * Crop target for the help documentation's screenshots, landing on the desktop
+   * rail. The page passes it rather than this component writing one: six pages
+   * share this rail, so a literal attribute here would make all six answer to a
+   * single id. Inert, nothing styles or queries it.
+   */
+  docShot?: string;
 }) {
   const pick = (next: string) => {
     void onChange(next);
@@ -86,6 +94,7 @@ export function SectionRail({
           scrolls on its own only when there are more sections than fit. */}
       <nav
         aria-label={label}
+        data-doc-shot={docShot}
         className={cn("hidden w-60 shrink-0 overflow-y-auto lg:block", className)}
       >
         <div className="space-y-4 pr-3">

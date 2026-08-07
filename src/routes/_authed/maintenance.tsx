@@ -313,7 +313,10 @@ function OpenSquawks({
       ) : (
         <>
           <TableView.Body>
-            <div className={cn("space-y-2.5", q.isFetching && "opacity-60")}>
+            <div
+              data-doc-shot="maintenance-squawks-open"
+              className={cn("space-y-2.5", q.isFetching && "opacity-60")}
+            >
               {squawks.map((s) => (
                 <SquawkCard
                   key={s.id}
@@ -498,7 +501,10 @@ function Reminders({
       ) : (
         <>
           <TableView.Body>
-            <Card className={cn("divide-y divide-border p-0", q.isFetching && "opacity-60")}>
+            <Card
+              data-doc-shot="maintenance-all-inspections"
+              className={cn("divide-y divide-border p-0", q.isFetching && "opacity-60")}
+            >
               {reminders.map((r) => (
                 <div key={r.id} className="px-3.5 py-3">
                   <InspectionRow

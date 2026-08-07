@@ -310,7 +310,10 @@ function ResourceBody({ resource }: { resource: Resource }) {
         />
 
         {plane?.grounded && (
-          <div className="rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-destructive">
+          <div
+            data-doc-shot="aircraft-grounded-banner"
+            className="rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-destructive"
+          >
             <span className="font-medium">Grounded:</span>{" "}
             {plane.groundedReason?.trim() || "No reason recorded."}
           </div>
@@ -320,7 +323,10 @@ function ResourceBody({ resource }: { resource: Resource }) {
       <div className={RAIL_ROW}>
         <SectionRail label="Aircraft" sections={sections} value={active} onChange={pick} />
 
-        <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">
+        <div
+          data-doc-shot={active === "maintenance" ? "aircraft-maintenance-tab" : undefined}
+          className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto"
+        >
           {needsRange && (
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-[13px] text-muted-foreground">

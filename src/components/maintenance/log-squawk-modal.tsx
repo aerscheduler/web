@@ -79,7 +79,7 @@ export function LogSquawkModal({
       title="Log a squawk"
       description="Report a discrepancy so the fleet stays airworthy."
     >
-      <div className="space-y-4">
+      <div data-doc-shot="log-squawk-modal" className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="squawk-title">Title</Label>
           <Input

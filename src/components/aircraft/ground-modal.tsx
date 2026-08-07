@@ -51,7 +51,7 @@ export function GroundModal({
       title={`Ground ${tail}`}
       description="Grounded aircraft can't be scheduled until they're returned to service."
     >
-      <div className="space-y-4">
+      <div data-doc-shot="ground-aircraft-modal" className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="ground-reason">Reason</Label>
           <Textarea

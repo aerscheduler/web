@@ -64,7 +64,7 @@ export function ResourceMetrics({
   const points = seriesPoints(flightTime.data);
 
   return (
-    <div className="space-y-4">
+    <div data-doc-shot="aircraft-utilization-tab" className="space-y-4">
       <MetricRow>
         <MetricTile
           label="Hours flown"

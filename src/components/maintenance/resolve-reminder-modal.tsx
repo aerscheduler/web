@@ -83,7 +83,7 @@ export function ResolveReminderModal({
       title="Sign off"
       description={`Record ${name} as done.`}
     >
-      <div className="space-y-4">
+      <div data-doc-shot="sign-off-inspection-modal" className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="resolve-date">Completed on</Label>
           <DatePickerField

@@ -96,7 +96,7 @@ export function InspectionTemplates({
   }
 
   return (
-    <div className="space-y-5">
+    <div data-doc-shot="maintenance-set-up" className="space-y-5">
       {grouped.map((group) => (
         <section key={group.key}>
           <div className="mb-2 flex items-center gap-2">

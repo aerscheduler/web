@@ -94,7 +94,7 @@ export function SquawkDetailSheet({
       }
     >
       {s && (
-        <div className="space-y-5 pt-4">
+        <div data-doc-shot="squawk-detail-panel" className="space-y-5 pt-4">
           {s.grounding && !s.resolvedAt && (
             <p className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />

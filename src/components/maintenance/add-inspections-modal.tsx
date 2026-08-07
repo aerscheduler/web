@@ -246,7 +246,7 @@ export function AddInspectionsModal({
         )}
 
         {mode !== "standard" && (
-          <div className="space-y-3">
+          <div data-doc-shot="add-inspections-recurring" className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="insp-name">Name</Label>
               <Input
@@ -376,7 +376,7 @@ export function AddInspectionsModal({
             Optional, and the helper says exactly what leaving it blank means, because the
             default is right for a new aircraft and wrong for one that has been flying. */}
         {mode !== "oneOff" && (
-          <div className="rounded-lg border border-border p-3">
+          <div data-doc-shot="add-inspections-last-done" className="rounded-lg border border-border p-3">
             <Label className="text-xs">When was it last done?</Label>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               Leave blank if the work was just done — the countdown starts today at the
@@ -508,7 +508,7 @@ function StandardSet({
   const extras = presets.filter((p) => p.letter == null);
 
   return (
-    <div className="space-y-3">
+    <div data-doc-shot="add-inspections-standard-set" className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           {chosen.length} selected. Intervals are the common case — edit any of them after.

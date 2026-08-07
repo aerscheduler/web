@@ -261,7 +261,7 @@ export function AircraftFormModal({
           : "Add a tail to your fleet so it can be scheduled and billed."
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form data-doc-shot="aircraft-rate-fields" onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="ac-tail">Tail number</Label>

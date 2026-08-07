@@ -112,7 +112,10 @@ export function FleetStatus({ q: search, resourceId }: { q?: string; resourceId?
     // every card until the inspection name and its "was due" line both ellipsed — which
     // removes exactly the two facts the card exists to show. `auto-fill` drops to fewer
     // columns instead of shrinking past what the content needs.
-    <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(20rem,1fr))]">
+    <div
+      data-doc-shot="maintenance-by-aircraft"
+      className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(20rem,1fr))]"
+    >
       {cards.map(({ plane, summary }) => (
         <AircraftCard key={plane.id} plane={plane} summary={summary} />
       ))}

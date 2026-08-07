@@ -91,7 +91,7 @@ export function ResolveSquawkModal({
       title="Resolve squawk"
       description="Sign off the write-up and record what was done."
     >
-      <form onSubmit={submit} className="space-y-4">
+      <form data-doc-shot="resolve-squawk-modal" onSubmit={submit} className="space-y-4">
         {squawk && (
           <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
             <p className="font-medium">{squawk.title || "Untitled squawk"}</p>

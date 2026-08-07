@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Resource } from "@/types/api";
-import { useLocations, useResource, useResourceApprovedPilots } from "@/features/queries";
+import { useLocations, useRenterCount, useResource, useResourceApprovedPilots } from "@/features/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
@@ -430,13 +430,14 @@ function ResourceBody({ resource }: { resource: Resource }) {
 /**
  * Renters checked out on this tail.
  *
- * Assembled by asking each renter what they're approved for, since the server
- * has no read in the other direction (see `useResourceApprovedPilots`). The
- * truncation note is deliberate: a school past the fan-out limit should be told
- * the list is partial rather than shown a short list that looks complete.
+ * A complete list at any roster size — the read is now one request against the
+ * aircraft (see `useResourceApprovedPilots`), so there is no cap to disclose.
+ * The renter count is only here to tell an unapproved tail apart from a school
+ * that has no renters yet.
  */
 function ApprovedPilots({ resource }: { resource: Resource }) {
   const q = useResourceApprovedPilots(resource.id);
+  const renterCountQ = useRenterCount();
   const pilots = q.data ?? [];
 
   return (
@@ -448,7 +449,7 @@ function ApprovedPilots({ resource }: { resource: Resource }) {
         <CardSkeleton rows={2} />
       ) : q.isError ? (
         <CardEmpty>Couldn&apos;t load approvals.</CardEmpty>
-      ) : q.renterCount === 0 ? (
+      ) : renterCountQ.data === 0 ? (
         <CardEmpty>
           No renters in this organization yet — grant the renter role from{" "}
           <Link to="/people" className="underline underline-offset-2">
@@ -479,11 +480,6 @@ function ApprovedPilots({ resource }: { resource: Resource }) {
             );
           })}
         </ul>
-      )}
-      {q.truncated && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          Checked the first 60 of {q.renterCount} renters — there may be more approved.
-        </p>
       )}
     </DetailCard>
   );

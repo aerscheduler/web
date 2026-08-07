@@ -4,7 +4,6 @@ import { Users } from "lucide-react";
 import {
   useApproveResource,
   useMembers,
-  useResourceApprovedPilots,
 } from "@/features/queries";
 import type { OrganizationUser, Resource } from "@/types/api";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
@@ -23,14 +22,15 @@ import { initials } from "@/lib/utils";
 /**
  * Toggle which renters may book a given aircraft.
  *
- * The server has no "who is approved on this tail" read, so the current state is
- * inverted from each renter's own approved list (`useResourceApprovedPilots`).
- * That matters: this sheet used to open with every switch OFF regardless of the
- * truth, so an already-approved renter looked unapproved, and toggling them on
- * and off again to check would actually revoke them.
+ * Each switch's true position rides along on the roster row itself, via
+ * `approvedForResourceId`. Getting this right matters twice over: the sheet once
+ * opened with every switch OFF regardless of the truth, so an already-approved
+ * renter looked unapproved and toggling them to check would actually revoke
+ * them — and the fix that followed asked each renter in turn, which meant a
+ * school past the first 60 renters saw the same wrong OFF further down the list.
  *
  * Local overrides still win while the sheet is open, so a flip is instant rather
- * than waiting on a refetch of every renter.
+ * than waiting on a refetch.
  */
 export function ApproveRentersSheet({
   open,
@@ -41,15 +41,12 @@ export function ApproveRentersSheet({
   onOpenChange: (open: boolean) => void;
   resource: Resource | null;
 }) {
-  const q = useMembers({ renter: true }, { enabled: open });
-  const approvedQ = useResourceApprovedPilots(resource?.id ?? null, { enabled: open });
+  const q = useMembers(
+    { renter: true, ...(resource ? { approvedForResourceId: resource.id } : {}) },
+    { enabled: open && resource != null }
+  );
   const approve = useApproveResource(resource?.id ?? 0);
   const renters = q.data ?? [];
-
-  const approvedIds = React.useMemo(
-    () => new Set((approvedQ.data ?? []).map((m) => m.id)),
-    [approvedQ.data]
-  );
 
   // Only what this sheet has changed since it opened; everything else reads
   // through to the server's answer above.
@@ -103,7 +100,7 @@ export function ApproveRentersSheet({
             <ul className="divide-y divide-border">
               {renters.map((m) => {
                 const name = m.user?.name ?? `Member #${m.id}`;
-                const isOn = approved[m.id] ?? approvedIds.has(m.id);
+                const isOn = approved[m.id] ?? m.approvedForResource === true;
                 return (
                   <li key={m.id} className="flex items-center gap-3 py-3">
                     <Avatar className="size-9">

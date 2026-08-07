@@ -23,7 +23,7 @@ function Book() {
   const maintenanceOnly = isTechnician(roles) && bookable.length === 1;
 
   return (
-    <div>
+    <div data-doc-shot={maintenanceOnly ? "me-book-maintenance" : undefined}>
       <PageHeader
         title="Book"
         subtitle={

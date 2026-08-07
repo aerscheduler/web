@@ -71,7 +71,7 @@ function JoinPage() {
             </Button>
           </div>
         ) : (
-          <div className="rounded-xl border bg-card p-8">
+          <div data-doc-shot="join-school-code" className="rounded-xl border bg-card p-8">
             <div className="text-center">
               <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
                 <Ticket className="size-6" />

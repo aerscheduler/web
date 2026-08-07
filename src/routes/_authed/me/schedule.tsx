@@ -272,8 +272,8 @@ function MySchedulePage() {
         </Card>
       ) : (
         <TableView.Body>
-          <Card className="overflow-hidden p-0">
-            <div className="divide-y divide-border">
+          <Card data-doc-shot="my-schedule-list" className="overflow-hidden p-0">
+            <div data-doc-shot="me-schedule-list" className="divide-y divide-border">
               {groups.map(([key, items]) => (
                 <section key={key} className="p-4">
                   <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

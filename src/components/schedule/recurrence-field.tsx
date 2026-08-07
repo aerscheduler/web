@@ -478,7 +478,7 @@ function CustomRecurrenceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent data-doc-shot="me-book-repeat" className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Custom repeat</DialogTitle>
           <DialogDescription>

@@ -288,7 +288,7 @@ function MyInvoicesPage() {
   }
 
   return (
-    <TableView>
+    <TableView data-doc-shot="my-invoices">
       <TableView.Header>
         <PageHeader
           title="Invoices"

@@ -299,7 +299,7 @@ export function SmartTimeRange({
             <SelectTrigger id="smart-start" className="w-full">
               <SelectValue placeholder={loading ? "Checking…" : "Select"} />
             </SelectTrigger>
-            <SelectContent className="max-h-64">
+            <SelectContent data-doc-shot="me-book-start-times" className="max-h-64">
               {starts.map((s) => (
                 <SelectItem key={s.toISOString()} value={s.toISOString()}>
                   {tz.time(s)}
@@ -351,7 +351,10 @@ export function SmartTimeRange({
           <Loader2 className="size-3 animate-spin" /> Checking availability…
         </p>
       ) : noSlots ? (
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <div
+          data-doc-shot="time-picker-next-available"
+          className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+        >
           <CalendarClock className="size-3.5 shrink-0" />
           <span>No open times on this date for everyone selected.</span>
           {next && (

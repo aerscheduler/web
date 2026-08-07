@@ -186,8 +186,8 @@ export function NotificationPreferencesPanel() {
   const saving = update.isPending;
 
   return (
-    <div className="space-y-4">
-      <Card>
+    <div data-doc-shot="notification-preferences-maintenance" className="space-y-4">
+      <Card data-doc-shot="me-notifications">
         <CardHeader className="flex-row items-center gap-2 space-y-0">
           <Bell className="size-4 text-muted-foreground" />
           <CardTitle className="text-sm">Email</CardTitle>

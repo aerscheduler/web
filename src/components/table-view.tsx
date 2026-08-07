@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -52,10 +52,11 @@ export const FILL_BODY_MIN = "md:min-h-80";
 export function TableView({
   children,
   className,
+  ...rest
 }: {
   children: ReactNode;
   className?: string;
-}) {
+} & Omit<ComponentProps<"div">, "children" | "className">) {
   return (
     // data-fill-page tells the app-shell wrapper to take a DEFINITE height
     // (:has([data-fill-page]) → h-full) so this flex-1 column is bounded to the
@@ -66,6 +67,7 @@ export function TableView({
     <div
       data-fill-page
       className={cn("flex min-w-0 flex-col gap-4 md:min-h-0 md:flex-1", className)}
+      {...rest}
     >
       {children}
       {/* THE PAGE'S BOTTOM GUTTER, as a trailing flex item rather than padding.

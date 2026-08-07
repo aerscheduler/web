@@ -133,7 +133,7 @@ export function PaymentMethodsPanel() {
 
   return (
     <>
-      <div className="space-y-5">
+      <div data-doc-shot="payment-methods-autopay" className="space-y-5">
         {/* Autopay */}
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">

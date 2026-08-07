@@ -153,7 +153,7 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
   const course = p.enrollment.courseVersion.course;
 
   return (
-    <Card className="space-y-4 p-4">
+    <Card data-doc-shot="me-training-progress" className="space-y-4 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-medium">{course.name}</h2>

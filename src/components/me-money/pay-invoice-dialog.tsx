@@ -61,6 +61,7 @@ export function PayInvoiceDialog({
       }}
     >
       <DialogContent
+        data-doc-shot="pay-invoice-dialog"
         showCloseButton={!busy}
         // Stripe's iframe manages its own focus — let it, and don't dismiss on stray outside events.
         onOpenAutoFocus={(e) => e.preventDefault()}

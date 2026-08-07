@@ -135,7 +135,7 @@ export function MyTimeZoneCard() {
   };
 
   return (
-    <Card>
+    <Card data-doc-shot="profile-time-zone-card">
       <CardHeader className="flex-row items-center gap-2 space-y-0">
         <Globe className="size-4 text-muted-foreground" />
         <CardTitle className="text-sm">My time zone</CardTitle>

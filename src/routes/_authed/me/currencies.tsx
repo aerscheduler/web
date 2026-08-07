@@ -70,7 +70,7 @@ function MyCurrenciesPage() {
   }
 
   return (
-    <div>
+    <div data-doc-shot="me-currencies">
       <PageHeader
         title="Currencies"
         subtitle="Medicals, flight reviews and checkouts — so you always know you're legal to fly."

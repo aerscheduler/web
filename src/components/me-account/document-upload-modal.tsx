@@ -149,7 +149,7 @@ export function DocumentUploadModal({
           : "Add a medical, certificate, or other required document."
       }
     >
-      <form onSubmit={submit} className="space-y-4">
+      <form data-doc-shot="me-documents-upload" onSubmit={submit} className="space-y-4">
         {/* Pinned target: no choice to make, but be explicit about whose record this lands on. */}
         {isForSomeoneElse && !canPickMember && targetName && (
           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">

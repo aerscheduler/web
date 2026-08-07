@@ -1073,7 +1073,7 @@ export function ReservationForm({
               <SelectTrigger id="res-type" className="w-full">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent data-doc-shot={isSelf ? "me-book-type-dropdown" : undefined}>
                 {typeOptions.map((t) => (
                   <SelectItem key={t} value={t}>
                     <span className="flex items-center gap-2">
@@ -1110,7 +1110,7 @@ export function ReservationForm({
         {/* Which seat the member is in, when they hold both roles. Dispatch never
             asks — it names both people outright. */}
         {seatIsAmbiguous && counterpartSide && (
-          <div className="space-y-1.5">
+          <div data-doc-shot="me-book-your-seat" className="space-y-1.5">
             <Label>Your seat</Label>
             <div
               role="radiogroup"
@@ -1411,7 +1411,7 @@ export function ReservationForm({
   //overflow rather than wrap. /me/book is a page, so it gets a card instead.
   if (asPage) {
     return (
-      <Card>
+      <Card data-doc-shot="me-book-solo">
         {/* The gate states are whole-card empty/error states and bring their own
             framing — a header over "You're not checked out on any aircraft" reads as
             a form that failed rather than an answer. */}

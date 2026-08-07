@@ -10,9 +10,11 @@ import {
   GraduationCap,
   History,
   Info,
+  LayoutDashboard,
   PenLine,
   Plane,
   RotateCcw,
+  Target,
 } from "lucide-react";
 import {
   useAmendLessonRecord,
@@ -44,6 +46,8 @@ import {
 } from "@/lib/training";
 import type { EnrollmentProgress, LessonRecord, Standing, SyllabusLesson } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { TableView } from "@/components/table-view";
+import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { EmptyState, ErrorState } from "@/components/states";
 import { EndorsementsCard } from "@/components/training/endorsements-card";
 import { EnrollmentFeeCard } from "@/components/training/enrollment-fee-card";
@@ -56,7 +60,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog,
@@ -75,18 +78,46 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+/**
+ * One student's enrollment — progress, lessons, ledger, fee and endorsements.
+ *
+ * A rail rather than tabs, like every other sectioned page in the console. The
+ * summary (how far along, fee, solo sign-offs) sits on Overview so you can see
+ * it without first choosing Requirements or Lessons.
+ */
 export const Route = createFileRoute("/_authed/training_/enrollments/$enrollmentId")({
   //A student's own record, their instructor's view of it, and an admin's are the same
   //page; the SERVER decides which of them may open which record (`canReadEnrollment`).
   //Guarded on /training this was admin-only, so the link the person detail page renders
   //for an instructor went nowhere.
   beforeLoad: guardRoute("/training/enrollments"),
+  validateSearch: (s: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof s.tab === "string" ? s.tab : undefined,
+  }),
   component: EnrollmentPage,
 });
 
+const SECTIONS: RailSection[] = [
+  {
+    items: [
+      { value: "overview", label: "Overview", icon: LayoutDashboard },
+      { value: "requirements", label: "Requirements", icon: Target },
+      { value: "lessons", label: "Lessons", icon: BookOpen },
+      { value: "ledger", label: "Ledger", icon: History },
+    ],
+  },
+];
+
 function EnrollmentPage() {
   const { enrollmentId } = Route.useParams();
+  const { tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const progress = useEnrollmentProgress(Number(enrollmentId));
+
+  const active = SECTIONS[0]!.items.some((i) => i.value === tab) ? tab! : "overview";
+  const pick = (next: string) => {
+    void navigate({ search: (prev) => ({ ...prev, tab: next }), replace: true });
+  };
 
   if (progress.error) return <ErrorState error={progress.error} />;
   if (progress.isLoading) return <Skeleton className="h-96 w-full" />;
@@ -97,99 +128,107 @@ function EnrollmentPage() {
   const course = e.courseVersion.course;
 
   return (
-    <div className="space-y-5">
-      <Button asChild variant="ghost" size="sm" className="-ml-2">
-        <Link to="/training">
-          <ArrowLeft className="size-4" /> Training
-        </Link>
-      </Button>
+    <TableView className="gap-5">
+      <TableView.Header>
+        <Button asChild variant="ghost" size="sm" className="-ml-2">
+          <Link to="/training">
+            <ArrowLeft className="size-4" /> Training
+          </Link>
+        </Button>
 
-      <PageHeader
-        title={e.student?.user?.name ?? "Student"}
-        subtitle={`${course.name} · ${e.courseVersion.label}`}
-        actions={<EnrollmentActions progress={p} />}
-      />
+        <PageHeader
+          title={e.student?.user?.name ?? "Student"}
+          subtitle={`${course.name} · ${e.courseVersion.label}`}
+          actions={<EnrollmentActions progress={p} />}
+        />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant={course.regulatoryPart === "part141" ? "default" : "outline"}>
-          {PART_LABEL[course.regulatoryPart]}
-        </Badge>
-        <Badge variant={e.status === "graduated" ? "secondary" : "outline"}>
-          {STATUS_LABEL[e.status]}
-        </Badge>
-        {e.certifiedAt ? (
-          <Badge variant="secondary" className="gap-1">
-            <FileSignature className="size-3" /> Record certified
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={course.regulatoryPart === "part141" ? "default" : "outline"}>
+            {PART_LABEL[course.regulatoryPart]}
           </Badge>
-        ) : null}
-        <PaceBadge pace={p.pace} />
-      </div>
-
-      <Card className="p-4">
-        <div className="mb-2 flex items-baseline justify-between">
-          <span className="text-sm font-medium">Lessons complete</span>
-          <span className="text-sm tabular-nums text-muted-foreground">
-            {p.lessonsComplete} of {p.lessonsTotal}
-          </span>
+          <Badge variant={e.status === "graduated" ? "secondary" : "outline"}>
+            {STATUS_LABEL[e.status]}
+          </Badge>
+          {e.certifiedAt ? (
+            <Badge variant="secondary" className="gap-1">
+              <FileSignature className="size-3" /> Record certified
+            </Badge>
+          ) : null}
+          <PaceBadge pace={p.pace} />
         </div>
-        <Progress value={p.lessonsTotal ? (p.lessonsComplete / p.lessonsTotal) * 100 : 0} />
-        {/* Two different numbers on purpose. "12 of 30 lessons" and "18.4 of 40.0 hours"
-            are different axes, and a student can be a long way along one and short on the
-            other — which is exactly the question a chief instructor is asking. */}
-        <p className="mt-2 text-xs text-muted-foreground">
-          Lessons and hours move independently — one flight can credit several requirements at once.
-        </p>
-      </Card>
+      </TableView.Header>
 
-      {p.graduationBlocker ? (
-        <Card className="flex items-start gap-3 border-amber-500/40 bg-amber-500/5 p-4">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
-          <div>
-            <div className="text-sm font-medium">Not ready to graduate</div>
-            <p className="text-sm text-muted-foreground">{p.graduationBlocker}</p>
-          </div>
-        </Card>
-      ) : null}
+      <div className={RAIL_ROW}>
+        <SectionRail label="Enrollment" sections={SECTIONS} value={active} onChange={pick} />
 
-      <Tabs defaultValue="requirements">
-        <TabsList>
-          <TabsTrigger value="requirements">Requirements</TabsTrigger>
-          <TabsTrigger value="lessons">Lessons</TabsTrigger>
-          <TabsTrigger value="ledger">Ledger</TabsTrigger>
-        </TabsList>
+        <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">
+          {active === "overview" && (
+            <>
+              <Card className="p-4">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <span className="text-sm font-medium">Lessons complete</span>
+                  <span className="text-sm tabular-nums text-muted-foreground">
+                    {p.lessonsComplete} of {p.lessonsTotal}
+                  </span>
+                </div>
+                <Progress
+                  value={p.lessonsTotal ? (p.lessonsComplete / p.lessonsTotal) * 100 : 0}
+                />
+                {/* Two different numbers on purpose. "12 of 30 lessons" and "18.4 of 40.0 hours"
+                    are different axes, and a student can be a long way along one and short on the
+                    other — which is exactly the question a chief instructor is asking. */}
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Lessons and hours move independently — one flight can credit several
+                  requirements at once.
+                </p>
+              </Card>
 
-        <TabsContent value="requirements" className="mt-4 space-y-3">
-          {/* Recording prior training is the first thing a switching school needs to do
-              and there was no way to do it in this console at all. */}
-          <div className="flex justify-end">
-            <AddCreditDialog enrollmentId={p.enrollment.id} standings={p.standings} />
-          </div>
-          <RequirementsProgress standings={p.standings} />
-        </TabsContent>
-        <TabsContent value="lessons" className="mt-4">
-          <LessonsTab progress={p} />
-        </TabsContent>
-        <TabsContent value="ledger" className="mt-4">
-          <LedgerTab progress={p} />
-        </TabsContent>
-      </Tabs>
+              {p.graduationBlocker ? (
+                <Card className="flex items-start gap-3 border-amber-500/40 bg-amber-500/5 p-4">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                  <div>
+                    <div className="text-sm font-medium">Not ready to graduate</div>
+                    <p className="text-sm text-muted-foreground">{p.graduationBlocker}</p>
+                  </div>
+                </Card>
+              ) : null}
 
-      {/* Below the tabs rather than inside one: an endorsement is not a lesson, a
-          requirement or a ledger entry, and a student's solo sign-off is something you want
-          to see without first choosing a tab. */}
-      <EnrollmentFeeCard
-        enrollmentId={e.id}
-        feeCents={e.feeCents ?? null}
-        feeStatus={e.feeStatus}
-        feeInvoiceId={e.feeInvoiceId ?? null}
-      />
+              {/* Fee and endorsements live on Overview rather than inside Requirements or
+                  Lessons: an endorsement is not a lesson, a requirement or a ledger entry,
+                  and a student's solo sign-off is something you want without first choosing
+                  a section. */}
+              <EnrollmentFeeCard
+                enrollmentId={e.id}
+                feeCents={e.feeCents ?? null}
+                feeStatus={e.feeStatus}
+                feeInvoiceId={e.feeInvoiceId ?? null}
+              />
 
-      <EndorsementsCard
-        orgUserId={e.studentOrgUserId}
-        isSelf={false}
-        enrollmentId={e.id}
-      />
-    </div>
+              <EndorsementsCard
+                orgUserId={e.studentOrgUserId}
+                isSelf={false}
+                enrollmentId={e.id}
+              />
+            </>
+          )}
+
+          {active === "requirements" && (
+            <>
+              {/* Recording prior training is the first thing a switching school needs to do
+                  and there was no way to do it in this console at all. */}
+              <div className="flex justify-end">
+                <AddCreditDialog enrollmentId={p.enrollment.id} standings={p.standings} />
+              </div>
+              <RequirementsProgress standings={p.standings} />
+            </>
+          )}
+
+          {active === "lessons" && <LessonsTab progress={p} />}
+
+          {active === "ledger" && <LedgerTab progress={p} />}
+        </div>
+      </div>
+    </TableView>
   );
 }
 

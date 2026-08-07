@@ -1,18 +1,22 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
+  CalendarClock,
   CalendarPlus,
+  FileCheck2,
+  GraduationCap,
   Hash,
   Mail,
   Phone,
   PlaneTakeoff,
+  Receipt,
   Shield,
   UserRound,
 } from "lucide-react";
 import { rolesOf, type OrganizationUser } from "@/types/api";
 import { useApprovedResources, useMember } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
-import { personViewAccess } from "@/lib/permissions";
+import { personViewAccess, type PersonViewAccess } from "@/lib/permissions";
 import { formatDate, initials } from "@/lib/utils";
 import { formatPhone } from "@/lib/phone";
 import { ErrorState } from "@/components/states";
@@ -52,6 +56,8 @@ import {
   PersonDocuments,
 } from "@/components/people/detail/person-compliance";
 import { memberName } from "@/components/people/util";
+import { TableView } from "@/components/table-view";
+import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 
 /**
  * One person, in full.
@@ -65,8 +71,14 @@ import { memberName } from "@/components/people/util";
  * Access is NOT the same for everyone who can open it. See `personViewAccess` —
  * every section below is the client half of a guard the server already enforces,
  * and the two are meant to be read together.
+ *
+ * Sections sit in a left rail (same shell as aircraft / Settings) so the page
+ * can grow without stacking every card into one scroll.
  */
 export const Route = createFileRoute("/_authed/people_/$orgUserId")({
+  validateSearch: (s: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof s.tab === "string" ? s.tab : undefined,
+  }),
   component: PersonPage,
 });
 
@@ -145,6 +157,25 @@ function PersonPage() {
   return <PersonBody ou={ou} isSelf={isSelf} access={access} />;
 }
 
+function sectionsFor(access: PersonViewAccess): RailSection[] {
+  const items = [
+    { value: "overview", label: "Overview", icon: UserRound },
+    ...(access.metrics || access.flights
+      ? [{ value: "activity", label: "Activity", icon: CalendarClock }]
+      : []),
+    ...(access.money || access.membership
+      ? [{ value: "billing", label: "Billing", icon: Receipt }]
+      : []),
+    ...(access.instruction
+      ? [{ value: "training", label: "Training", icon: GraduationCap }]
+      : []),
+    ...(access.currencies || access.documents || access.approvedAircraft
+      ? [{ value: "compliance", label: "Compliance", icon: FileCheck2 }]
+      : []),
+  ];
+  return [{ items }];
+}
+
 function PersonBody({
   ou,
   isSelf,
@@ -152,11 +183,20 @@ function PersonBody({
 }: {
   ou: OrganizationUser;
   isSelf: boolean;
-  access: ReturnType<typeof personViewAccess>;
+  access: PersonViewAccess;
 }) {
   const navigate = useNavigate();
+  const routeNavigate = Route.useNavigate();
+  const { tab } = Route.useSearch();
   const { range, setRange, window } = useDetailRange(90);
   const [editingRoles, setEditingRoles] = useState<OrganizationUser | null>(null);
+
+  const sections = sectionsFor(access);
+  const allowed = sections.flatMap((s) => s.items.map((i) => i.value));
+  const active = tab && allowed.includes(tab) ? tab : "overview";
+  const pick = (next: string) => {
+    void routeNavigate({ search: (prev) => ({ ...prev, tab: next }), replace: true });
+  };
 
   const name = memberName(ou);
   useDetailTitle(name);
@@ -165,175 +205,198 @@ function PersonBody({
   const phone = formatPhone(ou.user?.details?.phone, ou.user?.details?.phoneCountry);
 
   return (
-    <PageFrame>
-      <DetailHeader
-        media={
-          <Avatar className="size-16">
-            {ou.profileImage && <AvatarImage src={ou.profileImage} alt={name} />}
-            <AvatarFallback className="text-lg">{initials(name)}</AvatarFallback>
-          </Avatar>
-        }
-        title={name}
-        badges={
-          <>
-            {ou.archivedAt ? (
-              <Badge variant="secondary">Archived</Badge>
-            ) : ou.grounded ? (
-              <Badge variant="danger">Grounded</Badge>
-            ) : (
-              <Badge variant="outline">Active</Badge>
-            )}
-            {isSelf && <Badge variant="secondary">You</Badge>}
-          </>
-        }
-        subtitle={<RoleBadges roles={subjectRoles} />}
-        meta={
-          <>
-            {email && <MetaItem icon={Mail}>{email}</MetaItem>}
-            {phone && <MetaItem icon={Phone}>{phone}</MetaItem>}
-            {ou.identifier && <MetaItem icon={Hash}>{ou.identifier}</MetaItem>}
-          </>
-        }
-        actions={
-          <>
-            {access.manage && (
-              <Button variant="outline" onClick={() => setEditingRoles(ou)}>
-                <Shield className="size-4" /> Edit roles
-              </Button>
-            )}
-            {isSelf && (
-              <Button asChild>
-                <Link to="/me/book">
-                  <CalendarPlus className="size-4" /> Book
-                </Link>
-              </Button>
-            )}
-            {access.manage && (
-              <MemberRowActions
-                ou={ou}
-                onEditRoles={setEditingRoles}
-                onRemoved={() => void navigate({ to: "/people" })}
-              />
-            )}
-          </>
-        }
-      />
+    <TableView className="gap-5">
+      <TableView.Header>
+        <DetailBack to="/people" label="People" />
 
-      {/* Archived is stated first and instead of the grounding banner: for a retired
-          member the grounding is history, and the fact that matters on this page is
-          that nothing you do here will reach them. */}
-      {ou.archivedAt ? (
-        <div className="rounded-lg border bg-muted/50 px-3.5 py-2.5 text-[13px] text-muted-foreground">
-          <span className="font-medium text-foreground">Archived {formatDate(ou.archivedAt)}.</span>{" "}
-          They're off the roster, can't be booked, and receive no email or notifications from you.
-          Their history is kept — return them to the roster to undo this.
-        </div>
-      ) : (
-        ou.grounded && (
-          <div className="rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-destructive">
-            <span className="font-medium">Grounded:</span>{" "}
-            {ou.groundedReason?.trim() || "No reason recorded."}
-          </div>
-        )
-      )}
-
-      {/* The window drives every number below it, so it sits above them all
-          rather than inside one card — two cards measuring different windows on
-          one page is how a page stops being believed.
-
-          Shown to anyone who gets the flight log too, not just the tiles: the log
-          is scoped to this window, so a viewer who can see it and can't move it
-          is stuck with a range they were never shown. */}
-      {(access.metrics || access.flights) && (
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-[13px] text-muted-foreground">
-            {access.metrics
-              ? "Activity and billing over the selected window."
-              : "Flights over the selected window."}
-          </p>
-          <DateRangePicker value={range} onChange={setRange} />
-        </div>
-      )}
-
-      {access.metrics && (
-        <PersonMetrics
-          orgUserId={ou.id}
-          subjectRoles={subjectRoles}
-          range={window}
-          showMoney={access.money}
+        <DetailHeader
+          media={
+            <Avatar className="size-16">
+              {ou.profileImage && <AvatarImage src={ou.profileImage} alt={name} />}
+              <AvatarFallback className="text-lg">{initials(name)}</AvatarFallback>
+            </Avatar>
+          }
+          title={name}
+          badges={
+            <>
+              {ou.archivedAt ? (
+                <Badge variant="secondary">Archived</Badge>
+              ) : ou.grounded ? (
+                <Badge variant="danger">Grounded</Badge>
+              ) : (
+                <Badge variant="outline">Active</Badge>
+              )}
+              {isSelf && <Badge variant="secondary">You</Badge>}
+            </>
+          }
+          subtitle={<RoleBadges roles={subjectRoles} />}
+          meta={
+            <>
+              {email && <MetaItem icon={Mail}>{email}</MetaItem>}
+              {phone && <MetaItem icon={Phone}>{phone}</MetaItem>}
+              {ou.identifier && <MetaItem icon={Hash}>{ou.identifier}</MetaItem>}
+            </>
+          }
+          actions={
+            <>
+              {access.manage && (
+                <Button variant="outline" onClick={() => setEditingRoles(ou)}>
+                  <Shield className="size-4" /> Edit roles
+                </Button>
+              )}
+              {isSelf && (
+                <Button asChild>
+                  <Link to="/me/book">
+                    <CalendarPlus className="size-4" /> Book
+                  </Link>
+                </Button>
+              )}
+              {access.manage && (
+                <MemberRowActions
+                  ou={ou}
+                  onEditRoles={setEditingRoles}
+                  onRemoved={() => void navigate({ to: "/people" })}
+                />
+              )}
+            </>
+          }
         />
-      )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <div className="space-y-4 lg:col-span-2">
-          {access.flights ? (
-            <PersonFlights
-              userId={ou.user?.id ?? null}
-              range={window}
-              canBookFor={!isSelf}
-            />
-          ) : (
-            <DetailCard
-              title="Activity"
-              description="Flights, hours and billing for this member."
-            >
-              <CardEmpty>
-                Your role doesn&apos;t include this member&apos;s activity. Admins see
-                everything here; instructors and dispatchers see the flying.
-              </CardEmpty>
-            </DetailCard>
+        {/* Archived is stated first and instead of the grounding banner: for a retired
+            member the grounding is history, and the fact that matters on this page is
+            that nothing you do here will reach them. */}
+        {ou.archivedAt ? (
+          <div className="rounded-lg border bg-muted/50 px-3.5 py-2.5 text-[13px] text-muted-foreground">
+            <span className="font-medium text-foreground">Archived {formatDate(ou.archivedAt)}.</span>{" "}
+            They're off the roster, can't be booked, and receive no email or notifications from you.
+            Their history is kept — return them to the roster to undo this.
+          </div>
+        ) : (
+          ou.grounded && (
+            <div className="rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-destructive">
+              <span className="font-medium">Grounded:</span>{" "}
+              {ou.groundedReason?.trim() || "No reason recorded."}
+            </div>
+          )
+        )}
+      </TableView.Header>
+
+      <div className={RAIL_ROW}>
+        <SectionRail label="Member" sections={sections} value={active} onChange={pick} />
+
+        <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">
+          {active === "overview" && (
+            <>
+              <DetailCard title="Details">
+                <KeyValueList>
+                  <KeyValue label="Member ID" mono>
+                    #{ou.id}
+                  </KeyValue>
+                  <KeyValue label="Identifier" mono>
+                    {ou.identifier || "—"}
+                  </KeyValue>
+                  <KeyValue label="Joined">{formatDate(ou.createdAt, "MMMM d, yyyy")}</KeyValue>
+                  <KeyValue label="Last active">
+                    {formatDate(ou.user?.lastActiveAt, "MMM d, yyyy")}
+                  </KeyValue>
+                </KeyValueList>
+              </DetailCard>
+
+              {/* Renders itself only when the server returned contact details — the
+                  instructor-of-that-student rule can't be evaluated client-side, so
+                  the payload IS the permission answer. See PersonContact. */}
+              <PersonContact ou={ou} isSelf={isSelf} />
+            </>
           )}
 
-          {/* Above invoices on purpose: a club treasurer opening somebody's record is
-              usually here for "are they paid up as a member", and the dues they owe are
-              the reason half the invoices below exist. Renders nothing at an organization
-              with no membership plans. */}
-          <PersonMembership orgUserId={ou.id} canManage={access.membership} />
+          {active === "activity" && (access.metrics || access.flights) && (
+            <>
+              {/* The window drives every number below it, so it sits above them all
+                  rather than inside one card — two cards measuring different windows on
+                  one page is how a page stops being believed. */}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[13px] text-muted-foreground">
+                  {access.metrics
+                    ? "Activity and billing over the selected window."
+                    : "Flights over the selected window."}
+                </p>
+                <DateRangePicker value={range} onChange={setRange} />
+              </div>
 
-          {access.money && (
-            <PersonInvoices orgUserId={ou.id} range={window} isSelf={isSelf} />
+              {access.metrics && (
+                <PersonMetrics
+                  orgUserId={ou.id}
+                  subjectRoles={subjectRoles}
+                  range={window}
+                  showMoney={access.money}
+                />
+              )}
+
+              {access.flights ? (
+                <PersonFlights
+                  userId={ou.user?.id ?? null}
+                  range={window}
+                  canBookFor={!isSelf}
+                />
+              ) : (
+                <DetailCard
+                  title="Activity"
+                  description="Flights, hours and billing for this member."
+                >
+                  <CardEmpty>
+                    Your role doesn&apos;t include this member&apos;s flight log. Admins see
+                    everything here; instructors and dispatchers see the flying.
+                  </CardEmpty>
+                </DetailCard>
+              )}
+            </>
           )}
-        </div>
 
-        <div className="space-y-4">
-          <DetailCard title="Details">
-            <KeyValueList>
-              <KeyValue label="Member ID" mono>
-                #{ou.id}
-              </KeyValue>
-              <KeyValue label="Identifier" mono>
-                {ou.identifier || "—"}
-              </KeyValue>
-              <KeyValue label="Joined">{formatDate(ou.createdAt, "MMMM d, yyyy")}</KeyValue>
-              <KeyValue label="Last active">
-                {formatDate(ou.user?.lastActiveAt, "MMM d, yyyy")}
-              </KeyValue>
-            </KeyValueList>
-          </DetailCard>
-
-          {/* Renders itself only when the server returned contact details — the
-              instructor-of-that-student rule can't be evaluated client-side, so
-              the payload IS the permission answer. See PersonContact. */}
-          <PersonContact ou={ou} isSelf={isSelf} />
-
-          {/* Beside currencies and documents, because all three answer "is this person
-              ready to fly, and on what". Gated with `instruction` rather than a new flag:
-              the server already scopes the read (a student always gets only their own),
-              and instructors seeing who their students are training toward is the point. */}
-          {access.instruction && <PersonTraining ou={ou} isSelf={isSelf} />}
-          {/* Beside training, because the question "can they solo today?" is answered by an
-              endorsement and its expiry, not by a progress bar. */}
-          {access.instruction && <EndorsementsCard orgUserId={ou.id} isSelf={isSelf} />}
-          {access.currencies && <PersonCurrencies ou={ou} isSelf={isSelf} />}
-          {access.documents && <PersonDocuments ou={ou} isSelf={isSelf} />}
-          {access.approvedAircraft && (
-            <ApprovedAircraft userId={ou.user?.id ?? null} isSelf={isSelf} />
+          {active === "billing" && (access.money || access.membership) && (
+            <>
+              {access.money && (
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-[13px] text-muted-foreground">
+                    Invoices over the selected window.
+                  </p>
+                  <DateRangePicker value={range} onChange={setRange} />
+                </div>
+              )}
+              {/* Membership above invoices on purpose: a club treasurer opening somebody's
+                  record is usually here for "are they paid up as a member", and the dues they
+                  owe are the reason half the invoices below exist. Renders nothing at an
+                  organization with no membership plans. */}
+              {access.membership && (
+                <PersonMembership orgUserId={ou.id} canManage={access.membership} />
+              )}
+              {access.money && (
+                <PersonInvoices orgUserId={ou.id} range={window} isSelf={isSelf} />
+              )}
+            </>
           )}
-          {access.instruction && (
-            <Card>
-              <MemberInstructionSection ou={ou} bare />
-            </Card>
+
+          {active === "training" && access.instruction && (
+            <>
+              <PersonTraining ou={ou} isSelf={isSelf} />
+              {/* Beside training, because the question "can they solo today?" is answered by an
+                  endorsement and its expiry, not by a progress bar. */}
+              <EndorsementsCard orgUserId={ou.id} isSelf={isSelf} />
+              <Card>
+                <MemberInstructionSection ou={ou} bare />
+              </Card>
+            </>
           )}
+
+          {active === "compliance" &&
+            (access.currencies || access.documents || access.approvedAircraft) && (
+              <>
+                {access.currencies && <PersonCurrencies ou={ou} isSelf={isSelf} />}
+                {access.documents && <PersonDocuments ou={ou} isSelf={isSelf} />}
+                {access.approvedAircraft && (
+                  <ApprovedAircraft userId={ou.user?.id ?? null} isSelf={isSelf} />
+                )}
+              </>
+            )}
         </div>
       </div>
 
@@ -342,7 +405,7 @@ function PersonBody({
         open={!!editingRoles}
         onOpenChange={(o) => !o && setEditingRoles(null)}
       />
-    </PageFrame>
+    </TableView>
   );
 }
 

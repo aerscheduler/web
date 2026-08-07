@@ -18,13 +18,14 @@ import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
+import { AuditDetailSheet } from "@/components/audit/audit-detail-sheet";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 //`startDate`/`endDate` are facet keys rather than local state so the window travels in the
 //URL with the other two filters — an audit finding is something you paste to someone else.
-const FACET_KEYS = ["entityType", "actorOrgUserId", "startDate", "endDate"] as const;
+const FACET_KEYS = ["entityType", "actorOrgUserId", "startDate", "endDate", "event"] as const;
 
 export const Route = createFileRoute("/_authed/audit-logs")({
   //Admin-only, matching `GET /audit` on the server. Guarding the route as well as the nav
@@ -41,7 +42,13 @@ const ENTITY_TYPES: { value: string; label: string }[] = [
   { value: "orgUser", label: "Members" },
   { value: "resource", label: "Aircraft & facilities" },
   { value: "squawk", label: "Squawks" },
+  { value: "inspection", label: "Inspections" },
+  { value: "document", label: "Documents" },
+  { value: "enrollment", label: "Training" },
+  { value: "membership", label: "Memberships" },
   { value: "joinRequest", label: "Join requests" },
+  { value: "organization", label: "Settings" },
+  { value: "apiKey", label: "API keys" },
 ];
 
 const ENTITY_LABEL = new Map(ENTITY_TYPES.map((e) => [e.value, e.label]));
@@ -82,6 +89,68 @@ function actionLabel(action: string): string {
     "squawk.created": "Squawk filed",
     "squawk.resolved": "Squawk resolved",
     "squawk.verified": "Squawk verified",
+
+    //Documents
+    "document.uploaded": "Document uploaded",
+    "document.replaced": "Document replaced",
+    "document.deleted": "Document deleted",
+    "document.expiryChanged": "Document expiry changed",
+
+    //Inspections
+    "inspection.created": "Inspection scheduled",
+    "inspection.completed": "Inspection signed off",
+    "inspection.deleted": "Inspection removed",
+
+    //Fleet
+    "resource.created": "Added to fleet",
+    "resource.updated": "Aircraft edited",
+    "resource.meterCorrected": "Meters corrected",
+    "resource.rateChanged": "Rate changed",
+    "resource.archived": "Retired from fleet",
+    "resource.unarchived": "Returned to fleet",
+
+    //Training records
+    "enrollment.created": "Enrolled",
+    "enrollment.removed": "Enrollment ended",
+    "enrollment.lessonGraded": "Lesson graded",
+    "enrollment.lessonGradeChanged": "Grade amended",
+    "enrollment.stageCheckRecorded": "Stage check recorded",
+    "enrollment.syllabusChanged": "Syllabus changed",
+
+    //Reservations, the money-shaped half
+    "reservation.closedOut": "Closed out",
+    "reservation.metersEntered": "Meters entered",
+    "reservation.metersCorrected": "Meters corrected",
+    "reservation.splitChanged": "Cost split changed",
+    "reservation.personnelChanged": "Crew changed",
+
+    //Invoices
+    "invoice.refunded": "Refunded",
+    "invoice.lineEdited": "Line edited",
+    "invoice.discountApplied": "Discount applied",
+    "invoice.sent": "Invoice sent",
+
+    //Memberships
+    "membership.created": "Membership started",
+    "membership.planChanged": "Plan changed",
+    "membership.cancelled": "Membership cancelled",
+    "membership.duesCharged": "Dues billed",
+    "membership.duesWaived": "Dues waived",
+
+    //Org configuration
+    "organization.bookingPolicyChanged": "Booking policy changed",
+    "organization.preferencesChanged": "Preferences changed",
+    "organization.timeZoneChanged": "Time zone changed",
+
+    //Access
+    "apiKey.created": "API key created",
+    "apiKey.revoked": "API key revoked",
+    "orgUser.invited": "Invitation sent",
+    "orgUser.removed": "Removed from organization",
+    "orgUser.archived": "Archived",
+    "orgUser.unarchived": "Unarchived",
+    "orgUser.endorsementAdded": "Endorsement given",
+    "orgUser.endorsementRemoved": "Endorsement removed",
   };
   if (known[action]) return known[action];
   const verb = action.split(".").pop() ?? action;
@@ -102,9 +171,19 @@ function detailLine(e: AuditEvent): string | null {
   return e.summary.trim().toLowerCase() === title.toLowerCase() ? null : e.summary;
 }
 
-/** Cancellations, voids and groundings read as red; everything else is neutral. */
+/**
+ * Which actions read as red.
+ *
+ * Deliberately conservative: red is for something being taken away or undone, not for
+ * anything merely consequential. `meterCorrected` and `lessonGradeChanged` are two of the
+ * most serious entries in the feed and are NOT red — they are ordinary corrections far more
+ * often than they are anything else, and colouring every correction as an alarm is how a
+ * page teaches people to ignore its colours.
+ */
 function isDestructive(action: string): boolean {
-  return /\.(cancelled|voided|declined|grounded|unapproved)$/.test(action);
+  return /\.(cancelled|voided|declined|grounded|unapproved|deleted|removed|revoked|archived|refunded)$/.test(
+    action
+  );
 }
 
 /** How far back the feed looks when nobody has picked a range. */
@@ -175,6 +254,10 @@ function AuditLogsPage() {
 
   const entityType = asFacetStrings(facets.entityType)[0];
   const actorOrgUserId = asFacetInts(facets.actorOrgUserId)?.[0];
+  //Which row is open, in the URL beside the filters so an audit finding is one paste — the
+  //whole reason this page keeps its state there. It is deliberately NOT part of `filter`
+  //below: opening a row must not re-query the page it was opened from.
+  const openEventId = asFacetInts(facets.event)?.[0] ?? null;
   //Defaults to the last 30 days rather than to all time: an audit log's first page is almost
   //always "what happened recently", and an unbounded default would count every row in the
   //org to draw twenty-five.
@@ -201,10 +284,36 @@ function AuditLogsPage() {
   const q = useAuditPage(filter, paging);
   const { rows, total } = pageRows<AuditEvent>(q);
 
+  //Resolved against the rows on screen rather than fetched on its own. Unlike an invoice,
+  //an audit event has no endpoint that returns one by id — and it needs none: the panel is
+  //opened by clicking a row, so the row is always in hand. A stale `?event=` from a pasted
+  //link whose filters no longer match simply opens nothing, which is the honest outcome.
+  const openEvent = React.useMemo(
+    () => rows.find((r) => r.id === openEventId) ?? null,
+    [rows, openEventId]
+  );
+
+  //↑/↓ through the page while the panel is docked. Clamped rather than wrapping: running
+  //off the end of a page and reappearing at the top reads as a bug.
+  const step = React.useCallback(
+    (delta: -1 | 1) => {
+      const i = rows.findIndex((r) => r.id === openEventId);
+      if (i < 0) return;
+      const next = rows[i + delta];
+      if (next) setFacets({ ...facets, event: [String(next.id)] });
+    },
+    [rows, openEventId, facets, setFacets]
+  );
+
   const columns = React.useMemo<ColumnDef<AuditEvent, unknown>[]>(
     () => [
       {
         id: "when",
+        //Every column but Action is pinned. Left to the browser, each one sizes to the
+        //widest cell on the CURRENT page, so applying a filter re-laid out the whole table
+        //— the same five columns in visibly different places, which reads as a different
+        //screen rather than as the same one showing fewer rows.
+        meta: { width: "12rem" },
         header: "When",
         cell: ({ row }) => (
           <span className="whitespace-nowrap tabular-nums text-muted-foreground">
@@ -214,6 +323,8 @@ function AuditLogsPage() {
       },
       {
         id: "action",
+        //The one column deliberately left to flex: it holds the summary, it is what a
+        //reader is here for, and it should spend whatever width the others do not.
         header: "Action",
         cell: ({ row }) => {
           const e = row.original;
@@ -235,6 +346,7 @@ function AuditLogsPage() {
       },
       {
         id: "who",
+        meta: { width: "13rem" },
         header: "Who",
         cell: ({ row }) => {
           const e = row.original;
@@ -252,6 +364,7 @@ function AuditLogsPage() {
       },
       {
         id: "subject",
+        meta: { width: "14rem" },
         header: "About",
         cell: ({ row }) => (
           <span className="text-muted-foreground">{subjectLine(row.original) ?? "—"}</span>
@@ -259,6 +372,7 @@ function AuditLogsPage() {
       },
       {
         id: "type",
+        meta: { width: "12rem" },
         header: "Type",
         cell: ({ row }) => (
           <Badge variant="secondary" className="whitespace-nowrap">
@@ -330,6 +444,8 @@ function AuditLogsPage() {
           data={rows}
           paging={paging}
           total={total}
+          onRowClick={(e) => setFacets({ ...facets, event: [String(e.id)] })}
+          isRowSelected={(e) => e.id === openEventId}
           //The empty state lives in the table's own empty slot rather than beside it:
           //this page always has a date window, so "nothing at all" and "nothing matching"
           //are the same screen, and rendering both would show a message under real rows.
@@ -360,6 +476,18 @@ function AuditLogsPage() {
           }}
         />
       )}
+
+      <AuditDetailSheet
+        event={openEvent}
+        open={openEvent != null}
+        onOpenChange={(o) => {
+          if (!o) setFacets({ ...facets, event: [] });
+        }}
+        onStep={step}
+        actionLabel={actionLabel}
+        entityLabel={(t) => ENTITY_LABEL.get(t) ?? t}
+        isDestructive={isDestructive}
+      />
     </TableView>
   );
 }

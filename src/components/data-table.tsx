@@ -29,6 +29,18 @@ declare module "@tanstack/react-table" {
     sortKey?: string;
     /** Right-align numerics (money, hours, counts). */
     numeric?: boolean;
+    /**
+     * A fixed column width, as any CSS length ("9rem", "12%").
+     *
+     * Set it wherever the SAME table is rendered with different data and the layout
+     * shifting between them would read as a different screen — a filtered list, most
+     * obviously. Without it the browser sizes every column to the widest cell on the page
+     * in hand, so narrowing a list to three rows re-lays out all five columns.
+     *
+     * Opt-in per column. Columns that set no width share whatever is left, so a table can
+     * pin its short, predictable columns and let one content column flex.
+     */
+    width?: string;
   }
 }
 
@@ -167,6 +179,17 @@ export function DataTable<T>({
             loading && "opacity-60"
           )}
         >
+          {/* Widths belong on a <colgroup> rather than on the cells: a `width` on a th is
+              a suggestion that auto layout is free to overrule, and it does. Rendered only
+              when at least one column asks for one, so every existing table keeps the
+              content-driven sizing it was built against. */}
+          {table.getAllLeafColumns().some((c) => c.columnDef.meta?.width) && (
+            <colgroup>
+              {table.getAllLeafColumns().map((c) => (
+                <col key={c.id} style={{ width: c.columnDef.meta?.width }} />
+              ))}
+            </colgroup>
+          )}
           <THead className={fill ? "sticky top-0 z-10 bg-background" : undefined}>
             {table.getHeaderGroups().map((hg) => (
               <TR key={hg.id} className="hover:bg-transparent">

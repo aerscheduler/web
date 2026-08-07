@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Split,
+  BadgeCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -54,6 +55,12 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
     tabs: [
       { value: "plan", label: "Plan", icon: BadgeDollarSign, keywords: ["subscription", "price", "per aircraft"] },
       { value: "billing", label: "Billing", icon: CreditCard, keywords: ["stripe", "connect", "payouts", "fees"] },
+      {
+        value: "memberships",
+        label: "Memberships",
+        icon: BadgeCheck,
+        keywords: ["dues", "club", "membership", "join fee", "initiation", "monthly dues", "recurring"],
+      },
       { value: "rates", label: "Instruction rates", icon: GraduationCap, keywords: ["hourly rate", "instructor rate", "ratings", "pricing"] },
       {
         value: "cost-splitting",

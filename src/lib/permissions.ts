@@ -162,6 +162,10 @@ export interface PersonViewAccess {
   approvedAircraft: boolean;
   /** Edit roles, ground, remove. Server: admin. */
   manage: boolean;
+  /** Their membership plan and dues. Server: admin — `/memberships/*` is isOrgAdmin, and
+   *  what a member pays is exactly what org-wide billing was made admin-only to protect.
+   *  Deliberately NOT self: a member reads their own at `/memberships/me`, on their profile. */
+  membership: boolean;
 }
 
 /**
@@ -181,6 +185,7 @@ export function personViewAccess(roles: Role[], isSelf: boolean): PersonViewAcce
     instruction: staff || isInstructor(roles) || isSelf,
     approvedAircraft: staff || isInstructor(roles) || isSelf,
     manage: canManageMembers(roles),
+    membership: admin,
   };
 }
 

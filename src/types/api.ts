@@ -246,6 +246,14 @@ export interface OrganizationBillingSettings {
    * at the minimum.
    */
   overnightMinimumTenths: number | null;
+  /**
+   * How many unpaid invoices before a member is grounded, or null/0 for off.
+   *
+   * A COUNT, not a number of days — the server evaluates it when an invoice is raised and
+   * again on the nightly overdue sweep. Grounding blocks AIRCRAFT bookings only; ground
+   * school, simulators and rooms are unaffected. Paying releases the member automatically.
+   */
+  groundUserUnpaidInvoices: number | null;
 }
 
 export interface RoleRow {
@@ -315,6 +323,12 @@ export interface OrganizationUser {
   dispatcherRole?: RoleRow | null;
   technicianRole?: RoleRow | null;
   user?: User;
+  /**
+   * Whether they are checked out on the aircraft the request named in
+   * `approvedForResourceId`. Absent unless that filter was passed — so treat
+   * `undefined` as "not asked", not as "not approved".
+   */
+  approvedForResource?: boolean;
 }
 
 export interface RolesUpdate {
@@ -1043,6 +1057,8 @@ export interface InviteInput {
   technician?: boolean;
   dispatcher?: boolean;
   orgUserGroupIds?: number[];
+  /** Tier to put them on when they accept. Applied as `pending` — nothing is charged. */
+  membershipPlanId?: number | null;
 }
 
 export interface PersonRef {
@@ -1898,4 +1914,130 @@ export type MyTrainingGrants = {
   /** What the caller's role already gives them, so a client never re-derives the bypass. */
   implied: string[];
   canGrade: boolean;
+};
+
+//=========================================================================================
+// Membership
+//
+// FK_-prefixed fields survive here because memberships are read through routes that do NOT
+// strip them — see [[aerscheduler-fk-strip]]; the console reads `FK_joinFeeInvoiceId` to
+// link at the invoice. Everything money is CENTS, matching the rest of the API.
+//=========================================================================================
+
+export type DuesInterval = "monthly" | "quarterly" | "annual";
+
+export type MembershipStatus = "pending" | "active" | "suspended" | "cancelled";
+
+/** What happened to one dues period. See utils/membership.ts on the server. */
+export type MembershipChargeStatus = "pending" | "billed" | "waived" | "failed";
+
+export type MembershipPlan = {
+  id: number;
+  name: string;
+  description: string | null;
+  archivedAt: string | null;
+  joinFeeCents: number | null;
+  joinFeeLabel: string | null;
+  duesCents: number | null;
+  duesLabel: string | null;
+  duesInterval: DuesInterval;
+  duesDayOfMonth: number | null;
+  prorateFirstPeriod: boolean;
+  autoBillDues: boolean;
+  /** Days to pay a dues or join-fee invoice. Null means no due date. A term of the money,
+   *  so it is snapshotted onto the membership at join. */
+  duesDueInDays: number | null;
+  /** How far ahead a member on this tier may book. Null means no limit. An ENTITLEMENT, so
+   *  it is read live off the plan — relaxing it relaxes it for everyone immediately. */
+  bookingWindowDays: number | null;
+  FK_agreementDocumentTypeId: number | null;
+  agreementDocumentType?: { id: number; name: string } | null;
+  /** Live memberships on this plan — not its history. */
+  memberCount: number;
+};
+
+/** The narrow shape the invite and join-request pickers read. */
+export type MembershipPlanOption = {
+  id: number;
+  name: string;
+  joinFeeCents: number | null;
+  duesCents: number | null;
+  duesInterval: DuesInterval;
+};
+
+/** One plan's rate for one aircraft, in cents per hour. Wet wins over dry. */
+export type MembershipPlanRate = {
+  resourceId: number;
+  dryRate: number | null;
+  wetRate: number | null;
+};
+
+export type MembershipCharge = {
+  id: number;
+  periodStart: string;
+  periodEnd: string;
+  amountCents: number;
+  status: MembershipChargeStatus;
+  note?: string | null;
+  FK_invoiceId: number | null;
+};
+
+export type Membership = {
+  id: number;
+  status: MembershipStatus;
+  startedAt: string | null;
+  endedAt: string | null;
+  suspendedAt: string | null;
+  endedReason: string | null;
+  joinFeeCents: number | null;
+  joinFeeLabel: string | null;
+  FK_joinFeeInvoiceId: number | null;
+  joinFeeStatus: "none" | "owed" | "invoiced";
+  duesCents: number | null;
+  duesLabel: string | null;
+  duesInterval: DuesInterval;
+  duesDayOfMonth: number | null;
+  duesDueInDays: number | null;
+  nextDueAt: string | null;
+  autoBillDues: boolean;
+  agreementOnFileAt: string | null;
+  FK_agreementDocumentId: number | null;
+  notes: string | null;
+  createdAt: string;
+  FK_orgUserId: number;
+  FK_planId: number;
+  plan: { id: number; name: string; archivedAt: string | null; FK_agreementDocumentTypeId: number | null };
+  orgUser?: { id: number; identifier: string | null; user?: { id: number; name: string | null; email: string | null } | null };
+  /** Only on a single-membership read. */
+  charges?: MembershipCharge[];
+  /** What "bill now" would raise — the SAME period and amount the server will invoice,
+   *  including a prorated part-period when one is outstanding. Null when nothing is owed. */
+  nextPeriod?: {
+    periodStart: string;
+    periodEnd: string;
+    amountCents: number;
+    prorated: boolean;
+    /** This period was billed before and Stripe refused it. Pressing bill retries it. */
+    retry: boolean;
+  } | null;
+};
+
+/** The narrower thing a member sees about themselves at /memberships/me. */
+export type MyMembership = {
+  id: number;
+  status: MembershipStatus;
+  planName: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  duesCents: number | null;
+  duesInterval: DuesInterval;
+  nextDueAt: string | null;
+  autoBillDues: boolean;
+  joinFeeCents: number | null;
+  joinFeeStatus: "none" | "owed" | "invoiced";
+  joinFeeInvoiceId: number | null;
+  agreementOnFileAt: string | null;
+  /** The plan names a document type as its agreement. Nothing is gated on it. */
+  agreementRequired: boolean;
+  charges: MembershipCharge[];
 };

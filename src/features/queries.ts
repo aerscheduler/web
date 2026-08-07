@@ -18,6 +18,12 @@ import {
   type PresignedPost,
 } from "@/lib/upload";
 import type {
+  Membership,
+  MembershipPlan,
+  MembershipPlanOption,
+  MembershipPlanRate,
+  MembershipStatus,
+  MyMembership,
   CandidateEnrollment,
   Course,
   CourseVersion,
@@ -167,6 +173,13 @@ export type MemberFilter = Partial<
   archived?: boolean;
   /** One or more group IDs (OR). */
   groupId?: number | number[];
+  /**
+   * An aircraft id. Every member comes back carrying `approvedForResource`, so a
+   * whole roster's approvals read in one request instead of one per person.
+   */
+  approvedForResourceId?: number;
+  /** With `approvedForResourceId`, return only those approved. Ignored on its own. */
+  approved?: boolean;
 };
 
 export type ResourceListFilter = {
@@ -772,6 +785,8 @@ export function useApproveResource(resourceId: number) {
       // Refresh the caller's bookable fleet (the /me/book "checked out" list)
       // so a just-approved renter sees the aircraft without a reload.
       void qc.invalidateQueries({ queryKey: ["approvedResources"] });
+      // The other direction — the aircraft's own list of approved renters.
+      void qc.invalidateQueries({ queryKey: ["resourceApprovedUsers"] });
     },
   });
 }
@@ -796,12 +811,19 @@ export function useJoinRequestsPage(paging: PagingState, opts?: QueryOpts) {
 export function useAcceptJoinRequest() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, role }: { id: number; role?: Role }) =>
-      api(`/joinRequests/${id}/accept`, { method: "POST", body: role ? { role } : {} }),
+    //`membershipPlanId` puts them on a plan in the same click, as `pending` — nothing is
+    //charged until an admin starts it from their record. Best-effort on the server: a plan
+    //that cannot be applied never un-accepts somebody.
+    mutationFn: ({ id, role, membershipPlanId }: { id: number; role?: Role; membershipPlanId?: number }) =>
+      api(`/joinRequests/${id}/accept`, {
+        method: "POST",
+        body: { ...(role ? { role } : {}), ...(membershipPlanId ? { membershipPlanId } : {}) },
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["joinRequests"] });
       void qc.invalidateQueries({ queryKey: ["members"] });
       void qc.invalidateQueries({ queryKey: ["users"] });
+      void qc.invalidateQueries({ queryKey: ["membership"] });
     },
   });
 }
@@ -1556,59 +1578,44 @@ export function useApprovedResources(userId: number | null, opts?: QueryOpts) {
 }
 
 /**
- * How many renters this fan-out will ask about. Approval is only readable
- * per-person (`GET /users/:id/approvedResources`) — there is no "who is approved
- * on this tail" endpoint — so the answer costs one request per renter.
- *
- * `truncated` on the result says when a school has more renters than this, so
- * the card can say "of the first 60" instead of quietly under-reporting.
- */
-const APPROVAL_FANOUT_LIMIT = 60;
-
-/**
  * Who is checked out on one aircraft.
  *
- * Inverted client-side from each renter's approved list because the server has
- * no read in the other direction. Only renters are asked: they are the role the
- * approval gate actually governs, and they're who the approve sheet writes to.
+ * One request. This used to invert the relation client-side — fetch every
+ * renter, then ask each of them what they were approved for — which cost a
+ * request per member and so had to stop at the first 60 and tell the school its
+ * list might be incomplete. `GET /resources/:id/approvedUsers` reads the
+ * relation in this direction, so the answer is now whole at any roster size.
+ *
+ * Renters only: they are the role the approval gate governs, and who the
+ * approve sheet writes to.
  */
 export function useResourceApprovedPilots(resourceId: number | null, opts?: QueryOpts) {
-  const enabled = (opts?.enabled ?? true) && resourceId != null;
-  const rentersQ = useMembers({ renter: true }, { enabled });
-  const allRenters = rentersQ.data ?? [];
-  const renters = allRenters.slice(0, APPROVAL_FANOUT_LIMIT);
-
-  const perRenter = useQueries({
-    queries: renters.map((m) => ({
-      queryKey: ["approvedResources", m.user?.id ?? null] as const,
-      queryFn: () => api<Resource[]>(`/users/${m.user?.id}/approvedResources`),
-      enabled: enabled && rentersQ.isSuccess && m.user?.id != null,
-    })),
+  return useQuery({
+    queryKey: ["resourceApprovedUsers", resourceId],
+    queryFn: () =>
+      api<OrganizationUser[]>(`/resources/${resourceId}/approvedUsers`, { query: { renter: true } }),
+    enabled: (opts?.enabled ?? true) && resourceId != null,
   });
+}
 
-  const isPending = rentersQ.isPending || perRenter.some((q) => q.isPending);
-  const isError = rentersQ.isError || perRenter.some((q) => q.isError);
-  const settled = perRenter.map((q) => q.dataUpdatedAt).join(",");
-
-  const data = useMemo(() => {
-    if (!rentersQ.isSuccess) return undefined;
-    const approved: OrganizationUser[] = [];
-    renters.forEach((m, i) => {
-      const list = perRenter[i]?.data;
-      if (list?.some((r) => r.id === resourceId)) approved.push(m);
-    });
-    return approved;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on settled timestamps
-  }, [rentersQ.isSuccess, settled, resourceId]);
-
-  return {
-    data,
-    isPending,
-    isError,
-    /** How many renters exist in total, whether or not they were all checked. */
-    renterCount: allRenters.length,
-    truncated: allRenters.length > APPROVAL_FANOUT_LIMIT,
-  };
+/**
+ * How many renters the org has at all, without pulling the roster.
+ *
+ * Only used to tell "nobody is approved on this tail" apart from "this school
+ * has no renters yet" — two empty lists that need very different advice. Asks
+ * for a single row and reads the total off the pagination envelope.
+ */
+export function useRenterCount(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["members", "renterCount"],
+    queryFn: async () => {
+      const { pagination } = await apiList<OrganizationUser>("/orgUsers", {
+        query: { renter: true, limit: 1 },
+      });
+      return pagination.total;
+    },
+    ...opts,
+  });
 }
 
 /**
@@ -3202,5 +3209,239 @@ export function useBillEnrollmentFee() {
       invalidateTraining(qc);
       qc.invalidateQueries({ queryKey: ["invoices"] });
     },
+  });
+}
+
+//---------------------------------------------------------------------------------
+// Membership.
+//
+// One invalidation key, ["membership"], for the whole feature — plans, memberships and
+// the ledger move together (changing a plan changes what the member card shows, billing a
+// period changes both the ledger and the roster), so invalidating them apart would only
+// ever mean one of them was briefly wrong on screen.
+//
+// Every mutation that raises money ALSO invalidates ["invoices"]. A stale invoice list
+// immediately after billing is the one place somebody would reasonably conclude it had not
+// worked and press the button again.
+//---------------------------------------------------------------------------------
+
+const invalidateMembership = (qc: ReturnType<typeof useQueryClient>) =>
+  qc.invalidateQueries({ queryKey: ["membership"] });
+
+const invalidateMembershipAndMoney = (qc: ReturnType<typeof useQueryClient>) => {
+  invalidateMembership(qc);
+  qc.invalidateQueries({ queryKey: ["invoices"] });
+};
+
+export function useMembershipPlans(includeArchived = false, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["membership", "plans", includeArchived],
+    queryFn: () =>
+      api<MembershipPlan[]>(`/memberships/plans${includeArchived ? "?includeArchived=true" : ""}`),
+    ...opts,
+  });
+}
+
+/**
+ * The plans a member may be put on — names and prices only.
+ *
+ * A separate hook from `useMembershipPlans` rather than a filter over it, because this one
+ * is open to any org user and that one is admin-only. Sharing a cache key would mean a
+ * dispatcher's narrow list and an admin's full list overwriting each other.
+ */
+export function useMembershipPlanOptions(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["membership", "plan-options"],
+    queryFn: () => api<MembershipPlanOption[]>("/memberships/plans/options"),
+    ...opts,
+  });
+}
+
+export function useCreateMembershipPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (values: Partial<MembershipPlan>) =>
+      api<{ id: number }>("/memberships/plans", { method: "POST", body: values }),
+    onSuccess: () => invalidateMembership(qc),
+  });
+}
+
+export function useUpdateMembershipPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ planId, ...values }: Partial<MembershipPlan> & { planId: number }) =>
+      api<{ id: number }>(`/memberships/plans/${planId}`, { method: "PATCH", body: values }),
+    onSuccess: () => invalidateMembership(qc),
+  });
+}
+
+/** Retire a plan, or bring it back. There is no delete — history has to stay readable. */
+export function useArchiveMembershipPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ planId, archived }: { planId: number; archived: boolean }) =>
+      api<{ id: number }>(`/memberships/plans/${planId}/archive`, { method: "POST", body: { archived } }),
+    onSuccess: () => invalidateMembership(qc),
+  });
+}
+
+/** Every membership in the org, for the roster screen. */
+export function useMemberships(
+  params: { status?: string; planId?: number; take?: number; skip?: number } = {},
+  opts?: QueryOpts
+) {
+  const search = new URLSearchParams();
+  if (params.status) search.set("status", params.status);
+  if (params.planId) search.set("planId", String(params.planId));
+  if (params.take) search.set("take", String(params.take));
+  if (params.skip) search.set("skip", String(params.skip));
+  const qs = search.toString();
+
+  return useQuery({
+    queryKey: ["membership", "list", params],
+    queryFn: () => api<Membership[]>(`/memberships${qs ? `?${qs}` : ""}`),
+    ...opts,
+  });
+}
+
+/** The membership on one member's record page. Resolves to null when they are not on a plan. */
+export function useMembershipForOrgUser(orgUserId: number | undefined, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["membership", "orgUser", orgUserId],
+    queryFn: () => api<Membership | null>(`/memberships/orgUser/${orgUserId}`),
+    enabled: orgUserId != null && opts?.enabled !== false,
+  });
+}
+
+/** The caller's own membership. Null at every org that does not use the feature. */
+export function useMyMembership(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["membership", "me"],
+    queryFn: () => api<MyMembership | null>("/memberships/me"),
+    ...opts,
+  });
+}
+
+export function useCreateMembership() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      orgUserId: number;
+      planId: number;
+      start?: boolean;
+      waiveJoinFee?: boolean;
+      notes?: string | null;
+    }) => api<{ id: number }>("/memberships", { method: "POST", body }),
+    onSuccess: () => invalidateMembership(qc),
+  });
+}
+
+export function useSetMembershipStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ membershipId, status, reason }: { membershipId: number; status: MembershipStatus; reason?: string }) =>
+      api<{ id: number; status: string }>(`/memberships/${membershipId}/status`, {
+        method: "POST",
+        body: { status, reason },
+      }),
+    onSuccess: () => invalidateMembership(qc),
+  });
+}
+
+/** Move a member to a different plan, at that plan's current prices. */
+export function useChangeMembershipPlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ membershipId, planId }: { membershipId: number; planId: number }) =>
+      api<{ id: number }>(`/memberships/${membershipId}/plan`, { method: "POST", body: { planId } }),
+    onSuccess: () => invalidateMembership(qc),
+  });
+}
+
+export function useUpdateMembership() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      membershipId,
+      ...values
+    }: {
+      membershipId: number;
+      autoBillDues?: boolean;
+      notes?: string | null;
+      agreementOnFile?: boolean;
+      agreementDocumentId?: number | null;
+    }) => api<{ id: number }>(`/memberships/${membershipId}`, { method: "PATCH", body: values }),
+    onSuccess: () => invalidateMembership(qc),
+  });
+}
+
+export function useBillMembershipJoinFee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (membershipId: number) =>
+      api<{ id: number; invoiceId: number }>(`/memberships/${membershipId}/joinFee`, { method: "POST" }),
+    onSuccess: () => invalidateMembershipAndMoney(qc),
+  });
+}
+
+/**
+ * Bill the next dues period.
+ *
+ * WHICH period is decided by the server from the membership's own cursor — deliberately
+ * not sent from here. A client that could name the period could bill the same month twice.
+ */
+export function useBillMembershipDues() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (membershipId: number) =>
+      api<{ chargeId: number; invoiceId: number | null }>(`/memberships/${membershipId}/dues`, { method: "POST" }),
+    onSuccess: () => invalidateMembershipAndMoney(qc),
+  });
+}
+
+/** Waive the next period — a comped month, a leave of absence. */
+export function useSkipMembershipDues() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ membershipId, reason }: { membershipId: number; reason?: string }) =>
+      api<{ chargeId: number }>(`/memberships/${membershipId}/dues/skip`, { method: "POST", body: { reason } }),
+    onSuccess: () => invalidateMembership(qc),
+  });
+}
+
+/** One plan's per-aircraft rate overrides. Empty means the plan bills every tail as published. */
+export function useMembershipPlanRates(planId: number | undefined, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["membership", "plan-rates", planId],
+    queryFn: () => api<MembershipPlanRate[]>(`/memberships/plans/${planId}/rates`),
+    enabled: planId != null && opts?.enabled !== false,
+  });
+}
+
+/**
+ * Set or clear one plan's rate for one aircraft.
+ *
+ * Sending both rates null CLEARS the override, so the aircraft returns to its published
+ * rate. Idempotent on (plan, aircraft) — it is a PUT, not a POST.
+ */
+export function useSetMembershipPlanRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      planId,
+      resourceId,
+      dryRate,
+      wetRate,
+    }: {
+      planId: number;
+      resourceId: number;
+      dryRate?: number | null;
+      wetRate?: number | null;
+    }) =>
+      api<{ id: number } | null>(`/memberships/plans/${planId}/rates/${resourceId}`, {
+        method: "PUT",
+        body: { dryRate, wetRate },
+      }),
+    onSuccess: () => invalidateMembership(qc),
   });
 }

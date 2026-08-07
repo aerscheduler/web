@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { ProfileCard } from "@/components/me-account/profile-card";
+import { MyMembershipCard } from "@/components/me-account/my-membership-card";
 import { ContactDetailsCard } from "@/components/me-account/contact-details-card";
 import { EmergencyContactsCard } from "@/components/me-account/emergency-contacts-card";
 import { MyTimeZoneCard } from "@/components/settings/time-zone-card";
@@ -88,6 +89,10 @@ function ProfilePage() {
 
         <TabsContent value="profile" className="space-y-4">
           <ProfileCard />
+          {/* Directly under who-you-are, because "what am I on and what does it cost" is
+              the first question a club member has about their own account. Renders nothing
+              when they are not on a plan. */}
+          <MyMembershipCard />
           <ContactDetailsCard />
           <EmergencyContactsCard userId={user?.id ?? null} />
           {/* Lives on the profile tab rather than its own: it's a personal preference, and

@@ -1,12 +1,20 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import type { InviteInput } from "@/types/api";
-import { useInviteMember } from "@/features/queries";
+import { useInviteMember, useMembershipPlanOptions } from "@/features/queries";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { planPriceLine } from "@/lib/membership";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -28,6 +36,10 @@ export function InviteModal({
   const [bulk, setBulk] = useState("");
   const [roles, setRoles] = useState<RoleState>({});
   const [submitting, setSubmitting] = useState(false);
+  //Only offered when the school has plans, so the modal is unchanged at every school that
+  //does not run memberships.
+  const plans = useMembershipPlanOptions();
+  const [planId, setPlanId] = useState("none");
 
   const emails = collectEmails(email, bulk);
 
@@ -35,6 +47,7 @@ export function InviteModal({
     setEmail("");
     setBulk("");
     setRoles({});
+    setPlanId("none");
   }
 
   function handleOpenChange(next: boolean) {
@@ -57,7 +70,11 @@ export function InviteModal({
     const failed: string[] = [];
     for (const addr of emails) {
       try {
-        await invite.mutateAsync({ email: addr, ...flags } as InviteInput);
+        await invite.mutateAsync({
+          email: addr,
+          ...flags,
+          membershipPlanId: planId === "none" ? undefined : Number(planId),
+        } as InviteInput);
         ok += 1;
       } catch {
         failed.push(addr);
@@ -131,6 +148,29 @@ export function InviteModal({
         </div>
 
         <Separator />
+
+        {(plans.data?.length ?? 0) > 0 && (
+          <div className="space-y-1.5">
+            <Label htmlFor="invite-plan">Membership plan</Label>
+            <Select value={planId} onValueChange={setPlanId}>
+              <SelectTrigger id="invite-plan">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No membership</SelectItem>
+                {(plans.data ?? []).map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.name} — {planPriceLine(p)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Applied when they accept, and not started — nothing is charged until you start
+              it from their record.
+            </p>
+          </div>
+        )}
 
         <div className="space-y-1.5">
           <Label htmlFor="invite-bulk">Bulk invite</Label>

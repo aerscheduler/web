@@ -46,6 +46,7 @@ import { EndorsementsCard } from "@/components/training/endorsements-card";
 import { PersonContact } from "@/components/people/detail/person-contact";
 import { PersonFlights } from "@/components/people/detail/person-flights";
 import { PersonInvoices } from "@/components/people/detail/person-invoices";
+import { PersonMembership } from "@/components/people/detail/person-membership";
 import {
   PersonCurrencies,
   PersonDocuments,
@@ -282,6 +283,12 @@ function PersonBody({
               </CardEmpty>
             </DetailCard>
           )}
+
+          {/* Above invoices on purpose: a club treasurer opening somebody's record is
+              usually here for "are they paid up as a member", and the dues they owe are
+              the reason half the invoices below exist. Renders nothing at an organization
+              with no membership plans. */}
+          <PersonMembership orgUserId={ou.id} canManage={access.membership} />
 
           {access.money && (
             <PersonInvoices orgUserId={ou.id} range={window} isSelf={isSelf} />

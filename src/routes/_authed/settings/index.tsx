@@ -15,6 +15,7 @@ import { CurrencyTypesTab } from "@/components/settings/currency-types-tab";
 import { IntegrationsTab } from "@/components/settings/integrations-tab";
 import { ApiKeysTab } from "@/components/settings/api-keys-tab";
 import { CostSplittingTab } from "@/components/settings/cost-splitting-tab";
+import { MembershipsTab } from "@/components/settings/memberships-tab";
 
 type SettingsSearch = {
   tab?: string;
@@ -78,6 +79,7 @@ function SettingsPage() {
           {active === "organization" && <OrganizationTab />}
           {active === "booking-preferences" && <BookingPreferencesTab />}
           {active === "plan" && <PlanTab />}
+          {active === "memberships" && <MembershipsTab />}
           {active === "billing" && <BillingTab />}
           {active === "cost-splitting" && <CostSplittingTab />}
           {active === "rates" && <RatesTab />}

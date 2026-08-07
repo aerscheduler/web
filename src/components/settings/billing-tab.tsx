@@ -84,6 +84,8 @@ const UNCONFIGURED_BILLING: OrganizationBillingSettings = {
   stripeEnabled: false,
   //Null, not 0: a new school charges no overnight minimum until it says otherwise.
   overnightMinimumTenths: null,
+  //Off until a school opts in — grounding somebody by surprise is worse than not grounding.
+  groundUserUnpaidInvoices: null,
 };
 
 function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
@@ -96,6 +98,11 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
   const [feeLabel, setFeeLabel] = useState(billing.serviceFeeLabel ?? "");
   const [overnightText, setOvernightText] = useState(
     billing.overnightMinimumTenths == null ? "" : (billing.overnightMinimumTenths / 10).toFixed(1)
+  );
+  //Auto-grounding for money. It has worked on the server for a long time but was only
+  //settable from the phone app, so a school that lives in the console could not turn it on.
+  const [groundText, setGroundText] = useState(
+    billing.groundUserUnpaidInvoices == null ? "" : String(billing.groundUserUnpaidInvoices)
   );
 
   // Hours in the UI, TENTHS on the wire. Nobody thinks in tenths, and doing the conversion
@@ -113,6 +120,18 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
       : `Out Friday and back Sunday is 2 nights, so that trip would bill at least ` +
         `${((nextOvernightTenths * 2) / 10).toFixed(1)} hours however little it flew. A booking back the same day is never affected.`;
 
+  //Blank means OFF, and so does zero — the server treats null and 0 identically. Normalising
+  //here means the field can be cleared to turn the feature off, which is what an operator
+  //expects from an empty box.
+  const nextGroundThreshold =
+    groundText.trim() === "" || Number(groundText) === 0 ? null : Math.max(1, Math.round(Number(groundText)));
+
+  const groundHint =
+    nextGroundThreshold == null
+      ? "Off. Members can book with any number of unpaid invoices."
+      : `A member with ${nextGroundThreshold} or more unpaid invoice${nextGroundThreshold === 1 ? "" : "s"} is grounded ` +
+        `and cannot book an aircraft until they pay. Paying releases them automatically. Ground school, simulators and rooms are never blocked.`;
+
   const nextBps = textToBps(feeText);
   const effectiveLabel = feeLabel.trim() || "Service Fee";
   const dirty =
@@ -120,7 +139,8 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
     rateCents !== billing.defaultInstructorRate ||
     nextBps !== billing.serviceFeePercent ||
     effectiveLabel !== (billing.serviceFeeLabel ?? "") ||
-    nextOvernightTenths !== (billing.overnightMinimumTenths ?? null);
+    nextOvernightTenths !== (billing.overnightMinimumTenths ?? null) ||
+    nextGroundThreshold !== (billing.groundUserUnpaidInvoices ?? null);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -132,6 +152,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
         serviceFeePercent: nextBps,
         serviceFeeLabel: effectiveLabel,
         overnightMinimumTenths: Number.isNaN(nextOvernightTenths as number) ? null : nextOvernightTenths,
+        groundUserUnpaidInvoices: nextGroundThreshold,
       },
       {
         onSuccess: () => toast.success("Billing settings saved"),
@@ -237,6 +258,26 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
                 />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   hrs/night
+                </span>
+              </div>
+            </Field>
+
+            <Field
+              label="Ground members with unpaid invoices"
+              htmlFor="billing-ground"
+              hint={groundHint}
+            >
+              <div className="relative">
+                <Input
+                  id="billing-ground"
+                  inputMode="numeric"
+                  value={groundText}
+                  onChange={(e) => setGroundText(e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="Off"
+                  className="pr-20 tnum"
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  invoices
                 </span>
               </div>
             </Field>

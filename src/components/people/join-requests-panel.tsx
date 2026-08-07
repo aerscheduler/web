@@ -4,6 +4,7 @@ import { Check, UserPlus, X } from "lucide-react";
 import {
   pageRows,
   useAcceptJoinRequest,
+  useMembershipPlanOptions,
   useDeclineJoinRequest,
   useJoinRequestsPage,
 } from "@/features/queries";
@@ -22,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { initials } from "@/lib/utils";
+import { planPriceLine } from "@/lib/membership";
 
 const ROLE_OPTIONS: { value: string; label: string; role?: Role }[] = [
   { value: "student", label: "Student", role: "student" },
@@ -75,12 +77,20 @@ function JoinRequestRow({ request }: { request: JoinRequest }) {
   const accept = useAcceptJoinRequest();
   const decline = useDeclineJoinRequest();
   const [roleValue, setRoleValue] = React.useState("student");
+  //Only offered when the school actually has plans, so the row stays two controls wide at
+  //every school that does not run memberships.
+  const plans = useMembershipPlanOptions();
+  const [planValue, setPlanValue] = React.useState("none");
   const busy = accept.isPending || decline.isPending;
 
   async function onAccept() {
     const role = ROLE_OPTIONS.find((o) => o.value === roleValue)?.role;
     try {
-      await accept.mutateAsync({ id: request.id, role });
+      await accept.mutateAsync({
+        id: request.id,
+        role,
+        membershipPlanId: planValue === "none" ? undefined : Number(planValue),
+      });
       toast.success(`${request.user.name} added to the roster`);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't accept the request");
@@ -109,6 +119,21 @@ function JoinRequestRow({ request }: { request: JoinRequest }) {
       </div>
 
       <div className="flex items-center gap-2">
+        {(plans.data?.length ?? 0) > 0 && (
+          <Select value={planValue} onValueChange={setPlanValue} disabled={busy}>
+            <SelectTrigger className="w-44" aria-label="Membership plan">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No membership</SelectItem>
+              {(plans.data ?? []).map((p) => (
+                <SelectItem key={p.id} value={String(p.id)}>
+                  {p.name} — {planPriceLine(p)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={roleValue} onValueChange={setRoleValue} disabled={busy}>
           <SelectTrigger className="w-36" aria-label="Starting role">
             <SelectValue />

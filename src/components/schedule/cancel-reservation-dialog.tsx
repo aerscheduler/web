@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DocsHint } from "@/components/docs-hint";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
@@ -106,7 +107,10 @@ export function CancelReservationDialog({
 
         <div className="grid gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="cancel-category">Reason type</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="cancel-category">Reason type</Label>
+              <DocsHint topic="cancellation-reason" />
+            </div>
             <Select value={category} onValueChange={setCategory}>
               <SelectTrigger id="cancel-category" aria-invalid={touched && missingCategory}>
                 <SelectValue placeholder="Pick one" />

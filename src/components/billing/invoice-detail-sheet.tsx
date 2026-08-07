@@ -4,6 +4,7 @@ import type { Invoice } from "@/types/api";
 import { useInvoice } from "@/features/queries";
 import { resourceLabel } from "@/types/api";
 import { DetailPanel } from "@/components/detail-panel";
+import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -111,7 +112,7 @@ export function InvoiceDetailSheet({
                 <Bell className="size-4" /> Send payment reminder
               </Button>
             )}
-            <div className="flex w-full flex-row gap-2">
+            <div className="flex w-full flex-row items-center gap-2">
               <Button
                 variant="outline"
                 className="flex-1"
@@ -120,6 +121,7 @@ export function InvoiceDetailSheet({
               >
                 <Ban className="size-4" /> Void
               </Button>
+              <DocsHint topic="void-an-invoice" />
               <Button className="flex-1" disabled={busy} onClick={() => onMarkPaid(inv)}>
                 <Check className="size-4" /> Mark paid
               </Button>

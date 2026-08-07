@@ -7,6 +7,7 @@ import { usesBriefingNotMeters } from "@/components/schedule/close-out";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DocsHint } from "@/components/docs-hint";
 import { Label } from "@/components/ui/label";
 import { Moon } from "lucide-react";
 import { overnightBilling } from "@/lib/overnight-minimum";
@@ -287,7 +288,10 @@ export function RampModal({
 
         {(noMeters || mode === "in") && showBriefing && (
           <div className="space-y-1.5">
-            <Label htmlFor="ramp-briefing">Instruction time (hrs)</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="ramp-briefing">Instruction time (hrs)</Label>
+              <DocsHint topic="instruction-time" />
+            </div>
             <Input
               id="ramp-briefing"
               inputMode="decimal"

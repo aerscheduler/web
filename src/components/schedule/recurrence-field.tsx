@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DocsHint } from "@/components/docs-hint";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -379,7 +380,10 @@ export function RecurrenceField({
 
   return (
     <div data-doc-shot="repeat-dropdown-presets" className="space-y-2">
-      <Label htmlFor="repeat">Repeat</Label>
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor="repeat">Repeat</Label>
+        <DocsHint topic="repeat-booking" />
+      </div>
       <Select value={selected} onValueChange={choose} disabled={disabled}>
         <SelectTrigger id="repeat" className="w-full">
           <SelectValue />

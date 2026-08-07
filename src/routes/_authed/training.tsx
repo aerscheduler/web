@@ -14,6 +14,7 @@ import { ApiError } from "@/lib/api";
 import { PART_LABEL, STATUS_LABEL } from "@/lib/training";
 import type { Course, CourseVersionSummary } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { DocsHint, DocsLink } from "@/components/docs-hint";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { TrainingPermissions } from "@/components/training/training-permissions";
@@ -266,7 +267,12 @@ function EmptyCourses() {
       icon={BookOpen}
       title="No courses yet"
       body="Start from a ready-made Private Pilot syllabus — stages, lessons, ACS tasks and the §61.109 hour requirements, already wired up — then change whatever your school does differently."
-      action={<NewCourseActions hasCourses={false} />}
+      action={
+        <div className="flex flex-col items-center gap-3">
+          <NewCourseActions hasCourses={false} />
+          <DocsLink topic="what-a-course-is" />
+        </div>
+      }
     />
   );
 }
@@ -369,7 +375,10 @@ function BlankCourseDialog() {
             />
           </div>
           <div className="space-y-1">
-            <Label>Trained under</Label>
+            <div className="flex items-center gap-1.5">
+              <Label>Trained under</Label>
+              <DocsHint topic="course-regulatory-part" />
+            </div>
             <div className="flex gap-2">
               {(["part61", "part141"] as const).map((p) => (
                 <Button
@@ -430,6 +439,7 @@ function ActiveStudents({ loading }: { loading: boolean }) {
         icon={GraduationCap}
         title="Nobody is in training"
         body="Enroll a student on a course from their syllabus and their progress appears here."
+        action={<DocsLink topic="enrolling-a-student" />}
       />
     );
   }

@@ -13,6 +13,7 @@ import {
 } from "@/features/queries";
 import { formatMoney } from "@/lib/utils";
 import { DUES_INTERVAL_LABEL, DUES_INTERVAL_SUFFIX, planPriceLine } from "@/lib/membership";
+import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -51,7 +52,10 @@ export function MembershipsTab() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-medium">Membership plans</h2>
+          <h2 className="flex items-center gap-1.5 text-base font-medium">
+            Membership plans
+            <DocsHint topic="membership-dues" />
+          </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             What people pay to join and to stay. A plan can have a one-time join fee, recurring
             dues, or both. Add a plan per tier — full, associate, social — and put each member on

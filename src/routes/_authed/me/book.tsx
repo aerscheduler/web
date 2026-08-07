@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { isTechnician, selfBookableTypes } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/states";
+import { DocsLink } from "@/components/docs-hint";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookingForm } from "@/components/book/booking-form";
 
@@ -50,6 +51,7 @@ function Book() {
               icon={CalendarPlus}
               title="Nothing to book yet"
               body="Your account doesn't have a role that can book. Ask your school to add one so you can book yourself."
+              action={<DocsLink topic="what-you-can-book" />}
             />
           </CardContent>
         </Card>

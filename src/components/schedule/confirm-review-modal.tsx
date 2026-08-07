@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DocsHint } from "@/components/docs-hint";
 import { Label } from "@/components/ui/label";
 
 const PIN_LENGTH = 4;
@@ -66,8 +67,9 @@ export function ConfirmReviewModal({
         <div className="space-y-2">
           {/* `block` matters: the PIN input is only w-28, so an inline <label> would
               let it sit on the same line, jammed against the label text. */}
-          <Label htmlFor="review-pin" className="block">
+          <Label htmlFor="review-pin" className="flex items-center gap-1.5">
             Confirmation PIN
+            <DocsHint topic="confirmation-pin" />
           </Label>
           <Input
             id="review-pin"

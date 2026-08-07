@@ -1,26 +1,39 @@
 import { useId, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import { DocsHint } from "@/components/docs-hint";
+import type { DocsTopicKey } from "@/lib/docs-links";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
-/** A labelled vertical field wrapper for settings forms. */
+/**
+ * A labelled vertical field wrapper for settings forms.
+ *
+ * `docs` puts the help bubble beside the label rather than letting callers pass
+ * a node as the label: the label also has to stay a plain string for `htmlFor`
+ * and for the toggle's `aria-label` below.
+ */
 export function Field({
   label,
   htmlFor,
   hint,
+  docs,
   className,
   children,
 }: {
   label: string;
   htmlFor?: string;
   hint?: string;
+  docs?: DocsTopicKey;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <div className={cn("space-y-2", className)}>
-      <Label htmlFor={htmlFor}>{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor={htmlFor}>{label}</Label>
+        {docs && <DocsHint topic={docs} />}
+      </div>
       {children}
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
@@ -44,6 +57,7 @@ export function ReadOnlyRow({ label, children }: { label: string; children: Reac
 export function PreferenceToggle({
   label,
   description,
+  docs,
   checked,
   disabled = false,
   saving = false,
@@ -52,6 +66,7 @@ export function PreferenceToggle({
   label: string;
   /** ReactNode, not string, so a gated toggle can explain what to fix underneath it. */
   description?: ReactNode;
+  docs?: DocsTopicKey;
   checked: boolean;
   disabled?: boolean;
   saving?: boolean;
@@ -64,6 +79,7 @@ export function PreferenceToggle({
         <Label htmlFor={id} className="text-sm font-medium">
           {label}
         </Label>
+        {docs && <DocsHint topic={docs} className="ml-1.5" />}
         {description && (
           <div className="mt-0.5 text-xs text-muted-foreground">{description}</div>
         )}

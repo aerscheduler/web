@@ -22,6 +22,7 @@ import {
   useUpsertStage,
 } from "@/features/queries";
 import { LESSON_KIND_LABEL, PART_LABEL, deciHours } from "@/lib/training";
+import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -450,7 +451,10 @@ function LessonDialog({
           {/* The fan-out, chosen here. This is the single most consequential thing on the
               form and the least obvious, so it says what it does rather than assuming. */}
           <div className="space-y-1.5 rounded-md border p-3" data-doc-shot="syllabus-lesson-dialog-credits">
-            <div className="text-sm font-medium">Credits toward</div>
+            <div className="flex items-center gap-1.5">
+              <div className="text-sm font-medium">Credits toward</div>
+              <DocsHint topic="credits-toward" />
+            </div>
             <p className="text-xs text-muted-foreground">
               Signing this lesson posts its hours to everything ticked here — one flight can credit
               several requirements at once.
@@ -705,7 +709,10 @@ function GradingScaleCard({ version }: { version: CourseVersion }) {
 
   return (
     <Card className="p-3" data-doc-shot="syllabus-grading-scale">
-      <div className="mb-1 text-sm font-medium">Grading scale</div>
+      <div className="mb-1 flex items-center gap-1.5">
+        <span className="text-sm font-medium">Grading scale</span>
+        <DocsHint topic="grading-scale" />
+      </div>
       <p className="mb-2 text-xs text-muted-foreground">
         {/* The pass column is the point. "3" passes at a school marking 1–4 and fails at one
             marking 1–3, and getting it wrong marches students through lessons they failed. */}
@@ -845,7 +852,10 @@ function RequirementDialog({
               </p>
             </div>
             <div className="space-y-1">
-              <Label htmlFor="req-source">Comes from</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="req-source">Comes from</Label>
+                <DocsHint topic="requirement-source" />
+              </div>
               <select
                 id="req-source"
                 className="h-9 w-full rounded-md border bg-background px-2 text-sm"

@@ -26,6 +26,7 @@ import { resourceLabel, type CreateReminderTemplateInput, type InspectionPreset,
 import { cn } from "@/lib/utils";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { DatePickerField } from "@/components/date-picker";
+import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -362,7 +363,10 @@ export function AddInspectionsModal({
 
             <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
               <div className="space-y-0.5">
-                <Label htmlFor="insp-grounds">Grounds the aircraft</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor="insp-grounds">Grounds the aircraft</Label>
+                  <DocsHint topic="inspection-grounds" />
+                </div>
                 <p className="text-xs text-muted-foreground">
                   Takes this tail off the line the moment it comes due.
                 </p>
@@ -377,7 +381,10 @@ export function AddInspectionsModal({
             default is right for a new aircraft and wrong for one that has been flying. */}
         {mode !== "oneOff" && (
           <div data-doc-shot="add-inspections-last-done" className="rounded-lg border border-border p-3">
-            <Label className="text-xs">When was it last done?</Label>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs">When was it last done?</Label>
+              <DocsHint topic="inspection-last-done" />
+            </div>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               Leave blank if the work was just done — the countdown starts today at the
               current meter. On an aircraft already partway through its interval, fill this

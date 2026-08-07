@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/states";
+import { DocsHint } from "@/components/docs-hint";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -141,7 +142,10 @@ function Status({ data, onSetUp }: { data: SplitRulesDescription; onSetUp: () =>
           <Split className="size-4" />
         </span>
         <div className="min-w-0">
-          <CardTitle>Cost splitting</CardTitle>
+          <CardTitle className="flex items-center gap-1.5">
+            Cost splitting
+            <DocsHint topic="cost-splitting" />
+          </CardTitle>
           <CardDescription>
             {configured
               ? "Bookings with two or more people are split by the rules below. Each person gets their own invoice."

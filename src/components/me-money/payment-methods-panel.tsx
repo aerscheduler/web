@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import type { PaymentMethod } from "@/types/api";
 import { EmptyState } from "@/components/states";
+import { DocsHint } from "@/components/docs-hint";
 import { AddCardDialog } from "@/components/me-money/add-card-dialog";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
@@ -140,6 +141,7 @@ export function PaymentMethodsPanel() {
             <div className="min-w-0">
               <CardTitle className="flex items-center gap-2">
                 <Zap className="size-4 text-primary" /> Autopay
+                <DocsHint topic="autopay" />
               </CardTitle>
               <CardDescription className="mt-1">
                 {hasDefault

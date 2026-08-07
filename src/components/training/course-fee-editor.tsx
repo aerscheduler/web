@@ -3,6 +3,7 @@ import { Receipt } from "lucide-react";
 import type { Course } from "@/types/api";
 import { useUpdateCourse } from "@/features/queries";
 import { formatMoney } from "@/lib/utils";
+import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -46,6 +47,7 @@ export function CourseFeeEditor({ course }: { course: Course }) {
       <div className="mb-1 flex items-center gap-2">
         <Receipt className="size-4 text-muted-foreground" />
         <h2 className="text-sm font-medium">Enrollment fee</h2>
+        <DocsHint topic="enrollment-fee" />
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
         What a student pays to start this course. Leave it empty if the course is free.

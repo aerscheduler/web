@@ -28,6 +28,7 @@ import { LESSON_KIND_LABEL, PART_LABEL, deciHoursLabel } from "@/lib/training";
 import { rolesOf } from "@/types/api";
 import type { CourseRequirement, CourseVersion, SyllabusLesson } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { DocsHint, DocsLink } from "@/components/docs-hint";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -135,7 +136,10 @@ function CourseDetailPage() {
             <div className="flex flex-wrap gap-2">
               {selected ? <EnrollDialog versionId={selected} courseName={c.name} /> : null}
               {selected && version.data && !version.data.publishedAt ? (
-                <PublishDialog version={version.data} />
+                <>
+                  <PublishDialog version={version.data} />
+                  <DocsHint topic="publish-syllabus" className="self-center" />
+                </>
               ) : null}
               {selected && version.data?.publishedAt ? (
                 <>
@@ -161,20 +165,23 @@ function CourseDetailPage() {
             </Badge>
           ) : null}
           {versions.length > 1 ? (
-            <Select value={String(selected ?? "")} onValueChange={(v) => setVersionId(Number(v))}>
-              <SelectTrigger className="w-[220px]">
-                <SelectValue placeholder="Version" />
-              </SelectTrigger>
-              <SelectContent>
-                {versions.map((v) => (
-                  <SelectItem key={v.id} value={String(v.id)}>
-                    {v.label}
-                    {v.publishedAt ? " · published" : " · draft"}
-                    {v.retiredAt ? " · retired" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <>
+              <DocsHint topic="syllabus-version" />
+              <Select value={String(selected ?? "")} onValueChange={(v) => setVersionId(Number(v))}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="Version" />
+                </SelectTrigger>
+                <SelectContent>
+                  {versions.map((v) => (
+                    <SelectItem key={v.id} value={String(v.id)}>
+                      {v.label}
+                      {v.publishedAt ? " · published" : " · draft"}
+                      {v.retiredAt ? " · retired" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
           ) : null}
           {version.data?.publishedAt ? (
             <Badge variant="secondary" className="gap-1">
@@ -404,7 +411,14 @@ function StudentsView({ courseId }: { courseId: number }) {
 
   if (enrollments.isLoading) return <Skeleton className="h-32 w-full" />;
   if (rows.length === 0) {
-    return <EmptyState icon={GraduationCap} title="Nobody enrolled yet" body="Enroll a student to start recording their training." />;
+    return (
+      <EmptyState
+        icon={GraduationCap}
+        title="Nobody enrolled yet"
+        body="Enroll a student to start recording their training."
+        action={<DocsLink topic="enrolling-a-student" />}
+      />
+    );
   }
 
   return (

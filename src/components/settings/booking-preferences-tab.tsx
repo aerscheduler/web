@@ -165,6 +165,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
         />
         <PreferenceToggle
           label="Members can only book approved resources"
+          docs="approved-resources"
           description="Restrict members to aircraft they're approved on. Admins and dispatchers can still assign anyone to any resource; rooms are unaffected."
           checked={approvedOnly}
           disabled={pending !== null}
@@ -183,6 +184,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
         />
         <PreferenceToggle
           label="Allow multi-day bookings"
+          docs="multi-day-bookings"
           description={
             <>
               <p>

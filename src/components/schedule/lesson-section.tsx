@@ -9,6 +9,7 @@ import {
   useSignLessonRecord,
 } from "@/features/queries";
 import { deciHours } from "@/lib/training";
+import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,8 +53,9 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
     <>
       <Separator />
       <section data-doc-shot="closeout-training-section" className="space-y-3">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Training record
+          <DocsHint topic="grade-at-close-out" />
         </h3>
         {students.map((s) => (
           <StudentLessons key={s.id} student={s} reservation={r} />

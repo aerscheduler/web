@@ -8,6 +8,7 @@ import {
 } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
+import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -281,7 +282,10 @@ function SignDialog({
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="end-text">Endorsement</Label>
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="end-text">Endorsement</Label>
+                <DocsHint topic="endorsement-blanks" />
+              </div>
               <Textarea
                 id="end-text"
                 rows={6}

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { useSetReservationPayers } from "@/features/queries";
 import { PILOT_ROLES, type PilotRole, type Reservation, type ReservationPayerInput } from "@/types/api";
 import { usesBriefingNotMeters } from "./close-out";
+import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -364,7 +365,10 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
         <div className="flex items-center gap-2">
           <Users className="size-4 text-muted-foreground" />
           <div>
-            <div className="text-sm font-medium">Who pays what</div>
+            <div className="flex items-center gap-1.5 text-sm font-medium">
+              Who pays what
+              <DocsHint topic="who-pays-what" />
+            </div>
             <p className="text-xs text-muted-foreground">
               {parties.length} people are billed for this booking. Fill in only what your
               cost-splitting rules use. Anything else is ignored.

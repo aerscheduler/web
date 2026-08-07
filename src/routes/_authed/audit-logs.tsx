@@ -19,6 +19,7 @@ import { DataTable } from "@/components/data-table";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
 import { AuditDetailSheet } from "@/components/audit/audit-detail-sheet";
+import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -347,7 +348,12 @@ function AuditLogsPage() {
       {
         id: "who",
         meta: { width: "13rem" },
-        header: "Who",
+        header: () => (
+          <span className="inline-flex items-center gap-1.5">
+            Who
+            <DocsHint topic="audit-who" />
+          </span>
+        ),
         cell: ({ row }) => {
           const e = row.original;
           //A null actor is an automated event, not a missing one. Saying "AerScheduler"

@@ -48,6 +48,7 @@ import {
 import type { EnrollmentProgress, LessonRecord, Standing, SyllabusLesson } from "@/types/api";
 import { gradeCodesOf } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { DocsHint } from "@/components/docs-hint";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -171,7 +172,10 @@ function EnrollmentPage() {
             <>
               <Card className="p-4">
                 <div className="mb-2 flex items-baseline justify-between">
-                  <span className="text-sm font-medium">Lessons complete</span>
+                  <span className="flex items-center gap-1.5 text-sm font-medium">
+                    Lessons complete
+                    <DocsHint topic="lessons-vs-hours" />
+                  </span>
                   <span className="text-sm tabular-nums text-muted-foreground">
                     {p.lessonsComplete} of {p.lessonsTotal}
                   </span>
@@ -615,7 +619,10 @@ function AmendDialog({ recordId }: { recordId: number }) {
       </DialogTrigger>
       <DialogContent data-doc-shot="amend-record-dialog">
         <DialogHeader>
-          <DialogTitle>Amend this record</DialogTitle>
+          <DialogTitle className="flex items-center gap-1.5">
+            Amend this record
+            <DocsHint topic="amend-signed-lesson" />
+          </DialogTitle>
           <DialogDescription>
             A signed record is never edited. This adds a correction beside it and takes back the hours the
             original credited — both stay on the record. The correction has to be signed before it counts.

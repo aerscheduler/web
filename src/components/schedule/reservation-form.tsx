@@ -39,6 +39,7 @@ import {
 import { NextLessonHint } from "@/components/training/next-lesson-hint";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { EmptyState, ErrorState } from "@/components/states";
+import { DocsHint } from "@/components/docs-hint";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { Button } from "@/components/ui/button";
@@ -350,7 +351,10 @@ export function AirworthinessNotice({
         )}
         {squawks.length > 0 && (
           <div className="space-y-0.5">
-            <p className="font-medium text-foreground">{squawkCountLabel(squawks.length)}</p>
+            <p className="flex items-center gap-1.5 font-medium text-foreground">
+              {squawkCountLabel(squawks.length)}
+              <DocsHint topic="airworthiness-notice" />
+            </p>
             <ul className="space-y-0.5 text-xs text-muted-foreground">
               {squawks.slice(0, 4).map((s) => (
                 <li key={s.id} className="truncate">
@@ -1068,7 +1072,10 @@ export function ReservationForm({
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="res-type">Type</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="res-type">Type</Label>
+              <DocsHint topic="reservation-type" />
+            </div>
             <Select value={type} onValueChange={(v) => setType(v as ReservationType)}>
               <SelectTrigger id="res-type" className="w-full">
                 <SelectValue />

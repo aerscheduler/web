@@ -20,6 +20,7 @@ import {
   windowsForDay,
   type Window,
 } from "@/lib/scheduling";
+import { DocsHint } from "@/components/docs-hint";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { DatePickerField } from "@/components/date-picker";
@@ -290,7 +291,10 @@ export function SmartTimeRange({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="smart-start">Start</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="smart-start">Start</Label>
+            <DocsHint topic="available-times" />
+          </div>
           <Select
             value={isoValue(start)}
             onValueChange={pickStart}

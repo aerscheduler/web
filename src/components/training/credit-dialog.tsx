@@ -4,6 +4,7 @@ import { usePostRequirementCredit } from "@/features/queries";
 import { holdsTrainingGrant } from "@/lib/training";
 import { useMyTrainingGrants } from "@/features/queries";
 import type { Standing } from "@/types/api";
+import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -194,7 +195,10 @@ export function AddCreditDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label>When it was flown</Label>
+              <div className="flex items-center gap-1.5">
+                <Label>When it was flown</Label>
+                <DocsHint topic="prior-training-credit" />
+              </div>
               <Input
                 type="date"
                 value={occurredAt}

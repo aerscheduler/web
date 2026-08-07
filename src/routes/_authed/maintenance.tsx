@@ -33,6 +33,7 @@ import {
   validateListSearch,
 } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
+import { DocsLink } from "@/components/docs-hint";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { SquawkCard } from "@/components/maintenance/squawk-card";
 import { SquawkDetailSheet } from "@/components/maintenance/squawk-detail-sheet";
@@ -486,11 +487,14 @@ function Reminders({
             title="Nothing being tracked yet"
             body="Add the AVIATES set and every aircraft you pick starts counting down its annual, 100-hour, transponder and the rest."
             action={
-              canManage ? (
-                <Button onClick={onAdd}>
-                  <Wrench className="size-4" /> Add inspections
-                </Button>
-              ) : undefined
+              <div className="flex flex-col items-center gap-3">
+                {canManage ? (
+                  <Button onClick={onAdd}>
+                    <Wrench className="size-4" /> Add inspections
+                  </Button>
+                ) : null}
+                <DocsLink topic="track-inspections" />
+              </div>
             }
           />
         </Card>

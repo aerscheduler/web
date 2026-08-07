@@ -231,6 +231,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
                   label="Service fee"
                   htmlFor="billing-fee"
                   hint="Percentage added to each invoice."
+                  docs="service-fee"
                 >
                   <div className="relative">
                     <Input
@@ -254,6 +255,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
                 label="Overnight minimum"
                 htmlFor="billing-overnight"
                 hint={overnightHint}
+                docs="overnight-minimum"
               >
                 <div className="relative">
                   <Input
@@ -274,6 +276,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
                 label="Ground members with unpaid invoices"
                 htmlFor="billing-ground"
                 hint={groundHint}
+                docs="unpaid-invoice-grounding"
               >
                 <div className="relative">
                   <Input

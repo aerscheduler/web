@@ -8,6 +8,7 @@ import { PLANE_TEMPLATES } from "@/components/aircraft/lib";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { MoneyInput } from "@/components/money-input";
+import { DocsHint } from "@/components/docs-hint";
 import { PerPlanePricingNote } from "@/components/subscription/plan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -425,7 +426,10 @@ export function AircraftFormModal({
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="ac-basis">Rate basis</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="ac-basis">Rate basis</Label>
+              <DocsHint topic="rate-basis" />
+            </div>
             <Select
               value={form.rateBasis}
               onValueChange={(v) => set("rateBasis", v as "wet" | "dry")}

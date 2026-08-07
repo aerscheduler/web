@@ -4,6 +4,7 @@ import { useCreateSquawk, usePlanes } from "@/features/queries";
 import { resourceLabel, type Resource } from "@/types/api";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
+import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -123,7 +124,10 @@ export function LogSquawkModal({
 
         <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
           <div className="space-y-0.5">
-            <Label htmlFor="squawk-grounding">Grounds the aircraft</Label>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="squawk-grounding">Grounds the aircraft</Label>
+              <DocsHint topic="squawk-grounding" />
+            </div>
             <p className="text-xs text-muted-foreground">
               Marks this tail no-go until the squawk is resolved.
             </p>

@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
+import { DocsHint } from "@/components/docs-hint";
 import { downloadReport, useReportRun, useReportTimeZone } from "@/features/reports";
 import { rangeToIso, resolveRange } from "@/lib/report-format";
 import { reportDocShot } from "@/lib/docs-shots";
@@ -319,6 +320,7 @@ export function ReportView({
               onApply={applyView}
               onPinned={onPinned}
             />
+            <DocsHint topic="saved-view-dates" />
 
             <Button
               variant="outline"
@@ -334,7 +336,10 @@ export function ReportView({
         </div>
 
         {/* Still a caption for the picker above it — just on a line of its own. */}
-        <p className="px-0.5 text-xs text-muted-foreground">by {report.dateBasis}</p>
+        <p className="flex items-center gap-1.5 px-0.5 text-xs text-muted-foreground">
+          by {report.dateBasis}
+          <DocsHint topic="report-date-basis" />
+        </p>
 
         <ActiveFilterChips
           report={report}

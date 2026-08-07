@@ -182,7 +182,7 @@ export function Dashboard({
   return (
     // Same bargain as a report: the toolbar is fixed and the board scrolls under
     // it, so the window and comparison you are reading by never leave the screen.
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" data-doc-shot="dashboard-edit-mode">
       {/* Title and blurb first, controls on their own row underneath — the shape
           every report view uses. Sharing one row with the blurb is what made the
           board jump: Customise adds four buttons, the row runs out of width and

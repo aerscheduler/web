@@ -174,7 +174,7 @@ export function ReportsWelcome({
 
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <Card className="p-6">
+      <Card className="p-6" data-doc-shot="reports-welcome">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-xl">
             <div className="flex items-center gap-2 text-primary">

@@ -80,6 +80,19 @@ const SUBMIT: Record<TileBuilderMode, string> = {
   pin: "Pin tile",
 };
 
+/**
+ * Crop target for the help documentation's screenshots. Inert.
+ *
+ * Pinning is documented as its own screen (the report is locked, the title is
+ * carried over, and the note about the tile being a copy is the point), so it
+ * gets its own id rather than sharing the builder's.
+ */
+const DOC_SHOT: Record<TileBuilderMode, string> = {
+  add: "dashboard-tile-builder",
+  edit: "dashboard-tile-builder",
+  pin: "dashboard-pin-view",
+};
+
 export function TileBuilder({
   open,
   onOpenChange,
@@ -250,7 +263,7 @@ export function TileBuilder({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" data-doc-shot={DOC_SHOT[mode]}>
         <DialogHeader>
           <DialogTitle>{HEADING[mode]}</DialogTitle>
           {note && <DialogDescription>{note}</DialogDescription>}

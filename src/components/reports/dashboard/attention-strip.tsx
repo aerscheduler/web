@@ -50,7 +50,7 @@ export function AttentionStrip({
   const clear = items.filter((i) => i.count === 0);
 
   return (
-    <Card>
+    <Card data-doc-shot="reports-overview-attention">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm">Needs attention</CardTitle>
       </CardHeader>

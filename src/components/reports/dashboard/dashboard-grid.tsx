@@ -115,7 +115,7 @@ export function DashboardGrid({
   }, [visualizations]);
 
   return (
-    <div ref={containerRef}>
+    <div ref={containerRef} data-doc-shot="reports-overview-board">
       {mounted && (
         <ResponsiveGridLayout
           width={width}

@@ -21,6 +21,7 @@ import { Card } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
 import { downloadReport, useReportRun, useReportTimeZone } from "@/features/reports";
 import { rangeToIso, resolveRange } from "@/lib/report-format";
+import { reportDocShot } from "@/lib/docs-shots";
 import { formatMoney } from "@/lib/utils";
 import type {
   ReportConfig,
@@ -279,8 +280,11 @@ export function ReportView({
     // `min-h-0`: a flex item's automatic minimum size is its CONTENT's, so a
     // wide report would otherwise push this column past the viewport and scroll
     // the whole page sideways instead of scrolling inside the card.
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      <div className="shrink-0 space-y-3">
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-col gap-3"
+      data-doc-shot={reportDocShot(report.id, "frame")}
+    >
+      <div className="shrink-0 space-y-3" data-doc-shot="report-toolbar-export">
         {/* On a phone the rail is a select showing this report's name, so
             repeating it here costs a line of the little height there is — and
             the description is clamped for the same reason. */}
@@ -339,7 +343,10 @@ export function ReportView({
         />
       </div>
 
-      <Card className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-0">
+      <Card
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-0"
+        data-doc-shot={reportDocShot(report.id, "results")}
+      >
         {run.isError ? (
           <div className="grid flex-1 place-items-center px-6 text-center text-sm text-muted-foreground">
             {(run.error as Error)?.message ?? "Could not run this report."}

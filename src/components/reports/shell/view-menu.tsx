@@ -86,17 +86,21 @@ function SubmenuBox({
   className,
   contentRef,
   onKeyDown,
+  docShot,
 }: {
   children: ReactNode;
   className?: string;
   /** From `useSubmenuSearch` — lets the search box find the option rows to move focus to. */
   contentRef?: React.RefObject<HTMLDivElement | null>;
   onKeyDown?: (e: React.KeyboardEvent) => void;
+  /** Crop target for the help documentation's screenshots. Inert. */
+  docShot?: string;
 }) {
   return (
     <DropdownMenuSubContent
       ref={contentRef}
       onKeyDown={onKeyDown}
+      data-doc-shot={docShot}
       className={"flex max-h-[24rem] w-64 flex-col p-0 " + (className ?? "")}
     >
       {children}
@@ -411,7 +415,11 @@ function ColumnsSubmenu({
   };
 
   return (
-    <SubmenuBox contentRef={search.contentRef} onKeyDown={search.onContentKeyDown}>
+    <SubmenuBox
+      contentRef={search.contentRef}
+      onKeyDown={search.onContentKeyDown}
+      docShot="report-columns-submenu"
+    >
       <SubmenuSearchBox search={search} placeholder="Search columns…" />
       <SubmenuList>
         {shown.length === 0 ? (
@@ -486,7 +494,7 @@ export function ReportViewMenu({
       </DropdownMenuTrigger>
 
       {/* Opens under its trigger on the left of the toolbar, not the right. */}
-      <DropdownMenuContent align="start" className="w-64">
+      <DropdownMenuContent align="start" className="w-64" data-doc-shot="report-filters-menu">
         {report.dimensions.length > 0 && (
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>

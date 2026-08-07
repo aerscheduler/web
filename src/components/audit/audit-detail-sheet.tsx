@@ -155,7 +155,7 @@ export function AuditDetailSheet({
       }
     >
       {!event ? null : (
-        <div className="space-y-5">
+        <div className="space-y-5" data-doc-shot="audit-detail-panel">
           {/* The stored sentence. Shown even when it repeats the title — in the table that
               repetition is noise beside the title, but here it is the event's own words and
               the only place an API consumer's view of the row is visible. */}

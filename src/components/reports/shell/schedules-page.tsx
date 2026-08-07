@@ -135,11 +135,14 @@ export function SchedulesPage() {
           />
         </Card>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" data-doc-shot="reports-schedules-page">
           {list.map((schedule) => (
             <Card
               key={schedule.id}
               className={cn("p-4", !schedule.isEnabled && "bg-muted/30")}
+              // Only the failing card, so the documentation's crop selector picks
+              // out the one card that article is about. Inert.
+              data-doc-shot={schedule.lastError ? "schedule-card-failed" : undefined}
             >
               <div className="flex flex-wrap items-start gap-3">
                 <div className="min-w-0 flex-1">

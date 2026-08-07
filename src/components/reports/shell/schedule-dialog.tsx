@@ -237,7 +237,7 @@ export function ScheduleDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg" data-doc-shot="report-schedule-dialog">
         <DialogHeader>
           <DialogTitle>{existing ? "Edit schedule" : "Schedule this report"}</DialogTitle>
           <DialogDescription>

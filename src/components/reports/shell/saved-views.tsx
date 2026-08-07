@@ -142,7 +142,7 @@ export function SavedViews({
               )}
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 p-0">
+          <PopoverContent align="end" className="w-80 p-0" data-doc-shot="report-saved-views">
             <div className="border-b border-border px-3 py-2 text-sm font-medium">Saved views</div>
             <ScrollArea className="max-h-80">
               <div className="p-1">
@@ -284,7 +284,7 @@ export function SavedViews({
               Save as
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-80 space-y-3">
+          <PopoverContent align="end" className="w-80 space-y-3" data-doc-shot="report-save-as-dialog">
             <div className="space-y-1.5">
               <Label htmlFor="view-name">Name</Label>
               <Input

@@ -8,7 +8,11 @@ import {
   hoursValue,
   moneyValue,
 } from "@/components/detail/metric-tile";
-import { ActivityBars, activityGranularity } from "@/components/detail/activity-bars";
+import {
+  ActivityBars,
+  activityGranularity,
+  hoursAxisLabel,
+} from "@/components/detail/activity-bars";
 import {
   seriesPoints,
   sumSeries,
@@ -134,6 +138,7 @@ export function ResourceMetrics({
           <ActivityBars
             points={points}
             formatValue={(count) => hoursValue(count)}
+            formatAxis={hoursAxisLabel}
             emptyLabel="This aircraft didn't fly in this window."
           />
         )}

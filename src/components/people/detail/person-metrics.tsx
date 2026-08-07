@@ -10,7 +10,11 @@ import {
   hoursValue,
   moneyValue,
 } from "@/components/detail/metric-tile";
-import { ActivityBars, activityGranularity } from "@/components/detail/activity-bars";
+import {
+  ActivityBars,
+  activityGranularity,
+  hoursAxisLabel,
+} from "@/components/detail/activity-bars";
 import { seriesPoints, sumSeries, type DailyCount } from "@/components/detail/metrics";
 
 /**
@@ -143,6 +147,7 @@ export function PersonMetrics({
           <ActivityBars
             points={points}
             formatValue={(count) => hoursValue(count)}
+            formatAxis={hoursAxisLabel}
             emptyLabel="No flying in this window."
           />
         )}

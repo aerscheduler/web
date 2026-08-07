@@ -84,6 +84,8 @@ import type {
   OrganizationUser,
   RampInInput,
   RampOutInput,
+  CorrectReviewTimesInput,
+  ReservationPaymentOverridesInput,
   Reservation,
   Resource,
   Role,
@@ -778,6 +780,78 @@ export function useConfirmReviewGuest(id: number) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["reservations"] });
       void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+/**
+ * Correct readings already recorded on a flight, via
+ * `POST /reservations/:id/updateReviewTimes`.
+ *
+ * Rewriting a meter reading rewrites what the flight costs, so the server drops every
+ * sign-off collected so far and the pilots confirm again. It refuses outright once the
+ * review is complete or an invoice exists.
+ */
+export function useCorrectReviewTimes(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CorrectReviewTimesInput) =>
+      api<Reservation>(`/reservations/${id}/updateReviewTimes`, { method: "POST", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      //The correction can move the aircraft's own Hobbs/tach when this is its latest flight.
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+      void qc.invalidateQueries({ queryKey: ["audit"] });
+    },
+  });
+}
+
+/**
+ * Price this one booking by hand, via `POST /reservations/:id/paymentOverrides`.
+ *
+ * The body is nested under `paymentOverrides`, which is the endpoint's own shape, not a
+ * wrapper invented here: it answers 400 "You must include payment overrides" without it.
+ *
+ * Same consequence as a meter correction, and for the same reason: changing the cost voids
+ * every PIN already entered.
+ */
+export function useOverrideReservationPayment(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (paymentOverrides: ReservationPaymentOverridesInput) =>
+      api<Reservation>(`/reservations/${id}/paymentOverrides`, {
+        method: "POST",
+        body: { paymentOverrides },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      void qc.invalidateQueries({ queryKey: ["audit"] });
+    },
+  });
+}
+
+/**
+ * Raise the invoice for a flight that was closed out but never billed, via
+ * `POST /reservations/:id/invoices`. Admin only, and the server checks that too.
+ *
+ * `raw` rather than `api`, for the same reason `useUpdateInvoice` uses it: a split booking
+ * bills one payer at a time and the response carries `warnings` beside `data` when a share
+ * was skipped or one payer's invoice failed while the rest went through. `api` unwraps to
+ * `data` and would throw those away, which on this endpoint means telling a dispatcher
+ * every student was billed when one was not.
+ */
+export function useCreateReservationInvoice(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const { body } = await raw(`/reservations/${id}/invoices`, { method: "POST" });
+      const envelope = (body ?? {}) as { data?: Invoice[]; warnings?: string[] };
+      return { invoices: envelope.data ?? [], warnings: envelope.warnings ?? [] };
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+      void qc.invalidateQueries({ queryKey: ["revenue-report"] });
     },
   });
 }

@@ -1,5 +1,5 @@
-import type { Reservation, Role } from "@/types/api";
-import { isStaff, isTechnician } from "@/lib/permissions";
+import type { OrganizationPreferences, Reservation, Role } from "@/types/api";
+import { isAdmin, isInstructor, isStaff, isTechnician } from "@/lib/permissions";
 
 /**
  * Where a reservation sits in the ramp-out → ramp-in → review → invoice pipeline.
@@ -226,4 +226,139 @@ export function canEditReservation(
   if (isRampedOut(r)) return false;
   if (new Date(r.end).getTime() < now.getTime()) return false;
   return isStaff(roles) || isReservationPersonnel(r, orgUserId);
+}
+
+// ── Money and meters after the fact ──────────────────────────────────────────
+// Three things a dispatcher could do on the phone and not in the console: retype a
+// rate, fix a Hobbs reading somebody fat-fingered, and bill a flight that closed out
+// while Stripe was unreachable. Each is gated here so the button and the server agree.
+
+/**
+ * Has EVERY required pilot signed off?
+ *
+ * The pivot both corrections and overrides turn on, and the server's own test
+ * (`reviewIsComplete`, server/src/utils/reservationPersonnel.ts). Before it, changing the
+ * money is allowed and costs the sign-offs collected so far. After it, both endpoints
+ * refuse outright.
+ *
+ * Note what a booking with NOBODY to sign off does here: zero needed, zero collected, so
+ * it reads as complete, exactly as the server's `>=` does. That is why the callers below
+ * check it rather than reading `closeOutStep`, which reports the same booking as
+ * "reviewed" only after inferring it.
+ */
+export function reviewIsComplete(r: Reservation): boolean {
+  return confirmationCount(r) >= reviewerCount(r);
+}
+
+/** Does this booking have a live (non-void) invoice against it? */
+export function hasLiveInvoice(r: Reservation): boolean {
+  return (r.invoices ?? []).some((i) => !i.voidedAt);
+}
+
+/**
+ * Is the school actually billing through this product?
+ *
+ * Both flags, the same pair Flutter's `isBillingEnabledAndStripeEnabled` reads. A school
+ * that invoices on paper has no rate to override and no invoice to raise, so every action
+ * below stays hidden rather than offering a button whose result nobody would ever see.
+ */
+export function billingIsLive(
+  billing: { enabled?: boolean; stripeEnabled?: boolean } | null | undefined
+): boolean {
+  return billing?.enabled === true && billing?.stripeEnabled === true;
+}
+
+/**
+ * Who may retype the rates on a booking. Mirrors the guard on
+ * `POST /reservations/:id/paymentOverrides` exactly: admin or dispatcher always, and an
+ * instructor only where the school has switched
+ * "Instructors can override reservation prices" on.
+ *
+ * Roles only. Whether the BOOKING is still open to it is `canOverrideReservationPayment`.
+ */
+export function canOverridePricesInOrg(
+  roles: Role[],
+  preferences: OrganizationPreferences | null | undefined
+): boolean {
+  if (isStaff(roles)) return true;
+  return preferences?.instructorsCanOverrideReservationPrices === true && isInstructor(roles);
+}
+
+/**
+ * May this viewer override the price on THIS booking right now?
+ *
+ * Maintenance is excluded because pricing refuses it outright ("disabled"), and a
+ * cancelled booking bills nobody. The rest is the server's own refusal, stated up front:
+ * once every reviewer has confirmed, the endpoint answers "You can't override payment for
+ * a reservation that has already been completed", and on a guest booking `completedByForGuest`
+ * says the same thing. Offering the action there would be an invitation to a 400.
+ */
+export function canOverrideReservationPayment(
+  r: Reservation,
+  roles: Role[],
+  preferences: OrganizationPreferences | null | undefined,
+  billing: { enabled?: boolean; stripeEnabled?: boolean } | null | undefined
+): boolean {
+  if (r.cancelledAt) return false;
+  if (r.type === "maintenance") return false;
+  if (!billingIsLive(billing)) return false;
+  if (!canOverridePricesInOrg(roles, preferences)) return false;
+  if (isGuestReservation(r)) return !guestIsReviewed(r);
+  return !reviewIsComplete(r);
+}
+
+/**
+ * May this viewer correct the readings already recorded on THIS booking?
+ *
+ * Three server rules, in order:
+ *  1. The permission is the ramp permission. `updateReviewTimes` requires the caller to be
+ *     able to ramp the flight both out and in, which is staff or somebody on it.
+ *  2. There has to be something to correct. The service refuses to write a Hobbs figure
+ *     onto a booking whose Hobbs pair is not already filled in, so this only opens once the
+ *     aircraft is back. Before that, ramp in rather than correct.
+ *  3. It is refused after the sign-offs are complete, and refused again once ANY invoice
+ *     exists, because an invoice describes hours the booking would no longer claim.
+ *
+ * A booking with no meters (a ground lesson) is measured by its instruction time alone, so
+ * `isRampedIn` covers it through `usesBriefingNotMeters` and its briefing figure is the one
+ * correctable field. `reviewerCount` guards the corner where there is nobody to sign off at
+ * all: the server reads that as already reviewed and refuses.
+ */
+export function canCorrectReviewTimes(
+  r: Reservation,
+  roles: Role[],
+  orgUserId: number | null
+): boolean {
+  if (r.cancelledAt) return false;
+  if (!isRampedIn(r)) return false;
+  if (hasLiveInvoice(r)) return false;
+  if (reviewerCount(r) === 0) return false;
+  if (reviewIsComplete(r)) return false;
+  return canRampReservation(r, roles, orgUserId);
+}
+
+/**
+ * May this viewer raise the invoice for a flight that closed out without one?
+ *
+ * ADMIN ONLY, because `POST /reservations/:id/invoices` is `isOrgAdmin`. A dispatcher can
+ * close a flight out and cannot bill it, which looks inconsistent and is the server's
+ * settled position on org-wide money.
+ *
+ * The booking has to be fully signed off (the server refuses "Reservation has not been
+ * reviewed") and carry no live invoice yet. A guest booking is billed by its own close-out
+ * and is excluded: `confirmReviewGuest` mints the invoice, so there is no gap to fill.
+ */
+export function canCreateReservationInvoice(
+  r: Reservation,
+  roles: Role[],
+  billing: { enabled?: boolean; stripeEnabled?: boolean } | null | undefined
+): boolean {
+  if (r.cancelledAt) return false;
+  if (r.type === "maintenance") return false;
+  if (!billingIsLive(billing)) return false;
+  if (!isAdmin(roles)) return false;
+  if (hasLiveInvoice(r)) return false;
+  if (isGuestReservation(r)) return false;
+  if (reviewerCount(r) === 0) return false;
+  return reviewIsComplete(r);
 }

@@ -3,14 +3,19 @@ import {
   CircleCheck,
   ClipboardCheck,
   Loader2,
+  Lock,
   PlaneLanding,
   PlaneTakeoff,
   Receipt,
+  SquarePen,
+  Tag,
 } from "lucide-react";
+import { toast } from "sonner";
 import type { Invoice, Reservation } from "@/types/api";
 import { WhoPaysSection } from "./who-pays-section";
 import { useAuth } from "@/lib/auth";
-import { useBilling, useReservationInvoice } from "@/features/queries";
+import { ApiError } from "@/lib/api";
+import { useBilling, useCreateReservationInvoice, useReservationInvoice } from "@/features/queries";
 import { useTimeZone } from "@/lib/use-timezone";
 import { OvernightMinimumNotice } from "./overnight-notice";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +23,14 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { formatMoney } from "@/lib/utils";
 import {
+  canCorrectReviewTimes,
+  canCreateReservationInvoice,
+  canOverridePricesInOrg,
+  canOverrideReservationPayment,
   canReviewGuest,
   canRampReservation,
   canViewReservationInvoice,
+  billingIsLive,
   closeOutStep,
   usesBriefingNotMeters,
   confirmationCount,
@@ -32,22 +42,30 @@ import {
 import { RampModal } from "./ramp-modal";
 import { ConfirmReviewModal } from "./confirm-review-modal";
 import { ConfirmGuestReviewModal } from "./confirm-guest-review-modal";
+import { CorrectTimesModal } from "./correct-times-modal";
+import { OverridePaymentModal } from "./override-payment-modal";
 
 /**
  * Role-aware close-out flow for a reservation, walking the state machine:
  * ramp out → ramp in → confirm review → (auto) invoice. Rendered inside the detail sheet.
  */
 export function CloseOutSection({ reservation }: { reservation: Reservation }) {
-  const { orgUserId, roles, isStaff } = useAuth();
+  const { orgUserId, roles, isStaff, organization } = useAuth();
   const tz = useTimeZone();
   const r = reservation;
   const step = closeOutStep(r);
   //Only needed while there is still a minimum to disclose; once billed the invoice speaks.
   const billingQ = useBilling({ enabled: step !== "invoiced" });
+  //`enabled` + `stripeEnabled` decide whether a rate override or a manual invoice can do
+  //anything at all. The session's copy of the org carries the same two flags, so the money
+  //actions below appear immediately rather than popping in when the fetch lands.
+  const billing = billingQ.data ?? organization?.billing ?? null;
 
   const [rampMode, setRampMode] = React.useState<"out" | "in" | null>(null);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [guestConfirmOpen, setGuestConfirmOpen] = React.useState(false);
+  const [correctOpen, setCorrectOpen] = React.useState(false);
+  const [overrideOpen, setOverrideOpen] = React.useState(false);
 
   const invoiceQ = useReservationInvoice(r.id, {
     enabled: step === "invoiced" && canViewReservationInvoice(r, orgUserId, isStaff),
@@ -74,6 +92,48 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const guestName = r.personnel?.guests?.[0]?.name ?? "the guest";
   const needed = reviewerCount(r);
   const done = confirmationCount(r);
+
+  // The three things the phone could do here and the console could not: retype a rate,
+  // fix a reading, and bill a flight that closed out without an invoice. Each predicate
+  // mirrors the server guard it will meet (see close-out.ts).
+  const canOverride = canOverrideReservationPayment(r, roles, organization?.preferences, billing);
+  const canCorrect = canCorrectReviewTimes(r, roles, orgUserId);
+  const canInvoice = canCreateReservationInvoice(r, roles, billing);
+  // Somebody who could have overridden, on a booking that has moved past the point where
+  // the server allows it. Worth one sentence: otherwise the action simply vanishes and
+  // reads as a permissions problem.
+  const pricesLocked =
+    step === "reviewed" &&
+    !canOverride &&
+    billingIsLive(billing) &&
+    r.type !== "maintenance" &&
+    canOverridePricesInOrg(roles, organization?.preferences);
+  // What has been typed by hand on this booking, in cents per hour. Only present on the
+  // hydrated detail record (the board's list select omits the whole relation).
+  const overrides = r.paymentOverrides ?? null;
+  const hasOverrides =
+    overrides != null &&
+    (overrides.resourceRateOverride != null || overrides.instructorRateOverride != null);
+
+  const createInvoice = useCreateReservationInvoice(r.id);
+
+  async function raiseInvoice() {
+    try {
+      const { invoices, warnings } = await createInvoice.mutateAsync();
+      //Says HOW MANY people were billed. A group close-out reporting "Invoice sent" leaves
+      //a dispatcher unsure whether the rest of the class was charged at all.
+      toast.success(
+        invoices.length === 1
+          ? "Invoice sent"
+          : `${invoices.length} invoices sent, one per person`
+      );
+      //A partial fan-out is a success AND a problem: invoices 1 and 3 are real money in
+      //Stripe, and number 2 is not. Both have to be said.
+      for (const warning of warnings) toast.warning(warning);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't create the invoice");
+    }
+  }
 
   // A cancelled reservation is off the board — nothing to dispatch or close out.
   if (r.cancelledAt) return null;
@@ -206,10 +266,101 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
             Renders nothing for a one-person booking, which is the overwhelming majority. */}
         {step !== "invoiced" && canRamp && <WhoPaysSection r={r} />}
 
+        {/* Corrections and hand-typed prices. Both were phone-only until now, which meant a
+            dispatcher at a desk with a mistyped Hobbs reading in front of them had to pick
+            up an iPhone to fix it.
+
+            They live together because they are the same act from the pilots' point of view:
+            each rewrites what the flight costs, and each discards every PIN already
+            entered. */}
+        {(canCorrect || canOverride || hasOverrides || pricesLocked) && (
+          <div className="space-y-2">
+            {hasOverrides && (
+              <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm">
+                <Tag className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <span className="text-muted-foreground">
+                  Priced by hand:{" "}
+                  <span className="tnum text-foreground">
+                    {[
+                      overrides?.resourceRateOverride != null
+                        ? `${formatMoney(overrides.resourceRateOverride)}/hr aircraft`
+                        : null,
+                      overrides?.instructorRateOverride != null
+                        ? `${formatMoney(overrides.instructorRateOverride)}/hr instruction`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </span>
+                  . The school&rsquo;s rate card does not apply to this booking.
+                </span>
+              </div>
+            )}
+
+            {(canCorrect || canOverride) && (
+              <div className="flex flex-wrap gap-2">
+                {canCorrect && (
+                  <Button variant="outline" size="sm" onClick={() => setCorrectOpen(true)}>
+                    <SquarePen className="size-4" />
+                    {noMeters ? "Correct instruction time" : "Correct times"}
+                  </Button>
+                )}
+                {canOverride && (
+                  <Button variant="outline" size="sm" onClick={() => setOverrideOpen(true)}>
+                    <Tag className="size-4" />
+                    {hasOverrides ? "Change rates" : "Override payment"}
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* The one moment worth explaining rather than silently hiding a button: the
+                server refuses both actions once the last pilot has signed off, and a
+                dispatcher who watched the option disappear would otherwise reasonably
+                conclude their permissions had changed. */}
+            {pricesLocked && (
+              <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                <Lock className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  Everyone has signed off, so this flight&rsquo;s rates and readings are now
+                  fixed. Any adjustment has to be made on the invoice.
+                </span>
+              </p>
+            )}
+          </div>
+        )}
+
         {step === "reviewed" && (
-          <div className="flex items-start gap-2 text-sm text-muted-foreground">
-            <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
-            <span>Review complete. The invoice will appear here once it&rsquo;s generated.</span>
+          <div className="space-y-3">
+            <div className="flex items-start gap-2 text-sm text-muted-foreground">
+              <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
+              <span>
+                {canInvoice
+                  ? "Review complete, and this flight has no invoice against it. Raise one when you're ready."
+                  : "Review complete. The invoice will appear here once it’s generated."}
+              </span>
+            </div>
+            {/* The invoice normally mints itself the moment the last pilot signs off. When
+                that fails (Stripe unreachable, a rate missing at the time) the booking sits
+                here reviewed and unbilled, and until now the only way to bill it was the
+                phone. Admin only, because the endpoint is. */}
+            {canInvoice && (
+              <Button
+                className="w-full"
+                onClick={() => void raiseInvoice()}
+                disabled={createInvoice.isPending}
+              >
+                {createInvoice.isPending ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Creating invoice…
+                  </>
+                ) : (
+                  <>
+                    <Receipt className="size-4" /> Create invoice
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         )}
 
@@ -233,6 +384,13 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         open={guestConfirmOpen}
         onOpenChange={setGuestConfirmOpen}
         reservation={r}
+      />
+      <CorrectTimesModal open={correctOpen} onOpenChange={setCorrectOpen} reservation={r} />
+      <OverridePaymentModal
+        open={overrideOpen}
+        onOpenChange={setOverrideOpen}
+        reservation={r}
+        defaultInstructorRateCents={billing?.defaultInstructorRate}
       />
     </>
   );

@@ -49,10 +49,18 @@ export function useReservationDetail(
       reservations.find((x) => x.id === selectedId) ??
       (opened?.id === selectedId ? opened : null);
     if (!fromList) return fullQ.data?.id === selectedId ? fullQ.data : null;
-    // Overlay the full resource (Hobbs/tach) from GET /:id — those fields are
-    // omitted on the list.
-    if (fullQ.data?.id === fromList.id && fullQ.data.resource) {
-      return { ...fromList, resource: fullQ.data.resource };
+    // Overlay what only `GET /reservations/:id` carries. The list select omits the full
+    // resource (so no Hobbs/tach to ramp out against) and omits `paymentOverrides`
+    // entirely, which is why a booking priced by hand looked unpriced on the board.
+    //
+    // The resource is overlaid only when the detail actually has one: a ground lesson has
+    // none, and blanking the row's copy would lose the classroom.
+    if (fullQ.data?.id === fromList.id) {
+      return {
+        ...fromList,
+        ...(fullQ.data.resource ? { resource: fullQ.data.resource } : {}),
+        paymentOverrides: fullQ.data.paymentOverrides ?? null,
+      };
     }
     return fromList;
   }, [reservations, selectedId, opened, fullQ.data]);

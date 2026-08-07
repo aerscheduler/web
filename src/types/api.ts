@@ -429,6 +429,11 @@ export interface Reservation {
    */
   payers?: ReservationPayer[] | null;
   /**
+   * Hand-typed prices for this one booking. Only on `GET /reservations/:id` (the board's
+   * list select omits it), so read it off the hydrated detail record, never off a list row.
+   */
+  paymentOverrides?: ReservationPaymentOverrides | null;
+  /**
    * The staff member who closed out a guest reservation (guests never confirm with a PIN —
    * an admin, the instructor, or the creator reviews it via `confirmReviewGuest`). Non-null
    * ⇒ the guest reservation has been reviewed and its invoice generated.
@@ -482,6 +487,36 @@ export interface ReservationReviewConfirmation {
   /** When this pilot signed off. */
   createdAt?: string;
   reviewedBy?: OrganizationUser;
+}
+
+/**
+ * Prices typed by hand for one booking, overriding the school's rate card.
+ *
+ * FIVE COLUMNS, TWO OF WHICH THE PRICING ENGINE NEVER READS.
+ *
+ * `services/payment.ts` consults `instructorRateOverride`, `instructorPriceOverride` and
+ * `resourceRateOverride`, and nothing else. `resourcePriceOverride` and
+ * `totalPriceOverride` are accepted by the endpoint, stored, and then ignored when the
+ * invoice is computed, so offering either in the console would be a dispatcher setting a
+ * price that silently does not apply. They are declared here because the record carries
+ * them, and read-only for exactly that reason.
+ *
+ * Rates are CENTS PER HOUR (not tenths: hours are tenths, money is cents). A price is a
+ * flat cents figure for that side of the booking, replacing rate times hours.
+ */
+export interface ReservationPaymentOverrides {
+  id: number;
+  createdAt?: string;
+  /** Cents per hour of instruction, in place of the rating or org default rate. */
+  instructorRateOverride: number | null;
+  /** Flat cents for the instruction line. Wins over the rate above. Not offered in the UI. */
+  instructorPriceOverride: number | null;
+  /** Cents per Hobbs or tach hour, in place of the aircraft's wet/dry or tier rate. */
+  resourceRateOverride: number | null;
+  /** Stored, never priced. See the note above. */
+  resourcePriceOverride: number | null;
+  /** Stored, never priced. See the note above. */
+  totalPriceOverride: number | null;
 }
 
 export interface Guest {
@@ -1252,6 +1287,35 @@ export interface RampInInput {
   tachTimeIn?: number;
   briefing?: number;
   comments?: string[];
+}
+
+/**
+ * Correct readings already recorded on a flight, via `POST /reservations/:id/updateReviewTimes`.
+ * Every figure is in TENTHS of an hour, like the ramp fields it is rewriting.
+ *
+ * SEND A PAIR OR NEITHER. The server treats one Hobbs field arriving as a request to
+ * rewrite both, and refuses with "Hobbs time in is required" if its partner is missing.
+ * The same rule applies to tach.
+ */
+export interface CorrectReviewTimesInput {
+  hobbsTimeOut?: number;
+  hobbsTimeIn?: number;
+  tachTimeOut?: number;
+  tachTimeIn?: number;
+  briefing?: number;
+}
+
+/**
+ * The overrides `POST /reservations/:id/paymentOverrides` will actually price with.
+ *
+ * Deliberately narrower than the stored record: only the two rates the engine reads are
+ * offered. Null clears that one figure back to the school's rate card. The endpoint
+ * refuses a body where everything is null ("No overrides provided"), so at least one has
+ * to carry a number.
+ */
+export interface ReservationPaymentOverridesInput {
+  instructorRateOverride?: number | null;
+  resourceRateOverride?: number | null;
 }
 
 /** Sign off a flight review with the caller's 4-character PIN. */

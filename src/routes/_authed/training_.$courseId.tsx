@@ -33,6 +33,7 @@ import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-ra
 import { EmptyState, ErrorState } from "@/components/states";
 import { RequirementsEditor, SyllabusEditor } from "@/components/training/syllabus-editor";
 import { CourseFeeEditor } from "@/components/training/course-fee-editor";
+import { CourseSettings } from "@/components/training/course-settings";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -152,6 +153,13 @@ function CourseDetailPage() {
           <Badge variant={c.regulatoryPart === "part141" ? "default" : "outline"}>
             {PART_LABEL[c.regulatoryPart]}
           </Badge>
+          {/* An archived course is still reachable by link and still holds live records, so
+              the page has to say so rather than looking like any other course. */}
+          {c.archivedAt ? (
+            <Badge variant="outline" className="gap-1">
+              <Archive className="size-3" /> Archived
+            </Badge>
+          ) : null}
           {versions.length > 1 ? (
             <Select value={String(selected ?? "")} onValueChange={(v) => setVersionId(Number(v))}>
               <SelectTrigger className="w-[220px]">
@@ -209,6 +217,7 @@ function CourseDetailPage() {
                       enrolling anybody, and hunting for it under a published syllabus you
                       cannot edit is the wrong shape. */}
                   <CourseFeeEditor course={c} />
+                  <CourseSettings course={c} />
                   <StudentsView courseId={c.id} />
                 </>
               )}

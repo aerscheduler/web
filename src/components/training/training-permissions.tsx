@@ -136,7 +136,7 @@ function GrantRow({ grant, onRevoke }: { grant: TrainingGrant; onRevoke: () => v
 function GrantDialog({ option, onClose }: { option: TrainingGrantOption | null; onClose: () => void }) {
   const open = option != null;
   const people = useMembers(undefined, { enabled: open });
-  const courses = useCourses({ enabled: open && (option?.courseScoped ?? false) });
+  const courses = useCourses(undefined, { enabled: open && (option?.courseScoped ?? false) });
   const create = useCreateTrainingGrant();
 
   const [orgUserId, setOrgUserId] = useState<string>("");

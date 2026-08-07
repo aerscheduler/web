@@ -1,6 +1,7 @@
 import * as React from "react";
 import { FileSignature, GraduationCap, Loader2, PenLine } from "lucide-react";
 import type { CandidateLesson, Reservation } from "@/types/api";
+import { gradeCodesOf } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import {
   useCandidateLessons,
@@ -90,6 +91,10 @@ function StudentLessons({
           key={e.enrollmentId}
           enrollmentId={e.enrollmentId}
           courseName={e.course.name}
+          //The course's OWN marks. This grader offered a hard-coded S/U/I, so a school on
+          //its own scale could not grade from the close-out at all: the server refused the
+          //grade, and the close-out is where most grading happens.
+          scale={gradeCodesOf(e)}
           lessons={e.lessons}
           reservation={reservation}
         />
@@ -101,11 +106,14 @@ function StudentLessons({
 function LessonGrader({
   enrollmentId,
   courseName,
+  scale,
   lessons,
   reservation,
 }: {
   enrollmentId: number;
   courseName: string;
+  /** This course's marks, in display order. Never empty. */
+  scale: string[];
   lessons: CandidateLesson[];
   reservation: Reservation;
 }) {
@@ -130,7 +138,10 @@ function LessonGrader({
   const [ground, setGround] = React.useState(() =>
     r.review?.briefing ? deciHours(r.review.briefing) : ""
   );
-  const [grade, setGrade] = React.useState("S");
+  //The course's first mark, which is the pass on every scale we ship and on almost every
+  //scale a school writes. Not the literal "S": that is refused outright by a course that
+  //does not use it.
+  const [grade, setGrade] = React.useState(() => scale[0] ?? "S");
   const [notes, setNotes] = React.useState("");
   const [warning, setWarning] = React.useState<string | null>(null);
   const [done, setDone] = React.useState(false);
@@ -204,7 +215,7 @@ function LessonGrader({
             value={grade}
             onChange={(e) => setGrade(e.target.value)}
           >
-            {["S", "U", "I"].map((g) => (
+            {scale.map((g) => (
               <option key={g} value={g}>
                 {g}
               </option>

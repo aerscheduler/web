@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookOpen, GraduationCap, Lock, PlusCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { Archive, BookOpen, GraduationCap, Lock, PlusCircle, ShieldCheck, Sparkles } from "lucide-react";
 import {
   useCourses,
   useCurriculumTemplates,
@@ -86,10 +86,17 @@ function TrainingPage() {
   const roles = rolesFromSession();
   const navigate = Route.useNavigate();
   const { tab } = Route.useSearch();
-  const courses = useCourses();
+  //Archived courses are off the page by default, which is what archiving is for. The
+  //toggle is how you get back to one you archived: without it, archiving would be a
+  //one-way door and a school would rather leave a dead course in the list than risk it.
+  const [showArchived, setShowArchived] = useState(false);
+  const courses = useCourses({ includeArchived: showArchived });
   const enrollments = useEnrollments({ status: "enrolled" });
 
   const rows = courses.data ?? [];
+  //The tiles count what the school is actually teaching, whether or not the archived ones
+  //are on screen.
+  const teaching = rows.filter((c) => !c.archivedAt);
   const active = enrollments.data ?? [];
 
   //The course LIBRARY needs `configureTraining`; the roster below needs nothing beyond
@@ -144,20 +151,32 @@ function TrainingPage() {
           {activeTab === "courses" && (
             <>
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                <StatCard label="Courses" value={rows.length} icon={BookOpen} />
+                <StatCard label="Courses" value={teaching.length} icon={BookOpen} />
                 <StatCard
                   label="Published syllabi"
                   value={
-                    rows.filter((c) => c.versions.some((v) => v.publishedAt && !v.retiredAt)).length
+                    teaching.filter((c) => c.versions.some((v) => v.publishedAt && !v.retiredAt)).length
                   }
                   icon={Lock}
                 />
                 <StatCard label="Students in training" value={active.length} icon={GraduationCap} />
                 <StatCard
                   label="Part 141 courses"
-                  value={rows.filter((c) => c.regulatoryPart === "part141").length}
+                  value={teaching.filter((c) => c.regulatoryPart === "part141").length}
                   icon={Sparkles}
                 />
+              </div>
+
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setShowArchived((v) => !v)}
+                  className="text-muted-foreground"
+                >
+                  <Archive className="size-4" />
+                  {showArchived ? "Hide archived courses" : "Show archived courses"}
+                </Button>
               </div>
 
               {courses.isLoading ? (
@@ -194,6 +213,11 @@ function TrainingPage() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
+                          {course.archivedAt ? (
+                            <Badge variant="outline" className="gap-1">
+                              <Archive className="size-3" /> Archived
+                            </Badge>
+                          ) : null}
                           <VersionBadge version={version} />
                           {enrolled > 0 ? (
                             <Badge variant="outline" className="gap-1">

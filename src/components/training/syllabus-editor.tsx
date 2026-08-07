@@ -9,7 +9,8 @@ import {
   Target,
   Trash2,
 } from "lucide-react";
-import type { CourseRequirement, CourseStage, CourseVersion, SyllabusLesson } from "@/types/api";
+import type { CourseRequirement, CourseStage, CourseVersion, GradeOption, SyllabusLesson } from "@/types/api";
+import { gradeCodesOf } from "@/types/api";
 import {
   useDeleteLesson,
   useDeleteRequirement,
@@ -691,9 +692,13 @@ export function RequirementsEditor({ version }: { version: CourseVersion }) {
 }
 
 function GradingScaleCard({ version }: { version: CourseVersion }) {
-  const initial = (version.gradingScale ?? ["S", "U", "I"]).map((g) =>
-    typeof g === "string" ? { code: g, passing: g.toUpperCase() === "S" } : g
-  );
+  //`gradeOptions` is the shape this card edits, so it reads that rather than guessing the
+  //pass column back out of the codes. The old guess was `code === "S"`, which quietly
+  //un-ticked every pass on a school marking 1 to 4 the moment they re-opened the card.
+  const initial: GradeOption[] =
+    version.gradeOptions && version.gradeOptions.length
+      ? version.gradeOptions.map((g) => ({ code: g.code, passing: !!g.passing }))
+      : gradeCodesOf(version).map((code) => ({ code, passing: code.toUpperCase() === "S" }));
   const [rows, setRows] = useState(initial);
   const [dirty, setDirty] = useState(false);
   const save = useSetGradingScale();

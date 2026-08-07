@@ -25,6 +25,7 @@ import {
   useCertifyEnrollment,
   useEndEnrollment,
   useMyTrainingGrants,
+  useReverseRequirementCredit,
 } from "@/features/queries";
 import { guardRoute } from "@/lib/permissions";
 import { holdsTrainingGrant } from "@/lib/training";
@@ -45,6 +46,7 @@ import {
   supersededIds,
 } from "@/lib/training";
 import type { EnrollmentProgress, LessonRecord, Standing, SyllabusLesson } from "@/types/api";
+import { gradeCodesOf } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
@@ -441,7 +443,10 @@ function GradeDialog({
   existing: LessonRecord | null;
 }) {
   const [open, setOpen] = useState(false);
-  const scale = progress.enrollment.courseVersion.gradingScale ?? ["S", "U", "I"];
+  //The course's own marks, as codes, whatever shape the payload carries. Reading
+  //`gradingScale` straight used to render `[object Object]` in this dropdown for any
+  //school that had saved a custom scale, which is every school that used the feature.
+  const scale = gradeCodesOf(progress.enrollment.courseVersion);
 
   const [grade, setGrade] = useState(existing?.grade ?? scale[0] ?? "S");
   const [flight, setFlight] = useState(
@@ -654,6 +659,17 @@ function LedgerTab({ progress }: { progress: EnrollmentProgress }) {
   const requirements = new Map(progress.enrollment.courseVersion.requirements.map((r) => [r.id, r]));
   const rows = [...progress.enrollment.credits].sort((a, b) => b.id - a.id);
 
+  //Every entry that some other entry already takes back. The server refuses a second
+  //reversal, so showing the button on one would be offering a 409.
+  const alreadyReversed = new Set(
+    progress.enrollment.credits.map((c) => c.reversesId).filter((v): v is number => v != null)
+  );
+
+  //`POST /training/credits/{id}/reverse` is hasTrainingGrant("manageEnrollment"), same as
+  //posting one. Fails closed while the grants are in flight.
+  const mine = useMyTrainingGrants();
+  const canReverse = holdsTrainingGrant(mine.data, "manageEnrollment");
+
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -687,10 +703,91 @@ function LedgerTab({ progress }: { progress: EnrollmentProgress }) {
             <span className="text-xs text-muted-foreground">
               {new Date(c.createdAt).toLocaleDateString()}
             </span>
+            {/* Only entries posted BY HAND get the button. A credit that came from a signed
+                lesson is taken back by amending the lesson, which reverses it for you and
+                keeps the record and the ledger telling the same story; reversing it here
+                would leave a signed lesson whose hours had silently gone. */}
+            {canReverse && !isReversal && c.lessonRecordId == null && !alreadyReversed.has(c.id) ? (
+              <ReverseCreditDialog creditId={c.id} amount={amount} label={requirement?.label ?? "this requirement"} />
+            ) : null}
           </div>
         );
       })}
     </Card>
+  );
+}
+
+/**
+ * Take back a credit somebody posted by hand.
+ *
+ * The endpoint has existed since the module shipped and nothing in the console called it,
+ * so a school that typed 40.0 instead of 4.0 into "credit prior training" had a wrong
+ * number on a student's record and no way to correct it. The ledger is append-only by
+ * design, so this does not delete anything: it writes the negative beside the original and
+ * both stay visible, which is the point of a ledger.
+ */
+function ReverseCreditDialog({
+  creditId,
+  amount,
+  label,
+}: {
+  creditId: number;
+  amount: string;
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const reverse = useReverseRequirementCredit();
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs">
+          <RotateCcw className="size-3" /> Reverse
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reverse this credit</DialogTitle>
+          <DialogDescription>
+            Takes back {amount} against {label}. Nothing is deleted: the reversal is written
+            beside the original and both stay on the record, because a student's hours have
+            to stay answerable a year later.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-1">
+          <Label htmlFor="reverse-reason">Why</Label>
+          <Textarea
+            id="reverse-reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            rows={2}
+            placeholder="Logged 40.0 by mistake; their logbook shows 4.0."
+          />
+        </div>
+
+        {reverse.error ? (
+          <p className="text-sm text-destructive">{(reverse.error as Error).message}</p>
+        ) : null}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Keep it
+          </Button>
+          <Button
+            disabled={reason.trim().length < 3 || reverse.isPending}
+            onClick={async () => {
+              await reverse.mutateAsync({ creditId, reason: reason.trim() });
+              setOpen(false);
+              setReason("");
+            }}
+          >
+            Reverse
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

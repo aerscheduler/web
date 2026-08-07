@@ -56,8 +56,12 @@ export function EndorsementsCard({
   isSelf: boolean;
   enrollmentId?: number;
 }) {
-  const { isStaff, roles } = useAuth();
-  const canSign = isStaff || roles.includes("instructor");
+  const { isAdmin, roles } = useAuth();
+  //`POST /training/endorsements` is `canGrade`: an admin or an instructor, and nobody else.
+  //This asked `isStaff`, which includes dispatchers, so the front desk was offered a "Sign
+  //one" button that 403s. An endorsement is a signature under somebody's certificate
+  //number, which is exactly the thing a dispatcher must not be invited to give.
+  const canSign = isAdmin || roles.includes("instructor");
   const [open, setOpen] = useState(false);
   const [replacing, setReplacing] = useState<Endorsement | null>(null);
 

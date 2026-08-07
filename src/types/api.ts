@@ -1687,6 +1687,9 @@ export type LessonKind = (typeof LESSON_KINDS)[number];
 
 export type CreditFrom = "flight" | "instruction" | "count";
 
+/** One mark on a course's scale, and whether earning it means the lesson is done. */
+export type GradeOption = { code: string; passing: boolean };
+
 export type CourseVersionSummary = {
   id: number;
   label: string;
@@ -1694,9 +1697,43 @@ export type CourseVersionSummary = {
   approvedAt: string | null;
   approvalReference?: string | null;
   retiredAt: string | null;
+  /**
+   * The course's marks, in display order. ALWAYS a list of codes.
+   *
+   * The column behind it holds two shapes (a bare list, or `{code, passing}` rows once a
+   * school has saved its own scale) and the server flattens it here so a grade picker can
+   * be built from it without knowing that. It used to arrive raw, so the moment a school
+   * pressed "Save scale" this array became objects and every grade dropdown rendered them.
+   * Read `gradeOptions` when you need to know what a mark MEANS.
+   */
   gradingScale?: string[] | null;
+  /** The same marks, with the school's own pass decision on each. */
+  gradeOptions?: GradeOption[] | null;
   _count?: { enrollments: number };
 };
+
+/**
+ * The course's marks as a picker should offer them, from whatever a payload carries.
+ *
+ * Belt and braces: the server now always sends `gradingScale` as codes, but a console
+ * deploy can land ahead of a server one, and this is the exact spot where getting it wrong
+ * renders `[object Object]` in a dropdown an instructor has to grade from.
+ */
+export function gradeCodesOf(
+  source: { gradingScale?: unknown; gradeOptions?: GradeOption[] | null } | null | undefined
+): string[] {
+  const options = source?.gradeOptions;
+  if (Array.isArray(options) && options.length) return options.map((g) => String(g.code));
+
+  const raw = source?.gradingScale;
+  if (!Array.isArray(raw) || raw.length === 0) return ["S", "U", "I"];
+  return raw
+    .map((g) =>
+      typeof g === "string" ? g : String((g as { code?: unknown } | null)?.code ?? "")
+    )
+    .map((code) => code.trim())
+    .filter((code) => code.length > 0);
+}
 
 export type Course = {
   id: number;
@@ -1935,6 +1972,13 @@ export type CandidateEnrollment = {
   enrollmentId: number;
   course: { id: number; name: string; regulatoryPart: RegulatoryPart };
   versionLabel: string;
+  /**
+   * The course's own marks, so the close-out grader offers what the course actually uses.
+   * It used to offer a hard-coded S/U/I, which the server then refused for any school on
+   * its own scale: the one grader most instructors ever touch could not grade their course.
+   */
+  gradingScale?: string[] | null;
+  gradeOptions?: GradeOption[] | null;
   lessons: CandidateLesson[];
 };
 

@@ -2863,10 +2863,14 @@ export function useSetReservationPayers(reservationId: number) {
 const invalidateTraining = (qc: ReturnType<typeof useQueryClient>) =>
   qc.invalidateQueries({ queryKey: ["training"] });
 
-export function useCourses(opts?: QueryOpts) {
+export function useCourses(filter?: { includeArchived?: boolean }, opts?: QueryOpts) {
+  const includeArchived = filter?.includeArchived ?? false;
   return useQuery({
-    queryKey: ["training", "courses"],
-    queryFn: () => api<Course[]>("/training/courses"),
+    queryKey: ["training", "courses", { includeArchived }],
+    queryFn: () =>
+      api<Course[]>("/training/courses", {
+        query: includeArchived ? { includeArchived: true } : undefined,
+      }),
     ...opts,
   });
 }

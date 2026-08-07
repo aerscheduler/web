@@ -140,7 +140,10 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
     }
 
     case "location":
-      return { to: "/facilities", search: { q: result.title } };
+      // Facilities is three sections behind one URL, so the tab is part of the link:
+      // without it an airport hit lands among the simulators and is filtered straight
+      // back out of the page it just took you to.
+      return { to: "/facilities", search: { q: result.title, tab: "locations" } };
 
     case "rating":
       // Ratings are org configuration; Settings → Instruction rates is where they're

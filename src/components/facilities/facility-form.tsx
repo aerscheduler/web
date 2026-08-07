@@ -1,4 +1,6 @@
 import * as React from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { useCreateRoom, useCreateSimulator } from "@/features/queries";
 import type { Location } from "@/types/api";
@@ -25,6 +27,7 @@ export function FacilityFormModal({
   kind: FacilityKind;
   locations: Location[];
 }) {
+  const navigate = useNavigate();
   const createSim = useCreateSimulator();
   const createRoom = useCreateRoom();
   const pending = createSim.isPending || createRoom.isPending;
@@ -214,9 +217,27 @@ export function FacilityFormModal({
             <p className="text-xs text-destructive">{errLocation}</p>
           )}
           {noLocations && (
-            <p className="text-xs text-muted-foreground">
-              Add a location under Settings first.
-            </p>
+            // Same dead end the aircraft form had, and the same fix: this used to point
+            // at Settings, where locations have never lived.
+            <div className="space-y-1.5">
+              <p className="text-xs text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
+                Everything bookable is based at a location, and this school has none yet.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onOpenChange(false);
+                  void navigate({
+                    to: "/facilities",
+                    search: { tab: "locations", add: "location" },
+                  });
+                }}
+              >
+                <MapPin className="size-4" /> Add a location
+              </Button>
+            </div>
           )}
         </div>
 

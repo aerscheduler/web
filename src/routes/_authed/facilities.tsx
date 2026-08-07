@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { DoorOpen, MonitorPlay, Plus } from "lucide-react";
+import { DoorOpen, MapPin, MonitorPlay, Plus } from "lucide-react";
 import { pageRows, useLocations, useRoomsPage, useSimulatorsPage } from "@/features/queries";
 import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";
@@ -12,12 +12,18 @@ import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { usePersistedState } from "@/hooks/use-persisted-state";
-import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
+import {
+  useListQueryState,
+  asFacetInts,
+  validateListSearch,
+  type ListQueryState,
+} from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import {
   FacilityFormModal,
   type FacilityKind,
 } from "@/components/facilities/facility-form";
+import { LocationsPanel } from "@/components/facilities/locations-panel";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,23 +32,38 @@ import { formatMoney } from "@/lib/utils";
 
 const FACET_KEYS = ["tab", "locationId", "grounded"] as const;
 
+/** The list state, plus the one-shot `add` instruction below. Written out rather than
+ *  inferred: a spread loses `ListFilterValues`'s index signature, and with it every
+ *  facet key a caller is allowed to navigate with. */
+type FacilitiesSearch = ListQueryState & { add?: "location" };
+
 export const Route = createFileRoute("/_authed/facilities")({
   beforeLoad: guardRoute("/facilities"),
-  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
+  validateSearch: (s): FacilitiesSearch => ({
+    ...validateListSearch(s, [...FACET_KEYS]),
+    // Not a facet: a one-shot instruction to open the add-location form, so that a dead
+    // end elsewhere (the aircraft form, with no location to pick) can hand the user
+    // straight to the thing that unblocks them. Cleared as soon as it is obeyed.
+    add: s.add === "location" ? ("location" as const) : undefined,
+  }),
   component: FacilitiesPage,
 });
 
-type TabKey = "simulators" | "rooms";
+type TabKey = "locations" | "simulators" | "rooms";
 
 /**
- * Two rails, not two tabs: a simulator and a classroom share nothing but being
- * bookable — different filters, different cards, different empty states — so
- * these are two screens rather than two filters of one list. `?tab=` keeps its
- * old key and values, so existing links and saved filters still land right.
+ * Separate screens, not tabs over one list: a location, a simulator and a classroom share
+ * nothing but being part of the plant, and each has its own filters, cards and empty
+ * state. `?tab=` keeps its old key and values, so existing links and saved filters still
+ * land right.
+ *
+ * Locations lead because they lead in the setup order too. Nothing else on this page, or
+ * on Aircraft, can be created until one exists.
  */
 const SECTIONS: RailSection[] = [
   {
     items: [
+      { value: "locations", label: "Locations", icon: MapPin },
       { value: "simulators", label: "Simulators", icon: MonitorPlay },
       { value: "rooms", label: "Rooms", icon: DoorOpen },
     ],
@@ -141,9 +162,23 @@ function FacilitiesPage() {
   });
 
   const [addKind, setAddKind] = useState<FacilityKind | null>(null);
+  const [addLocationOpen, setAddLocationOpen] = useState(false);
   const [view, setView] = usePersistedState<ViewMode>("view:facilities", "grid");
 
-  const tab: TabKey = facets.tab === "rooms" ? "rooms" : "simulators";
+  const tab: TabKey =
+    facets.tab === "rooms" ? "rooms" : facets.tab === "locations" ? "locations" : "simulators";
+
+  // Arrived from "add a location first" somewhere else: open the form and drop the
+  // instruction from the URL, so a refresh or a back button doesn't reopen it.
+  const addParam = routeSearch.add;
+  useEffect(() => {
+    if (addParam !== "location") return;
+    setAddLocationOpen(true);
+    void navigate({
+      search: (prev) => ({ ...prev, add: undefined, tab: "locations" }),
+      replace: true,
+    });
+  }, [addParam, navigate]);
   const locationIds = asFacetInts(facets.locationId);
 
   const simFilter = {
@@ -209,7 +244,11 @@ function FacilitiesPage() {
     !!debouncedQ || (typeof facets.locationId === "string" && facets.locationId !== "");
 
   const addButton =
-    tab === "simulators" ? (
+    tab === "locations" ? (
+      <Button onClick={() => setAddLocationOpen(true)}>
+        <Plus className="size-4" /> Add location
+      </Button>
+    ) : tab === "simulators" ? (
       <Button onClick={() => setAddKind("simulator")}>
         <Plus className="size-4" /> Add simulator
       </Button>
@@ -224,14 +263,16 @@ function FacilitiesPage() {
       <TableView.Header>
         <PageHeader
           title="Facilities"
-          subtitle="Simulators and ground-school rooms — bookable for sim and ground lessons."
+          subtitle="Where you fly from, and what can be booked there: locations, simulators and ground-school rooms."
           actions={
             <>
-              {(tab === "simulators"
-                ? simTotal > 0 || simFiltersActive
-                : roomTotal > 0 || roomFiltersActive) && (
-                <ViewModeToggle value={view} onChange={setView} />
-              )}
+              {/* Locations are one list of rows, so there is nothing to toggle between. */}
+              {tab !== "locations" &&
+                (tab === "simulators"
+                  ? simTotal > 0 || simFiltersActive
+                  : roomTotal > 0 || roomFiltersActive) && (
+                  <ViewModeToggle value={view} onChange={setView} />
+                )}
               {addButton}
             </>
           }
@@ -245,6 +286,17 @@ function FacilitiesPage() {
           value={tab}
           onChange={(v) => setFacets({ ...facets, tab: v as TabKey })}
         />
+
+        {tab === "locations" && (
+          <div className={panelClass}>
+            <LocationsPanel
+              search={search}
+              onSearchChange={setSearch}
+              addOpen={addLocationOpen}
+              onAddOpenChange={setAddLocationOpen}
+            />
+          </div>
+        )}
 
         {tab === "simulators" && (
           <div className={panelClass}>

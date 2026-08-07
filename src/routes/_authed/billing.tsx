@@ -24,6 +24,7 @@ import {
   useReservationsPage,
   useUpdateInvoice,
 } from "@/features/queries";
+import { useBillReservation } from "@/features/billing-mutations";
 import { usePaging } from "@/lib/paging";
 import { guardRoute } from "@/lib/permissions";
 import type { Invoice, Reservation } from "@/types/api";
@@ -36,7 +37,7 @@ import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { DateRangePicker, lastNDays } from "@/components/billing/date-range-picker";
-import { CreateInvoiceDialog, type InvoiceDraft } from "@/components/billing/create-invoice-dialog";
+import { CreateInvoiceDialog } from "@/components/billing/create-invoice-dialog";
 import { InvoiceDetailSheet } from "@/components/billing/invoice-detail-sheet";
 import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
 import { Card } from "@/components/ui/card";
@@ -246,7 +247,10 @@ function InvoiceCard({ inv, actions }: { inv: Invoice; actions: InvoiceActions }
   );
 }
 
-function unbilledColumns(onBill: (r: Reservation) => void): ColumnDef<Reservation, unknown>[] {
+function unbilledColumns(
+  onBill: (r: Reservation) => void,
+  billing: boolean
+): ColumnDef<Reservation, unknown>[] {
   return [
     {
       id: "reservation",
@@ -292,7 +296,12 @@ function unbilledColumns(onBill: (r: Reservation) => void): ColumnDef<Reservatio
       header: "",
       cell: ({ row }) => (
         <div className="text-right">
-          <Button variant="outline" size="sm" onClick={() => onBill(row.original)}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={billing}
+            onClick={() => onBill(row.original)}
+          >
             <Receipt className="size-4" /> Bill
           </Button>
         </div>
@@ -301,16 +310,15 @@ function unbilledColumns(onBill: (r: Reservation) => void): ColumnDef<Reservatio
   ];
 }
 
-function reservationDraft(r: Reservation): InvoiceDraft {
-  const p = r.personnel;
-  const payer = p?.renters?.[0] ?? p?.students?.[0];
-  return {
-    customerId: payer ? String(payer.id) : undefined,
-    memo: r.title,
-  };
-}
-
-function UnbilledCard({ r, onBill }: { r: Reservation; onBill: (r: Reservation) => void }) {
+function UnbilledCard({
+  r,
+  onBill,
+  billing,
+}: {
+  r: Reservation;
+  onBill: (r: Reservation) => void;
+  billing: boolean;
+}) {
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between gap-3">
@@ -321,7 +329,7 @@ function UnbilledCard({ r, onBill }: { r: Reservation; onBill: (r: Reservation) 
             {r.resource ? ` · ${resourceLabel(r.resource).name}` : ""}
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => onBill(r)}>
+        <Button variant="outline" size="sm" disabled={billing} onClick={() => onBill(r)}>
           <Receipt className="size-4" /> Bill
         </Button>
       </div>
@@ -365,7 +373,6 @@ function BillingPage() {
   }
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [draft, setDraft] = useState<InvoiceDraft | undefined>(undefined);
 
   const statuses = asFacetStrings(facets.status).filter(
     (s): s is StatusKey => s === "outstanding" || s === "paid" || s === "unbilled"
@@ -453,6 +460,7 @@ function BillingPage() {
 
   const update = useUpdateInvoice();
   const remind = useRemindInvoice();
+  const bill = useBillReservation();
 
   const { rows: invoices, total: invoiceTotal } = pageRows(invoicesQ);
   const { rows: unbilled, total: unbilledTotal } = pageRows(reservationsQ);
@@ -536,9 +544,46 @@ function BillingPage() {
     });
   }
 
-  function billReservation(r: Reservation) {
-    setDraft(reservationDraft(r));
-    setCreateOpen(true);
+  /**
+   * Invoice the reservation from its own figures.
+   *
+   * This used to open the manual New invoice dialog prefilled with a customer and the
+   * booking's title as a memo: no line items, no hours, no reservation link. Pressing Bill
+   * and saving produced a $0 invoice attached to nothing, the flight stayed unbilled and
+   * still sat in this list, and the money never reached resource revenue. It now calls the
+   * endpoint that actually prices the booking.
+   *
+   * Confirmed first, because it charges people: on a shared booking this raises one Stripe
+   * invoice per payer, and there is no undo beyond voiding each one.
+   */
+  async function billReservation(r: Reservation) {
+    const ok = await confirm({
+      title: `Bill "${r.title}"?`,
+      description:
+        "This prices the booking from its recorded times and rates, and raises an invoice for everyone who owes a share.",
+      confirmLabel: "Bill reservation",
+    });
+    if (!ok) return;
+
+    bill.mutate(r.id, {
+      onSuccess: ({ invoices, warnings }) => {
+        //Warnings are the half-billed cases (a share under 50c, one payer's Stripe call
+        //failing while the rest went through), so they must not be hidden behind a success
+        //toast that says the flight is done.
+        if (warnings.length) {
+          toast.warning(warnings.join(" "), { duration: 10000 });
+          return;
+        }
+        toast.success(
+          invoices.length > 1 ? `${invoices.length} invoices raised` : "Invoice raised"
+        );
+      },
+      //The server's own message is the useful one here: "Reservation has not been
+      //reviewed." tells the operator to close the flight out first, which a generic
+      //failure toast would not.
+      onError: (err) =>
+        toast.error(err instanceof Error ? err.message : "Couldn't bill this reservation"),
+    });
   }
 
   const actions: InvoiceActions = {
@@ -549,7 +594,7 @@ function BillingPage() {
   };
 
   const columns = useMemo(() => invoiceColumns(actions), [update.isPending]); // eslint-disable-line react-hooks/exhaustive-deps
-  const unbilledCols = useMemo(() => unbilledColumns(billReservation), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const unbilledCols = useMemo(() => unbilledColumns(billReservation, bill.isPending), [bill.isPending]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const rangeSubtitle =
     range?.from && range.to
@@ -642,7 +687,7 @@ function BillingPage() {
           paging={unbilledPaging}
           total={unbilledTotal}
           loading={reservationsQ.isFetching}
-          mobileCard={(r) => <UnbilledCard r={r} onBill={billReservation} />}
+          mobileCard={(r) => <UnbilledCard r={r} onBill={billReservation} billing={bill.isPending} />}
           emptyMessage="No unbilled reservations."
         />
       </div>
@@ -665,12 +710,7 @@ function BillingPage() {
           actions={
             <div className="flex items-center gap-2">
               <DateRangePicker value={range} onChange={setRange} />
-              <Button
-                onClick={() => {
-                  setDraft(undefined);
-                  setCreateOpen(true);
-                }}
-              >
+              <Button onClick={() => setCreateOpen(true)}>
                 <Plus className="size-4" /> New invoice
               </Button>
             </div>
@@ -742,7 +782,7 @@ function BillingPage() {
         busy={update.isPending || remind.isPending}
       />
 
-      <CreateInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} draft={draft} />
+      <CreateInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} />
     </TableView>
   );
 }

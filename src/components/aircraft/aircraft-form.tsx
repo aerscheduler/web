@@ -1,4 +1,6 @@
 import * as React from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { useCreatePlane, useUpdateResource } from "@/features/queries";
 import type { CreatePlaneResourceInput, Location, Resource } from "@/types/api";
@@ -106,6 +108,7 @@ export function AircraftFormModal({
   locations: Location[];
 }) {
   const isEdit = !!resource;
+  const navigate = useNavigate();
   const create = useCreatePlane();
   const update = useUpdateResource(resource?.id ?? 0);
   const pending = create.isPending || update.isPending;
@@ -469,10 +472,29 @@ export function AircraftFormModal({
             <p className="text-xs text-destructive">{errors.locationId}</p>
           )}
           {noLocations && (
-            <p className="text-xs text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
-              Add a home base location first — every aircraft needs one before it can be
-              scheduled.
-            </p>
+            // A dead end used to end here: every aircraft needs a home base, the console
+            // had no way to create one, and the sentence naming the problem was the whole
+            // response. The link is the fix, and it opens the form rather than dropping
+            // the user on a page to go hunting.
+            <div className="space-y-1.5">
+              <p className="text-xs text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
+                Every aircraft needs a home base, and this school has no location yet.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  onOpenChange(false);
+                  void navigate({
+                    to: "/facilities",
+                    search: { tab: "locations", add: "location" },
+                  });
+                }}
+              >
+                <MapPin className="size-4" /> Add a location
+              </Button>
+            </div>
           )}
         </div>
 

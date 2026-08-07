@@ -201,7 +201,14 @@ function MembershipBody({
           {m.joinFeeStatus === "invoiced" ? (
             m.FK_joinFeeInvoiceId ? (
               <Button asChild size="sm" variant="outline">
-                <Link to="/billing" search={{ id: m.FK_joinFeeInvoiceId } as never}>
+                {/*
+                  `invoice`, not `id`: the Billing route's validateSearch parses `s.invoice`
+                  and drops every other param, so `?id=…` opened Billing on an unfiltered
+                  list with no panel. It looked like a working link and quietly went nowhere.
+                  Billing then hydrates the panel from the id alone, so an invoice outside
+                  the restored date range or status filter still opens.
+                */}
+                <Link to="/billing" search={{ invoice: m.FK_joinFeeInvoiceId } as never}>
                   View invoice
                 </Link>
               </Button>
@@ -305,7 +312,7 @@ function MembershipBody({
                   {c.FK_invoiceId ? (
                     <Link
                       to="/billing"
-                      search={{ id: c.FK_invoiceId } as never}
+                      search={{ invoice: c.FK_invoiceId } as never}
                       className="text-xs text-primary underline-offset-2 hover:underline"
                     >
                       Invoice

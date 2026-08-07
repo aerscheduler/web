@@ -42,6 +42,7 @@ import type {
   AvailabilityWindow,
   CreateInvoiceInput,
   CreateLocationInput,
+  UpdateLocationInput,
   ConfirmReviewInput,
   CreatePlaneResourceInput,
   AuditEvent,
@@ -457,6 +458,43 @@ export function useLocations(opts?: QueryOpts) {
     queryKey: ["locations"],
     queryFn: () => api<Location[]>("/locations"),
     ...opts,
+  });
+}
+
+/**
+ * ONE location, in full.
+ *
+ * Worth its own call because the list endpoint's select is `id, name, address,
+ * showInDirectory`: it does not return `timeZone`. A row from `useLocations()` therefore
+ * says nothing at all about the airport's zone, and rendering "not set" from it would be
+ * a lie about the one field multi-day bookings are pinned to. Ask here before editing.
+ */
+export function useLocation(id: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["locations", id],
+    queryFn: () => api<Location>(`/locations/${id}`),
+    // Deliberately not spreading `opts` after this: it would put `enabled` back and the
+    // query would fire at /locations/null.
+    enabled: (opts?.enabled ?? true) && id != null,
+  });
+}
+
+/**
+ * Full records for several locations at once, one request each, aligned to `ids`.
+ *
+ * Same reason as {@link useLocation}, applied to a list that wants to show which airports
+ * still have no zone. A school has a handful of them (one per field it operates from), so
+ * the fan-out is bounded. Do not reach for this to decorate a table of anything larger.
+ */
+export function useLocationDetails(ids: number[], opts?: QueryOpts) {
+  const enabled = opts?.enabled ?? true;
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: ["locations", id],
+      queryFn: () => api<Location>(`/locations/${id}`),
+      enabled,
+      staleTime: 30_000,
+    })),
   });
 }
 
@@ -923,12 +961,58 @@ export function useRemindInvoice() {
 
 // ---------------------------------------------------------------- onboarding / org setup
 
+/**
+ * Create an airport or site (admin). The server GEOCODES the address through Google and
+ * answers 400 "Address does not seem to be valid." when it cannot resolve it, so a real
+ * street address is required, not decoration.
+ *
+ * `timeZone` is DROPPED here: `LocationService.create` never reads it, only `update`
+ * does. Setting a zone at create time therefore takes a follow-up PATCH, which is what
+ * the location form does.
+ */
 export function useCreateLocation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateLocationInput) =>
       api<Location>("/locations", { method: "POST", body: input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["locations"] }),
+  });
+}
+
+/**
+ * Edit an airport or site (admin). Re-geocodes the address, so the whole address goes on
+ * every save. `timeZone: null` clears the zone back to the organization's.
+ */
+export function useUpdateLocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...input }: UpdateLocationInput & { id: number }) =>
+      api<Location>(`/locations/${id}`, { method: "PATCH", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["locations"] });
+      // The zone a booking is read in comes off its location, so the board is now stale.
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+    },
+  });
+}
+
+/**
+ * Remove an airport or site (admin) - 204, no body.
+ *
+ * This CASCADES on the server: the location is soft-deleted, every resource based there
+ * is soft-deleted with it, and its reservations are cancelled with the reason "Location
+ * was deleted". Invalidate the fleet and the board alongside the list, or the console
+ * keeps drawing aircraft that no longer exist.
+ */
+export function useDeleteLocation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/locations/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["locations"] });
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+    },
   });
 }
 

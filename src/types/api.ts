@@ -571,6 +571,27 @@ export interface Location {
    * exactly today's behaviour.
    */
   timeZone?: string | null;
+  /**
+   * The airport's postal address. The server GEOCODES this on create and on every edit,
+   * and refuses the write when it cannot resolve the address, so it is effectively
+   * required on both even though the column is a separate optional relation.
+   */
+  address?: UserAddress | null;
+  showInDirectory?: boolean;
+}
+
+/**
+ * Body for `PATCH /locations/:id`.
+ *
+ * Send the WHOLE address, never a diff: the server re-geocodes on every edit and writes
+ * each address column from what it was handed, so an omitted city is written as an
+ * omitted city. `timeZone: null` explicitly clears the zone (fall back to the org's);
+ * omitting the key leaves it alone.
+ */
+export interface UpdateLocationInput {
+  name: string;
+  address: Partial<UserAddress>;
+  timeZone?: string | null;
 }
 
 export interface Invoice {

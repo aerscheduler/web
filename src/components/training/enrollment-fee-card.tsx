@@ -54,7 +54,12 @@ export function EnrollmentFeeCard({
             <Badge variant="secondary">Invoiced</Badge>
             {feeInvoiceId ? (
               <Button asChild size="sm" variant="outline">
-                <Link to="/billing" search={{ id: feeInvoiceId } as never}>
+                {/*
+                  `invoice`, not `id`. Billing's validateSearch reads `s.invoice` and drops
+                  anything else, so `?id=…` landed on an unfiltered list with no panel open.
+                  Same bug the membership card's two links had.
+                */}
+                <Link to="/billing" search={{ invoice: feeInvoiceId } as never}>
                   View invoice
                 </Link>
               </Button>

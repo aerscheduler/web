@@ -129,7 +129,7 @@ export function InvoiceDetailSheet({
       }
     >
         {display && (
-          <div className="space-y-5 pt-4">
+          <div className="space-y-5 pt-4" data-doc-shot="invoice-detail-panel">
             {display.memo && <p className="text-sm text-muted-foreground">{display.memo}</p>}
 
             <InvoiceQuickBooksSection invoice={display} />

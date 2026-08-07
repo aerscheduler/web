@@ -75,7 +75,7 @@ export function OrganizationTimeZoneCard() {
   };
 
   return (
-    <Card>
+    <Card data-doc-shot="settings-org-timezone">
       <CardHeader className="flex-row items-center gap-2 space-y-0">
         <Globe className="size-4 text-muted-foreground" />
         <CardTitle className="text-sm">Time zone</CardTitle>

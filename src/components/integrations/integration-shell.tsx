@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -24,6 +24,7 @@ export function IntegrationPageShell({
   accountLabel,
   actions,
   children,
+  ...rest
 }: {
   icon: LucideIcon;
   iconClassName?: string;
@@ -33,9 +34,11 @@ export function IntegrationPageShell({
   accountLabel?: string | null;
   actions?: ReactNode;
   children: ReactNode;
-}) {
+  // Carries the help docs' `data-doc-shot` crop id through to this page's content
+  // column, for the provider pages whose screenshot is the page rather than one card.
+} & Omit<ComponentProps<"div">, "children" | "title">) {
   return (
-    <div className="flex w-full flex-col gap-6">
+    <div className="flex w-full flex-col gap-6" {...rest}>
       <div>
         <Link
           to="/settings"

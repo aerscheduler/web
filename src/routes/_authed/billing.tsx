@@ -675,7 +675,7 @@ function BillingPage() {
         </Card>
       );
     return (
-      <div className="flex flex-1 flex-col gap-3">
+      <div className="flex flex-1 flex-col gap-3" data-doc-shot="billing-unbilled-reservations">
         <p className="shrink-0 text-sm text-muted-foreground">
           {unbilledTotal.toLocaleString()} past{" "}
           {unbilledTotal === 1 ? "reservation hasn't" : "reservations haven't"} been billed yet.
@@ -702,7 +702,10 @@ function BillingPage() {
         : "No invoices match your filters.";
 
   return (
-    <TableView>
+    // The documentation shot of the invoice list is the stat row AND the table under it,
+    // which are siblings here, so the id sits on the page column that holds both. The
+    // unbilled-only view is a different shot and doesn't answer to this one.
+    <TableView data-doc-shot={showInvoices ? "billing-invoice-list" : undefined}>
       <TableView.Header>
         <PageHeader
           title="Billing"

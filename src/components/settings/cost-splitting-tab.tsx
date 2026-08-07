@@ -103,7 +103,7 @@ function CostSplitting({ data }: { data: SplitRulesDescription }) {
   const [flowOpen, setFlowOpen] = useState(false);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" data-doc-shot="cost-splitting-summary">
       <Status data={data} onSetUp={() => setFlowOpen(true)} />
       <Summary data={data} />
       {flowOpen && <CostSplittingFlow onClose={() => setFlowOpen(false)} />}
@@ -334,7 +334,7 @@ function EditType({
       size="lg"
       footer={<Button onClick={onClose}>Done</Button>}
     >
-      <div className="space-y-5">
+      <div className="space-y-5" data-doc-shot="cost-splitting-edit-modal">
         {data.chargeLines.map((line) => (
           <LineEditor key={line} data={data} type={type} line={line} />
         ))}

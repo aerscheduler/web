@@ -204,6 +204,7 @@ function QuickBooksOwnerPage() {
 
   return (
     <IntegrationPageShell
+      data-doc-shot="quickbooks-setup"
       icon={BookOpenCheck}
       iconClassName="bg-emerald-600"
       title="QuickBooks Online"

@@ -148,7 +148,7 @@ export function CreateInvoiceDialog({
       description="Bill a customer for time, fuel, fees, or anything else."
       className="sm:max-w-lg"
     >
-      <div className="space-y-4">
+      <div className="space-y-4" data-doc-shot="create-invoice-dialog">
         <div className="space-y-1.5">
           <Label htmlFor="invoice-customer">Customer</Label>
           <div id="invoice-customer">

@@ -287,7 +287,16 @@ function PersonBody({
       <div className={RAIL_ROW}>
         <SectionRail label="Member" sections={sections} value={active} onChange={pick} />
 
-        <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">
+        <div
+          data-doc-shot={
+            active === "activity"
+              ? "person-activity-tab"
+              : active === "training"
+                ? "person-training-card"
+                : undefined
+          }
+          className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto"
+        >
           {active === "overview" && (
             <>
               <DetailCard title="Details">

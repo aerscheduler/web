@@ -142,7 +142,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   }
 
   return (
-    <Card>
+    <Card data-doc-shot="booking-preferences-tab">
       <CardHeader className="flex-row items-center gap-2.5">
         <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
           <SlidersHorizontal className="size-4" />

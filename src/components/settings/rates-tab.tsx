@@ -29,7 +29,7 @@ export function RatesTab() {
   const { rows: ratings, total } = pageRows(q);
 
   return (
-    <Card>
+    <Card data-doc-shot="instruction-rates-tab">
       <CardHeader className="flex-row items-start justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">

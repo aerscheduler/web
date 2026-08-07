@@ -184,7 +184,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
   return (
     <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
       <div className="flex flex-col gap-4">
-        <Card>
+        <Card data-doc-shot="billing-settings-card">
           <form onSubmit={handleSubmit}>
             <CardHeader className="flex-row items-center gap-2.5">
               <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
@@ -315,7 +315,14 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
         <ManualInvoiceCard billing={billing} />
       </div>
 
-      <Card className="h-fit">
+      <Card
+        // Two documentation shots, same card: the connected and not-connected states differ
+        // only in the data, so each names itself for whichever one is on screen.
+        data-doc-shot={
+          billing.stripeEnabled ? "billing-payouts-connected" : "billing-payouts-not-connected"
+        }
+        className="h-fit"
+      >
         <CardHeader className="flex-row items-center gap-2.5">
           <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
             <Receipt className="size-4" />

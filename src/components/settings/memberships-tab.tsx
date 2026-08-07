@@ -74,7 +74,7 @@ export function MembershipsTab() {
           action={<Button onClick={() => setEditing("new")}>Add your first plan</Button>}
         />
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" data-doc-shot="memberships-plans-list">
           {live.map((plan) => (
             <PlanRow
               key={plan.id}
@@ -285,7 +285,7 @@ function PlanEditor({ plan, onClose }: { plan: MembershipPlan | null; onClose: (
         </>
       }
     >
-      <div className="space-y-5">
+      <div className="space-y-5" data-doc-shot="membership-plan-editor">
         <div className="space-y-2">
           <Label htmlFor="plan-name">Plan name</Label>
           <Input

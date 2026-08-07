@@ -59,7 +59,7 @@ export function PersonMembership({ orgUserId, canManage }: { orgUserId: number; 
 
   return (
     <>
-      <Card className="p-4">
+      <Card className="p-4" data-doc-shot="person-membership-card">
         <div className="mb-3 flex items-center gap-2">
           <BadgeCheck className="size-4 text-muted-foreground" />
           <h2 className="text-sm font-medium">Membership</h2>

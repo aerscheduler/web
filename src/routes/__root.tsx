@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { SessionWatcher } from "@/components/session-watcher";
 import { DemoWatcher } from "@/components/demo/demo-watcher";
+import { ConsentBanner } from "@/components/consent-banner";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -65,6 +66,7 @@ function RootLayout() {
         <SessionWatcher />
         <DemoWatcher />
         <Outlet />
+        <ConsentBanner />
         <Toaster closeButton position="bottom-right" />
       </TooltipProvider>
     </ThemeProvider>

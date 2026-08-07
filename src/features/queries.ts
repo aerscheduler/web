@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiList, ApiError, raw } from "@/lib/api";
+import { track } from "@/lib/analytics";
 import type { Paged, PagingState } from "@/lib/paging";
 import {
   coordinateKey,
@@ -583,7 +584,15 @@ export function useCreateReservation() {
   return useMutation({
     mutationFn: (input: CreateReservationInput) =>
       api<Reservation>("/reservations", { method: "POST", body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reservations"] }),
+    onSuccess: () => {
+      // The deepest activation signal there is: a school that books flights is a school
+      // using the product. Tracked here rather than at the several forms that create a
+      // booking, so the dispatch board, the self-serve form and a drag on the calendar
+      // all count. PostHog dedupes nothing, so read this as "bookings created", and use
+      // the funnel's first-occurrence semantics for "reached first booking".
+      track("reservation_created");
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+    },
   });
 }
 

@@ -6,6 +6,8 @@ import { isAuthenticated, isEmailVerifiedSync, needsEmailVerification, postLogin
 import { ApiError } from "@/lib/api";
 import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
+import { track } from "@/lib/analytics";
+import { attributionChannel } from "@/lib/attribution";
 
 export const Route = createFileRoute("/verify-email")({
   beforeLoad: () => {
@@ -26,6 +28,10 @@ function VerifyEmailPage() {
   const goIfVerified = React.useCallback(async () => {
     await rehydrate();
     if (isEmailVerifiedSync()) {
+      // The quietest place to lose a paid signup: they create the account, never find the
+      // email, and are never seen again. Without this event that loss is invisible —
+      // they'd simply look like someone who signed up and did nothing.
+      track("email_verified", { channel: attributionChannel() });
       void navigate({ to: postLoginPath() });
       return true;
     }

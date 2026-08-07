@@ -9,6 +9,8 @@ import { Label } from "@/components/ui/label";
 import { LogoLockup } from "@/components/logo";
 import { GoogleButton, AppleButton, OrDivider } from "@/components/google-button";
 import { BrandPanel } from "./login";
+import { track } from "@/lib/analytics";
+import { attributionChannel } from "@/lib/attribution";
 
 export const Route = createFileRoute("/signup")({
   component: SignupPage,
@@ -29,6 +31,10 @@ function SignupPage() {
     setBusy(true);
     try {
       await register(name.trim(), email.trim(), password);
+      // An account now exists. The marketing site already reported `signup_started` when
+      // they clicked the CTA; this is the other half, and the gap between the two is the
+      // drop-off on this form.
+      track("signup_completed", { method: "password", channel: attributionChannel() });
       await navigate({ to: "/onboarding" });
     } catch (err) {
       setError(

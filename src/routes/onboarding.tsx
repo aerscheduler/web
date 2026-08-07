@@ -20,7 +20,13 @@ import {
   useUpdateOrganization,
 } from "@/features/queries";
 import { api, ApiError } from "@/lib/api";
-import { attributionSource, clearAttribution } from "@/lib/attribution";
+import {
+  attributionChannel,
+  attributionPayload,
+  attributionSource,
+  clearAttribution,
+} from "@/lib/attribution";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -90,7 +96,18 @@ function Onboarding() {
   if (organization?.preferences?.newOrgOnboardingComplete) {
     return <AllSet name={organization.name} />;
   }
-  if (!persona) return <PersonaRouter onPick={setPersona} />;
+  if (!persona)
+    return (
+      <PersonaRouter
+        onPick={(p) => {
+          // The first branch in the funnel. A campaign that sends mostly students when
+          // you are trying to sell to schools is a targeting problem, not a copy problem,
+          // and this is the only event that shows it.
+          track("onboarding_persona_selected", { persona: p, channel: attributionChannel() });
+          setPersona(p);
+        }}
+      />
+    );
   if (persona === "student") return <StudentFlow onBack={() => setPersona(null)} />;
   return <OperationFlow persona={persona} onBack={() => setPersona(null)} />;
 }
@@ -307,6 +324,18 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
         // Which marketing page sent them here, captured at landing. The checklist
         // reads it back to lead with what they were already reading about.
         source: attributionSource(),
+        // The whole campaign tuple, which answers a different question: which ad spend
+        // produced this school. Stored on the org and graded in the weekly report,
+        // because no ad platform can see a school that pays three weeks after clicking.
+        attribution: attributionPayload(),
+      });
+      // The single most important event in the product: a school now exists. Everything
+      // upstream is a cost, and this is the first thing that could become revenue.
+      track("org_created", {
+        org_type: subtype,
+        persona,
+        channel: attributionChannel(),
+        campaign: attributionSource() ?? null,
       });
       clearAttribution();
       try {
@@ -454,6 +483,10 @@ function BillingStep({
   async function startConnect() {
     try {
       const { url } = await connect.mutateAsync();
+      // Recorded before the redirect, because Stripe's hosted onboarding is a different
+      // origin — once we hand off we cannot see whether they finished, only whether they
+      // started. The completion shows up later as Connect being enabled on the org.
+      track("stripe_connect_started", { channel: attributionChannel() });
       window.location.href = url;
     } catch (e) {
       toast.error(apiErr(e));
@@ -583,6 +616,13 @@ function AircraftStep({
             cost: { wetRate: rate, billByHobbsTime: true },
           },
         },
+      });
+      // Activation. A school with no aircraft never books anything and never pays, so
+      // this, not the signup, is the event a campaign should be judged on.
+      track("first_aircraft_added", {
+        template,
+        channel: attributionChannel(),
+        campaign: attributionSource() ?? null,
       });
       toast.success(`${tail.trim().toUpperCase()} is on the schedule.`);
       onCreated(res.id, locId, tail.trim().toUpperCase());

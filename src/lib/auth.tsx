@@ -2,12 +2,14 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
 import { apiRaw, beaconDemoExit, getToken, isTokenExpired, setToken } from "./api";
+import { identify, resetIdentity } from "./analytics";
 import { signInWithGoogle } from "./google";
 import { signInWithApple } from "./apple";
 import {
@@ -335,6 +337,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       /* token invalid — the route guard will redirect to /login */
     }
   }, [apply]);
+
+  /**
+   * Keep analytics pointed at whoever is actually signed in.
+   *
+   * Driven off session state rather than called from each of login/register/OAuth/
+   * switchOrg, so a future sign-in path cannot forget to do it. Signing out resets the
+   * identity, which matters on the shared front-desk computer every flight school has —
+   * without it, the next person's events would be attributed to the last one.
+   */
+  useEffect(() => {
+    if (!session.user) {
+      resetIdentity();
+      return;
+    }
+    // Roles are the single most useful property on a person here. A student, an
+    // instructor and a dispatcher use almost disjoint halves of this console, so any
+    // usage number that isn't split by role is an average of three unrelated things.
+    const roles = rolesFromSession();
+    identify(
+      session.user.id,
+      {
+        email: session.user.email,
+        name: session.user.name,
+        roles,
+        primary_role: roles[0] ?? "none",
+        org_count: session.organizations.length,
+      },
+      session.organization
+        ? { id: session.organization.id, name: session.organization.name }
+        : undefined
+    );
+  }, [session.user, session.organization, session.organizations.length]);
 
   const logout = useCallback(() => {
     // In a demo tab this must clear the DEMO session and nothing else. The

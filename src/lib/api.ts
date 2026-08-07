@@ -1,6 +1,7 @@
 import { API_URL } from "./env";
 import { DEVICE_TIME_ZONE } from "./timezone";
 import { getDemoToken, isDemoTab, setDemoToken } from "./demo";
+import { track } from "./analytics";
 
 /** Injected by vite.config.ts at build time — `aerscheduler-web/<commit>`. */
 declare const __CLIENT_ID__: string;
@@ -295,10 +296,42 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
     } else if (typeof parsed === "string" && parsed) {
       msg = parsed;
     }
+    trackAction(opts.method, path, res.status, false);
     throw new ApiError(res.status, msg, parsed);
   }
 
+  trackAction(opts.method, path, res.status, true);
   return { status: res.status, body: parsed };
+}
+
+/**
+ * Report a write to analytics.
+ *
+ * Every mutation in the console funnels through `raw`, which makes this the one place
+ * that can answer "what are people actually doing in here" without anybody remembering to
+ * instrument a button. Named events (`org_created`, `first_aircraft_added`) still exist
+ * for the handful of moments worth a funnel step; this is the broad usage picture
+ * underneath them.
+ *
+ * Reads are deliberately excluded. They are dominated by background refetches and
+ * polling, so counting them would measure React Query's behaviour rather than a person's.
+ * Pageviews already cover "where did they go".
+ *
+ * Failures are tracked too, and are arguably the more useful half: a `resource` with a
+ * high failure rate is a feature people are trying to use and cannot.
+ */
+function trackAction(method: string | undefined, path: string, status: number, ok: boolean): void {
+  const verb = (method ?? "GET").toUpperCase();
+  if (verb === "GET" || verb === "HEAD") return;
+
+  // Collapse ids so "cancelled a booking" is one row rather than one row per booking.
+  const resource = path
+    .split("?")[0]
+    .split("/")
+    .map((segment) => (/^\d+$/.test(segment) ? ":id" : segment))
+    .join("/");
+
+  track("action", { action: `${verb} ${resource}`, method: verb, resource, status, ok });
 }
 
 /** Request that unwraps the `{ data }` envelope and returns the payload. */

@@ -4,8 +4,6 @@ import {
   CalendarPlus,
   CalendarX2,
   ChartColumnBig,
-  Clock,
-  CreditCard,
   FileText,
   GraduationCap,
   Home,
@@ -24,8 +22,14 @@ import {
   Wrench,
 } from "lucide-react";
 import type { Role } from "@/types/api";
-import { canAccess, canSelfBook } from "@/lib/permissions";
+import { canAccess, canSelfBook, isInstructor, isStaff } from "@/lib/permissions";
 import { SETTINGS_SECTIONS } from "@/lib/settings-sections";
+import { TRAINING_TABS } from "@/lib/training-sections";
+import { MAINTENANCE_SECTIONS } from "@/lib/maintenance-sections";
+import { FACILITIES_TABS } from "@/lib/facilities-sections";
+import { PROFILE_TABS } from "@/lib/profile-sections";
+import { MY_TRAINING_TABS } from "@/lib/my-training-sections";
+import { REPORTS_FIXED_PANES } from "@/lib/reports-sections";
 
 export type NavIcon = typeof LayoutDashboard;
 export type NavItem = {
@@ -33,7 +37,7 @@ export type NavItem = {
   label: string;
   icon: NavIcon;
   /**
-   * Other words for this page, for the command palette only — the rail never reads them.
+   * Other words for this page, for the command palette only, the rail never reads them.
    *
    * They exist because people search for what a page DOES, not what the tab is called:
    * "go no go" finds Compliance, "syllabus" finds Training, "squawk" finds Maintenance.
@@ -46,15 +50,15 @@ export type NavItem = {
 /**
  * Every org-level destination, as ONE flat bucket in its default order. There
  * used to be four micro-groups here (Operations / Money / Compliance /
- * Maintenance) — three of which held a single link, which reads as taxonomy
+ * Maintenance), three of which held a single link, which reads as taxonomy
  * rather than navigation. The rail now shows the first five and tucks the rest
  * behind "More"; the split point is a position in this list, not a category, so
  * a user who drags Maintenance to the top simply gets it in their five.
  *
  * Order matters twice over: it is the out-of-the-box nav, and it is the fallback
  * position for any item a user hasn't explicitly placed (see `mergeNavOrder`).
- * Calendar and Reports sit together near the top — the board and the numbers
- * that follow from it — with Maintenance also in the visible five.
+ * Calendar and Reports sit together near the top, the board and the numbers
+ * that follow from it, with Maintenance also in the visible five.
  */
 const OPERATIONS: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, keywords: ["home", "overview", "today"] },
@@ -102,17 +106,17 @@ export function operationsNav(roles: string[]): NavItem[] {
 }
 
 /**
- * The personal section — every member gets this, and it is deliberately NOT
+ * The personal section, every member gets this, and it is deliberately NOT
  * reorderable or capped: it is short, and its whole value is that a pilot always
- * finds their own things in the same place. (Payment methods & availability live
- * as tabs under Profile, which the account menu at the foot of the rail owns.)
+ * finds their own things in the same place. Payment methods and availability live
+ * as tabs under Profile (the account menu at the foot of the rail owns that page).
  */
 export function youNav(roles: string[]): NavItem[] {
   const R = roles as Role[];
   return [
     { to: "/me", label: "Home", icon: Home, keywords: ["my home", "personal"] },
     { to: "/me/schedule", label: "Schedule", icon: CalendarDays, keywords: ["my flights", "my bookings"] },
-    // Only roles that can actually be seated on a booking — a pure dispatcher
+    // Only roles that can actually be seated on a booking, a pure dispatcher
     // books from the board, not here.
     ...(canSelfBook(R)
       ? [{ to: "/me/book", label: "Book", icon: CalendarPlus, keywords: ["book a flight", "new booking", "reserve"] }]
@@ -137,7 +141,7 @@ export function youNav(roles: string[]): NavItem[] {
 
 /**
  * Destinations that never appear in the rail but that a user can land on and
- * want back quickly — this is most of what makes "Recent" worth having, since
+ * want back quickly, this is most of what makes "Recent" worth having, since
  * the rail itself already holds the org pages.
  */
 const OFF_RAIL: NavItem[] = [
@@ -152,8 +156,6 @@ const OFF_RAIL: NavItem[] = [
   { to: "/notifications", label: "Notifications", icon: Bell, keywords: ["alerts", "inbox", "messages"] },
   { to: "/me/profile", label: "Profile", icon: UserIcon, keywords: ["my account", "name", "password", "contact details"] },
   { to: "/me/notifications", label: "Notification settings", icon: Bell, keywords: ["email preferences", "turn off", "unsubscribe"] },
-  { to: "/me/payment-methods", label: "Payment methods", icon: CreditCard, keywords: ["my card", "credit card", "ach", "bank"] },
-  { to: "/me/availability", label: "Availability", icon: Clock, keywords: ["my hours", "when i work", "unavailable"] },
   { to: "/developer", label: "Developer", icon: TerminalSquare, keywords: ["internal", "support tools", "log in as"] },
 ];
 
@@ -169,8 +171,6 @@ const OFF_RAIL_PATH: Record<string, string[]> = {
   "/me/training": ["You", "My training"],
   "/me/profile": ["You", "Profile"],
   "/me/notifications": ["You", "Profile", "Notification settings"],
-  "/me/payment-methods": ["You", "Profile", "Payment methods"],
-  "/me/availability": ["You", "Profile", "Availability"],
   "/developer": ["Developer"],
 };
 
@@ -184,9 +184,9 @@ const ALL_PAGES: NavItem[] = [
 /**
  * One destination the command palette can offer, with a Stripe-style breadcrumb.
  *
- * `search` is what makes Settings work: its eleven sections share one route and are told
- * apart only by `?tab=`, so a palette entry has to carry the tab or every one of them
- * lands on Organization.
+ * `search` is what makes nested rails work: Settings, Training, Facilities and the rest
+ * share one route per page and are told apart only by a search param, so a palette entry
+ * has to carry that param or every one of them lands on the default pane.
  */
 export type CommandPage = {
   to: string;
@@ -207,7 +207,7 @@ const asCommandPages = (items: NavItem[], section: string): CommandPage[] =>
   }));
 
 /**
- * Every page this member can actually open — the palette's whole "Go to" list.
+ * Every page this member can actually open, the palette's whole "Go to" list.
  *
  * Derived from the SAME registry the rail renders, deliberately: the palette used to keep
  * its own hand-written list of eight destinations, and by the time Training, Reports,
@@ -219,6 +219,10 @@ const asCommandPages = (items: NavItem[], section: string): CommandPage[] =>
  * offer a link that bounces the user straight back out. `/developer` is the exception the
  * route guard owns rather than ROUTE_ACCESS, so the caller passes that answer in.
  */
+function pageKey(page: CommandPage): string {
+  return page.search ? `${page.to}?${new URLSearchParams(page.search)}` : page.to;
+}
+
 export function commandPages(roles: string[], opts: { isDeveloper: boolean }): CommandPage[] {
   const R = roles as Role[];
   const pages = [
@@ -233,17 +237,129 @@ export function commandPages(roles: string[], opts: { isDeveloper: boolean }): C
   ];
 
   // `/me/training` is in both the personal nav and the off-rail list; the first wins.
+  // Nested destinations share a path and differ by search params, so the key includes those.
   const seen = new Set<string>();
   const unique = pages.filter((page) => {
-    if (seen.has(page.to)) return false;
-    seen.add(page.to);
+    const key = pageKey(page);
+    if (seen.has(key)) return false;
+    seen.add(key);
     return true;
   });
 
-  return canAccess("/settings", R) ? [...unique, ...settingsPages()] : unique;
+  return [...unique, ...nestedCommandPages(R)];
 }
 
-/** Each Settings section as its own destination — see `CommandPage.search`. */
+/**
+ * Nested rail/tab destinations that share a parent URL.
+ *
+ * Each parent page's access rule still applies (`canAccess` / role helpers), so the
+ * palette never offers a pane the member cannot open. Settings established the pattern;
+ * Training, Maintenance, Facilities, Reports, Profile and My training follow it.
+ */
+function nestedCommandPages(roles: Role[]): CommandPage[] {
+  const out: CommandPage[] = [];
+
+  if (canAccess("/settings", roles)) {
+    out.push(...settingsPages());
+  }
+
+  if (canAccess("/training", roles)) {
+    for (const tab of TRAINING_TABS) {
+      if (tab.canShow && !tab.canShow(roles)) continue;
+      out.push({
+        to: "/training",
+        label: tab.label,
+        icon: tab.icon,
+        path: ["Operations", "Training", tab.label],
+        keywords: ["training", ...(tab.keywords ?? [])],
+        search: { tab: tab.value },
+      });
+    }
+  }
+
+  if (canAccess("/maintenance", roles)) {
+    for (const section of MAINTENANCE_SECTIONS) {
+      for (const view of section.items) {
+        out.push({
+          to: "/maintenance",
+          label: view.label,
+          icon: view.icon,
+          path: ["Operations", "Maintenance", section.label, view.label],
+          keywords: ["maintenance", ...(view.keywords ?? [])],
+          search: { view: view.value },
+        });
+      }
+    }
+  }
+
+  if (canAccess("/facilities", roles)) {
+    for (const tab of FACILITIES_TABS) {
+      out.push({
+        to: "/facilities",
+        label: tab.label,
+        icon: tab.icon,
+        path: ["Operations", "Facilities", tab.label],
+        keywords: ["facilities", ...(tab.keywords ?? [])],
+        search: { tab: tab.value },
+      });
+    }
+  }
+
+  if (canAccess("/reports", roles)) {
+    for (const pane of REPORTS_FIXED_PANES) {
+      out.push({
+        to: "/reports",
+        label: pane.label,
+        icon: pane.icon,
+        path: ["Operations", "Reports", pane.label],
+        keywords: ["reports", ...(pane.keywords ?? [])],
+        search: { report: pane.value },
+      });
+    }
+  }
+
+  // Guests is a People facet, not a rail, but people search for it by name.
+  if (canAccess("/people", roles) && (isStaff(roles) || isInstructor(roles))) {
+    out.push({
+      to: "/people",
+      label: "Guests",
+      icon: Users,
+      path: ["Operations", "People", "Guests"],
+      keywords: ["people", "guest", "visitor", "non member"],
+      search: { type: "guests" },
+    });
+  }
+
+  for (const tab of PROFILE_TABS) {
+    if (tab.canShow && !tab.canShow(roles)) continue;
+    out.push({
+      to: "/me/profile",
+      label: tab.label,
+      icon: tab.icon,
+      path: ["You", "Profile", tab.label],
+      keywords: ["profile", ...(tab.keywords ?? [])],
+      search: { tab: tab.value },
+    });
+  }
+
+  // Same audience as the personal-nav My training link (student or instructor).
+  if (roles.includes("student") || roles.includes("instructor")) {
+    for (const tab of MY_TRAINING_TABS) {
+      out.push({
+        to: "/me/training",
+        label: tab.label,
+        icon: tab.icon,
+        path: ["You", "My training", tab.label],
+        keywords: ["my training", ...(tab.keywords ?? [])],
+        search: { tab: tab.value },
+      });
+    }
+  }
+
+  return out;
+}
+
+/** Each Settings section as its own destination. See `CommandPage.search`. */
 function settingsPages(): CommandPage[] {
   return SETTINGS_SECTIONS.flatMap((section) =>
     section.tabs.map((tab) => ({
@@ -260,7 +376,7 @@ function settingsPages(): CommandPage[] {
 /**
  * Resolve a pathname to the page it belongs to, so Recent can name it. Sub-paths
  * fold into their page (`/settings/integrations/quickbooks` is its own entry;
- * `/settings/billing` folds into Settings), and `/me` only matches exactly —
+ * `/settings/billing` folds into Settings), and `/me` only matches exactly:
  * every personal page starts with it.
  */
 export function pageForPath(pathname: string): NavItem | null {
@@ -281,8 +397,8 @@ export function isNavItemActive(to: string, pathname: string): boolean {
  * Apply a user's saved order to the items they can actually see.
  *
  * Saved order is a list of paths, not the items themselves, so it survives roles
- * changing and pages coming and going. Anything the user has never placed —
- * a page we ship after they last dragged something — falls back to its default
+ * changing and pages coming and going. Anything the user has never placed
+ * (a page we ship after they last dragged something) falls back to its default
  * position rather than being dumped at the end, which is what keeps a new
  * top-priority page from landing in "More" for every existing user.
  */

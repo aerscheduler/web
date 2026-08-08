@@ -48,17 +48,17 @@ export function useCommandMenu() {
 /**
  * How many "Go to" hits to show at once.
  *
- * There are now roughly forty destinations (every rail page, the personal section, and
- * each Settings section on its own `?tab=`), so an unbounded list buries the record hits
- * under a wall of pages the moment somebody types a common letter. Ranked by how well
- * they match — see {@link rankPages} — and cut here.
+ * There are now dozens of destinations (every rail page, the personal section, and each
+ * nested Settings / Training / Maintenance / Facilities / Profile pane), so an unbounded
+ * list buries the record hits under a wall of pages the moment somebody types a common
+ * letter. Ranked by how well they match (see {@link rankPages}) and cut here.
  */
 const NAV_RESULT_LIMIT = 5;
 
 /**
  * Stripe-style suggested filters. Selecting one scopes `GET /search` to that
  * type (already supported server-side). Keywords drive when the suggestion
- * appears as you type — same idea as Stripe surfacing `date:` for "da".
+ * appears as you type, same idea as Stripe surfacing `date:` for "da".
  */
 const TYPE_FILTERS: {
   type: SearchEntityType;
@@ -182,7 +182,7 @@ function formatResultDate(iso: string, timeZone: string): string {
 
 /**
  * How each server-sent badge should read. Grounded and expired are hard stops;
- * an open squawk is work outstanding; cancelled is neither — it's just a state,
+ * an open squawk is work outstanding; cancelled is neither, it's just a state,
  * and colouring it red implies something went wrong when usually nothing did.
  */
 const BADGE_VARIANT: Record<string, React.ComponentProps<typeof Badge>["variant"]> = {
@@ -195,7 +195,7 @@ const BADGE_VARIANT: Record<string, React.ComponentProps<typeof Badge>["variant"
   Verified: "success",
   Cancelled: "outline",
   // Training. Graduating is the good ending and reads as one; the other three are states
-  // rather than problems — a terminated enrollment is a record, not a failure to fix.
+  // rather than problems, a terminated enrollment is a record, not a failure to fix.
   Graduated: "success",
   "In training": "secondary",
   Terminated: "outline",
@@ -212,7 +212,7 @@ const BADGE_VARIANT: Record<string, React.ComponentProps<typeof Badge>["variant"
  * mentions it in a keyword, which is what stops "cost" offering Settings → Billing above
  * Settings → Cost splitting.
  *
- * With no query at all this is the browse list, and it stays in registry order — the rail's
+ * With no query at all this is the browse list, and it stays in registry order, the rail's
  * own order, so the first things offered are the first things on screen.
  */
 function rankPages(pages: CommandPage[], q: string): CommandPage[] {
@@ -241,7 +241,7 @@ function rankPages(pages: CommandPage[], q: string): CommandPage[] {
 
 /**
  * Owns ⌘K open state. The actual Stripe-style search bar lives in the topbar
- * via {@link CommandMenuSearch} — this provider only shares open/close.
+ * via {@link CommandMenuSearch}, this provider only shares open/close.
  */
 export function CommandMenuProvider({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
@@ -272,7 +272,7 @@ export function CommandMenuSearch() {
   const { open, setOpen } = useCommandMenu();
   const isMobile = useIsMobile();
   const [query, setQuery] = React.useState("");
-  /** Scopes search to one entity type — from a suggested filter or `people:` syntax. */
+  /** Scopes search to one entity type, from a suggested filter or `people:` syntax. */
   const [typeFilter, setTypeFilter] = React.useState<SearchEntityType | null>(null);
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -280,7 +280,7 @@ export function CommandMenuSearch() {
   const R = roles as Role[];
   const tz = useTimeZone();
   // "Show the schedule in my zone" is an explicit opt-out of airport time, and it
-  // has to win over a reservation's own zone — otherwise the palette quietly
+  // has to win over a reservation's own zone, otherwise the palette quietly
   // contradicts the board the member is looking at.
   const prefersOwnZone = useTimeZonePreferences().data?.scheduleTimeZoneMode === "user";
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -344,7 +344,7 @@ export function CommandMenuSearch() {
         navigate({
           to: link.to,
           // People and aircraft resolve to a detail route, which needs its path
-          // param — without this the palette navigates to a literal `$orgUserId`.
+          // param, without this the palette navigates to a literal `$orgUserId`.
           ...(link.params ? { params: link.params } : {}),
           ...(link.search ? { search: link.search } : {}),
         } as Parameters<typeof navigate>[0])
@@ -355,7 +355,7 @@ export function CommandMenuSearch() {
 
   const applyFilter = React.useCallback((type: SearchEntityType) => {
     setTypeFilter(type);
-    // Clear the typed hint ("peo") — the chip is the filter now.
+    // Clear the typed hint ("peo"), the chip is the filter now.
     setQuery("");
   }, []);
 
@@ -400,7 +400,7 @@ export function CommandMenuSearch() {
   const actionQ = highlightQuery.toLowerCase();
   const showActions =
     !typed || "sign out".includes(actionQ) || "logout".includes(actionQ) || "signout".includes(actionQ);
-  // Only claim "nothing found" once the answer is actually in — a debounce gap
+  // Only claim "nothing found" once the answer is actually in, a debounce gap
   // would otherwise flash "No results" over hits that are one tick away.
   const settled = !search.isFetching;
   const showEmpty =
@@ -415,7 +415,7 @@ export function CommandMenuSearch() {
       inputRef.current?.blur();
       return;
     }
-    // Backspace on an empty query clears the type chip — same muscle
+    // Backspace on an empty query clears the type chip, same muscle
     // memory as Stripe/Notion filter tokens.
     if (e.key === "Backspace" && query === "" && typeFilter) {
       e.preventDefault();
@@ -440,7 +440,7 @@ export function CommandMenuSearch() {
         run(() =>
           navigate({
             to: page.to,
-            // Settings sections share one route and differ only by `?tab=`.
+            // Nested panes share one route and differ only by a search param.
             ...(page.search ? { search: page.search } : {}),
           } as Parameters<typeof navigate>[0])
         )
@@ -467,7 +467,7 @@ export function CommandMenuSearch() {
     </button>
   ) : null;
 
-  // —— Mobile: topbar trigger + full-screen sheet ——
+  // , ,  Mobile: topbar trigger + full-screen sheet , , 
   if (isMobile) {
     return (
       <>
@@ -536,7 +536,7 @@ export function CommandMenuSearch() {
     );
   }
 
-  // —— Desktop: inline field + floating dropdown ——
+  // , ,  Desktop: inline field + floating dropdown , , 
   return (
     <>
       {open && (
@@ -740,8 +740,7 @@ function SearchResults({
       {showActions && (
         <>
           <CommandSeparator />
-          {/* Theme lives in Settings → Appearance and Profile → Appearance; it
-              doesn't earn a slot in the command palette. */}
+          {/* Theme switching is not a command-palette destination. */}
           <CommandGroup heading="Actions">
             <CommandItem value="sign out logout" onSelect={onSignOut}>
               <LogOut className="text-muted-foreground" />
@@ -793,7 +792,7 @@ function ResultItem({
 }) {
   const Icon = SEARCH_TYPE_ICON[result.type];
   // A reservation carries the AIRPORT's zone and renders in it, the same rule
-  // the board follows — unless this member asked to see schedules in their own.
+  // the board follows, unless this member asked to see schedules in their own.
   // Everything else has no clock of its own and uses the resolved zone.
   const zone = prefersOwnZone ? fallbackZone : result.timeZone ?? fallbackZone;
   const when = result.date ? formatResultDate(result.date, zone) : null;

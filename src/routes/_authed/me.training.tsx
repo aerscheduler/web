@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, FileSignature, GraduationCap, Info, ScrollText } from "lucide-react";
+import { CheckCircle2, FileSignature, GraduationCap, Info } from "lucide-react";
 import {
   useCountersignLessonRecord,
   useEndorsements,
@@ -20,9 +20,10 @@ import {
 } from "@/lib/training";
 import type { EnrollmentProgress } from "@/types/api";
 import { useAuth } from "@/lib/auth";
+import { MY_TRAINING_RAIL } from "@/lib/my-training-sections";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
-import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
+import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { EmptyState, ErrorState } from "@/components/states";
 import { EndorsementsCard } from "@/components/training/endorsements-card";
 import { Card } from "@/components/ui/card";
@@ -35,7 +36,7 @@ import { Skeleton } from "@/components/ui/skeleton";
  * A student's own training record.
  *
  * §141.101 makes the school hand over a copy of this on request, so it is not a courtesy
- * screen — it is the student's record, and it deliberately shows the same numbers the
+ * screen, it is the student's record, and it deliberately shows the same numbers the
  * school sees rather than a simplified version. The one thing they can DO here is
  * countersign, which is their signature on what their instructor recorded.
  *
@@ -53,19 +54,14 @@ export const Route = createFileRoute("/_authed/me/training")({
  * Two things, and only one of them is a course.
  *
  * Endorsements used to sit under the last progress card, which put the one thing with an
- * expiry date on it — the 90-day solo — at the bottom of a scroll, and hid it entirely
+ * expiry date on it (the 90-day solo) at the bottom of a scroll, and hid it entirely
  * from a pilot who is not currently enrolled on anything. They are a section of their own
  * for the same reason the school's copy of this page splits: progress is read weekly,
  * endorsements are checked the morning of a flight.
+ *
+ * The rail list lives in `lib/my-training-sections.ts` so the command palette can offer
+ * each as a destination.
  */
-const SECTIONS: RailSection[] = [
-  {
-    items: [
-      { value: "progress", label: "Progress", icon: GraduationCap },
-      { value: "endorsements", label: "Endorsements", icon: ScrollText },
-    ],
-  },
-];
 
 function MyTrainingPage() {
   const navigate = Route.useNavigate();
@@ -92,7 +88,7 @@ function MyTrainingPage() {
       </TableView.Header>
 
       <div className={RAIL_ROW}>
-        <SectionRail label="My training" sections={SECTIONS} value={active} onChange={pick} />
+        <SectionRail label="My training" sections={MY_TRAINING_RAIL} value={active} onChange={pick} />
 
         <div className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto">
           {active === "progress" ? (
@@ -120,7 +116,7 @@ function MyTrainingPage() {
 }
 
 /**
- * `EndorsementsCard` renders nothing when a pilot has none and nobody here could sign one —
+ * `EndorsementsCard` renders nothing when a pilot has none and nobody here could sign one , 
  * right when it sat under the progress cards, wrong as a whole section, where it leaves a
  * blank pane that reads as a page that failed to load. So that exact case is stated here
  * instead; an instructor with none still gets the card, because they can sign.
@@ -136,7 +132,7 @@ function MyEndorsements({ orgUserId }: { orgUserId: number | null }) {
       <EmptyState
         icon={ScrollText}
         title="No endorsements yet"
-        body="Anything an instructor signs for you — your solo, a cross-country, a knowledge test — shows up here with its expiry."
+        body="Anything an instructor signs for you, your solo, a cross-country, a knowledge test, shows up here with its expiry."
       />
     );
   }
@@ -223,7 +219,7 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
  * The student's one write.
  *
  * Only records the instructor has signed and the student has not, and never a superseded
- * one — countersigning a record that has already been replaced would be signing something
+ * one, countersigning a record that has already been replaced would be signing something
  * that no longer counts.
  */
 function ToCountersign({ progress }: { progress: EnrollmentProgress }) {

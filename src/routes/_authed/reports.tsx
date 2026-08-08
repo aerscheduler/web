@@ -1,11 +1,16 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { DateRange } from "react-day-picker";
-import { Building2, CalendarClock, FileBarChart, LayoutDashboard } from "lucide-react";
+import { Building2, FileBarChart } from "lucide-react";
 import { useReportCatalog, useReportTimeZone } from "@/features/reports";
 import { useReportsReadiness } from "@/features/onboarding";
 import { hasEnoughData, ReportsWelcome } from "@/components/reports/welcome/reports-welcome";
 import { guardRoute } from "@/lib/permissions";
+import {
+  REPORTS_FIXED_PANES,
+  REPORTS_OVERVIEW,
+  REPORTS_SCHEDULED,
+} from "@/lib/reports-sections";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
@@ -45,12 +50,13 @@ export const Route = createFileRoute("/_authed/reports")({
  * Readable names rather than the old `__overview__` sentinels, now that they are
  * in a URL somebody pastes. Neither may become an id in the server's report
  * registry: the rail's value is the search value, so a report called "overview"
- * would be a report nobody could open.
+ * would be a report nobody could open. Shared with the command palette via
+ * `lib/reports-sections.ts`.
  */
-const OVERVIEW = "overview";
+const OVERVIEW = REPORTS_OVERVIEW;
 /** Not a report. A list of what the school emails out, sitting with Overview
  *  above the categories for the same reason: it is about all of them. */
-const SCHEDULES = "scheduled";
+const SCHEDULES = REPORTS_SCHEDULED;
 
 /**
  * Reports.
@@ -61,7 +67,7 @@ const SCHEDULES = "scheduled";
  * file changing.
  *
  * The catalog is already filtered to what this user may run, so a dispatcher
- * simply does not see a Financial section — there is nothing here to hide.
+ * simply does not see a Financial section, there is nothing here to hide.
  *
  * Overview sits above the categories rather than inside one, because it is not a
  * report: it is the summary of all of them, and every figure on it opens the
@@ -76,12 +82,12 @@ function ReportsPage() {
 
   // A school with nothing to report on gets shown what these dashboards WILL look
   // like, not an accurate board of zeros. `hasEnoughData` is the whole switch, so
-  // this page goes back to normal on its own — see components/reports/welcome.
+  // this page goes back to normal on its own, see components/reports/welcome.
   const readiness = useReportsReadiness(!!organization);
   const [skippedWelcome, setSkippedWelcome] = useState(false);
 
   // Leaving Overview for a report is a state swap, not a navigation, so the
-  // router's blocker never sees it — but it unmounts the dashboard and takes any
+  // router's blocker never sees it, but it unmounts the dashboard and takes any
   // unsaved layout with it. The dashboard tells us when that would cost work.
   const [dashboardDirty, setDashboardDirty] = useState(false);
 
@@ -137,10 +143,11 @@ function ReportsPage() {
   const sections = useMemo<RailSection[]>(
     () => [
       {
-        items: [
-          { value: OVERVIEW, label: "Overview", icon: LayoutDashboard },
-          { value: SCHEDULES, label: "Scheduled reports", icon: CalendarClock },
-        ],
+        items: REPORTS_FIXED_PANES.map((pane) => ({
+          value: pane.value,
+          label: pane.label,
+          icon: pane.icon,
+        })),
       },
       ...categories.map((category) => ({
         label: category.label,
@@ -170,7 +177,7 @@ function ReportsPage() {
   ) => {
     if (!(await mayLeaveOverview())) return;
     // The window comes from the tile that was clicked, since tiles can each
-    // carry their own — falling back to the page default when there isn't one.
+    // carry their own, falling back to the page default when there isn't one.
     setLink({ reportId, filters, range: range ?? fallbackRange, nonce: Date.now() });
     show(reportId);
   };
@@ -228,7 +235,7 @@ function ReportsPage() {
 
       {catalog.isLoading ? (
         // An explicit height as well as flex-1: the box has no content, so below
-        // md — where the page is no longer bounded — flex-1 alone measures zero
+        // md, where the page is no longer bounded, flex-1 alone measures zero
         // and the loading state is invisible.
         <div className="min-h-64 flex-1 animate-pulse rounded-lg bg-muted md:min-h-0" />
       ) : reports.length === 0 ? (

@@ -1,7 +1,13 @@
+import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Megaphone } from "lucide-react";
+import { Megaphone, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { parseISO } from "date-fns";
-import { pageRows, useAnnouncementsPage } from "@/features/queries";
+import { toast } from "sonner";
+import {
+  pageRows,
+  useAnnouncementsPage,
+  useDeleteAnnouncement,
+} from "@/features/queries";
 import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";
 import { cn } from "@/lib/utils";
@@ -13,7 +19,19 @@ import { ListSearchBar } from "@/components/list-filters";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
+import { useAuth } from "@/lib/auth";
+import { isAdmin } from "@/lib/permissions";
+import { ApiError } from "@/lib/api";
+import { useConfirm } from "@/components/confirm-dialog";
+import { AnnouncementFormDialog } from "@/components/operations/announcement-form-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const Route = createFileRoute("/_authed/operations/announcements")({
   validateSearch: (s) => validateListSearch(s, []),
@@ -23,16 +41,16 @@ export const Route = createFileRoute("/_authed/operations/announcements")({
 /**
  * Every notice the school has posted, in full.
  *
- * The member home shows the two most recent as a courtesy; this is the page
- * that actually holds them, and the one the ⌘K palette links an announcement
- * hit to. Read-only by design: posting is admin-only and already lives in the
- * app — the console's job here is finding one you were told about.
+ * Admins post, edit and delete here. The member home shows the two most recent as a
+ * courtesy; this is the page that holds them, and the one the ⌘K palette links an
+ * announcement hit to.
  *
- * Paged, searched and split live/expired by the server. All three used to
- * happen here over one fetched array, which was fine only while the whole list
- * arrived at once.
+ * Paged, searched and split live/expired by the server. All three used to happen here
+ * over one fetched array, which was fine only while the whole list arrived at once.
  */
 function AnnouncementsPage() {
+  const { roles } = useAuth();
+  const admin = isAdmin(roles);
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
   const { search, setSearch, debouncedQ } = useListQueryState({
@@ -42,15 +60,6 @@ function AnnouncementsPage() {
     facetKeys: [],
   });
 
-  // Live and expired used to be two client-split sections of one fetched array.
-  // That stopped working the moment the list paged — page one could be entirely
-  // live, and the "Expired" heading would vanish while expired notices existed.
-  // Now it is one paged list, newest first, with expired rows dimmed and badged.
-  //
-  // There is deliberately no Expired FILTER, even though the API takes one:
-  // `AnnouncementService.deleteExpired()` hard-deletes expired notices on a
-  // schedule, so such a filter would almost always answer "none" and would be
-  // advertising a view of rows the server has already reaped.
   const filter = { q: debouncedQ };
   const paging = usePaging({ resetKey: filter });
   const q = useAnnouncementsPage(filter, paging);
@@ -58,12 +67,32 @@ function AnnouncementsPage() {
   const now = Date.now();
   const isLive = (a: Announcement) => !a.expireAt || parseISO(a.expireAt).getTime() >= now;
 
+  const [formOpen, setFormOpen] = React.useState(false);
+  const [editing, setEditing] = React.useState<Announcement | null>(null);
+
+  function openCreate() {
+    setEditing(null);
+    setFormOpen(true);
+  }
+
+  function openEdit(a: Announcement) {
+    setEditing(a);
+    setFormOpen(true);
+  }
+
   return (
     <TableView>
       <TableView.Header>
         <PageHeader
           title="Announcements"
-          subtitle="Notices posted to the school. Post and edit them from the mobile app."
+          subtitle="Notices posted to the school."
+          actions={
+            admin ? (
+              <Button onClick={openCreate} data-doc-shot="announcements-new-button">
+                <Plus className="size-4" /> New announcement
+              </Button>
+            ) : undefined
+          }
         />
         <ListSearchBar
           value={search}
@@ -89,7 +118,16 @@ function AnnouncementsPage() {
             body={
               debouncedQ
                 ? "Try a different word from the title or the message."
-                : "Notices posted from the app show up here for everyone."
+                : admin
+                  ? "Post the first notice so members see it on home and get notified."
+                  : "When an admin posts a notice, it shows up here for everyone."
+            }
+            action={
+              admin && !debouncedQ ? (
+                <Button onClick={openCreate}>
+                  <Plus className="size-4" /> New announcement
+                </Button>
+              ) : undefined
             }
           />
         </Card>
@@ -98,7 +136,13 @@ function AnnouncementsPage() {
           <TableView.Body>
             <div className={cn("space-y-3", q.isFetching && "opacity-60")}>
               {announcements.map((a) => (
-                <AnnouncementCard key={a.id} announcement={a} expired={!isLive(a)} />
+                <AnnouncementCard
+                  key={a.id}
+                  announcement={a}
+                  expired={!isLive(a)}
+                  canManage={admin}
+                  onEdit={() => openEdit(a)}
+                />
               ))}
             </div>
           </TableView.Body>
@@ -110,6 +154,14 @@ function AnnouncementsPage() {
           />
         </>
       )}
+
+      {admin && (
+        <AnnouncementFormDialog
+          open={formOpen}
+          onOpenChange={setFormOpen}
+          announcement={editing}
+        />
+      )}
     </TableView>
   );
 }
@@ -117,11 +169,33 @@ function AnnouncementsPage() {
 function AnnouncementCard({
   announcement,
   expired = false,
+  canManage,
+  onEdit,
 }: {
   announcement: Announcement;
   expired?: boolean;
+  canManage: boolean;
+  onEdit: () => void;
 }) {
   const { title, message, expireAt, createdAt, forRoles } = announcement;
+  const remove = useDeleteAnnouncement();
+  const confirm = useConfirm();
+
+  async function onDelete() {
+    const ok = await confirm({
+      title: `Delete "${title}"?`,
+      description: "The notice leaves the board for everyone. This cannot be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await remove.mutateAsync(announcement.id);
+      toast.success("Announcement deleted");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't delete the announcement");
+    }
+  }
 
   return (
     <Card className={expired ? "p-4 opacity-60" : "p-4"}>
@@ -133,8 +207,6 @@ function AnnouncementCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-medium">{title}</h3>
             {expired && <Badge variant="outline">Expired</Badge>}
-            {/* Targeting is informational here: the server decides who a post
-                reaches in search, and everyone can read the board itself. */}
             {(forRoles ?? []).map((role) => (
               <Badge key={role} variant="secondary">
                 {role}
@@ -149,6 +221,33 @@ function AnnouncementCard({
             {expireAt && ` · ${expired ? "Expired" : "Expires"} ${formatDate(expireAt, "MMM d, yyyy")}`}
           </p>
         </div>
+        {canManage && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="shrink-0"
+                aria-label="Announcement actions"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onEdit}>
+                <Pencil className="size-4" /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => void onDelete()}
+                disabled={remove.isPending}
+              >
+                <Trash2 className="size-4" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </Card>
   );

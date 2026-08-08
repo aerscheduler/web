@@ -1,10 +1,12 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { useBilling, useRampIn, useRampOut } from "@/features/queries";
+import { useBilling, useLocations, useRampIn, useRampOut, useUpdateResourceLocation } from "@/features/queries";
 import type { Reservation } from "@/types/api";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { usesBriefingNotMeters } from "@/components/schedule/close-out";
 import { ResponsiveModal } from "@/components/responsive-modal";
+import { Combobox, type ComboOption } from "@/components/combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DocsHint } from "@/components/docs-hint";
@@ -60,9 +62,24 @@ export function RampModal({
   const plane = reservation?.resource?.type?.plane ?? null;
   const review = reservation?.review ?? null;
 
+  const { organization } = useAuth();
+  const updateHomeBaseOnRampIn = Boolean(
+    organization?.preferences?.updateResourceLocationOnRampIn
+  );
+  const resourceId = reservation?.resource?.id ?? 0;
+  const showLocationPicker =
+    mode === "in" &&
+    updateHomeBaseOnRampIn &&
+    resourceId > 0 &&
+    reservation != null &&
+    !usesBriefingNotMeters(reservation);
+
+  const locationsQ = useLocations({ enabled: open && showLocationPicker });
+  const updateLocation = useUpdateResourceLocation(resourceId);
+
   const rampOut = useRampOut(reservation?.id ?? 0);
   const rampIn = useRampIn(reservation?.id ?? 0);
-  const busy = rampOut.isPending || rampIn.isPending;
+  const busy = rampOut.isPending || rampIn.isPending || updateLocation.isPending;
 
   //Instruction time is optional extra detail on a dual flight, and the ONLY figure a booking
   //with no meters has — so a ground has to be offered it too, or its close-out has no field
@@ -75,6 +92,7 @@ export function RampModal({
   const [hobbs, setHobbs] = React.useState("");
   const [tach, setTach] = React.useState("");
   const [briefing, setBriefing] = React.useState("");
+  const [locationId, setLocationId] = React.useState<string>("");
   // Surfaced only after a submit attempt, so we don't nag on a freshly opened modal.
   const [showErrors, setShowErrors] = React.useState(false);
 
@@ -93,10 +111,14 @@ export function RampModal({
       setTach(review?.tachTimeOut != null ? (review.tachTimeOut / 10).toFixed(1) : planeTach);
     }
     setBriefing("");
+    // Prefer the booking's field, then the aircraft's current home base.
+    const seedLoc =
+      reservation?.location?.id ?? reservation?.resource?.location?.id ?? null;
+    setLocationId(seedLoc != null ? String(seedLoc) : "");
     setShowErrors(false);
     // Re-seed when meters arrive from the detail refetch (same reservation id).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, mode, reservation?.id, plane?.hobbsTime, plane?.tachTime, review?.hobbsTimeOut, review?.tachTimeOut]);
+  }, [open, mode, reservation?.id, plane?.hobbsTime, plane?.tachTime, review?.hobbsTimeOut, review?.tachTimeOut, reservation?.location?.id, reservation?.resource?.location?.id]);
 
   const hobbsNum = toNumber(hobbs); // decimal hours
   const tachNum = toNumber(tach);
@@ -141,6 +163,19 @@ export function RampModal({
       ? "Enter a valid number"
       : null;
 
+  const locationErr = showLocationPicker && !locationId ? "Pick the home base" : null;
+
+  const locationOptions: ComboOption[] = React.useMemo(
+    () =>
+      (locationsQ.data ?? [])
+        .map((loc) => ({
+          value: String(loc.id),
+          label: loc.name ?? `Location #${loc.id}`,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [locationsQ.data]
+  );
+
   const hoursFlown =
     mode === "in" && hobbsNum != null && outHobbsHrs != null ? hobbsNum - outHobbsHrs : null;
 
@@ -158,10 +193,20 @@ export function RampModal({
 
   async function submit() {
     if (!reservation) return;
-    if (hobbsErr || tachErr || briefingErr) {
+    if (hobbsErr || tachErr || briefingErr || locationErr) {
       setShowErrors(true);
-      const firstInvalid = hobbsErr ? "ramp-hobbs" : tachErr ? "ramp-tach" : "ramp-briefing";
-      document.getElementById(firstInvalid)?.focus();
+      const firstInvalid = hobbsErr
+        ? "ramp-hobbs"
+        : tachErr
+          ? "ramp-tach"
+          : briefingErr
+            ? "ramp-briefing"
+            : "ramp-location";
+      if (firstInvalid === "ramp-location") {
+        document.getElementById("ramp-location")?.querySelector("button")?.focus();
+      } else {
+        document.getElementById(firstInvalid)?.focus();
+      }
       return;
     }
     // A BOOKING WITH NO METERS SUBMITS ITS BRIEFING, AND NOTHING ELSE.
@@ -195,6 +240,11 @@ export function RampModal({
         await rampOut.mutateAsync({ hobbsTimeOut: toDeci(hobbsNum), tachTimeOut: toDeci(tachNum) });
         toast.success("Aircraft ramped out");
       } else {
+        // Same order as the iPhone sheet: move the home base first, then record meters.
+        // A failed location update must not leave meters written against the wrong field.
+        if (showLocationPicker && locationId) {
+          await updateLocation.mutateAsync(Number(locationId));
+        }
         await rampIn.mutateAsync({
           hobbsTimeIn: toDeci(hobbsNum),
           tachTimeIn: toDeci(tachNum),
@@ -310,6 +360,31 @@ export function RampModal({
               {noMeters
                 ? "Billed at the instructor rate."
                 : "Optional. Billed at the instructor rate."}
+            </p>
+          </div>
+        )}
+
+        {showLocationPicker && (
+          <div className="space-y-1.5" data-doc-shot="ramp-in-home-base">
+            <Label htmlFor="ramp-location">Home base</Label>
+            <div id="ramp-location">
+              <Combobox
+                options={locationOptions}
+                value={locationId}
+                onChange={setLocationId}
+                placeholder={
+                  locationsQ.isLoading ? "Loading locations…" : "Select home base"
+                }
+                searchPlaceholder="Search locations…"
+                emptyText="No locations found."
+              />
+            </div>
+            {showErrors && locationErr && (
+              <p className="text-xs text-destructive">{locationErr}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Moves this aircraft&rsquo;s home base when you ramp in. Your school turned this on
+              under Settings → School.
             </p>
           </div>
         )}

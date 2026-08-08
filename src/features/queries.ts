@@ -577,6 +577,53 @@ export function useAnnouncements(opts?: QueryOpts) {
  * `placeholderData: keepPrevious` keeps the last hits on screen while the next
  * request is in flight, so the list refines instead of blanking as you type.
  */
+/** Admin: post a school notice. `POST /announcements`. */
+export function useCreateAnnouncement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      title: string;
+      message: string;
+      expireAt?: string | null;
+      forRoles?: Role[] | null;
+    }) => api<Announcement>("/announcements", { method: "POST", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["announcements"] });
+    },
+  });
+}
+
+/** Admin: edit a notice. `PATCH /announcements/:id`. */
+export function useUpdateAnnouncement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...input
+    }: {
+      id: number;
+      title?: string;
+      message?: string;
+      expireAt?: string | null;
+      forRoles?: Role[] | null;
+    }) => api<Announcement>(`/announcements/${id}`, { method: "PATCH", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["announcements"] });
+    },
+  });
+}
+
+/** Admin: remove a notice. `DELETE /announcements/:id`. */
+export function useDeleteAnnouncement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<Announcement>(`/announcements/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["announcements"] });
+    },
+  });
+}
+
 /** One page of announcements, for the Announcements table. */
 export function useAnnouncementsPage(
   filter: { q?: string; expired?: boolean } | undefined,
@@ -746,6 +793,28 @@ export function useRampIn(id: number) {
       void qc.invalidateQueries({ queryKey: ["reservations"] });
       void qc.invalidateQueries({ queryKey: ["resources"] });
       void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+/**
+ * Move an aircraft's home base. `POST /resources/:id/location` with `{ locationId }`.
+ *
+ * Only works when the org preference `updateResourceLocationOnRampIn` is on; otherwise
+ * the server answers 403. Called from ramp-in before the meter readings, same order as
+ * the iPhone app.
+ */
+export function useUpdateResourceLocation(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (locationId: number) =>
+      api<Resource>(`/resources/${resourceId}/location`, {
+        method: "POST",
+        body: { locationId },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
     },
   });
 }
@@ -1302,6 +1371,20 @@ export function useUpdateOrganization() {
 export function useDeleteOrganization() {
   return useMutation({
     mutationFn: () => api<void>("/organizations/", { method: "DELETE" }),
+  });
+}
+
+/**
+ * Leave a school you belong to. `POST /organizations/leave/:orgId`.
+ *
+ * The server refuses when you are the sole admin or sole owner. The session stays pinned
+ * to the org you left until the caller signs out or switches, so callers must do one of
+ * those next. Demo sessions cannot leave (demoGuard).
+ */
+export function useLeaveOrganization() {
+  return useMutation({
+    mutationFn: (orgId: number) =>
+      api<void>(`/organizations/leave/${orgId}`, { method: "POST" }),
   });
 }
 

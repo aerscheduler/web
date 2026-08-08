@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -34,7 +35,18 @@ function blankRow(): LineRow {
   return { key: nextKey++, name: "", qty: "1", unitPrice: 0 };
 }
 
-/** Create a custom invoice: pick a customer, add line items, set a memo and optional due date. */
+function looksLikeEmail(v: string): boolean {
+  // Enough to catch an obvious typo before the server does. Not RFC-strict.
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
+}
+
+/**
+ * Create a custom invoice: pick a member or a guest (name + email), add line items,
+ * set a memo and optional due date.
+ *
+ * Guest recipients used to be iPhone-only. The API has always accepted
+ * `{ guest: { name, email } }` on `POST /invoices`; the console only offered members.
+ */
 export function CreateInvoiceDialog({
   open,
   onOpenChange,
@@ -48,7 +60,10 @@ export function CreateInvoiceDialog({
   const members = useMembers();
   const create = useCreateInvoice();
 
+  const [guestMode, setGuestMode] = useState(false);
   const [customerId, setCustomerId] = useState<string>("");
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
   const [memo, setMemo] = useState("");
   const [dueAt, setDueAt] = useState<Date | undefined>(undefined);
   const [rows, setRows] = useState<LineRow[]>([blankRow()]);
@@ -59,7 +74,10 @@ export function CreateInvoiceDialog({
   // Reset the form each time the modal opens, applying any draft prefill.
   useEffect(() => {
     if (!open) return;
+    setGuestMode(false);
     setCustomerId(draft?.customerId ?? "");
+    setGuestName("");
+    setGuestEmail("");
     setMemo(draft?.memo ?? "");
     setDueAt(undefined);
     setRows(
@@ -94,10 +112,13 @@ export function CreateInvoiceDialog({
   }, 0);
 
   const validRows = rows.filter((r) => r.name.trim() && Number(r.qty) > 0);
-  //Gates "Add line item": the row you'd be pushing down has to say what it is first.
   const lastRowIsDescribed = (rows[rows.length - 1]?.name ?? "").trim().length > 0;
-  // Per-field validity, derived every render so inline messages clear as you fix them.
-  const customerError = !customerId;
+
+  const customerError = !guestMode && !customerId;
+  const guestNameError = guestMode && !guestName.trim();
+  const guestEmailError =
+    guestMode && (!guestEmail.trim() || !looksLikeEmail(guestEmail));
+  const recipientError = customerError || guestNameError || guestEmailError;
   const itemsError = validRows.length === 0;
 
   function updateRow(key: number, patch: Partial<LineRow>) {
@@ -106,10 +127,11 @@ export function CreateInvoiceDialog({
 
   function submit() {
     if (create.isPending) return;
-    // Instead of a silently-disabled button, tell the user exactly what's missing.
-    if (customerError || itemsError) {
+    if (recipientError || itemsError) {
       setShowErrors(true);
-      if (customerError) {
+      if (guestMode) {
+        document.getElementById(guestNameError ? "invoice-guest-name" : "invoice-guest-email")?.focus();
+      } else if (customerError) {
         document.getElementById("invoice-customer")?.querySelector("button")?.focus();
       } else {
         document.getElementById("invoice-item-0")?.focus();
@@ -120,7 +142,9 @@ export function CreateInvoiceDialog({
       ? Math.max(1, Math.ceil((dueAt.getTime() - Date.now()) / 86_400_000))
       : undefined;
     const input: CreateInvoiceInput = {
-      customer: { id: Number(customerId) },
+      ...(guestMode
+        ? { guest: { name: guestName.trim(), email: guestEmail.trim() } }
+        : { customer: { id: Number(customerId) } }),
       memo: memo.trim() || undefined,
       dueAt: dueAt ? dueAt.toISOString() : undefined,
       dueIn,
@@ -149,22 +173,75 @@ export function CreateInvoiceDialog({
       className="sm:max-w-lg"
     >
       <div className="space-y-4" data-doc-shot="create-invoice-dialog">
-        <div className="space-y-1.5">
-          <Label htmlFor="invoice-customer">Customer</Label>
-          <div id="invoice-customer">
-            <Combobox
-              options={options}
-              value={customerId}
-              onChange={setCustomerId}
-              placeholder={members.isLoading ? "Loading members…" : "Select a customer"}
-              searchPlaceholder="Search members…"
-              emptyText="No members found."
-            />
+        <div className="flex items-center justify-between gap-4 rounded-lg border border-border px-3 py-2.5">
+          <div className="min-w-0">
+            <Label htmlFor="invoice-guest-mode" className="cursor-pointer">
+              Guest recipient
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Bill someone who is not a member, by name and email. Stripe emails them a pay link.
+            </p>
           </div>
-          {showErrors && customerError && (
-            <p className="text-xs text-destructive">Select a customer.</p>
-          )}
+          <Switch
+            id="invoice-guest-mode"
+            checked={guestMode}
+            onCheckedChange={(v) => {
+              setGuestMode(v);
+              setShowErrors(false);
+            }}
+          />
         </div>
+
+        {guestMode ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="invoice-guest-name">Name</Label>
+              <Input
+                id="invoice-guest-name"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                placeholder="Jordan Guest"
+                aria-invalid={showErrors && guestNameError}
+              />
+              {showErrors && guestNameError && (
+                <p className="text-xs text-destructive">Enter a name.</p>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="invoice-guest-email">Email</Label>
+              <Input
+                id="invoice-guest-email"
+                type="email"
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
+                placeholder="jordan@example.com"
+                aria-invalid={showErrors && !!guestEmailError}
+              />
+              {showErrors && guestEmailError && (
+                <p className="text-xs text-destructive">
+                  {guestEmail.trim() ? "Enter a valid email." : "Enter an email."}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <Label htmlFor="invoice-customer">Customer</Label>
+            <div id="invoice-customer">
+              <Combobox
+                options={options}
+                value={customerId}
+                onChange={setCustomerId}
+                placeholder={members.isLoading ? "Loading members…" : "Select a customer"}
+                searchPlaceholder="Search members…"
+                emptyText="No members found."
+              />
+            </div>
+            {showErrors && customerError && (
+              <p className="text-xs text-destructive">Select a customer.</p>
+            )}
+          </div>
+        )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -173,11 +250,6 @@ export function CreateInvoiceDialog({
           </div>
 
           <div className="space-y-2">
-            {/* On a phone all four controls on one line squeezed the description down to
-                a few characters — the field you actually type the most into. Below `sm`
-                the description gets its own full-width line with qty/price/remove
-                beneath it, and each item sits in its own bordered card so two items
-                don't read as one run-on row. From `sm` up it stays the compact row. */}
             {rows.map((r, i) => (
               <div
                 key={r.key}
@@ -227,8 +299,6 @@ export function CreateInvoiceDialog({
                       onCentsChange={(cents) => updateRow(r.key, { unitPrice: cents })}
                     />
                   </div>
-                  {/* The remove button lives in the mobile header above; from sm up it
-                      belongs at the end of the row. */}
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -250,10 +320,6 @@ export function CreateInvoiceDialog({
             ))}
           </div>
 
-          {/* Can't stack up blank rows: an unnamed line is an invoice line the customer
-              can't read, and three empty rows above the one you're typing in is just
-              noise. Disabled rather than hidden, with the reason said out loud — a
-              control that vanishes is harder to understand than one that explains itself. */}
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"

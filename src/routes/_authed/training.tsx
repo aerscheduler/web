@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Archive, BookOpen, GraduationCap, Lock, PlusCircle, ShieldCheck, Sparkles } from "lucide-react";
+import { Archive, BookOpen, GraduationCap, Lock, PlusCircle, Sparkles } from "lucide-react";
 import {
   useCourses,
   useCurriculumTemplates,
@@ -8,10 +8,11 @@ import {
   useCreateCourse,
   useEnrollments,
 } from "@/features/queries";
-import { guardRoute, isAdmin } from "@/lib/permissions";
+import { guardRoute } from "@/lib/permissions";
 import { rolesFromSession } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { PART_LABEL, STATUS_LABEL } from "@/lib/training";
+import { TRAINING_TABS } from "@/lib/training-sections";
 import type { Course, CourseVersionSummary } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { DocsHint, DocsLink } from "@/components/docs-hint";
@@ -46,7 +47,7 @@ export const Route = createFileRoute("/_authed/training")({
 /**
  * Which version a course card should talk about.
  *
- * The published one, if there is a live one — that is what students are actually being
+ * The published one, if there is a live one, that is what students are actually being
  * trained against. Otherwise the newest draft, because a course with only a draft is a
  * course somebody is still writing and the draft is the thing they want to open.
  */
@@ -74,14 +75,14 @@ function VersionBadge({ version }: { version?: CourseVersionSummary }) {
 /**
  * Training is three separate jobs sharing a page: writing the syllabus, running the
  * students on it, and deciding who is allowed to do either. They are a rail rather than
- * one long scroll because they belong to different people — a chief instructor lives in
+ * one long scroll because they belong to different people, a chief instructor lives in
  * Courses, the front desk in Students, and an owner visits Permissions twice a year.
  *
  * Which sections exist is a permission answer, not a layout one: `configureTraining`
  * grants Courses and admin grants Permissions, so a front-desk account simply gets a
  * one-item rail rather than tabs that 403.
  */
-type TrainingTab = "courses" | "students" | "permissions";
+type TrainingTab = (typeof TRAINING_TABS)[number]["value"];
 
 function TrainingPage() {
   const roles = rolesFromSession();
@@ -101,24 +102,21 @@ function TrainingPage() {
   const active = enrollments.data ?? [];
 
   //The course LIBRARY needs `configureTraining`; the roster below needs nothing beyond
-  //membership. Somebody holding only `manageEnrollment` — the front desk who enrolls and
-  //graduates people — is entitled to one and not the other, so a 403 on courses hides
+  //membership. Somebody holding only `manageEnrollment` (the front desk who enrolls and
+  //graduates people) is entitled to one and not the other, so a 403 on courses hides
   //that section instead of replacing the whole page with an error card. Any other failure
   //is a real failure and still says so.
   const forbiddenCourses = (courses.error as ApiError | null)?.status === 403;
 
+  // The tab list lives in `lib/training-sections.ts` so the command palette offers the
+  // same destinations. Courses also drop out at runtime on a 403 (no configureTraining).
   const sections = useMemo<RailSection[]>(
     () => [
       {
-        items: [
-          ...(forbiddenCourses
-            ? []
-            : [{ value: "courses", label: "Courses", icon: BookOpen }]),
-          { value: "students", label: "Students", icon: GraduationCap },
-          // GET /training/grants is isOrgAdmin. Handing out power stays an admin's job,
-          // so somebody here on a grant sees the roster and not the grant table.
-          ...(isAdmin(roles) ? [{ value: "permissions", label: "Permissions", icon: ShieldCheck }] : []),
-        ],
+        items: TRAINING_TABS.filter((t) => {
+          if (t.value === "courses" && forbiddenCourses) return false;
+          return !t.canShow || t.canShow(roles);
+        }),
       },
     ],
     [forbiddenCourses, roles]
@@ -266,7 +264,7 @@ function EmptyCourses() {
     <EmptyState
       icon={BookOpen}
       title="No courses yet"
-      body="Start from a ready-made Private Pilot syllabus — stages, lessons, ACS tasks and the §61.109 hour requirements, already wired up — then change whatever your school does differently."
+      body="Start from a ready-made Private Pilot syllabus, stages, lessons, ACS tasks and the §61.109 hour requirements, already wired up, then change whatever your school does differently."
       action={
         <div className="flex flex-col items-center gap-3">
           <NewCourseActions hasCourses={false} />
@@ -303,7 +301,7 @@ function TemplateDialog({ primary }: { primary: boolean }) {
         <DialogHeader>
           <DialogTitle>Start from a template</DialogTitle>
           <DialogDescription>
-            A complete syllabus you can edit. It arrives as a draft — nothing is published until you say so.
+            A complete syllabus you can edit. It arrives as a draft, nothing is published until you say so.
           </DialogDescription>
         </DialogHeader>
 
@@ -337,7 +335,7 @@ function TemplateDialog({ primary }: { primary: boolean }) {
 
         <p className="text-xs text-muted-foreground">
           Templates are Part 61. An approved Part 141 course has to be approved for your school by your
-          FSDO — build it from this one and file it.
+          FSDO, build it from this one and file it.
         </p>
       </DialogContent>
     </Dialog>
@@ -394,7 +392,7 @@ function BlankCourseDialog() {
             </div>
             <p className="text-xs text-muted-foreground">
               {/* Only ONE of the three things this used to promise is actually enforced.
-                  `blockGraduationOnMinimums` is real — `graduate` refuses on
+                  `blockGraduationOnMinimums` is real, `graduate` refuses on
                   `graduationBlocker`. `enforceLessonOrder` and `enforceStageChecks` are
                   declared in the enforcement profile and read by nothing, and stage-check
                   records do not exist to enforce against. Say the one that is true. */}
@@ -432,7 +430,7 @@ function ActiveStudents({ loading }: { loading: boolean }) {
   if (loading || enrollments.isLoading) return <CardGridSkeleton count={1} />;
 
   // Its own section now, so "nobody is on a course" has to be stated rather than
-  // rendering nothing — an empty pane reads as a page that failed to load.
+  // rendering nothing, an empty pane reads as a page that failed to load.
   if (rows.length === 0) {
     return (
       <EmptyState

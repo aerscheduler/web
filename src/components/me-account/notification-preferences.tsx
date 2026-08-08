@@ -1,9 +1,13 @@
 /**
- * Member notification preferences — mirrors the mobile Email Preferences screen
- * against `GET/PATCH /orgUsers/preferences`.
+ * Member notification preferences against `GET/PATCH /orgUsers/preferences`.
+ *
+ * Email and push share the same category keys. Push delivery still needs the iPhone
+ * app installed (device token), but the category choices themselves are no longer
+ * phone-only: saving them here is what the phone reads when it registers.
  */
 
-import { Bell, Loader2 } from "lucide-react";
+import type { ReactNode } from "react";
+import { Bell, Loader2, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -20,10 +24,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 
-type EmailKey = keyof ChannelNotificationPreferences;
+type PrefKey = keyof ChannelNotificationPreferences;
 
 type PrefRow = {
-  key: EmailKey;
+  key: PrefKey;
   label: string;
   hint: string;
 };
@@ -42,7 +46,7 @@ const RESERVATION_ROWS: PrefRow[] = [
   {
     key: "reservationCanceled",
     label: "Reservation canceled",
-    hint: "When a booking you’re on is canceled.",
+    hint: "When a booking you're on is canceled.",
   },
   {
     key: "reservationCompleted",
@@ -94,8 +98,6 @@ const ENDORSEMENT_ROWS: PrefRow[] = [
   {
     key: "endorsementReminders",
     label: "Endorsement expirations",
-    //Only instructors and admins are ever sent these — a student cannot sign their own
-    //replacement — so the hint says who it is about rather than implying it is about you.
     hint: "Solo and other timed sign-offs your students are about to lose.",
   },
 ];
@@ -104,7 +106,7 @@ const STATUS_ROWS: PrefRow[] = [
   {
     key: "grounded",
     label: "Grounded",
-    hint: "When you’re grounded or cleared to fly again.",
+    hint: "When you're grounded or cleared to fly again.",
   },
 ];
 
@@ -138,11 +140,16 @@ export function NotificationPreferencesPanel() {
   const update = useUpdateOrgUserPreferences();
 
   const emailEnabled = prefsQ.data?.notificationPreferences?.emailEnabled ?? true;
+  const pushEnabled = prefsQ.data?.notificationPreferences?.pushEnabled ?? true;
   const email = prefsQ.data?.notificationPreferences?.emailNotificationPreferences;
+  const push = prefsQ.data?.notificationPreferences?.pushNotificationPreferences;
 
-  const patchEmailMaster = (value: boolean) => {
+  const patchMaster = (channel: "email" | "push", value: boolean) => {
     update.mutate(
-      { notificationPreferences: { emailEnabled: value } },
+      {
+        notificationPreferences:
+          channel === "email" ? { emailEnabled: value } : { pushEnabled: value },
+      },
       {
         onError: (err) =>
           toast.error(err instanceof ApiError ? err.message : "Couldn't save notification settings"),
@@ -150,12 +157,13 @@ export function NotificationPreferencesPanel() {
     );
   };
 
-  const patchEmailPref = (key: EmailKey, value: boolean) => {
+  const patchPref = (channel: "email" | "push", key: PrefKey, value: boolean) => {
     update.mutate(
       {
-        notificationPreferences: {
-          emailNotificationPreferences: { [key]: value },
-        },
+        notificationPreferences:
+          channel === "email"
+            ? { emailNotificationPreferences: { [key]: value } }
+            : { pushNotificationPreferences: { [key]: value } },
       },
       {
         onError: (err) =>
@@ -179,130 +187,207 @@ export function NotificationPreferencesPanel() {
 
   const showAdmin = isAdmin(roles);
   const showMaintenance = isAdmin(roles) || isTechnician(roles);
-  //Only instructors and admins are ever sent an endorsement digest — a student cannot sign
-  //their own replacement. Offering everyone else a switch that changes nothing is how a
-  //preferences screen stops being trustworthy.
   const showEndorsements = isAdmin(roles) || isInstructor(roles);
   const saving = update.isPending;
 
   return (
     <div data-doc-shot="notification-preferences-maintenance" className="space-y-4">
-      <Card data-doc-shot="me-notifications">
-        <CardHeader className="flex-row items-center gap-2 space-y-0">
-          <Bell className="size-4 text-muted-foreground" />
-          <CardTitle className="text-sm">Email</CardTitle>
-          {saving && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <SwitchRow
-            id="email-enabled"
-            label="Email notifications"
-            hint="Master switch for all email alerts below."
-            checked={emailEnabled}
-            disabled={saving}
-            onChange={patchEmailMaster}
-          />
+      <ChannelCard
+        channel="email"
+        title="Email"
+        icon={<Bell className="size-4 text-muted-foreground" />}
+        masterId="email-enabled"
+        masterLabel="Email notifications"
+        masterHint="Master switch for all email alerts below."
+        offHint="Turn email on to choose which events reach your inbox. Account emails (invites, password reset) still send."
+        enabled={emailEnabled}
+        prefs={email}
+        saving={saving}
+        showAdmin={showAdmin}
+        showMaintenance={showMaintenance}
+        showEndorsements={showEndorsements}
+        onMasterChange={(v) => patchMaster("email", v)}
+        onPrefChange={(key, v) => patchPref("email", key, v)}
+        shotId="me-notifications"
+      />
 
-          {!emailEnabled ? (
-            <p className="text-xs text-muted-foreground">
-              Turn email on to choose which events reach your inbox. Account emails
-              (invites, password reset) still send.
-            </p>
-          ) : (
-            <>
-              {showAdmin && (
-                <PrefSection
-                  title="Organization"
-                  rows={ADMIN_ROWS}
-                  email={email}
-                  saving={saving}
-                  onChange={patchEmailPref}
-                />
-              )}
-              <PrefSection
-                title="Reservations"
-                rows={RESERVATION_ROWS}
-                email={email}
-                saving={saving}
-                onChange={patchEmailPref}
-              />
-              <PrefSection
-                title="Billing"
-                rows={BILLING_ROWS}
-                email={email}
-                saving={saving}
-                onChange={patchEmailPref}
-              />
-              <PrefSection
-                title="Documents"
-                rows={DOCUMENT_ROWS}
-                email={email}
-                saving={saving}
-                onChange={patchEmailPref}
-              />
-              <PrefSection
-                title="Currency"
-                rows={CURRENCY_ROWS}
-                email={email}
-                saving={saving}
-                onChange={patchEmailPref}
-              />
-              {showEndorsements && (
-              <PrefSection
-                title="Endorsements"
-                rows={ENDORSEMENT_ROWS}
-                email={email}
-                saving={saving}
-                onChange={patchEmailPref}
-              />
-              )}
-              {showMaintenance && (
-                <PrefSection
-                  title="Maintenance"
-                  rows={MAINTENANCE_ROWS}
-                  email={email}
-                  saving={saving}
-                  onChange={patchEmailPref}
-                />
-              )}
-              <PrefSection
-                title="Status"
-                rows={STATUS_ROWS}
-                email={email}
-                saving={saving}
-                onChange={patchEmailPref}
-              />
-              <PrefSection
-                title="Announcements"
-                rows={ANNOUNCEMENT_ROWS}
-                email={email}
-                saving={saving}
-                onChange={patchEmailPref}
-              />
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      <p className="text-xs text-muted-foreground">
-        Push notification categories are managed in the AerScheduler mobile app.
-      </p>
+      <ChannelCard
+        channel="push"
+        title="Push"
+        icon={<Smartphone className="size-4 text-muted-foreground" />}
+        masterId="push-enabled"
+        masterLabel="Push notifications"
+        masterHint="Master switch for alerts on your phone. Delivery needs the AerScheduler iOS app installed."
+        offHint="Turn push on to choose which events alert your phone. Delivery still needs the iOS app signed in on a device."
+        enabled={pushEnabled}
+        prefs={push}
+        saving={saving}
+        showAdmin={showAdmin}
+        showMaintenance={showMaintenance}
+        showEndorsements={showEndorsements}
+        onMasterChange={(v) => patchMaster("push", v)}
+        onPrefChange={(key, v) => patchPref("push", key, v)}
+        shotId="me-notifications-push"
+      />
     </div>
   );
 }
 
+function ChannelCard({
+  channel,
+  title,
+  icon,
+  masterId,
+  masterLabel,
+  masterHint,
+  offHint,
+  enabled,
+  prefs,
+  saving,
+  showAdmin,
+  showMaintenance,
+  showEndorsements,
+  onMasterChange,
+  onPrefChange,
+  shotId,
+}: {
+  channel: "email" | "push";
+  title: string;
+  icon: ReactNode;
+  masterId: string;
+  masterLabel: string;
+  masterHint: string;
+  offHint: string;
+  enabled: boolean;
+  prefs: ChannelNotificationPreferences | null | undefined;
+  saving: boolean;
+  showAdmin: boolean;
+  showMaintenance: boolean;
+  showEndorsements: boolean;
+  onMasterChange: (value: boolean) => void;
+  onPrefChange: (key: PrefKey, value: boolean) => void;
+  shotId: string;
+}) {
+  return (
+    <Card data-doc-shot={shotId}>
+      <CardHeader className="flex-row items-center gap-2 space-y-0">
+        {icon}
+        <CardTitle className="text-sm">{title}</CardTitle>
+        {saving && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <SwitchRow
+          id={masterId}
+          label={masterLabel}
+          hint={masterHint}
+          checked={enabled}
+          disabled={saving}
+          onChange={onMasterChange}
+        />
+
+        {!enabled ? (
+          <p className="text-xs text-muted-foreground">{offHint}</p>
+        ) : (
+          <>
+            {showAdmin && (
+              <PrefSection
+                channel={channel}
+                title="Organization"
+                rows={ADMIN_ROWS}
+                prefs={prefs}
+                saving={saving}
+                onChange={onPrefChange}
+              />
+            )}
+            <PrefSection
+              channel={channel}
+              title="Reservations"
+              rows={RESERVATION_ROWS}
+              prefs={prefs}
+              saving={saving}
+              onChange={onPrefChange}
+            />
+            <PrefSection
+              channel={channel}
+              title="Billing"
+              rows={BILLING_ROWS}
+              prefs={prefs}
+              saving={saving}
+              onChange={onPrefChange}
+            />
+            <PrefSection
+              channel={channel}
+              title="Documents"
+              rows={DOCUMENT_ROWS}
+              prefs={prefs}
+              saving={saving}
+              onChange={onPrefChange}
+            />
+            <PrefSection
+              channel={channel}
+              title="Currency"
+              rows={CURRENCY_ROWS}
+              prefs={prefs}
+              saving={saving}
+              onChange={onPrefChange}
+            />
+            {showEndorsements && (
+              <PrefSection
+                channel={channel}
+                title="Endorsements"
+                rows={ENDORSEMENT_ROWS}
+                prefs={prefs}
+                saving={saving}
+                onChange={onPrefChange}
+              />
+            )}
+            {showMaintenance && (
+              <PrefSection
+                channel={channel}
+                title="Maintenance"
+                rows={MAINTENANCE_ROWS}
+                prefs={prefs}
+                saving={saving}
+                onChange={onPrefChange}
+              />
+            )}
+            <PrefSection
+              channel={channel}
+              title="Status"
+              rows={STATUS_ROWS}
+              prefs={prefs}
+              saving={saving}
+              onChange={onPrefChange}
+            />
+            <PrefSection
+              channel={channel}
+              title="Announcements"
+              rows={ANNOUNCEMENT_ROWS}
+              prefs={prefs}
+              saving={saving}
+              onChange={onPrefChange}
+            />
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function PrefSection({
+  channel,
   title,
   rows,
-  email,
+  prefs,
   saving,
   onChange,
 }: {
+  channel: "email" | "push";
   title: string;
   rows: PrefRow[];
-  email: ChannelNotificationPreferences | null | undefined;
+  prefs: ChannelNotificationPreferences | null | undefined;
   saving: boolean;
-  onChange: (key: EmailKey, value: boolean) => void;
+  onChange: (key: PrefKey, value: boolean) => void;
 }) {
   return (
     <div className="space-y-2">
@@ -313,11 +398,11 @@ function PrefSection({
       <div className="space-y-2">
         {rows.map((row) => (
           <SwitchRow
-            key={row.key}
-            id={`email-${row.key}`}
+            key={`${channel}-${row.key}`}
+            id={`${channel}-${row.key}`}
             label={row.label}
             hint={row.hint}
-            checked={email?.[row.key] ?? true}
+            checked={prefs?.[row.key] ?? true}
             disabled={saving}
             onChange={(value) => onChange(row.key, value)}
           />
@@ -373,7 +458,7 @@ export function NotificationPreferencesPage() {
           <EmptyState
             icon={Bell}
             title="Join an organization first"
-            body="Notification preferences are per school. Accept an invite, then you can choose what email you get."
+            body="Notification preferences are per school. Accept an invite, then you can choose what email and push you get."
           />
         </Card>
       </div>
@@ -384,7 +469,7 @@ export function NotificationPreferencesPage() {
     <div>
       <PageHeader
         title="Notification settings"
-        subtitle="Choose which AerScheduler emails reach your inbox."
+        subtitle="Choose which AerScheduler emails and push alerts reach you."
       />
       <NotificationPreferencesPanel />
     </div>

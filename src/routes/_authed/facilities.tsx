@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { DoorOpen, MapPin, MonitorPlay, Plus } from "lucide-react";
+import { MonitorPlay, Plus } from "lucide-react";
 import { pageRows, useLocations, useRoomsPage, useSimulatorsPage } from "@/features/queries";
 import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";
 import { guardRoute } from "@/lib/permissions";
+import { FACILITIES_RAIL } from "@/lib/facilities-sections";
 import { useAuth } from "@/lib/auth";
 import type { Resource } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -24,7 +25,7 @@ import {
   type FacilityKind,
 } from "@/components/facilities/facility-form";
 import { LocationsPanel } from "@/components/facilities/locations-panel";
-import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
+import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,21 +55,12 @@ type TabKey = "locations" | "simulators" | "rooms";
 /**
  * Separate screens, not tabs over one list: a location, a simulator and a classroom share
  * nothing but being part of the plant, and each has its own filters, cards and empty
- * state. `?tab=` keeps its old key and values, so existing links and saved filters still
- * land right.
+ * state. The rail list lives in `lib/facilities-sections.ts` so the command palette can
+ * offer each as a destination. `?tab=` keeps its old key and values.
  *
  * Locations lead because they lead in the setup order too. Nothing else on this page, or
  * on Aircraft, can be created until one exists.
  */
-const SECTIONS: RailSection[] = [
-  {
-    items: [
-      { value: "locations", label: "Locations", icon: MapPin },
-      { value: "simulators", label: "Simulators", icon: MonitorPlay },
-      { value: "rooms", label: "Rooms", icon: DoorOpen },
-    ],
-  },
-];
 
 const panelClass = "flex min-h-0 min-w-0 flex-1 flex-col gap-3";
 
@@ -282,7 +274,7 @@ function FacilitiesPage() {
       <div className={RAIL_ROW}>
         <SectionRail
           label="Facilities"
-          sections={SECTIONS}
+          sections={FACILITIES_RAIL}
           value={tab}
           onChange={(v) => setFacets({ ...facets, tab: v as TabKey })}
         />

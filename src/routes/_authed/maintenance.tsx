@@ -1,15 +1,6 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  CheckCircle2,
-  ClipboardCheck,
-  ClipboardList,
-  ListChecks,
-  PlaneTakeoff,
-  Plus,
-  SlidersHorizontal,
-  Wrench,
-} from "lucide-react";
+import { CheckCircle2, PlaneTakeoff, Plus, Wrench } from "lucide-react";
 import {
   pageRows,
   useSquawksPage,
@@ -23,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { resourceLabel, type MaintenanceReminder, type Squawk } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { canResolveSquawk, guardRoute } from "@/lib/permissions";
+import { MAINTENANCE_RAIL, MAINTENANCE_VIEWS } from "@/lib/maintenance-sections";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
@@ -34,7 +26,7 @@ import {
 } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { DocsLink } from "@/components/docs-hint";
-import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
+import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { SquawkCard } from "@/components/maintenance/squawk-card";
 import { SquawkDetailSheet } from "@/components/maintenance/squawk-detail-sheet";
 import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
@@ -57,45 +49,18 @@ export const Route = createFileRoute("/_authed/maintenance")({
 });
 
 /**
- * `aircraft` leads because that is how the work is actually organised — you deal with a
+ * `aircraft` leads because that is how the work is actually organised: you deal with a
  * tail, not with the school's reminders in the abstract. Squawks sit behind it; they are
  * the exception, and a flat list of open squawks answers nothing about whether the annual
  * on N12345 is close.
- */
-type ViewKey = "aircraft" | "open" | "resolved" | "reminders" | "templates";
-
-/**
- * The two halves of maintenance, as a rail rather than one "Show" dropdown.
  *
- * Reminders and squawks are different work — what an aircraft owes on a schedule, versus
- * what somebody found broken — and burying that distinction inside a filter meant the page
- * never said what it held. The rail states both, and says which of the five you are on
- * without opening anything.
- *
- * `?view=` keeps its old key and values: the command palette lands a squawk hit on
+ * The rail list lives in `lib/maintenance-sections.ts` so the command palette can offer
+ * each view as a destination. `?view=` keeps its old key and values: squawk hits land on
  * `view=open|resolved`, and an aircraft's panel links to `view=reminders` for one tail.
  */
-const SECTIONS: RailSection[] = [
-  {
-    label: "Inspections",
-    items: [
-      { value: "aircraft", label: "By aircraft", icon: PlaneTakeoff },
-      { value: "reminders", label: "All inspections", icon: ListChecks },
-      { value: "templates", label: "Set up", icon: SlidersHorizontal },
-    ],
-  },
-  {
-    label: "Squawks",
-    items: [
-      { value: "open", label: "Open", icon: ClipboardList },
-      { value: "resolved", label: "Resolved", icon: ClipboardCheck },
-    ],
-  },
-];
+type ViewKey = (typeof MAINTENANCE_VIEWS)[number]["value"];
 
-const VIEWS: ViewKey[] = SECTIONS.flatMap((s) => s.items.map((i) => i.value as ViewKey));
-
-const isView = (v: unknown): v is ViewKey => VIEWS.some((x) => x === v);
+const isView = (v: unknown): v is ViewKey => MAINTENANCE_VIEWS.some((x) => x.value === v);
 
 function MaintenancePage() {
   const routeSearch = Route.useSearch();
@@ -183,7 +148,7 @@ function MaintenancePage() {
       <div className={RAIL_ROW}>
         <SectionRail
           label="Maintenance"
-          sections={SECTIONS}
+          sections={MAINTENANCE_RAIL}
           value={view}
           onChange={(v) => setFacets({ ...facets, view: v })}
         />
@@ -298,7 +263,7 @@ function OpenSquawks({
         <Card className="min-h-0 flex-1 p-0">
           <EmptyState
             icon={CheckCircle2}
-            title="No open squawks — the fleet's clean."
+            title="No open squawks, the fleet's clean."
             body="Anything a pilot reports shows up here until a technician signs it off."
             action={
               <Button onClick={onLog}>
@@ -523,7 +488,7 @@ function Reminders({
                     }
                   />
                   {/* Which tail, on the list that spans the whole fleet. The per-aircraft
-                      panel omits it — there it would repeat on every row. */}
+                      panel omits it, there it would repeat on every row. */}
                   {r.resource && (
                     <Link
                       to="/aircraft/$resourceId"

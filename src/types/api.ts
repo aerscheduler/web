@@ -173,6 +173,7 @@ export interface SubscriptionStatus {
 
 export interface OrganizationPreferences {
   id: number;
+  /** When true, joining by code creates a request an admin must approve. */
   private: boolean;
   newOrgOnboardingComplete: boolean;
   instructorsCanOverrideReservationPrices: boolean;
@@ -181,6 +182,11 @@ export interface OrganizationPreferences {
   studentsCanOnlyFlyWithTheirInstructors: boolean;
   /** The mirror of the above, from the instructor's side. */
   instructorsCanOnlyFlyWithTheirStudents: boolean;
+  /**
+   * When true, ramp-in offers a home-base picker and posts
+   * `POST /resources/:id/location` before the meter readings.
+   */
+  updateResourceLocationOnRampIn?: boolean;
 }
 
 /**
@@ -1372,7 +1378,10 @@ export interface OrgUserBillingSettings {
 }
 
 export interface CreateInvoiceInput {
+  /** Bill a member. Mutually exclusive with `guest`. */
   customer?: { id: number };
+  /** Bill someone who is not a member, by name and email. Mutually exclusive with `customer`. */
+  guest?: { name: string; email: string };
   memo?: string;
   dueAt?: string;
   dueIn?: number;

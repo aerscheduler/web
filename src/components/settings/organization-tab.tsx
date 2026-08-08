@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
   Building2,
   Check,
@@ -24,7 +24,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Field } from "@/components/settings/parts";
+import { Field, PreferenceToggle } from "@/components/settings/parts";
 import { OrganizationTimeZoneCard } from "@/components/settings/time-zone-card";
 import { DeleteOrganizationCard } from "@/components/settings/delete-organization-card";
 
@@ -66,6 +66,8 @@ export function OrganizationTab() {
         <IdentityCard organization={organization} />
 
         <OrganizationTimeZoneCard />
+
+        <JoiningAndFleetCard organization={organization} />
 
         {/* Renders nothing for anybody but an owner. Last in the column because it is the
             one action on this page that cannot be undone. */}
@@ -297,6 +299,84 @@ function IdentityCard({ organization }: { organization: Organization }) {
           on the web they enter it at <span className="font-medium">app.aerscheduler.com/join</span>,
           or from the mobile app. Private schools review each request under People.
         </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+/**
+ * Two settings that used to live only on the phone: approve-before-join, and updating an
+ * aircraft's home base when it ramps in. Both are org preferences the server already
+ * honours; the console just never exposed the switches.
+ */
+function JoiningAndFleetCard({ organization }: { organization: Organization }) {
+  const { rehydrate } = useAuth();
+  const update = useUpdateOrganization();
+  const prefs = organization.preferences;
+
+  const [approveBeforeJoin, setApproveBeforeJoin] = useState(prefs?.private ?? false);
+  const [updateHomeBase, setUpdateHomeBase] = useState(
+    prefs?.updateResourceLocationOnRampIn ?? false
+  );
+  const [pending, setPending] = useState<"private" | "updateResourceLocationOnRampIn" | null>(
+    null
+  );
+
+  useEffect(() => {
+    setApproveBeforeJoin(prefs?.private ?? false);
+    setUpdateHomeBase(prefs?.updateResourceLocationOnRampIn ?? false);
+  }, [prefs?.private, prefs?.updateResourceLocationOnRampIn]);
+
+  function save(field: "private" | "updateResourceLocationOnRampIn", value: boolean) {
+    const previous = field === "private" ? approveBeforeJoin : updateHomeBase;
+    const apply = field === "private" ? setApproveBeforeJoin : setUpdateHomeBase;
+    apply(value);
+    setPending(field);
+    update.mutate(
+      { preferences: { [field]: value } },
+      {
+        onSuccess: async () => {
+          await rehydrate();
+          toast.success("School settings updated");
+        },
+        onError: (err) => {
+          apply(previous);
+          toast.error(
+            err instanceof ApiError ? err.message : "Couldn't save that preference"
+          );
+        },
+        onSettled: () => setPending(null),
+      }
+    );
+  }
+
+  return (
+    <Card data-doc-shot="joining-and-fleet-settings">
+      <CardHeader>
+        <CardTitle>Joining &amp; fleet</CardTitle>
+        <CardDescription>
+          Who can walk in with a join code, and whether ramp-in can move an aircraft&rsquo;s
+          home base.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="divide-y divide-border">
+        <PreferenceToggle
+          label="Approve people before they join"
+          description="When on, someone who enters your join code sends a request under People. When off, they join immediately."
+          checked={approveBeforeJoin}
+          disabled={pending !== null}
+          saving={pending === "private"}
+          onCheckedChange={(v) => save("private", v)}
+        />
+        <PreferenceToggle
+          label="Update aircraft home base on ramp in"
+          description="Adds a location field to ramp-in so a returning aircraft can be moved to a different home base. Useful when the fleet hops between fields."
+          checked={updateHomeBase}
+          disabled={pending !== null}
+          saving={pending === "updateResourceLocationOnRampIn"}
+          onCheckedChange={(v) => save("updateResourceLocationOnRampIn", v)}
+        />
       </CardContent>
     </Card>
   );

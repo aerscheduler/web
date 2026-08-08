@@ -236,7 +236,7 @@ export const DOCS_TOPICS = {
   "approved-resources": {
     title: "Approved resources",
     summary:
-      "Approving somebody on a tail records a checkout, on their record and on the aircraft page. Today this setting only limits which aircraft a renter sees when booking a rental on the web, and nothing else enforces it.",
+      "Approving somebody on a tail records a checkout, on their record and on the aircraft page. With this on, a student or renter booking themselves is refused any aircraft or simulator they aren't checked out on, whichever surface they book from. Instructors, admins and dispatchers are never held to the list.",
     href: "scheduling/booking-rules-and-settings",
   },
   "what-you-can-book": {

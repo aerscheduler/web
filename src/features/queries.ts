@@ -1287,6 +1287,24 @@ export function useUpdateOrganization() {
   });
 }
 
+/**
+ * Delete the whole organization. Owner only, and irreversible.
+ *
+ * The endpoint has always been there (`isOrgOwner`), and until now only the iPhone app
+ * called it, which is why the help docs listed deleting a school as an app-only power.
+ *
+ * It answers 204 with no body, so nothing is parsed. The server refuses while any invoice
+ * is unpaid, and that message comes back as an ApiError for the caller to show.
+ *
+ * No cache invalidation on purpose: the org this session is pinned to no longer exists, so
+ * the only correct next step is to sign out, which throws the cache away wholesale.
+ */
+export function useDeleteOrganization() {
+  return useMutation({
+    mutationFn: () => api<void>("/organizations/", { method: "DELETE" }),
+  });
+}
+
 /** Setup-checklist state: the marketing source the org signed up from and what it
  *  has waved off. Whether an item is DONE is derived from real data, not stored —
  *  see `lib/onboarding-checklist.ts`. Admin-only on the server. */

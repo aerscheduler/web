@@ -26,6 +26,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Field } from "@/components/settings/parts";
 import { OrganizationTimeZoneCard } from "@/components/settings/time-zone-card";
+import { DeleteOrganizationCard } from "@/components/settings/delete-organization-card";
 
 export function OrganizationTab() {
   const { organization, rehydrate } = useAuth();
@@ -65,6 +66,10 @@ export function OrganizationTab() {
         <IdentityCard organization={organization} />
 
         <OrganizationTimeZoneCard />
+
+        {/* Renders nothing for anybody but an owner. Last in the column because it is the
+            one action on this page that cannot be undone. */}
+        <DeleteOrganizationCard />
       </div>
     </div>
   );

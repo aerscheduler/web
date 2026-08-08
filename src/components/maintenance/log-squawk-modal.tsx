@@ -54,11 +54,15 @@ export function LogSquawkModal({
 
   async function submit() {
     const trimmed = title.trim();
-    if (!trimmed) return;
+    //The server requires BOTH. Sending `description: undefined` came back "Description is
+    //required.", which read as the console being broken rather than the form being
+    //incomplete, because nothing on screen had said the field was needed.
+    const trimmedDescription = description.trim();
+    if (!trimmed || !trimmedDescription) return;
     try {
       await create.mutateAsync({
         title: trimmed,
-        description: description.trim() || undefined,
+        description: trimmedDescription,
         resourceId: effectiveResourceId ? Number(effectiveResourceId) : undefined,
         grounding,
       });
@@ -139,7 +143,10 @@ export function LogSquawkModal({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!title.trim() || create.isPending}>
+          <Button
+            onClick={submit}
+            disabled={!title.trim() || !description.trim() || create.isPending}
+          >
             {create.isPending ? "Logging…" : "Log squawk"}
           </Button>
         </div>

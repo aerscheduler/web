@@ -32,6 +32,7 @@ import {
   isInstructor as hasInstructorRole,
   isStudent as hasStudentRole,
   isRenter,
+  isStaff,
   isTechnician,
   reservationTypesForRoles,
   selfBookableTypes,
@@ -515,11 +516,33 @@ export function ReservationForm({
   const selfIsInstructor = seatIsAmbiguous ? asInstructor : meIsInstructor;
 
   const resourcesQ = useResources({ enabled: open });
-  // Renters may only book aircraft they are checked out on. Everyone else — and
-  // every other type — draws from the full fleet, filtered by what the type needs.
+  /**
+   * NARROWED TO THE CHECKED-OUT FLEET ON EXACTLY THE TERMS THE SERVER REFUSES ON.
+   *
+   * This picker used to filter on `isSelf && type === "rental"`, which disagreed with the
+   * server's rule in both directions:
+   *
+   *  - TOO NARROW. A school with the setting OFF has approvals as a RECORD and blocks
+   *    nothing, yet a renter here saw only the tails they were approved on. A club that had
+   *    never checked anybody out showed its renters an empty fleet and no way to book.
+   *  - TOO WIDE. The server checks students and renters on every type it can seat them on,
+   *    not rentals alone. A student self-booking a `dual` or a `sim` was offered the whole
+   *    fleet, chose a tail nobody had checked them out on, filled in the form and met the
+   *    refusal at Save.
+   *
+   * Both are now read off the same two facts the server reads: the org setting, and whether
+   * the person booking is going to sit in a student or renter seat. Instructors are exempt
+   * server-side, so somebody booking as the instructor keeps the whole fleet here too.
+   */
   const approvedQ = useApprovedResources(self?.userId ?? 0, {
     enabled: open && isSelf && self != null,
   });
+  const restrictToApproved =
+    isSelf &&
+    self != null &&
+    organization?.preferences?.personnelCanOnlyUseApprovedResources === true &&
+    !isStaff(roles) &&
+    !selfIsInstructor;
   // ONE request per form open for the whole fleet, grouped by resource below —
   // never one per option row.
   // The org's default minimum, for the overnight disclosure. GET /organizations/billing is
@@ -853,12 +876,12 @@ export function ReservationForm({
   // a sim session a simulator, everything else an aircraft. Offering the whole
   // fleet regardless of type just invites a 400.
   const eligibleResources = React.useMemo(() => {
-    //A renter booking a rental sees only the aircraft they are checked out on;
-    //everything else draws from the whole fleet, narrowed to what the type needs.
-    const pool =
-      isSelf && type === "rental" ? approvedQ.data ?? [] : resourcesQ.data ?? [];
+    //Somebody booking themselves into a student or renter seat at a school that enforces
+    //checkouts sees only what they are checked out on. Everyone else draws from the whole
+    //fleet, narrowed to what the type needs. See `restrictToApproved`.
+    const pool = restrictToApproved ? approvedQ.data ?? [] : resourcesQ.data ?? [];
     return pool.filter((r) => resourceMatchesType(r, type));
-  }, [resourcesQ.data, approvedQ.data, type, isSelf]);
+  }, [resourcesQ.data, approvedQ.data, type, restrictToApproved]);
 
   const resourceOptions: ComboOption[] = eligibleResources.map((r) => {
     const l = resourceLabel(r);
@@ -871,10 +894,8 @@ export function ReservationForm({
 
   const selectedResource = eligibleResources.find((r) => String(r.id) === resourceId);
 
-  //Which fleet request has to land before the picker means anything. A renter booking a
-  //rental is limited to the aircraft they're checked out on; everyone else draws from the
-  //org's fleet.
-  const fleetQ = isSelf && type === "rental" ? approvedQ : resourcesQ;
+  //Which fleet request has to land before the picker means anything.
+  const fleetQ = restrictToApproved ? approvedQ : resourcesQ;
 
   // Switching type can strand a resource of the wrong kind in the picker's value.
   React.useEffect(() => {
@@ -888,13 +909,13 @@ export function ReservationForm({
       //clicks the lane of a tail they aren't checked out on is otherwise handed an empty
       //Aircraft field with no explanation — the one case where the picker is narrower
       //than the board they clicked.
-      if (isSelf && type === "rental") {
+      if (restrictToApproved) {
         const name = (resourcesQ.data ?? []).find((r) => String(r.id) === resourceId);
         setUnapprovedResource(name ? resourceLabel(name).name : null);
       }
       setResourceId("");
     }
-  }, [resourceId, eligibleResources, fleetQ.isPending, isSelf, type, resourcesQ.data]);
+  }, [resourceId, eligibleResources, fleetQ.isPending, restrictToApproved, resourcesQ.data]);
   const selectedSquawks = selectedResource
     ? openSquawksByResourceId.get(selectedResource.id) ?? []
     : [];
@@ -1038,13 +1059,16 @@ export function ReservationForm({
   ) : eligibleResources.length === 0 && TYPE_REQUIREMENTS[type].resourceRequired ? (
     <EmptyState
       icon={Ban}
+      //Keyed on the restriction rather than on the type: with checkouts enforced, a
+      //student with no approvals has nothing to book on a dual either, and telling them
+      //the school "hasn't set up any aircraft" would send them to ask the wrong question.
       title={
-        type === "rental"
+        restrictToApproved
           ? "You're not checked out on any aircraft"
           : `No ${TYPE_REQUIREMENTS[type].resource.toLowerCase()}s to book`
       }
       body={
-        type === "rental"
+        restrictToApproved
           ? "Ask your school to approve you on the fleet you can fly."
           : `Your school hasn't set up any ${TYPE_REQUIREMENTS[
               type

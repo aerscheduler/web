@@ -30,6 +30,7 @@ import {
 import { guardRoute } from "@/lib/permissions";
 import { holdsTrainingGrant } from "@/lib/training";
 import { AddCreditDialog } from "@/components/training/credit-dialog";
+import { TaskGradeList, taskGradeMap, taskGradePayload } from "@/components/training/task-grades";
 import {
   LESSON_KIND_LABEL,
   PART_LABEL,
@@ -464,6 +465,16 @@ function GradeDialog({
   );
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const [warning, setWarning] = useState<string | null>(null);
+  //Of the flight hours above, how many were flown in a device. Offered on a simulator
+  //lesson, and on any record that already carries the figure: a record that HAS sim hours
+  //must not lose them silently because this dialog decided not to ask.
+  const [sim, setSim] = useState(
+    existing?.simulatorDeciHours != null ? (existing.simulatorDeciHours / 10).toFixed(1) : ""
+  );
+  const showSim = lesson.kind === "sim" || existing?.simulatorDeciHours != null;
+  const needsNotes = lesson.requiresNotes === true;
+  const tasks = lesson.tasks ?? [];
+  const [taskMarks, setTaskMarks] = useState(() => taskGradeMap(existing?.taskGrades));
 
   const save = useSaveLessonRecord();
   const sign = useSignLessonRecord();
@@ -482,6 +493,11 @@ function GradeDialog({
       notes: notes.trim() || null,
       flightDeciHours: toDeci(flight),
       instructionDeciHours: toDeci(ground),
+      simulatorDeciHours: showSim ? toDeci(sim) : undefined,
+      //Absent when the lesson has no tasks, because an empty array MEANS "clear them all"
+      //server-side. Sending one from a form that never showed a task list would wipe grades
+      //the phone had written.
+      ...(tasks.length ? { taskGrades: taskGradePayload(taskMarks) } : {}),
     });
     if (saved.warning && !thenSign) {
       setWarning(saved.warning);
@@ -550,8 +566,39 @@ function GradeDialog({
             </div>
           </div>
 
+          {/* Device time, on the lessons that have any. It is a SUBSET of the flight hours
+              above rather than a figure beside them, which is what makes the course's
+              simulator ceiling apply to it: hours typed only into Flight are credited as
+              aircraft time and the ceiling never sees them. Saying so here is the
+              difference between a Part 141 course that stays inside Appendix B and one
+              that quietly does not. */}
+          {showSim && (
+            <div className="space-y-1">
+              <Label htmlFor="sim-hrs">Of which, simulator hours</Label>
+              <Input
+                id="sim-hrs"
+                inputMode="decimal"
+                value={sim}
+                onChange={(e) => setSim(e.target.value)}
+                placeholder="1.0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Part of the flight hours above, not extra. Counted against the course&rsquo;s
+                simulator allowance.
+              </p>
+            </div>
+          )}
+
+          <TaskGradeList tasks={tasks} scale={scale} value={taskMarks} onChange={setTaskMarks} />
+
           <div className="space-y-1">
-            <Label htmlFor="record-notes">Notes</Label>
+            {/* A lesson can be marked "Notes required" in the syllabus. The server refuses
+                to sign one without them, so a Save and sign that could only fail is worth
+                disabling rather than leaving to be discovered. Save draft stays open: a
+                half-written record is exactly what a draft is for. */}
+            <Label htmlFor="record-notes">
+              Notes{needsNotes && <span className="ml-1 text-muted-foreground">(required)</span>}
+            </Label>
             <Textarea
               id="record-notes"
               value={notes}
@@ -559,6 +606,11 @@ function GradeDialog({
               rows={3}
               placeholder="What the student did well, and what to work on."
             />
+            {needsNotes && !notes.trim() && (
+              <p className="text-xs text-muted-foreground">
+                This lesson needs notes before it can be signed.
+              </p>
+            )}
           </div>
 
           {/* What this lesson will post if signed — shown BEFORE signing, because the
@@ -593,7 +645,10 @@ function GradeDialog({
           </Button>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button disabled={busy} onClick={() => submit(true)}>
+              <Button
+                disabled={busy || (needsNotes && !notes.trim())}
+                onClick={() => submit(true)}
+              >
                 <FileSignature className="size-4" /> Save and sign
               </Button>
             </TooltipTrigger>

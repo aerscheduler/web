@@ -2025,11 +2025,35 @@ export type CurriculumTemplateSummary = {
   requirements: number;
 };
 
-/** A lesson this booking could be closing out. */
-export type CandidateLesson = SyllabusLesson & {
+/**
+ * A lesson this booking could be closing out.
+ *
+ * A SUBSET of `SyllabusLesson`, not the whole thing. The candidates endpoint selects the
+ * few columns a grader needs, so declaring it as the full lesson promised fields (its
+ * objectives, its completion standards, what it credits) that never arrive, and any code
+ * reading one would have got `undefined` with the type insisting otherwise.
+ */
+export type CandidateLesson = Pick<
+  SyllabusLesson,
+  | "id"
+  | "name"
+  | "position"
+  | "kind"
+  | "minFlightDeciHours"
+  | "minGroundDeciHours"
+  | "requiresNotes"
+> & {
   stageName: string;
   stagePosition: number;
   complete: boolean;
+  /**
+   * The ACS tasks this lesson is made of, in syllabus order. Each one can carry its own
+   * grade on the record, which is what `taskGrades` refers to.
+   *
+   * Optional because a school writing its own syllabus need not break a lesson into tasks
+   * at all, and because a console running against a server older than this field gets none.
+   */
+  tasks?: LessonTask[];
 };
 
 export type CandidateEnrollment = {

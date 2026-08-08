@@ -9,6 +9,8 @@ import {
   useSignLessonRecord,
 } from "@/features/queries";
 import { deciHours } from "@/lib/training";
+import { CloseOutCard } from "./close-out-card";
+import { TaskGradeList, taskGradePayload } from "@/components/training/task-grades";
 import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,7 +49,19 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
   const canGrade =
     isStaff || (r.personnel?.instructors ?? []).some((i) => i.id === orgUserId);
 
+  //How much grading this booking is carrying, and how much of it is done. Kept up here so
+  //the card can answer its own question while shut: on a two-student lesson "1 of 2 graded"
+  //is the whole reason to open it, and on a class of six it is the difference between the
+  //instructor scrolling six forms and scrolling none.
+  const [graders, setGraders] = React.useState<Record<string, boolean>>({});
+  const report = React.useCallback((key: string, signed: boolean) => {
+    setGraders((prev) => (prev[key] === signed ? prev : { ...prev, [key]: signed }));
+  }, []);
+
   if (students.length === 0 || !isInstructional || !canGrade) return null;
+
+  const total = Object.keys(graders).length;
+  const signed = Object.values(graders).filter(Boolean).length;
 
   return (
     <>
@@ -57,9 +71,29 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
           Training record
           <DocsHint topic="grade-at-close-out" />
         </h3>
-        {students.map((s) => (
-          <StudentLessons key={s.id} student={s} reservation={r} />
-        ))}
+        <CloseOutCard
+          title="Grade the lesson"
+          icon={GraduationCap}
+          summary={
+            total === 0
+              ? undefined
+              : signed === total
+                ? total === 1
+                  ? "signed"
+                  : `all ${total} signed`
+                : `${signed} of ${total} graded`
+          }
+          //Shut, always. This was the single longest thing on the sheet: one form per
+          //course per student, so a two-student booking opened five of them and pushed the
+          //close-out itself off the screen. "0 of 5 graded" in the header says there is
+          //work here without spending a screen and a half to say it.
+        >
+          <div className="space-y-2">
+            {students.map((s) => (
+              <StudentLessons key={s.id} student={s} reservation={r} onReport={report} />
+            ))}
+          </div>
+        </CloseOutCard>
       </section>
     </>
   );
@@ -69,9 +103,12 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
 function StudentLessons({
   student,
   reservation,
+  onReport,
 }: {
   student: { id: number; user?: { name?: string } | null };
   reservation: Reservation;
+  /** Tells the section a grader exists, and whether it has been signed. */
+  onReport: (key: string, signed: boolean) => void;
 }) {
   const candidates = useCandidateLessons({ orgUserId: student.id, type: reservation.type });
   const enrollments = (candidates.data ?? []).filter((e) => e.lessons.length > 0);
@@ -99,6 +136,8 @@ function StudentLessons({
           scale={gradeCodesOf(e)}
           lessons={e.lessons}
           reservation={reservation}
+          reportKey={`${student.id}:${e.enrollmentId}`}
+          onReport={onReport}
         />
       ))}
     </div>
@@ -111,6 +150,8 @@ function LessonGrader({
   scale,
   lessons,
   reservation,
+  reportKey,
+  onReport,
 }: {
   enrollmentId: number;
   courseName: string;
@@ -118,6 +159,8 @@ function LessonGrader({
   scale: string[];
   lessons: CandidateLesson[];
   reservation: Reservation;
+  reportKey: string;
+  onReport: (key: string, signed: boolean) => void;
 }) {
   const r = reservation;
 
@@ -147,11 +190,31 @@ function LessonGrader({
   const [notes, setNotes] = React.useState("");
   const [warning, setWarning] = React.useState<string | null>(null);
   const [done, setDone] = React.useState(false);
+  //Device time, on a lesson flown in one. Part of the flight figure rather than extra, which
+  //is what makes the course's simulator ceiling apply to it.
+  const [sim, setSim] = React.useState("");
+  const [taskMarks, setTaskMarks] = React.useState<Record<number, string>>({});
+
+  //A different lesson has different tasks, so marks entered against the old one cannot
+  //carry over: they would be written against task ids belonging to another lesson.
+  React.useEffect(() => {
+    setTaskMarks({});
+  }, [lessonId]);
+
+  //Tell the section this grader is here, and whether it has been signed yet.
+  React.useEffect(() => {
+    onReport(reportKey, done);
+  }, [onReport, reportKey, done]);
 
   const save = useSaveLessonRecord();
   const sign = useSignLessonRecord();
 
   const lesson = lessons.find((l) => l.id === lessonId) ?? suggested;
+  const showSim = lesson?.kind === "sim" || r.type === "sim" || r.resource?.type?.simulator != null;
+  //The tasks this lesson is made of. Absent on a school that writes lessons without them,
+  //and on a console talking to a server that predates them being sent here.
+  const tasks = lesson?.tasks ?? [];
+  const needsNotes = lesson?.requiresNotes === true;
   const toDeci = (v: string): number | null => {
     const n = Number(v);
     return v.trim() === "" || Number.isNaN(n) ? null : Math.round(n * 10);
@@ -244,8 +307,33 @@ function LessonGrader({
         </div>
       </div>
 
+      {/* Device time, on a lesson flown in one. A SUBSET of the flight figure beside it,
+          not an addition: hours typed only into Flight are credited as aircraft time, and
+          the course's simulator ceiling never sees them. This field is the only thing that
+          keeps a Part 141 course inside its Appendix B allowance, and it was phone-only. */}
+      {showSim && (
+        <div className="space-y-1">
+          <Label htmlFor={`sim-${enrollmentId}`}>Of the flight hours, in a simulator</Label>
+          <Input
+            id={`sim-${enrollmentId}`}
+            inputMode="decimal"
+            value={sim}
+            onChange={(e) => setSim(e.target.value)}
+            placeholder="1.0"
+          />
+        </div>
+      )}
+
+      <TaskGradeList tasks={tasks} scale={scale} value={taskMarks} onChange={setTaskMarks} />
+
       <div className="space-y-1">
-        <Label htmlFor={`notes-${enrollmentId}`}>Notes</Label>
+        {/* "Notes required" is a syllabus setting on the lesson. It used to be enforced by
+            the phone alone, so the same lesson signed from a desk skipped the narrative the
+            school had asked for. The server refuses it now, and saying so here means the
+            instructor learns it before pressing Sign rather than from an error. */}
+        <Label htmlFor={`notes-${enrollmentId}`}>
+          Notes{needsNotes && <span className="ml-1 text-muted-foreground">(required)</span>}
+        </Label>
         <Textarea
           id={`notes-${enrollmentId}`}
           rows={2}
@@ -253,6 +341,11 @@ function LessonGrader({
           onChange={(e) => setNotes(e.target.value)}
           placeholder="What to work on next time."
         />
+        {needsNotes && !notes.trim() && (
+          <p className="text-xs text-muted-foreground">
+            This lesson needs notes before it can be signed.
+          </p>
+        )}
       </div>
 
       {warning ? <p className="text-sm text-amber-600">{warning}</p> : null}
@@ -265,7 +358,7 @@ function LessonGrader({
         <Button
           size="sm"
           className="flex-1"
-          disabled={busy || !lessonId}
+          disabled={busy || !lessonId || (needsNotes && !notes.trim())}
           onClick={async () => {
             const saved = await save.mutateAsync({
               enrollmentId,
@@ -274,6 +367,11 @@ function LessonGrader({
               notes: notes.trim() || null,
               flightDeciHours: toDeci(flight),
               instructionDeciHours: toDeci(ground),
+              simulatorDeciHours: showSim ? toDeci(sim) : undefined,
+              //Omitted when the lesson has no tasks: an empty array means "clear them all"
+              //server-side, and a form that never showed a task list must not wipe grades
+              //somebody entered on the phone.
+              ...(tasks.length ? { taskGrades: taskGradePayload(taskMarks) } : {}),
               //The link back to the booking this came from. It is what makes the record
               //traceable to the flight, and what lets the record survive the booking
               //being deleted later.

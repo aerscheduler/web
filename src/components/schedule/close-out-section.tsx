@@ -7,8 +7,10 @@ import {
   PlaneLanding,
   PlaneTakeoff,
   Receipt,
+  SlidersHorizontal,
   SquarePen,
   Tag,
+  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Invoice, Reservation } from "@/types/api";
@@ -37,8 +39,11 @@ import {
   hasConfirmedReview,
   isReservationPersonnel,
   reviewerCount,
-  type CloseOutStep,
 } from "./close-out";
+import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
+import { CloseOutCard } from "./close-out-card";
+import { CloseOutRail } from "./close-out-rail";
+import { CloseOutReadings } from "./close-out-readings";
 import { RampModal } from "./ramp-modal";
 import { ConfirmReviewModal } from "./confirm-review-modal";
 import { ConfirmGuestReviewModal } from "./confirm-guest-review-modal";
@@ -66,6 +71,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const [guestConfirmOpen, setGuestConfirmOpen] = React.useState(false);
   const [correctOpen, setCorrectOpen] = React.useState(false);
   const [overrideOpen, setOverrideOpen] = React.useState(false);
+  const [squawkOpen, setSquawkOpen] = React.useState(false);
 
   const invoiceQ = useReservationInvoice(r.id, {
     enabled: step === "invoiced" && canViewReservationInvoice(r, orgUserId, isStaff),
@@ -150,16 +156,52 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   // and a plain "Ramp Out" action rather than an overdue close-out prompt.
   const heading = step === "rampOut" && !noMeters ? "Dispatch" : "Close-out";
 
+  /**
+   * THE SQUAWK THE CONSOLE NEVER ASKED FOR.
+   *
+   * Close a flight out on the phone and the app opens a squawk form the moment the readings
+   * are in, every time. The console asked nobody, ever, and worse: the whole Maintenance
+   * area is hidden from instructors, students and renters, so the people who actually find
+   * the discrepancy had no way to file one from a desk at all. Our own help page said as
+   * much out loud, in the words "if you are one of those, use the app".
+   *
+   * `POST /maintenance/squawks` has always been `isOrgUser`. The restriction was never a
+   * permission, it was a missing button, and this is the screen where the pilot is already
+   * standing.
+   *
+   * Aircraft only. A squawk is a discrepancy on an aeroplane; a classroom has none, and the
+   * modal's own tail field would have nothing to put in it.
+   */
+  const canSquawk = canRamp && r.resource?.type?.plane != null;
+
+  //What the Adjustments card says while it is shut. Silent when there is nothing to report
+  //beyond the buttons themselves, which is the ordinary case.
+  const adjustmentsSummary = [
+    hasOverrides ? "priced by hand" : null,
+    pricesLocked ? "locked" : null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+
   return (
     <>
       <Separator />
       <section data-doc-shot="close-out-not-started" className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {heading}
           </h3>
-          <StepBadge step={step} invoice={invoice} />
+          {/* Only the money state, which the rail cannot carry: an invoice can be paid or
+              voided long after the flight is over. Everything before billing is the rail's
+              to say, and saying it twice in different words was half of what made this
+              section noisy. */}
+          {step === "invoiced" && <StepBadge invoice={invoice} />}
         </div>
+
+        <CloseOutRail step={step} noMeters={noMeters} />
+
+        {/* What is on the record so far. Renders nothing before the booking has flown. */}
+        <CloseOutReadings r={r} />
 
         {step === "rampOut" &&
           (canRamp ? (
@@ -259,6 +301,18 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
           />
         )}
 
+        {/* Anything wrong with the aeroplane, from the person who just flew it. */}
+        {canSquawk && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-muted-foreground"
+            onClick={() => setSquawkOpen(true)}
+          >
+            <Wrench className="size-4" /> Report a squawk
+          </Button>
+        )}
+
         {/* Who pays what, on a booking with more than one person on it. Offered from the
             moment the flight is back until it's billed — after that the invoices describe
             the shares they were computed from, and the server refuses to change them.
@@ -274,6 +328,12 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
             each rewrites what the flight costs, and each discards every PIN already
             entered. */}
         {(canCorrect || canOverride || hasOverrides || pricesLocked) && (
+          <CloseOutCard
+            title="Adjustments"
+            icon={SlidersHorizontal}
+            summary={adjustmentsSummary || undefined}
+            docShot="close-out-adjustments"
+          >
           <div className="space-y-2">
             {hasOverrides && (
               <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm">
@@ -328,6 +388,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
               </p>
             )}
           </div>
+          </CloseOutCard>
         )}
 
         {step === "reviewed" && (
@@ -386,6 +447,16 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         reservation={r}
       />
       <CorrectTimesModal open={correctOpen} onOpenChange={setCorrectOpen} reservation={r} />
+      {/* The tail comes from the booking, so the modal never asks for it. That also keeps
+          it usable by a student: the fleet list behind its picker is staff-only, and this
+          way nothing fetches it. */}
+      {canSquawk && (
+        <LogSquawkModal
+          open={squawkOpen}
+          onOpenChange={setSquawkOpen}
+          fixedResource={r.resource ?? null}
+        />
+      )}
       <OverridePaymentModal
         open={overrideOpen}
         onOpenChange={setOverrideOpen}
@@ -396,21 +467,18 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   );
 }
 
-function StepBadge({ step, invoice }: { step: CloseOutStep; invoice: Invoice | null }) {
-  if (step === "invoiced") {
-    if (invoice?.paidAt) return <Badge variant="success">Paid</Badge>;
-    if (invoice?.voidedAt) return <Badge variant="outline">Void</Badge>;
-    return <Badge variant="warning">Billed</Badge>;
-  }
-  const map: Record<Exclude<CloseOutStep, "invoiced">, { label: string; variant: "outline" | "warning" | "secondary" }> = {
-    rampOut: { label: "Not started", variant: "secondary" },
-    rampIn: { label: "In flight", variant: "warning" },
-    confirm: { label: "Awaiting review", variant: "warning" },
-    confirmGuest: { label: "Awaiting close-out", variant: "warning" },
-    reviewed: { label: "Reviewed", variant: "secondary" },
-  };
-  const s = map[step];
-  return <Badge variant={s.variant}>{s.label}</Badge>;
+/**
+ * The money state of a billed booking, and only that.
+ *
+ * Every earlier state used to be duplicated here as a second badge beside a heading that
+ * already changed word, and a sentence of prose that changed with both. The rail carries
+ * those now. What it cannot carry is what happened to the invoice afterwards: an invoice is
+ * paid or voided days later, with the flight itself unchanged.
+ */
+function StepBadge({ invoice }: { invoice: Invoice | null }) {
+  if (invoice?.paidAt) return <Badge variant="success">Paid</Badge>;
+  if (invoice?.voidedAt) return <Badge variant="outline">Void</Badge>;
+  return <Badge variant="warning">Billed</Badge>;
 }
 
 function InvoiceSummary({

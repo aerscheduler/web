@@ -1,9 +1,10 @@
 import * as React from "react";
-import { Loader2, Save, Users } from "lucide-react";
+import { Loader2, Save, SplitSquareHorizontal, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useSetReservationPayers } from "@/features/queries";
 import { PILOT_ROLES, type PilotRole, type Reservation, type ReservationPayerInput } from "@/types/api";
 import { usesBriefingNotMeters } from "./close-out";
+import { CloseOutCard } from "./close-out-card";
 import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -198,14 +199,32 @@ function listNames(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
 
-/** Static class strings, because Tailwind can't see an interpolated one. */
-const GRID_COLS: Record<number, string> = {
-  1: "sm:grid-cols-1",
-  2: "sm:grid-cols-2",
-  3: "sm:grid-cols-3",
-  4: "sm:grid-cols-4",
-  5: "sm:grid-cols-3 lg:grid-cols-5",
-};
+/**
+ * Divide `total` tenths into `n` parts that still add up to `total`.
+ *
+ * Every part has to be a whole tenth, because that is the resolution a Hobbs has and the
+ * unit the engine bills in. 2.5 hours between two pilots is 1.3 and 1.2, not 1.25 twice:
+ * the remainder goes to the earlier payers rather than being rounded away, so the legs
+ * reconcile against the aircraft exactly and the close-out is billable.
+ */
+function evenTenths(total: number, n: number): number[] {
+  if (n <= 0) return [];
+  const base = Math.floor(total / n);
+  const spare = total - base * n;
+  return Array.from({ length: n }, (_, i) => base + (i < spare ? 1 : 0));
+}
+
+/**
+ * TWO COLUMNS, ALWAYS, WHATEVER THE SCREEN SAYS.
+ *
+ * This grid used to widen with the VIEWPORT, up to five columns on a large monitor. The
+ * panel it sits in is `sm:max-w-md`, so it never gets wider than 448px no matter how big
+ * the display is: on the desktop this laid five inputs and their labels across roughly 70px
+ * each, which is where "Instruction (hrs)" wrapped to three lines above a box too narrow to
+ * show the number typed into it. A viewport breakpoint inside a fixed-width sheet is simply
+ * a wrong measurement, and this is what it looked like.
+ */
+const FIELD_GRID = "grid-cols-2";
 
 export function WhoPaysSection({ r }: { r: Reservation }) {
   const parties = React.useMemo(() => payersOf(r), [r]);
@@ -223,8 +242,6 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   // Pilot roles are a property of a flight. Nobody is second in command of a simulator or a
   // briefing room, and offering the field there invites a record that isn't true.
   const hasRoles = r.resource?.type?.plane != null;
-
-  const fieldCount = (hasMeters ? 2 : 0) + (hasInstruction ? 1 : 0) + 1 /* share */ + (hasRoles ? 1 : 0);
 
   // Seed from what's stored. A booking with no stakes recorded is the normal case, and it
   // seeds empty — which reads correctly as "nothing entered", not as "everyone owes zero".
@@ -320,6 +337,55 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   const shareTotal = billed.reduce((sum, p) => sum + (percentToBps(drafts[p.key]?.sharePercent ?? "") ?? 0), 0);
   const anyShareEntered = billed.some((p) => percentToBps(drafts[p.key]?.sharePercent ?? "") != null);
 
+  /**
+   * Fill the whole panel with an even split, in one press.
+   *
+   * THE SHORTCUT THE SHARED RIDE ACTUALLY NEEDED.
+   *
+   * Two pilots taking an aircraft out together is the ordinary case this panel exists for,
+   * and doing it by hand meant typing six numbers and getting the arithmetic right: the
+   * legs have to be consecutive and sum to exactly what the aircraft flew, or the server
+   * refuses the close-out. People got that wrong, then met a refusal at the end.
+   *
+   * The legs are laid out CONSECUTIVELY from the recorded out reading, which is also what
+   * really happened: the first pilot flies from 1014.2 to 1015.2 and hands over, the second
+   * flies 1015.2 to 1016.2. Shares and instruction divide the same way, and every remainder
+   * lands on the earlier payers so the totals are exact rather than nearly right.
+   *
+   * It fills the fields rather than saving them. A dispatcher who then swaps two readings
+   * because one pilot flew the longer leg is doing the normal thing, and Save is still
+   * theirs to press.
+   */
+  const splitEvenly = () => {
+    const n = billed.length;
+    if (n === 0) return;
+
+    const legs = flightTenths != null && flightTenths > 0 ? evenTenths(flightTenths, n) : null;
+    const legStart = hoursToTenths(tenthsToHours(r.review?.hobbsTimeOut));
+    const instruction =
+      briefingTenths != null && briefingTenths > 0 ? evenTenths(briefingTenths, n) : null;
+    const shares = evenTenths(10_000, n);
+
+    let cursor = legStart;
+    const next: Record<string, Draft> = { ...drafts };
+    billed.forEach((party, i) => {
+      const d = next[party.key] ?? EMPTY;
+      const patch: Draft = { ...d, sharePercent: String(shares[i] / 100) };
+      if (hasMeters && legs && cursor != null) {
+        patch.hobbsOut = tenthsToHours(cursor);
+        cursor += legs[i];
+        patch.hobbsIn = tenthsToHours(cursor);
+      }
+      if (hasInstruction && instruction) {
+        patch.instructionHours = tenthsToHours(instruction[i]);
+      }
+      next[party.key] = patch;
+    });
+
+    setDirty(true);
+    setDrafts(next);
+  };
+
   const submit = () => {
     const payers: ReservationPayerInput[] = parties.map((party) => {
       const d = drafts[party.key];
@@ -359,14 +425,39 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   // worse than asking nothing at all.
   if (!hasMeters && !hasInstruction) return null;
 
+  //WHAT THE CARD SAYS WHILE IT IS SHUT.
+  //
+  //A dispatcher opening a booking wants to know whether the split needs them, not to read
+  //a grid of inputs. Three states are worth a word: nothing entered yet, entered and it
+  //adds up, entered and it does not. Only the last one is a problem, and only the last one
+  //opens the card by itself.
+  const legsBroken = allLegsEntered && flightTenths != null && !legsReconcile;
+  const sharesBroken = anyShareEntered && shareTotal !== 10_000;
+  const attention = legsBroken || sharesBroken;
+  const summary = attention
+    ? legsBroken && sharesBroken
+      ? "hours and shares do not add up"
+      : legsBroken
+        ? "hours do not add up"
+        : "shares do not add up"
+    : anyShareEntered || anyLegEntered || anyInstructionEntered
+      ? `${billed.length} payers, split recorded`
+      : `${billed.length} payers, nothing split yet`;
+
   return (
-    <div data-doc-shot="who-pays-what-panel" className="rounded-md border">
+    <CloseOutCard
+      title="Who pays what"
+      icon={Users}
+      summary={summary}
+      attention={attention}
+      docShot="who-pays-what-panel"
+    >
+    <div className="-m-3 rounded-md">
       <div className="flex flex-wrap items-start justify-between gap-2 border-b bg-muted/40 px-3 py-2">
         <div className="flex items-center gap-2">
-          <Users className="size-4 text-muted-foreground" />
           <div>
             <div className="flex items-center gap-1.5 text-sm font-medium">
-              Who pays what
+              How this booking divides
               <DocsHint topic="who-pays-what" />
             </div>
             <p className="text-xs text-muted-foreground">
@@ -382,10 +473,21 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
             </p>
           </div>
         </div>
-        <Button size="sm" disabled={save.isPending || !dirty} onClick={submit}>
-          {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-          Save
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* The one press that fills every field with the split people actually meant.
+              Offered only once there is something to divide: before the aircraft is back
+              there are no hours to lay out, and an even split of nothing is a lie. */}
+          {(flightTenths != null || briefingTenths != null) && (
+            <Button size="sm" variant="outline" onClick={splitEvenly}>
+              <SplitSquareHorizontal className="size-4" />
+              Split evenly
+            </Button>
+          )}
+          <Button size="sm" disabled={save.isPending || !dirty} onClick={submit}>
+            {save.isPending ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+            Save
+          </Button>
+        </div>
       </div>
 
       <div className="divide-y">
@@ -420,7 +522,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
                   className="h-8 text-sm"
                 />
               ) : (
-                <div className={`grid grid-cols-2 items-end gap-2 ${GRID_COLS[fieldCount] ?? "sm:grid-cols-4"}`}>
+                <div className={`grid items-end gap-2 ${FIELD_GRID}`}>
                   {hasMeters && (
                     <>
                       <div className="space-y-1">
@@ -468,7 +570,9 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
                     />
                   </div>
                   {hasRoles && (
-                    <div className="space-y-1">
+                    //Full width: "Pilot in command" and "Second in command" do not fit in
+                    //half of a 448px panel, and a role nobody can read is a role nobody sets.
+                    <div className="col-span-2 space-y-1">
                       <Label className="whitespace-nowrap text-xs text-muted-foreground">Role</Label>
                       <select
                         value={d.pilotRole}
@@ -539,5 +643,6 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
         </div>
       )}
     </div>
+    </CloseOutCard>
   );
 }

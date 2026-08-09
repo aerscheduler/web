@@ -247,6 +247,15 @@ export const DOCS_TOPICS = {
     linkLabel: "Who can book what",
   },
 
+  /* ── Organization ─────────────────────────────────────────────────────── */
+
+  "delete-organization": {
+    title: "Delete this school",
+    summary:
+      "This schedules permanent deletion in 30 days. The school keeps working until then, and any admin or owner can cancel from this page. Every admin and owner is emailed when the countdown starts.",
+    href: "getting-started/delete-your-school",
+  },
+
   /* ── Maintenance ──────────────────────────────────────────────────────── */
 
   "squawk-grounding": {

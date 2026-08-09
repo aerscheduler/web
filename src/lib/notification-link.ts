@@ -51,6 +51,8 @@ const EXACT: Record<string, NotificationHref | undefined> = {
   "/currencies": "/me/currencies",
   //Owner-only notification, and console Settings is admin-gated, so the audiences match.
   "/organization-settings/billing": "/settings?tab=billing",
+  //Deletion countdown notices go to admins and owners; console Settings is admin-gated.
+  "/organization-settings": "/settings?tab=organization",
   //Automatic dunning handoff: admins/owners only. App org-invoice list; console Billing.
   "/organization-invoices": "/billing",
 };

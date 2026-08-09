@@ -97,6 +97,12 @@ export interface Organization {
   about?: string | null;
   /** The school's primary IANA zone; the fallback for a location that has none. */
   timeZone?: string | null;
+  /**
+   * When set, the school will be hard-deleted at this time. Null / absent means no
+   * countdown is running. Owners schedule via DELETE /organizations; admins cancel
+   * via POST /organizations/cancelDeletion.
+   */
+  scheduledDeletionAt?: string | null;
   billing?: OrganizationBillingSettings;
   preferences?: OrganizationPreferences;
   bookingPolicy?: OrganizationBookingPolicy;

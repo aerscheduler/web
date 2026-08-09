@@ -1357,20 +1357,33 @@ export function useUpdateOrganization() {
 }
 
 /**
- * Delete the whole organization. Owner only, and irreversible.
+ * Schedule the organization for deletion in 30 days. Owner only.
  *
- * The endpoint has always been there (`isOrgOwner`), and until now only the iPhone app
- * called it, which is why the help docs listed deleting a school as an app-only power.
- *
- * It answers 204 with no body, so nothing is parsed. The server refuses while any invoice
- * is unpaid, and that message comes back as an ApiError for the caller to show.
- *
- * No cache invalidation on purpose: the org this session is pinned to no longer exists, so
- * the only correct next step is to sign out, which throws the cache away wholesale.
+ * Returns `{ id, name, scheduledDeletionAt }`. The school stays usable until then;
+ * callers should `rehydrate()` so the session picks up the countdown. The server
+ * refuses while any invoice is unpaid, or if a countdown is already running.
  */
 export function useDeleteOrganization() {
   return useMutation({
-    mutationFn: () => api<void>("/organizations/", { method: "DELETE" }),
+    mutationFn: () =>
+      api<{ id: number; name: string; scheduledDeletionAt: string }>("/organizations/", {
+        method: "DELETE",
+      }),
+  });
+}
+
+/**
+ * Cancel a scheduled organization deletion. Admin (and owner) only.
+ *
+ * Returns the org with `scheduledDeletionAt: null`. Caller should `rehydrate()`.
+ */
+export function useCancelOrganizationDeletion() {
+  return useMutation({
+    mutationFn: () =>
+      api<{ id: number; name: string; scheduledDeletionAt: string | null }>(
+        "/organizations/cancelDeletion",
+        { method: "POST" }
+      ),
   });
 }
 

@@ -46,7 +46,7 @@ export function PendingOffersSheet({
           <DocsHint topic="pending-slot-offers" />
         </span>
       }
-      description="Offers currently held for members. Withdrawing a recovery offer moves to the next eligible member."
+      description="Offers currently held for members. Instructor confirms come first on duals; withdrawing a recovery offer moves to the next eligible step."
     >
       {offersQuery.isPending ? (
         <p className="py-6 text-center text-sm text-muted-foreground">Loading offers...</p>
@@ -69,6 +69,9 @@ export function PendingOffersSheet({
                   <p className="font-medium">
                     {offer.offeredTo?.user?.name ?? `Member #${offer.offeredTo?.id}`}
                   </p>
+                  {offer.purpose === "instructor_confirm" && (
+                    <Badge variant="secondary">Instructor confirm</Badge>
+                  )}
                   <Badge variant="outline">{offer.reservationType}</Badge>
                   {offer.notificationDelivery?.anyChannelEnabled === false && (
                     <Badge variant="outline">Notifications off</Badge>

@@ -43,10 +43,18 @@ export function MySlotOffersPanel() {
     try {
       if (action === "accept") {
         await accept.mutateAsync(offer.id);
-        toast.success("Slot accepted. Your reservation is booked.");
+        toast.success(
+          offer.purpose === "instructor_confirm"
+            ? "Confirmed. Eligible members can now be offered this slot."
+            : "Slot accepted. Your reservation is booked."
+        );
       } else {
         await decline.mutateAsync(offer.id);
-        toast.success("Slot offer declined");
+        toast.success(
+          offer.purpose === "instructor_confirm"
+            ? "Availability declined. Recovery will not offer this slot to students."
+            : "Slot offer declined"
+        );
       }
     } catch (error) {
       toast.error(
@@ -124,30 +132,40 @@ function OfferCard({
   const resource = offer.resource
     ? resourceLabel(offer.resource as Resource).name
     : "No resource assigned";
+  const instructorConfirm = offer.purpose === "instructor_confirm";
 
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
         <div>
-          <CardTitle>{offer.title || "Available reservation"}</CardTitle>
+          <CardTitle>
+            {instructorConfirm
+              ? "Confirm you can teach this slot"
+              : offer.title || "Available reservation"}
+          </CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
             {formatWindow(offer)} · {resource}
           </p>
         </div>
-        <Badge variant="outline">{offer.reservationType}</Badge>
+        <div className="flex flex-wrap gap-2">
+          {instructorConfirm && <Badge variant="secondary">Instructor confirm</Badge>}
+          <Badge variant="outline">{offer.reservationType}</Badge>
+        </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 pt-0 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           {expired
             ? "This hold has expired."
-            : `Accept within ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`}
+            : instructorConfirm
+              ? `Confirm within ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`
+              : `Accept within ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`}
         </p>
         <div className="flex gap-2">
           <Button variant="outline" disabled={busy || expired} onClick={onDecline}>
             <X className="size-4" /> Decline
           </Button>
           <Button disabled={busy || expired} onClick={onAccept}>
-            <Check className="size-4" /> Accept
+            <Check className="size-4" /> {instructorConfirm ? "Confirm" : "Accept"}
           </Button>
         </div>
       </CardContent>

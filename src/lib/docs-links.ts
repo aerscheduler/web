@@ -242,13 +242,13 @@ export const DOCS_TOPICS = {
   "slot-offers": {
     title: "Slot offers",
     summary:
-      "Accept before the hold ends to book the slot, or decline so the next eligible member can be offered. Turn on Slot offers & standby notifications so you do not miss the window.",
+      "Accept before the hold ends to book the slot, or decline so the next eligible member can be offered. Dual recoveries ask the instructor to confirm first. Holds never run past the slot start, and very soon starts are not offered. Turn on Slot offers & standby notifications so you do not miss the window.",
     href: "scheduling/standby-and-slot-offers",
   },
   "pending-slot-offers": {
     title: "Pending offers",
     summary:
-      "Offers currently held for members after a cancel or a desk send. Withdraw one to release the soft hold and continue the recovery chain.",
+      "Offers currently held after a cancel or a desk send. Instructor confirms appear first on duals. Withdraw one to release the soft hold and continue or stop the recovery chain.",
     href: "scheduling/standby-and-slot-offers",
   },
   "multi-day-bookings": {

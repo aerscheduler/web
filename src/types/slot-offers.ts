@@ -68,6 +68,7 @@ export type SlotOffer = {
   updatedAt?: string;
   status: "pending" | "accepted" | "declined" | "expired" | "withdrawn" | "superseded";
   trigger: "cancel_recovery" | "desk" | "system";
+  purpose: "claim" | "instructor_confirm";
   start: string;
   end: string;
   reservationType: string;

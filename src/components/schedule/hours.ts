@@ -26,10 +26,19 @@ export function hourLabel(h: number) {
  *
  * Measured on the AIRPORT's clock, like every other time on these boards.
  */
-export function hourWindow(reservations: Reservation[], zone: string, dayKey?: string) {
+export function hourWindow(
+  reservations: Reservation[],
+  zone: string,
+  dayKey?: string,
+  extraWindows: Array<{ start: string; end: string }> = []
+) {
   let startHour = DEFAULT_START_HOUR;
   let endHour = DEFAULT_END_HOUR;
-  for (const r of reservations) {
+  const spans: Array<{ start: string; end: string }> = [
+    ...reservations.map((r) => ({ start: r.start, end: r.end })),
+    ...extraWindows,
+  ];
+  for (const r of spans) {
     // `dayKey` is passed by the single-day board. Without it, an endpoint belonging to
     // ANOTHER day widens this day's ruler off a clock reading that has nothing to do with it:
     // an aircraft that left at 05:00 on Friday would pull Saturday's ruler back to 5am. The

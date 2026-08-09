@@ -248,7 +248,7 @@ export const DOCS_TOPICS = {
   "pending-slot-offers": {
     title: "Pending offers",
     summary:
-      "Offers currently held after a cancel or a desk send. Instructor confirms appear first on duals. Withdraw one to release the soft hold and continue or stop the recovery chain.",
+      "Offers currently held after a cancel or a desk send. They also appear as dashed holds on the day board so that time is not mistaken for free. Instructor confirms appear first on duals. Withdraw one to release the soft hold and continue or stop the recovery chain.",
     href: "scheduling/standby-and-slot-offers",
   },
   "multi-day-bookings": {

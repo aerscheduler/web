@@ -57,6 +57,9 @@ import {
 } from "@/components/schedule/board-filters";
 import { TYPE_LABEL, TYPE_ORDER } from "@/components/schedule/meta";
 import { PendingOffersSheet } from "@/components/slot-offers/pending-offers-sheet";
+import { SlotOfferDetailSheet } from "@/components/slot-offers/slot-offer-detail-sheet";
+import { usePendingSlotOffers } from "@/features/slot-offers";
+import { liveSlotOfferHolds } from "@/lib/slot-offer-holds";
 
 /**
  * Facets that remove LANES from the board. Narrowing to two aircraft is honest because the rows
@@ -107,6 +110,11 @@ function SchedulePage() {
   //another page and re-enter the slot by hand.
   const staff = isStaff(roles);
   const slotOffersOn = orgSlotOffersEnabled(organization);
+  const pendingOffersQ = usePendingSlotOffers(staff && slotOffersOn);
+  const slotOfferHolds = React.useMemo(
+    () => liveSlotOfferHolds(pendingOffersQ.data),
+    [pendingOffersQ.data]
+  );
   const selfBooks =
     !staff && canSelfBook(roles) && orgUserId != null && userId != null;
   const canBook = staff || selfBooks;
@@ -213,6 +221,7 @@ function SchedulePage() {
     roles,
     orgUserId,
     groundedCrew,
+    slotOfferHolds,
   });
 
   // Live board: quietly re-pull the range on an interval (ref keeps the timer
@@ -348,6 +357,11 @@ function SchedulePage() {
   // "Book another like this" seeds a CREATE from an existing reservation.
   const [duplicating, setDuplicating] = React.useState<Reservation | null>(null);
   const [offersOpen, setOffersOpen] = React.useState(false);
+  const [offerDetailId, setOfferDetailId] = React.useState<number | null>(null);
+  const offerDetail = React.useMemo(
+    () => pendingOffersQ.data?.find((o) => o.id === offerDetailId) ?? null,
+    [pendingOffersQ.data, offerDetailId]
+  );
 
   const {
     detail,
@@ -370,10 +384,17 @@ function SchedulePage() {
   const openReservationDetail = React.useCallback(
     (r: Reservation) => {
       setOffersOpen(false);
+      setOfferDetailId(null);
       openDetail(r);
     },
     [openDetail],
   );
+
+  const openOfferDetail = React.useCallback((offerId: number) => {
+    setDetailOpen(false);
+    setOffersOpen(false);
+    setOfferDetailId(offerId);
+  }, [setDetailOpen]);
 
   const openNew = () => {
     setDraft({ date: day });
@@ -422,6 +443,7 @@ function SchedulePage() {
                   onClick={() => {
                     // Same DetailPanel dock as reservation detail: only one at a time.
                     setDetailOpen(false);
+                    setOfferDetailId(null);
                     setOffersOpen(true);
                   }}
                 >
@@ -522,11 +544,15 @@ function SchedulePage() {
               day={day}
               resources={filteredResources}
               reservations={reservations}
+              slotOfferHolds={slotOfferHolds}
               onView={openReservationDetail}
               onEdit={startEdit}
               onDuplicate={setDuplicating}
               onCancel={handleCancel}
               onCreate={onCreate}
+              onOfferHoldClick={(hold) => {
+                openOfferDetail(hold.id);
+              }}
               drag={drag}
               {...marks}
             />
@@ -593,11 +619,24 @@ function SchedulePage() {
         />
       )}
 
+      {staff && slotOffersOn && (
+        <SlotOfferDetailSheet
+          offer={offerDetail}
+          open={offerDetail != null}
+          onOpenChange={(open) => {
+            if (!open) setOfferDetailId(null);
+          }}
+        />
+      )}
+
       <ReservationDetailSheet
         reservation={detail}
         open={detailOpen}
         onOpenChange={(open) => {
-          if (open) setOffersOpen(false);
+          if (open) {
+            setOffersOpen(false);
+            setOfferDetailId(null);
+          }
           setDetailOpen(open);
         }}
         onCancel={handleCancel}

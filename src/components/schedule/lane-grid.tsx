@@ -1,8 +1,17 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { resourceLabel, type Reservation, type Resource } from "@/types/api";
-import { dateKeyInZone, daysBetweenDateKeys, minutesFromMidnightInZone } from "@/lib/timezone";
+import {
+  dateKeyInZone,
+  daysBetweenDateKeys,
+  formatTimeInZone,
+  formatTimeRangeInZone,
+  minutesFromMidnightInZone,
+} from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
+import type { SlotOfferHold } from "@/lib/slot-offer-holds";
+import { holdOverlaps } from "@/lib/slot-offer-holds";
+import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { highlightMatch } from "@/lib/highlight-match";
@@ -15,6 +24,7 @@ import type { ReservationDraft } from "./reservation-form";
 import { typeForResource } from "./reservation-shared";
 import type { DragGeometry, DropZone, ScheduleDrag } from "./use-schedule-drag";
 import { ResizeHandle, dragAriaLabel } from "./drag-affordances";
+import { instantAtDayMinutes } from "./drag-rules";
 
 const HOUR_WIDTH = 68; // px
 const LABEL_WIDTH = 176; // px
@@ -79,11 +89,13 @@ export function LaneGrid({
   day,
   resources,
   reservations,
+  slotOfferHolds = [],
   onView,
   onEdit,
   onDuplicate,
   onCancel,
   onCreate,
+  onOfferHoldClick,
   matchedIds,
   selectedId,
   query,
@@ -92,12 +104,16 @@ export function LaneGrid({
   day: Date;
   resources: Resource[];
   reservations: Reservation[];
+  /** Pending slot-offer soft holds for this org (resource lanes). */
+  slotOfferHolds?: SlotOfferHold[];
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
   onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
-  /** Omitted for roles that may not create — the lanes then aren't clickable. */
+  /** Omitted for roles that may not create. The lanes then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
+  /** Open that offer's detail when a hold block is clicked. */
+  onOfferHoldClick?: (hold: SlotOfferHold) => void;
   /**
    * Block-filter marking. Non-matches are DIMMED, never removed — the lane geometry has to
    * keep telling the truth about what's occupied, or a dispatcher books over a real flight
@@ -186,7 +202,7 @@ export function LaneGrid({
   // late booking gets its own hour instead of collapsing onto the edge of the ruler.
   //The displayed day, as the key both the ruler and the block geometry measure against.
   const dayKey = format(day, "yyyy-MM-dd");
-  const { startHour, endHour } = hourWindow(drawn, tz.zone, dayKey);
+  const { startHour, endHour } = hourWindow(drawn, tz.zone, dayKey, slotOfferHolds);
   const hours = endHour - startHour;
   const totalMin = hours * 60;
   const laneWidth = hours * HOUR_WIDTH;
@@ -357,6 +373,33 @@ export function LaneGrid({
                           );
                           const hh = String(hour).padStart(2, "0");
                           const eh = String(hour + 1).padStart(2, "0");
+                          const startMs = instantAtDayMinutes(
+                            dayKey,
+                            hour * 60,
+                            tz.zone
+                          ).getTime();
+                          const endMs = instantAtDayMinutes(
+                            dayKey,
+                            (hour + 1) * 60,
+                            tz.zone
+                          ).getTime();
+                          const blocking = row.resource
+                            ? slotOfferHolds.find(
+                                (h) =>
+                                  h.resourceId === row.resource!.id &&
+                                  holdOverlaps(h, startMs, endMs)
+                              )
+                            : undefined;
+                          if (blocking) {
+                            toast.message(
+                              `Held for ${blocking.offeredToName} until ${formatTimeInZone(
+                                blocking.holdUntil,
+                                tz.zone
+                              )}. Open Pending offers to withdraw or wait.`
+                            );
+                            onOfferHoldClick?.(blocking);
+                            return;
+                          }
                           onCreate?.({
                             date: day,
                             resourceId: row.resource?.id,
@@ -396,6 +439,38 @@ export function LaneGrid({
                       </div>
                     );
                   })}
+                  {slotOfferHolds
+                    .filter((h) => row.resource != null && h.resourceId === row.resource.id)
+                    .filter((h) => {
+                      const s = minutesInWindow(h.start, tz.zone, startHour, dayKey);
+                      const e = minutesInWindow(h.end, tz.zone, startHour, dayKey);
+                      return e > 0 && s < totalMin;
+                    })
+                    .map((hold) => {
+                      const pseudo = { start: hold.start, end: hold.end } as Reservation;
+                      const { leftPx, widthPx } = laneBlockGeometry(
+                        pseudo,
+                        tz.zone,
+                        startHour,
+                        totalMin,
+                        dayKey
+                      );
+                      if (widthPx <= 0) return null;
+                      return (
+                        <OfferHoldBlock
+                          key={`hold-${hold.id}`}
+                          hold={hold}
+                          zone={tz.zone}
+                          style={{
+                            left: leftPx,
+                            width: widthPx,
+                            top: LANE_PAD_Y,
+                            height: TRACK_HEIGHT,
+                          }}
+                          onClick={onOfferHoldClick}
+                        />
+                      );
+                    })}
                   {/* The carried block. Rendered last so it paints over whatever is already
                       in this lane — nothing underneath is displaced or hidden, which is the
                       whole point: you can see what you are about to land on. */}
@@ -436,6 +511,65 @@ export function LaneGrid({
  * The outline a block leaves in its committed slot while it's being carried. It takes the
  * block's own geometry, so the lane keeps exactly the shape it had before the drag started.
  */
+function OfferHoldBlock({
+  hold,
+  zone,
+  style,
+  onClick,
+}: {
+  hold: SlotOfferHold;
+  zone: string;
+  style: React.CSSProperties;
+  onClick?: (hold: SlotOfferHold) => void;
+}) {
+  const label =
+    hold.purpose === "instructor_confirm"
+      ? `Confirm: ${hold.offeredToName}`
+      : `Offer: ${hold.offeredToName}`;
+  const detail = `${formatTimeRangeInZone(hold.start, hold.end, zone)}. Expires ${formatTimeInZone(
+    hold.holdUntil,
+    zone
+  )}.`;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            // Opaque fill so a booking underneath cannot bleed through the label.
+            "absolute z-[2] flex items-center overflow-hidden rounded-md border border-dashed",
+            "border-amber-600/60 bg-amber-50 px-1.5 text-left shadow-sm",
+            "dark:border-amber-500/50 dark:bg-amber-950",
+            "cursor-pointer"
+          )}
+          style={style}
+          aria-label={`${label}. ${detail}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick?.(hold);
+          }}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-xs font-semibold leading-tight text-foreground">
+              {label}
+            </div>
+            <div className="truncate text-[11px] leading-tight opacity-80">Held</div>
+          </div>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <div className="max-w-[16rem] text-xs">
+          <div className="font-medium">{label}</div>
+          <div className="tabular-nums">{detail}</div>
+          <div className="mt-1 opacity-80">
+            Soft hold: this time is not free to book until the offer ends or is withdrawn.
+          </div>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function LaneGhost({ style }: { style: React.CSSProperties }) {
   return (
     <div

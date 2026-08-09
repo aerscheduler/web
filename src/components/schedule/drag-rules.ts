@@ -23,10 +23,13 @@ import { resourceLabel } from "@/types/api";
 import { isStaff } from "@/lib/permissions";
 import {
   dateKeyInZone,
+  formatTimeInZone,
   formatTimeRangeInZone,
   minutesFromMidnightInZone,
   zonedWallClockToUtc,
 } from "@/lib/timezone";
+import type { SlotOfferHold } from "@/lib/slot-offer-holds";
+import { holdOverlaps } from "@/lib/slot-offer-holds";
 import { MIN_DURATION_MIN, SLOT_MIN } from "@/lib/scheduling";
 import { isRampedIn, isRampedOut, isReservationPersonnel } from "./close-out";
 import { TYPE_REQUIREMENTS } from "./reservation-shared";
@@ -341,11 +344,22 @@ export function validateDrop(args: {
   /** True when the pointer is over the board's catch-all row rather than a real lane. */
   overLeftoverRow?: boolean;
   others: Reservation[];
+  /** Pending slot-offer soft holds (same busy windows the server counts). */
+  slotOfferHolds?: SlotOfferHold[];
   zone: string;
   groundedCrew?: GroundedLookup;
 }): DropCheck {
-  const { r, next, targetResource, targetResourceId, overLeftoverRow, others, zone, groundedCrew } =
-    args;
+  const {
+    r,
+    next,
+    targetResource,
+    targetResourceId,
+    overLeftoverRow,
+    others,
+    slotOfferHolds,
+    zone,
+    groundedCrew,
+  } = args;
   const startMs = next.start.getTime();
   const endMs = next.end.getTime();
 
@@ -446,6 +460,24 @@ export function validateDrop(args: {
           )}.`,
         };
       }
+    }
+  }
+
+  const effectiveHoldResourceId = targetResourceId ?? currentResourceId;
+  if (effectiveHoldResourceId != null && slotOfferHolds?.length) {
+    for (const hold of slotOfferHolds) {
+      if (hold.resourceId !== effectiveHoldResourceId) continue;
+      if (!holdOverlaps(hold, startMs, endMs)) continue;
+      const who =
+        hold.purpose === "instructor_confirm"
+          ? `${hold.offeredToName} (instructor confirm)`
+          : hold.offeredToName;
+      const window = formatTimeRangeInZone(hold.start, hold.end, zone);
+      const until = formatTimeInZone(hold.holdUntil, zone);
+      return {
+        ok: false,
+        reason: `${nameOf(targetResource ?? r.resource)} is held for ${who} (${window}). Offer expires ${until}.`,
+      };
     }
   }
 

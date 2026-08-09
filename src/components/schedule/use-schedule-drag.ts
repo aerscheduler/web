@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api";
 import { useUpdateReservation } from "@/features/queries";
 import { formatDateInZone, formatTimeRangeInZone } from "@/lib/timezone";
 import { SLOT_MIN } from "@/lib/scheduling";
+import type { SlotOfferHold } from "@/lib/slot-offer-holds";
 import { reservationToInput } from "./reservation-shared";
 import {
   dragAbility,
@@ -120,8 +121,10 @@ export function useScheduleDrag(args: {
    * filter; a reservation's own personnel don't carry the flag.
    */
   groundedCrew?: GroundedLookup;
+  /** Pending slot-offer soft holds painted on the board (resource busy). */
+  slotOfferHolds?: SlotOfferHold[];
 }) {
-  const { zone, reservations, resources, roles, orgUserId, groundedCrew } = args;
+  const { zone, reservations, resources, roles, orgUserId, groundedCrew, slotOfferHolds } = args;
   const qc = useQueryClient();
   const update = useUpdateReservation();
 
@@ -133,8 +136,8 @@ export function useScheduleDrag(args: {
   const sessionRef = React.useRef<PointerSession | null>(null);
   const activeRef = React.useRef<ActiveDrag | null>(null);
   activeRef.current = active;
-  const dataRef = React.useRef({ reservations, resources, zone, groundedCrew });
-  dataRef.current = { reservations, resources, zone, groundedCrew };
+  const dataRef = React.useRef({ reservations, resources, zone, groundedCrew, slotOfferHolds });
+  dataRef.current = { reservations, resources, zone, groundedCrew, slotOfferHolds };
   const edgeRef = React.useRef(0);
   const rafRef = React.useRef(0);
   /** Tears down the current gesture's window listeners. Null when no drag is in progress. */
@@ -241,6 +244,7 @@ export function useScheduleDrag(args: {
         //Put the board back to whatever the server actually holds — a failed move must not
         //leave the optimistic position sitting there looking committed.
         void qc.invalidateQueries({ queryKey: ["reservations"] });
+        void qc.invalidateQueries({ queryKey: ["slot-offers"] });
         toast.error(
           err instanceof ApiError ? err.message : "Couldn't move the reservation — put back."
         );
@@ -292,6 +296,7 @@ export function useScheduleDrag(args: {
         targetResourceId,
         overLeftoverRow: overLeftover && targetResourceId !== currentResourceId,
         others: d.reservations,
+        slotOfferHolds: d.slotOfferHolds,
         zone: d.zone,
         groundedCrew: d.groundedCrew,
       });

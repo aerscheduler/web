@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { MonitorPlay, Plus } from "lucide-react";
+import { DoorOpen, MonitorPlay, Plus } from "lucide-react";
 import { pageRows, useLocations, useRoomsPage, useSimulatorsPage } from "@/features/queries";
 import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";

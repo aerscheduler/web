@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CheckCircle2, PlaneTakeoff, Plus, Wrench } from "lucide-react";
+import { CheckCircle2, ClipboardList, PlaneTakeoff, Plus, Wrench } from "lucide-react";
 import {
   pageRows,
   useSquawksPage,

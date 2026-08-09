@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, FileSignature, GraduationCap, Info } from "lucide-react";
+import { CheckCircle2, FileSignature, GraduationCap, Info, ScrollText } from "lucide-react";
 import {
   useCountersignLessonRecord,
   useEndorsements,

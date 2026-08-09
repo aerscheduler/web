@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bell } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { orgSlotOffersEnabled } from "@/lib/slot-offers-enabled";
 import { PROFILE_TABS, PROFILE_TAB_VALUES, type ProfileTab } from "@/lib/profile-sections";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
@@ -33,13 +34,19 @@ export const Route = createFileRoute("/_authed/me/profile")({
 });
 
 function ProfilePage() {
-  const { roles, user } = useAuth();
+  const { roles, user, organization } = useAuth();
   const navigate = Route.useNavigate();
   const { tab } = Route.useSearch();
+  const slotOffersOn = orgSlotOffersEnabled(organization);
 
   // Availability is only relevant to people students book against (instructors),
   // matching where it used to live in the nav. Tab list is shared with the palette.
-  const visible = PROFILE_TABS.filter((t) => !t.canShow || t.canShow(roles));
+  // Standby tab only when the school has slot offers enabled (default on).
+  const visible = PROFILE_TABS.filter(
+    (t) =>
+      (!t.canShow || t.canShow(roles)) &&
+      (t.value !== "standby" || slotOffersOn)
+  );
   const allowed = new Set(visible.map((t) => t.value));
   const active: ProfileTab = tab && allowed.has(tab) ? tab : "profile";
   const sections: RailSection[] = [{ items: visible }];

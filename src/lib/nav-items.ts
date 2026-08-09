@@ -224,7 +224,10 @@ function pageKey(page: CommandPage): string {
   return page.search ? `${page.to}?${new URLSearchParams(page.search)}` : page.to;
 }
 
-export function commandPages(roles: string[], opts: { isDeveloper: boolean }): CommandPage[] {
+export function commandPages(
+  roles: string[],
+  opts: { isDeveloper: boolean; slotOffersEnabled?: boolean }
+): CommandPage[] {
   const R = roles as Role[];
   const pages = [
     ...asCommandPages(operationsNav(roles), "Operations"),
@@ -247,7 +250,7 @@ export function commandPages(roles: string[], opts: { isDeveloper: boolean }): C
     return true;
   });
 
-  return [...unique, ...nestedCommandPages(R)];
+  return [...unique, ...nestedCommandPages(R, opts.slotOffersEnabled !== false)];
 }
 
 /**
@@ -257,7 +260,7 @@ export function commandPages(roles: string[], opts: { isDeveloper: boolean }): C
  * palette never offers a pane the member cannot open. Settings established the pattern;
  * Training, Maintenance, Facilities, Reports, Profile and My training follow it.
  */
-function nestedCommandPages(roles: Role[]): CommandPage[] {
+function nestedCommandPages(roles: Role[], slotOffersOn: boolean): CommandPage[] {
   const out: CommandPage[] = [];
 
   if (canAccess("/settings", roles)) {
@@ -333,6 +336,7 @@ function nestedCommandPages(roles: Role[]): CommandPage[] {
 
   for (const tab of PROFILE_TABS) {
     if (tab.canShow && !tab.canShow(roles)) continue;
+    if (tab.value === "standby" && !slotOffersOn) continue;
     out.push({
       to: "/me/profile",
       label: tab.label,
@@ -346,6 +350,7 @@ function nestedCommandPages(roles: Role[]): CommandPage[] {
   // Slot offers used to be its own You-nav item; it is a Schedule tab now.
   for (const tab of ME_SCHEDULE_TABS) {
     if (tab.value === "schedule") continue;
+    if (tab.value === "offers" && !slotOffersOn) continue;
     out.push({
       to: "/me/schedule",
       label: tab.label,

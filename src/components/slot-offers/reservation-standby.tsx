@@ -11,6 +11,7 @@ import { useOrgUserPreferences } from "@/features/queries";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
+import { orgSlotOffersEnabled } from "@/lib/slot-offers-enabled";
 import type { Reservation } from "@/types/api";
 import type { StandbyInterest } from "@/types/slot-offers";
 import { SlotOfferNotificationWarning } from "./notification-warning";
@@ -20,14 +21,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function ReservationStandby({ reservation }: { reservation: Reservation }) {
-  const { roles } = useAuth();
+  const { roles, organization } = useAuth();
   const desk = isStaff(roles);
+  const slotOffersOn = orgSlotOffersEnabled(organization);
   const mineQuery = useMyStandbyInterest();
-  const watchersQuery = useReservationStandby(reservation.id, desk);
+  const watchersQuery = useReservationStandby(reservation.id, desk && slotOffersOn);
   const createStandby = useCreateStandbyInterest();
   const withdrawStandby = useWithdrawStandbyInterest();
   const createOffer = useCreateSlotOffer();
   const preferencesQuery = useOrgUserPreferences();
+
+  if (!slotOffersOn) return null;
 
   const myInterest = (mineQuery.data ?? []).find(
     (interest) =>

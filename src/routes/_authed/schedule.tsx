@@ -19,6 +19,7 @@ import {
   canSelfBook,
   isStaff,
 } from "@/lib/permissions";
+import { orgSlotOffersEnabled } from "@/lib/slot-offers-enabled";
 import { useMediaQuery } from "@/hooks/use-mobile";
 import { PageHeader } from "@/components/page-header";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
@@ -93,7 +94,7 @@ export const Route = createFileRoute("/_authed/schedule")({
 const REFRESH_MS = 20_000;
 
 function SchedulePage() {
-  const { roles, orgUserId, userId } = useAuth();
+  const { roles, orgUserId, userId, organization } = useAuth();
   //Who may open a booking from the board, and as what.
   //
   //Staff dispatch: they assign other people, from a full picker.
@@ -105,6 +106,7 @@ function SchedulePage() {
   //takes it on a tap, and a student staring at the gap they wanted had to go find
   //another page and re-enter the slot by hand.
   const staff = isStaff(roles);
+  const slotOffersOn = orgSlotOffersEnabled(organization);
   const selfBooks =
     !staff && canSelfBook(roles) && orgUserId != null && userId != null;
   const canBook = staff || selfBooks;
@@ -414,7 +416,7 @@ function SchedulePage() {
               {isDesktop && (
                 <ViewModeToggle value={presentation} onChange={setPresentation} />
               )}
-              {staff && (
+              {staff && slotOffersOn && (
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -584,7 +586,7 @@ function SchedulePage() {
       <DragCallout drag={drag} />
 
       <CancelReservationDialog {...cancelDialog} />
-      {staff && (
+      {staff && slotOffersOn && (
         <PendingOffersSheet
           open={offersOpen}
           onOpenChange={setOffersOpen}

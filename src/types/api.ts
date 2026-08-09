@@ -106,6 +106,7 @@ export interface Organization {
   billing?: OrganizationBillingSettings;
   preferences?: OrganizationPreferences;
   bookingPolicy?: OrganizationBookingPolicy;
+  slotOfferSettings?: OrganizationSlotOfferSettings;
   details?: OrganizationDetails;
 }
 
@@ -227,6 +228,14 @@ export interface OrganizationBookingPolicy {
    */
   multiDayEnabled: boolean;
 }
+
+/** Org-wide slot offer / standby settings (1:1). Source of truth for the master switch and later hold rules. */
+export interface OrganizationSlotOfferSettings {
+  id?: number;
+  /** When false, no new cancel-recovery or desk offers; standby UI stays hidden. Default on. */
+  enabled: boolean;
+}
+
 
 /**
  * Whether a school may switch multi-day bookings on, and what to fix if not.

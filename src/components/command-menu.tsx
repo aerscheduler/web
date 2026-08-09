@@ -381,7 +381,14 @@ export function CommandMenuSearch() {
   const permittedTypes = search.data?.types ?? SEARCH_TYPE_ORDER;
 
   // Every page this member can open, from the same registry the rail renders.
-  const pages = React.useMemo(() => commandPages(R, { isDeveloper: isDeveloperSync() }), [R]);
+  const pages = React.useMemo(
+    () =>
+      commandPages(R, {
+        isDeveloper: isDeveloperSync(),
+        slotOffersEnabled: organization?.slotOfferSettings?.enabled !== false,
+      }),
+    [R, organization?.slotOfferSettings?.enabled]
+  );
   const navItems = React.useMemo(() => rankPages(pages, highlightQuery), [pages, highlightQuery]);
 
   // Suggested filters: keyword prefix match (Stripe "da" → date:), limited to

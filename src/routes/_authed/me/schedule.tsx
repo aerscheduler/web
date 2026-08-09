@@ -26,10 +26,11 @@ import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { cn } from "@/lib/utils";
 import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
 import {
-  ME_SCHEDULE_RAIL,
   ME_SCHEDULE_TAB_VALUES,
+  ME_SCHEDULE_TABS,
   type MeScheduleTab,
 } from "@/lib/me-schedule-sections";
+import { orgSlotOffersEnabled } from "@/lib/slot-offers-enabled";
 import { ReservationCard } from "@/components/me/reservation-card";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
 import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
@@ -95,11 +96,21 @@ function MySchedulePage() {
   // A technician's calendar holds maintenance, not flights.
   const bookings = bookingNouns(roles);
   const maintenanceOnly = bookings.many === "maintenance";
+  const slotOffersOn = orgSlotOffersEnabled(organization);
+  const scheduleRail = React.useMemo(
+    () => [
+      {
+        items: ME_SCHEDULE_TABS.filter((t) => t.value !== "offers" || slotOffersOn),
+      },
+    ],
+    [slotOffersOn]
+  );
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
   const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
   const { reservation: openReservationId, tab: tabSearch, ...listSearch } = routeSearch;
-  const activeTab: MeScheduleTab = tabSearch ?? "schedule";
+  const activeTab: MeScheduleTab =
+    tabSearch === "offers" && !slotOffersOn ? "schedule" : (tabSearch ?? "schedule");
   const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
     storageKey: "me-schedule",
     search: listSearch,
@@ -247,13 +258,13 @@ function MySchedulePage() {
       <div className={RAIL_ROW}>
         <SectionRail
           label="Schedule"
-          sections={ME_SCHEDULE_RAIL}
+          sections={scheduleRail}
           value={activeTab}
           onChange={pick}
         />
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto">
-          {activeTab === "offers" ? (
+          {activeTab === "offers" && slotOffersOn ? (
             <MySlotOffersPanel />
           ) : (
             <>

@@ -35,6 +35,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   const update = useUpdateOrganization();
   const prefs = organization.preferences;
   const bookingPolicy = organization.bookingPolicy;
+  const slotOfferSettings = organization.slotOfferSettings;
 
   // Local mirror so the switch flips instantly; reconciled from the server on rehydrate.
   const [overridePrices, setOverridePrices] = useState(
@@ -43,12 +44,13 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   const [approvedOnly, setApprovedOnly] = useState(
     prefs?.personnelCanOnlyUseApprovedResources ?? false
   );
+  const [slotOffers, setSlotOffers] = useState(slotOfferSettings?.enabled !== false);
   const [requirePaymentMethod, setRequirePaymentMethod] = useState(
     bookingPolicy?.requirePaymentMethod ?? false
   );
   const [multiDay, setMultiDay] = useState(bookingPolicy?.multiDayEnabled ?? false);
   const [pending, setPending] = useState<
-    PrefField | "requirePaymentMethod" | "multiDayEnabled" | null
+    PrefField | "requirePaymentMethod" | "multiDayEnabled" | "slotOffersEnabled" | null
   >(null);
 
   // Only asked for while the setting is OFF: that is the only state where the answer
@@ -61,18 +63,22 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   useEffect(() => {
     setOverridePrices(prefs?.instructorsCanOverrideReservationPrices ?? false);
     setApprovedOnly(prefs?.personnelCanOnlyUseApprovedResources ?? false);
+    setSlotOffers(slotOfferSettings?.enabled !== false);
     setRequirePaymentMethod(bookingPolicy?.requirePaymentMethod ?? false);
     setMultiDay(bookingPolicy?.multiDayEnabled ?? false);
   }, [
     prefs?.instructorsCanOverrideReservationPrices,
     prefs?.personnelCanOnlyUseApprovedResources,
+    slotOfferSettings?.enabled,
     bookingPolicy?.requirePaymentMethod,
     bookingPolicy?.multiDayEnabled,
   ]);
 
   function savePref(field: PrefField, value: boolean, apply: (v: boolean) => void) {
     const previous =
-      field === "instructorsCanOverrideReservationPrices" ? overridePrices : approvedOnly;
+      field === "instructorsCanOverrideReservationPrices"
+        ? overridePrices
+        : approvedOnly;
     apply(value);
     setPending(field);
     update.mutate(
@@ -84,6 +90,28 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
         },
         onError: (err) => {
           apply(previous);
+          toast.error(
+            err instanceof ApiError ? err.message : "Couldn't save that preference"
+          );
+        },
+        onSettled: () => setPending(null),
+      }
+    );
+  }
+
+  function saveSlotOffers(value: boolean) {
+    const previous = slotOffers;
+    setSlotOffers(value);
+    setPending("slotOffersEnabled");
+    update.mutate(
+      { slotOfferSettings: { enabled: value } },
+      {
+        onSuccess: async () => {
+          await rehydrate();
+          toast.success("Booking preferences updated");
+        },
+        onError: (err) => {
+          setSlotOffers(previous);
           toast.error(
             err instanceof ApiError ? err.message : "Couldn't save that preference"
           );
@@ -173,6 +201,15 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
           onCheckedChange={(v) =>
             savePref("personnelCanOnlyUseApprovedResources", v, setApprovedOnly)
           }
+        />
+        <PreferenceToggle
+          label="Offer open slots after a cancel"
+          docs="slot-offers"
+          description="When a booking cancels, send timed offers to members on standby (instructor confirm first on duals). On by default. Turn off to stop new offers; existing pending offers are unchanged."
+          checked={slotOffers}
+          disabled={pending !== null}
+          saving={pending === "slotOffersEnabled"}
+          onCheckedChange={saveSlotOffers}
         />
         <PreferenceToggle
           label="Require payment method before self-book"

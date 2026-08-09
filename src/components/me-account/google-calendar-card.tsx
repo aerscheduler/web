@@ -17,7 +17,7 @@ import {
 import { requestGoogleCalendarCode } from "@/lib/google";
 
 /**
- * Personal Google Calendar connection — publishes the signed-in member's own
+ * Personal Google Calendar connection. Publishes the signed-in member's own
  * reservations to their Google Calendar. Per-user (not org-level), so it lives
  * on the profile, not org settings.
  */
@@ -60,7 +60,8 @@ export function GoogleCalendarCard() {
             )}
           </div>
           <CardDescription className="mt-1">
-            Publish your reservations to your own Google Calendar.
+            Publish your reservations to your own Google Calendar, with the aircraft,
+            airport location, and who is on the booking.
           </CardDescription>
         </div>
       </CardHeader>

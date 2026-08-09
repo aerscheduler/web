@@ -51,6 +51,8 @@ const EXACT: Record<string, NotificationHref | undefined> = {
   "/currencies": "/me/currencies",
   //Owner-only notification, and console Settings is admin-gated, so the audiences match.
   "/organization-settings/billing": "/settings?tab=billing",
+  //Automatic dunning handoff: admins/owners only. App org-invoice list; console Billing.
+  "/organization-invoices": "/billing",
 };
 
 /**
@@ -89,6 +91,9 @@ const WITH_ID: Record<string, ((id: number) => NotificationHref) | undefined> = 
  */
 const WITH_QUERY_ID: Record<string, ((id: number) => NotificationHref) | undefined> = {
   "/reservations": (id) => `/schedule?reservation=${id}`,
+  //Automatic dunning handoff to admins/owners. App opens the org invoice list (query ignored);
+  //console opens the Billing detail panel for that invoice.
+  "/organization-invoices": (id) => `/billing?invoice=${id}`,
 };
 
 /** An integer id, and only if the segment was written as one (no "5abc", no "5.0"). */

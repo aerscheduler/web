@@ -53,6 +53,11 @@ const RESERVATION_ROWS: PrefRow[] = [
     label: "Reservation completed",
     hint: "When a flight is reviewed / closed out.",
   },
+  {
+    key: "slotOffers",
+    label: "Slot offers & standby",
+    hint: "Time-sensitive offers that must be accepted before the hold window closes.",
+  },
 ];
 
 const BILLING_ROWS: PrefRow[] = [

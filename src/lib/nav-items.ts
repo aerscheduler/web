@@ -29,6 +29,7 @@ import { MAINTENANCE_SECTIONS } from "@/lib/maintenance-sections";
 import { FACILITIES_TABS } from "@/lib/facilities-sections";
 import { PROFILE_TABS } from "@/lib/profile-sections";
 import { MY_TRAINING_TABS } from "@/lib/my-training-sections";
+import { ME_SCHEDULE_TABS } from "@/lib/me-schedule-sections";
 import { REPORTS_FIXED_PANES } from "@/lib/reports-sections";
 
 export type NavIcon = typeof LayoutDashboard;
@@ -338,6 +339,19 @@ function nestedCommandPages(roles: Role[]): CommandPage[] {
       icon: tab.icon,
       path: ["You", "Profile", tab.label],
       keywords: ["profile", ...(tab.keywords ?? [])],
+      search: { tab: tab.value },
+    });
+  }
+
+  // Slot offers used to be its own You-nav item; it is a Schedule tab now.
+  for (const tab of ME_SCHEDULE_TABS) {
+    if (tab.value === "schedule") continue;
+    out.push({
+      to: "/me/schedule",
+      label: tab.label,
+      icon: tab.icon,
+      path: ["You", "Schedule", tab.label],
+      keywords: ["schedule", ...(tab.keywords ?? [])],
       search: { tab: tab.value },
     });
   }

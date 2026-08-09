@@ -6,7 +6,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { CalendarClock, Plus } from "lucide-react";
+import { CalendarClock, Plus, RefreshCw } from "lucide-react";
 import { useLocations, useOrgUsers, useReservations, useResources } from "@/features/queries";
 import { zonedStartOfDay, zonedEndOfDay } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
@@ -55,9 +55,10 @@ import {
   type BoardMarks,
 } from "@/components/schedule/board-filters";
 import { TYPE_LABEL, TYPE_ORDER } from "@/components/schedule/meta";
+import { PendingOffersSheet } from "@/components/slot-offers/pending-offers-sheet";
 
 /**
- * Facets that remove LANES from the board. Narrowing to two aircraft is honest — the rows
+ * Facets that remove LANES from the board. Narrowing to two aircraft is honest because the rows
  * you didn't ask for are visibly gone, so nothing claims to be free that isn't.
  */
 const ROW_FACET_KEYS = ["resourceId", "locationId"] as const;
@@ -72,7 +73,7 @@ const FACET_KEYS = [...ROW_FACET_KEYS, ...BLOCK_FACET_KEYS] as const;
 
 export const Route = createFileRoute("/_authed/schedule")({
   /**
-   * `reservation` is which booking the detail panel is showing — kept OUTSIDE the
+   * `reservation` is which booking the detail panel is showing. It stays OUTSIDE the
    * facet list on purpose. Facets are remembered in localStorage and restored on
    * the next visit, and a booking reopened days later is not something anyone
    * asked for. Held as a NUMBER because the router JSON-encodes strings, which
@@ -97,7 +98,7 @@ function SchedulePage() {
   //
   //Staff dispatch: they assign other people, from a full picker.
   //
-  //Everyone else self-books — the same form /me/book shows, in a modal, with them
+  //Everyone else self-books. The same form /me/book shows, in a modal, with them
   //already on it. This board used to be flatly read-only for them, which made the
   //calendar the one place in the product where clicking an empty Tuesday morning did
   //nothing at all: the Book page would take the reservation, the mobile app's calendar
@@ -111,7 +112,7 @@ function SchedulePage() {
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
   const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
-  // Which booking is open is not a list filter — split off so it never reaches the
+  // Which booking is open is not a list filter. Split it off so it never reaches the
   // facet machinery (string-valued, and persisted to localStorage).
   const { reservation: openReservationId, ...listSearch } = routeSearch;
   const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
@@ -171,7 +172,7 @@ function SchedulePage() {
 
   //Only the ROW facets are sent to the server. `q` deliberately is not: the board dims
   //non-matching bookings instead of dropping them, and it can't dim rows it was never
-  //given. Matching runs in the browser over the range we already fetched — see
+  //given. Matching runs in the browser over the range we already fetched. See
   //`board-filters.ts`. That also keeps one cache entry per date range rather than one per
   //filter permutation, which is what makes the 20s auto-refresh below worth anything.
   const q = useReservations(startISO, endISO, {
@@ -186,11 +187,11 @@ function SchedulePage() {
   const resources = useResolvedResources(resourcesQ.data, reservations, roles);
 
   //Drag-to-reschedule. Instantiated once here and handed to every grid, so the day board
-  //and the week board share one set of rules, one optimistic write and one undo — see
+  //and the week board share one set of rules, one optimistic write and one undo. See
   //`use-schedule-drag.ts`. Permission is decided per booking inside, not per role here: a
   //student may drag their own lesson even though they can't create one.
   //The roster is already loaded for the Personnel filter, and it is the only place the
-  //client can see who has been grounded — a reservation's personnel carry just id and name.
+  //client can see who has been grounded. A reservation's personnel carry just id and name.
   const groundedCrew = React.useCallback(
     (id: number) => {
       const ou = (peopleQ.data ?? []).find((p) => p.id === id);
@@ -235,12 +236,12 @@ function SchedulePage() {
     if (resourceIds?.length)
       list = list.filter((r) => resourceIds.includes(r.id));
     if (locationIds?.length)
-      // Match on the nested location relation — see the note in types/api.ts.
+      // Match on the nested location relation. See the note in types/api.ts.
       list = list.filter((r) => r.location?.id != null && locationIds.includes(r.location.id));
     return list;
   }, [resources, resourceIds, locationIds]);
 
-  //Which bookings the block filters mark. `null` when nothing is selected — the board then
+  //Which bookings the block filters mark. `null` when nothing is selected, so the board then
   //renders every block at full strength rather than treating "no filter" as "all match",
   //which would still pay for a Set on every render and every auto-refresh.
   //`debouncedQ` is undefined when blank (it was shaped for API params, where an empty `q`
@@ -272,7 +273,7 @@ function SchedulePage() {
         allLabel: "All resources",
         multiple: true,
         //`hint` is searched as well as shown, so typing an airport in the Resource filter
-        //surfaces every aircraft based there — the fleet list itself never says "KTEST".
+        //surfaces every aircraft based there. The fleet list itself never says "KTEST".
         //Resources carry only a { id } location stub, so the name is looked up from the
         //locations list rather than read off the resource.
         options: resources.map((r) => ({
@@ -298,7 +299,7 @@ function SchedulePage() {
         label: "Personnel",
         allLabel: "Anyone",
         multiple: true,
-        //Everyone in the org, not just those rostered today — a dispatcher pins an
+        //Everyone in the org, not just those rostered today. A dispatcher pins an
         //instructor and then pages through the week, and an option list rebuilt from the
         //visible day would drop out from under them when they stepped to a day off.
         //Role rides along as a searchable hint, so "instructor" narrows to the instructors
@@ -342,8 +343,9 @@ function SchedulePage() {
   // Modal state.
   const [formOpen, setFormOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<ReservationDraft>({ date: day });
-  // "Book another like this" — seeds a CREATE from an existing reservation.
+  // "Book another like this" seeds a CREATE from an existing reservation.
   const [duplicating, setDuplicating] = React.useState<Reservation | null>(null);
+  const [offersOpen, setOffersOpen] = React.useState(false);
 
   const {
     detail,
@@ -362,6 +364,15 @@ function SchedulePage() {
     setSelectedId: setOpenReservationId,
   });
 
+  // Same DetailPanel dock as reservation detail: only one at a time.
+  const openReservationDetail = React.useCallback(
+    (r: Reservation) => {
+      setOffersOpen(false);
+      openDetail(r);
+    },
+    [openDetail],
+  );
+
   const openNew = () => {
     setDraft({ date: day });
     setFormOpen(true);
@@ -377,8 +388,8 @@ function SchedulePage() {
   //Anyone who can't book at all still gets no click-to-create regions, rather than ones
   //that silently do nothing.
   const onCreate = canBook ? openCreate : undefined;
-  //"New reservation" when you're dispatching someone else; "Book a flight" — or
-  //"Schedule maintenance" for a technician — when the booking is your own.
+  //"New reservation" when you're dispatching someone else; "Book a flight", or
+  //"Schedule maintenance" for a technician, when the booking is your own.
   const bookLabel = staff ? "New reservation" : bookActionLabel(roles);
   //Spread onto every CREATE form on this page so the empty-slot click and "Book another
   //like this" can't drift into showing a member two different booking forms.
@@ -388,7 +399,7 @@ function SchedulePage() {
 
   const count = q.data ? reservations.length : null;
 
-  //Spread into every view so all five stay in agreement about what is lit — a booking
+  //Spread into every view so all five stay in agreement about what is lit. A booking
   //dimmed on the lane board and solid in the agenda would be worse than not dimming.
   const marks: BoardMarks = { matchedIds, query: queryText, selectedId };
 
@@ -397,11 +408,23 @@ function SchedulePage() {
       <TableView.Header>
         <PageHeader
           title="The Ramp"
-          subtitle="Dispatch board — aircraft, instructors and students at a glance."
+          subtitle="Dispatch board for aircraft, instructors and students at a glance."
           actions={
             <>
               {isDesktop && (
                 <ViewModeToggle value={presentation} onChange={setPresentation} />
+              )}
+              {staff && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    // Same DetailPanel dock as reservation detail: only one at a time.
+                    setDetailOpen(false);
+                    setOffersOpen(true);
+                  }}
+                >
+                  <RefreshCw className="size-4" /> Pending offers
+                </Button>
               )}
               {canBook && (
                 <Button onClick={openNew}>
@@ -458,7 +481,7 @@ function SchedulePage() {
               <MonthGrid
                 month={day}
                 reservations={reservations}
-                onView={openDetail}
+                onView={openReservationDetail}
                 onCreate={onCreate}
                 onSelectDay={selectDay}
                 {...marks}
@@ -466,7 +489,7 @@ function SchedulePage() {
             ) : (
               <MonthAgenda
                 reservations={reservations}
-                onView={openDetail}
+                onView={openReservationDetail}
                 onEdit={startEdit}
                 onCancel={handleCancel}
                 {...marks}
@@ -477,7 +500,7 @@ function SchedulePage() {
               <WeekTimeGrid
                 weekStart={startOfWeek(day)}
                 reservations={reservations}
-                onView={openDetail}
+                onView={openReservationDetail}
                 onCreate={onCreate}
                 onSelectDay={selectDay}
                 drag={drag}
@@ -486,7 +509,7 @@ function SchedulePage() {
             ) : (
               <AgendaList
                 reservations={reservations}
-                onView={openDetail}
+                onView={openReservationDetail}
                 onEdit={startEdit}
                 onCancel={handleCancel}
                 {...marks}
@@ -497,7 +520,7 @@ function SchedulePage() {
               day={day}
               resources={filteredResources}
               reservations={reservations}
-              onView={openDetail}
+              onView={openReservationDetail}
               onEdit={startEdit}
               onDuplicate={setDuplicating}
               onCancel={handleCancel}
@@ -508,7 +531,7 @@ function SchedulePage() {
           ) : (
             <AgendaList
               reservations={reservations}
-              onView={openDetail}
+              onView={openReservationDetail}
               onEdit={startEdit}
               onDuplicate={setDuplicating}
               onCancel={handleCancel}
@@ -518,7 +541,7 @@ function SchedulePage() {
         </Card>
       </TableView.Body>
 
-      {/* One form, two audiences — see ReservationForm. A member gets the SAME component
+      {/* One form, two audiences. See ReservationForm. A member gets the SAME component
           /me/book renders, with themselves already seated on the booking, drawn as a
           modal so the slot they clicked isn't traded for a page navigation. */}
       {canBook && (
@@ -542,7 +565,7 @@ function SchedulePage() {
 
       {/* "Book another like this" is a CREATE, so it takes the same variant the empty-slot
           click does. Left on dispatch it would be the one place a student got the other
-          form — a Title field and two full personnel pickers — from the same menu.
+          form, a Title field and two full personnel pickers, from the same menu.
           Editing above deliberately stays on dispatch: an update REPLACES personnel, and
           the self shape would quietly reseat a booking somebody else is already on. */}
       {duplicating && (
@@ -556,16 +579,25 @@ function SchedulePage() {
         />
       )}
 
-      {/* One callout for every board — it's a viewport overlay that follows the cursor, not
+      {/* One callout for every board. It's a viewport overlay that follows the cursor, not
           something a lane owns, so it can't be clipped by the board or change its layout. */}
       <DragCallout drag={drag} />
 
       <CancelReservationDialog {...cancelDialog} />
+      {staff && (
+        <PendingOffersSheet
+          open={offersOpen}
+          onOpenChange={setOffersOpen}
+        />
+      )}
 
       <ReservationDetailSheet
         reservation={detail}
         open={detailOpen}
-        onOpenChange={setDetailOpen}
+        onOpenChange={(open) => {
+          if (open) setOffersOpen(false);
+          setDetailOpen(open);
+        }}
         onCancel={handleCancel}
         onEdit={startEdit}
         onStep={step}
@@ -575,13 +607,13 @@ function SchedulePage() {
 }
 
 /**
- * The lane grid needs a resource list even when `/resources` is empty or slow —
+ * The lane grid needs a resource list even when `/resources` is empty or slow,
  * so merge the fleet endpoint with any resources embedded on the reservations,
  * then drop the lanes this role has no business scanning.
  *
  * The filter lives here, at the single data source, rather than in each grid:
  * only the day board draws lanes, and this way the rule is stated once. It
- * filters LANES only — every member still sees the whole org's bookings, and
+ * filters LANES only. Every member still sees the whole org's bookings, and
  * the lane grid folds any reservation whose lane is missing into its "Other"
  * row so nothing is silently dropped.
  */

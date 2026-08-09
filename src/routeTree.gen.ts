@@ -45,11 +45,13 @@ import { Route as AuthedMeNotificationsRouteImport } from './routes/_authed/me/n
 import { Route as AuthedMePaymentMethodsRouteImport } from './routes/_authed/me/payment-methods'
 import { Route as AuthedMeProfileRouteImport } from './routes/_authed/me/profile'
 import { Route as AuthedMeScheduleRouteImport } from './routes/_authed/me/schedule'
+import { Route as AuthedMeSlotOffersRouteImport } from './routes/_authed/me/slot-offers'
 import { Route as AuthedMeTrainingRouteImport } from './routes/_authed/me.training'
 import { Route as AuthedOperationsAnnouncementsRouteImport } from './routes/_authed/operations/announcements'
 import { Route as AuthedOperationsCancellationsRouteImport } from './routes/_authed/operations/cancellations'
 import { Route as AuthedPeopleOrgUserIdRouteImport } from './routes/_authed/people_.$orgUserId'
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
+import { Route as AuthedSlotOffersOfferIdRouteImport } from './routes/_authed/slot-offers.$offerId'
 import { Route as AuthedTrainingCourseIdRouteImport } from './routes/_authed/training_.$courseId'
 import { Route as AuthedMaintenanceSquawksSquawkIdRouteImport } from './routes/_authed/maintenance_.squawks.$squawkId'
 import { Route as AuthedSettingsIntegrationsQuickbooksRouteImport } from './routes/_authed/settings/integrations/quickbooks'
@@ -236,6 +238,11 @@ const AuthedMeScheduleRoute = AuthedMeScheduleRouteImport.update({
   path: '/me/schedule',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMeSlotOffersRoute = AuthedMeSlotOffersRouteImport.update({
+  id: '/me/slot-offers',
+  path: '/me/slot-offers',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedMeTrainingRoute = AuthedMeTrainingRouteImport.update({
   id: '/me/training',
   path: '/me/training',
@@ -261,6 +268,11 @@ const AuthedPeopleOrgUserIdRoute = AuthedPeopleOrgUserIdRouteImport.update({
 const AuthedSettingsIndexRoute = AuthedSettingsIndexRouteImport.update({
   id: '/settings/',
   path: '/settings/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedSlotOffersOfferIdRoute = AuthedSlotOffersOfferIdRouteImport.update({
+  id: '/slot-offers/$offerId',
+  path: '/slot-offers/$offerId',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedTrainingCourseIdRoute = AuthedTrainingCourseIdRouteImport.update({
@@ -322,10 +334,12 @@ export interface FileRoutesByFullPath {
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
+  '/me/slot-offers': typeof AuthedMeSlotOffersRoute
   '/me/training': typeof AuthedMeTrainingRoute
   '/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/people/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
+  '/slot-offers/$offerId': typeof AuthedSlotOffersOfferIdRoute
   '/training/$courseId': typeof AuthedTrainingCourseIdRoute
   '/me/': typeof AuthedMeIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
@@ -368,10 +382,12 @@ export interface FileRoutesByTo {
   '/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/me/profile': typeof AuthedMeProfileRoute
   '/me/schedule': typeof AuthedMeScheduleRoute
+  '/me/slot-offers': typeof AuthedMeSlotOffersRoute
   '/me/training': typeof AuthedMeTrainingRoute
   '/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/people/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
+  '/slot-offers/$offerId': typeof AuthedSlotOffersOfferIdRoute
   '/training/$courseId': typeof AuthedTrainingCourseIdRoute
   '/me': typeof AuthedMeIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
@@ -416,10 +432,12 @@ export interface FileRoutesById {
   '/_authed/me/payment-methods': typeof AuthedMePaymentMethodsRoute
   '/_authed/me/profile': typeof AuthedMeProfileRoute
   '/_authed/me/schedule': typeof AuthedMeScheduleRoute
+  '/_authed/me/slot-offers': typeof AuthedMeSlotOffersRoute
   '/_authed/me/training': typeof AuthedMeTrainingRoute
   '/_authed/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/_authed/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/_authed/people_/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
+  '/_authed/slot-offers/$offerId': typeof AuthedSlotOffersOfferIdRoute
   '/_authed/training_/$courseId': typeof AuthedTrainingCourseIdRoute
   '/_authed/me/': typeof AuthedMeIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
@@ -464,10 +482,12 @@ export interface FileRouteTypes {
     | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
+    | '/me/slot-offers'
     | '/me/training'
     | '/operations/announcements'
     | '/operations/cancellations'
     | '/people/$orgUserId'
+    | '/slot-offers/$offerId'
     | '/training/$courseId'
     | '/me/'
     | '/settings/'
@@ -510,10 +530,12 @@ export interface FileRouteTypes {
     | '/me/payment-methods'
     | '/me/profile'
     | '/me/schedule'
+    | '/me/slot-offers'
     | '/me/training'
     | '/operations/announcements'
     | '/operations/cancellations'
     | '/people/$orgUserId'
+    | '/slot-offers/$offerId'
     | '/training/$courseId'
     | '/me'
     | '/settings'
@@ -557,10 +579,12 @@ export interface FileRouteTypes {
     | '/_authed/me/payment-methods'
     | '/_authed/me/profile'
     | '/_authed/me/schedule'
+    | '/_authed/me/slot-offers'
     | '/_authed/me/training'
     | '/_authed/operations/announcements'
     | '/_authed/operations/cancellations'
     | '/_authed/people_/$orgUserId'
+    | '/_authed/slot-offers/$offerId'
     | '/_authed/training_/$courseId'
     | '/_authed/me/'
     | '/_authed/settings/'
@@ -837,6 +861,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedMeScheduleRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/me/slot-offers': {
+      id: '/_authed/me/slot-offers'
+      path: '/me/slot-offers'
+      fullPath: '/me/slot-offers'
+      preLoaderRoute: typeof AuthedMeSlotOffersRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/me/training': {
       id: '/_authed/me/training'
       path: '/me/training'
@@ -870,6 +901,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings/'
       preLoaderRoute: typeof AuthedSettingsIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/slot-offers/$offerId': {
+      id: '/_authed/slot-offers/$offerId'
+      path: '/slot-offers/$offerId'
+      fullPath: '/slot-offers/$offerId'
+      preLoaderRoute: typeof AuthedSlotOffersOfferIdRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/training_/$courseId': {
@@ -928,10 +966,12 @@ interface AuthedRouteChildren {
   AuthedMePaymentMethodsRoute: typeof AuthedMePaymentMethodsRoute
   AuthedMeProfileRoute: typeof AuthedMeProfileRoute
   AuthedMeScheduleRoute: typeof AuthedMeScheduleRoute
+  AuthedMeSlotOffersRoute: typeof AuthedMeSlotOffersRoute
   AuthedMeTrainingRoute: typeof AuthedMeTrainingRoute
   AuthedOperationsAnnouncementsRoute: typeof AuthedOperationsAnnouncementsRoute
   AuthedOperationsCancellationsRoute: typeof AuthedOperationsCancellationsRoute
   AuthedPeopleOrgUserIdRoute: typeof AuthedPeopleOrgUserIdRoute
+  AuthedSlotOffersOfferIdRoute: typeof AuthedSlotOffersOfferIdRoute
   AuthedTrainingCourseIdRoute: typeof AuthedTrainingCourseIdRoute
   AuthedMeIndexRoute: typeof AuthedMeIndexRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
@@ -965,10 +1005,12 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMePaymentMethodsRoute: AuthedMePaymentMethodsRoute,
   AuthedMeProfileRoute: AuthedMeProfileRoute,
   AuthedMeScheduleRoute: AuthedMeScheduleRoute,
+  AuthedMeSlotOffersRoute: AuthedMeSlotOffersRoute,
   AuthedMeTrainingRoute: AuthedMeTrainingRoute,
   AuthedOperationsAnnouncementsRoute: AuthedOperationsAnnouncementsRoute,
   AuthedOperationsCancellationsRoute: AuthedOperationsCancellationsRoute,
   AuthedPeopleOrgUserIdRoute: AuthedPeopleOrgUserIdRoute,
+  AuthedSlotOffersOfferIdRoute: AuthedSlotOffersOfferIdRoute,
   AuthedTrainingCourseIdRoute: AuthedTrainingCourseIdRoute,
   AuthedMeIndexRoute: AuthedMeIndexRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,

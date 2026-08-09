@@ -22,13 +22,20 @@ import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { cn } from "@/lib/utils";
 import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
+import {
+  ME_SCHEDULE_RAIL,
+  ME_SCHEDULE_TAB_VALUES,
+  type MeScheduleTab,
+} from "@/lib/me-schedule-sections";
 import { ReservationCard } from "@/components/me/reservation-card";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
 import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
 import { ReservationForm } from "@/components/schedule/reservation-form";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
+import { MySlotOffersPanel } from "@/components/slot-offers/my-slot-offers-panel";
 import { resourceLabel } from "@/types/api";
 
 const FACET_KEYS = ["resourceId", "locationId"] as const;
@@ -36,13 +43,21 @@ const FACET_KEYS = ["resourceId", "locationId"] as const;
 export const Route = createFileRoute("/_authed/me/schedule")({
   /** `reservation` = which booking the detail panel shows. Outside the facet list
    *  so it is never persisted and reopened on a later visit; a number so the
-   *  router doesn't JSON-quote it into `?reservation=%221204%22`. */
+   *  router doesn't JSON-quote it into `?reservation=%221204%22`.
+   *  `tab` picks Schedule vs Slot offers (deep-linkable from old /me/slot-offers). */
   validateSearch: (s) => {
     const list = validateListSearch(s, [...FACET_KEYS]);
     const reservation = Number.parseInt(String(s.reservation ?? ""), 10);
+    const tabRaw = s.tab;
+    const tab =
+      typeof tabRaw === "string" &&
+      (ME_SCHEDULE_TAB_VALUES as readonly string[]).includes(tabRaw)
+        ? (tabRaw as MeScheduleTab)
+        : undefined;
     return {
       ...list,
       ...(Number.isFinite(reservation) ? { reservation } : {}),
+      ...(tab ? { tab } : {}),
     };
   },
   component: MySchedulePage,
@@ -83,7 +98,8 @@ function MySchedulePage() {
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
   const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
-  const { reservation: openReservationId, ...listSearch } = routeSearch;
+  const { reservation: openReservationId, tab: tabSearch, ...listSearch } = routeSearch;
+  const activeTab: MeScheduleTab = tabSearch ?? "schedule";
   const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
     storageKey: "me-schedule",
     search: listSearch,
@@ -151,7 +167,7 @@ function MySchedulePage() {
     [resourcesQ.data, locationsQ.data]
   );
 
-  // Same detail sheet the dispatch board opens — cancel and the ramp-out /
+  // Same detail sheet the dispatch board opens: cancel and the ramp-out /
   // ramp-in / close-out flow behave identically here.
   const {
     detail,
@@ -169,6 +185,27 @@ function MySchedulePage() {
     selectedId: openReservationId ?? null,
     setSelectedId: setOpenReservationId,
   });
+
+  const pick = (next: string) => {
+    const tab = (ME_SCHEDULE_TAB_VALUES as readonly string[]).includes(next)
+      ? (next as MeScheduleTab)
+      : "schedule";
+    if (tab === "offers") setOpen(false);
+    void navigate({
+      search: (prev) => {
+        const { reservation: _drop, ...rest } = prev as Record<string, unknown> & {
+          reservation?: number;
+        };
+        // Default tab omits the param so /me/schedule stays clean.
+        if (tab === "schedule") {
+          const { tab: _tab, ...withoutTab } = rest as { tab?: string };
+          return withoutTab;
+        }
+        return { ...rest, tab };
+      },
+      replace: true,
+    });
+  };
 
   if (organization === null) {
     return (
@@ -188,7 +225,7 @@ function MySchedulePage() {
   }
 
   return (
-    <TableView>
+    <TableView className="gap-5">
       <TableView.Header>
         <PageHeader
           title="Schedule"
@@ -205,97 +242,112 @@ function MySchedulePage() {
             </Button>
           }
         />
-
-        <div
-          role="group"
-          aria-label="Schedule range"
-          className="inline-flex rounded-lg border border-border bg-card p-1"
-        >
-          {RANGES.map((r) => (
-            <button
-              key={r.value}
-              type="button"
-              aria-pressed={range === r.value}
-              onClick={() => setRange(r.value)}
-              className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                range === r.value
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-        <ListSearchBar
-          value={search}
-          onChange={setSearch}
-          placeholder="Search people, aircraft, dual, solo…"
-          aria-label="Search calendar"
-          facets={facetDefs}
-          filterValues={facets}
-          onFilterChange={setFacets}
-        />
       </TableView.Header>
 
-      {q.isPending ? (
-        <Card className="min-h-0 flex-1 overflow-hidden p-0">
-          <CalendarGridSkeleton />
-        </Card>
-      ) : q.isError ? (
-        <Card className="min-h-0 flex-1 p-0">
-          <ErrorState error={q.error} onRetry={() => q.refetch()} />
-        </Card>
-      ) : groups.length === 0 && !filtersActive ? (
-        <Card className="min-h-0 flex-1 p-0">
-          <EmptyState
-            icon={CalendarClock}
-            title={`No ${bookings.many} on your schedule`}
-            body="Book one to get started."
-            action={
-              <Button asChild>
-                <Link to="/me/book">
-                  <CalendarPlus className="size-4" /> {bookLabel}
-                </Link>
-              </Button>
-            }
-          />
-        </Card>
-      ) : groups.length === 0 ? (
-        <Card className="min-h-0 flex-1 p-0">
-          <EmptyState
-            icon={CalendarClock}
-            title="No matches"
-            body="Nothing matches that search."
-          />
-        </Card>
-      ) : (
-        <TableView.Body>
-          <Card data-doc-shot="my-schedule-list" className="overflow-hidden p-0">
-            <div data-doc-shot="me-schedule-list" className="divide-y divide-border">
-              {groups.map(([key, items]) => (
-                <section key={key} className="p-4">
-                  <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {dayHeading(parseISO(key))}
-                  </h2>
-                  <ul className="space-y-2">
-                    {items.map((r) => (
-                      <li key={r.id}>
-                        <ReservationCard
-                          r={r}
-                          onOpen={openDetail}
-                          selected={r.id === selectedId}
-                        />
-                      </li>
+      <div className={RAIL_ROW}>
+        <SectionRail
+          label="Schedule"
+          sections={ME_SCHEDULE_RAIL}
+          value={activeTab}
+          onChange={pick}
+        />
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto">
+          {activeTab === "offers" ? (
+            <MySlotOffersPanel />
+          ) : (
+            <>
+              <div
+                role="group"
+                aria-label="Schedule range"
+                className="inline-flex rounded-lg border border-border bg-card p-1"
+              >
+                {RANGES.map((r) => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    aria-pressed={range === r.value}
+                    onClick={() => setRange(r.value)}
+                    className={cn(
+                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                      range === r.value
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <ListSearchBar
+                value={search}
+                onChange={setSearch}
+                placeholder="Search people, aircraft, dual, solo…"
+                aria-label="Search calendar"
+                facets={facetDefs}
+                filterValues={facets}
+                onFilterChange={setFacets}
+              />
+
+              {q.isPending ? (
+                <Card className="min-h-0 flex-1 overflow-hidden p-0">
+                  <CalendarGridSkeleton />
+                </Card>
+              ) : q.isError ? (
+                <Card className="min-h-0 flex-1 p-0">
+                  <ErrorState error={q.error} onRetry={() => q.refetch()} />
+                </Card>
+              ) : groups.length === 0 && !filtersActive ? (
+                <Card className="min-h-0 flex-1 p-0">
+                  <EmptyState
+                    icon={CalendarClock}
+                    title={`No ${bookings.many} on your schedule`}
+                    body="Book one to get started."
+                    action={
+                      <Button asChild>
+                        <Link to="/me/book">
+                          <CalendarPlus className="size-4" /> {bookLabel}
+                        </Link>
+                      </Button>
+                    }
+                  />
+                </Card>
+              ) : groups.length === 0 ? (
+                <Card className="min-h-0 flex-1 p-0">
+                  <EmptyState
+                    icon={CalendarClock}
+                    title="No matches"
+                    body="Nothing matches that search."
+                  />
+                </Card>
+              ) : (
+                <Card data-doc-shot="my-schedule-list" className="overflow-hidden p-0">
+                  <div data-doc-shot="me-schedule-list" className="divide-y divide-border">
+                    {groups.map(([key, items]) => (
+                      <section key={key} className="p-4">
+                        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          {dayHeading(parseISO(key))}
+                        </h2>
+                        <ul className="space-y-2">
+                          {items.map((r) => (
+                            <li key={r.id}>
+                              <ReservationCard
+                                r={r}
+                                onOpen={openDetail}
+                                selected={r.id === selectedId}
+                              />
+                            </li>
+                          ))}
+                        </ul>
+                      </section>
                     ))}
-                  </ul>
-                </section>
-              ))}
-            </div>
-          </Card>
-        </TableView.Body>
-      )}
+                  </div>
+                </Card>
+              )}
+            </>
+          )}
+        </div>
+      </div>
 
       {editing && (
         <ReservationForm
@@ -310,7 +362,7 @@ function MySchedulePage() {
 
       <ReservationDetailSheet
         reservation={detail}
-        open={open}
+        open={open && activeTab === "schedule"}
         onOpenChange={setOpen}
         onCancel={cancelReservation}
         onEdit={startEdit}

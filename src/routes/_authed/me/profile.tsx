@@ -3,8 +3,8 @@ import { Bell } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { PROFILE_TABS, PROFILE_TAB_VALUES, type ProfileTab } from "@/lib/profile-sections";
 import { PageHeader } from "@/components/page-header";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
+import { TableView } from "@/components/table-view";
+import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { Button } from "@/components/ui/button";
 import { ProfileCard } from "@/components/me-account/profile-card";
 import { MyMembershipCard } from "@/components/me-account/my-membership-card";
@@ -14,8 +14,8 @@ import { MyTimeZoneCard } from "@/components/settings/time-zone-card";
 import { SecurityCard } from "@/components/me-account/security-card";
 import { GoogleCalendarCard } from "@/components/me-account/google-calendar-card";
 import { AvailabilityEditor } from "@/components/me-account/availability-editor";
+import { StandbyPreferencesPanel } from "@/components/slot-offers/standby-preferences-panel";
 import { PaymentMethodsPanel } from "@/components/me-money/payment-methods-panel";
-import { SignOutButton } from "@/components/me-account/sign-out-button";
 import { LeaveOrganizationCard } from "@/components/me-account/leave-organization-card";
 
 export const Route = createFileRoute("/_authed/me/profile")({
@@ -42,82 +42,70 @@ function ProfilePage() {
   const visible = PROFILE_TABS.filter((t) => !t.canShow || t.canShow(roles));
   const allowed = new Set(visible.map((t) => t.value));
   const active: ProfileTab = tab && allowed.has(tab) ? tab : "profile";
+  const sections: RailSection[] = [{ items: visible }];
+
+  const pick = (next: string) => {
+    void navigate({ search: { tab: next as ProfileTab }, replace: true });
+  };
 
   return (
-    <div>
-      <PageHeader
-        title="Profile & account"
-        subtitle="Manage your personal details, availability, and payment methods."
-      />
+    <TableView className="gap-5">
+      <TableView.Header>
+        <PageHeader
+          title="Profile & account"
+          subtitle="Manage your personal details, availability, and payment methods."
+        />
+      </TableView.Header>
 
-      <Tabs
-        value={active}
-        onValueChange={(v) => navigate({ search: { tab: v as ProfileTab }, replace: true })}
-        className="gap-4"
-      >
-        <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
-          {visible.map((t) => (
-            <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
-              <t.icon className="size-4" />
-              {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <div className={RAIL_ROW}>
+        <SectionRail
+          label="Profile & account"
+          sections={sections}
+          value={active}
+          onChange={pick}
+        />
 
-        <TabsContent value="profile" className="space-y-4">
-          <ProfileCard />
-          {/* Directly under who-you-are, because "what am I on and what does it cost" is
-              the first question a club member has about their own account. Renders nothing
-              when they are not on a plan. */}
-          <MyMembershipCard />
-          <ContactDetailsCard />
-          <EmergencyContactsCard userId={user?.id ?? null} />
-          {/* Lives on the profile tab rather than its own: it's a personal preference, and
-              most people will set it once when they first travel and never look again. */}
-          <MyTimeZoneCard />
-          <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
-            <div className="flex items-start gap-3">
-              <Bell className="mt-0.5 size-4 text-muted-foreground" />
-              <div>
-                <p className="text-sm font-medium">Notifications</p>
-                <p className="text-xs text-muted-foreground">
-                  Choose which booking, billing, and school emails and push alerts you receive.
-                </p>
+        <div className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto">
+          {active === "profile" && (
+            <>
+              <ProfileCard />
+              {/* Directly under who-you-are, because "what am I on and what does it cost" is
+                  the first question a club member has about their own account. Renders nothing
+                  when they are not on a plan. */}
+              <MyMembershipCard />
+              <ContactDetailsCard />
+              <EmergencyContactsCard userId={user?.id ?? null} />
+              {/* Lives on the profile tab rather than its own: it's a personal preference, and
+                  most people will set it once when they first travel and never look again. */}
+              <MyTimeZoneCard />
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
+                <div className="flex items-start gap-3">
+                  <Bell className="mt-0.5 size-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-sm font-medium">Notifications</p>
+                    <p className="text-xs text-muted-foreground">
+                      Choose which booking, billing, and school emails and push alerts you receive.
+                    </p>
+                  </div>
+                </div>
+                <Button asChild variant="outline" size="sm">
+                  <Link to="/me/notifications">Manage</Link>
+                </Button>
               </div>
-            </div>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/me/notifications">Manage</Link>
-            </Button>
-          </div>
-        </TabsContent>
-        <TabsContent value="security">
-          <SecurityCard />
-        </TabsContent>
-        <TabsContent value="calendar">
-          <GoogleCalendarCard />
-        </TabsContent>
-        {allowed.has("availability") && (
-          <TabsContent value="availability">
-            <AvailabilityEditor />
-          </TabsContent>
-        )}
-        <TabsContent value="payments">
-          <PaymentMethodsPanel />
-        </TabsContent>
-      </Tabs>
-
-      <Separator className="my-5" />
-
-      <div className="space-y-4">
-        <LeaveOrganizationCard />
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium">Sign out</p>
-            <p className="text-xs text-muted-foreground">End your session on this device.</p>
-          </div>
-          <SignOutButton />
+            </>
+          )}
+          {active === "security" && (
+            <>
+              <SecurityCard />
+              <LeaveOrganizationCard />
+            </>
+          )}
+          {active === "calendar" && <GoogleCalendarCard />}
+          {active === "availability" && allowed.has("availability") && <AvailabilityEditor />}
+          {active === "standby" && allowed.has("standby") && <StandbyPreferencesPanel />}
+          {active === "payments" && <PaymentMethodsPanel />}
         </div>
       </div>
-    </div>
+    </TableView>
   );
 }

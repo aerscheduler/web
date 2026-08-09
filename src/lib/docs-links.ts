@@ -227,6 +227,30 @@ export const DOCS_TOPICS = {
       "Pick the closest one, because the cancellation report counts these and consistent answers are what make it useful. A no-show is recorded by cancelling with the No-show reason after the start time.",
     href: "scheduling/cancel-a-reservation",
   },
+  "standby-for-booking": {
+    title: "Stand by",
+    summary:
+      "Join standby on this booking if you want it when it opens. You get a time-limited offer to accept, not an automatic rebook. Standing preferences for days and types live under Profile → Standby.",
+    href: "scheduling/standby-and-slot-offers",
+  },
+  "standing-preferences": {
+    title: "Standing preferences",
+    summary:
+      "Days, reservation types, local hours, aircraft, and instructors you want. Leave a field blank to mean any, and pick at least one constraint. Matching openings become time-limited offers.",
+    href: "scheduling/standby-and-slot-offers",
+  },
+  "slot-offers": {
+    title: "Slot offers",
+    summary:
+      "Accept before the hold ends to book the slot, or decline so the next eligible member can be offered. Turn on Slot offers & standby notifications so you do not miss the window.",
+    href: "scheduling/standby-and-slot-offers",
+  },
+  "pending-slot-offers": {
+    title: "Pending offers",
+    summary:
+      "Offers currently held for members after a cancel or a desk send. Withdraw one to release the soft hold and continue the recovery chain.",
+    href: "scheduling/standby-and-slot-offers",
+  },
   "multi-day-bookings": {
     title: "Multi-day bookings",
     summary:

@@ -11,6 +11,7 @@ import { DOT_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { CloseOutSection } from "./close-out-section";
 import { LessonSection } from "./lesson-section";
 import { ReservationAudit } from "./reservation-audit";
+import { ReservationStandby } from "@/components/slot-offers/reservation-standby";
 import { canCancelReservation, canEditReservation } from "./close-out";
 import { formatTimeInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
@@ -32,7 +33,7 @@ export function ReservationDetailSheet({
   onEdit?: (r: Reservation) => void;
   /**
    * ↑/↓ through the bookings on screen. Omitted on My day, which is a dashboard
-   * — there is no single ordered list there for a step to mean anything.
+   * because there is no single ordered list there for a step to mean anything.
    */
   onStep?: (delta: -1 | 1) => void;
 }) {
@@ -46,7 +47,7 @@ export function ReservationDetailSheet({
   const names = r ? personnelNames(r) : [];
   // `reservation.location` is hydrated (name + address + geocoded coordinates);
   // `reservation.resource.location` is only a { id } stub. The weather lookup needs
-  // the former — see the Location field below.
+  // the former. See the Location field below.
   // Typed narrowly here rather than in types/api.ts, which doesn't declare the
   // reservation's location relation. WeatherBadge narrows the address itself.
   const reservationLocation =
@@ -91,8 +92,8 @@ export function ReservationDetailSheet({
       {r && (
         <div data-doc-shot="reservation-detail-panel" className="space-y-5 pt-4">
           {/* Airport time, and only says so when the reader is somewhere else. The old
-              version formatted with r.timeZoneName — the zone of the DEVICE THAT BOOKED
-              IT — and printed the raw "America/Boise" next to every booking whether or
+              version formatted with r.timeZoneName, the zone of the DEVICE THAT BOOKED
+              IT, and printed the raw "America/Boise" next to every booking whether or
               not it told the reader anything. */}
           {/* A booking that ends on a later day says so. Without the date, a trip out
               Friday and back Sunday read here as a one-hour Friday flight. */}
@@ -127,7 +128,7 @@ export function ReservationDetailSheet({
             </SheetDetailField>
           )}
 
-          {/* Renders nothing at all — no row, no spinner — unless the location is
+          {/* Renders nothing at all, with no row or spinner, unless the location is
               geocoded AND a lookup came back. Its own markup mirrors `Field` below
               so it can hide the whole row rather than leave an empty label. */}
           <WeatherBadge
@@ -155,6 +156,8 @@ export function ReservationDetailSheet({
             </SheetDetailField>
           )}
 
+          <ReservationStandby reservation={r} />
+
           <CloseOutSection reservation={r} />
 
           {/* Grading, on the same screen as the close-out and directly after it, so one
@@ -165,7 +168,7 @@ export function ReservationDetailSheet({
               Renders nothing unless this is instruction with an enrolled student on it. */}
           {!r.cancelledAt && <LessonSection reservation={r} />}
 
-          {/* Last, and always rendered — including on a cancelled booking, where
+          {/* Last, and always rendered, including on a cancelled booking, where
               CloseOutSection bails out entirely and this is the only thing left
               that explains what happened to it. */}
           <ReservationAudit reservation={r} />

@@ -236,7 +236,7 @@ export const DOCS_TOPICS = {
   "standing-preferences": {
     title: "Standing preferences",
     summary:
-      "Days, reservation types, local hours, aircraft, and instructors you want. Leave a field blank to mean any, and pick at least one constraint. Matching openings become time-limited offers.",
+      "Days, reservation types, local hours, aircraft, and instructors you want. Leave a field blank to mean any, and pick at least one constraint. When the school requires checkouts, aircraft are limited to what you are approved on. Matching openings become time-limited offers.",
     href: "scheduling/standby-and-slot-offers",
   },
   "slot-offers": {

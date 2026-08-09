@@ -2,28 +2,26 @@ import {
   CalendarClock,
   Clock,
   CreditCard,
-  RefreshCw,
   ShieldCheck,
   UserRound,
   type LucideIcon,
 } from "lucide-react";
 import type { Role } from "@/types/api";
-import { canSelfBook, isInstructor } from "@/lib/permissions";
+import { isInstructor } from "@/lib/permissions";
 
 /**
  * Profile & account tabs, shared with the command palette.
  *
  * Payment methods and Availability used to be their own routes (and still redirect here);
  * they live as `?tab=` values so the palette can land on the right pane. Availability is
- * instructor-only, matching the rule the page applies. Standby is for roles that can
- * book themselves onto a reservation.
+ * instructor-only, matching the rule the page applies. Standby preferences live on the
+ * Calendar tab (not their own rail item).
  */
 export type ProfileTab =
   | "profile"
   | "security"
   | "calendar"
   | "availability"
-  | "standby"
   | "payments";
 
 export type ProfileTabDef = {
@@ -51,7 +49,16 @@ export const PROFILE_TABS: ProfileTabDef[] = [
     value: "calendar",
     label: "Calendar",
     icon: CalendarClock,
-    keywords: ["google calendar", "sync calendar", "external calendar"],
+    keywords: [
+      "google calendar",
+      "sync calendar",
+      "external calendar",
+      "standby",
+      "slot offers",
+      "waitlist",
+      "open window",
+      "standing preference",
+    ],
   },
   {
     value: "availability",
@@ -59,13 +66,6 @@ export const PROFILE_TABS: ProfileTabDef[] = [
     icon: Clock,
     keywords: ["my hours", "when i work", "unavailable", "instructor hours"],
     canShow: isInstructor,
-  },
-  {
-    value: "standby",
-    label: "Standby",
-    icon: RefreshCw,
-    keywords: ["slot offers", "waitlist", "open window", "standing preference", "claim slot"],
-    canShow: canSelfBook,
   },
   {
     value: "payments",

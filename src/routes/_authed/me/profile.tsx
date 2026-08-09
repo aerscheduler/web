@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Bell } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { canSelfBook } from "@/lib/permissions";
 import { PROFILE_TABS, PROFILE_TAB_VALUES, type ProfileTab } from "@/lib/profile-sections";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
@@ -18,16 +19,22 @@ import { StandbyPreferencesPanel } from "@/components/slot-offers/standby-prefer
 import { PaymentMethodsPanel } from "@/components/me-money/payment-methods-panel";
 import { LeaveOrganizationCard } from "@/components/me-account/leave-organization-card";
 
+function parseProfileTab(raw: unknown): ProfileTab | undefined {
+  if (typeof raw !== "string") return undefined;
+  // Old deep links used ?tab=standby; preferences now live on Calendar.
+  if (raw === "standby") return "calendar";
+  if ((PROFILE_TAB_VALUES as readonly string[]).includes(raw)) return raw as ProfileTab;
+  return undefined;
+}
+
 export const Route = createFileRoute("/_authed/me/profile")({
   // The active tab lives in the URL so it's deep-linkable (e.g. the Stripe
   // add-card return, and the redirects from the old /me/availability &
   // /me/payment-methods routes land on the right tab). Tab list is shared with
   // the command palette via `lib/profile-sections.ts`.
   validateSearch: (search: Record<string, unknown>): { tab?: ProfileTab } => {
-    const t = search.tab;
-    return typeof t === "string" && (PROFILE_TAB_VALUES as readonly string[]).includes(t)
-      ? { tab: t as ProfileTab }
-      : {};
+    const tab = parseProfileTab(search.tab);
+    return tab ? { tab } : {};
   },
   component: ProfilePage,
 });
@@ -100,9 +107,13 @@ function ProfilePage() {
               <LeaveOrganizationCard />
             </>
           )}
-          {active === "calendar" && <GoogleCalendarCard />}
+          {active === "calendar" && (
+            <>
+              <GoogleCalendarCard />
+              {canSelfBook(roles) && <StandbyPreferencesPanel />}
+            </>
+          )}
           {active === "availability" && allowed.has("availability") && <AvailabilityEditor />}
-          {active === "standby" && allowed.has("standby") && <StandbyPreferencesPanel />}
           {active === "payments" && <PaymentMethodsPanel />}
         </div>
       </div>

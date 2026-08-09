@@ -230,7 +230,7 @@ export const DOCS_TOPICS = {
   "standby-for-booking": {
     title: "Stand by",
     summary:
-      "Join standby on this booking if you want it when it opens. You get a time-limited offer to accept, not an automatic rebook. Standing preferences for days and types live under Profile → Calendar.",
+      "Join standby on this booking if you want it when it opens. You get a time-limited offer to accept, not an automatic rebook. Standing preferences for days and types live under Profile → Standby.",
     href: "scheduling/standby-and-slot-offers",
   },
   "standing-preferences": {

@@ -72,7 +72,7 @@ export function MySlotOffersPanel() {
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link to="/me/profile" search={{ tab: "calendar" }}>
+          <Link to="/me/profile" search={{ tab: "standby" }}>
             <Settings2 className="size-4" /> Manage standby
           </Link>
         </Button>

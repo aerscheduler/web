@@ -7,22 +7,38 @@ import {
   useMyStandbyInterest,
   useWithdrawStandbyInterest,
 } from "@/features/slot-offers";
-import { useOrgUsers, useOrgUserPreferences, useResources } from "@/features/queries";
+import {
+  useApprovedResources,
+  useMembers,
+  useMyInstructionPartners,
+  useOrgUserPreferences,
+  useResources,
+} from "@/features/queries";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { selfBookableTypes } from "@/lib/permissions";
-import { resourceLabel, rolesOf, type ReservationType, type Role } from "@/types/api";
+import { isInstructor, isStaff, selfBookableTypes } from "@/lib/permissions";
+import { zonedWallClockToUtc } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
+import { resourceLabel, type ReservationType, type Role } from "@/types/api";
 import type { StandingCriteria, StandbyInterest } from "@/types/slot-offers";
 import { TYPE_LABEL } from "@/components/schedule/meta";
 import { SlotOfferNotificationWarning } from "@/components/slot-offers/notification-warning";
 import { DocsHint } from "@/components/docs-hint";
 import { EmptyState, ErrorState } from "@/components/states";
+import { DatePickerField } from "@/components/date-picker";
+import { MultiCombobox, type ComboOption } from "@/components/combobox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 /** API weekday: 0 = Sunday … 6 = Saturday */
@@ -45,6 +61,35 @@ const DAY_NAME: Record<number, string> = {
   5: "Fri",
   6: "Sat",
 };
+
+/** Same 15-minute grid the booking form uses for start/end selects. */
+const CLOCK_OPTIONS: string[] = (() => {
+  const out: string[] = [];
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 15, 30, 45]) {
+      out.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+  return out;
+})();
+
+function formatClockLabel(hm: string): string {
+  const [hs, ms] = hm.split(":").map(Number);
+  const d = new Date(2000, 0, 1, hs, ms);
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(d);
+}
+
+function wallToUtc(dateKey: string, hm: string, timeZone: string): Date | null {
+  const parts = dateKey.split("-").map(Number);
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hm);
+  if (parts.length !== 3 || !m) return null;
+  const [year, month, day] = parts;
+  if (!year || !month || !day) return null;
+  return zonedWallClockToUtc(year, month, day, Number(m[1]), Number(m[2]), timeZone);
+}
 
 /**
  * Standing preferences and one-off open windows for slot offers.
@@ -90,16 +135,16 @@ export function StandbyPreferencesPanel() {
       {notificationsOff && <SlotOfferNotificationWarning />}
 
       <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              Your standby preferences
-              <DocsHint topic="standing-preferences" />
-            </CardTitle>
-            <CardDescription>
-              When a matching slot opens, you get a time-limited offer instead of a silent
-              rebook. Leave a field blank to mean any.
-            </CardDescription>
-          </CardHeader>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            Your standby preferences
+            <DocsHint topic="standing-preferences" />
+          </CardTitle>
+          <CardDescription>
+            When a matching slot opens, you get a time-limited offer instead of a silent
+            rebook. Leave a field blank to mean any.
+          </CardDescription>
+        </CardHeader>
         <CardContent className="space-y-3">
           {interestsQuery.isPending ? (
             <p className="text-sm text-muted-foreground">Loading preferences…</p>
@@ -151,22 +196,56 @@ export function StandbyPreferencesPanel() {
 }
 
 function StandingPreferenceForm({ roles }: { roles: Role[] }) {
+  const { user, organization } = useAuth();
   const create = useCreateStandbyInterest();
   const resourcesQ = useResources();
-  const peopleQ = useOrgUsers();
+  const approvedQ = useApprovedResources(user?.id ?? 0, { enabled: user != null });
+  const instructorsQ = useMembers({ instructor: true });
+  const partners = useMyInstructionPartners(user?.id ?? 0, { enabled: user != null });
   const typeOptions = selfBookableTypes(roles);
+
+  // Same two facts the booking form and ReservationService.create use for the fleet
+  // picker: org checkout setting, and whether this member would sit as student/renter
+  // (instructors and staff keep the whole fleet).
+  const restrictToApproved =
+    organization?.preferences?.personnelCanOnlyUseApprovedResources === true &&
+    !isStaff(roles) &&
+    !isInstructor(roles);
+
+  const resources = restrictToApproved ? (approvedQ.data ?? []) : (resourcesQ.data ?? []);
+  const fleetPending = restrictToApproved ? approvedQ.isPending : resourcesQ.isPending;
+
+  const partnerIds = React.useMemo(() => {
+    return new Set(
+      (partners.data?.instructors ?? [])
+        .map((p) => p.orgUser?.id)
+        .filter((id): id is number => id != null)
+    );
+  }, [partners.data]);
+
+  const resourceOptions: ComboOption[] = resources.map((r) => {
+    const l = resourceLabel(r);
+    return { value: String(r.id), label: l.name, hint: l.kind };
+  });
+
+  const instructorOptions: ComboOption[] = React.useMemo(() => {
+    return (instructorsQ.data ?? [])
+      .map((ou) => ({
+        value: String(ou.id),
+        label: ou.user?.name ?? ou.identifier ?? `Member #${ou.id}`,
+        hint: partnerIds.has(ou.id) ? "Your instructor" : (ou.identifier ?? undefined),
+        mine: partnerIds.has(ou.id),
+      }))
+      .sort((a, b) => Number(b.mine) - Number(a.mine) || a.label.localeCompare(b.label))
+      .map(({ mine: _mine, ...opt }) => opt);
+  }, [instructorsQ.data, partnerIds]);
 
   const [days, setDays] = React.useState<number[]>([]);
   const [types, setTypes] = React.useState<string[]>([]);
   const [timeStart, setTimeStart] = React.useState("");
   const [timeEnd, setTimeEnd] = React.useState("");
-  const [resourceIds, setResourceIds] = React.useState<number[]>([]);
-  const [instructorIds, setInstructorIds] = React.useState<number[]>([]);
-
-  const instructors = (peopleQ.data ?? []).filter((ou) =>
-    rolesOf(ou).includes("instructor")
-  );
-  const resources = resourcesQ.data ?? [];
+  const [resourceIds, setResourceIds] = React.useState<string[]>([]);
+  const [instructorIds, setInstructorIds] = React.useState<string[]>([]);
 
   const toggleNum = (list: number[], value: number, set: (next: number[]) => void) => {
     set(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
@@ -197,8 +276,8 @@ function StandingPreferenceForm({ roles }: { roles: Role[] }) {
       criteria.localTimeStart = timeStart;
       criteria.localTimeEnd = timeEnd;
     }
-    if (resourceIds.length) criteria.resourceIds = resourceIds;
-    if (instructorIds.length) criteria.instructorOrgUserIds = instructorIds;
+    if (resourceIds.length) criteria.resourceIds = resourceIds.map(Number);
+    if (instructorIds.length) criteria.instructorOrgUserIds = instructorIds.map(Number);
 
     if (Object.keys(criteria).length === 0) {
       toast.error("Pick at least one day, type, time window, aircraft, or instructor.");
@@ -234,6 +313,9 @@ function StandingPreferenceForm({ roles }: { roles: Role[] }) {
         <CardDescription>
           Example: dual on Tue to Thu mornings. Matches any cancel recovery or desk offer that
           fits.
+          {restrictToApproved
+            ? " Aircraft are limited to what you are checked out on, same as booking."
+            : null}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -283,64 +365,85 @@ function StandingPreferenceForm({ roles }: { roles: Role[] }) {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="standby-time-start">Local start</Label>
-              <Input
-                id="standby-time-start"
-                type="time"
-                value={timeStart}
-                onChange={(e) => setTimeStart(e.target.value)}
-              />
+              <Select
+                value={timeStart || undefined}
+                onValueChange={(v) => setTimeStart(v === "__any__" ? "" : v)}
+              >
+                <SelectTrigger id="standby-time-start" className="w-full">
+                  <SelectValue placeholder="Any" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  <SelectItem value="__any__">Any</SelectItem>
+                  {CLOCK_OPTIONS.map((hm) => (
+                    <SelectItem key={hm} value={hm}>
+                      {formatClockLabel(hm)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label htmlFor="standby-time-end">Local end</Label>
-              <Input
-                id="standby-time-end"
-                type="time"
-                value={timeEnd}
-                onChange={(e) => setTimeEnd(e.target.value)}
-              />
+              <Select
+                value={timeEnd || undefined}
+                onValueChange={(v) => setTimeEnd(v === "__any__" ? "" : v)}
+              >
+                <SelectTrigger id="standby-time-end" className="w-full">
+                  <SelectValue placeholder="Any" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  <SelectItem value="__any__">Any</SelectItem>
+                  {CLOCK_OPTIONS.map((hm) => (
+                    <SelectItem key={hm} value={hm}>
+                      {formatClockLabel(hm)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {resources.length > 0 && (
-            <fieldset className="space-y-2">
-              <Legend>Aircraft / resources (optional)</Legend>
-              <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
-                {resources.map((resource) => {
-                  const label = resourceLabel(resource).name;
-                  return (
-                    <label key={resource.id} className="flex items-center gap-2 text-sm">
-                      <Checkbox
-                        checked={resourceIds.includes(resource.id)}
-                        onCheckedChange={() =>
-                          toggleNum(resourceIds, resource.id, setResourceIds)
-                        }
-                      />
-                      {label}
-                    </label>
-                  );
-                })}
-              </div>
-            </fieldset>
-          )}
+          <div className="space-y-2">
+            <Label>Aircraft / resources (optional)</Label>
+            <MultiCombobox
+              options={resourceOptions}
+              values={resourceIds}
+              onChange={setResourceIds}
+              placeholder={
+                fleetPending
+                  ? "Loading…"
+                  : restrictToApproved
+                    ? "Checked-out fleet…"
+                    : "Any aircraft…"
+              }
+              searchPlaceholder="Search aircraft…"
+              emptyText={
+                restrictToApproved
+                  ? "No checked-out aircraft yet. Ask for a checkout, or leave this blank."
+                  : "No resources."
+              }
+              disabled={fleetPending}
+              className="h-9 w-full max-w-none"
+            />
+          </div>
 
-          {instructors.length > 0 && (
-            <fieldset className="space-y-2">
-              <Legend>Instructors (optional)</Legend>
-              <div className="max-h-40 space-y-2 overflow-y-auto rounded-md border p-3">
-                {instructors.map((ou) => (
-                  <label key={ou.id} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={instructorIds.includes(ou.id)}
-                      onCheckedChange={() =>
-                        toggleNum(instructorIds, ou.id, setInstructorIds)
-                      }
-                    />
-                    {ou.user?.name ?? `Member #${ou.id}`}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          )}
+          <div className="space-y-2">
+            <Label>Instructors (optional)</Label>
+            <MultiCombobox
+              options={instructorOptions}
+              values={instructorIds}
+              onChange={setInstructorIds}
+              placeholder="Any instructor…"
+              searchPlaceholder="Search instructors…"
+              emptyText="No instructors."
+              disabled={instructorsQ.isPending}
+              className="h-9 w-full max-w-none"
+            />
+            <p className="text-xs text-muted-foreground">
+              Your assigned instructors sort first. You can still prefer any instructor the
+              school lists, same as booking.
+            </p>
+          </div>
 
           <Button type="submit" disabled={create.isPending}>
             Save standing preference
@@ -353,17 +456,24 @@ function StandingPreferenceForm({ roles }: { roles: Role[] }) {
 
 function OpenWindowForm() {
   const create = useCreateStandbyInterest();
-  const [startLocal, setStartLocal] = React.useState("");
-  const [endLocal, setEndLocal] = React.useState("");
+  const tz = useTimeZone();
+  const [startDate, setStartDate] = React.useState("");
+  const [startTime, setStartTime] = React.useState("");
+  const [endDate, setEndDate] = React.useState("");
+  const [endTime, setEndTime] = React.useState("");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!startLocal || !endLocal) {
-      toast.error("Pick both a start and an end for the open window.");
+    if (!startDate || !startTime || !endDate || !endTime) {
+      toast.error("Pick a start and end date and time for the open window.");
       return;
     }
-    const start = new Date(startLocal);
-    const end = new Date(endLocal);
+    const start = wallToUtc(startDate, startTime, tz.zone);
+    const end = wallToUtc(endDate, endTime, tz.zone);
+    if (!start || !end) {
+      toast.error("Couldn't read that date and time.");
+      return;
+    }
     if (!(start.getTime() < end.getTime())) {
       toast.error("End must be after start.");
       return;
@@ -379,8 +489,10 @@ function OpenWindowForm() {
       if (interest.notificationDelivery?.anyChannelEnabled === false) {
         toast.warning("Turn on slot offer notifications so you do not miss an opening.");
       }
-      setStartLocal("");
-      setEndLocal("");
+      setStartDate("");
+      setStartTime("");
+      setEndDate("");
+      setEndTime("");
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "Couldn't save this window");
     }
@@ -395,29 +507,58 @@ function OpenWindowForm() {
         </CardTitle>
         <CardDescription>
           A one-off range you are free. Any opening that overlaps this window can be offered
-          to you.
+          to you. Times use the schedule zone ({tz.zone}).
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={(e) => void submit(e)}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="open-window-start">Starts</Label>
-              <Input
-                id="open-window-start"
-                type="datetime-local"
-                value={startLocal}
-                onChange={(e) => setStartLocal(e.target.value)}
+              <Label htmlFor="open-window-start-date">Starts on</Label>
+              <DatePickerField
+                id="open-window-start-date"
+                value={startDate}
+                onChange={setStartDate}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="open-window-end">Ends</Label>
-              <Input
-                id="open-window-end"
-                type="datetime-local"
-                value={endLocal}
-                onChange={(e) => setEndLocal(e.target.value)}
+              <Label htmlFor="open-window-start-time">Start time</Label>
+              <Select value={startTime || undefined} onValueChange={setStartTime}>
+                <SelectTrigger id="open-window-start-time" className="w-full">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {CLOCK_OPTIONS.map((hm) => (
+                    <SelectItem key={hm} value={hm}>
+                      {formatClockLabel(hm)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="open-window-end-date">Ends on</Label>
+              <DatePickerField
+                id="open-window-end-date"
+                value={endDate}
+                min={startDate || undefined}
+                onChange={setEndDate}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="open-window-end-time">End time</Label>
+              <Select value={endTime || undefined} onValueChange={setEndTime}>
+                <SelectTrigger id="open-window-end-time" className="w-full">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {CLOCK_OPTIONS.map((hm) => (
+                    <SelectItem key={hm} value={hm}>
+                      {formatClockLabel(hm)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <Button type="submit" variant="outline" disabled={create.isPending}>
@@ -456,7 +597,9 @@ function describeInterest(interest: StandbyInterest): string {
     );
   }
   if (c.localTimeStart && c.localTimeEnd) {
-    parts.push(`${c.localTimeStart} to ${c.localTimeEnd}`);
+    parts.push(
+      `${formatClockLabel(c.localTimeStart)} to ${formatClockLabel(c.localTimeEnd)}`
+    );
   }
   if (c.resourceIds?.length) {
     parts.push(`${c.resourceIds.length} resource${c.resourceIds.length === 1 ? "" : "s"}`);

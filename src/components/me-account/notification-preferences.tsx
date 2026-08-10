@@ -698,7 +698,7 @@ export function NotificationPreferencesPage() {
           <EmptyState
             icon={Bell}
             title="Join an organization first"
-            body="Notification preferences are per school. Accept an invite, then you can choose what email and push you get."
+            body="Notification preferences are per school. Accept an invite, then you can choose what email, push, and SMS you get."
           />
         </Card>
       </div>
@@ -709,7 +709,7 @@ export function NotificationPreferencesPage() {
     <div>
       <PageHeader
         title="Notification settings"
-        subtitle="Choose which AerScheduler emails and push alerts reach you."
+        subtitle="Choose which AerScheduler emails, push alerts, and SMS texts reach you."
         actions={<DocsHint topic="notification-preferences" />}
       />
       <NotificationPreferencesPanel />

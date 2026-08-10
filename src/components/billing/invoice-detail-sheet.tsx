@@ -44,7 +44,7 @@ export function InvoiceDetailSheet({
   /** The list row, when the invoice happens to be on the page in hand. */
   invoice: Invoice | null;
   /**
-   * Which invoice to show, even when no row for it is loaded — a link straight
+   * Which invoice to show, even when no row for it is loaded, a link straight
    * to `?invoice=…` lands on page 1 of whatever filters were restored, and the
    * record it names is usually not among those rows.
    */
@@ -59,14 +59,14 @@ export function InvoiceDetailSheet({
   busy?: boolean;
 }) {
   const id = invoiceId ?? invoice?.id ?? null;
-  //The LIST endpoint doesn't select line items — only GET /invoices/:id does — so the
+  //The LIST endpoint doesn't select line items (only GET /invoices/:id does) so the
   //row handed in from the table always has `items` undefined and the panel rendered
   //"No line items on this invoice." for every invoice. Hydrate from the single-invoice
   //endpoint and fall back to the list row while it loads, so the header, totals and
   //status never flash empty.
   const full = useInvoice(open ? id : null);
   //The fetched record wins field by field, but the list row is kept underneath it so
-  //nothing flashes empty mid-flight. With no row at all — a deep link — the fetch is
+  //nothing flashes empty mid-flight. With no row at all (a deep link) the fetch is
   //the whole record, which is why every read below goes through `display` rather than
   //the row that may not exist.
   const inv: Invoice | null =
@@ -96,7 +96,7 @@ export function InvoiceDetailSheet({
       open={open}
       onOpenChange={onOpenChange}
       onStep={onStep}
-      title={<span className="font-mono">Invoice #{id ?? "—"}</span>}
+      title={<span className="font-mono">Invoice #{id ?? "–"}</span>}
       description={customerName}
       badge={display ? <InvoiceStatusBadge invoice={display} /> : undefined}
       footer={

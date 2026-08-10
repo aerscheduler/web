@@ -1,9 +1,9 @@
 /**
- * Invite your team — pick who, then invite them.
+ * Invite your team, pick who, then invite them.
  *
  * The old link dropped people on /people, a roster of the one person who exists,
  * with the invite affordance somewhere on it. The question that actually needs
- * answering first is "who am I inviting?", because the answer sets the roles — and
+ * answering first is "who am I inviting?", because the answer sets the roles, and
  * roles are the thing new admins get wrong when handed seven checkboxes.
  *
  * Several emails at once, because nobody hires one instructor.
@@ -49,7 +49,7 @@ const LABELS: { value: Who; label: string; hint: string }[] = [
   //from technicians. Somebody hired a mechanic on the strength of this line and then found
   //they had to ring an admin to ground the aeroplane they had just failed.
   { value: "technician", label: "Technician", hint: "Inspections and squawks, no settings or billing" },
-  { value: "office", label: "Office staff", hint: "Runs the dispatch board — no settings or billing" },
+  { value: "office", label: "Office staff", hint: "Runs the dispatch board. No settings or billing" },
 ];
 
 export function InviteFlow({ onClose, defaultWho }: FlowProps & { defaultWho: Who }) {
@@ -74,9 +74,9 @@ export function InviteFlow({ onClose, defaultWho }: FlowProps & { defaultWho: Wh
       );
       return;
     }
-    // Partial success is worth saying out loud — silently "succeeding" on 2 of 3 is how
+    // Partial success is worth saying out loud, silently "succeeding" on 2 of 3 is how
     // someone ends up wondering where their third instructor went.
-    if (failed > 0) toast.warning(`${ok} sent, ${failed} couldn't be sent — check those addresses.`);
+    if (failed > 0) toast.warning(`${ok} sent, ${failed} couldn't be sent. Check those addresses.`);
     setSent(ok);
     setStep(2);
   }

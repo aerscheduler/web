@@ -23,7 +23,7 @@ const SHOWN = 6;
  * Open discrepancies on this tail.
  *
  * Grounding squawks sort first because they're the ones that took the aircraft
- * off the line — the rest are a to-do list, those are the reason it isn't flying.
+ * off the line, the rest are a to-do list, those are the reason it isn't flying.
  * Resolving stays behind the same modal the Maintenance page uses so the
  * completed-at / notes contract is written once.
  */
@@ -77,7 +77,7 @@ export function ResourceSquawks({
         ) : q.isError ? (
           <CardEmpty>Couldn&apos;t load squawks.</CardEmpty>
         ) : squawks.length === 0 ? (
-          <CardEmpty>Nothing outstanding — this aircraft is clean.</CardEmpty>
+          <CardEmpty>Nothing outstanding. This aircraft is clean.</CardEmpty>
         ) : (
           <ul className="divide-y divide-border">
             {shown.map((s) => (
@@ -120,7 +120,7 @@ export function ResourceSquawks({
         )}
         {squawks.length > SHOWN && (
           <p className="mt-3 text-[13px] text-muted-foreground">
-            {squawks.length - SHOWN} more open —{" "}
+            {squawks.length - SHOWN} more open, {" "}
             <Link to="/maintenance" className="underline underline-offset-2">
               see Maintenance
             </Link>
@@ -173,11 +173,11 @@ export function ResourceSquawks({
  *
  * This is the panel a mechanic opens the page for. It answers, in order: is anything
  * overdue, what's next, and how much room is left before it is. The counts across the top
- * exist so that question is answered before you read a single row — on a fleet where most
+ * exist so that question is answered before you read a single row, on a fleet where most
  * tails are fine, the useful signal is "nothing here", and it should take no reading.
  *
  * Ordering is the server's `urgency`, not date order: an hour-based 100-hour has no due
- * date at all, so sorting on `dueAt` — which is what this panel used to do — silently
+ * date at all, so sorting on `dueAt` (which is what this panel used to do) silently
  * pushed every meter-based inspection to the bottom regardless of how close it was.
  */
 export function ResourceReminders({
@@ -272,7 +272,7 @@ export function ResourceReminders({
 
             {reminders.length > SHOWN && (
               <p className="mt-3 text-[13px] text-muted-foreground">
-                {reminders.length - SHOWN} more —{" "}
+                {reminders.length - SHOWN} more, {" "}
                 <Link
                   to="/maintenance"
                   search={{ view: "reminders", resourceId: String(resourceId) }}

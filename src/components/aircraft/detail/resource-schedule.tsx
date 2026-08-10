@@ -15,7 +15,7 @@ const UPCOMING_SHOWN = 6;
 const LOG_SHOWN = 8;
 
 /**
- * This aircraft's board — what's booked on it next, and what it last flew.
+ * This aircraft's board, what's booked on it next, and what it last flew.
  *
  * Reads the org-wide reservation list narrowed to one resource, which is the
  * same query the dispatch board runs, so a booking made on the board appears

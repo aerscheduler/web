@@ -8,7 +8,7 @@ import type {
 } from "@/types/api";
 
 /**
- * Shared reservation-composition logic used by BOTH booking surfaces — the staff
+ * Shared reservation-composition logic used by BOTH booking surfaces, the staff
  * dispatch board (`reservation-form.tsx`) and the member self-serve page
  * (`book/booking-form.tsx`). The two forms collect inputs differently (staff pick
  * any resource + personnel; members pick from their approved fleet by role), but
@@ -55,7 +55,7 @@ export interface TypeRequirement {
    * the server accepts, and a limit the client doesn't know about is either a feature
    * nobody can reach or a 400 the user can't act on.
    *
-   * An omitted side means 1 — which is what every side was before groups existed.
+   * An omitted side means 1, which is what every side was before groups existed.
    */
   maxPerSide?: Partial<Record<PersonnelSide, number>>;
 }
@@ -84,14 +84,14 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     exclusive: ["instructors", "students"],
     // ONE OCCUPANT, and this is regulatory rather than a product choice. 14 CFR 61.87
     // defines solo flight as the time "during which a student pilot is the sole occupant of
-    // the aircraft", so a solo with two people on it is a false record.
+    // the aircraft"so a solo with two people on it is a false record.
     maxPerSide: { instructors: 1, students: 1 },
   },
   /**
    * Several pilots, no instructor: two pilots splitting a cross-country, or a safety-pilot
    * arrangement for instrument practice under 91.109.
    *
-   * Students and renters are BOTH allowed because the real world mixes them — a club member
+   * Students and renters are BOTH allowed because the real world mixes them, a club member
    * renting and a student building time can share a flight, and which roster each sits on is
    * an artefact of how the school files people rather than of who was in the aircraft.
    */
@@ -153,7 +153,7 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     exclusive: [],
   },
   // Taking an aircraft off the line. The server rejects a maintenance booking
-  // that carries ANY personnel — it's the aircraft that's busy, not a person.
+  // that carries ANY personnel, it's the aircraft that's busy, not a person.
   maintenance: {
     resource: "Aircraft",
     resourceRequired: true,
@@ -179,15 +179,15 @@ export function resourceMatchesType(resource: Resource, type: ReservationType): 
 }
 
 /**
- * The type implied by booking THIS resource — for the calendar, where clicking a lane says
+ * The type implied by booking THIS resource, for the calendar, where clicking a lane says
  * what you want before any type has been chosen.
  *
  * Rooms and simulators each have exactly one type that books them, so the lane settles the
  * question: opening on the role's default instead (usually `solo`, which wants an aircraft)
  * silently threw the clicked room straight back out of the picker.
  *
- * Aircraft returns null on purpose. Every remaining type books an aircraft — solo, dual,
- * shared, rental, guest, maintenance — so the tail says nothing about which one is meant,
+ * Aircraft returns null on purpose. Every remaining type books an aircraft, solo, dual,
+ * shared, rental, guest, maintenance, so the tail says nothing about which one is meant,
  * and the role default is the better guess.
  */
 export function typeForResource(resource: Resource): ReservationType | null {
@@ -224,7 +224,7 @@ export function validatePersonnelForType(
   for (const side of ["instructors", "students", "renters", "guests"] as PersonnelSide[]) {
     if (has(side) && !req.allows.includes(side)) {
       return type === "maintenance"
-        ? "A maintenance booking can't have anyone assigned to it — it takes the aircraft off the line."
+        ? "A maintenance booking can't have anyone assigned to it, it takes the aircraft off the line."
         : `A ${type} reservation can't include ${SIDE_LABEL[side]}.`;
     }
   }
@@ -236,15 +236,15 @@ export function validatePersonnelForType(
     return `Pick ${names} for this ${type} reservation.`;
   }
   // Count limits, mirroring the server's personnelLimitError. Checked before the
-  // exclusivity rule so "you've added 5 students" beats "only one of a student or an
-  // instructor" when both are true — the count is the thing they just did.
+  // exclusivity rule so "you've added 5 students" beats ", only one of a student or an
+  // instructor" when both are true, the count is the thing they just did.
   for (const side of ["instructors", "students", "renters", "guests"] as PersonnelSide[]) {
     const count = personnel?.[side]?.length ?? 0;
     const max = maxForSide(type, side);
     if (count > max && max > 0) {
       return `A ${type} reservation can have at most ${max} ${SIDE_LABEL[side].replace(/^an? /, "")}${
         max === 1 ? "" : "s"
-      } — you've added ${count}.`;
+      }, you've added ${count}.`;
     }
   }
 
@@ -260,7 +260,7 @@ export function validatePersonnelForType(
 
 /**
  * Resolve a booking's location: the chosen resource's own location, else the
- * org's first. Reads the nested `location` relation — `FK_locationId` is stripped
+ * org's first. Reads the nested `location` relation. `FK_locationId` is stripped
  * from API responses server-side. Returns null when no location exists.
  */
 export function resolveLocationId(
@@ -318,7 +318,7 @@ export function buildReservationInput(fields: {
  * dispatch board sends.
  *
  * **The personnel echo is not optional.** `ReservationService.update` diffs the personnel
- * it receives against the ones on the row and *disconnects the difference* — so a PATCH
+ * it receives against the ones on the row and *disconnects the difference*, so a PATCH
  * that omits `personnel` doesn't mean "leave the crew alone", it means "there is no crew",
  * and the instructor and student are silently unassigned. Every side has to be sent back
  * verbatim for a change that has nothing to do with people.
@@ -327,7 +327,7 @@ export function buildReservationInput(fields: {
  * place; without one it tries to CREATE a second guest and rejects the whole update with
  * "A guest already exists on this reservation".
  *
- * `rating` is deliberately absent — the API doesn't return it on a list row, and Prisma
+ * `rating` is deliberately absent, the API doesn't return it on a list row, and Prisma
  * reads an absent relation as "leave it alone", so omitting it preserves whatever is
  * stored. Sending a guess would be the only way to lose it.
  */

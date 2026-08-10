@@ -8,7 +8,7 @@
  * touches this file.
  *
  * Configuration lives in one `ReportConfig` object because that is exactly what
- * a saved view stores and what `/run` accepts — so "save this" is `setConfig`'s
+ * a saved view stores and what `/run` accepts, so "save this" is `setConfig`'s
  * current value, with no translation layer to get out of step.
  */
 
@@ -75,7 +75,7 @@ export function ReportView({
   onPinned?: () => void;
 }) {
   // Every window on this page is measured on the school's clock, not the
-  // browser's — see `lib/report-format.ts`.
+  // browser's, see `lib/report-format.ts`.
   const timeZone = useReportTimeZone();
 
   const [config, setConfig] = useState<ReportConfig>(() => defaultConfig(report, initialFilters));
@@ -95,12 +95,12 @@ export function ReportView({
   // No reset effect: the caller keys this component on the report (and on the
   // deep link), so switching reports remounts it and the initial state above IS
   // the reset. An effect here would additionally have to avoid clobbering a
-  // seeded deep link on its first run — a reset that only exists because the
+  // seeded deep link on its first run, a reset that only exists because the
   // component was kept alive unnecessarily.
 
   const iso = rangeToIso(range, timeZone);
 
-  // A filter you have added but not yet filled in must not narrow anything —
+  // A filter you have added but not yet filled in must not narrow anything.
   // see `isCompleteFilter`. The row stays on screen; it just isn't sent yet.
   const activeFilters = useMemo(
     () => (config.filters ?? []).filter(isCompleteFilter),
@@ -275,7 +275,7 @@ export function ReportView({
 
   return (
     // A column bounded by the page: title, toolbar and pager are fixed, and the
-    // rows are the only thing that scrolls — see `components/table-view.tsx`.
+    // rows are the only thing that scrolls, see `components/table-view.tsx`.
     //
     // `min-w-0` on every box between here and the table matters as much as
     // `min-h-0`: a flex item's automatic minimum size is its CONTENT's, so a
@@ -287,7 +287,7 @@ export function ReportView({
     >
       <div className="shrink-0 space-y-3" data-doc-shot="report-toolbar-export">
         {/* On a phone the rail is a select showing this report's name, so
-            repeating it here costs a line of the little height there is — and
+            repeating it here costs a line of the little height there is: and
             the description is clamped for the same reason. */}
         <div>
           <h2 className="hidden text-lg font-semibold lg:block">{report.name}</h2>
@@ -301,7 +301,7 @@ export function ReportView({
             all align on it.
 
             The date basis caption is NOT in this row. It used to sit in a wrapper with the
-            picker, which made that wrapper as wide as the LONGER of the two — so a lengthy
+            picker, which made that wrapper as wide as the LONGER of the two, so a lengthy
             basis ("by close-out date") widened the box and shoved the Filters button away
             from the picker. How far it moved depended on the report, which is why the
             toolbar looked subtly different on each one. It gets its own line below instead,
@@ -335,7 +335,7 @@ export function ReportView({
           </div>
         </div>
 
-        {/* Still a caption for the picker above it — just on a line of its own. */}
+        {/* Still a caption for the picker above it, just on a line of its own. */}
         <p className="flex items-center gap-1.5 px-0.5 text-xs text-muted-foreground">
           by {report.dateBasis}
           <DocsHint topic="report-date-basis" />
@@ -357,7 +357,7 @@ export function ReportView({
             {(run.error as Error)?.message ?? "Could not run this report."}
           </div>
         ) : run.isLoading && !result ? (
-          // Explicit height too — a contentless flex-1 box measures zero once the
+          // Explicit height too, a contentless flex-1 box measures zero once the
           // page stops being bounded (below md), and the skeleton disappears.
           <div className="m-6 min-h-48 flex-1 animate-pulse rounded-md bg-muted md:min-h-0" />
         ) : rows.length === 0 ? (

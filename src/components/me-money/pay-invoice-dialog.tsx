@@ -26,7 +26,7 @@ function errMessage(e: unknown): string {
 
 /**
  * Pay a single outstanding invoice by card. Uses the Stripe Payment Element scoped to the org's
- * connected account (card data stays in Stripe's iframe — PCI-safe). The Stripe `invoice.paid`
+ * connected account (card data stays in Stripe's iframe. PCI-safe). The Stripe `invoice.paid`
  * webhook is what marks our invoice paid; we optimistically refetch so the list catches up.
  */
 export function PayInvoiceDialog({
@@ -63,7 +63,7 @@ export function PayInvoiceDialog({
       <DialogContent
         data-doc-shot="pay-invoice-dialog"
         showCloseButton={!busy}
-        // Stripe's iframe manages its own focus — let it, and don't dismiss on stray outside events.
+        // Stripe's iframe manages its own focus, let it, and don't dismiss on stray outside events.
         onOpenAutoFocus={(e) => e.preventDefault()}
         onInteractOutside={(e) => {
           if (busy) e.preventDefault();
@@ -93,7 +93,7 @@ export function PayInvoiceDialog({
             <div className="space-y-1">
               <p className="text-foreground">{errMessage(intentQ.error)}</p>
               <p className="text-muted-foreground">
-                If this keeps happening, your school may not have online payments enabled yet —
+                If this keeps happening, your school may not have online payments enabled yet.
                 reach out to them to settle up.
               </p>
             </div>
@@ -157,7 +157,7 @@ function PayForm({
     }
 
     // No error and no redirect ⇒ the PaymentIntent succeeded here.
-    toast.success("Payment received — thank you!");
+    toast.success("Payment received, thank you!");
     void qc.invalidateQueries({ queryKey: ["invoices"] });
     void qc.invalidateQueries({ queryKey: ["reservations"] });
     void qc.invalidateQueries({ queryKey: ["stripe"] });

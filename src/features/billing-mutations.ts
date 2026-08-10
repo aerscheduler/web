@@ -40,7 +40,7 @@ export function useBillReservation() {
     onSuccess: () => {
       //The booking leaves the unbilled list, and its detail sheet now has invoices on it.
       void qc.invalidateQueries({ queryKey: ["reservations"] });
-      //Covers Billing's own summary tiles, which key off ["invoices", "summary", …].
+      //Covers Billing's own summary tiles, which key off ["invoices", ", summary", …].
       void qc.invalidateQueries({ queryKey: ["invoices"] });
       //Reports and the dashboard both read invoice money.
       void qc.invalidateQueries({ queryKey: ["revenue-report"] });

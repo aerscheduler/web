@@ -25,7 +25,7 @@ import type { SearchEntityType, SearchResult } from "@/types/api";
  * all three together.
  *
  * Everything else still has no page of its own, and lands on the list that owns
- * it with that list's `?q=` pre-filled — which leaves the row on screen,
+ * it with that list's `?q=` pre-filled, which leaves the row on screen,
  * filtered, in its normal context.
  *
  * Pure and dependency-light on purpose: the palette should not be where you
@@ -72,7 +72,7 @@ export const SEARCH_TYPE_ICON: Record<SearchEntityType, LucideIcon> = {
 };
 
 /**
- * Display order — the sequence the palette groups hits in. Deliberately not the
+ * Display order, the sequence the palette groups hits in. Deliberately not the
  * server's order: what you're most likely to be hunting for goes first.
  *
  * The training block sits with the other per-person records rather than at the end: a
@@ -110,7 +110,7 @@ const asInt = (value: unknown): number | null => {
 export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | null): SearchLink {
   const ownerId = asInt(result.params.orgUserId);
   const isMine = ownerId != null && viewerOrgUserId != null && ownerId === viewerOrgUserId;
-  // Falls back to the roster when the hit carries no owner id — better a list
+  // Falls back to the roster when the hit carries no owner id, better a list
   // than a `/people/NaN` that renders "no such member".
   const memberPage: SearchLink =
     ownerId != null
@@ -123,7 +123,7 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
 
     case "resource": {
       // Only aircraft have a detail page. Simulators and classrooms live on
-      // Facilities, which has no per-record page, so they land there filtered —
+      // Facilities, which has no per-record page, so they land there filtered.
       // and on the right section, or a room hit lands among the simulators and
       // gets filtered straight back out of the page it just took you to.
       const resourceId = asInt(result.params.resourceId);
@@ -190,7 +190,7 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
 
     case "enrollment": {
       // The record has a page of its own, and it is the same page whether it's yours or
-      // a student's — /me/training is a list, this is the record. Anyone who could
+      // a student's: /me/training is a list, this is the record. Anyone who could
       // search up an enrollment can open it (`canReadEnrollment` scopes both).
       const enrollmentId = asInt(result.params.enrollmentId);
       return enrollmentId != null
@@ -199,7 +199,7 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
     }
 
     case "endorsement":
-      // No page of its own — it's a card on a person, exactly like a currency or a
+      // No page of its own, it's a card on a person, exactly like a currency or a
       // document, so it follows the same self-vs-someone-else rule those two do.
       return isMine ? { to: "/me/training" } : memberPage;
   }

@@ -1,8 +1,8 @@
 /**
  * Saved views.
  *
- * A saved view is a name plus the choices someone made — which is what turns
- * fourteen reports into as many as a school needs. "Month-end revenue", "Lapsed
+ * A saved view is a name plus the choices someone made, which is what turns
+ * fourteen reports into as many as a school needs. "Month-end revenue", ", Lapsed
  * students" and "Grounding squawks" are saved views, not code, and shared ones
  * are how a school standardises on one definition of a number instead of
  * everyone rebuilding it slightly differently.
@@ -12,7 +12,7 @@
  *
  * A view can also be PINNED to the dashboard, which is where a saved view stops
  * being a bookmark you have to remember and becomes a number you see every
- * morning. Anyone can pin any view they can see — the tile is their own copy on
+ * morning. Anyone can pin any view they can see, the tile is their own copy on
  * their own dashboard, so pinning a colleague's shared view takes nothing from
  * them. See `pin-view.tsx` for what the tile inherits.
  */
@@ -70,7 +70,7 @@ export function SavedViews({
   const [shared, setShared] = useState(false);
 
   /**
-   * A report with nothing summable — a document list, say — has no number to put
+   * A report with nothing summable (a document list, say) has no number to put
    * on a tile, so the action isn't offered rather than failing when it's used.
    */
   const canPin = report.metrics.length > 0;
@@ -202,7 +202,7 @@ export function SavedViews({
                           ? `Edit the schedule for ${view.name}`
                           : `Schedule ${view.name}`
                       }
-                      title={scheduledViewIds.has(view.id) ? "Scheduled — edit" : "Schedule by email"}
+                      title={scheduledViewIds.has(view.id) ? "Scheduled, edit" : "Schedule by email"}
                     >
                       <CalendarClock className="size-3.5" />
                     </Button>
@@ -230,7 +230,7 @@ export function SavedViews({
                       <Button
                         variant="ghost"
                         size="icon"
-                        // Destructive, so it stays tucked away — but revealed on
+                        // Destructive, so it stays tucked away, but revealed on
                         // a touch screen, where there is no hover to reveal it.
                         className="size-6 shrink-0 text-muted-foreground opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
                         onClick={() => destroy(view)}

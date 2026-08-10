@@ -70,7 +70,7 @@ const relative = (iso: string | null): string => {
  * This screen is the ONLY way to manage them: the server refuses /apiKeys to an
  * API key, even one holding the admin role, so a leaked key can never issue
  * itself replacements. Before this existed the documented answer was "curl it
- * with a session token", which is not a thing to ask a flight school to do.
+ * with a session token"which is not a thing to ask a flight school to do.
  */
 export function ApiKeysTab() {
   const paging = usePaging();
@@ -88,7 +88,7 @@ export function ApiKeysTab() {
     const ok = await confirm({
       title: `Revoke "${key.name}"?`,
       description:
-        "Anything using this key stops working on its very next request. This cannot be undone — you would have to create a new key and update whatever was using it.",
+        "Anything using this key stops working on its very next request. This cannot be undone. You would have to create a new key and update whatever was using it.",
       confirmLabel: "Revoke key",
       destructive: true,
     });
@@ -143,7 +143,7 @@ export function ApiKeysTab() {
           <EmptyState
             icon={KeyRound}
             title="No API keys yet"
-            body="Create one to connect your own tools — a booking page on your website, a report that runs itself, or an automation in Zapier."
+            body="Create one to connect your own tools, a booking page on your website, a report that runs itself, or an automation in Zapier."
             action={
               <Button size="sm" onClick={() => setFormOpen(true)}>
                 <Plus className="size-4" /> Create key
@@ -198,7 +198,7 @@ function KeyRow({ apiKey, onRevoke }: { apiKey: ApiKey; onRevoke: (k: ApiKey) =>
         </div>
         <p className="mt-0.5 font-mono text-xs text-muted-foreground">{apiKey.prefix}…</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          {/* "Never used" is the useful signal here — it's how you spot a key
+          {/* "Never used" is the useful signal here, it's how you spot a key
               that was created for something that never shipped. */}
           Last used {relative(apiKey.lastUsedAt)}
           {apiKey.createdBy?.user?.name && ` · created by ${apiKey.createdBy.user.name}`}
@@ -259,7 +259,7 @@ function CreateKeyModal({
       { name: name.trim(), roles },
       {
         onSuccess: (key) => {
-          // Close this first, then hand the secret up — the secret modal is the
+          // Close this first, then hand the secret up, the secret modal is the
           // only place it will ever be readable.
           onOpenChange(false);
           onCreated(key);
@@ -363,7 +363,7 @@ function SecretModal({
     } catch {
       // Clipboard can be blocked (insecure context, permissions). The secret is
       // on screen and selectable, so say so rather than failing silently.
-      toast.error("Couldn't copy automatically — select the key and copy it manually.");
+      toast.error("Couldn't copy automatically, select the key and copy it manually.");
     }
   }
 
@@ -379,7 +379,7 @@ function SecretModal({
           <div className="flex items-start gap-2.5 rounded-md border border-amber-300/60 bg-amber-50 p-3 text-amber-900">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
             <p className="text-sm">
-              Copy this now. Once you close this dialog it cannot be shown again — if you
+              Copy this now. Once you close this dialog it cannot be shown again, if you
               lose it you&rsquo;ll have to revoke this key and create another.
             </p>
           </div>

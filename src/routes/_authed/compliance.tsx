@@ -44,7 +44,7 @@ function CompliancePage() {
     <div className="space-y-5">
       <PageHeader
         title="Go / No-Go"
-        subtitle="Who and what can't fly right now — grounded aircraft, grounded members, and the currencies you track."
+        subtitle="Who and what can't fly right now, grounded aircraft, grounded members, and the currencies you track."
         actions={
           // Currency RULES are org configuration (scope, expiry, renewal), so they
           // live in Settings. This board consumes their status; it doesn't define them.
@@ -155,7 +155,7 @@ function GroundedAircraftCard({ resource }: { resource: Resource }) {
       <div className="min-w-0 flex-1">
         <div className="font-medium">{resourceLabel(resource).name}</div>
         <div className="truncate text-xs text-muted-foreground">
-          {plane?.groundedReason || "Grounded — no reason on file"}
+          {plane?.groundedReason || "Grounded. No reason on file"}
         </div>
       </div>
       <Badge variant="secondary" className="shrink-0 border-warning/30 text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">

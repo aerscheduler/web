@@ -8,7 +8,7 @@ export type PackedItem = { r: Reservation; track: number };
  * reservation onto the first track whose previous item has already ended.
  * Overlap is measured on absolute instants, so the same packing works for the
  * horizontal lane grid and the vertical week time-grid alike. Callers own the
- * px/percent math for `track` — this only decides how many parallel tracks a
+ * px/percent math for `track`: this only decides how many parallel tracks a
  * cluster needs and which one each item lands in.
  */
 export function packTracks(items: Reservation[]): { placed: PackedItem[]; tracks: number } {

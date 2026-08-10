@@ -288,7 +288,7 @@ function IdentityCard({ organization }: { organization: Organization }) {
               </Tooltip>
             </span>
           ) : (
-            <span className="text-sm font-medium">—</span>
+            <span className="text-sm font-medium">–</span>
           )}
         </div>
       </CardContent>

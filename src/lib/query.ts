@@ -2,7 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { ApiError } from "./api";
 
 /**
- * Retrying an auth / permission / not-found failure never helps — the second
+ * Retrying an auth / permission / not-found failure never helps, the second
  * answer is the same as the first. Worse, on an expired session it doubles
  * every 401 and delays the sign-out the user is waiting to be told about.
  */

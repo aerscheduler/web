@@ -47,7 +47,7 @@ export function ScheduleControls({
     view === "month"
       ? format(day, "MMMM yyyy")
       : view === "week"
-        ? `${format(startOfWeek(day), "MMM d")} – ${format(endOfWeek(day), "MMM d")}`
+        ? `${format(startOfWeek(day), "MMM d")}, ${format(endOfWeek(day), "MMM d")}`
         : isToday(day)
           ? "Today"
           : format(day, "EEE, MMM d");

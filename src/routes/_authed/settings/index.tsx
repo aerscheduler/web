@@ -44,7 +44,7 @@ export const Route = createFileRoute("/_authed/settings/")({
 /**
  * Settings is a rail of sections and one pane, same shell as Reports.
  *
- * Grouped so related decisions sit together — school identity first, then how money moves,
+ * Grouped so related decisions sit together, school identity first, then how money moves,
  * then how this school talks to the outside world. The active section stays in `?tab=` so
  * onboarding deep links and bookmarks keep working. The section list itself lives in
  * `lib/settings-sections.ts`, because the command palette offers these as destinations.

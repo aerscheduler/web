@@ -9,33 +9,33 @@
 
 import type { LessonKind, Standing, EnrollmentStatus, RegulatoryPart } from "@/types/api";
 
-/** 26 → "2.6". The bare number, for a table cell that already has an "hrs" header. */
+/** 26 → "2.6". The bare number, for a table cell that already has an ", hrs" header. */
 export const deciHours = (v: number | null | undefined): string =>
-  v == null ? "—" : (v / 10).toFixed(1);
+  v == null ? "–" : (v / 10).toFixed(1);
 
 /** 26 → "2.6 hrs". For prose and for anywhere the unit isn't already on screen. */
 export const deciHoursLabel = (v: number | null | undefined): string =>
-  v == null ? "—" : `${(v / 10).toFixed(1)} hrs`;
+  v == null ? "–" : `${(v / 10).toFixed(1)} hrs`;
 
 /** What a requirement asks for, whichever way it is measured. */
 export function requiredLabel(s: Standing): string {
   if (s.requiredDeciHours != null) return deciHoursLabel(s.requiredDeciHours);
   if (s.requiredCount != null) return `${s.requiredCount}`;
-  return "—";
+  return "–";
 }
 
 /** What the student has, whichever way it is measured. */
 export function creditedLabel(s: Standing): string {
   if (s.requiredDeciHours != null) return deciHoursLabel(s.creditedDeciHours);
   if (s.requiredCount != null) return `${s.creditedCount}`;
-  return "—";
+  return "–";
 }
 
 /**
  * How far through a requirement, 0–1.
  *
  * Capped at 1 so a student with 60 hours against a 40-hour minimum shows a full bar
- * rather than an overflowing one — being ahead is not a rendering problem.
+ * rather than an overflowing one, being ahead is not a rendering problem.
  */
 export function standingFraction(s: Standing): number {
   const required = s.requiredDeciHours ?? s.requiredCount;
@@ -62,7 +62,7 @@ export function cappedExplanation(s: Standing): string | null {
 /**
  * Why hours a student definitely flew are not counting toward this requirement.
  *
- * A handful of requirements go stale — the three hours of test preparation must be within
+ * A handful of requirements go stale, the three hours of test preparation must be within
  * two calendar months of the checkride. Showing the reduced number alone would read as the
  * software losing somebody's flying, and an instructor would ring the school about it.
  * Saying "3.0 flown, 1.0 still current" is a different sentence entirely, and it is the one
@@ -104,7 +104,7 @@ export function recordState(r: {
 }): { label: string; tone: "draft" | "signed" | "complete" | "amended" } {
   if (!r.instructorSignedAt) {
     return r.supersedesId != null
-      ? { label: "Correction — not signed", tone: "amended" }
+      ? { label: "Correction, not signed", tone: "amended" }
       : { label: "Grading", tone: "draft" };
   }
   if (!r.studentSignedAt) return { label: "Awaiting student", tone: "signed" };
@@ -115,7 +115,7 @@ export function recordState(r: {
  * Which records are superseded by a later correction.
  *
  * The client is told `completedLessonIds` outright, so this exists only to strike through
- * the ones the amendment replaced — not to re-derive completion, which is the server's job
+ * the ones the amendment replaced, not to re-derive completion, which is the server's job
  * and easy to get subtly wrong.
  */
 export function supersededIds(records: { supersedesId: number | null }[]): Set<number> {
@@ -146,7 +146,7 @@ export function nextLessonId(
  * sent by the server rather than re-derived here so the bypass cannot drift between the
  * two. `grants` is what has been granted explicitly.
  *
- * FAILS CLOSED. While the query is loading, or if it failed, this is false — an action
+ * FAILS CLOSED. While the query is loading, or if it failed, this is false, an action
  * button that appears optimistically and then 403s is worse than one that appears a
  * moment late, and this is the exact shape of the most common bug in this codebase:
  * the client offering something the server will refuse.

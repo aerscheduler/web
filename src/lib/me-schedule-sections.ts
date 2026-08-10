@@ -2,7 +2,7 @@ import { CalendarDays, RefreshCw, type LucideIcon } from "lucide-react";
 import type { RailSection } from "@/components/section-rail";
 
 /**
- * Tabs on /me/schedule. Shared with the command palette so "slot offers" /
+ * Tabs on /me/schedule. Shared with the command palette so "offers" /
  * standby land on the right pane without a separate You-nav item.
  *
  * Layout uses SectionRail (same shell as Settings / My training), told apart
@@ -26,9 +26,9 @@ export const ME_SCHEDULE_TABS: MeScheduleTabDef[] = [
   },
   {
     value: "offers",
-    label: "Slot offers",
+    label: "Offers",
     icon: RefreshCw,
-    keywords: ["standby", "waitlist", "open slot", "claim"],
+    keywords: ["offers", "standby", "waitlist", "open slot", "claim"],
   },
 ];
 

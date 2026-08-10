@@ -41,7 +41,7 @@ const KEY_HINT_END = "Shift with arrow keys changes the end.";
 /**
  * Minutes past the window's first hour, measured on the AIRPORT's clock (unclamped).
  *
- * This used to read `d.getHours()` — the viewer's clock — which is what made the whole board
+ * This used to read `d.getHours()` (the viewer's clock) which is what made the whole board
  * slide an hour when a dispatcher opened it from another zone. The instant is unchanged; only
  * the clock we measure it against is now the right one.
  *
@@ -121,7 +121,7 @@ export function LaneGrid({
   /** Open that offer's detail when a hold block is clicked. */
   onOfferHoldClick?: (hold: SlotOfferHold) => void;
   /**
-   * Block-filter marking. Non-matches are DIMMED, never removed — the lane geometry has to
+   * Block-filter marking. Non-matches are DIMMED, never removed, the lane geometry has to
    * keep telling the truth about what's occupied, or a dispatcher books over a real flight
    * because the filter made the slot look free. See `board-filters.ts`.
    */
@@ -159,7 +159,7 @@ export function LaneGrid({
   //The board's LAYOUT is computed from the committed reservations, never from the live drag
   //position. That is deliberate: `packTracks` gives overlapping bookings their own track, so
   //previewing the drag through it meant that the moment you held a block over another one
-  //the lane grew a second track — the row got taller and the booking you were aiming at slid
+  //the lane grew a second track, the row got taller and the booking you were aiming at slid
   //out from under the cursor. Freezing the layout keeps every other block exactly where it
   //was; the held one is drawn separately, floating over the top (see `heldRowKey` below).
   const drawn = reservations;
@@ -188,7 +188,7 @@ export function LaneGrid({
     items: byResource.get(res.id) ?? [],
   }));
 
-  // Reservations on a resource that has no lane — either the caller filtered
+  // Reservations on a resource that has no lane, either the caller filtered
   // the lane out (rooms/sims are hidden from renters and technicians) or the
   // fleet list doesn't know it. The board is a view-only mirror of the whole
   // org, so those still get drawn: they fall into the catch-all row rather than
@@ -201,7 +201,7 @@ export function LaneGrid({
   if (leftovers.length > 0) {
     rows.push({ key: "other", resource: null, items: leftovers });
   }
-  // Only "Unassigned" when it really is — an off-lane booking does have a resource.
+  // Only "Unassigned" when it really is: an off-lane booking does have a resource.
   const leftoverLabel = offLane.length > 0 ? "Other" : "Unassigned";
 
   // Widened past the default 6a–10p by whatever this day's reservations need, so an early or
@@ -233,7 +233,7 @@ export function LaneGrid({
   return (
     <div ref={scrollRef} data-doc-shot="schedule-day-board" className="h-full min-h-0 overflow-auto">
       <div style={{ minWidth: LABEL_WIDTH + laneWidth }}>
-        {/* Header — hour ruler (sticky while scrolling resource lanes) */}
+        {/* Header: hour ruler (sticky while scrolling resource lanes) */}
         <div className="sticky top-0 z-30 flex border-b border-border bg-card">
           <div
             className="sticky left-0 z-40 shrink-0 border-r border-border bg-card px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
@@ -249,7 +249,7 @@ export function LaneGrid({
                 style={{ left: i * HOUR_WIDTH }}
               >
                 {/* Ticks are centred on their gridline, but the first one sits on the ruler's
-                    left edge — centring it slides half the label under the sticky Resource
+                    left edge, centring it slides half the label under the sticky Resource
                     column, which clipped "12a" down to "2a". Left-align just that one. */}
                 <span className={cn("absolute pt-2", i === 0 ? "left-0" : "-translate-x-1/2")}>
                   {i < hours ? hourLabel(startHour + i) : ""}
@@ -259,7 +259,7 @@ export function LaneGrid({
           </div>
         </div>
 
-        {/* Body — one lane per resource */}
+        {/* Body: one lane per resource */}
         <div className="relative">
           {showNow && (
             <div
@@ -398,7 +398,7 @@ export function LaneGrid({
                             : undefined;
                           if (blocking) {
                             toast.message(
-                              `Held for ${blocking.offeredToName} until ${formatTimeInZone(
+                              `Offered to ${blocking.offeredToName} until ${formatTimeInZone(
                                 blocking.holdUntil,
                                 tz.zone
                               )}. Open Pending offers to withdraw or wait.`
@@ -479,7 +479,7 @@ export function LaneGrid({
                       );
                     })}
                   {/* The carried block. Rendered last so it paints over whatever is already
-                      in this lane — nothing underneath is displaced or hidden, which is the
+                      in this lane, nothing underneath is displaced or hidden, which is the
                       whole point: you can see what you are about to land on. */}
                   {heldPreview && heldRowKey === row.key && (
                     <div
@@ -573,7 +573,7 @@ function OfferHoldBlock({
             <div className="truncate text-xs font-semibold leading-tight text-foreground">
               {label}
             </div>
-            <div className="truncate text-[11px] leading-tight opacity-80">Held</div>
+            <div className="truncate text-[11px] leading-tight opacity-80">Pending</div>
           </div>
         </button>
       </TooltipTrigger>
@@ -582,7 +582,7 @@ function OfferHoldBlock({
           <div className="font-medium">{label}</div>
           <div className="tabular-nums">{detail}</div>
           <div className="mt-1 opacity-80">
-            Soft hold: this time is not free to book until the offer ends or is withdrawn.
+            Pending offer: this time is not free to book until the offer ends or is withdrawn.
           </div>
           <div className="mt-1 border-t border-border/50 pt-1 opacity-90">{refuseReason}</div>
         </div>
@@ -626,13 +626,13 @@ function LaneBlock({
   //Per-reservation so a school with fields in two zones labels each block correctly.
   const tz = useTimeZone(r.location);
   const names = personnelNames(r);
-  //One name plus a count when a booking has a crew — see crewLabel.
+  //One name plus a count when a booking has a crew, see crewLabel.
   const shownName = crewLabel(names, marks.query);
   const timeRange = tz.range(r.start, r.end);
 
   const ability = drag?.abilityFor(r);
   //`floating` is the carried copy: it already IS the live drag, so it takes no input of its
-  //own and shows no controls — the real block (now an outline) still owns focus and events.
+  //own and shows no controls, the real block (now an outline) still owns focus and events.
   const held = floating ? (drag?.active ?? null) : null;
   const saving = !floating && drag?.pendingId === r.id;
   const grabbable = Boolean(!floating && drag && ability?.move);

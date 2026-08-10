@@ -8,23 +8,23 @@ import { cn } from "@/lib/utils";
  *
  * A menu is not a form. Radix's keyboard model assumes focus lives on a menu ITEM and drives
  * everything from there, so an `<input>` dropped into one is a foreign body and four separate
- * things break — each of which had to be wired back by hand:
+ * things break, each of which had to be wired back by hand:
  *
  *  1. **Typeahead ate the keystrokes.** Menus jump focus to the item starting with whatever
  *     letter you typed, so the box lost focus on the first character.
  *  2. **Focus never reached the box.** Radix opens a submenu on HOVER while deliberately
- *     leaving focus on the trigger — and the trigger lives in the PARENT menu, so a handler on
+ *     leaving focus on the trigger, and the trigger lives in the PARENT menu, so a handler on
  *     the submenu content never even saw the keystroke. `captureTyping` goes on the trigger.
  *  3. **Tab escaped the menu**, which closed the submenu and threw away the query.
  *  4. **Arrow keys and Enter did nothing** from the box, because it is not part of the
  *     roving-focus ring Radix navigates.
  *
  * The box is deliberately NOT auto-focused when the submenu opens. Radix switches submenus as
- * the pointer travels down the field list, and a focused input inside one holds it open — so
+ * the pointer travels down the field list, and a focused input inside one holds it open, so
  * autofocus silently broke browsing by hover. The first real keystroke takes focus instead,
  * which costs nothing: the caret arrives exactly when you start typing.
  *
- * Usage — spread the three handlers onto the trigger, the content and the box:
+ * Usage: spread the three handlers onto the trigger, the content and the box:
  *
  *     const search = useSubmenuSearch();
  *     <DropdownMenuSub onOpenChange={search.setOpen}>
@@ -46,7 +46,7 @@ export interface SubmenuSearch {
 
 export function useSubmenuSearch(): SubmenuSearch {
   const [query, setQuery] = useState("");
-  // Radix stays in charge of opening and closing — this only OBSERVES it. Feeding `open` back
+  // Radix stays in charge of opening and closing, this only OBSERVES it. Feeding `open` back
   // as a controlled prop breaks sibling switching, so hovering another field can no longer
   // close this one and two submenus sit open at once.
   const [open, setOpen] = useState(false);
@@ -73,7 +73,7 @@ export function useSubmenuSearch(): SubmenuSearch {
 
   /** Printable key pressed while focus is anywhere but the box → it lands in the box. */
   const captureTyping = (e: ReactKeyboardEvent) => {
-    if (!open) return; // closed submenu — let the parent menu's own typeahead work
+    if (!open) return; // closed submenu, let the parent menu's own typeahead work
     if (e.target instanceof HTMLInputElement) return;
     if (e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1) return;
     e.preventDefault();
@@ -120,7 +120,7 @@ export function useSubmenuSearch(): SubmenuSearch {
   const onSearchKeyDown = (e: ReactKeyboardEvent) => {
     const list = items();
 
-    // Tab means "go to the results", not "leave" — inside an open filter menu that is what you
+    // Tab means "go to the results", not "leave", inside an open filter menu that is what you
     // actually want, and letting it escape destroys the query you just typed. Shift+Tab out of
     // the box is handled by the content, which walks back through the results first.
     if (e.key === "ArrowDown" || (e.key === "Tab" && !e.shiftKey)) {
@@ -137,7 +137,7 @@ export function useSubmenuSearch(): SubmenuSearch {
       list[list.length - 1]?.focus();
       return;
     }
-    // Enter takes the top match — the "type three letters and hit Enter" path. `click()` routes
+    // Enter takes the top match, the "type three letters and hit Enter" path. `click()` routes
     // through Radix's own select handling, so a checkbox toggles and the menu stays open while
     // a radio commits, exactly as clicking would.
     if (e.key === "Enter") {
@@ -194,7 +194,7 @@ export function SubmenuSearchBox({
 }
 
 /**
- * Minimal guard for a plain VALUE input inside a menu (a number, a date) — one that has no
+ * Minimal guard for a plain VALUE input inside a menu (a number, a date), one that has no
  * option list under it to navigate into.
  *
  * Same first problem as the search box: the menu's typeahead would steal every keystroke.

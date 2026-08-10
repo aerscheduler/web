@@ -67,7 +67,7 @@ type ExpiryMode = "never" | "days" | "months" | "on";
  * Which expiry rule the SERVER will actually apply.
  *
  * `calculateExpirationDate` takes the first non-null of expiresOn → expiresInDays
- * → expiresInMonths. It is a precedence, NOT "whichever comes first" — so when more
+ * → expiresInMonths. It is a precedence, NOT "whichever comes first", so when more
  * than one is stored the losers are dead data. We always display the winner.
  */
 function effectiveExpiryMode(t: CurrencyType): ExpiryMode {
@@ -77,7 +77,7 @@ function effectiveExpiryMode(t: CurrencyType): ExpiryMode {
   return "never";
 }
 
-/** How many expiry values are stored — more than one means some are being ignored. */
+/** How many expiry values are stored, more than one means some are being ignored. */
 function storedExpiryRules(t: CurrencyType): number {
   return [t.expiresOn, t.expiresInDays, t.expiresInMonths].filter(Boolean).length;
 }
@@ -99,7 +99,7 @@ function expirySummary(t: CurrencyType): string {
 }
 
 /**
- * Why a rule is inert, in one sentence — or null when it actually gates something.
+ * Why a rule is inert, in one sentence, or null when it actually gates something.
  *
  * BOTH relations are load-bearing. `orgUserIsCurrentForResource` matches currencies
  * through `currencyType.resourceGroups.resources.id`, so with no aircraft group it
@@ -109,11 +109,11 @@ function expirySummary(t: CurrencyType): string {
  */
 function scopeGapText(aircraftGroups: number, peopleGroups: number): string | null {
   if (!aircraftGroups && !peopleGroups)
-    return "No aircraft groups and no people groups — nobody is tracked against this rule and it covers no aircraft, so it never blocks a booking.";
+    return "No aircraft groups and no people groups, nobody is tracked against this rule and it covers no aircraft, so it never blocks a booking.";
   if (!aircraftGroups)
-    return "No aircraft groups — this rule covers no aircraft, so lapsing on it never blocks a booking.";
+    return "No aircraft groups. This rule covers no aircraft, so lapsing on it never blocks a booking.";
   if (!peopleGroups)
-    return "No people groups — nobody gets a record for this rule, so there is never a lapse to block. People groups are the only way records are created.";
+    return "No people groups, nobody gets a record for this rule, so there is never a lapse to block. People groups are the only way records are created.";
   return null;
 }
 
@@ -141,7 +141,7 @@ function formatDay(iso: string) {
 /**
  * Currency rules: the gate that stops a lapsed pilot from booking. The server checks
  * these when a reservation is created (not at ramp-out), and a rule only bites when it
- * names both aircraft groups and people groups — so this tab leads with that.
+ * names both aircraft groups and people groups, so this tab leads with that.
  */
 export function CurrencyTypesTab() {
   const paging = usePaging();
@@ -171,10 +171,10 @@ export function CurrencyTypesTab() {
     const ok = await confirm({
       title: `Delete "${type.name}"?`,
       // Verified server behaviour: DELETE soft-deletes the type AND archives every
-      // currency record filed under it, and every later verb on that id 403s — there
+      // currency record filed under it, and every later verb on that id 403s, there
       // is no way back through the API.
       description:
-        "This can't be undone from the console. Everyone's record for this rule is archived — their sign-off history stops being visible — and nobody is gated by it any more.",
+        "This can't be undone from the console. Everyone's record for this rule is archived (their sign-off history stops being visible) and nobody is gated by it any more.",
       confirmLabel: "Delete rule",
       destructive: true,
     });
@@ -195,7 +195,7 @@ export function CurrencyTypesTab() {
           <div>
             <CardTitle>Currency rules</CardTitle>
             <CardDescription>
-              What people must stay signed off on before they can book — medicals,
+              What people must stay signed off on before they can book, medicals,
               flight reviews, checkouts.
             </CardDescription>
           </div>
@@ -222,7 +222,7 @@ export function CurrencyTypesTab() {
           <EmptyState
             icon={ShieldCheck}
             title="No currency rules yet"
-            body="A rule blocks bookings for anyone who isn't signed off on it — a medical for every renter, a checkout before the complex singles."
+            body="A rule blocks bookings for anyone who isn't signed off on it, a medical for every renter, a checkout before the complex singles."
             action={
               <Button size="sm" onClick={openAdd}>
                 <Plus className="size-4" /> Add rule
@@ -277,7 +277,7 @@ function TypeRow({
   onEdit: (type: CurrencyType) => void;
   onDelete: (type: CurrencyType) => void;
 }) {
-  // The list endpoint already returns all three scope relations as {id, name} —
+  // The list endpoint already returns all three scope relations as {id, name}.
   // no per-row detail fetch is needed to describe what a rule covers.
   const aircraft = type.resourceGroups ?? [];
   const people = type.orgUserGroups ?? [];
@@ -387,7 +387,7 @@ type FormState = {
   expiryMode: ExpiryMode;
   expiresInDays: string;
   expiresInMonths: string;
-  /** "yyyy-MM-dd" — what DatePickerField speaks. */
+  /** "yyyy-MM-dd", what DatePickerField speaks. */
   expiresOn: string;
   warningPeriodInDays: string;
   canFlyWithInstructor: boolean;
@@ -411,7 +411,7 @@ const REQUIRED_FIELDS = [
 const EXPIRY_MODES: { value: ExpiryMode; label: string; hint: string }[] = [
   {
     value: "never",
-    label: "Never — a one-time sign-off",
+    label: "Never, a one-time sign-off",
     hint: "Right for a checkout or an endorsement: once signed off it stays good until someone archives it.",
   },
   {
@@ -422,7 +422,7 @@ const EXPIRY_MODES: { value: ExpiryMode; label: string; hint: string }[] = [
   {
     value: "months",
     label: "A number of months after sign-off",
-    hint: "How a medical or a flight review is usually written — 24 months from the sign-off date.",
+    hint: "How a medical or a flight review is usually written: 24 months from the sign-off date.",
   },
   {
     value: "on",
@@ -441,7 +441,7 @@ function emptyForm(): FormState {
     expiresOn: "",
     warningPeriodInDays: "30",
     // Matches the database default. Flutter's create screen defaults this ON, but a
-    // rule exists to block — leniency should be a decision, especially given that the
+    // rule exists to block, leniency should be a decision, especially given that the
     // server applies it across every rule the pilot is lapsed on (see the helper text).
     canFlyWithInstructor: false,
     instructorCanRenew: false,
@@ -511,7 +511,7 @@ function CurrencyTypeFormModal({
   const [form, setForm] = React.useState<FormState>(emptyForm);
   // Surfaced only after a submit attempt, so we don't nag on a pristine form.
   const [showErrors, setShowErrors] = React.useState(false);
-  // Second-press acknowledgement — see handleSubmit.
+  // Second-press acknowledgement, see handleSubmit.
   const [confirming, setConfirming] = React.useState(false);
 
   // Reset whenever the modal opens (fresh add, or prefilled edit). The list payload
@@ -524,7 +524,7 @@ function CurrencyTypeFormModal({
   }, [open, type]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
-    // Any edit invalidates a pending "yes I meant it" — the consequences may differ now.
+    // Any edit invalidates a pending "yes I meant it", the consequences may differ now.
     setConfirming(false);
     setForm((f) => ({ ...f, [key]: value }));
   };
@@ -541,7 +541,7 @@ function CurrencyTypeFormModal({
     // has to live here.
     name: form.name.trim().length === 0 ? "Enter a name." : "",
     // 0 is stored but read as "no rule" server-side, and a negative produces a
-    // date in the past — neither is ever what someone meant.
+    // date in the past, neither is ever what someone meant.
     expiresInDays:
       form.expiryMode === "days" && !days ? "Enter a whole number of days, 1 or more." : "",
     expiresInMonths:
@@ -553,7 +553,7 @@ function CurrencyTypeFormModal({
         ? !form.expiresOn
           ? "Pick the date this expires on."
           : form.expiresOn <= today
-            ? "Pick a future date — a date that has passed expires every sign-off the moment it's made."
+            ? "Pick a future date, a date that has passed expires every sign-off the moment it's made."
             : ""
         : "",
     warningPeriodInDays:
@@ -576,7 +576,7 @@ function CurrencyTypeFormModal({
   const consequences: string[] = [];
   if (gap) {
     consequences.push(
-      `${gap} You can still save it — it just won't gate anything until the scope is filled in.`
+      `${gap} You can still save it, it just won't gate anything until the scope is filled in.`
     );
   }
   if (!isEdit && peopleGroupCount > 0) {
@@ -586,7 +586,7 @@ function CurrencyTypeFormModal({
   }
   if (docsChanged && peopleGroupCount > 0) {
     consequences.push(
-      "Changing the required documents clears every existing sign-off on this rule — everyone it covers goes back to not signed off at once."
+      "Changing the required documents clears every existing sign-off on this rule, everyone it covers goes back to not signed off at once."
     );
   }
   if (peopleChanged) {
@@ -712,7 +712,7 @@ function CurrencyTypeFormModal({
         {/* ── Scope: the whole ballgame ── */}
         <Section
           title="Scope"
-          hint="A rule needs both halves to bite: the aircraft it guards, and the people it applies to."
+          hint="A rule needs both halves to bite: the aircraft it guards and the people it applies to."
         >
           <ScopeConsequence
             gap={gap}
@@ -724,7 +724,7 @@ function CurrencyTypeFormModal({
           <ScopePicker
             idPrefix="ct-rg"
             label="Aircraft groups"
-            hint="Lapsing on this rule blocks booking these aircraft — and only these. This is what makes the rule real."
+            hint="Lapsing on this rule blocks booking these aircraft, and only these. This is what makes the rule real."
             loading={resourceGroups.isPending}
             items={(resourceGroups.data ?? []).map((g) => ({
               id: g.id,
@@ -734,13 +734,13 @@ function CurrencyTypeFormModal({
             }))}
             selected={form.resourceGroupIds}
             onChange={(ids) => set("resourceGroupIds", ids)}
-            emptyText="No aircraft groups exist yet. Create one on the Groups tab, then come back — without one this rule can't block anything."
+            emptyText="No aircraft groups exist yet. Create one on the Groups tab, then come back, without one this rule can't block anything."
           />
 
           <ScopePicker
             idPrefix="ct-oug"
             label="People groups"
-            hint="Everyone in these groups is tracked against this rule. Membership is also how records get created — there is no way to add one person on their own."
+            hint="Everyone in these groups is tracked against this rule. Membership is also how records get created, there is no way to add one person on their own."
             loading={orgUserGroups.isPending}
             items={(orgUserGroups.data ?? []).map((g) => ({
               id: g.id,
@@ -750,7 +750,7 @@ function CurrencyTypeFormModal({
             }))}
             selected={form.orgUserGroupIds}
             onChange={(ids) => set("orgUserGroupIds", ids)}
-            emptyText="No people groups exist yet. Create one on the Groups tab, then come back — without one nobody is tracked against this rule."
+            emptyText="No people groups exist yet. Create one on the Groups tab, then come back, without one nobody is tracked against this rule."
           />
         </Section>
 
@@ -789,13 +789,13 @@ function CurrencyTypeFormModal({
                     <span className="text-foreground">
                       {expiringDocTypes.map((d) => d.name).join(", ")}
                     </span>{" "}
-                    can do that — a document type without an expiry date just has to be
+                    can do that, a document type without an expiry date just has to be
                     on file.
                   </>
                 ) : (
                   <>
                     None of these document types carries an expiry date, so they can
-                    never expire this currency on their own — they only have to be on
+                    never expire this currency on their own, they only have to be on
                     file. Set an expiry rule below if it should lapse.
                   </>
                 )}
@@ -805,7 +805,7 @@ function CurrencyTypeFormModal({
 
           {isEdit && docsChanged && (
             <p className={`text-xs ${WARN_TEXT}`}>
-              Changing this list clears every existing sign-off on this rule — everyone
+              Changing this list clears every existing sign-off on this rule, everyone
               it covers goes back to not signed off.
             </p>
           )}
@@ -909,7 +909,7 @@ function CurrencyTypeFormModal({
             label="A current instructor can carry a lapse"
             checked={form.canFlyWithInstructor}
             onChange={(v) => set("canFlyWithInstructor", v)}
-            hint="A lapsed person can still be booked when a current instructor is on the flight. Note the server applies this leniency to every rule that person is lapsed on, not just this one — switching it on here can also let a lapsed medical through."
+            hint="A lapsed person can still be booked when a current instructor is on the flight. Note the server applies this leniency to every rule that person is lapsed on, not just this one, switching it on here can also let a lapsed medical through."
           />
         </Section>
 
@@ -923,14 +923,14 @@ function CurrencyTypeFormModal({
             label="Instructors can sign off"
             checked={form.instructorCanRenew}
             onChange={(v) => set("instructorCanRenew", v)}
-            hint="This also lets instructors read everyone's record for this rule, not just their own — the two are the same permission server-side."
+            hint="This also lets instructors read everyone's record for this rule, not just their own. The two are the same permission server-side."
           />
           <SwitchRow
             id="ct-dispatcher-renew"
             label="Dispatchers can sign off"
             checked={form.dispatcherCanRenew}
             onChange={(v) => set("dispatcherCanRenew", v)}
-            hint="Dispatchers can already see these records; this lets them stamp the sign-off too. They still can't backdate its start date — that's admin-only."
+            hint="Dispatchers can already see these records; this lets them stamp the sign-off too. They still can't backdate its start date, that's admin-only."
           />
           <SwitchRow
             id="ct-self-renew"
@@ -1007,7 +1007,7 @@ function Section({
 /**
  * The plain-English reading of the rule as currently scoped. This is the answer to the
  * trap: a rule with a gap says so here, in the same words the list row will use, before
- * anyone presses Save — rather than being quietly accepted and doing nothing forever.
+ * anyone presses Save: rather than being quietly accepted and doing nothing forever.
  */
 function ScopeConsequence({
   gap,
@@ -1031,7 +1031,7 @@ function ScopeConsequence({
       </div>
     );
   }
-  // The name lists come from the group queries, which can still be in flight — fall
+  // The name lists come from the group queries, which can still be in flight, fall
   // back to a phrase rather than rendering "Everyone in  must be signed off".
   const people = peopleNames.length ? peopleNames.join(", ") : "the selected people groups";
   const aircraft = aircraftNames.length
@@ -1045,7 +1045,7 @@ function ScopeConsequence({
         signed off before they can book{" "}
         <span className="font-medium text-foreground">{aircraft}</span>
         {canFlyWithInstructor
-          ? " — unless a current instructor is on the flight."
+          ? ", unless a current instructor is on the flight."
           : ". A lapse blocks the booking outright."}
       </p>
     </div>
@@ -1134,7 +1134,7 @@ function ScopePicker({
 
 /**
  * How many aircraft a group actually holds. The group list endpoint omits members, so
- * this is a per-row detail fetch — the same pattern the Groups tab already uses, and
+ * this is a per-row detail fetch, the same pattern the Groups tab already uses, and
  * the reason it matters here is that "Complex singles" could be an empty group, which
  * would leave the rule just as inert as naming no group at all.
  */

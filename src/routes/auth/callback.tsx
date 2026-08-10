@@ -27,7 +27,7 @@ function AuthCallbackPage() {
     let cancelled = false;
 
     async function finish() {
-      // Prefer the live query string over router search — React Strict Mode
+      // Prefer the live query string over router search. React Strict Mode
       // remounts this page, and an early history.replaceState used to wipe
       // ?token= before the second mount could read it.
       const fromUrl = new URLSearchParams(window.location.search).get("token");

@@ -17,7 +17,7 @@ import { formatDate } from "@/lib/utils";
  * Reads through `GET /training/enrollments`, which the server already scopes: a
  * student asking sees only their own whatever they pass, and staff see anyone's.
  * So the SAME call is correct for both the self and the staff view, and there is
- * no second endpoint to pick wrongly between — unlike currencies, where choosing
+ * no second endpoint to pick wrongly between, unlike currencies, where choosing
  * the wrong one 403s a member on their own page.
  *
  * Renders nothing at all when the person has no enrollments. Most members of most
@@ -29,7 +29,7 @@ export function PersonTraining({ ou, isSelf }: { ou: OrganizationUser; isSelf: b
   const rows = q.data ?? [];
 
   if (q.isPending) return <CardSkeleton />;
-  //A failure here is not worth a red card on somebody's profile — training is one
+  //A failure here is not worth a red card on somebody's profile, training is one
   //section of many, and the rest of the page is still useful.
   if (q.isError || rows.length === 0) return null;
 

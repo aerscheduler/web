@@ -38,8 +38,8 @@ import {
 /**
  * Who to call about this person in an emergency.
  *
- * A list rather than a fixed pair of fields, because schools routinely record two — a
- * spouse and a parent — and a student under 18 may have more. The primary one is what a
+ * A list rather than a fixed pair of fields, because schools routinely record two, a
+ * spouse and a parent, and a student under 18 may have more. The primary one is what a
  * dispatcher reads first, so it sorts to the top and is badged.
  *
  * `userId` is a prop rather than read from auth, so this same card serves both "my own"
@@ -93,7 +93,7 @@ export function EmergencyContactsCard({
           <p className="text-sm text-muted-foreground">
             {readOnly
               ? "Nobody on file."
-              : "Nobody on file yet — add the person your school should call."}
+              : "Nobody on file yet. Add the person your school should call."}
           </p>
         ) : (
           <ul className="divide-y divide-border">
@@ -207,7 +207,7 @@ export function EmergencyContactsCard({
   );
 }
 
-/** One form for both add and edit — the fields are identical, only the id differs. */
+/** One form for both add and edit, the fields are identical, only the id differs. */
 function EmergencyContactModal({
   userId,
   contact,
@@ -232,7 +232,7 @@ function EmergencyContactModal({
   // Reset on every open so a cancelled edit doesn't leak into the next add, and an add
   // doesn't start with the last contact's details.
   //
-  // Phones are seeded FORMATTED, not as the stored E.164 — editing a box that says
+  // Phones are seeded FORMATTED, not as the stored E.164, editing a box that says
   // "+17205550133" is how you get somebody to retype a number that was already correct.
   // The server re-normalizes whatever comes back, so nothing is lost by showing it the
   // readable way.
@@ -366,7 +366,7 @@ function EmergencyContactModal({
             id="ec-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            placeholder="Anything worth knowing when calling — best time to reach them, another language spoken…"
+            placeholder="Anything worth knowing when calling, best time to reach them, another language spoken…"
             rows={2}
             maxLength={300}
           />

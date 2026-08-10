@@ -23,7 +23,7 @@ function ForgotPasswordPage() {
     setError(null);
     setBusy(true);
     try {
-      // Always 204 — the server never reveals whether the email exists.
+      // Always 204: the server never reveals whether the email exists.
       await apiRaw("/auth/forgot-password", { method: "POST", body: { email: email.trim() } });
       setSent(true);
     } catch (err) {

@@ -20,7 +20,7 @@ import type { ReservationDraft } from "./reservation-form";
 const MAX_CHIPS = 3;
 
 /**
- * Desktop month view: a fixed 6-week × 7-day grid. Cells never widen the page —
+ * Desktop month view: a fixed 6-week × 7-day grid. Cells never widen the page.
  * columns are `minmax(0)` and every chip truncates. Clicking empty space in a
  * cell books that day; a chip opens its reservation; the day number / "+N more"
  * drills into the day view.
@@ -38,10 +38,10 @@ export function MonthGrid({
   month: Date;
   reservations: Reservation[];
   onView: (r: Reservation) => void;
-  /** Omitted for roles that may not create — the cells then aren't clickable. */
+  /** Omitted for roles that may not create, the cells then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
   onSelectDay: (day: Date) => void;
-  /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
+  /** Block-filter marking, non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
   selectedId?: number | null;
   query?: string;
@@ -57,12 +57,12 @@ export function MonthGrid({
 
   const byDay = new Map<string, Reservation[]>();
   for (const r of reservations) {
-    //The airport's calendar day, not the viewer's — a late-evening Mountain flight is
+    //The airport's calendar day, not the viewer's, a late-evening Mountain flight is
     //already tomorrow in UTC, and bucketing on the viewer's clock drops it in the wrong cell.
     //
     //EVERY day the booking occupies, not just the one it starts on. Bucketing on the start
     //alone put an aircraft that was away Friday to Sunday in Friday's cell only, so the
-    //Saturday and Sunday cells read as free — the same bug the week grid had, and the month
+    //Saturday and Sunday cells read as free, the same bug the week grid had, and the month
     //is where somebody looks to find a free weekend.
     const from = dateKeyInZone(r.start, tz.zone);
     const to = dateKeyInZone(r.end, tz.zone);
@@ -92,7 +92,7 @@ export function MonthGrid({
   for (const list of byDay.values()) list.sort((a, b) => a.start.localeCompare(b.start));
 
   //A month cell only has room for MAX_CHIPS, so this is the one view where dimming alone
-  //isn't enough — a match sitting fourth would be swallowed by "+N more" and the filter
+  //isn't enough, a match sitting fourth would be swallowed by "+N more" and the filter
   //would look like it found nothing. When filtering, float matches to the top of the cell
   //(chronological within each group, so the day still reads in order either side of the
   //split). The cell count is unchanged, so the day's real volume is still on screen.
@@ -201,7 +201,7 @@ export function MonthGrid({
                     </span>
                     <span className="truncate font-medium text-foreground">
                       {/* Month cells have no resource lane either, and the stored title
-                          is generic — lead with the aircraft so a day's chips are
+                          is generic, lead with the aircraft so a day's chips are
                           distinguishable at a glance. */}
                       {highlightMatch(
                         r.resource ? `${resourceLabel(r.resource).name} · ${r.title}` : r.title,

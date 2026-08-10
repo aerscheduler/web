@@ -2,7 +2,7 @@
  * The rows themselves, on the dashboard.
  *
  * Deliberately spare: no sorting, no paging, no column picker. Those belong to
- * the report, and this is a window onto it — the header links there. A table
+ * the report, and this is a window onto it, the header links there. A table
  * tile that grew its own controls would be a second, worse copy of the report
  * shell, kept in sync by hand.
  *
@@ -85,7 +85,7 @@ export function VizTable({
           onClick={onOpen}
           className="pt-1.5 text-left text-xs text-muted-foreground hover:text-foreground"
         >
-          First {MAX_ROWS} of {rows.length} — open the report for the rest
+          First {MAX_ROWS} of {rows.length}, open the report for the rest
         </button>
       )}
     </div>

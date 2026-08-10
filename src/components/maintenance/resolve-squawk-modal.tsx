@@ -14,8 +14,8 @@ import { Textarea } from "@/components/ui/textarea";
 const NOTES_MAX = 600;
 
 /**
- * Sign off a squawk. The server REQUIRES `completedAt` — when the work was
- * actually finished — and separately stamps `resolvedAt` itself, so this can't
+ * Sign off a squawk. The server REQUIRES `completedAt`: when the work was
+ * actually finished, and separately stamps `resolvedAt` itself, so this can't
  * be a bare confirm dialog. Fields match the Flutter resolve sheet (completed
  * date + notes) so a mechanic sees the same form on either surface.
  */
@@ -36,7 +36,7 @@ export function ResolveSquawkModal({
   const [formError, setFormError] = React.useState<string | null>(null);
 
   // Re-seed each time it opens: the work is usually being signed off the day
-  // it was finished, so today is the right default — but it stays editable for
+  // it was finished, so today is the right default, but it stays editable for
   // a job that got written up late.
   const wasOpen = React.useRef(false);
   React.useEffect(() => {
@@ -98,7 +98,7 @@ export function ResolveSquawkModal({
             {resource && <p className="text-muted-foreground">{resource}</p>}
             {squawk.grounding && (
               <p className="mt-1 text-xs text-muted-foreground">
-                This squawk grounded the aircraft — resolving it doesn&rsquo;t return it to
+                This squawk grounded the aircraft, resolving it doesn&rsquo;t return it to
                 service on its own.
               </p>
             )}

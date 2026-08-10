@@ -112,7 +112,7 @@ export function IntegrationSection({
   );
 }
 
-/** Full-width catalog row — click opens the provider’s dedicated page. */
+/** Full-width catalog row, click opens the provider’s dedicated page. */
 export function IntegrationCatalogCard({
   to,
   icon: Icon,
@@ -185,7 +185,7 @@ const STATUS_TOOLTIPS: Record<string, string> = {
   connected:
     "QuickBooks is connected, an income item is mapped, and sync can run when enabled.",
   needs_mapping:
-    "QuickBooks is connected, but setup isn’t finished — pick an income item below, then turn sync on.",
+    "QuickBooks is connected, but setup isn’t finished, pick an income item below, then turn sync on.",
   needs_reconnect:
     "The QuickBooks connection expired or was revoked. Reconnect to resume syncing.",
   error: "Something went wrong with this connection. Check the last error or reconnect.",

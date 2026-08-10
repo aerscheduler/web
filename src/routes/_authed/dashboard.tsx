@@ -54,7 +54,7 @@ function DashboardPage() {
   const confirm = useConfirm();
 
   /**
-   * This page is staff — admin OR dispatcher — but the money on it is admin-only
+   * This page is staff (admin OR dispatcher) but the money on it is admin-only
    * on the server. A dispatcher used to load it and fire two 403s, then be shown
    * "$0 outstanding" and "nothing billed in the last two weeks" built from the
    * empty arrays those failures left behind. Blocked and zero are not the same
@@ -171,7 +171,7 @@ function DashboardPage() {
     !loadingCounts &&
     (week.data?.length ?? 0) === 0 &&
     // For a dispatcher these two never ran, so they are not evidence of
-    // anything — only the schedule can say whether this school is new.
+    // anything, only the schedule can say whether this school is new.
     (!canSeeMoney ||
       ((unpaid.data?.length ?? 0) === 0 && (recent.data?.length ?? 0) === 0));
 
@@ -272,7 +272,7 @@ function DashboardPage() {
               </CardContent>
             </Card>
 
-            {/* Recent invoices — admin only; see canSeeMoney above. */}
+            {/* Recent invoices, admin only; see canSeeMoney above. */}
             {canSeeMoney && (
               <Card>
                 <CardHeader className="flex-row items-center justify-between">
@@ -487,7 +487,7 @@ function NoOrg() {
         <h2 className="mt-4 text-lg font-semibold">Let&rsquo;s get your operation flying</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Your account isn&rsquo;t attached to a flight school yet. Set one up in about two
-          minutes — or ask an admin to invite you, then reload.
+          minutes, or ask an admin to invite you, then reload.
         </p>
         <Button asChild className="mt-6">
           <Link to="/onboarding">Set up your operation</Link>

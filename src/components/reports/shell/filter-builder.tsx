@@ -1,14 +1,14 @@
 /**
  * The stacked filter builder, and the value conversions every filter UI shares.
  *
- * The rows below are the DIALOG form — the dashboard tile builder, where there is
+ * The rows below are the DIALOG form, the dashboard tile builder, where there is
  * room to lay a question out and no table behind it. The report toolbar asks the
  * same question from a nested menu instead (`view-menu.tsx`), so it costs one
  * button rather than a row of chrome; both write the same `ReportFilterInput[]`.
  *
  * Filters are ANDed. That is a deliberate limit: an OR builder needs grouping,
  * nesting and a visual language for precedence, and every school we have watched
- * uses reports by narrowing — "this aircraft, over 2 hours, not closed out".
+ * uses reports by narrowing, "this aircraft, over 2 hours, not closed out".
  * Whichever filter the question really turns on can be a multi-select, which
  * covers the OR case people actually want ("these three aircraft").
  *
@@ -60,7 +60,7 @@ const NO_VALUE: ReportFilterOperator[] = ["isNull", "isNotNull"];
 const MULTI_VALUE: ReportFilterOperator[] = ["in", "notIn"];
 
 /**
- * Money and hours are typed in the units people speak — dollars and hours — and
+ * Money and hours are typed in the units people speak (dollars and hours) and
  * converted to the cents and deci-hours the engine compares against. Asking
  * somebody to filter on "over 20 deci-hours" would be a bug report.
  */
@@ -121,7 +121,7 @@ function FilterRow({
             ...filter,
             operator: operator as ReportFilterOperator,
             // Switching between single, multi and no-value operators makes the
-            // old value meaningless — carrying it over produces a filter that
+            // old value meaningless, carrying it over produces a filter that
             // silently matches nothing.
             value: undefined,
           })
@@ -259,7 +259,7 @@ export function FilterBuilder({
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-72 p-0">
-          {/* Command rather than a plain list so this is searchable and arrow-navigable —
+          {/* Command rather than a plain list so this is searchable and arrow-navigable.
               a report with thirty filterable fields is otherwise a scroll hunt. The
               description is searched too, since people look for "the one about no-shows"
               more often than they remember what the column is called. */}
@@ -295,7 +295,7 @@ export function FilterBuilder({
 /**
  * Is this filter finished enough to run?
  *
- * A filter arrives with no value — you pick the field first, then the value. Sending
+ * A filter arrives with no value, you pick the field first, then the value. Sending
  * it half-built means `closedOut is undefined` matches nothing, so the table empties
  * the instant you add a filter and refills only once you finish. The row stays on
  * screen while you work on it; it just doesn't affect the results yet.

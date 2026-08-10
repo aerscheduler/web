@@ -1,15 +1,15 @@
 /**
- * The rules behind the reminders — what the mechanic called the "templates" page.
+ * The rules behind the reminders, what the mechanic called the "templates" page.
  *
  * His complaint was that it is "cluttered and hard to read with all the planes and
- * inspection reminders", and the cause is that the old screen mixed two different things
+ * inspection reminders"and the cause is that the old screen mixed two different things
  * into one flat list: the RULE ("100-hour, every 100 tach hours") and its INSTANCES (where
  * every tail stands against it). Those answer different questions and belong on different
  * screens.
  *
  * So this is only the rules. One row per rule, grouped by how it's counted, with its
  * interval, its warning lead and which tails it covers. Where each tail actually stands is
- * one click away — on that tail's own page — which is where somebody is already looking
+ * one click away (on that tail's own page) which is where somebody is already looking
  * when they ask.
  */
 
@@ -133,7 +133,7 @@ function TemplateRow({
     const ok = await confirm({
       title: `Delete "${template.name ?? "this inspection"}"?`,
       // Says exactly what is lost and what is kept. Deleting a template drops the OPEN
-      // reminders on every tail it covers — a much bigger action than "delete a row" reads
+      // reminders on every tail it covers, a much bigger action than "delete a row" reads
       // as when it spans eleven aircraft.
       description:
         tails.length > 0

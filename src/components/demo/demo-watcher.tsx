@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth";
 /**
  * How often a visible demo tab pings the server to keep its sandbox leased. Well under
  * the server's idle-lease window (see services/demo.ts), so a couple of dropped pings
- * never reclaim a live sandbox — but frequent enough that a closed or backgrounded tab
+ * never reclaim a live sandbox, but frequent enough that a closed or backgrounded tab
  * lapses soon after it goes quiet.
  */
 const DEMO_HEARTBEAT_MS = 5 * 60 * 1000;
@@ -16,14 +16,14 @@ const DEMO_HEARTBEAT_MS = 5 * 60 * 1000;
 /**
  * Turns "this sandbox is gone" into an offer of another one.
  *
- * A demo ends whenever its org is rebuilt or retired — someone hit Reset, or it
+ * A demo ends whenever its org is rebuilt or retired, someone hit Reset, or it
  * was reseeded underneath this tab. Every id in the token then points at a
  * deleted row, and the server answers 410 `DEMO_ENDED`.
  *
  * The whole reason this is separate from <SessionWatcher> is what happens next.
  * That one signs the user out and sends them to /login. For a demo visitor,
  * /login is a form for an account they have never had and cannot create from
- * there — the product looking broken at the exact moment they were enjoying it.
+ * there, the product looking broken at the exact moment they were enjoying it.
  * Here the answer is "start another", which is one click and costs nothing.
  *
  * Renders nothing.
@@ -51,7 +51,7 @@ export function DemoWatcher() {
       },
     });
 
-    // Not /login — see the note above. /demo mints a session and walks straight
+    // Not /login, see the note above. /demo mints a session and walks straight
     // back in, so a visitor who ignores the toast still ends up somewhere useful.
     void navigate({ to: "/demo", replace: true });
   }, [exitDemo, startDemo, navigate, qc]);
@@ -65,7 +65,7 @@ export function DemoWatcher() {
   // straight back when they close the tab. With the server's short idle lease, this is
   // what stops a small pool filling up with abandoned tabs: a visible tab pings every
   // few minutes; a hidden tab stops pinging and lapses on its own; a closed tab releases
-  // at once. A brief tab-switch is deliberately NOT a release — only a real page-close —
+  // at once. A brief tab-switch is deliberately NOT a release (only a real page-close)
   // so flicking away and back keeps your place.
   useEffect(() => {
     if (!isDemo) return;

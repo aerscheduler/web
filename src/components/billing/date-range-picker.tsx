@@ -25,7 +25,7 @@ function label(range: DateRange | undefined) {
   if (!range?.from) return "Pick a date range";
   if (!range.to) return format(range.from, "MMM d, yyyy");
   const sameYear = range.from.getFullYear() === range.to.getFullYear();
-  return `${format(range.from, sameYear ? "MMM d" : "MMM d, yyyy")} – ${format(range.to, "MMM d, yyyy")}`;
+  return `${format(range.from, sameYear ? "MMM d" : "MMM d, yyyy")}, ${format(range.to, "MMM d, yyyy")}`;
 }
 
 /**

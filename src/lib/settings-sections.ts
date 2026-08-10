@@ -20,14 +20,14 @@ import {
  * Lives here rather than inside the route because Settings is not one page in any way a
  * user would recognise: it is eleven screens sharing a URL, and `?tab=` is the only thing
  * that tells them apart. The command palette needs the same list to offer them as
- * destinations — "cost splitting" and "api keys" are pages people go looking for, and
+ * destinations, "cost splitting" and "api keys" are pages people go looking for, and
  * neither word appears anywhere else in the console.
  *
  * Adding a section here puts it in the rail AND makes it findable. Adding it only to the
  * route's render switch gets you a section nobody can search for.
  */
 export type SettingsTab = {
-  /** The `?tab=` value. Stable — onboarding deep links and bookmarks point at it. */
+  /** The `?tab=` value. Stable: onboarding deep links and bookmarks point at it. */
   value: string;
   label: string;
   icon: LucideIcon;

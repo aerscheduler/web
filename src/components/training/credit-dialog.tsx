@@ -29,15 +29,15 @@ import {
  * Recording training a student did somewhere else.
  *
  * `POST /training/credits` has existed since the ledger shipped and nothing in this console
- * ever called it — the mutation hook sat here with no caller. That made the single most
+ * ever called it, the mutation hook sat here with no caller. That made the single most
  * common day-one task for a school switching to us impossible without the API: a school
  * arriving with twenty part-trained students had no way to enter their prior hours.
  *
  * THE DATE IS THE POINT, and it is why this is a form rather than two fields. A requirement
  * can carry a recency window (the three hours of test preparation must be within two
  * calendar months of the checkride), and the ledger judges that by when the flying HAPPENED,
- * not by when somebody typed it in. Defaulting the date to today — which is what the server
- * did before this — silently makes a 2019 logbook look current forever.
+ * not by when somebody typed it in. Defaulting the date to today, which is what the server
+ * did before this, silently makes a 2019 logbook look current forever.
  */
 
 const SOURCES = [

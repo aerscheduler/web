@@ -31,7 +31,7 @@ export function InvoiceStatusBadge({ invoice }: { invoice: Invoice }) {
   );
 }
 
-/** Tiny QBO status next to Paid — desk trust without opening the sheet. */
+/** Tiny QBO status next to Paid, desk trust without opening the sheet. */
 function QuickBooksSyncChip({ invoice }: { invoice: Invoice }) {
   if (!invoice.paidAt || invoice.voidedAt) return null;
 

@@ -2,7 +2,7 @@
  * A ranking: one metric, cut by a dimension, biggest first.
  *
  * Horizontal bars rather than vertical columns, because the categories are
- * names — tail numbers, instructors, lesson types — and a horizontal bar gives
+ * names (tail numbers, instructors, lesson types) and a horizontal bar gives
  * the label a full line to sit on instead of turning it 45° under an axis.
  *
  * Ranking is a MAGNITUDE job, not an identity one, so this is a single hue
@@ -36,7 +36,7 @@ export function VizBar({
 
   const ranked = [...rows]
     .map((r) => ({
-      label: r[dimension] == null ? "—" : String(r[dimension]),
+      label: r[dimension] == null ? "–" : String(r[dimension]),
       value: typeof r[metric] === "number" ? (r[metric] as number) : null,
     }))
     .filter((r) => r.value != null)
@@ -87,7 +87,7 @@ export function VizBar({
       {/* Never silently truncate: say what was cut and where the rest lives. */}
       {hidden > 0 && (
         <p className="pt-1.5 text-xs text-muted-foreground">
-          Top {MAX_BARS} of {ranked.length} — open the report for the rest
+          Top {MAX_BARS} of {ranked.length}, open the report for the rest
         </p>
       )}
     </div>

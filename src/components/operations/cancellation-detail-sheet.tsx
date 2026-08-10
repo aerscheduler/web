@@ -13,14 +13,14 @@ function fmtDate(iso: string) {
 }
 
 function fmtDateTime(iso: string | null | undefined) {
-  return iso ? format(parseISO(iso), "MMM d, yyyy 'at' h:mm a") : "—";
+  return iso ? format(parseISO(iso), "MMM d, yyyy 'at' h:mm a") : "–";
 }
 
 function reservationType(t: string): ReservationType {
   return t as ReservationType;
 }
 
-/** Full cancellation record — same sheet chrome as `ReservationDetailSheet`. */
+/** Full cancellation record, same sheet chrome as `ReservationDetailSheet`. */
 export function CancellationDetailSheet({
   cancellation,
   open,
@@ -34,8 +34,8 @@ export function CancellationDetailSheet({
   onStep?: (delta: -1 | 1) => void;
 }) {
   const row = cancellation;
-  const resName = row ? cancelledResourceLabel(row.resource) : "—";
-  const forLabel = row ? cancelledForLabel(row) : "—";
+  const resName = row ? cancelledResourceLabel(row.resource) : "–";
+  const forLabel = row ? cancelledForLabel(row) : "–";
   const type = row ? reservationType(row.type) : null;
   const dotClass = type && DOT_CLASS[type] ? DOT_CLASS[type] : "bg-muted";
 
@@ -82,7 +82,7 @@ export function CancellationDetailSheet({
 
           <SheetDetailField icon={User} label="Cancelled by">
             {row.cancelledBy?.user?.name ?? (
-              <span className="text-muted-foreground">—</span>
+              <span className="text-muted-foreground">–</span>
             )}
           </SheetDetailField>
 
@@ -91,7 +91,7 @@ export function CancellationDetailSheet({
           </SheetDetailField>
 
           <SheetDetailField icon={Users} label="Personnel">
-            {forLabel !== "—" ? (
+            {forLabel !== "–" ? (
               forLabel
             ) : (
               <span className="text-muted-foreground">No one assigned</span>
@@ -104,7 +104,7 @@ export function CancellationDetailSheet({
                 {row.cancellationReason}
               </p>
             ) : (
-              <span className="text-muted-foreground">—</span>
+              <span className="text-muted-foreground">–</span>
             )}
           </SheetDetailField>
         </div>

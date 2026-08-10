@@ -64,7 +64,7 @@ const FACETS: FacetDef[] = [
 ];
 
 function fmtDate(iso: string | null | undefined) {
-  return iso ? format(parseISO(iso), "MMM d, yyyy") : "—";
+  return iso ? format(parseISO(iso), "MMM d, yyyy") : "–";
 }
 
 function invoiceColumns(onView: (inv: Invoice) => void): ColumnDef<Invoice, unknown>[] {
@@ -209,7 +209,7 @@ function MyInvoicesPage() {
     !!facets.endDate;
 
   // KPIs stay unfiltered so paid/date facets don't zero out the cards, and they
-  // are aggregated by the database rather than summed from the rows on screen —
+  // are aggregated by the database rather than summed from the rows on screen.
   // one page of invoices is not this member's balance.
   const summaryQ = useMemberInvoiceSummary(orgUserId);
 
@@ -236,7 +236,7 @@ function MyInvoicesPage() {
     [invoices, viewId]
   );
 
-  /** ↑/↓ to the neighbouring invoice. Clamped at the page edges — paging under the
+  /** ↑/↓ to the neighbouring invoice. Clamped at the page edges, paging under the
    *  panel would move the list out from under the highlight. */
   const stepInvoice = useCallback(
     (delta: -1 | 1) => {
@@ -292,7 +292,7 @@ function MyInvoicesPage() {
       <TableView.Header>
         <PageHeader
           title="Invoices"
-          subtitle="What your school has charged you — what you owe and what's settled."
+          subtitle="What your school has charged you, what you owe and what's settled."
         />
 
         {summaryQ.isPending ? (

@@ -35,7 +35,7 @@ import { canManageMembers, isInstructor, isStaff } from "@/lib/permissions";
 import { formatDate, initials } from "@/lib/utils";
 
 /**
- * `type` is Members vs Guests — a filter, not a tab.
+ * `type` is Members vs Guests: a filter, not a tab.
  *
  * They were tabs, which put a second, competing navigation above a page that already
  * has a filter bar: two controls that both narrow the list, in two different idioms.
@@ -52,7 +52,7 @@ const TYPE_OPTIONS = [
 
 export const Route = createFileRoute("/_authed/people")({
   /**
-   * `?member=<orgUserId>` is the OLD deep link — it used to open a profile
+   * `?member=<orgUserId>` is the OLD deep link, it used to open a profile
    * drawer over this table. That drawer is now the `/people/:orgUserId` page, so
    * the param survives only as a redirect (see `deepLinkedId` below): bookmarks,
    * pasted links and anything still emitting the old shape keep working instead
@@ -75,7 +75,7 @@ export const Route = createFileRoute("/_authed/people")({
 
 /**
  * Every role the server can filter on, plus "no role". `GET /orgUsers` has
- * always accepted technician/dispatcher/noRoles — only this list was short, so
+ * always accepted technician/dispatcher/noRoles, only this list was short, so
  * a technician or a member waiting to be assigned a role was unfindable.
  *
  * Owner is deliberately absent: the server enforces owner ⊃ admin, so owners
@@ -134,7 +134,7 @@ const EMPTY_BY_ROLE: Record<RoleKey | "all", { title: string; body: string }> = 
   },
   noRoles: {
     title: "Everyone has a role",
-    body: "Nobody is waiting to be assigned — new members will show up here.",
+    body: "Nobody is waiting to be assigned, new members will show up here.",
   },
 };
 
@@ -153,7 +153,7 @@ function PeoplePage() {
     defaults: { type: "members" },
   });
   // Guests come from `GET /organizations/guests`, which the server serves to
-  // admin, dispatcher and instructor — mirror exactly that. Someone without it
+  // admin, dispatcher and instructor, mirror exactly that. Someone without it
   // sees the roster whatever the URL says, rather than an empty table.
   const canViewGuests = isStaff(roles) || isInstructor(roles);
   const showingGuests = canViewGuests && facets.type === "guests";
@@ -214,7 +214,7 @@ function PeoplePage() {
     archived: showingArchived ? true : undefined,
     groupId: groupIds,
   };
-  // Re-filtering puts you back on page one — otherwise a search run from page 7
+  // Re-filtering puts you back on page one, otherwise a search run from page 7
   // answers "3 members" over an empty table.
   const paging = usePaging({ resetKey: memberFilter, defaultSort: { key: "user.name", dir: "asc" } });
   const q = useMembersPage(memberFilter, paging);
@@ -255,7 +255,7 @@ function PeoplePage() {
         trueLabel: "Grounded",
         falseLabel: "Active",
       },
-      // Not a status — a different roster. Archived members are absent from every
+      // Not a status, a different roster. Archived members are absent from every
       // other view in the product, so this is the only way to see or restore one.
       {
         kind: "boolean",
@@ -340,7 +340,7 @@ function PeoplePage() {
         accessorFn: (r) => r.identifier ?? "",
         cell: ({ getValue }) => (
           <span className="tabular-nums text-muted-foreground">
-            {(getValue() as string) || "—"}
+            {(getValue() as string) || "–"}
           </span>
         ),
       },
@@ -420,7 +420,7 @@ function PeoplePage() {
       filterValues={facets}
       onFilterChange={setFacets}
       trailing={
-        // Nobody invites a guest — they arrive by being booked on a reservation.
+        // Nobody invites a guest, they arrive by being booked on a reservation.
         canManageMembers(roles) && !showingGuests ? (
           <div className="flex flex-wrap gap-2 sm:w-auto">
             <Button variant="outline" onClick={() => setAssignPairOpen(true)} className="sm:w-auto">
@@ -445,7 +445,7 @@ function PeoplePage() {
               ? "Guests booked on your reservations"
               : showingArchived
                 ? q.data
-                  ? `${total.toLocaleString()} archived member${total === 1 ? "" : "s"} — they get no email or notifications from you`
+                  ? `${total.toLocaleString()} archived member${total === 1 ? "" : "s"}, they get no email or notifications from you`
                   : "People you've retired from the roster"
                 : q.data
                   ? `${total.toLocaleString()} member${total === 1 ? "" : "s"}`

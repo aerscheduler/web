@@ -160,13 +160,13 @@ export function InviteModal({
                 <SelectItem value="none">No membership</SelectItem>
                 {(plans.data ?? []).map((p) => (
                   <SelectItem key={p.id} value={String(p.id)}>
-                    {p.name} — {planPriceLine(p)}
+                    {p.name}, {planPriceLine(p)}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Applied when they accept, and not started — nothing is charged until you start
+              Applied when they accept, and not started, nothing is charged until you start
               it from their record.
             </p>
           </div>
@@ -183,7 +183,7 @@ export function InviteModal({
           />
           <p className="text-xs text-muted-foreground">
             {emails.length > 0
-              ? `${emails.length} valid ${emails.length === 1 ? "address" : "addresses"} — everyone gets the roles above.`
+              ? `${emails.length} valid ${emails.length === 1 ? "address" : "addresses"}, everyone gets the roles above.`
               : "Everyone pasted here is invited with the roles selected above."}
           </p>
         </div>

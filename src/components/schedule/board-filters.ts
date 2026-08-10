@@ -8,13 +8,13 @@ import { TYPE_LABEL, personnelNames } from "./meta";
  * The dispatch board splits its filters in two, and the split is the whole design:
  *
  *  - **Row filters** (resource, location) remove LANES. Safe, because a lane that isn't
- *    drawn makes no claim about itself — you can see the board is narrowed.
+ *    drawn makes no claim about itself, you can see the board is narrowed.
  *
  *  - **Block filters** (this module: people, ramp state, billing state, type, free text)
  *    never remove a booking. They mark matches and dim the rest.
  *
  * The second rule exists because removing blocks makes the board lie. Filter to one
- * instructor with hard filtering and N123's 2pm renders empty — so it reads as bookable,
+ * instructor with hard filtering and N123's 2pm renders empty, so it reads as bookable,
  * when there is a solo sitting on it. A dispatcher then books over a real flight. Dimming
  * keeps the geometry honest: every occupied slot stays occupied on screen, the filter only
  * decides what is worth your eyes.
@@ -51,7 +51,7 @@ export const BILLING_OPTIONS: Array<{ value: BillingStatus; label: string }> = [
  * Ramp states a booking is in. A LIST, not a single value: "out now" and "overdue back" are
  * both true of an aircraft that is late, and a dispatcher selecting either should see it.
  *
- * `now` is injectable so this stays pure — "overdue" is the only clock-dependent state.
+ * `now` is injectable so this stays pure, "overdue" is the only clock-dependent state.
  */
 export function rampStatuses(r: Reservation, now: Date = new Date()): RampStatus[] {
   if (r.cancelledAt) return [];
@@ -59,7 +59,7 @@ export function rampStatuses(r: Reservation, now: Date = new Date()): RampStatus
   const back = isRampedIn(r);
   if (!out) return ["scheduled"];
   if (!back) {
-    // Still out. Overdue once it is past the end time it was booked for — that's the
+    // Still out. Overdue once it is past the end time it was booked for: that's the
     // question ("should this be back by now?"), so it's measured against the schedule
     // rather than against any elapsed-time rule of thumb.
     return new Date(r.end).getTime() < now.getTime() ? ["out", "overdue"] : ["out"];
@@ -70,7 +70,7 @@ export function rampStatuses(r: Reservation, now: Date = new Date()): RampStatus
 /**
  * One status for a booking that may now carry several invoices, one per payer.
  *
- * The order of these tests is the whole design. "Unpaid" has to win over "paid" — a class
+ * The order of these tests is the whole design. "Unpaid" has to win over ", paid"a class
  * where three of four students have settled up is a booking the school is still chasing,
  * and showing it as paid would hide the one that matters. Void invoices are owed by nobody,
  * so they are ignored unless they are ALL there is.
@@ -125,7 +125,7 @@ export function matchesQuery(r: Reservation, q: string): boolean {
  * unfiltered board has every block at full strength rather than every block dimmed.
  *
  * Facets AND together (instructor Sarah AND unpaid); values within one facet OR together
- * (Sarah OR Dana) — the same semantics the multi-select facets already have elsewhere.
+ * (Sarah OR Dana), the same semantics the multi-select facets already have elsewhere.
  */
 export function matchesBoardFilters(
   r: Reservation,
@@ -178,7 +178,7 @@ export type BoardMarks = {
 /**
  * Tailwind for a booking the active filters didn't match.
  *
- * Dimmed, never hidden — `opacity` and a light desaturation, so the block still occupies
+ * Dimmed, never hidden, `opacity` and a light desaturation, so the block still occupies
  * its slot and still reads as "something is booked here", just not as something you asked
  * about. It stays clickable on purpose: noticing a conflict you filtered out and opening it
  * is exactly the workflow this design is for.
@@ -199,7 +199,7 @@ export function isMarked(marks: BoardMarks, id: number): boolean {
  * A ring rather than a fill or an opacity change: blocks already spend colour on
  * type and opacity on the filter dimming, so selection needs a channel neither of
  * those is using or the three states start cancelling each other out. Sits at full
- * strength even on a dimmed block — you can open something the filters excluded,
+ * strength even on a dimmed block, you can open something the filters excluded,
  * and while you're reading it, it should be the thing that stands out.
  */
 export function selectedClass(marks: BoardMarks, id: number): string | undefined {
@@ -211,7 +211,7 @@ export function selectedClass(marks: BoardMarks, id: number): string | undefined
  * Which rostered name to show on a block that only has room for one.
  *
  * Normally the first, but when a search matched a person further down the list, show THAT
- * one. Otherwise searching "Dana" lights up a block reading "Sarah Okafor" with nothing
+ * one. Otherwise searching "Dana" lights up a block reading ", Sarah Okafor" with nothing
  * highlighted, and the board looks like it matched at random.
  */
 export function preferredName(names: string[], query: string): string | undefined {
@@ -223,7 +223,7 @@ export function preferredName(names: string[], query: string): string | undefine
 /**
  * What a calendar block calls its crew.
  *
- * One name plus a count once there are several — "Amy Reyes +2". A block only has room for
+ * One name plus a count once there are several. "Amy Reyes +2". A block only has room for
  * one name, and showing just the first made a six-student ground school look exactly like a
  * 1:1 at a glance: the dispatcher's whole job is reading the board, and it was hiding the
  * thing that changes how a booking is staffed and billed.

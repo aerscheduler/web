@@ -14,7 +14,7 @@ import { isDemoTab } from "@/lib/demo";
 
 /**
  * Routes that already assume you are signed out. Landing on one of these with a
- * dead token is not an event worth announcing — you are where you belong.
+ * dead token is not an event worth announcing, you are where you belong.
  */
 const SIGNED_OUT_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/auth"];
 
@@ -34,7 +34,7 @@ function safeRedirect(href: string): string | undefined {
  * Before this existed, a 401 quietly deleted the token and left the app on
  * screen looking perfectly signed in: the shell rendered, the cached data was
  * all still there, and you only discovered you were logged out when the *next*
- * request failed for no stated reason — or when you reloaded and landed on
+ * request failed for no stated reason, or when you reloaded and landed on
  * /login. This closes both halves of that gap:
  *
  *  - reactive: the moment the API confirms the session is gone, say so and go
@@ -56,7 +56,7 @@ export function SessionWatcher() {
     const onSignedOutRoute = isSignedOutRoute(window.location.pathname);
 
     // A demo session that ran out its two hours is not a sign-out. There is no
-    // account to sign back in to, so /login is a dead end — send them somewhere
+    // account to sign back in to, so /login is a dead end, send them somewhere
     // that hands out another sandbox. `logout()` is already demo-aware and clears
     // only this tab's demo storage.
     const wasDemo = isDemoTab();
@@ -95,14 +95,14 @@ export function SessionWatcher() {
     let lastProbe = 0;
 
     const check = () => {
-      // "Is the user actually here?" — either answer is good enough. Checking
+      // "Is the user actually here?", either answer is good enough. Checking
       // only visibilityState misses environments that report a focused window
       // as hidden, and there is no point probing for a backgrounded tab.
       if (document.visibilityState !== "visible" && !document.hasFocus()) return;
       const token = getToken();
       if (!token) return;
 
-      // The token says so itself — no round trip needed.
+      // The token says so itself, no round trip needed.
       if (isTokenExpired(token)) {
         expireSession(token);
         return;

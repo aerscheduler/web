@@ -59,7 +59,7 @@ export function TrainingPermissions() {
       </div>
       <p className="mb-4 text-xs text-muted-foreground">
         Administrators already configure training and enroll students. These grants let you hand
-        those jobs to somebody who is not an administrator — and cover two things nobody has by
+        those jobs to somebody who is not an administrator, and cover two things nobody has by
         default.
       </p>
 

@@ -3,7 +3,7 @@
  *
  * Times are wall-clock values in the SCHOOL's zone, never the browser's. A
  * schedule set to 7 means 7am at the field, and the console must not helpfully
- * convert it to the reader's clock — the whole point is that the report lands
+ * convert it to the reader's clock, the whole point is that the report lands
  * at the start of the school's day wherever the person reading it happens to be.
  */
 
@@ -17,7 +17,7 @@ export interface ReportSchedule {
   hour: number;
   /** 0 = Sunday. Weekly only. */
   weekday: number | null;
-  /** 1–28. Monthly only — see the server schema for why it stops at 28. */
+  /** 1–28. Monthly only, see the server schema for why it stops at 28. */
   dayOfMonth: number | null;
   isEnabled: boolean;
   recipientOrgUserIds: number[];
@@ -57,14 +57,14 @@ export const WEEKDAYS = [
   "Saturday",
 ] as const;
 
-/** "7am", "12pm", "6pm" — a schedule picker doesn't need minutes. */
+/** "7am", "12pm", "6pm", a schedule picker doesn't need minutes. */
 export function formatHour(hour: number): string {
   if (hour === 0) return "12am";
   if (hour === 12) return "12pm";
   return hour < 12 ? `${hour}am` : `${hour - 12}pm`;
 }
 
-/** "Every Monday at 7am", "On the 1st at 7am" — one line, no jargon. */
+/** "Every Monday at 7am", ", On the 1st at 7am"one line, no jargon. */
 export function describeSchedule(schedule: {
   cadence: Cadence;
   hour: number;
@@ -79,7 +79,7 @@ export function describeSchedule(schedule: {
   return `On the ${ordinal(schedule.dayOfMonth ?? 1)}${at}`;
 }
 
-/** What a cadence actually covers — stated in the UI so nobody has to guess. */
+/** What a cadence actually covers, stated in the UI so nobody has to guess. */
 export function describeCoverage(cadence: Cadence): string {
   if (cadence === "daily") return "Covers the previous day";
   if (cadence === "weekly") return "Covers the previous 7 days";

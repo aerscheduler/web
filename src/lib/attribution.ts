@@ -169,8 +169,8 @@ export function attributionPayload(): Record<string, string> | undefined {
 }
 
 /**
- * The channel this org came from: "paid-search", "paid-social", "organic", "referral",
- * "direct", "email". The campaign says which ad; this says which budget.
+ * The channel this org came from: "paid-search", ", paid-social", ", organic", ", referral",
+ * "direct", ", email". The campaign says which ad; this says which budget.
  */
 export function attributionChannel(): string {
   const a = readAttribution();

@@ -64,7 +64,7 @@ import {
 
 export function AppShell({ children }: { children: ReactNode }) {
   // Recorded here rather than in the rail so history keeps accruing while the
-  // rail is closed (mobile) — nav lives in `components/nav/sidebar-nav`.
+  // rail is closed (mobile), nav lives in `components/nav/sidebar-nav`.
   useRecordRecentPage();
 
   return (
@@ -81,15 +81,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                 cannot shrink, so without this the inset grows to rail + content +
                 panel and the panel is silently clipped off the right of the window. */}
             <SidebarInset className="min-h-0 min-w-0">
-              {/* The detail panel is a sibling of the WHOLE content column — banners
-                  and topbar included — so opening a record pushes the nav in beside
+              {/* The detail panel is a sibling of the WHOLE content column, banners
+                  and topbar included, so opening a record pushes the nav in beside
                   it rather than sliding under it. The panel then runs the full height
                   of the window and the topbar's right-hand icons stop sitting on top
                   of it. `min-h-0` here is what keeps `main` a bounded scroll container
                   once the panel is beside it. */}
               <div className="flex min-h-0 min-w-0 flex-1">
               <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {/* Above the topbar and inside the content column — the desktop rail
+              {/* Above the topbar and inside the content column, the desktop rail
                   is `fixed`, so a banner spanning the full window would sit under
                   it and lose its first words. */}
               <ImpersonationBanner />
@@ -105,10 +105,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                     wrapper to a DEFINITE `h-full` so the flex-1 table is bounded
                     and its rows scroll internally. (min-height alone is indefinite,
                     so the table would expand to full content and scroll the whole
-                    page — the regression this rule prevents.)
+                    page, the regression this rule prevents.)
                     md+ ONLY, and that gate is the point: a phone has no room to
-                    spend on chrome, so a pinned header — a title, four stat cards,
-                    a filter bar — can consume the whole viewport and leave the
+                    spend on chrome, so a pinned header, a title, four stat cards,
+                    a filter bar, can consume the whole viewport and leave the
                     bounded rows a two-line sliver (Billing's invoice list did
                     exactly that). Below md nothing is bounded, so the page simply
                     scrolls, which is what a phone wants anyway. */}
@@ -118,10 +118,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                   a wide table (Reports) then pushes main past the viewport, where the
                   wrapper's `overflow-hidden` silently CLIPS the right-hand columns
                   rather than letting them scroll. Shrinking is what lets each page's
-                  own scroll container do its job — and it is equally what lets the
+                  own scroll container do its job, and it is equally what lets the
                   detail panel push the content in rather than sit on top of it. */}
               {/* A fill page hands its bottom padding to the fill column itself
-                  (`md:pb-8` on <TableView>), so this wrapper drops its own — hence
+                  (`md:pb-8` on <TableView>), so this wrapper drops its own, hence
                   `pb-0`. The wrapper is a fixed `h-full` box, and a column that
                   outgrows one (a header too tall to leave the table its floor)
                   paints straight past the wrapper's padding, which is how the last
@@ -168,7 +168,7 @@ function AppSidebar() {
 }
 
 /**
- * Stripe-style collapse handle — a slim floating vertical line sitting a few px
+ * Stripe-style collapse handle, a slim floating vertical line sitting a few px
  * to the right of the rail's border. Faintly visible at rest; on hover it tints
  * and grows a little, with a "Collapse" tooltip. When collapsed it sits flush at
  * the screen's left edge (flipping to "Expand") so it stays reachable. The hit
@@ -214,7 +214,7 @@ function OrgSwitcher() {
       {/* Light tile, not the brand blue: the fallback mark is two-tone (navy
           wing over a blue arch), so on a brand-blue fill its blue half
           disappears and what's left reads as a stray navy tick. White backs it
-          in both themes — the mark has no dark-surface variant to switch to. */}
+          in both themes, the mark has no dark-surface variant to switch to. */}
       <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg border border-sidebar-border bg-white">
         {organization?.profileImage ? (
           <img
@@ -245,7 +245,7 @@ function OrgSwitcher() {
     if (id === organization?.id) return;
     await switchOrg(id);
     qc.clear();
-    // Full reload to home — the new org's token drives a clean context, and "/"
+    // Full reload to home, the new org's token drives a clean context, and "/"
     // routes to the right landing page (dashboard for staff, My day for members).
     window.location.assign("/");
   }
@@ -386,7 +386,7 @@ function Topbar() {
           <Menu className="size-4" />
         </Button>
 
-        {/* Stripe-style search — results drop down from this field */}
+        {/* Stripe-style search, results drop down from this field */}
         <CommandMenuSearch />
 
         <div className="flex-1" />
@@ -435,7 +435,7 @@ function Topbar() {
                 <DropdownMenuItem asChild>
                   <Link to="/me/book">
                     <CalendarPlus />
-                    {/* A technician isn't booking a flight — they're pulling an
+                    {/* A technician isn't booking a flight, they're pulling an
                         aircraft off the line. */}
                     {selfBookableTypes(roles).length === 1 && isTechnician(roles)
                       ? "Schedule maintenance"

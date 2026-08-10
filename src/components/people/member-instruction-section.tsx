@@ -24,7 +24,7 @@ import { cn, initials } from "@/lib/utils";
 import { memberName } from "./util";
 
 /**
- * Instruction pairs on a People profile — admin assign/unassign, plus
+ * Instruction pairs on a People profile, admin assign/unassign, plus
  * instructor/student request & self-remove (Flutter personnel detail menu).
  *
  * `bare` drops the divider it grew for the old profile drawer, where it was one
@@ -137,13 +137,13 @@ export function MemberInstructionSection({
 
       {!showInstructorBlock && !showStudentBlock && isAdmin ? (
         <p className="text-sm text-muted-foreground">
-          This member isn&apos;t an instructor or student — add that role under Edit
+          This member isn&apos;t an instructor or student, add that role under Edit
           roles, or use <span className="font-medium text-foreground">Assign pair</span>{" "}
           on the People page to pick any instructor and student.
         </p>
       ) : null}
 
-      {/* Non-admin request / remove — Flutter parity */}
+      {/* Non-admin request / remove. Flutter parity */}
       {!isAdmin && !viewingSelf && (showInstructorBlock || showStudentBlock) && (
         <div className="mb-3 flex flex-wrap gap-1.5">
           {amStudent && showInstructorBlock && (
@@ -185,7 +185,7 @@ export function MemberInstructionSection({
                     await requestInstructor.mutateAsync({
                       instructorId: subjectInstructorId,
                     });
-                    toast.success("Request sent — an admin will need to approve it.");
+                    toast.success("Request sent, an admin will need to approve it.");
                   } catch (e) {
                     toast.error(e instanceof ApiError ? e.message : "Couldn't send request.");
                   }
@@ -232,7 +232,7 @@ export function MemberInstructionSection({
                   if (subjectStudentId == null) return;
                   try {
                     await requestStudent.mutateAsync({ studentId: subjectStudentId });
-                    toast.success("Request sent — an admin will need to approve it.");
+                    toast.success("Request sent, an admin will need to approve it.");
                   } catch (e) {
                     toast.error(e instanceof ApiError ? e.message : "Couldn't send request.");
                   }

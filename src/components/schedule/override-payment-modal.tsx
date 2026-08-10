@@ -40,7 +40,7 @@ import { confirmationCount, reviewerCount } from "./close-out";
  * close-out section says why in its place.
  *
  * Rates are entered in dollars and sent as CENTS PER HOUR. Blank means "use the school's
- * rate card for that side", which is exactly what a null column means to the pricing code.
+ * rate card for that side"which is exactly what a null column means to the pricing code.
  */
 
 /** Keep only digits and a single decimal point. */

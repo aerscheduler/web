@@ -5,7 +5,7 @@ import { useAuth, postLoginPath } from "@/lib/auth";
 import { APPLE_ENABLED } from "@/lib/apple";
 import { Button } from "@/components/ui/button";
 
-/** "Continue with Google" — opens the Google chooser, then routes into the app. */
+/** "Continue with Google", opens the Google chooser, then routes into the app. */
 export function GoogleButton({ label = "Continue with Google" }: { label?: string }) {
   const { googleLogin } = useAuth();
   const navigate = useNavigate();
@@ -48,7 +48,7 @@ export function GoogleButton({ label = "Continue with Google" }: { label?: strin
   );
 }
 
-/** "Continue with Apple" — opens the Apple popup, then routes into the app. Hidden if disabled. */
+/** "Continue with Apple", opens the Apple popup, then routes into the app. Hidden if disabled. */
 export function AppleButton({ label = "Continue with Apple" }: { label?: string }) {
   const { appleLogin } = useAuth();
   const navigate = useNavigate();

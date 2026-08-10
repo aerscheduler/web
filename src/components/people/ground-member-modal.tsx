@@ -16,7 +16,7 @@ import { memberName } from "./util";
  * The reason is not decoration: the server emails and pushes it to the member
  * as the entire body of the "You were grounded" notice, defaulting to
  * "No reason provided." when it's absent (services/notification.ts). The console
- * used to ground from a bare confirm with no reason field at all — so a whole
+ * used to ground from a bare confirm with no reason field at all, so a whole
  * school got grounded and told nothing, while the Flutter app has always
  * required one. This closes that gap.
  *
@@ -36,7 +36,7 @@ const PRESETS = [
 
 const OTHER = "__other__";
 
-/** The server column is varchar(60) — keep the client honest about it. */
+/** The server column is varchar(60), keep the client honest about it. */
 const MAX_REASON = 60;
 
 export function GroundMemberModal({
@@ -48,7 +48,7 @@ export function GroundMemberModal({
   onOpenChange: (open: boolean) => void;
   member: OrganizationUser | null;
 }) {
-  // The member's USER id, from the nested relation — see the note in types/api.ts.
+  // The member's USER id, from the nested relation, see the note in types/api.ts.
   const targetUserId = member?.user?.id ?? 0;
   const mut = useUpdateMemberOrgUser(targetUserId);
 
@@ -176,7 +176,7 @@ export function GroundMemberModal({
         )}
 
         <p className="text-xs text-muted-foreground">
-          {name.split(" ")[0]} is emailed this reason, so write it for them — not for
+          {name.split(" ")[0]} is emailed this reason, so write it for them, not for
           your own notes.
         </p>
 

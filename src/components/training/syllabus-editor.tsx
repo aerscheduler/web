@@ -48,7 +48,7 @@ import { EmptyState } from "@/components/states";
 /**
  * Editing a syllabus.
  *
- * Only ever mounted on a DRAFT — the parent decides, because a published version is
+ * Only ever mounted on a DRAFT, the parent decides, because a published version is
  * immutable and offering a disabled pencil on every row of a locked syllabus is worse than
  * offering none: it reads as broken rather than as finished.
  *
@@ -226,7 +226,7 @@ function EditableLessonRow({
             // Worth saying: a lesson crediting nothing is flyable and invisible to the ledger,
             // which is the one way to build a syllabus that silently never fills up.
             <span className="text-xs text-amber-600">
-              Credits nothing — hours flown on this lesson will not count toward any requirement.
+              Credits nothing, hours flown on this lesson will not count toward any requirement.
             </span>
           ) : null}
         </div>
@@ -292,14 +292,14 @@ function StageDialog({
         <DialogHeader>
           <DialogTitle>{stage ? "Edit stage" : "Add stage"}</DialogTitle>
           <DialogDescription>
-            A stage is a block of lessons — presolo, cross-country, test preparation.
+            A stage is a block of lessons, presolo, cross-country, test preparation.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3">
           <div className="space-y-1">
             <Label htmlFor="stage-name">Name</Label>
-            <Input id="stage-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Stage 1 — Presolo" />
+            <Input id="stage-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Stage 1. Presolo" />
           </div>
           <div className="space-y-1">
             <Label htmlFor="stage-obj">Objective</Label>
@@ -401,7 +401,7 @@ function LessonDialog({
         <div className="space-y-3">
           <div className="space-y-1">
             <Label htmlFor="lesson-name">Name</Label>
-            <Input id="lesson-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Flight 3 — Takeoffs and landings" />
+            <Input id="lesson-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Flight 3. Takeoffs and landings" />
           </div>
 
           <div className="grid grid-cols-3 gap-2">
@@ -456,7 +456,7 @@ function LessonDialog({
               <DocsHint topic="credits-toward" />
             </div>
             <p className="text-xs text-muted-foreground">
-              Signing this lesson posts its hours to everything ticked here — one flight can credit
+              Signing this lesson posts its hours to everything ticked here, one flight can credit
               several requirements at once.
             </p>
             {version.requirements.length === 0 ? (
@@ -556,7 +556,7 @@ function TasksDialog({
     <Dialog open={!!lesson} onOpenChange={(o) => !o && (setSeeded(null), onClose())}>
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Tasks — {lesson?.name}</DialogTitle>
+          <DialogTitle>Tasks, {lesson?.name}</DialogTitle>
           <DialogDescription>
             What gets graded individually. An ACS code ties the task to the practical test, which is
             what makes "which ACS areas is this student weak in?" answerable later.
@@ -633,7 +633,7 @@ function TasksDialog({
   );
 }
 
-/** Requirements and the grading scale — the two things that are per-version, not per-lesson. */
+/** Requirements and the grading scale, the two things that are per-version, not per-lesson. */
 export function RequirementsEditor({ version }: { version: CourseVersion }) {
   const [dialog, setDialog] = useState<{ requirement?: CourseRequirement } | null>(null);
   const remove = useDeleteRequirement();
@@ -657,7 +657,7 @@ export function RequirementsEditor({ version }: { version: CourseVersion }) {
 
         {version.requirements.length === 0 ? (
           <div className="p-6 text-center text-sm text-muted-foreground">
-            No requirements — nothing will accumulate as lessons are signed.
+            No requirements, nothing will accumulate as lessons are signed.
           </div>
         ) : (
           <div className="divide-y">
@@ -668,7 +668,7 @@ export function RequirementsEditor({ version }: { version: CourseVersion }) {
                   <div className="font-mono text-xs text-muted-foreground">{r.code}</div>
                 </div>
                 <div className="text-sm tabular-nums">
-                  {r.minDeciHours != null ? `${deciHours(r.minDeciHours)} hrs` : `${r.minCount ?? "—"}`}
+                  {r.minDeciHours != null ? `${deciHours(r.minDeciHours)} hrs` : `${r.minCount ?? "–"}`}
                 </div>
                 <Badge variant={r.source === "school" ? "outline" : "secondary"}>
                   {r.source === "school" ? "School" : PART_LABEL[r.source as "part61" | "part141"]}
@@ -838,7 +838,7 @@ function RequirementDialog({
         <DialogHeader>
           <DialogTitle>{req ? "Edit requirement" : "Add requirement"}</DialogTitle>
           <DialogDescription>
-            Something the student has to build up — 40 hours total, 3 hours night, 10 towered landings.
+            Something the student has to build up: 40 hours total, 3 hours night, 10 towered landings.
           </DialogDescription>
         </DialogHeader>
 
@@ -919,7 +919,7 @@ function RequirementDialog({
               inputMode="numeric"
               value={recency}
               onChange={(e) => setRecency(e.target.value)}
-              placeholder="Leave blank — most requirements never go stale"
+              placeholder="Leave blank, most requirements never go stale"
             />
             <p className="text-xs text-muted-foreground">
               Calendar months, not days: §61.109(a)(4) wants the three hours of test
@@ -948,7 +948,7 @@ function RequirementDialog({
                 maxSimulatorBps: measure === "hours" ? pct(simCap) : null,
                 maxTransferBps: measure === "hours" ? pct(transferCap) : null,
                 //Sent unconditionally. The server writes this field whether or not it
-                //arrives, so leaving it out of the body does not mean "leave it alone" —
+                //arrives, so leaving it out of the body does not mean "leave it alone".
                 //it means "clear it". Editing a requirement's label used to silently
                 //delete its recency window, and nothing said the value had ever existed.
                 recencyCalendarMonths: whole(recency),

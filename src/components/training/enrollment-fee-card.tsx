@@ -10,7 +10,7 @@ import { Card } from "@/components/ui/card";
 /**
  * The course fee on one enrollment.
  *
- * Renders nothing when the course is free, which is most of them — a permanent "Fee: none"
+ * Renders nothing when the course is free, which is most of them, a permanent "Fee: none"
  * row would be noise on every enrollment at every school that does not charge one.
  *
  * The amount shown is the enrollment's own snapshot, not the course's current price, so a

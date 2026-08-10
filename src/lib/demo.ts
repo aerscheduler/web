@@ -6,7 +6,7 @@
  * A real session lives in localStorage under `aer.token` / `aer.session`. If the
  * demo used those, a customer who clicked "Try the demo" from the marketing site
  * while signed in to their own account in another tab would have their real
- * session overwritten — localStorage is shared across every tab on the origin.
+ * session overwritten, localStorage is shared across every tab on the origin.
  * That is a bad way to introduce someone to the product.
  *
  * A flag saying "this browser is in demo mode" does not fix it either, for the
@@ -42,7 +42,7 @@ function store(): Storage | null {
  * True when THIS TAB is a demo tab.
  *
  * Derived from the presence of a demo token rather than a separate flag, so the
- * two can never disagree — there is no state where the tab thinks it is in demo
+ * two can never disagree, there is no state where the tab thinks it is in demo
  * mode but has nothing to authenticate with.
  */
 export function isDemoTab(): boolean {
@@ -116,7 +116,7 @@ export function setDemoMeta(meta: DemoMeta | null) {
  * Decoded without verifying, exactly as `decodeImpersonatedBy` does and for the
  * same reason: this drives a banner, and the server re-verifies the signature on
  * every request. Reading it from the TOKEN rather than from React state means the
- * banner survives a refresh — which matters, because the banner is the only thing
+ * banner survives a refresh, which matters, because the banner is the only thing
  * telling the visitor that nothing they are looking at is real.
  */
 export function decodeDemoOrgId(token: string | null): number | null {

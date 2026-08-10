@@ -6,7 +6,7 @@
  * today's reading on a 100-hour that was actually done 6 hours ago and the next one comes
  * due 6 hours late, silently, and stays wrong for the life of the aircraft.
  *
- * So it defaults to the current meter (the common case — the work just happened) but is
+ * So it defaults to the current meter (the common case, the work just happened) but is
  * editable, and the helper text says what the number is for rather than what it is.
  */
 
@@ -53,7 +53,7 @@ export function ResolveReminderModal({
   if (!reminder) return null;
 
   const name = due?.name ?? reminder.template?.name ?? "this inspection";
-  // "Tach", not "tach" — it opens a label, and the Hobbs case reads capitalised either way.
+  // "Tach", not "tach", it opens a label, and the Hobbs case reads capitalised either way.
   const meter = due?.basis === "hobbs" ? "Hobbs" : "Tach";
   const parsedHours = Number(hours);
   const hoursValid = !hourBased || (hours !== "" && Number.isFinite(parsedHours) && parsedHours >= 0);
@@ -106,7 +106,7 @@ export function ResolveReminderModal({
               placeholder={due?.currentHours != null ? fromDeciHours(due.currentHours) : "0.0"}
             />
             <p className="text-xs text-muted-foreground">
-              The next interval counts from this number — enter what the meter read at the
+              The next interval counts from this number, enter what the meter read at the
               work, not today&rsquo;s reading, or the next one comes due early.
             </p>
           </div>

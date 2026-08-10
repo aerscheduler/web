@@ -90,14 +90,14 @@ export function PersonCurrencies({
           No currency records{" "}
           {isAdmin ? (
             <>
-              — check they&apos;re in a group scoped by a{" "}
+             , check they&apos;re in a group scoped by a{" "}
               <Link to="/settings" className="underline underline-offset-2">
                 currency rule
               </Link>
               .
             </>
           ) : isSelf ? (
-            "apply to you — your school sets these up per group."
+            "apply to you. Your school sets these up per group."
           ) : (
             "for this member."
           )}
@@ -150,7 +150,7 @@ export function PersonCurrencies({
  * The member's document vault.
  *
  * The upload button is admin-only because a `restricted` document type is
- * precisely "an admin files this on the member's behalf" — that's the one path
+ * precisely "an admin files this on the member's behalf", that's the one path
  * that exists for a medical someone hands over at the desk.
  */
 export function PersonDocuments({
@@ -194,7 +194,7 @@ export function PersonDocuments({
       ) : docs.length === 0 ? (
         <div className="px-4 pb-4">
           <CardEmpty>
-            Nothing on file{isAdmin ? " — upload a medical, certificate, or agreement." : "."}
+            Nothing on file{isAdmin ? ", upload a medical, certificate, or agreement." : "."}
           </CardEmpty>
         </div>
       ) : (

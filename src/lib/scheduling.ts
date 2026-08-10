@@ -1,9 +1,9 @@
 /**
- * Smart-scheduling engine — a TypeScript port of the Flutter app's
+ * Smart-scheduling engine, a TypeScript port of the Flutter app's
  * AvailabilityController (app/lib/controllers/availability_controller.dart).
  *
  * The web fetches conflict-free windows straight from the server availability
- * endpoints (`/availability/resource/:id`, `/availability/user/:userId`) — those
+ * endpoints (`/availability/resource/:id`, `/availability/user/:userId`): those
  * already have existing reservations subtracted server-side, which is exactly
  * what the server re-checks at create time (`resourceIsAvailable` +
  * `orgUserIsAvailable`, both pure overlap counts). So this module never
@@ -17,7 +17,7 @@
  *    overlapping the 9:07 boundary). Flutter aligned to the window start.
  *  - A present-but-empty free-window list means "fully booked", so it blocks
  *    the intersection. (Flutter dropped empty lists, which would let you book a
- *    fully-booked resource — not sound.)
+ *    fully-booked resource, not sound.)
  */
 import { addDays, addMinutes, startOfDay } from "date-fns";
 
@@ -83,7 +83,7 @@ export function intersectAvailability(lists: (Window[] | null)[]): Window[] | nu
  * that reservation as busy, so its own slot would show as unavailable and the
  * picker would refuse to re-offer the time it already occupies. Passing the
  * reservation's current interval here restores it. `null` windows ("nothing
- * constrains") stay null — there is nothing to add to an already-open day.
+ * constrains") stay null, there is nothing to add to an already-open day.
  */
 export function withWindowRestored(windows: Window[] | null, extra: Window | null): Window[] | null {
   if (windows === null || extra === null) return windows;
@@ -93,7 +93,7 @@ export function withWindowRestored(windows: Window[] | null, extra: Window | nul
   const out: Window[] = [];
   for (const w of merged) {
     const last = out[out.length - 1];
-    // Adjacent windows count as touching — back-to-back bookings are legal, so
+    // Adjacent windows count as touching, back-to-back bookings are legal, so
     // 09:00-10:00 and 10:00-11:00 form one continuous 09:00-11:00 span.
     if (last && w.start.getTime() <= last.end.getTime()) {
       if (w.end.getTime() > last.end.getTime()) last.end = w.end;
@@ -110,7 +110,7 @@ export function withWindowRestored(windows: Window[] | null, extra: Window | nul
 function ceilTo15(d: Date): Date {
   const base = startOfDay(d);
   const slotMs = SLOT_MIN * 60_000;
-  // Work in elapsed milliseconds so sub-minute components round UP too — using
+  // Work in elapsed milliseconds so sub-minute components round UP too, using
   // differenceInMinutes here would truncate seconds first and round a 09:00:30
   // window start down to 09:00 (offering a start with no valid end).
   const up = Math.ceil((d.getTime() - base.getTime()) / slotMs) * slotMs;
@@ -296,7 +296,7 @@ export function isBookableAcrossDays(
 
 /**
  * The earliest bookable START at or after `from` (never before `now`), scanning
- * the full (multi-day) free-window set — this powers "next available" even when
+ * the full (multi-day) free-window set, this powers "next available" even when
  * the selected day is fully booked. Returns null if nothing is free within the
  * booking horizon.
  */

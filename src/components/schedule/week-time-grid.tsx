@@ -30,7 +30,7 @@ const KEY_HINT_END = "Shift with up or down changes the end.";
 /**
  * Minutes past the window's first hour for an instant, measured on the AIRPORT's clock.
  *
- * Was `d.getHours()` — the viewer's clock — which is what slid the whole column an hour when
+ * Was `d.getHours()` (the viewer's clock) which is what slid the whole column an hour when
  * the board was opened from another zone.
  */
 function minutesInWindow(d: Date | string, zone: string, startHour: number, dayKey?: string) {
@@ -52,7 +52,7 @@ function blockGeometry(
   dayKey?: string
 ): { top: number; height: number } {
   // Clamp BOTH ends to the visible window and derive height from the clamped
-  // span — otherwise a reservation starting before the window keeps its full
+  // span, otherwise a reservation starting before the window keeps its full
   // duration and draws too tall (past its real end). Mirrors the lane grid.
   const s = Math.max(0, Math.min(totalMin, minutesInWindow(r.start, zone, startHour, dayKey)));
   const e = Math.max(0, Math.min(totalMin, minutesInWindow(r.end, zone, startHour, dayKey)));
@@ -105,11 +105,11 @@ export function WeekTimeGrid({
   /** School flying-day frame from booking policy. */
   flyingDayFrame?: FlyingDayFrame;
   onView: (r: Reservation) => void;
-  /** Omitted for roles that may not create — the columns then aren't clickable. */
+  /** Omitted for roles that may not create, the columns then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
   onSelectDay: (day: Date) => void;
   onOfferHoldClick?: (hold: SlotOfferHold) => void;
-  /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
+  /** Block-filter marking, non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
   selectedId?: number | null;
   query?: string;
@@ -139,7 +139,7 @@ export function WeekTimeGrid({
     [hitTest]
   );
 
-  //LAYOUT comes from the committed reservations, never the live drag — see the same note in
+  //LAYOUT comes from the committed reservations, never the live drag, see the same note in
   //lane-grid.tsx. Packing a previewed block through `packTracks` split the column into extra
   //tracks the moment it overlapped something, which shuffled and shrank every other booking
   //in that day just as you were aiming at one of them.
@@ -164,7 +164,7 @@ export function WeekTimeGrid({
     <div ref={scrollRef} className="h-full min-h-0 overflow-auto">
       {/* The gutter column needs an EXPLICIT width: every hour label inside it is absolutely
           positioned, so an `auto` track has no in-flow content to measure and collapses to the
-          1px border — the labels then overflow left and get clipped by the scroll container. */}
+          1px border, the labels then overflow left and get clipped by the scroll container. */}
       <div className="grid min-w-[52rem] grid-cols-[2.75rem_repeat(7,minmax(0,1fr))]">
         {/* Header row: corner + day headers (sticky top) */}
         <div className="sticky left-0 top-0 z-30 border-b border-r border-border bg-card" />
@@ -392,7 +392,7 @@ function WeekOfferHoldBlock({
             <div className="truncate text-xs font-semibold leading-tight text-foreground">
               {label}
             </div>
-            <div className="truncate text-[11px] leading-tight opacity-80">Held</div>
+            <div className="truncate text-[11px] leading-tight opacity-80">Pending</div>
           </div>
         </button>
       </TooltipTrigger>
@@ -401,7 +401,7 @@ function WeekOfferHoldBlock({
           <div className="font-medium">{label}</div>
           <div className="tabular-nums">{detail}</div>
           <div className="mt-1 opacity-80">
-            Soft hold: this time is not free to book until the offer ends or is withdrawn.
+            Pending offer: this time is not free to book until the offer ends or is withdrawn.
           </div>
           <div className="mt-1 border-t border-border/50 pt-1 opacity-90">{refuseReason}</div>
         </div>
@@ -460,7 +460,7 @@ function WeekBlock({
           : dragAriaLabel(r, timeRange, ability, ability?.move ? KEY_HINT_MOVE : KEY_HINT_END)
       }
       onPointerDown={
-        //Wired even when this booking can't be moved — see the note in lane-grid.tsx.
+        //Wired even when this booking can't be moved, see the note in lane-grid.tsx.
         drag && !floating
           ? (e) => {
               if ((e.target as HTMLElement).closest("[data-drag-exempt]")) return;
@@ -480,7 +480,7 @@ function WeekBlock({
           return;
         }
         if (!drag || floating) return;
-        //Up/down is time, left/right is the day — the same two axes the pointer has.
+        //Up/down is time, left/right is the day, the same two axes the pointer has.
         if (e.key === "ArrowUp" || e.key === "ArrowDown") {
           e.preventDefault();
           e.stopPropagation();
@@ -521,7 +521,7 @@ function WeekBlock({
     </button>
   );
 
-  //No tooltip on the carried copy — the live time and any refusal ride the pointer-following
+  //No tooltip on the carried copy, the live time and any refusal ride the pointer-following
   //callout instead.
   if (floating) return body;
 

@@ -1,5 +1,5 @@
 /**
- * Booking rules — four questions, phrased as decisions rather than settings.
+ * Booking rules, four questions, phrased as decisions rather than settings.
  *
  * Settings → Organization presents these as a wall of switches with names like
  * `personnelCanOnlyUseApprovedResources`. Each one is a real policy question a school
@@ -8,7 +8,7 @@
  *
  * Everything here is also in Settings. This flow exists to make sure the questions get
  * ASKED once, not to be the only place they can be answered. Saving (even with every
- * gate left off) dismisses the checklist item — keeping the defaults is a valid answer.
+ * gate left off) dismisses the checklist item, keeping the defaults is a valid answer.
  */
 
 import * as React from "react";
@@ -87,7 +87,7 @@ export function RulesFlow({ onClose }: FlowProps) {
     }
 
     // Checklist `isDone` only flips when a gate is on. Finishing this review with
-    // defaults is still answering the item — dismiss so the card leaves either way.
+    // defaults is still answering the item, dismiss so the card leaves either way.
     try {
       const dismissed = onboarding.data?.dismissedItems ?? [];
       if (!dismissed.includes("rules")) {
@@ -127,7 +127,7 @@ export function RulesFlow({ onClose }: FlowProps) {
       {done ? (
         <FlowDone
           headline="Booking rules saved."
-          body="The schedule enforces these from now on — for the app and the console alike."
+          body="The schedule enforces these from now on, for the app and the console alike."
         />
       ) : (
         <div className="space-y-3">

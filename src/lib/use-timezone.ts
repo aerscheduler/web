@@ -1,8 +1,8 @@
 /**
  * The one hook every component asks "what zone am I rendering in?".
  *
- * Deliberately a single entry point. If components start resolving zones themselves — reading
- * `location.timeZone` here, `DEVICE_TIME_ZONE` there — the fallback chain stops being one fact
+ * Deliberately a single entry point. If components start resolving zones themselves, reading
+ * `location.timeZone` here, `DEVICE_TIME_ZONE` there, the fallback chain stops being one fact
  * and the board drifts back out of agreement with itself within a month.
  *
  * Returns everything a caller needs to render correctly *and* to decide whether to say
@@ -10,13 +10,13 @@
  *
  * - `zone`      the zone to format and position in
  * - `viewerZone` where the person actually is
- * - `differs(instant)` whether those two disagree at that moment — the test for showing a label
+ * - `differs(instant)` whether those two disagree at that moment, the test for showing a label
  * - `label(instant)` "MDT", for when they do
  *
  * `differs` takes an instant rather than being a boolean because zones drift in and out of
  * agreement: America/Phoenix and America/Denver are identical for half the year. Comparing
  * names would label every time on the page for a Phoenix viewer in January, which is clutter
- * carrying no information — and keeping the feature invisible for the ~99% of people sitting
+ * carrying no information, and keeping the feature invisible for the ~99% of people sitting
  * at their own airport is the entire design goal.
  */
 
@@ -37,7 +37,7 @@ import {
 import type { Location } from "@/types/api";
 
 export interface TimeZoneContext {
-  /** The zone to render in — airport time unless the member asked for their own. */
+  /** The zone to render in, airport time unless the member asked for their own. */
   zone: string;
   /** Where the viewer actually is. */
   viewerZone: string;
@@ -47,11 +47,11 @@ export interface TimeZoneContext {
   unset: boolean;
   /** Do the render zone and the viewer's zone disagree at this instant? */
   differs: (instant: Date | string) => boolean;
-  /** "MDT" — only worth showing when `differs` is true. */
+  /** "MDT", only worth showing when `differs` is true. */
   label: (instant: Date | string) => string;
   /** `9:00 AM`, in the render zone. */
   time: (instant: Date | string) => string;
-  /** `9:00 AM – 11:00 AM`, with a zone label appended only when it would mean something. */
+  /** `9:00 AM, 11:00 AM`, with a zone label appended only when it would mean something. */
   range: (start: Date | string, end: Date | string) => string;
   /** `Tue, Jul 28` / `Tuesday, July 28, 2026`, in the render zone. */
   date: (instant: Date | string, style?: "short" | "long") => string;

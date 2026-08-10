@@ -15,7 +15,7 @@ import type { DateRange } from "react-day-picker";
 import type { ReportColumn, ReportColumnType, ReportDefaultRange } from "@/types/reports";
 import { wallClockInZone, zonedWallClockToUtc } from "@/lib/timezone";
 
-export const EMPTY_CELL = "—";
+export const EMPTY_CELL = "–";
 
 export function formatReportValue(value: unknown, type: ReportColumnType): string {
   if (value == null || value === "") return EMPTY_CELL;
@@ -27,7 +27,7 @@ export function formatReportValue(value: unknown, type: ReportColumnType): strin
       return dollars.toLocaleString("en-US", {
         style: "currency",
         currency: "USD",
-        // Whole dollars for anything four figures and up — a revenue table is
+        // Whole dollars for anything four figures and up, a revenue table is
         // read as a ranking, and trailing cents just add noise to scan past.
         minimumFractionDigits: Math.abs(dollars) >= 1000 ? 0 : 2,
         maximumFractionDigits: Math.abs(dollars) >= 1000 ? 0 : 2,
@@ -73,7 +73,7 @@ export function isNumericColumn(column: ReportColumn): boolean {
 /**
  * A subset of columns worth drawing as a bar, and the one to draw.
  *
- * The first summable money column, else the first summable hours column — which
+ * The first summable money column, else the first summable hours column, which
  * is the measure the report is ranked on in practice, and the one a school reads
  * the chart for.
  */
@@ -103,7 +103,7 @@ export const RANGE_LABELS: Record<ReportDefaultRange, string> = {
  *
  * This used to use the device's midnight while the server used UTC's, so at
  * UTC-6 the same words meant windows six hours apart at both ends and a
- * dashboard tile disagreed with the report it opened — $84,956 against $86,015
+ * dashboard tile disagreed with the report it opened: $84,956 against $86,015
  * for one "Last 30 days". `timeZone` is a required argument for that reason:
  * the zone comes from `/reports/catalog` (`organization.timeZone → this
  * browser's → UTC`), so both sides resolve the same names the same way.
@@ -129,7 +129,7 @@ function dayStartIn(day: Date, timeZone: string): Date {
  * The last millisecond of that date in the zone.
  *
  * Next midnight minus 1ms rather than "23:59:59.999", so the two days a year a
- * zone shifts — and the handful of zones that shift AT midnight — are still
+ * zone shifts (and the handful of zones that shift AT midnight) are still
  * covered to their real end. The server computes it the same way.
  */
 function dayEndIn(day: Date, timeZone: string): Date {
@@ -169,7 +169,7 @@ export function resolveRange(name: ReportDefaultRange, timeZone: string): DateRa
  * Picked dates → the ISO window the API expects, or null if incomplete.
  *
  * The dates are what the user pointed at on a calendar, so they are anchored in
- * the school's zone rather than converted as instants — converting would slide
+ * the school's zone rather than converted as instants, converting would slide
  * the whole window by the offset between the two clocks.
  */
 export function rangeToIso(
@@ -184,11 +184,11 @@ export function rangeToIso(
 }
 
 /**
- * "Jul 2 – Jul 31" for a window that came back from the server.
+ * "Jul 2, Jul 31" for a window that came back from the server.
  *
  * Formatted in the zone it was MEASURED in. Printing a server-computed window
  * with the browser's clock is how a `past30` window computed over the school's
- * days came out labelled "Jul 1 – Jul 31" while its own report said "Jul 2".
+ * days came out labelled "Jul 1, Jul 31" while its own report said ", Jul 2".
  */
 export function formatWindow(
   window: { startDate: string; endDate: string } | undefined,
@@ -201,7 +201,7 @@ export function formatWindow(
     const sameYear = from.year === wallClockInZone(new Date(), timeZone).year;
     const asDate = (p: { year: number; month: number; day: number }) =>
       new Date(p.year, p.month - 1, p.day);
-    return `${format(asDate(from), "MMM d")} – ${format(asDate(to), sameYear ? "MMM d" : "MMM d, yyyy")}`;
+    return `${format(asDate(from), "MMM d")}, ${format(asDate(to), sameYear ? "MMM d" : "MMM d, yyyy")}`;
   } catch {
     return "";
   }

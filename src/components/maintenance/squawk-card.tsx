@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
  * A single squawk.
  *
  * The card itself opens the detail panel when `onOpen` is provided. Resolve is
- * a separate button so signing one off is never confused with reading it —
+ * a separate button so signing one off is never confused with reading it.
  * omit `onResolve` on the Resolved tab (and for roles that can't sign off).
  */
 export function SquawkCard({

@@ -3,7 +3,7 @@
  *
  * The layout answers the mechanic's question in the order it gets asked: WHAT is it, HOW
  * MUCH is left, and only then the detail. So the figure sits hard right in a fixed column,
- * tabular-aligned, and every row's figure lines up down the card — you can scan the column
+ * tabular-aligned, and every row's figure lines up down the card, you can scan the column
  * without reading the names.
  *
  * The rail underneath is how full the interval is, not how much time has passed. On an
@@ -58,7 +58,7 @@ export function InspectionRow({
               {badge}
             </Badge>
           )}
-          {/* Only worth saying on an item that is actually late — on a green row it is a
+          {/* Only worth saying on an item that is actually late, on a green row it is a
               rule, not news, and it would sit on every line of the card. */}
           {due?.grounds && due.status === "overdue" && (
             <span

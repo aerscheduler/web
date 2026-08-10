@@ -31,7 +31,7 @@ function personEmail(side: InstructionPairRequest["student"]): string | undefine
  */
 export function InstructionRequestsPanel() {
   const { isAdmin } = useAuth();
-  // Two independent queues rendered as one list, so each pages on its own —
+  // Two independent queues rendered as one list, so each pages on its own.
   // a shared pager would have to guess which side a page boundary fell on.
   const studentPaging = usePaging();
   const instructorPaging = usePaging();

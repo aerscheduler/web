@@ -11,7 +11,7 @@ import type { CancelSubmission } from "./cancel-reservation-dialog";
  *
  * Cancelling now opens a real dialog rather than a yes/no confirm, because it has to
  * collect *why*. Until this, every cancellation the console made was recorded with the
- * literal reason "Cancelled from dispatch board" — the school asked for a cancellation
+ * literal reason "Cancelled from dispatch board", the school asked for a cancellation
  * report and there was nothing in the data to report on.
  *
  * The dialog itself is rendered by the caller (see CancelReservationDialog); this hook
@@ -26,7 +26,7 @@ export function useReservationActions() {
 
   /**
    * Opens the dialog and resolves once the user has either cancelled the booking or
-   * backed out — the same `Promise<boolean>` the callers already awaited, so nothing
+   * backed out, the same `Promise<boolean>` the callers already awaited, so nothing
    * upstream had to change when this stopped being a plain confirm.
    */
   function cancelReservation(r: Reservation): Promise<boolean> {

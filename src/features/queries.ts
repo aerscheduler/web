@@ -118,11 +118,11 @@ export type QueryOpts = { enabled?: boolean };
 //
 // Two hooks exist for most collections and the difference matters:
 //
-//   useMembers(filter)             — up to the API's 1,000-row cap, as an array.
+//   useMembers(filter)            , up to the API's 1,000-row cap, as an array.
 //                                    For pickers, counts and anything that has to
 //                                    see the whole set. Paging a combobox to 25
 //                                    silently loses options.
-//   useMembersPage(filter, paging) — ONE page, plus the total. For tables.
+//   useMembersPage(filter, paging). ONE page, plus the total. For tables.
 //
 // Anything rendered in a <DataTable> takes the `*Page` form; DataTable requires
 // the paging state, so this is enforced rather than remembered.
@@ -132,7 +132,7 @@ export type QueryOpts = { enabled?: boolean };
  * A paged list read.
  *
  * `placeholderData` holds the previous page on screen while the next one loads,
- * so paging refines the table instead of blanking it — the same reason the
+ * so paging refines the table instead of blanking it, the same reason the
  * report shell does it. Without it every page change flashes an empty table and
  * the row heights jump.
  */
@@ -156,7 +156,7 @@ function usePagedList<T>(
   });
 }
 
-/** What a table reads off a paged query — safe before the first response lands. */
+/** What a table reads off a paged query, safe before the first response lands. */
 export function pageRows<T>(q: { data?: Paged<T> }): { rows: T[]; total: number } {
   return { rows: q.data?.rows ?? [], total: q.data?.total ?? 0 };
 }
@@ -170,8 +170,8 @@ export type MemberFilter = Partial<
   q?: string;
   grounded?: boolean;
   /**
-   * `true` returns the ARCHIVED roster instead of the current one. Omitting it — like
-   * every caller that predates archiving — returns current members only, which is the
+   * `true` returns the ARCHIVED roster instead of the current one. Omitting it, like
+   * every caller that predates archiving, returns current members only, which is the
    * server's default too. There is deliberately no "both".
    */
   archived?: boolean;
@@ -330,11 +330,11 @@ export function useReservations(
 /**
  * Full single-reservation payload (`GET /reservations/:id`). The schedule list omits
  * plane/sim meter readings; Flutter refetches this before ramp-out so Hobbs/tach are
- * present — the web detail sheet does the same.
+ * present, the web detail sheet does the same.
  */
 /**
  * One page of reservations in a window, for the tables built on them (Billing's
- * unbilled list, Cancellations). The board views keep `useReservations` — a day
+ * unbilled list, Cancellations). The board views keep `useReservations`: a day
  * grid draws every block in its window and has no page to be on.
  */
 export function useReservationsPage(
@@ -343,7 +343,7 @@ export function useReservationsPage(
   filter:
     | (ReservationListFilter & {
         includeCanceled?: boolean;
-        /** Only bookings with no invoice yet — Billing's "unbilled flights". */
+        /** Only bookings with no invoice yet. Billing's "unbilled flights". */
         uninvoiced?: boolean;
         /**
          * Only bookings that have already finished. The date range is an overlap
@@ -373,7 +373,7 @@ export function useReservation(id: number | null, opts?: QueryOpts) {
 }
 
 /**
- * One reservation's audit trail — `GET /audit/reservation/:id`, oldest first.
+ * One reservation's audit trail. `GET /audit/reservation/:id`, oldest first.
  *
  * Separate from `useReservation` rather than folded into it because the trail is only ever
  * read when a sheet is open, while the reservation itself is on every board. Its own key
@@ -391,7 +391,7 @@ export type AuditListFilter = {
 /**
  * The organization's audit feed, paged server-side like every other table.
  *
- * Admin-only on the server, so this is only ever mounted behind the same guard — a
+ * Admin-only on the server, so this is only ever mounted behind the same guard, a
  * non-admin reaching it would get a 403 rather than an empty table.
  */
 export function useAuditPage(filter: AuditListFilter | undefined, paging: PagingState, opts?: QueryOpts) {
@@ -420,7 +420,7 @@ export function useInvoices(filter?: InvoiceListFilter, opts?: QueryOpts) {
  * an invoice exists (e.g. the close-out flow reached the `invoiced` step).
  */
 /**
- * Invoice totals for a window — `GET /invoices/summary`.
+ * Invoice totals for a window. `GET /invoices/summary`.
  *
  * Aggregated by the database. The Billing cards used to be summed from
  * `useInvoices()` in the browser, which stopped being merely slow and started
@@ -509,7 +509,7 @@ export function useRatings(opts?: QueryOpts) {
 }
 
 /**
- * Guests on the org's reservations — `GET /organizations/guests`.
+ * Guests on the org's reservations. `GET /organizations/guests`.
  *
  * A Guest is NOT an OrgUser: it's a name/email/phone captured on a reservation,
  * so it can't be a role facet on the roster and gets its own tab. The server
@@ -568,7 +568,7 @@ export function useAnnouncements(opts?: QueryOpts) {
 
 /**
  * Org-wide search across people, aircraft, locations, ratings, reservations,
- * announcements, currencies, documents and squawks — `GET /search`.
+ * announcements, currencies, documents and squawks. `GET /search`.
  *
  * Pass a DEBOUNCED `q` (see `useDebouncedValue`); every keystroke is a query.
  * An empty `q` is legal and means browse: the newest few rows of each type,
@@ -686,7 +686,7 @@ export function useCreateReservation() {
 /**
  * Edit an existing reservation. The server re-runs `validateReservationType` on
  * whatever body it receives, so this takes the COMPLETE reservation shape (same
- * as create) rather than a patch of changed fields — sending only `{end}` would
+ * as create) rather than a patch of changed fields, sending only `{end}` would
  * fail validation for want of a type and personnel.
  */
 export function useUpdateReservation() {
@@ -722,7 +722,7 @@ export function useCancelReservation() {
  * The fixed list of cancellation reasons.
  *
  * Served rather than hardcoded so this and the app can never disagree with the report
- * about what the categories are. Cached hard — it changes on deploy, not during a session.
+ * about what the categories are. Cached hard, it changes on deploy, not during a session.
  */
 export function useCancellationCategories() {
   return useQuery({
@@ -733,7 +733,7 @@ export function useCancellationCategories() {
 }
 
 /**
- * Revenue grouped by a dimension. One query behind every revenue tab — pass a different
+ * Revenue grouped by a dimension. One query behind every revenue tab, pass a different
  * `groupBy` and you have the next report.
  */
 export function useRevenueReport(
@@ -763,7 +763,7 @@ export function useCancellationReport(startDate: string, endDate: string) {
 }
 
 /**
- * Ramp a reservation out — records the starting Hobbs/tach and marks the aircraft off the ramp.
+ * Ramp a reservation out, records the starting Hobbs/tach and marks the aircraft off the ramp.
  * `POST /reservations/:id/rampOut` with `{ hobbsTimeOut, tachTimeOut, comments? }`.
  */
 export function useRampOut(id: number) {
@@ -780,7 +780,7 @@ export function useRampOut(id: number) {
 }
 
 /**
- * Ramp a reservation in — records the ending Hobbs/tach (+ optional instruction time) and
+ * Ramp a reservation in, records the ending Hobbs/tach (+ optional instruction time) and
  * marks the aircraft back on the ramp. `POST /reservations/:id/rampIn` with
  * `{ hobbsTimeIn, tachTimeIn, briefing?, comments? }`.
  */
@@ -822,7 +822,7 @@ export function useUpdateResourceLocation(resourceId: number) {
 /**
  * Sign off a reservation's flight review with the caller's PIN.
  * `POST /reservations/:id/confirmReview` with `{ pin }`. When the final required pilot
- * confirms, the server auto-generates the invoice — so we invalidate invoices too.
+ * confirms, the server auto-generates the invoice, so we invalidate invoices too.
  */
 export function useConfirmReview(id: number) {
   const qc = useQueryClient();
@@ -837,7 +837,7 @@ export function useConfirmReview(id: number) {
 }
 
 /**
- * Close out a guest reservation — `POST /reservations/:id/confirmReviewGuest`. No PIN: an
+ * Close out a guest reservation. `POST /reservations/:id/confirmReviewGuest`. No PIN: an
  * admin, the instructor, or the creator reviews it and the server generates the guest invoice.
  * `guestOverrides` optionally corrects the guest's contact details before the invoice is emailed.
  */
@@ -975,7 +975,7 @@ export function useApproveResource(resourceId: number) {
       // Refresh the caller's bookable fleet (the /me/book "checked out" list)
       // so a just-approved renter sees the aircraft without a reload.
       void qc.invalidateQueries({ queryKey: ["approvedResources"] });
-      // The other direction — the aircraft's own list of approved renters.
+      // The other direction, the aircraft's own list of approved renters.
       void qc.invalidateQueries({ queryKey: ["resourceApprovedUsers"] });
     },
   });
@@ -1001,7 +1001,7 @@ export function useJoinRequestsPage(paging: PagingState, opts?: QueryOpts) {
 export function useAcceptJoinRequest() {
   const qc = useQueryClient();
   return useMutation({
-    //`membershipPlanId` puts them on a plan in the same click, as `pending` — nothing is
+    //`membershipPlanId` puts them on a plan in the same click, as `pending`: nothing is
     //charged until an admin starts it from their record. Best-effort on the server: a plan
     //that cannot be applied never un-accepts somebody.
     mutationFn: ({ id, role, membershipPlanId }: { id: number; role?: Role; membershipPlanId?: number }) =>
@@ -1036,7 +1036,7 @@ export function useInviteMember() {
       void qc.invalidateQueries({ queryKey: ["users"] });
       // No ["invitations"] invalidation: nothing in the console queries that key,
       // so it was invalidating a cache entry that never existed. The API does
-      // have GET /invitations — a pending-invitations view would be a genuinely
+      // have GET /invitations, a pending-invitations view would be a genuinely
       // useful thing to build on it, at which point this line comes back.
     },
   });
@@ -1051,11 +1051,11 @@ export function useCreateInvoice() {
   });
 }
 
-/** PATCH an invoice — mark paid (`{ paidAt }`), void (`{ voidedAt }`), edit memo. */
+/** PATCH an invoice, mark paid (`{ paidAt }`), void (`{ voidedAt }`), edit memo. */
 /**
  * One invoice, WITH its line items.
  *
- * The list endpoint doesn't select `items` — only the single-invoice endpoint does — so
+ * The list endpoint doesn't select `items` (only the single-invoice endpoint does) so
  * a detail view that reads the row out of the list array shows an invoice with no lines
  * on it. Always hydrate the drawer from here.
  */
@@ -1071,8 +1071,8 @@ export function useInvoice(id: number | null) {
  * Mark an invoice paid or voided.
  *
  * The server takes INTENT (`markPaid` / `markVoided`), not timestamps: it has to reach
- * Stripe as well as the row, and it records who did it. Sending `{ paidAt }` — which this
- * used to do — matched nothing, changed nothing, and still returned 200, so the UI showed
+ * Stripe as well as the row, and it records who did it. Sending `{ paidAt }`, which this
+ * used to do, matched nothing, changed nothing, and still returned 200, so the UI showed
  * no error and the invoice silently stayed outstanding.
  */
 export function useUpdateInvoice() {
@@ -1182,13 +1182,13 @@ export function useUpdateBilling() {
 }
 
 /**
- * Create a currency RULE. `gracePeriodDays` never existed on the server — the
+ * Create a currency RULE. `gracePeriodDays` never existed on the server, the
  * real field is `warningPeriodInDays`, and the type carries expiration rules,
  * renewal rules, and three scope relations besides.
  *
  * ⚠️ Scope matters: a currency type with no `resourceGroupIds` matches no
  * aircraft in `orgUserIsCurrentForResource`, so it enforces nothing. The server
- * accepts it happily — it just does nothing.
+ * accepts it happily, it just does nothing.
  */
 export function useCreateCurrencyType() {
   const qc = useQueryClient();
@@ -1228,7 +1228,7 @@ export function useResourceGroups(opts?: QueryOpts) {
   });
 }
 
-/** One group WITH its resources — the list endpoint omits them. */
+/** One group WITH its resources, the list endpoint omits them. */
 /** One page of aircraft groups, for the Settings table. */
 export function useResourceGroupsPage(paging: PagingState, opts?: QueryOpts) {
   return usePagedList<ResourceGroup>(["groups", "resource"], "/groups/resource", paging, undefined, opts);
@@ -1276,7 +1276,7 @@ export function useOrgUserGroups(opts?: QueryOpts) {
   });
 }
 
-/** One group WITH its members — the list endpoint omits them. */
+/** One group WITH its members, the list endpoint omits them. */
 /** One page of people groups, for the Settings table. */
 export function useOrgUserGroupsPage(paging: PagingState, opts?: QueryOpts) {
   return usePagedList<OrgUserGroup>(["groups", "orgUser"], "/groups/orgUser", paging, undefined, opts);
@@ -1346,7 +1346,7 @@ export function useUpdateOrgLogo() {
   });
 }
 
-/** PATCH the current org — used for preferences (e.g. newOrgOnboardingComplete) and org fields. */
+/** PATCH the current org, used for preferences (e.g. newOrgOnboardingComplete) and org fields. */
 export function useUpdateOrganization() {
   const qc = useQueryClient();
   return useMutation({
@@ -1402,7 +1402,7 @@ export function useLeaveOrganization() {
 }
 
 /** Setup-checklist state: the marketing source the org signed up from and what it
- *  has waved off. Whether an item is DONE is derived from real data, not stored —
+ *  has waved off. Whether an item is DONE is derived from real data, not stored.
  *  see `lib/onboarding-checklist.ts`. Admin-only on the server. */
 export function useOrgOnboarding(opts?: QueryOpts) {
   return useQuery({
@@ -1456,7 +1456,7 @@ export function useUpdateMemberOrgUser(userId: number) {
  * that PATCH carries the whole member record on every save, which is how the grounding
  * email came to re-fire on edits that changed nothing. Archiving is a verb, not a field.
  *
- * Owner/admin only, server-side — a dispatcher gets a 403.
+ * Owner/admin only, server-side, a dispatcher gets a 403.
  */
 export function useSetMemberArchived(userId: number) {
   const qc = useQueryClient();
@@ -1624,7 +1624,7 @@ export function useSubscriptionCheckout() {
  * Everything the Payment Element needs to charge one invoice (`GET /stripe/invoice/:id`):
  * a PaymentIntent client secret + the connected account it lives on. Errors (org not billing-
  * enabled, already paid, no Stripe intent) surface as ApiError for the caller to show.
- * Not cached — a fresh client secret per open, and never retried (a 4xx here is terminal).
+ * Not cached, a fresh client secret per open, and never retried (a 4xx here is terminal).
  */
 export function useInvoicePaymentIntent(invoiceId: number | null, opts?: QueryOpts) {
   return useQuery({
@@ -1634,7 +1634,7 @@ export function useInvoicePaymentIntent(invoiceId: number | null, opts?: QueryOp
     retry: false,
     staleTime: 0,
     gcTime: 0,
-    // Don't refetch while the member is entering their card — that would swap the client
+    // Don't refetch while the member is entering their card, that would swap the client
     // secret and remount the Payment Element out from under them.
     refetchOnWindowFocus: false,
   });
@@ -1651,7 +1651,7 @@ export function usePaymentMethods(opts?: QueryOpts) {
 }
 
 /**
- * The member's own billing settings — autopay + Stripe customer (`GET /orgUsers/billing`).
+ * The member's own billing settings, autopay + Stripe customer (`GET /orgUsers/billing`).
  * 404s when the org isn't billing-enabled yet; don't retry that.
  */
 export function useMyBillingSettings(opts?: QueryOpts) {
@@ -1755,7 +1755,7 @@ export function useMemberInvoicesPage(
   );
 }
 
-/** One member's invoice totals — `GET /invoices/orgUsers/:id/summary`. */
+/** One member's invoice totals. `GET /invoices/orgUsers/:id/summary`. */
 export function useMemberInvoiceSummary(
   orgUserId: number | null,
   filter?: { startDate?: string; endDate?: string; q?: string },
@@ -1788,7 +1788,7 @@ export function useMyCurrencies(opts?: QueryOpts) {
 
 /**
  * Active (non-archived) currency records for one member across every org currency
- * type. There is no "list by orgUser" endpoint — the desk surface fans out
+ * type. There is no "list by orgUser" endpoint, the desk surface fans out
  * `GET /currencies/types/:id/currencies?orgUserId=` per type (admin/dispatcher only).
  */
 export function useMemberCurrencies(orgUserId: number | null, opts?: QueryOpts) {
@@ -1810,7 +1810,7 @@ export function useMemberCurrencies(orgUserId: number | null, opts?: QueryOpts) 
 
   const isPending = typesQ.isPending || perType.some((q) => q.isPending);
   const isError = typesQ.isError || perType.some((q) => q.isError);
-  // Flatten once results settle — ids are unique across types.
+  // Flatten once results settle, ids are unique across types.
   const settled = perType.map((q) => q.dataUpdatedAt).join(",");
   const data = useMemo(() => {
     if (!typesQ.isSuccess) return undefined;
@@ -1861,8 +1861,8 @@ export function useApprovedResources(userId: number | null, opts?: QueryOpts) {
 /**
  * Who is checked out on one aircraft.
  *
- * One request. This used to invert the relation client-side — fetch every
- * renter, then ask each of them what they were approved for — which cost a
+ * One request. This used to invert the relation client-side, fetch every
+ * renter, then ask each of them what they were approved for: which cost a
  * request per member and so had to stop at the first 60 and tell the school its
  * list might be incomplete. `GET /resources/:id/approvedUsers` reads the
  * relation in this direction, so the answer is now whole at any roster size.
@@ -1883,7 +1883,7 @@ export function useResourceApprovedPilots(resourceId: number | null, opts?: Quer
  * How many renters the org has at all, without pulling the roster.
  *
  * Only used to tell "nobody is approved on this tail" apart from "this school
- * has no renters yet" — two empty lists that need very different advice. Asks
+ * has no renters yet"two empty lists that need very different advice. Asks
  * for a single row and reads the total off the pagination envelope.
  */
 export function useRenterCount(opts?: QueryOpts) {
@@ -1900,7 +1900,7 @@ export function useRenterCount(opts?: QueryOpts) {
 }
 
 /**
- * Who this user is paired with for instruction — their assigned students (if
+ * Who this user is paired with for instruction, their assigned students (if
  * they instruct) and their assigned instructors (if they're a student).
  *
  * `GET /instructors/` and `GET /students/` are both still 501 Not Implemented,
@@ -1925,12 +1925,12 @@ export function useUserInstructionPartners(userId: number | null, opts?: QueryOp
   });
 }
 
-/** @deprecated Prefer useUserInstructionPartners — same query key `/me` already uses. */
+/** @deprecated Prefer useUserInstructionPartners, same query key `/me` already uses. */
 export function useMyInstructionPartners(userId: number | null, opts?: QueryOpts) {
   return useUserInstructionPartners(userId, opts);
 }
 
-/** Admin assign pair — ids are Student / Instructor role PKs. */
+/** Admin assign pair, ids are Student / Instructor role PKs. */
 export function useAssignInstructionPair() {
   const qc = useQueryClient();
   return useMutation({
@@ -2064,7 +2064,7 @@ export function useMyAvailability(opts?: QueryOpts) {
 }
 
 // ── Free-window availability (powers smart scheduling) ───────────────────────
-// These endpoints return the INVERSE of existing reservations — free windows
+// These endpoints return the INVERSE of existing reservations, free windows
 // with booked time already subtracted server-side (matching the server's
 // resourceIsAvailable / orgUserIsAvailable overlap checks at create time).
 // They ignore date-range params and return ~[yesterday, +1yr], so callers slice
@@ -2081,7 +2081,7 @@ export function useResourceAvailability(resourceId: number | null, opts?: QueryO
 }
 
 /**
- * Free windows for each user (keyed by USER id, not org-user id) — one query per
+ * Free windows for each user (keyed by USER id, not org-user id), one query per
  * id via useQueries so the set can vary with the personnel selection. Returns a
  * stable array aligned to `userIds`.
  */
@@ -2110,7 +2110,7 @@ export function useNotifications(filter?: NotificationListFilter, opts?: QueryOp
  * How many notifications are unread.
  *
  * Asks for a single row and reads `pagination.total`, rather than counting the
- * unread ones in the list on screen — that list is one page, so the count would
+ * unread ones in the list on screen, that list is one page, so the count would
  * shrink as you paged forward. Cheap enough to be worth the extra request: the
  * response is one notification, and the number is a real count of the whole set.
  */
@@ -2163,12 +2163,12 @@ export function useUpdateProfile() {
 // Contact details and emergency contacts.
 //
 // One route family on the server keyed by user id, for your own record and somebody
-// else's alike — so these hooks all take a `userId` and the caller passes its own for
+// else's alike, so these hooks all take a `userId` and the caller passes its own for
 // self-service. Who is actually allowed is decided server-side; a 403 here is a real
 // answer, not a bug.
 //
 // Everything invalidates BOTH the contact keys and the member keys, because a member's
-// phone rides along on `GET /orgUsers/{id}` for the profile header — editing a number
+// phone rides along on `GET /orgUsers/{id}` for the profile header, editing a number
 // and watching the header keep the old one is the bug this prevents.
 //---------------------------------------------------------------------------------
 
@@ -2297,7 +2297,7 @@ export function useOrgReport<T>(
 }
 
 /**
- * One metric about ONE member — `GET /reports/orgUser/:orgUserId/:metric`.
+ * One metric about ONE member. `GET /reports/orgUser/:orgUserId/:metric`.
  *
  * The server serves these to that member or to an admin, and nobody else. That
  * rule is the whole reason the person page can show a student their own hours
@@ -2306,7 +2306,7 @@ export function useOrgReport<T>(
  *
  * Metrics: countFlightTime, countInstructionTimeGiven, countInstructionTimeReceived,
  * countScheduledReservations, countCompletedReservations, countPendingAndProcessedPayments.
- * All are deci-hours or cents — divide at the edge, never in the middle.
+ * All are deci-hours or cents, divide at the edge, never in the middle.
  */
 export function useOrgUserReport<T>(
   orgUserId: number | null,
@@ -2327,12 +2327,12 @@ export function useOrgUserReport<T>(
 }
 
 /**
- * One metric about ONE aircraft — `GET /reports/resource/:resourceId/:metric`.
+ * One metric about ONE aircraft. `GET /reports/resource/:resourceId/:metric`.
  *
  * Two access tiers server-side, and they are not interchangeable: utilization,
  * bookings and squawk counts go to admin, dispatcher and technician, while
  * `countPendingAndProcessedPayments` stays admin-only. Gate the money tiles on
- * `isAdmin` at the call site — asking anyway is a 403, not an empty card.
+ * `isAdmin` at the call site, asking anyway is a 403, not an empty card.
  */
 export function useResourceReport<T>(
   resourceId: number | null,
@@ -2405,8 +2405,8 @@ export function useApiKeys(opts?: QueryOpts) {
 /**
  * Mint a key (admin only).
  *
- * The response is the ONLY time the secret exists outside the caller's hands —
- * the server keeps a hash — so the caller must show it immediately and must not
+ * The response is the ONLY time the secret exists outside the caller's hands.
+ * the server keeps a hash, so the caller must show it immediately and must not
  * discard it on error paths.
  */
 /** One page of API keys, for the Settings table. */
@@ -2472,7 +2472,7 @@ export function useUpdateDocumentType() {
   });
 }
 
-/** Soft-delete a document type (admin only) — 204, no body. Filed documents survive. */
+/** Soft-delete a document type (admin only): 204, no body. Filed documents survive. */
 export function useDeleteDocumentType() {
   const qc = useQueryClient();
   return useMutation({
@@ -2482,7 +2482,7 @@ export function useDeleteDocumentType() {
   });
 }
 
-/** A member's documents (self, or admin viewing another) — `GET /userDocuments/orgUsers/:id`. */
+/** A member's documents (self, or admin viewing another). `GET /userDocuments/orgUsers/:id`. */
 export function useMemberDocuments(
   orgUserId: number | null,
   filter?: DocumentListFilter,
@@ -2499,7 +2499,7 @@ export function useMemberDocuments(
  * Upload a document: create the record (`POST /userDocuments/`) to get the presigned target,
  * then PUT the file to S3. Replaces any current document of the same type by default.
  *
- * `orgUserId` files the document against another member instead of the caller — the server
+ * `orgUserId` files the document against another member instead of the caller, the server
  * requires the caller to be an org admin to do that, and 403s otherwise. Send it as a number:
  * the route compares it to the caller's own id with `!==`, so a numeric string would take the
  * on-behalf-of branch even when it names the caller.
@@ -2596,7 +2596,7 @@ export function useCreateSquawk() {
 /**
  * Resolve or verify a squawk.
  *
- * `resolve` REQUIRES `completedAt` — when the work was actually finished, which
+ * `resolve` REQUIRES `completedAt`: when the work was actually finished, which
  * is not the same as when it's being signed off (the server stamps `resolvedAt`
  * itself). Omitting it fails with "Completed at is required." `notes` records
  * what was done and is optional. `verify` takes neither.
@@ -2648,7 +2648,7 @@ export function useMaintenanceReminders(filter?: ReminderListFilter, opts?: Quer
   });
 }
 
-/** The rules behind the reminders — one template spanning many aircraft. */
+/** The rules behind the reminders, one template spanning many aircraft. */
 export function useMaintenanceReminderTemplates(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["reminder-templates"],
@@ -2685,7 +2685,7 @@ export function useInspectionPresets(opts?: QueryOpts) {
 /**
  * Change which aircraft a template applies to, or rename it.
  *
- * `templateResources` is a PUT, not a PATCH — send the complete list of aircraft the
+ * `templateResources` is a PUT, not a PATCH, send the complete list of aircraft the
  * template should end up on. Omitting a tail DETACHES it and deletes its unresolved
  * reminder, so never send a partial list thinking it will merge.
  */
@@ -2718,7 +2718,7 @@ export function useDeleteMaintenanceReminderTemplate() {
  * Sign a reminder off as done.
  *
  * POST rather than PATCH, for historical reasons the server documents. `completedHours` is
- * DECI-hours and is what the NEXT interval counts from — send the meter reading the work
+ * DECI-hours and is what the NEXT interval counts from: send the meter reading the work
  * was actually done at, not today's, or the new interval starts short.
  */
 export function useResolveMaintenanceReminder() {
@@ -2741,7 +2741,7 @@ export function useResolveMaintenanceReminder() {
 /**
  * Create a recurring maintenance reminder (a "template" server-side).
  *
- * `remindHours`/`remindHoursBefore` are DECI-hours — 100 h is 1000 — matching the
+ * `remindHours`/`remindHoursBefore` are DECI-hours (100 h is 1000) matching the
  * meter fields everywhere else. Attaching `templateResources` is what actually
  * materialises reminder rows against each aircraft; a template with no resources is
  * inert, so callers should always pass the tails it applies to.
@@ -2755,7 +2755,7 @@ export function useCreateMaintenanceReminderTemplate() {
       void qc.invalidateQueries({ queryKey: ["reminders"] });
       void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
       // The aircraft page embeds its own reminders, so a new template has to reach it too
-      // — otherwise the inspection you just added doesn't show up on the tail you added it
+      //, otherwise the inspection you just added doesn't show up on the tail you added it
       // to until a reload, which reads as the action having failed.
       void qc.invalidateQueries({ queryKey: ["resource"] });
     },
@@ -2794,19 +2794,19 @@ export function useConnectGoogleCalendar() {
 // ── Pre-flight weather (third-party, keyless) ────────────────────────────────
 // NOT AerScheduler API calls: these go straight to aviationweather.gov and
 // api.sunrise-sunset.org, so they use the plain fetches in lib/weather.ts rather than
-// api()/apiRaw() — those attach our Authorization header and unwrap a `{ data }`
+// api()/apiRaw(), those attach our Authorization header and unwrap a `{ data }`
 // envelope that neither service returns.
 //
 // React Query is this feature's entire cache; it replaces the hand-rolled maps in the
 // Flutter WeatherService. Keys are ROUNDED coordinates (plus the date, for sun times), so
-// every reservation at the same field shares one cache entry and one in-flight request —
+// every reservation at the same field shares one cache entry and one in-flight request.
 // which is what keeps a month-long board far under aviationweather.gov's ~100 req/min.
 // The fetches never reject: a failure resolves to null, is held for FAILURE_STALE_MS so an
 // offline browser doesn't re-request on every badge that mounts, and renders nothing.
 
 /**
  * The nearest METAR to a set of coordinates. Only worth asking for a flight inside the
- * 12-hour observation window (see `shouldIncludeObservation`) — an observation says
+ * 12-hour observation window (see `shouldIncludeObservation`): an observation says
  * nothing about a flight three weeks out.
  */
 export function useMetarObservation(coordinates: Coordinates | null, opts?: QueryOpts) {
@@ -2825,7 +2825,7 @@ export function useMetarObservation(coordinates: Coordinates | null, opts?: Quer
 
 /**
  * Sunset and civil twilight for one day at one point (`day` is `YYYY-MM-DD`, in the
- * flight's own timezone). Courtesy of sunrise-sunset.org, which requires attribution —
+ * flight's own timezone). Courtesy of sunrise-sunset.org, which requires attribution.
  * the weather badge's tooltip carries it.
  */
 export function useSunTimes(coordinates: Coordinates | null, day: string | null, opts?: QueryOpts) {
@@ -2846,7 +2846,7 @@ export function useSunTimes(coordinates: Coordinates | null, day: string | null,
 /**
  * The signed-in member's time-zone settings.
  *
- * Read from the same `/orgUser/preferences` row the notification settings live on — the
+ * Read from the same `/orgUser/preferences` row the notification settings live on, the
  * server creates it on demand, so there is no "no preferences yet" case to handle here.
  * Cached hard: a zone preference changes about once a year, and re-resolving it on every
  * window focus would re-render the whole board for nothing.
@@ -2956,8 +2956,8 @@ export function useSubmitFeedback() {
  * apportionment engine.
  *
  * One call rather than several because a single rule change can alter what SEVERAL
- * booking types resolve to — a new organization-wide default changes every type that
- * has no rule of its own — so the screen always re-reads the whole description rather
+ * booking types resolve to: a new organization-wide default changes every type that
+ * has no rule of its own, so the screen always re-reads the whole description rather
  * than patching a row in place and drifting.
  *
  * Admin-only on the server.
@@ -2974,7 +2974,7 @@ export function useSplitRules(opts?: QueryOpts) {
  * Set one rule, or clear it.
  *
  * `apportionment: null` REMOVES the rule and returns that charge to the product
- * default. The rules table is sparse — absence means "the default" — so removal has to
+ * default. The rules table is sparse (absence means "the default") so removal has to
  * be expressible; writing an explicit "whole" would not be the same thing, because it
  * would survive a later change to what the default is.
  */
@@ -2987,7 +2987,7 @@ export function useSetSplitRule() {
       apportionment: string | null;
     }) => api<SplitRulesDescription>("/organizations/splitRules", { method: "PUT", body: input }),
     onSuccess: (data) => {
-      // The response IS the new description, so seed it rather than refetching — the
+      // The response IS the new description, so seed it rather than refetching, the
       // examples and the resolved plan for every type come back in the same payload.
       qc.setQueryData(["splitRules"], data);
       void qc.invalidateQueries({ queryKey: ["organization", "onboarding"] });
@@ -3008,7 +3008,7 @@ export function useApplySplitPreset() {
   });
 }
 
-/** Back to one invoice and one payer everywhere — how it worked before splitting. */
+/** Back to one invoice and one payer everywhere, how it worked before splitting. */
 export function useClearSplitRules() {
   const qc = useQueryClient();
   return useMutation({
@@ -3021,7 +3021,7 @@ export function useClearSplitRules() {
 }
 
 /**
- * Record who pays what on a booking — each person's own meter readings, their percentage,
+ * Record who pays what on a booking, each person's own meter readings, their percentage,
  * a waiver, and what they were doing on the flight.
  *
  * Replaces the whole set: shares have to total 100% across everybody, so merging one person
@@ -3042,9 +3042,9 @@ export function useSetReservationPayers(reservationId: number) {
 //---------------------------------------------------------------------------------
 // Training
 //
-// One invalidation key, ["training"], for everything under it. The pieces are joined —
+// One invalidation key, ["training"], for everything under it. The pieces are joined.
 // signing a lesson changes the record list, the ledger, the standings and the enrollment
-// summary all at once — so invalidating them separately would only ever mean one of them
+// summary all at once, so invalidating them separately would only ever mean one of them
 // was briefly wrong on screen.
 //---------------------------------------------------------------------------------
 
@@ -3261,7 +3261,7 @@ export function usePostRequirementCredit() {
       count?: number | null;
       source: string;
       notes?: string;
-      /** When the training happened. Omitted means now — see the server's postCredit. */
+      /** When the training happened. Omitted means now, see the server's postCredit. */
       occurredAt?: string;
     }) => api<{ id: number }>("/training/credits", { method: "POST", body: input }),
     onSuccess: () => invalidateTraining(qc),
@@ -3517,7 +3517,7 @@ export function useBillEnrollmentFee() {
 //---------------------------------------------------------------------------------
 // Membership.
 //
-// One invalidation key, ["membership"], for the whole feature — plans, memberships and
+// One invalidation key, ["membership"], for the whole feature, plans, memberships and
 // the ledger move together (changing a plan changes what the member card shows, billing a
 // period changes both the ledger and the roster), so invalidating them apart would only
 // ever mean one of them was briefly wrong on screen.
@@ -3545,7 +3545,7 @@ export function useMembershipPlans(includeArchived = false, opts?: QueryOpts) {
 }
 
 /**
- * The plans a member may be put on — names and prices only.
+ * The plans a member may be put on, names and prices only.
  *
  * A separate hook from `useMembershipPlans` rather than a filter over it, because this one
  * is open to any org user and that one is admin-only. Sharing a cache key would mean a
@@ -3577,7 +3577,7 @@ export function useUpdateMembershipPlan() {
   });
 }
 
-/** Retire a plan, or bring it back. There is no delete — history has to stay readable. */
+/** Retire a plan, or bring it back. There is no delete, history has to stay readable. */
 export function useArchiveMembershipPlan() {
   const qc = useQueryClient();
   return useMutation({
@@ -3689,7 +3689,7 @@ export function useBillMembershipJoinFee() {
 /**
  * Bill the next dues period.
  *
- * WHICH period is decided by the server from the membership's own cursor — deliberately
+ * WHICH period is decided by the server from the membership's own cursor, deliberately
  * not sent from here. A client that could name the period could bill the same month twice.
  */
 export function useBillMembershipDues() {
@@ -3701,7 +3701,7 @@ export function useBillMembershipDues() {
   });
 }
 
-/** Waive the next period — a comped month, a leave of absence. */
+/** Waive the next period, a comped month, a leave of absence. */
 export function useSkipMembershipDues() {
   const qc = useQueryClient();
   return useMutation({
@@ -3724,7 +3724,7 @@ export function useMembershipPlanRates(planId: number | undefined, opts?: QueryO
  * Set or clear one plan's rate for one aircraft.
  *
  * Sending both rates null CLEARS the override, so the aircraft returns to its published
- * rate. Idempotent on (plan, aircraft) — it is a PUT, not a POST.
+ * rate. Idempotent on (plan, aircraft), it is a PUT, not a POST.
  */
 export function useSetMembershipPlanRate() {
   const qc = useQueryClient();

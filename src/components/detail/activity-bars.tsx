@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
  * Past this many points a daily bar is too thin to see.
  *
  * At a year's width each day gets about 2px, and `gap-px` eats a third of the
- * chart — so a school that flew on one day of the year got a 2px sliver in a
+ * chart, so a school that flew on one day of the year got a 2px sliver in a
  * 1,100px field and read the chart as empty. Beyond this the bars are weekly
  * totals, which is both legible and the honest summary of a long window.
  */
@@ -30,7 +30,7 @@ export const activityGranularity = (pointCount: number): "day" | "week" =>
 /**
  * Deci-hours ⇒ an axis tick, carrying only the precision the step needs.
  *
- * A light tail peaks around 1.5 h a day, which lands on a half-hour step — and
+ * A light tail peaks around 1.5 h a day, which lands on a half-hour step, and
  * at zero decimals that axis reads "1 h, 1 h, 2 h".
  */
 export const hoursAxisLabel = (deciHours: number, step: number): string =>
@@ -54,7 +54,7 @@ export function ActivityBars({
   /**
    * Formats an axis tick, coarser than `formatValue`. Gets the gridline `step`
    * alongside the value, because how much precision a tick needs is a property
-   * of the step — a half-hour step rounded to whole hours prints "1 h" twice
+   * of the step, a half-hour step rounded to whole hours prints "1 h" twice
    * and reads as a broken axis. See `hoursAxisLabel`.
    */
   formatAxis,
@@ -187,7 +187,7 @@ export function ActivityBars({
             {weekly ? `Week of ${safeDay(active.date)}` : safeFullDay(active.date)}
           </span>
           <span className="ml-2 tabular-nums">
-            {active.count > 0 ? formatValue(active.count) : "—"}
+            {active.count > 0 ? formatValue(active.count) : "–"}
           </span>
         </div>
       )}
@@ -215,7 +215,7 @@ function safeFullDay(iso: string): string {
  * Sum a daily series into calendar weeks, keyed by the first day present in each.
  *
  * Buckets by 7-day blocks from the start of the window rather than by ISO week,
- * so the first and last labels stay the window's own edges — the chart is read
+ * so the first and last labels stay the window's own edges, the chart is read
  * against the range you picked, not against a calendar.
  */
 function bucketWeekly(points: DailyCount[]): DailyCount[] {

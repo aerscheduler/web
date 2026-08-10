@@ -5,8 +5,8 @@ import { useSyncExternalStore } from "react";
  * they've pinned, and where they've recently been.
  *
  * A tiny external store rather than context because the two halves live at
- * opposite ends of the tree — the shell records every navigation, the rail
- * renders it — and threading a provider between them buys nothing. It is a
+ * opposite ends of the tree, the shell records every navigation, the rail
+ * renders it, and threading a provider between them buys nothing. It is a
  * device-local preference on purpose: the rail should feel the same the instant
  * the app paints, with no round-trip and no spinner.
  */
@@ -46,7 +46,7 @@ function persist(next: Store) {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {
-    // Quota / private mode — the session still works, it just won't persist.
+    // Quota / private mode, the session still works, it just won't persist.
   }
   for (const listener of listeners) listener();
 }

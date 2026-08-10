@@ -2,7 +2,7 @@
  * The report engine's wire types, mirroring `server/src/reports/engine/types.ts`.
  *
  * These describe the SHAPE of a report, not any particular report. The console
- * never hardcodes a column, filter or dimension — it renders whatever
+ * never hardcodes a column, filter or dimension, it renders whatever
  * `/reports/catalog` describes, which is what lets a report added on the server
  * appear here with no client change at all.
  */
@@ -87,7 +87,7 @@ export interface ReportMeta {
   footnote: string | null;
   columns: ReportColumn[];
   /**
-   * Column keys that can be a dashboard METRIC — aggregatable, or a ratio the
+   * Column keys that can be a dashboard METRIC, aggregatable, or a ratio the
    * engine re-derives. Sent by the server so the tile builder can only offer a
    * choice that renders; a label column on a number card is an empty box.
    */
@@ -98,7 +98,7 @@ export interface ReportMeta {
 
 export interface ReportCatalog {
   /**
-   * The IANA zone every report window is measured in —
+   * The IANA zone every report window is measured in.
    * `organization.timeZone → the viewer's browser → UTC`, resolved server-side.
    * Read it through `useReportTimeZone()` rather than picking a zone locally.
    */
@@ -155,7 +155,7 @@ export type CompareMode = "previous" | "lastYear" | "none";
  * A KPI tile.
  *
  * It carries the report and filters it was computed from, so clicking it opens
- * the report showing the same number — the tile and the table are one execution
+ * the report showing the same number, the tile and the table are one execution
  * path on the server, not two that have to be kept in agreement.
  */
 export interface OverviewTile {
@@ -167,7 +167,7 @@ export interface OverviewTile {
   icon: string;
   betterWhen?: "higher" | "lower";
   filters?: ReportFilterInput[];
-  /** In the column's own unit — cents, deci-hours, 0..1. */
+  /** In the column's own unit, cents, deci-hours, 0..1. */
   value: number | null;
   previous: number | null;
   /** Fractional change; null when there was no baseline worth comparing to. */

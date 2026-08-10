@@ -1,6 +1,6 @@
 /**
  * The question asked whenever unsaved dashboard layout work is about to be
- * thrown away — leaving the route, closing the tab, or swapping Overview for a
+ * thrown away, leaving the route, closing the tab, or swapping Overview for a
  * report in the rail. One wording, wherever the exit is.
  *
  * Its own module on purpose: exporting a non-component from `dashboard.tsx`

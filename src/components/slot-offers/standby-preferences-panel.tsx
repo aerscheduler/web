@@ -288,7 +288,7 @@ function StandingPreferenceForm({ roles }: { roles: Role[] }) {
       const interest = await create.mutateAsync({ kind: "standing", criteria });
       toast.success("Standing preference saved");
       if (interest.notificationDelivery?.anyChannelEnabled === false) {
-        toast.warning("Turn on slot offer notifications so you do not miss an opening.");
+        toast.warning("Turn on offer notifications so you do not miss an opening.");
       }
       setDays([]);
       setTypes([]);
@@ -487,7 +487,7 @@ function OpenWindowForm() {
       });
       toast.success("Open window saved");
       if (interest.notificationDelivery?.anyChannelEnabled === false) {
-        toast.warning("Turn on slot offer notifications so you do not miss an opening.");
+        toast.warning("Turn on offer notifications so you do not miss an opening.");
       }
       setStartDate("");
       setStartTime("");

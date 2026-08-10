@@ -2,7 +2,7 @@
  * Building a tile: pick a report, a shape, the metrics, and the window.
  *
  * The form narrows as you go, and it narrows using the CATALOG rather than its
- * own knowledge — the metric list comes from the server's `metrics` array, so
+ * own knowledge, the metric list comes from the server's `metrics` array, so
  * the builder can only ever offer a choice that renders. Picking a label column
  * for a number card is not a validation error here; it is not offered.
  *
@@ -10,8 +10,8 @@
  * that drifted from the first is exactly the kind of duplication this whole
  * engine exists to avoid.
  *
- * One form serves three entrances — adding a tile, editing one, and pinning a
- * saved view — because they differ only in where the starting values come from
+ * One form serves three entrances, adding a tile, editing one, and pinning a
+ * saved view, because they differ only in where the starting values come from
  * and what happens to the id. A separate "pin" form would be the same fields
  * with the same rules, drifting apart on its own schedule.
  */
@@ -56,7 +56,7 @@ import { cn } from "@/lib/utils";
 
 const INHERIT = "__inherit__";
 
-/** How many metrics each shape accepts — mirrors the server's rules. */
+/** How many metrics each shape accepts, mirrors the server's rules. */
 export function metricLimit(viz: VizType): number {
   if (viz === "metric" || viz === "bar") return 1;
   if (viz === "line") return 3;
@@ -106,7 +106,7 @@ export function TileBuilder({
   onOpenChange: (open: boolean) => void;
   catalog: ReportCatalog | undefined;
   /**
-   * Only "edit" keeps the tile's id and position; "add" and "pin" both mint a
+   * Only "edit" keeps the tile's id and position; ", add" and "pin" both mint a
    * new tile and leave placement to the board.
    */
   mode: TileBuilderMode;
@@ -114,11 +114,11 @@ export function TileBuilder({
   initial: Visualization | null;
   /** Says where the starting values came from, when they came from somewhere. */
   note?: React.ReactNode;
-  /** May be async — the dialog stays open, and shows the error, if it throws. */
+  /** May be async, the dialog stays open, and shows the error, if it throws. */
   onSave: (viz: Visualization) => void | Promise<void>;
 }) {
   // Memoised: this is a dependency of the seeding effect below, and a fresh `[]`
-  // on every render would re-seed the form — wiping what is being typed into it.
+  // on every render would re-seed the form, wiping what is being typed into it.
   const reports = useMemo(() => catalog?.reports ?? [], [catalog]);
 
   const [reportId, setReportId] = useState("");
@@ -160,7 +160,7 @@ export function TileBuilder({
 
   const report = reports.find((r) => r.id === reportId);
 
-  /** Only columns the server marked as metrics — a label here renders an empty box. */
+  /** Only columns the server marked as metrics, a label here renders an empty box. */
   const available = useMemo(
     () => (report ? report.columns.filter((c) => report.metrics.includes(c.key)) : []),
     [report]
@@ -172,7 +172,7 @@ export function TileBuilder({
    * It used to be an effect keyed on the report and the shape, and it silently
    * ate the values the form was seeded with: opening the dialog set `reportId`
    * and `metrics` in one pass, and the effect ran in that same pass against the
-   * PREVIOUS report's metric list — which, the first time it opens, is empty.
+   * PREVIOUS report's metric list, which, the first time it opens, is empty.
    * So every seeded metric was filtered out and both editing a tile and pinning
    * a view arrived with nothing selected and a dead Save button.
    *
@@ -190,7 +190,7 @@ export function TileBuilder({
       current && next?.dimensions.some((d) => d.key === current) ? current : undefined
     );
     // Filters are written against a report's own columns, so they cannot survive
-    // a change of report — "aircraft is N7412K" means nothing on a tax report.
+    // a change of report, "aircraft is N7412K" means nothing on a tax report.
     setFilters([]);
   };
 
@@ -294,7 +294,7 @@ export function TileBuilder({
               <Label>Show it as</Label>
               <div className="grid grid-cols-2 gap-2">
                 {VIZ_TYPES.map((t) => {
-                  // Some reports have nothing to cut by — instructor activity is
+                  // Some reports have nothing to cut by, instructor activity is
                   // already one row per instructor. Offering a chart there leads
                   // to an empty "Across" list and a tile that can never be
                   // saved, so the shape is refused up front with the reason.
@@ -433,7 +433,7 @@ export function TileBuilder({
                 id="tile-title"
                 value={title}
                 maxLength={60}
-                placeholder="Optional — one is generated from the metric"
+                placeholder="Optional, one is generated from the metric"
                 onChange={(e) => setTitle(e.target.value)}
               />
             </div>

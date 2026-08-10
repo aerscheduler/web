@@ -32,7 +32,7 @@ const GROUP_LABEL: Record<EndorsementTemplate["group"], string> = {
   privileges: "Additional privileges & reviews",
 };
 
-/** Expired, expiring, or fine — the only three states that change what anyone does. */
+/** Expired, expiring, or fine, the only three states that change what anyone does. */
 function expiryState(e: Endorsement): { label: string; tone: "danger" | "warning" | null } {
   if (!e.expiresAt) return { label: "", tone: null };
   const days = Math.floor((new Date(e.expiresAt).getTime() - Date.now()) / 86_400_000);
@@ -226,7 +226,7 @@ function SignDialog({
           <DialogDescription>
             {/* Said here because it is the one thing about this screen that is not obvious:
                 what you save is what stands, forever, even after the AC is revised. */}
-            The text you save is stored exactly as written and never regenerated — it has to keep
+            The text you save is stored exactly as written and never regenerated, it has to keep
             saying what you signed today.
           </DialogDescription>
         </DialogHeader>
@@ -296,7 +296,7 @@ function SignDialog({
               {blanks > 0 ? (
                 <p className="flex items-start gap-1.5 text-xs text-amber-600">
                   <AlertTriangle className="mt-0.5 size-3 shrink-0" />
-                  {blanks} blank{blanks === 1 ? "" : "s"} still to fill in — anything in {"{braces}"} is
+                  {blanks} blank{blanks === 1 ? "" : "s"} still to fill in, anything in {"{braces}"} is
                   yours to complete.
                 </p>
               ) : null}

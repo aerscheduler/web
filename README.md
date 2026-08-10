@@ -1,8 +1,8 @@
-# AerScheduler — Web Console
+# AerScheduler: Web Console
 
 The web admin console for AerScheduler flight schools. A clean, modern React
-app for the people who evaluate and run the product on a desktop — the school
-owners, admins, and dispatchers — talking to the existing REST API at
+app for the people who evaluate and run the product on a desktop: the school
+owners, admins, and dispatchers, talking to the existing REST API at
 `api.aerscheduler.com`.
 
 > This replaces the old Flutter-web admin view. The Flutter app (`aerscheduler/app`)
@@ -12,11 +12,11 @@ owners, admins, and dispatchers — talking to the existing REST API at
 ## Stack
 
 - **React 19** + **Vite 8** + **TypeScript**
-- **TanStack Router** — type-safe, file-based routing (`src/routes`)
-- **TanStack Query** — server state / caching (`src/features/queries.ts`)
-- **TanStack Table** — sortable data grids (`src/components/data-table.tsx`)
-- **TanStack Form** — forms (as screens grow)
-- **Tailwind CSS v4** — design tokens in `src/styles.css`
+- **TanStack Router**: type-safe, file-based routing (`src/routes`)
+- **TanStack Query**: server state / caching (`src/features/queries.ts`)
+- **TanStack Table**: sortable data grids (`src/components/data-table.tsx`)
+- **TanStack Form**: forms (as screens grow)
+- **Tailwind CSS v4**: design tokens in `src/styles.css`
 - Auth: JWT bearer against the existing API (`src/lib/auth.tsx`, `src/lib/api.ts`)
 
 ## Getting started
@@ -57,7 +57,7 @@ The full API surface this client is built against is documented in
 ## Key facts about the API (so you don't get surprised)
 
 - **Auth is a JWT bearer token**, returned as `auth.accessToken` from `POST /auth`.
-  There's no refresh — re-login on 401.
+  There's no refresh. Re-login on 401.
 - **The active organization is baked into the token.** To manage a different org,
   `POST /organizations/switch/:orgId` and swap the token (the org switcher does this).
 - **Money is integer cents; dates are ISO strings.**

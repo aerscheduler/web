@@ -9,7 +9,7 @@ import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-
 import { formatMoney } from "@/lib/utils";
 
 function fmtDate(iso: string | null | undefined) {
-  return iso ? format(parseISO(iso), "MMM d, yyyy") : "—";
+  return iso ? format(parseISO(iso), "MMM d, yyyy") : "–";
 }
 
 /**
@@ -85,7 +85,7 @@ export function MemberInvoiceSheet({
                       </TD>
                     </TR>
                   ) : (
-                    // Generated line items come back without ids — fall back to
+                    // Generated line items come back without ids, fall back to
                     // the index rather than keying every row `undefined`.
                     items.map((it, i) => (
                       <TR key={it.id ?? i}>

@@ -25,9 +25,9 @@ import {
 } from "@/components/schedule/meta";
 
 /**
- * Desk detail for one pending slot offer (calendar hold click).
- * Same shell and field layout as ReservationDetailSheet: a booking that is held,
- * not yet confirmed.
+ * Desk detail for one pending offer (calendar offer click).
+ * Same shell and field layout as ReservationDetailSheet: a booking that is
+ * offered, not yet confirmed.
  */
 export function SlotOfferDetailSheet({
   offer,
@@ -61,7 +61,7 @@ export function SlotOfferDetailSheet({
     if (!o) return;
     try {
       await withdraw.mutateAsync(o.id);
-      toast.success("Slot offer withdrawn");
+      toast.success("Offer withdrawn");
       onOpenChange(false);
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "Couldn't withdraw this offer");
@@ -97,7 +97,7 @@ export function SlotOfferDetailSheet({
               aria-hidden
             />
             <Badge variant="outline">{typeLabel(reservationType)}</Badge>
-            <Badge variant="secondary">Held</Badge>
+            <Badge variant="secondary">Pending</Badge>
             <DocsHint topic="pending-slot-offers" />
           </span>
         ) : undefined
@@ -133,7 +133,7 @@ export function SlotOfferDetailSheet({
             )}
           </SheetDetailField>
 
-          <SheetDetailField icon={Hourglass} label="Hold ends">
+          <SheetDetailField icon={Hourglass} label="Offer ends">
             <span>
               in {formatDistanceToNowStrict(new Date(o.holdUntil))}
               <span className="ml-2 text-muted-foreground tabular-nums">

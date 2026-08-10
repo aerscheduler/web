@@ -17,7 +17,7 @@ import { SubscribeButton, useSubStatus } from "@/components/subscription/plan";
  *  - trial/grace (not blocked) → app + a reminder banner (admins only)
  *  - expired + admin → full-screen Paywall (subscribe to continue)
  *  - expired + member → "access paused, ask your admin" screen
- * No server enforcement yet — this is the front-end experience we iterate on.
+ * No server enforcement yet, this is the front-end experience we iterate on.
  */
 export function SubscriptionGate() {
   const { organization, roles } = useAuth();
@@ -33,7 +33,7 @@ export function SubscriptionGate() {
     params.delete("subscribed");
     const qs = params.toString();
     window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
-    toast.success("Thanks — finishing up your subscription…");
+    toast.success("Thanks, finishing up your subscription…");
   }, [qc]);
 
   if (!organization || !status) {
@@ -46,7 +46,7 @@ export function SubscriptionGate() {
 
   if (status.blocked) {
     // These two replace the app shell entirely, so the impersonation banner has
-    // to come along — a lapsed org is exactly the kind you get asked to look at,
+    // to come along, a lapsed org is exactly the kind you get asked to look at,
     // and without it a developer lands here with no way back to their own account.
     return (
       <>
@@ -95,7 +95,7 @@ function SubscriptionBanner({ status }: { status: SubStatus }) {
               </span>{" "}
               <span className="text-muted-foreground">
                 {status.planeCount === 0
-                  ? `Then $${PRICE_PER_AIRCRAFT_CENTS / 100}/mo per aircraft — add your fleet to see your total.`
+                  ? `Then $${PRICE_PER_AIRCRAFT_CENTS / 100}/mo per aircraft. Add your fleet to see your total.`
                   : `Then ${status.planeCount} aircraft × $${PRICE_PER_AIRCRAFT_CENTS / 100} = ${formatMonthly(status.monthlyCents)}.`}
               </span>
             </>
@@ -146,7 +146,7 @@ function Paywall({ status }: { status: SubStatus }) {
 
         <SubscribeButton
           className="mt-5 w-full"
-          label={hasPlanes ? `Subscribe — ${formatMonthly(status.monthlyCents)}` : "Start free trial"}
+          label={hasPlanes ? `Subscribe: ${formatMonthly(status.monthlyCents)}` : "Start free trial"}
         />
 
         <button onClick={logout} className="mt-4 text-xs text-muted-foreground hover:text-foreground">

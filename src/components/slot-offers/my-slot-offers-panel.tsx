@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-/** Member accept/decline list. Renders inside the Schedule "Slot offers" tab. */
+/** Member accept/decline list. Renders inside the Schedule "Offers" tab. */
 export function MySlotOffersPanel() {
   const offersQuery = useMySlotOffers();
   const preferencesQuery = useOrgUserPreferences();
@@ -54,14 +54,14 @@ export function MySlotOffersPanel() {
         toast.success(
           offer.purpose === "instructor_confirm"
             ? "Availability declined. Recovery will not offer this slot to students."
-            : "Slot offer declined"
+            : "Offer declined"
         );
       }
     } catch (error) {
       toast.error(
         error instanceof ApiError
           ? error.message
-          : `Couldn't ${action} this slot offer`
+          : `Couldn't ${action} this offer`
       );
     }
   };
@@ -88,7 +88,7 @@ export function MySlotOffersPanel() {
       </div>
 
       {offersQuery.isPending ? (
-        <Card className="p-6 text-sm text-muted-foreground">Loading slot offers...</Card>
+        <Card className="p-6 text-sm text-muted-foreground">Loading offers...</Card>
       ) : offersQuery.isError ? (
         <Card>
           <ErrorState error={offersQuery.error} onRetry={() => void offersQuery.refetch()} />
@@ -97,7 +97,7 @@ export function MySlotOffersPanel() {
         <Card>
           <EmptyState
             icon={CalendarClock}
-            title="No pending slot offers"
+            title="No pending offers"
             body="When a matching time opens, your offer will appear here."
           />
         </Card>
@@ -161,7 +161,7 @@ function OfferCard({
       <CardContent className="flex flex-col gap-3 pt-0 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           {expired
-            ? "This hold has expired."
+            ? "This offer has expired."
             : instructorConfirm
               ? `Confirm within ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`
               : `Accept within ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`}

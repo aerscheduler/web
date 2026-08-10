@@ -69,12 +69,12 @@ function errMessage(e: unknown, fallback: string) {
 
 /** Deleting a group silently un-scopes every currency rule that pointed at it. */
 const DELETE_WARNING =
-  "Any currency rule scoped to this group loses that scope — a rule left with no groups matches nobody and stops enforcing anything.";
+  "Any currency rule scoped to this group loses that scope, a rule left with no groups matches nobody and stops enforcing anything.";
 
 /**
  * Groups are the scope currency rules are written against: a rule applies to the
  * aircraft in its resource groups, for the people in its org-user groups. Without a
- * group to name, a rule gates nothing — so this tab is the prerequisite for currencies.
+ * group to name, a rule gates nothing, so this tab is the prerequisite for currencies.
  */
 export function GroupsTab() {
   return (
@@ -127,7 +127,7 @@ function ResourceGroupsCard() {
       <SectionHeader
         icon={<Plane className="size-4" />}
         title="Aircraft groups"
-        description="Sets of aircraft, rooms and simulators — what a currency rule is scoped to."
+        description="Sets of aircraft, rooms and simulators, what a currency rule is scoped to."
         onAdd={openAdd}
         addLabel="Add group"
       />
@@ -140,7 +140,7 @@ function ResourceGroupsCard() {
           <EmptyState
             icon={Plane}
             title="No aircraft groups yet"
-            body="Group aircraft — Complex Singles, Twins, the whole fleet — so currency rules have something to apply to."
+            body="Group aircraft (Complex Singles, Twins, the whole fleet) so currency rules have something to apply to."
             action={
               <Button size="sm" onClick={openAdd}>
                 <Plus className="size-4" /> Add group
@@ -186,7 +186,7 @@ function ResourceGroupRow({
   onEdit: (group: ResourceGroup) => void;
   onDelete: (group: ResourceGroup) => void;
 }) {
-  // The list endpoint returns only id/name/description — members AND the auto-join
+  // The list endpoint returns only id/name/description, members AND the auto-join
   // flags come from the detail fetch, which also warms the cache the edit form reads.
   const detail = useResourceGroup(group.id);
   const count = detail.data?.resources?.length;
@@ -245,7 +245,7 @@ function OrgUserGroupsCard() {
       <SectionHeader
         icon={<Users className="size-4" />}
         title="People groups"
-        description="Sets of members — who a currency rule applies to."
+        description="Sets of members, who a currency rule applies to."
         onAdd={openAdd}
         addLabel="Add group"
       />
@@ -258,7 +258,7 @@ function OrgUserGroupsCard() {
           <EmptyState
             icon={Users}
             title="No people groups yet"
-            body="Group members — Primary Students, Club Renters, CFIs — so currency rules know who they cover."
+            body="Group members (Primary Students, Club Renters, CFIs) so currency rules know who they cover."
             action={
               <Button size="sm" onClick={openAdd}>
                 <Plus className="size-4" /> Add group
@@ -451,7 +451,7 @@ const RESOURCE_AUTO_JOIN: readonly AutoJoinOption<ResourceFlagKey>[] = [
     key: "addNewResources",
     label: "Everything added later",
     badge: "everything",
-    hint: "The catch-all — any aircraft, room or simulator added later joins this group.",
+    hint: "The catch-all, any aircraft, room or simulator added later joins this group.",
   },
   {
     key: "addNewPlanes",
@@ -488,7 +488,7 @@ const ORG_USER_AUTO_JOIN: readonly AutoJoinOption<OrgUserFlagKey>[] = [
     key: "addNewUsers",
     label: "Everyone who joins later",
     badge: "everyone",
-    hint: "The catch-all — every new member joins this group whatever their role.",
+    hint: "The catch-all, every new member joins this group whatever their role.",
   },
   {
     key: "addNewStudents",
@@ -565,7 +565,7 @@ function resourceFormFrom(g: ResourceGroup): ResourceFormState {
     addNewPlanes: !!g.addNewPlanes,
     addNewRooms: !!g.addNewRooms,
     addNewSimulators: !!g.addNewSimulators,
-    // Filled in once the detail fetch lands — the list omits members.
+    // Filled in once the detail fetch lands, the list omits members.
     resourceIds: (g.resources ?? []).map((r) => r.id),
   };
 }
@@ -587,7 +587,7 @@ function resourceLabel(r: Resource): string {
  *
  * Split out from the modal below so onboarding's maintenance flow can create a group
  * INSIDE its wizard rather than bouncing the user out to this settings page mid-task.
- * One form, two hosts — same rule as the single ReservationForm. Add a field here and
+ * One form, two hosts, same rule as the single ReservationForm. Add a field here and
  * both get it; never copy this into a flow.
  */
 export function ResourceGroupForm({
@@ -764,7 +764,7 @@ function ResourceGroupFormModal({
       onOpenChange={onOpenChange}
       className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
       title={group ? `Edit ${group.name}` : "Add aircraft group"}
-      description="Currency rules apply to the aircraft in a group — pick them here, or let the group fill itself."
+      description="Currency rules apply to the aircraft in a group, pick them here, or let the group fill itself."
     >
       <ResourceGroupForm
         open={open}
@@ -906,7 +906,7 @@ function OrgUserGroupFormModal({
       onOpenChange={onOpenChange}
       className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
       title={isEdit ? `Edit ${group?.name}` : "Add people group"}
-      description="Currency rules apply to the members in a group — pick them here, or let the group fill itself."
+      description="Currency rules apply to the members in a group, pick them here, or let the group fill itself."
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
@@ -1091,7 +1091,7 @@ function AutoJoinFieldset<K extends string>({
     <div className="space-y-1.5">
       <Label>Auto-join rules</Label>
       <p className="text-xs text-muted-foreground">
-        Anything added to the organization later joins this group on its own — no need to
+        Anything added to the organization later joins this group on its own, no need to
         come back and edit the list.
       </p>
       <div className="space-y-2 pt-0.5">

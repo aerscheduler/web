@@ -1,5 +1,5 @@
 /**
- * Connect billing — why → Stripe → QuickBooks.
+ * Connect billing, why → Stripe → QuickBooks.
  *
  * Replaces a link to Settings → Billing, which for a new school was both the wrong
  * page (it errors until Connect exists, since the billing row is created lazily) and
@@ -37,7 +37,7 @@ export function BillingFlow({ onClose }: FlowProps) {
   const stripeConnected = Boolean(billing.data?.stripeEnabled);
   const qbConnected = quickBooks.data?.status === "connected";
 
-  // Someone who already has Stripe opens straight on the QuickBooks step — the "why"
+  // Someone who already has Stripe opens straight on the QuickBooks step, the "why"
   // pitch is for people who haven't decided yet.
   const [step, setStep] = React.useState(stripeConnected ? 2 : 0);
 
@@ -92,7 +92,7 @@ export function BillingFlow({ onClose }: FlowProps) {
               "Invoice students and renters automatically at close-out",
               "Collect card and ACH payments, with autopay if they want it",
               "Sync every invoice to QuickBooks",
-              "Payouts go straight to your own bank — we never hold your money",
+              "Payouts go straight to your own bank. We never hold your money",
             ]}
           />
         </div>
@@ -109,7 +109,7 @@ export function BillingFlow({ onClose }: FlowProps) {
                 <div className="font-medium">Connect your Stripe account</div>
                 <p className="mt-0.5 text-muted-foreground">
                   Stripe will ask for your business details and bank account. It takes a few
-                  minutes, and you can come back and finish later — we&rsquo;ll pick up where you
+                  minutes, and you can come back and finish later, we&rsquo;ll pick up where you
                   left off.
                 </p>
               </div>
@@ -173,7 +173,7 @@ export function BillingFlow({ onClose }: FlowProps) {
   );
 }
 
-/** Why a connect button is inert in the demo — the demo never links a real
+/** Why a connect button is inert in the demo, the demo never links a real
  *  third-party account (Stripe/QuickBooks) to a sandbox that resets. */
 function DemoConnectNote() {
   return (

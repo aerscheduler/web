@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 /**
  * Extra column facts this table understands.
  *
- * `sortKey` is the field the API orders by, as a dot path into the row — it is
+ * `sortKey` is the field the API orders by, as a dot path into the row, it is
  * what makes a column sortable. A column without one renders a plain header,
  * which is the honest outcome: a computed or composed column ("Aircraft · Type",
  * a status derived from three fields) has nothing the server can order by, and
@@ -33,7 +33,7 @@ declare module "@tanstack/react-table" {
      * A fixed column width, as any CSS length ("9rem", "12%").
      *
      * Set it wherever the SAME table is rendered with different data and the layout
-     * shifting between them would read as a different screen — a filtered list, most
+     * shifting between them would read as a different screen, a filtered list, most
      * obviously. Without it the browser sizes every column to the widest cell on the page
      * in hand, so narrowing a list to three rows re-lays out all five columns.
      *
@@ -53,7 +53,7 @@ function sortIcon(dir: false | "asc" | "desc") {
 /**
  * The console's table.
  *
- * Paged and sorted BY THE SERVER, always — `paging` is required, and there is
+ * Paged and sorted BY THE SERVER, always, `paging` is required, and there is
  * no unpaged mode. That is deliberate rather than strict: the API caps every
  * list at 1,000 rows, so a table that renders whatever array it was handed
  * doesn't show a big collection slowly, it shows a truncated one with no sign
@@ -84,7 +84,7 @@ export function DataTable<T>({
   data: T[];
   /** Page/sort state from `usePaging()`. Drives the pager and the column headers. */
   paging: PagingState;
-  /** `pagination.total` — how many rows there are in all, not how many are on screen. */
+  /** `pagination.total`: how many rows there are in all, not how many are on screen. */
   total: number;
   /** Fetching the next page: dims the rows instead of blanking them. */
   loading?: boolean;
@@ -94,14 +94,14 @@ export function DataTable<T>({
   mobileCard?: (row: T) => ReactNode;
   emptyMessage?: ReactNode;
   /**
-   * Fill the available height and scroll only the rows — the toolbar, column
+   * Fill the available height and scroll only the rows, the toolbar, column
    * headers and pager stay put. Use inside a <TableView> (or any `flex min-h-0
    * flex-1` column) so table pages don't scroll the whole page.
    *
    * Takes effect on md+ only, in step with <TableView> and the app shell: on a
    * phone there is no spare height to fill, and bounding the rows there is what
    * squeezed them to a sliver under a tall header. On md+ the rows keep a
-   * FILL_BODY_MIN floor for the same reason — see <TableView>.
+   * FILL_BODY_MIN floor for the same reason, see <TableView>.
    */
   fill?: boolean;
   /** Opens a detail panel/sheet when a row is clicked. */
@@ -185,7 +185,7 @@ export function DataTable<T>({
               ? cn("rounded-md border border-border md:flex-1 md:overflow-auto", FILL_BODY_MIN)
               : undefined,
             // Keep the previous page readable while the next one loads rather
-            // than collapsing to a spinner — paging should not blink.
+            // than collapsing to a spinner, paging should not blink.
             loading && "opacity-60"
           )}
         >
@@ -249,7 +249,7 @@ export function DataTable<T>({
                     data-selected={selected ? "" : undefined}
                     className={cn(
                       onRowClick && "cursor-pointer",
-                      // A left rule as well as a fill — the fill alone is easy to lose
+                      // A left rule as well as a fill, the fill alone is easy to lose
                       // against the hover state while scanning down a long list.
                       selected && "bg-accent hover:bg-accent [box-shadow:inset_2px_0_0_0_var(--primary)]"
                     )}
@@ -273,7 +273,7 @@ export function DataTable<T>({
 
       {pager}
 
-      {/* The page's bottom gutter — see <TableView>, which carries the same
+      {/* The page's bottom gutter, see <TableView>, which carries the same
           spacer for pages that don't put a table here. `-mt-3` cancels this
           column's own `gap-3` so the gutter is exactly the shell's 32px and not
           the gap on top of it. */}

@@ -44,7 +44,7 @@ export function JoinRequestsPanel() {
   const q = useJoinRequestsPage(paging);
   const { rows: requests, total } = pageRows(q);
 
-  // The count in the heading is the whole queue, not the page — an admin
+  // The count in the heading is the whole queue, not the page, an admin
   // needs to know there are 40 people waiting, not that 25 fit on screen.
   if (q.isLoading || total === 0) return null;
 
@@ -128,7 +128,7 @@ function JoinRequestRow({ request }: { request: JoinRequest }) {
               <SelectItem value="none">No membership</SelectItem>
               {(plans.data ?? []).map((p) => (
                 <SelectItem key={p.id} value={String(p.id)}>
-                  {p.name} — {planPriceLine(p)}
+                  {p.name}, {planPriceLine(p)}
                 </SelectItem>
               ))}
             </SelectContent>

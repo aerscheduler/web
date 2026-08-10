@@ -9,7 +9,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export type RailItem = {
-  /** Stable value — this is what lands in the URL (`?tab=`, `?view=`). */
+  /** Stable value, this is what lands in the URL (`?tab=`, `?view=`). */
   value: string;
   label: string;
   icon?: LucideIcon;
@@ -29,8 +29,8 @@ export const RAIL_ROW = "flex min-h-0 min-w-0 flex-1 flex-col gap-5 lg:flex-row"
  * side, one pane rendering whichever is selected.
  *
  * It replaces tabs on any page whose sections are genuinely separate screens
- * rather than filtered views of one list. Tabs are a horizontal budget — five of
- * them is already a squeeze at 1024px and there is nowhere to put a heading — so
+ * rather than filtered views of one list. Tabs are a horizontal budget, five of
+ * them is already a squeeze at 1024px and there is nowhere to put a heading, so
  * a page that grows a sixth section either truncates its labels or invents a
  * second row of navigation. The rail grows downward and groups for free.
  *
@@ -59,7 +59,7 @@ export function SectionRail({
   sections: RailSection[];
   value: string;
   onChange: (value: string) => void | Promise<void>;
-  /** Names the nav for screen readers — the page's own name ("Settings"). */
+  /** Names the nav for screen readers, the page's own name ("Settings"). */
   label: string;
   placeholder?: string;
   className?: string;

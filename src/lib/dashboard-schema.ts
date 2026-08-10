@@ -1,7 +1,7 @@
 /**
  * A client-side mirror of the server's dashboard schema.
  *
- * The server validates every config on write and on read regardless — this is
+ * The server validates every config on write and on read regardless, this is
  * not the safety net. It exists so the builder can catch a bad configuration
  * BEFORE sending it, and point at the field, rather than turning a server 400
  * into a toast that says "that didn't work".

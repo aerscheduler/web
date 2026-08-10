@@ -1,11 +1,11 @@
 import type { Organization } from "@/types/api";
 
 /**
- * Per-aircraft subscription model — UI-ENFORCED FOR NOW.
+ * Per-aircraft subscription model. UI-ENFORCED FOR NOW.
  *
  * Pricing: $20/mo per aircraft. Simulators and ground-school rooms are FREE.
  * New orgs get a 14-day free trial from signup. Existing orgs (created before
- * launch) are NOT charged immediately — they get a 14-day grace window measured
+ * launch) are NOT charged immediately, they get a 14-day grace window measured
  * from launch (the "$20/aircraft starts in 2 weeks" notice), so no current
  * customer is locked out the moment this ships.
  *
@@ -32,7 +32,7 @@ export const PRICING_LAUNCH_DATE = new Date("2026-08-05T00:00:00Z");
 
 /**
  * Org join-codes that never see the per-aircraft paywall or reminder banner.
- * `test` is Demo School — the App Store review account (test@test.com) lives there
+ * `test` is Demo School: the App Store review account (test@test.com) lives there
  * and must never be blocked mid-review.
  */
 export const SUBSCRIPTION_EXEMPT_ORG_CODES = new Set(["test"]);
@@ -73,7 +73,7 @@ export function subscriptionStatus(
   const created = new Date(org.createdAt);
   const isExisting = created.getTime() < PRICING_LAUNCH_DATE.getTime();
   // Existing customers already billing through Stripe Connect are grandfathered on
-  // their legacy plan (0.5% fee) — they never see the per-aircraft model. New orgs
+  // their legacy plan (0.5% fee), they never see the per-aircraft model. New orgs
   // pay per aircraft even if they later use Connect for their own rental billing.
   // App Store review / internal orgs are hard-exempt by join code regardless.
   const exemptByCode = SUBSCRIPTION_EXEMPT_ORG_CODES.has(org.code);
@@ -100,14 +100,14 @@ export function subscriptionStatus(
     planeCount,
     monthlyCents: planeCount * PRICE_PER_AIRCRAFT_CENTS,
     subscribed,
-    // Don't paywall an org with no aircraft (it owes $0 and has nothing to bill) —
+    // Don't paywall an org with no aircraft (it owes $0 and has nothing to bill).
     // otherwise a 0-plane org whose trial lapsed is stuck with no way to add a plane.
     // They add aircraft freely; once they have one and the trial is over, the paywall applies.
     blocked: state === "expired" && planeCount > 0,
   };
 }
 
-/** "$40/mo", "$0/mo" — dollars from cents, no trailing .00 clutter. */
+/** "$40/mo", "$0/mo", dollars from cents, no trailing .00 clutter. */
 export function formatMonthly(cents: number): string {
   const dollars = cents / 100;
   return `$${Number.isInteger(dollars) ? dollars : dollars.toFixed(2)}/mo`;

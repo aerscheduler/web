@@ -73,7 +73,7 @@ function CancellationsPage() {
       <TableView>
         <PageHeader
           title="Cancellations"
-          subtitle="Why bookings were cancelled — searchable and exportable."
+          subtitle="Why bookings were cancelled, searchable and exportable."
           actions={<DateRangePicker value={range} onChange={setRange} />}
         />
         <EmptyState
@@ -90,7 +90,7 @@ function CancellationsPage() {
       <TableView.Header>
         <PageHeader
           title="Cancellations"
-          subtitle="Why bookings were cancelled — searchable and exportable."
+          subtitle="Why bookings were cancelled, searchable and exportable."
           actions={<DateRangePicker value={range} onChange={setRange} />}
         />
 

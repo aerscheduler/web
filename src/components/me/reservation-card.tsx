@@ -30,7 +30,7 @@ export function ReservationCard({
   r: Reservation;
   showDate?: boolean;
   onOpen?: (r: Reservation) => void;
-  /** This card's record is open in the detail panel — worth marking, since the
+  /** This card's record is open in the detail panel, worth marking, since the
    *  panel sits beside the list rather than over it. */
   selected?: boolean;
   className?: string;
@@ -59,7 +59,7 @@ export function ReservationCard({
       </div>
       <div className="mt-1 text-sm tabular-nums text-muted-foreground">
         {showDate && <span>{format(start, "EEE, MMM d")} · </span>}
-        {format(start, "h:mm a")} – {format(end, "h:mm a")}
+        {format(start, "h:mm a")}, {format(end, "h:mm a")}
       </div>
       <div className="mt-0.5 truncate text-sm text-muted-foreground">
         {res ? res.name : "Unassigned"}

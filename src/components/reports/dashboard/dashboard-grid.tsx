@@ -6,10 +6,10 @@
  * per breakpoint means every tile has three positions to keep consistent, and
  * a phone has no meaningful notion of "two columns across" anyway. So:
  *
- *   lg (≥760)  12 columns, exactly what was saved — drag and resize freely
+ *   lg (≥760)  12 columns, exactly what was saved, drag and resize freely
  *   md (≥480)   6 columns, the same order, halved widths
  *   sm (<480)   1 column, full width, in reading order (top-to-bottom, then
- *               left-to-right) — x and y are meaningless at 375px
+ *               left-to-right), x and y are meaningless at 375px
  *
  * Derivation happens here rather than in react-grid-layout's own compaction
  * because we want the phone order to follow how the dashboard READS, and its
@@ -37,7 +37,7 @@ type Breakpoint = "lg" | "md" | "sm";
  *
  * `useContainerWidth` reports the width of the pane the grid sits in, and on
  * Reports that pane is the window minus a 240px sidebar and a 240px report rail
- * — measured at 849px on a 1440px screen. Viewport-shaped breakpoints (lg: 1024)
+ *, measured at 849px on a 1440px screen. Viewport-shaped breakpoints (lg: 1024)
  * put that into `md`, which silently halved the column count and laid four
  * metric cards out two-across.
  */
@@ -49,7 +49,7 @@ const COLS: Record<Breakpoint, number> = { lg: 12, md: 6, sm: 1 };
  *
  * A metric card is one row, and it has to fit a title (16), the window it covers
  * (13), the header's gap (8), a 26px figure, its delta line (16) and the card's
- * own padding (24) — about 111px, and 120 leaves the figure room to breathe
+ * own padding (24), about 111px, and 120 leaves the figure room to breathe
  * rather than sitting hard against the window label. Anything less clips, and
  * because the value is vertically centred the clipping shows up as the label
  * printing over the number rather than as an honest cut-off.
@@ -60,7 +60,7 @@ const ROW_HEIGHT = 120;
  * Reading order: top-to-bottom, then left-to-right.
  *
  * The order a person scans the board, which is the only sensible way to stack it
- * on a phone — a tile in the top-right belongs above one in the second row, not
+ * on a phone, a tile in the top-right belongs above one in the second row, not
  * after everything in column one.
  */
 function readingOrder(vizzes: Visualization[]): Visualization[] {
@@ -129,7 +129,7 @@ export function DashboardGrid({
           resizeConfig={{ enabled: editing, handles: ["se"] }}
           onLayoutChange={(current: Layout, all: ResponsiveLayouts<Breakpoint>) => {
             if (!editing) return;
-            // Only `lg` is the source of truth — md and sm are derived, so
+            // Only `lg` is the source of truth, md and sm are derived, so
             // saving them would freeze a phone layout nobody chose.
             const lg = all.lg ?? current;
             const next: Record<string, { x: number; y: number; w: number; h: number }> = {};

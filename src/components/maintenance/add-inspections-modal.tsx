@@ -3,11 +3,11 @@
  *
  * Three ways in, because schools arrive here in three different states:
  *
- *  - AVIATES — a mechanic setting up a new aircraft wants the standard airworthiness set,
+ *  - AVIATES: a mechanic setting up a new aircraft wants the standard airworthiness set,
  *    and should not have to know that a 100-hour is `remindHours: 1000`. Multi-select,
  *    because "all seven" is the normal answer.
- *  - Recurring — anything else the shop repeats: an oil change, a gearbox, an ELT battery.
- *  - One-off — a date that happens once and does not come back. This is what somebody means
+ *  - Recurring: anything else the shop repeats: an oil change, a gearbox, an ELT battery.
+ *  - One-off: a date that happens once and does not come back. This is what somebody means
  *    by "a reminder for this one thing": a part due back on the 14th, an owner's inspection
  *    they agreed to. The server has always supported it (`remindDate`) and no form has ever
  *    offered it.
@@ -69,7 +69,7 @@ export function AddInspectionsModal({
   const [date, setDate] = React.useState("");
   const [grounds, setGrounds] = React.useState(false);
   // When the interval last came round. Blank means "starts now", which is right for a new
-  // aircraft and wrong for every aircraft a school already operates — see `lastDone`.
+  // aircraft and wrong for every aircraft a school already operates, see `lastDone`.
   const [lastDone, setLastDone] = React.useState("");
   const [lastDoneHours, setLastDoneHours] = React.useState("");
 
@@ -106,7 +106,7 @@ export function AddInspectionsModal({
    * What each chosen tail should start counting from.
    *
    * Left blank this is `[{id}]`, and the server starts the interval at today's date and
-   * today's meter — correct for an aircraft that just had the work done, and wrong for
+   * today's meter, correct for an aircraft that just had the work done, and wrong for
    * every aircraft a school already operates. Filling it in is what makes "add the AVIATES
    * set" usable on a fleet that has been flying for years rather than only on a new tail.
    */
@@ -141,7 +141,7 @@ export function AddInspectionsModal({
     }
 
     if (basis === "hours") {
-      // Typed in HOURS, stored in tenths — the meter's unit, not the form's.
+      // Typed in HOURS, stored in tenths, the meter's unit, not the form's.
       return {
         name: trimmed,
         repeat: true,
@@ -386,7 +386,7 @@ export function AddInspectionsModal({
               <DocsHint topic="inspection-last-done" />
             </div>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Leave blank if the work was just done — the countdown starts today at the
+              Leave blank if the work was just done, the countdown starts today at the
               current meter. On an aircraft already partway through its interval, fill this
               in or the first reminder lands late.
             </p>
@@ -417,13 +417,13 @@ export function AddInspectionsModal({
                 />
               </div>
             </div>
-            {/* One reading across several tails is almost never right — their meters
+            {/* One reading across several tails is almost never right, their meters
                 differ. Say so rather than letting it produce quietly wrong countdowns. */}
             {lastDoneHours !== "" && targets.length > 1 && (
               <p className="mt-2 flex items-start gap-1 text-[11px] text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
                 <AlertTriangle className="mt-px size-3 shrink-0" />
                 That reading is applied to all {targets.length} aircraft. Their meters differ
-                — add them one tail at a time, or fix each from its own page after.
+               , add them one tail at a time, or fix each from its own page after.
               </p>
             )}
           </div>
@@ -436,7 +436,7 @@ export function AddInspectionsModal({
               <Skeleton className="h-8 w-full" />
             ) : fleet.length === 0 ? (
               <p className="text-[13px] text-muted-foreground">
-                No aircraft yet — add a tail first and these will have something to hang off.
+                No aircraft yet, add a tail first and these will have something to hang off.
               </p>
             ) : (
               <>
@@ -461,11 +461,11 @@ export function AddInspectionsModal({
                     );
                   })}
                 </div>
-                {/* An inspection attached to nothing creates no reminders at all — it looks
+                {/* An inspection attached to nothing creates no reminders at all, it looks
                     like it worked and then never fires. Say so before they submit. */}
                 {tails.length === 0 && (
                   <p className="text-[11px] text-muted-foreground">
-                    Pick at least one aircraft — an inspection with no tails never comes due.
+                    Pick at least one aircraft, an inspection with no tails never comes due.
                   </p>
                 )}
               </>
@@ -518,7 +518,7 @@ function StandardSet({
     <div data-doc-shot="add-inspections-standard-set" className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
-          {chosen.length} selected. Intervals are the common case — edit any of them after.
+          {chosen.length} selected. Intervals are the common case, edit any of them after.
         </p>
         <div className="flex shrink-0 gap-1">
           <Button variant="ghost" size="sm" onClick={onAll}>

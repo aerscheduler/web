@@ -14,7 +14,7 @@ const LOOK = {
  * How a student is keeping up.
  *
  * Advisory, and the tooltip says why rather than leaving a red word on somebody's record
- * with no explanation — "Stalled" next to a name is a thing an instructor will be asked
+ * with no explanation. "Stalled" next to a name is a thing an instructor will be asked
  * about, and the answer should be on screen.
  *
  * Renders nothing when there is nothing to say: a brand-new student is not "on track", they

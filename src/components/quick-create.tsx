@@ -6,7 +6,7 @@ import {
 } from "@/components/schedule/reservation-form";
 
 /**
- * Global quick-create — a Stripe-style "+" in the top bar can open the "New
+ * Global quick-create, a Stripe-style "+" in the top bar can open the ", New
  * reservation" modal from anywhere, not just the schedule board. The modal is
  * mounted once here at the shell level and driven by context so any descendant
  * (the topbar button, a command-palette action, an empty-state CTA) can open it.

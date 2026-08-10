@@ -32,7 +32,7 @@ export function AgendaList({
   onEdit?: (r: Reservation) => void;
   onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
-  /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
+  /** Block-filter marking, non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
   selectedId?: number | null;
   query?: string;

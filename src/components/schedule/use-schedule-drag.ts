@@ -25,8 +25,8 @@ import {
  * One hook drives every board, because the two grids differ only in geometry: the day board
  * lays time out along X and resources down Y, the week board lays time down Y and days
  * across X. Each grid hands in a `DragGeometry` describing its own axis, its pixels-per-
- * minute, and how to work out which lane or day sits under the pointer; everything else —
- * the threshold, the snapping, the live validity check, the optimistic write, the undo — is
+ * minute, and how to work out which lane or day sits under the pointer; everything else.
+ * the threshold, the snapping, the live validity check, the optimistic write, the undo, is
  * shared so the two can't drift into behaving differently.
  *
  * The rules themselves live in `drag-rules.ts` and are pure. This file is the plumbing.
@@ -66,9 +66,9 @@ export interface ActiveDrag {
   end: Date;
   /** The resource it would land on (unchanged unless the pointer crossed lanes). */
   resourceId: number | null;
-  /** The proposed slot, formatted on the board's clock — what the live callout reads. */
+  /** The proposed slot, formatted on the board's clock, what the live callout reads. */
   label: string;
-  /** Non-null when the current position can't be committed — shown live on the block. */
+  /** Non-null when the current position can't be committed, shown live on the block. */
   reason: string | null;
   /** False until the pointer has travelled far enough to be a drag rather than a click. */
   moved: boolean;
@@ -95,7 +95,7 @@ const CLICK_SWALLOW_MS = 250;
 /** How close to the edge of the scroller before the board starts following. */
 const EDGE_ZONE_PX = 56;
 const EDGE_SPEED_PX = 14;
-/** Keyboard nudges batch into one PATCH — arrow keys shouldn't be one request each. */
+/** Keyboard nudges batch into one PATCH, arrow keys shouldn't be one request each. */
 const KEY_COMMIT_DELAY_MS = 800;
 
 interface PointerSession {
@@ -110,7 +110,7 @@ interface PointerSession {
 
 export function useScheduleDrag(args: {
   zone: string;
-  /** Everything currently on the board — the conflict check reads these. */
+  /** Everything currently on the board, the conflict check reads these. */
   reservations: Reservation[];
   /** The lanes on offer, for resolving a cross-lane drop to a real resource. */
   resources: Resource[];
@@ -142,7 +142,7 @@ export function useScheduleDrag(args: {
   const rafRef = React.useRef(0);
   /** Tears down the current gesture's window listeners. Null when no drag is in progress. */
   const detachRef = React.useRef<(() => void) | null>(null);
-  //Set the instant a drag ends so the click that follows pointerup can be swallowed —
+  //Set the instant a drag ends so the click that follows pointerup can be swallowed.
   //otherwise every drop would also open the detail sheet.
   const swallowClickRef = React.useRef(false);
   const swallowTimerRef = React.useRef(0);
@@ -168,7 +168,7 @@ export function useScheduleDrag(args: {
    *
    * Patches every cached reservation list rather than one known key: the board holds one
    * entry per date range, the detail sheet holds a single row, and `/me` holds the member's
-   * own list — all of which can be on screen at once, and a block that snaps back for half
+   * own list, all of which can be on screen at once, and a block that snaps back for half
    * a second while a request flies is exactly the jitter drag-and-drop is supposed to avoid.
    */
   const patchCaches = React.useCallback(
@@ -241,12 +241,12 @@ export function useScheduleDrag(args: {
           },
         });
       } catch (err) {
-        //Put the board back to whatever the server actually holds — a failed move must not
+        //Put the board back to whatever the server actually holds, a failed move must not
         //leave the optimistic position sitting there looking committed.
         void qc.invalidateQueries({ queryKey: ["reservations"] });
         void qc.invalidateQueries({ queryKey: ["slot-offers"] });
         toast.error(
-          err instanceof ApiError ? err.message : "Couldn't move the reservation — put back."
+          err instanceof ApiError ? err.message : "Couldn't move the reservation, put back."
         );
       } finally {
         setPendingId(null);
@@ -375,7 +375,7 @@ export function useScheduleDrag(args: {
       window.removeEventListener("pointerup", stop);
       window.removeEventListener("pointercancel", stop);
       //Armed on RELEASE, not on the first move: the flag is short-lived by design, and a
-      //slow drag would outlive one armed when the pointer first travelled — leaving the
+      //slow drag would outlive one armed when the pointer first travelled, leaving the
       //trailing click to open the details of a booking the user was trying to move.
       if (explained) swallowRef.current();
     };
@@ -392,13 +392,13 @@ export function useScheduleDrag(args: {
         mode === "move" ? ability.move : mode === "resize-start" ? ability.resizeStart : ability.resizeEnd;
 
       if (!allowed) {
-        //Refusing silently is what makes a board feel broken — so the refusal is explained
+        //Refusing silently is what makes a board feel broken, so the refusal is explained
         //at the moment they try, not only to whoever thinks to hover.
         //
         //But only once they've actually TRIED to drag. A press that never moves is a click,
         //and answering "you can't move this" to someone who was opening the details would
         //be noise. So watch this one gesture: if it travels past the threshold, that was a
-        //drag attempt — say why it went nowhere and eat the trailing click.
+        //drag attempt, say why it went nowhere and eat the trailing click.
         if (!ability.reason) return;
         refuse(e, ability.reason);
         return;
@@ -406,7 +406,7 @@ export function useScheduleDrag(args: {
       //A booking already being written must not be dragged again on top of itself.
       if (pendingId === r.id) return;
 
-      //Suppresses the text selection a drag would otherwise paint across the board — which
+      //Suppresses the text selection a drag would otherwise paint across the board, which
       //also suppresses focus, so it's moved onto the block explicitly: a dispatcher who
       //grabs a block and then reaches for the arrow keys has to land on the same block.
       e.preventDefault();
@@ -438,7 +438,7 @@ export function useScheduleDrag(args: {
 
       //Listeners are attached HERE, synchronously, rather than from an effect keyed on the
       //active drag. An effect only runs after React commits, so a gesture whose whole
-      //down → move → up sequence lands in one task — a fast flick, or any automated input —
+      //down → move → up sequence lands in one task (a fast flick, or any automated input)
       //would finish before the listeners existed and the block would simply not move.
       const onMove = (ev: PointerEvent) => {
         const s = sessionRef.current;
@@ -569,7 +569,7 @@ export function useScheduleDrag(args: {
           : r;
 
       //No cursor to hang the callout off, so it anchors under the block the caller is
-      //stepping — which is the focused element, by construction.
+      //stepping, which is the focused element, by construction.
       const focused = document.activeElement as HTMLElement | null;
       const box = focused?.getBoundingClientRect();
       const anchor = box && box.width > 0 ? { x: box.left + box.width / 2, y: box.bottom } : null;
@@ -604,7 +604,7 @@ export function useScheduleDrag(args: {
   // ── what the grids render ──────────────────────────────────────────────────
 
   /**
-   * The reservation as it should currently be DRAWN — the live drag position while one is
+   * The reservation as it should currently be DRAWN, the live drag position while one is
    * in flight, otherwise the row itself. Substituting the whole object (rather than
    * patching geometry at the call site) is what lets a block cross lanes and day columns
    * mid-drag: the grids group and pack from these values, so it lands in the right row
@@ -623,7 +623,7 @@ export function useScheduleDrag(args: {
     []
   );
 
-  /** True once, immediately after a real drag — lets a block swallow the trailing click. */
+  /** True once, immediately after a real drag, lets a block swallow the trailing click. */
   const consumeClick = React.useCallback(() => {
     if (!swallowClickRef.current) return false;
     swallowClickRef.current = false;
@@ -634,7 +634,7 @@ export function useScheduleDrag(args: {
   return {
     active,
     pendingId,
-    /** True while a drag is in progress or its write is in flight — pauses board refresh. */
+    /** True while a drag is in progress or its write is in flight, pauses board refresh. */
     isBusy: active != null || pendingId != null,
     abilityFor,
     begin,

@@ -32,7 +32,7 @@ function overrideState(): SubState | null {
 export function useSubStatus(): SubStatus | null {
   const { organization, isDemo } = useAuth();
   const planes = usePlanes(undefined, { enabled: !!organization });
-  // Whether the org bills through Stripe Connect — existing Connect users are
+  // Whether the org bills through Stripe Connect, existing Connect users are
   // grandfathered off the per-aircraft model.
   const billing = useBilling({ enabled: !!organization });
   // Real subscription status from Stripe (the source of truth).
@@ -43,7 +43,7 @@ export function useSubStatus(): SubStatus | null {
 
     // The demo sandbox is never billed and never paywalled. Without this a
     // prospect who came to look at the product is met by "AerScheduler is moving
-    // to $20/mo — add a card" inside a fake school, and every button in that
+    // to $20/mo, add a card" inside a fake school, and every button in that
     // banner leads to a route the demo blocks. Whatever we want to say about
     // pricing belongs on the pricing page, not in the middle of the demo.
     if (isDemo) {
@@ -92,7 +92,7 @@ export function SubscribeButton({
     try {
       const { url } = await checkout.mutateAsync({});
       if (url) window.location.assign(url);
-      else toast.error("Couldn't start checkout — please try again.");
+      else toast.error("Couldn't start checkout, please try again.");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't start checkout");
     }
@@ -107,7 +107,7 @@ export function SubscribeButton({
 }
 
 /** One-line reminder of the per-aircraft price, for the add-aircraft surfaces.
- *  Hidden entirely for grandfathered (exempt) orgs — they're on the legacy plan and
+ *  Hidden entirely for grandfathered (exempt) orgs, they're on the legacy plan and
  *  shouldn't be shown per-aircraft pricing at all. */
 export function PerPlanePricingNote({ className }: { className?: string }) {
   const status = useSubStatus();
@@ -137,7 +137,7 @@ export function PerPlanePricingNote({ className }: { className?: string }) {
 }
 
 /**
- * The onboarding "your plan" card — replaces the old Stripe Connect card in the
+ * The onboarding "your plan" card, replaces the old Stripe Connect card in the
  * school Finish-setup checklist. Explains the trial + per-aircraft price and lets
  * them add a card now (optional during the trial).
  */
@@ -153,14 +153,14 @@ export function PlanCard({ status }: { status: SubStatus }) {
           <div className="font-medium">Your plan</div>
           <p className="mt-0.5 text-sm text-muted-foreground">
             You're on a <span className="font-medium text-foreground">{TRIAL_DAYS}-day free trial</span>
-            {status.daysLeft > 0 ? ` — ${status.daysLeft} day${status.daysLeft === 1 ? "" : "s"} left` : ""}. After
+            {status.daysLeft > 0 ? `: ${status.daysLeft} day${status.daysLeft === 1 ? "" : "s"} left` : ""}. After
             that it's <span className="font-medium text-foreground">${perPlane}/mo per aircraft</span> (sims &amp;
             rooms free).
           </p>
 
           {status.planeCount === 0 ? (
             <div className="mt-3 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-              No aircraft yet — you'll be billed{" "}
+              No aircraft yet, you'll be billed{" "}
               <span className="font-medium text-foreground">${perPlane}/mo per aircraft</span> once you add your
               fleet. Simulators &amp; rooms are free.
             </div>
@@ -175,11 +175,11 @@ export function PlanCard({ status }: { status: SubStatus }) {
 
           {status.subscribed ? (
             <p className="mt-3 flex items-center gap-1.5 text-sm text-success">
-              <Check className="size-4" /> Subscription active — you're all set.
+              <Check className="size-4" /> Subscription active, you're all set.
             </p>
           ) : (
             <p className="mt-3 text-xs text-muted-foreground">
-              No card needed to start — we'll remind you before your trial ends. Add one anytime from Settings → Plan.
+              No card needed to start, we'll remind you before your trial ends. Add one anytime from Settings → Plan.
             </p>
           )}
         </div>

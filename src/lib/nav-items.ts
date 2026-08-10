@@ -41,7 +41,7 @@ export type NavItem = {
    * Other words for this page, for the command palette only, the rail never reads them.
    *
    * They exist because people search for what a page DOES, not what the tab is called:
-   * "go no go" finds Compliance, "syllabus" finds Training, "squawk" finds Maintenance.
+   * "go no go" finds Compliance, ", syllabus" finds Training, ", squawk" finds Maintenance.
    * A page with no keywords is only findable by its own label, which for half this list
    * is a word the searcher would have to already know.
    */
@@ -162,7 +162,7 @@ const OFF_RAIL: NavItem[] = [
 
 /**
  * Where each off-rail page sits, for a breadcrumb. The two on-rail lists get their
- * section from the rail itself ("Operations", "You"); these are the leftovers, and they
+ * section from the rail itself ("Operations", ", You"); these are the leftovers, and they
  * belong in several different places.
  */
 const OFF_RAIL_PATH: Record<string, string[]> = {

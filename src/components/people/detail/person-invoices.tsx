@@ -14,7 +14,7 @@ const SHOWN = 8;
 /**
  * This person's invoices.
  *
- * Outstanding ones float to the top regardless of date — the reason anyone opens
+ * Outstanding ones float to the top regardless of date, the reason anyone opens
  * this card is to find out what's owed, and burying a 60-day-old unpaid invoice
  * under last week's paid ones is how it stays unpaid.
  *

@@ -38,7 +38,7 @@ function errMessage(e: unknown, fallback: string) {
 
 /**
  * Manage the org's document categories (medical, photo ID, renter agreement…). These
- * are what members pick from when uploading on their Documents page — previously only
+ * are what members pick from when uploading on their Documents page, previously only
  * creatable from the mobile app.
  */
 export function DocumentTypesTab() {
@@ -87,7 +87,7 @@ export function DocumentTypesTab() {
           <div>
             <CardTitle>Document types</CardTitle>
             <CardDescription>
-              The categories members file documents under — medicals, certificates,
+              The categories members file documents under, medicals, certificates,
               agreements.
             </CardDescription>
           </div>
@@ -349,7 +349,7 @@ function DocumentTypeFormModal({
               Admin upload only
             </Label>
             <p className="text-xs text-muted-foreground">
-              Members won&rsquo;t see this type in their upload picker — an admin files it
+              Members won&rsquo;t see this type in their upload picker, an admin files it
               on their behalf.
             </p>
           </div>

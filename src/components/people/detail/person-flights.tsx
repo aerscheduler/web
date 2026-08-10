@@ -24,7 +24,7 @@ const LOG_SHOWN = 8;
  * you they're booked tomorrow morning.
  *
  * Rows open the same detail sheet the dispatch board uses, so ramp-out, close-out
- * and cancel behave identically here — and are gated by the same per-reservation
+ * and cancel behave identically here, and are gated by the same per-reservation
  * rules, which is why this doesn't do any permission checking of its own.
  */
 export function PersonFlights({
@@ -32,7 +32,7 @@ export function PersonFlights({
   range,
   canBookFor,
 }: {
-  /** The subject's USER id — `/reservations/user/:userId` keys on the user, not the membership. */
+  /** The subject's USER id: `/reservations/user/:userId` keys on the user, not the membership. */
   userId: number | null;
   range: ReportRange | undefined;
   /** Staff see an "Open in Calendar" shortcut; a member looking at themselves doesn't need it. */
@@ -68,7 +68,7 @@ export function PersonFlights({
     [upcomingQ.data]
   );
 
-  // The log reads backwards — the most recent flight is the one you came to see.
+  // The log reads backwards, the most recent flight is the one you came to see.
   // Anything still in the future inside the window belongs to the card above, not
   // to a list captioned "flown".
   const log = useMemo(() => {

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 //
 // Paging is server-side everywhere, deliberately. The API caps every list at
 // 1,000 rows, so a client that renders "everything it was given" is not showing
-// a big collection slowly — it is showing a truncated one confidently. Our
+// a big collection slowly, it is showing a truncated one confidently. Our
 // largest school has 7,823 reservations and 4,861 invoices; a month-long date
 // range on Billing was fetching every invoice in it to draw fifty.
 //
@@ -23,7 +23,7 @@ const SIZE_STORAGE_KEY = "aer.table-page-size";
 
 export type SortState = { key: string; dir: "asc" | "desc" } | null;
 
-/** What a paged endpoint answers with — `data` plus the `pagination` block beside it. */
+/** What a paged endpoint answers with: `data` plus the `pagination` block beside it. */
 export type Paged<T> = {
   rows: T[];
   /** How many there are in all, before the page was taken. */
@@ -39,7 +39,7 @@ export type PagingState = {
   setPageSize: (n: number) => void;
   setSort: (s: SortState) => void;
   /**
-   * The query params to hand the API. Spread straight into a hook's filter —
+   * The query params to hand the API. Spread straight into a hook's filter.
    * `useInvoicesPage({ startDate, q, ...paging.query })`.
    */
   query: { limit: number; offset: number; sort?: string; order?: "asc" | "desc" };
@@ -54,7 +54,7 @@ function storedPageSize(): number {
 /**
  * Page state for one table.
  *
- * `resetKey` is the thing this table is currently filtered by — a search box, a
+ * `resetKey` is the thing this table is currently filtered by, a search box, a
  * date range, a status tab. When it changes the table goes back to page one,
  * because the alternative is the bug everyone has hit: type a search while on
  * page 7, get three results, and stare at an empty table that says there are
@@ -71,7 +71,7 @@ export function usePaging({
 }: {
   resetKey?: unknown;
   defaultSort?: SortState;
-  /** Pin the size and hide the size picker — for a table with a deliberate shape. */
+  /** Pin the size and hide the size picker, for a table with a deliberate shape. */
   pageSize?: number;
 } = {}): PagingState {
   const [pageIndex, setPageIndexRaw] = useState(0);
@@ -96,7 +96,7 @@ export function usePaging({
     try {
       window.localStorage.setItem(SIZE_STORAGE_KEY, String(n));
     } catch {
-      // private mode / quota — the size just won't persist
+      // private mode / quota, the size just won't persist
     }
   }, []);
 
@@ -130,7 +130,7 @@ export function usePaging({
  * Page an array the client already holds in full.
  *
  * The narrow exception to "paging is server-side". Use it ONLY when the whole
- * result is genuinely in hand — a *report* endpoint that answers one object
+ * result is genuinely in hand, a *report* endpoint that answers one object
  * (rows plus its own computed summary) rather than a capped list. Those are not
  * truncated at 1,000 rows, so slicing locally shows a real page of a real total.
  *
@@ -161,7 +161,7 @@ export function useClientPage<T>(
           // Blanks sink in both directions, matching the server.
           if (leftEmpty || rightEmpty) return leftEmpty && rightEmpty ? 0 : leftEmpty ? 1 : -1;
           const dir = sort.dir === "desc" ? -1 : 1;
-          if (typeof left === "number" && typeof right === "number") return dir * (left - right);
+          if (typeof left === "number" && typeof right === ", number") return dir * (left - right);
           return dir * String(left).localeCompare(String(right), "en", { numeric: true });
         });
 
@@ -176,7 +176,7 @@ export function pageCount(total: number, pageSize: number): number {
   return Math.max(1, Math.ceil(total / Math.max(1, pageSize)));
 }
 
-/** "1–25 of 4,861" — the range currently on screen. */
+/** "1–25 of 4,861", the range currently on screen. */
 export function pageRangeLabel(
   pageIndex: number,
   pageSize: number,

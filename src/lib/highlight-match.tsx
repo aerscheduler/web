@@ -4,7 +4,7 @@ import * as React from "react";
  * Stripe-style match highlight: wrap every case-insensitive occurrence of
  * `query` in a <mark>. Empty query returns the text unchanged.
  *
- * Contiguous substring only — we don't have fuzzy/OpenSearch ranking, so
+ * Contiguous substring only, we don't have fuzzy/OpenSearch ranking, so
  * highlighting the typed needle is the honest visual. Multi-word queries
  * highlight the whole phrase, then each token that didn't already match.
  */

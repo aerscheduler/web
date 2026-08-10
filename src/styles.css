@@ -5,7 +5,7 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
-  AerScheduler web app — design system
+  AerScheduler web app, design system
   A Stripe-inspired system: near-white slate canvas, white cards, hairline
   borders, a soft layered "lift" shadow, calm 8px radius, and colour reserved
   for the primary action + active nav. The single accent is the AerScheduler
@@ -13,7 +13,7 @@
   Tokens are shadcn-compatible.
 */
 :root {
-  --radius: 8px; /* Stripe-measured — cards 8px, controls 6px, chips 4px */
+  --radius: 8px; /* Stripe-measured: cards 8px, controls 6px, chips 4px */
 
   --background: #ffffff; /* Stripe dashboard is pure white */
   --foreground: #30313d; /* Stripe dashboard ink */
@@ -23,40 +23,40 @@
   --popover: #ffffff;
   --popover-foreground: #30313d;
 
-  --primary: #1967d2; /* AerScheduler logo blue — the single accent */
+  --primary: #1967d2; /* AerScheduler logo blue, the single accent */
   --primary-foreground: #ffffff;
 
   --secondary: #f0f2f5;
   --secondary-foreground: #30313d;
   --muted: #f0f2f5;
-  --muted-foreground: #5b6472; /* Stripe body slate — AA on solid muted fills */
-  /* neutral hover/selected — colour is reserved for primary + active nav */
+  --muted-foreground: #5b6472; /* Stripe body slate. AA on solid muted fills */
+  /* neutral hover/selected, colour is reserved for primary + active nav */
   --accent: #f0f2f5;
   --accent-foreground: #30313d;
 
-  --destructive: #c4142f; /* Stripe red — AA as text on its tint chips */
+  --destructive: #c4142f; /* Stripe red. AA as text on its tint chips */
   --destructive-foreground: #ffffff;
-  --success: #0a7047; /* deep green — AA as text on its tint chips */
+  --success: #0a7047; /* deep green. AA as text on its tint chips */
   --warning: #b7791f; /* muted amber */
   --info: #1967d2;
 
-  /* signature accent — the logo blue */
+  /* signature accent, the logo blue */
   --brand: #1967d2;
 
-  --border: #e3e5ea; /* defined hairline — Stripe cards are border-first */
+  --border: #e3e5ea; /* defined hairline. Stripe cards are border-first */
   --input: #d7dae0;
   --ring: #1967d2;
 
-  /* flat Stripe card treatment — border does the work, shadow is a whisper */
+  /* flat Stripe card treatment, border does the work, shadow is a whisper */
   --sh-xs: 0 0 0 1px rgba(60, 66, 87, 0.04);
   --sh-sm: 0 1px 1px 0 rgba(16, 24, 40, 0.04), 0 1px 3px 0 rgba(16, 24, 40, 0.05);
   --sh-md: 0 1px 2px 0 rgba(16, 24, 40, 0.06), 0 4px 8px -2px rgba(16, 24, 40, 0.08);
   --sh-lg: 0 4px 8px -2px rgba(16, 24, 40, 0.1),
     0 12px 28px -6px rgba(16, 24, 40, 0.16), 0 0 0 1px rgba(60, 66, 87, 0.04);
 
-  /* command rail — light, Stripe dashboard style, blue only on the active item */
+  /* command rail, light, Stripe dashboard style, blue only on the active item */
   --sidebar: #ffffff;
-  --sidebar-foreground: #414552; /* Stripe nav text — mid slate */
+  --sidebar-foreground: #414552; /* Stripe nav text, mid slate */
   --sidebar-primary: #1967d2;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #f2f3f5; /* subtle neutral hover fill (no colour) */
@@ -71,19 +71,19 @@
   --brand-surface: #10233f;
   --brand-surface-2: #1a3763;
 
-  /* reservation / dispatch-lane hues — calmer, to sit on white cards */
-  --res-dual: #2c4589; /* deeper indigo — separates from solo azure */
+  /* reservation / dispatch-lane hues, calmer, to sit on white cards */
+  --res-dual: #2c4589; /* deeper indigo, separates from solo azure */
   --res-solo: #1967d2;
   --res-ground: #5b6472;
   --res-sim: #9a6a45;
   --res-rental: #17876f;
   --res-guest: #7256b0;
-  --res-maintenance: #5e7290; /* steel-blue — legible + distinct from ground */
+  --res-maintenance: #5e7290; /* steel-blue, legible + distinct from ground */
 
-  /* Chart series, in fixed categorical order — assigned by slot, never cycled.
+  /* Chart series, in fixed categorical order, assigned by slot, never cycled.
      Deliberately NOT the UI accent colours: the previous values here were two
      near-identical blues (#1967d2, #2c4589), which a colour-blind reader cannot
-     tell apart as adjacent series. These are a validated set — checked against
+     tell apart as adjacent series. These are a validated set, checked against
      this surface (#ffffff) for lightness band, chroma floor, CVD separation and
      normal-vision separation.
      --chart-3 sits below 3:1 on white, so any chart using it must ship a legend
@@ -156,7 +156,7 @@
   --res-maintenance: #9aa4c0;
 
   /* The same hues re-stepped for the dark card surface (#151b2d) and validated
-     against it — all three of 1–3 clear 3:1 there. */
+     against it, all three of 1–3 clear 3:1 there. */
   --chart-1: #3987e5;
   --chart-2: #d95926;
   --chart-3: #199e70;
@@ -216,7 +216,7 @@
   --color-brand-surface: var(--brand-surface);
   --color-brand-surface-2: var(--brand-surface-2);
 
-  /* Stripe-style soft shadow scale — every shadow-* utility inherits the lift */
+  /* Stripe-style soft shadow scale, every shadow-* utility inherits the lift */
   --shadow-2xs: var(--sh-xs);
   --shadow-xs: var(--sh-xs);
   --shadow-sm: var(--sh-sm);
@@ -226,13 +226,13 @@
   --shadow-xl: var(--sh-lg);
   --shadow-2xl: var(--sh-lg);
 
-  /* Stripe-measured radius — cards 8px, controls 6px, chips 4px */
+  /* Stripe-measured radius, cards 8px, controls 6px, chips 4px */
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-xl: 8px;
 
-  /* system sans — Stripe's dashboard uses the native system stack (no webfont) */
+  /* system sans. Stripe's dashboard uses the native system stack (no webfont) */
   --font-sans: -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue",
     Ubuntu, Arial, "Apple Color Emoji", "Segoe UI Emoji", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, monospace;

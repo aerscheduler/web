@@ -29,7 +29,7 @@ import { PreferenceToggle } from "@/components/settings/parts";
 const LABEL_MAX = 60;
 
 /**
- * Membership plans — what this organization charges people for BELONGING.
+ * Membership plans, what this organization charges people for BELONGING.
  *
  * Tiers are plans, not settings. Full, associate, family, social, non-flying, student rate:
  * every club's list is different, and every one of them is another row here rather than
@@ -37,7 +37,7 @@ const LABEL_MAX = 60;
  *
  * Editing a price is deliberately unguarded. Every membership snapshots what it costs at
  * the moment it starts, so raising the price here cannot re-price anybody already on the
- * plan — the same reason a published course's fee stays editable. Moving an existing member
+ * plan, the same reason a published course's fee stays editable. Moving an existing member
  * to today's price is "Change plan" on their record, which is a separate, deliberate act.
  */
 export function MembershipsTab() {
@@ -58,7 +58,7 @@ export function MembershipsTab() {
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             What people pay to join and to stay. A plan can have a one-time join fee, recurring
-            dues, or both. Add a plan per tier — full, associate, social — and put each member on
+            dues, or both. Add a plan per tier (full, associate, social) and put each member on
             one from their record.
           </p>
         </div>
@@ -196,7 +196,7 @@ const ordinal = (n: number) => {
   return `${n}${suffix}`;
 };
 
-/** Dollars in the box, cents on the wire. Rounded, never truncated — see CourseFeeEditor. */
+/** Dollars in the box, cents on the wire. Rounded, never truncated, see CourseFeeEditor. */
 const toCents = (dollars: string): number | null => {
   const trimmed = dollars.trim();
   if (trimmed === "") return null;
@@ -211,7 +211,7 @@ const toDollars = (cents: number | null | undefined): string =>
 function PlanEditor({ plan, onClose }: { plan: MembershipPlan | null; onClose: () => void }) {
   const create = useCreateMembershipPlan();
   const update = useUpdateMembershipPlan();
-  //Any document type can stand as the plan's agreement. Nothing is enforced on it — see
+  //Any document type can stand as the plan's agreement. Nothing is enforced on it, see
   //the note under the field.
   const documentTypes = useDocumentTypes();
 
@@ -260,7 +260,7 @@ function PlanEditor({ plan, onClose }: { plan: MembershipPlan | null; onClose: (
       duesDayOfMonth: anniversary ? null : Number(billingDay),
       prorateFirstPeriod: !anniversary && prorate,
       autoBillDues: autoBill,
-      //Blank means "no due date" and "no limit" respectively — both are real values the
+      //Blank means "no due date" and "no limit" respectively, both are real values the
       //server stores as null, not omissions.
       duesDueInDays: dueDays.trim() === "" ? null : Math.max(1, Number(dueDays)),
       bookingWindowDays: windowDays.trim() === "" ? null : Math.max(1, Number(windowDays)),
@@ -423,7 +423,7 @@ function PlanEditor({ plan, onClose }: { plan: MembershipPlan | null; onClose: (
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   {dueDays.trim() === ""
                     ? "No due date. Reminders start a week after the invoice is raised."
-                    : `Dues and the joining fee are due ${dueDays} days after they are billed. Overdue invoices can ground a member — that threshold is on the Billing screen.`}
+                    : `Dues and the joining fee are due ${dueDays} days after they are billed. Overdue invoices can ground a member. That threshold is on the Billing screen.`}
                 </p>
               </div>
               <Input
@@ -459,7 +459,7 @@ function PlanEditor({ plan, onClose }: { plan: MembershipPlan | null; onClose: (
             <h3 className="text-sm font-medium">What this tier allows</h3>
             <p className="text-xs text-muted-foreground">
               Unlike the prices above, these apply to everyone on the tier as soon as you save
-              them — including members who joined years ago.
+              them, including members who joined years ago.
             </p>
           </div>
 
@@ -511,7 +511,7 @@ function PlanEditor({ plan, onClose }: { plan: MembershipPlan | null; onClose: (
           </Select>
           <p className="text-xs text-muted-foreground">
             Which document a member on this plan is meant to have on file. AerScheduler does not
-            collect signatures yet, so this is a reminder on their record, not a requirement —
+            collect signatures yet, so this is a reminder on their record, not a requirement.
             nothing is blocked if it is missing.
           </p>
         </div>
@@ -555,8 +555,8 @@ function MoneyField({
  * Per-aircraft rates for one tier.
  *
  * The thing that turns a tier from a price into a membership: full members fly the 172 at
- * $150, associates at $175. Deliberately SPARSE — an empty box means "bill this tail as
- * published", which is what every aircraft did before tiers existed, so a club only fills in
+ * $150, associates at $175. Deliberately SPARSE, an empty box means "bill this tail as
+ * published"which is what every aircraft did before tiers existed, so a club only fills in
  * the rows it actually disagrees with.
  *
  * Only aircraft are listed. Simulators and rooms price from their own cost rows and there is
@@ -599,7 +599,7 @@ function PlanRateEditor({ planId }: { planId: number }) {
               save.mutate({
                 planId,
                 resourceId: plane.id,
-                //Written to the WET rate, matching the precedence the pricing path uses —
+                //Written to the WET rate, matching the precedence the pricing path uses.
                 //wet wins over dry, so a single figure here is unambiguous.
                 wetRate: cents,
                 dryRate: null,

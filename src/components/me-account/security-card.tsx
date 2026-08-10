@@ -155,7 +155,7 @@ function PasswordCard() {
       <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-5">
         <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           <KeyRound className="size-4 shrink-0" />
-          <span className="truncate">{user?.email ?? "—"}</span>
+          <span className="truncate">{user?.email ?? "–"}</span>
         </div>
         <Button
           type="button"

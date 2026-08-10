@@ -6,7 +6,7 @@
  * restating, because they are the ones that get "simplified" away:
  *
  *  • Series colours are `--chart-1..3`, assigned by SLOT and never cycled. They
- *    are not the UI accent colours — a chart needs hues that stay apart for a
+ *    are not the UI accent colours, a chart needs hues that stay apart for a
  *    colour-blind reader, and they were validated as a set against both card
  *    surfaces.
  *  • Legend AND direct end-labels, always. `--chart-3` sits below 3:1 on the
@@ -111,7 +111,7 @@ export function VizLine({
     return isTime
       ? mapped.sort((a, b) => a.t - b.t)
       : // A categorical axis has no natural order, so rank it by the first
-        // metric — otherwise the line zig-zags for no reason.
+        // metric, otherwise the line zig-zags for no reason.
         mapped.sort((a, b) => (b.values[series[0]?.key ?? ""] ?? 0) - (a.values[series[0]?.key ?? ""] ?? 0));
   }, [rows, dimension, series, isTime]);
 
@@ -193,7 +193,7 @@ export function VizLine({
 
   return (
     <div className="relative flex h-full flex-col">
-      {/* Legend is always present at two or more series — identity must never
+      {/* Legend is always present at two or more series, identity must never
           rest on colour alone. In flow rather than overlaid, or it prints on
           top of the plot it is meant to explain. */}
       {series.length > 1 && (

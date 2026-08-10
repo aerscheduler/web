@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 function fmt(iso: string | null | undefined) {
-  return iso ? formatDate(iso, "MMM d, yyyy") : "—";
+  return iso ? formatDate(iso, "MMM d, yyyy") : "–";
 }
 
 /**
@@ -24,7 +24,7 @@ export function ExpiryBadge({ doc }: { doc: UserDocument }) {
   return <Badge variant="success">Valid</Badge>;
 }
 
-/** One filed document — shared by the self-serve page and the admin member profile. */
+/** One filed document, shared by the self-serve page and the admin member profile. */
 export function DocumentRow({ doc }: { doc: UserDocument }) {
   const href = doc.fileUrls?.[0];
   return (

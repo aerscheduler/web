@@ -7,7 +7,7 @@ import { hasActiveOrg, rolesFromSession } from "./auth";
  * guards (the server is authoritative; this keeps the UI honest and consistent).
  *
  * Role model (server: 7 independent, non-hierarchical relations):
- *   owner ⊃ admin (enforced invariant) — dispatcher, instructor, student,
+ *   owner ⊃ admin (enforced invariant), dispatcher, instructor, student,
  *   renter, technician are separate. `isOrgAdmin` on the server = adminRole
  *   (owner passes via the invariant); it is NOT dispatcher.
  *
@@ -23,7 +23,7 @@ export const isInstructor = (r: Role[]) => r.includes("instructor");
 export const isStudent = (r: Role[]) => r.includes("student");
 export const isRenter = (r: Role[]) => r.includes("renter");
 export const isTechnician = (r: Role[]) => r.includes("technician");
-/** owner | admin | dispatcher — the "runs the operation" set. */
+/** owner | admin | dispatcher, the "runs the operation" set. */
 export const isStaff = (r: Role[]) => isAdmin(r) || isDispatcher(r);
 
 const anyMember = (_r: Role[]) => true;
@@ -34,7 +34,7 @@ const anyMember = (_r: Role[]) => true;
  * those to any member); billing, reports, facilities, and settings are
  * admin-only; the dashboard/compliance are staff; maintenance is staff or
  * technician. Actions within these pages are gated separately (see the `can*`
- * helpers) — visibility ≠ permission to mutate.
+ * helpers), visibility ≠ permission to mutate.
  */
 export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   "/dashboard": isStaff,
@@ -47,14 +47,14 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   // the caller's roles grant, so a dispatcher reaching this page sees operations,
   // fleet and people reports and no financial section at all. Gating the whole
   // route on admin would keep forcing schools to make a dispatcher an admin just
-  // to pull a utilization report — and hand over revenue per named person with it.
+  // to pull a utilization report, and hand over revenue per named person with it.
   "/reports": (r) => isStaff(r) || isTechnician(r),
   "/operations/cancellations": isStaff,
   "/compliance": isStaff,
   //This USED to say "matches the server: designing a syllabus is isOrgAdmin". It did, once.
   //Then the four training grants landed and the server moved to
-  //`hasTrainingGrant("configureTraining")` — admin by bypass, or anybody the school has
-  //granted it to — and nobody moved this. The result was that the entire granular
+  //`hasTrainingGrant("configureTraining")`, admin by bypass, or anybody the school has
+  //granted it to, and nobody moved this. The result was that the entire granular
   //permissions feature was unreachable by the exact people it exists for: a chief
   //instructor granted `configureTraining` opened /training and was redirected to /me,
   //and the "give this to an FAA inspector" auditor grant handed the inspector a page
@@ -63,12 +63,12 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   //Staff or instructor, then, and the PAGE degrades: the course library only renders if
   //the courses call succeeds, so somebody with `manageEnrollment` and no
   //`configureTraining` gets the roster they are entitled to instead of an error card.
-  //Same reasoning as /reports directly above — gate the route on who might legitimately
+  //Same reasoning as /reports directly above, gate the route on who might legitimately
   //be here, and let the server decide what they actually see.
   "/training": (r) => isStaff(r) || isInstructor(r),
   //A student's training RECORD is not the course library. The server serves this to any
-  //member and scopes it per viewer (`canReadEnrollment`), and the person detail page —
-  //open to any member — links straight to it. Guarding it on admin made that link a
+  //member and scopes it per viewer (`canReadEnrollment`), and the person detail page.
+  //open to any member, links straight to it. Guarding it on admin made that link a
   //dead end for the instructor whose student it is.
   "/training/enrollments": anyMember,
   "/maintenance": (r) => isStaff(r) || isTechnician(r),
@@ -144,7 +144,7 @@ export const canViewSquawks = (r: Role[]) => isStaff(r) || isTechnician(r);
  *
  * Narrower than `canViewSquawks` and that difference is the whole point: the
  * server lets admin *or technician* close one, and deliberately not a
- * dispatcher — reading the fleet's discrepancies and declaring one fixed are
+ * dispatcher, reading the fleet's discrepancies and declaring one fixed are
  * different acts. Offering the button to a dispatcher gets them a bare "not
  * authorized" toast on a job they can't do.
  */
@@ -168,7 +168,7 @@ export interface PersonViewAccess {
   /** Spend, outstanding balance, invoices. `/invoices/orgUsers/:id` is self-or-admin. */
   money: boolean;
   /** Their bookings, past and upcoming. `/reservations/user/:id` is any member; narrowed
-   *  to people with a reason to look — staff run the board, an instructor teaches them. */
+   *  to people with a reason to look, staff run the board, an instructor teaches them. */
   flights: boolean;
   /** Medicals, flight reviews, checkouts. Reading someone else's is admin-or-dispatcher. */
   currencies: boolean;
@@ -184,14 +184,14 @@ export interface PersonViewAccess {
    *  `manage` (see `canGroundMembers`). A dispatcher gets the ground action on this page
    *  and none of the roster-management ones. */
   ground: boolean;
-  /** Their membership plan and dues. Server: admin — `/memberships/*` is isOrgAdmin, and
+  /** Their membership plan and dues. Server: admin: `/memberships/*` is isOrgAdmin, and
    *  what a member pays is exactly what org-wide billing was made admin-only to protect.
    *  Deliberately NOT self: a member reads their own at `/memberships/me`, on their profile. */
   membership: boolean;
 }
 
 /**
- * What this viewer may see on someone's page. `isSelf` is doing real work here —
+ * What this viewer may see on someone's page. `isSelf` is doing real work here.
  * a student opening their own page gets everything an admin would see about
  * them, which is the point of giving people a page at all.
  */
@@ -219,7 +219,7 @@ export interface ResourceViewAccess {
   money: boolean;
   /** Squawks and maintenance reminders. Server: admin, dispatcher or technician. */
   maintenance: boolean;
-  /** Close a squawk out. Narrower than `maintenance` — server: admin or technician. */
+  /** Close a squawk out. Narrower than `maintenance`: server: admin or technician. */
   resolveSquawks: boolean;
   /** Who is checked out on it. Derived from the roster, so staff only. */
   approvedPilots: boolean;
@@ -252,7 +252,7 @@ export function resourceViewAccess(roles: Role[]): ResourceViewAccess {
 // ── Reservation types by role ────────────────────────────────────────────────
 /**
  * Display order for reservation types. Also the canonical list of types the
- * server will actually accept — "instructor" is deliberately absent because the
+ * server will actually accept, "instructor" is deliberately absent because the
  * server's type union has no such case (offering it would always 400).
  */
 export const RESERVATION_TYPE_ORDER: ReservationType[] = [
@@ -312,7 +312,7 @@ export const canCreateReservationType = (roles: Role[], type: ReservationType) =
 
 /**
  * Which type a booking form should preselect. Mirrors Flutter's
- * `setDefaultReservationType()` precedence — importantly, a renter+student
+ * `setDefaultReservationType()` precedence, importantly, a renter+student
  * defaults to a rental, not a solo.
  */
 export function defaultReservationType(roles: Role[]): ReservationType | null {
@@ -339,7 +339,7 @@ const SELF_BOOKABLE: Role[] = ["instructor", "student", "renter", "technician"];
 export const canSelfBook = (r: Role[]) => r.some((role) => SELF_BOOKABLE.includes(role));
 
 /**
- * Types offered on the SELF-serve page — derived only from the roles that seat
+ * Types offered on the SELF-serve page, derived only from the roles that seat
  * you on a flight. An admin+instructor self-books as an instructor; their admin
  * grant belongs to the dispatch board, not to /me/book.
  */
@@ -348,7 +348,7 @@ export const selfBookableTypes = (r: Role[]) =>
 
 /**
  * What the self-serve booking call-to-action should say. A technician isn't
- * booking a flight — they're pulling an aircraft off the line.
+ * booking a flight, they're pulling an aircraft off the line.
  */
 export function bookActionLabel(r: Role[]): string {
   const types = selfBookableTypes(r);
@@ -358,7 +358,7 @@ export function bookActionLabel(r: Role[]): string {
 }
 
 /**
- * What to call a person's own bookings in copy — "Next ___", "No upcoming ___",
+ * What to call a person's own bookings in copy. "Next ___", ", No upcoming ___",
  * "___ on your schedule".
  *
  * "Flights" reads warmly and is frequently untrue. A technician never books one;
@@ -367,7 +367,7 @@ export function bookActionLabel(r: Role[]): string {
  * is the honest default and the specific one is used only where the roles leave
  * exactly one kind to book. Same shape as `bookActionLabel` above.
  *
- * "maintenance" is a mass noun, so both forms are the same word — which is why
+ * "maintenance" is a mass noun, so both forms are the same word, which is why
  * this returns a pair rather than pluralising a single string.
  */
 export function bookingNouns(r: Role[]): { one: string; many: string } {
@@ -377,10 +377,10 @@ export function bookingNouns(r: Role[]): { one: string; many: string } {
     : { one: "reservation", many: "reservations" };
 }
 /**
- * Anyone who can create a reservation in *some* form — staff create any type on
+ * Anyone who can create a reservation in *some* form, staff create any type on
  * the dispatch board; everyone else self-books their own role's types. Drives
  * the global "+" quick-create button (the menu item differs by role: staff get
- * the full "New reservation" modal, others get "Book a flight").
+ * the full "New reservation" modal, others get ", Book a flight").
  */
 export const canCreateReservation = (r: Role[]) => reservationTypesForRoles(r).length > 0;
 
@@ -388,8 +388,8 @@ export const canCreateReservation = (r: Role[]) => reservationTypesForRoles(r).l
 // Mirrors the Flutter calendar's `canSee*` getters (`calendar_controller.dart`):
 // a technician's board is planes-only, a renter's is planes-only on the web
 // (Flutter also gives renters a renter *person* lane, which the web board has
-// no equivalent of — it groups strictly by resource).
-/** Rooms are an instruction resource — hidden from renters and technicians. */
+// no equivalent of: it groups strictly by resource).
+/** Rooms are an instruction resource, hidden from renters and technicians. */
 export const canSeeRoomLanes = (r: Role[]) => isStaff(r) || isInstructor(r) || isStudent(r);
 /** Simulators likewise. */
 export const canSeeSimulatorLanes = (r: Role[]) => isStaff(r) || isInstructor(r) || isStudent(r);

@@ -8,20 +8,20 @@ import { cn } from "@/lib/utils";
 /**
  * One thing that happened to this reservation.
  *
- * `at` is an ISO instant and every entry must have one — an event with no time is not an
+ * `at` is an ISO instant and every entry must have one, an event with no time is not an
  * audit entry, it's a status, and it belongs in the close-out section instead. That rule is
  * why the guest review and the `updatedAt` roll-up are handled the way they are below.
  */
 type TimelineEntry = {
   at: string;
   label: string;
-  /** "Dana Whitfield" — omitted when the API can't tell us who. */
+  /** "Dana Whitfield", omitted when the API can't tell us who. */
   who?: string | null;
   /** Second line: a cancellation reason, a meter reading, a sign-off count. */
   detail?: string | null;
   /** Cancellations and voids read as red; everything else is neutral. */
   tone?: "default" | "destructive";
-  /** "from the app" — only set on entries that came from a recorded audit event. */
+  /** "from the app", only set on entries that came from a recorded audit event. */
   via?: string | null;
 };
 
@@ -74,8 +74,8 @@ export function auditEvents(r: Reservation): TimelineEntry[] {
 
   for (const c of rev?.reviewConfirmations ?? []) {
     // Confirmations made before the timestamp was selected have no `createdAt`. They still
-    // count toward close-out, and the close-out section shows them — but an audit line
-    // reading "signed off at —" is worse than no line, so they're left out here.
+    // count toward close-out, and the close-out section shows them, but an audit line
+    // reading "signed off at , " is worse than no line, so they're left out here.
     if (!c.createdAt) continue;
     events.push({ at: c.createdAt, label: "Signed off", who: personName(c.reviewedBy) });
   }
@@ -98,7 +98,7 @@ export function auditEvents(r: Reservation): TimelineEntry[] {
       at: r.cancelledAt,
       label: "Cancelled",
       who: personName(r.cancelledBy),
-      detail: [r.cancellationCategory, r.cancellationReason].filter(Boolean).join(" — ") || null,
+      detail: [r.cancellationCategory, r.cancellationReason].filter(Boolean).join(": ") || null,
       tone: "destructive",
     });
   }
@@ -107,7 +107,7 @@ export function auditEvents(r: Reservation): TimelineEntry[] {
 
   // `updatedAt` is a roll-up, not an event: it moves on every edit and we can't say what
   // changed or who changed it. So it only earns a line when it is genuinely newer than
-  // everything above — otherwise it's just restating the last real event with a vaguer label.
+  // everything above, otherwise it's just restating the last real event with a vaguer label.
   const newest = events[events.length - 1]?.at;
   if (r.updatedAt && (!newest || r.updatedAt.localeCompare(newest) > 0)) {
     // Creation writes `updatedAt` too, so ignore the a-few-seconds-later case.
@@ -128,11 +128,11 @@ export function auditEvents(r: Reservation): TimelineEntry[] {
  * shipped. Merging them naively would double every event on a new booking and show nothing
  * extra on an old one, so the two are partitioned by ACTION instead of by time:
  *
- *   - Anything in this set, the audit trail owns when it has rows — it knows who did it and
+ *   - Anything in this set, the audit trail owns when it has rows, it knows who did it and
  *     what changed, which the derived version cannot.
  *   - Everything else (signed off, invoiced, paid, voided) stays derived; those aren't
  *     instrumented yet.
- *   - A booking with no audit rows at all — every booking from before this shipped — falls
+ *   - A booking with no audit rows at all (every booking from before this shipped) falls
  *     back to the derived timeline entirely and looks exactly as it did.
  */
 const AUDITABLE_LABELS = new Set(["Booked", "Ramped out", "Ramped in", "Cancelled"]);
@@ -149,7 +149,7 @@ const ACTION_LABEL: Record<string, string> = {
   "reservation.invoiced": "Invoiced",
 };
 
-/** "from the app" / "from the console" — only worth saying when we actually know. */
+/** "from the app" / ", from the console"only worth saying when we actually know. */
 function sourceLabel(source: string | null): string | null {
   switch (source) {
     case "web":
@@ -189,13 +189,13 @@ export function mergeTimeline(r: Reservation, recorded: AuditEvent[] | undefined
 
   const entries = recorded.map(toEntry);
 
-  //Drop a derived milestone only when the recorded trail ACTUALLY supplies that milestone —
+  //Drop a derived milestone only when the recorded trail ACTUALLY supplies that milestone.
   //not merely because some other event was recorded. A booking made before this shipped and
   //edited after it has an audit row for the edit and none for the booking, and "Booked"
   //still has to appear; keying off the static list instead silently ate it.
   const supplied = new Set(entries.map((e) => e.label));
   const kept = derived.filter((e) => {
-    //`Last edited` is the `updatedAt` roll-up — the placeholder that exists precisely
+    //`Last edited` is the `updatedAt` roll-up, the placeholder that exists precisely
     //because the row alone can't say what changed or who changed it. Any recorded event
     //answers both, so the roll-up is strictly worse and goes.
     if (e.label === "Last edited") return false;
@@ -208,7 +208,7 @@ export function mergeTimeline(r: Reservation, recorded: AuditEvent[] | undefined
 }
 
 /**
- * "2h ago" — only for the recent past, where it genuinely helps a dispatcher ("it went out
+ * "2h ago", only for the recent past, where it genuinely helps a dispatcher ("it went out
  * 3h ago" is the answer to a question someone is asking). Beyond a week it's noise, and for
  * anything in the future (a booking made for next Tuesday) it would read as nonsense.
  */
@@ -219,12 +219,12 @@ function relative(iso: string): string | null {
 }
 
 /**
- * The dispatcher's audit trail — who booked it, when it left, when it came back, who signed
+ * The dispatcher's audit trail, who booked it, when it left, when it came back, who signed
  * it off, when it was billed. Mirrors the invoice sheet's trail so the two read the same.
  *
  * Times render on the AIRPORT's clock like everything else on the board, not the reader's:
  * a dispatcher covering two fields from a third city needs "left at 9:12 local to the
- * aircraft", which is the only version of that time anyone at the field would recognise.
+ * aircraft"which is the only version of that time anyone at the field would recognise.
  */
 export function ReservationAudit({ reservation }: { reservation: Reservation }) {
   const tz = useTimeZone(reservation.location);

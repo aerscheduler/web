@@ -70,7 +70,7 @@ export function BillingTab() {
     );
   }
 
-  //A 200 carrying `null` is not a failure — it is every organization that has never
+  //A 200 carrying `null` is not a failure, it is every organization that has never
   //connected Stripe. The row is created on first write now (stripeAccountId became
   //optional), so rather than a dead end we render the real form seeded with the
   //server's defaults: a school can set its instructor rate and service fee on day one,
@@ -88,7 +88,7 @@ const UNCONFIGURED_BILLING: OrganizationBillingSettings = {
   stripeEnabled: false,
   //Null, not 0: a new school charges no overnight minimum until it says otherwise.
   overnightMinimumTenths: null,
-  //Off until a school opts in — grounding somebody by surprise is worse than not grounding.
+  //Off until a school opts in, grounding somebody by surprise is worse than not grounding.
   groundUserUnpaidInvoices: null,
   //Both match the column defaults: a new school bills through admins until it says otherwise.
   dispatchersCanManuallyCreateInvoices: false,
@@ -127,7 +127,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
       : `Out Friday and back Sunday is 2 nights, so that trip would bill at least ` +
         `${((nextOvernightTenths * 2) / 10).toFixed(1)} hours however little it flew. A booking back the same day is never affected.`;
 
-  //Blank means OFF, and so does zero — the server treats null and 0 identically. Normalising
+  //Blank means OFF, and so does zero, the server treats null and 0 identically. Normalising
   //here means the field can be cleared to turn the feature off, which is what an operator
   //expects from an empty box.
   const nextGroundThreshold =

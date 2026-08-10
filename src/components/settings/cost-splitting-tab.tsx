@@ -37,14 +37,14 @@ import { cn } from "@/lib/utils";
  * ─────────────────────────────────────────────────────────────────────────────────────
  *
  * It used not to be, and that was the bug. This screen opened with three explanatory
- * paragraphs and then rendered TWELVE live billing controls — six booking types × two
- * charge lines — each with five options, a paragraph of its own, and a worked example
+ * paragraphs and then rendered TWELVE live billing controls, six booking types × two
+ * charge lines, each with five options, a paragraph of its own, and a worked example
  * with money in it. Below that, a reference section repeated all five examples again.
  * Around seventeen money tables on one page.
  *
  * Every one of the twelve looked identical, because they were all on the default, so the
  * repetition carried no information at all. The reaction to it was "a lot of words, and I
- * felt scared to change anything" — which for a page that decides who gets invoiced is the
+ * felt scared to change anything"which for a page that decides who gets invoiced is the
  * worst outcome available. Worse, its own comment defended this as "mostly explanation",
  * as though volume were thoroughness.
  *
@@ -54,12 +54,12 @@ import { cn } from "@/lib/utils";
  * belongs at the moment of choosing. So now:
  *
  *  - **One decision up front.** Most operators want "bill groups the way a flight school
- *    does", which is a preset. That is the primary action, and it opens the same flow the
- *    setup checklist opens — one path to the decision, not two that can drift.
+ *    does"which is a preset. That is the primary action, and it opens the same flow the
+ *    setup checklist opens, one path to the decision, not two that can drift.
  *  - **The matrix is a read-only summary**, one line per booking type in plain English,
  *    scannable in a few seconds. Editing is per-type and opt-in.
  *  - **The five options, their blurbs and their worked examples live inside that editor**,
- *    where somebody has deliberately gone to make a choice — not on the landing view.
+ *    where somebody has deliberately gone to make a choice, not on the landing view.
  *  - **The two facts that remove the fear are stated once**, not per block: a booking with
  *    one person is unaffected, and an invoice already raised never changes.
  *
@@ -123,7 +123,7 @@ function Status({ data, onSetUp }: { data: SplitRulesDescription; onSetUp: () =>
     const ok = await confirm({
       title: "Clear all cost-splitting rules?",
       description:
-        "Every booking goes back to one invoice for one person. Close-outs already done keep their invoices; only new ones change. This can't be undone from here — you'd set the rules up again.",
+        "Every booking goes back to one invoice for one person. Close-outs already done keep their invoices; only new ones change. This can't be undone from here, you'd set the rules up again.",
       confirmLabel: "Clear all rules",
       destructive: true,
     });
@@ -172,7 +172,7 @@ function Status({ data, onSetUp }: { data: SplitRulesDescription; onSetUp: () =>
           )}
         </div>
 
-        {/* The two facts that make this page safe to touch. Stated ONCE — they used to be
+        {/* The two facts that make this page safe to touch. Stated ONCE, they used to be
             implied twelve times over and landed as noise rather than reassurance. */}
         <ul className="space-y-1 text-sm text-muted-foreground">
           <li>A booking with one person is always invoiced exactly as it is today.</li>
@@ -241,7 +241,7 @@ function Summary({ data }: { data: SplitRulesDescription }) {
 /**
  * One booking type's rules as a single readable phrase.
  *
- * Collapses when every charge line agrees, which is the overwhelmingly common case — an
+ * Collapses when every charge line agrees, which is the overwhelmingly common case, an
  * org on the defaults, or one that picked a preset splitting everything evenly. Spelling
  * both lines out there produced "aircraft, simulator & room time: one person pays ·
  * instruction: one person pays" on all six rows: the same words twice, six times over,
@@ -314,7 +314,7 @@ function SummaryRow({
 }
 
 /**
- * The editor for ONE booking type — both of its charge lines, five options each.
+ * The editor for ONE booking type, both of its charge lines, five options each.
  *
  * This is where the explanation and the worked example live now. The difference from
  * before is not the content but the consent: somebody opened this because they want to
@@ -494,7 +494,7 @@ function ExampleBlock({ example, roomy }: { example: WorkedExample; roomy?: bool
         roomy ? "p-3.5" : "mt-2 p-2.5"
       )}
     >
-      {/* Labelled as an example because the rate isn't this org's — an unlabelled dollar
+      {/* Labelled as an example because the rate isn't this org's, an unlabelled dollar
           figure on a billing screen reads as your own money. */}
       <div className={cn("font-medium text-muted-foreground", roomy ? "text-sm" : "text-xs")}>
         For example: {example.scenario}
@@ -557,7 +557,7 @@ function ExampleBlock({ example, roomy }: { example: WorkedExample; roomy?: bool
 // ── Reference: what every option does, on request ──────────────────────────────────
 
 /**
- * Glossary for the five apportionments — master/detail, not a scroll of five cards.
+ * Glossary for the five apportionments, master/detail, not a scroll of five cards.
  *
  * The old layout stacked every option's blurb, "best for", and money table into one
  * narrow column. Reading it meant skimming seventeen money-ish blocks; the one option
@@ -584,7 +584,7 @@ function Reference({ data }: { data: SplitRulesDescription }) {
       <p className="text-sm text-muted-foreground">
         Four ways to <span className="font-medium text-foreground">divide</span> one charge
         between the people on a booking. One way that{" "}
-        <span className="font-medium text-foreground">multiplies</span> what you collect —
+        <span className="font-medium text-foreground">multiplies</span> what you collect.
         charged once per person, not split.
       </p>
 

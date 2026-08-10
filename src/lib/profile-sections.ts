@@ -64,7 +64,7 @@ export const PROFILE_TABS: ProfileTabDef[] = [
     value: "standby",
     label: "Standby",
     icon: RefreshCw,
-    keywords: ["slot offers", "waitlist", "open window", "standing preference", "claim slot"],
+    keywords: ["offers", "standby", "waitlist", "open window", "standing preference", "claim slot"],
     canShow: canSelfBook,
   },
   {

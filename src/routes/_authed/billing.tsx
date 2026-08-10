@@ -61,14 +61,14 @@ export const Route = createFileRoute("/_authed/billing")({
   /**
    * `invoice` is which record the detail panel is showing. It rides in the URL
    * rather than in component state so the panel survives a refresh and can be
-   * linked to — and it is kept OUT of the facet list on purpose: facets are
+   * linked to, and it is kept OUT of the facet list on purpose. Facets are
    * remembered in localStorage and restored on the next visit, which would
    * reopen a stale invoice days later.
    */
   validateSearch: (s) => {
     const list = validateListSearch(s, [...FACET_KEYS]);
     // Kept as a NUMBER, not a string: the router JSON-encodes string values, so
-    // a string id serializes as `?invoice=%225978%22` — unreadable, and not what
+    // a string id serializes as `?invoice=%225978%22`: unreadable, and not what
     // anyone would type by hand.
     const invoice = Number.parseInt(String(s.invoice ?? ""), 10);
     return {
@@ -106,7 +106,7 @@ const STATUS_FACETS: FacetDef[] = [
 ];
 
 function fmtDate(iso: string | null | undefined) {
-  return iso ? format(parseISO(iso), "MMM d, yyyy") : "—";
+  return iso ? format(parseISO(iso), "MMM d, yyyy") : "–";
 }
 
 function invoiceColumns(actions: InvoiceActions): ColumnDef<Invoice, unknown>[] {
@@ -127,7 +127,7 @@ function invoiceColumns(actions: InvoiceActions): ColumnDef<Invoice, unknown>[] 
         const c = row.original.customer?.user;
         return (
           <div className="min-w-0">
-            <div className="truncate text-sm font-medium">{c?.name ?? "—"}</div>
+            <div className="truncate text-sm font-medium">{c?.name ?? "–"}</div>
             {c?.email && <div className="truncate text-xs text-muted-foreground">{c.email}</div>}
           </div>
         );
@@ -230,7 +230,7 @@ function InvoiceCard({ inv, actions }: { inv: Invoice; actions: InvoiceActions }
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="font-mono text-sm font-medium">#{inv.id}</div>
-          <div className="truncate text-sm text-muted-foreground">{c?.name ?? c?.email ?? "—"}</div>
+          <div className="truncate text-sm text-muted-foreground">{c?.name ?? c?.email ?? "–"}</div>
         </div>
         <InvoiceStatusBadge invoice={inv} />
       </div>
@@ -275,7 +275,7 @@ function unbilledColumns(
         const r = row.original.resource;
         return (
           <span className="text-sm text-muted-foreground">
-            {r ? resourceLabel(r).name : "—"}
+            {r ? resourceLabel(r).name : "–"}
           </span>
         );
       },
@@ -341,10 +341,10 @@ function BillingPage() {
   const confirm = useConfirm();
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
-  // One loosely-typed navigate for every search-param update on this page — the
+  // One loosely-typed navigate for every search-param update on this page, the
   // same cast `useListQueryState` already needs for its own reducers.
   const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
-  // `invoice` is which record is open, not a list filter — it is split off here so
+  // `invoice` is which record is open, not a list filter, it is split off here so
   // it never reaches the facet machinery (which is string-valued, and which would
   // also persist it to localStorage and reopen it on a later visit).
   const { invoice: _openInvoice, ...listSearch } = routeSearch;
@@ -355,7 +355,7 @@ function BillingPage() {
     facetKeys: [...FACET_KEYS],
   });
 
-  /** Which invoice the detail panel is showing — read straight off the URL. */
+  /** Which invoice the detail panel is showing, read straight off the URL. */
   const viewId = useMemo(() => {
     const n = Number.parseInt(String(routeSearch.invoice ?? ""), 10);
     return Number.isFinite(n) ? n : null;
@@ -423,7 +423,7 @@ function BillingPage() {
 
   // Totals come from the database, not from adding up the rows on screen: the
   // list is one page of at most a few dozen, and even unpaged the API caps at
-  // 1,000 — a school with more invoices than that in the range would have been
+  // 1,000, a school with more invoices than that in the range would have been
   // shown the sum of an arbitrary thousand of them.
   // A single instant for "has already flown", so the unbilled query key is
   // stable across a render instead of changing on every millisecond.
@@ -480,8 +480,8 @@ function BillingPage() {
   );
 
   /**
-   * ↑/↓ to the neighbouring invoice, over `rows` — what is actually drawn, not
-   * the unfiltered page — so the panel never lands on a row that isn't there.
+   * ↑/↓ to the neighbouring invoice, over `rows`: what is actually drawn, not
+   * the unfiltered page, so the panel never lands on a row that isn't there.
    * Stops at the ends rather than wrapping or paging: silently jumping to
    * another page would move the list out from under the highlight.
    */
@@ -598,7 +598,7 @@ function BillingPage() {
 
   const rangeSubtitle =
     range?.from && range.to
-      ? `${format(range.from, "MMM d")} – ${format(range.to, "MMM d, yyyy")}`
+      ? `${format(range.from, "MMM d")}, ${format(range.to, "MMM d, yyyy")}`
       : "Pick a date range";
 
   const toolbar = (
@@ -696,7 +696,7 @@ function BillingPage() {
 
   const emptyByStatus =
     wantsOutstanding && !wantsPaid
-      ? "Nothing outstanding — you're all paid up."
+      ? "Nothing outstanding, you're all paid up."
       : wantsPaid && !wantsOutstanding
         ? "No paid invoices in this range yet."
         : "No invoices match your filters.";

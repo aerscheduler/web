@@ -64,10 +64,10 @@ export function CurrencyCard({ currency }: { currency: Currency }) {
           </div>
           <div className="tnum font-medium">
             {status.key === "expired"
-              ? (lapsed ?? "—")
+              ? (lapsed ?? "–")
               : status.key === "notSignedOff"
                 ? "Awaiting sign-off"
-                : (fmtDate(currency.startedAt) ?? "—")}
+                : (fmtDate(currency.startedAt) ?? "–")}
           </div>
         </div>
         {relative && (

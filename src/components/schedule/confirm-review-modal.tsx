@@ -17,7 +17,7 @@ const PIN_LENGTH = 4;
  * the server finalizes the review and auto-generates the invoice.
  *
  * Typing a PIN is itself the deliberate act, so there is no second confirm dialog on top
- * of this one — chaining them made signing off a three-click sequence through two buttons
+ * of this one, chaining them made signing off a three-click sequence through two buttons
  * reading "Confirm review". The consequence is stated inline instead.
  */
 export function ConfirmReviewModal({

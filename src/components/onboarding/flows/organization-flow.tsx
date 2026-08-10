@@ -1,5 +1,5 @@
 /**
- * Personalize the school — logo, contact details, time zone.
+ * Personalize the school, logo, contact details, time zone.
  *
  * These three are grouped because they share one outcome: what a member sees on an
  * invoice, an email, and the schedule. Settings → Organization has them spread across
@@ -55,7 +55,7 @@ export function OrganizationFlow({ onClose }: FlowProps) {
     e.target.value = "";
     if (!file) return;
     if (!file.type.startsWith("image/")) return toast.error("Pick an image file (PNG, JPG, or SVG).");
-    if (file.size > 5 * 1024 * 1024) return toast.error("That image is over 5 MB — pick a smaller one.");
+    if (file.size > 5 * 1024 * 1024) return toast.error("That image is over 5 MB, pick a smaller one.");
     try {
       const url = await uploadLogo.mutateAsync(file);
       setLogo(typeof url === "string" ? url : organization?.profileImage ?? null);
@@ -72,7 +72,7 @@ export function OrganizationFlow({ onClose }: FlowProps) {
         name: name.trim() || organization?.name,
         details: { phone: phone.trim(), email: email.trim() },
       });
-      // Separate endpoint — it validates the zone rather than trusting it.
+      // Separate endpoint, it validates the zone rather than trusting it.
       if (zone !== (organization?.timeZone ?? "")) {
         await updateZone.mutateAsync(zone || null);
       }
@@ -180,7 +180,7 @@ export function OrganizationFlow({ onClose }: FlowProps) {
             />
             <p className="text-xs text-muted-foreground">
               The schedule shows times at your field, so a 9:00 AM lesson stays 9:00 AM for
-              everyone — including anyone travelling.
+              everyone, including anyone travelling.
             </p>
           </div>
         </div>

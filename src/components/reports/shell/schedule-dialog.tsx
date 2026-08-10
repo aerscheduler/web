@@ -2,7 +2,7 @@
  * Scheduling a saved view.
  *
  * Deliberately small: a cadence, a time, and who gets it. Everything else is
- * already decided — the view says which report and how it's filtered, and the
+ * already decided, the view says which report and how it's filtered, and the
  * cadence decides the window, so there is no date range to pick and no way to
  * build a weekly email that reports the wrong week.
  *
@@ -12,7 +12,7 @@
  *  - **Whose clock.** 7am is 7am at the school. A reader in another zone would
  *    otherwise reasonably assume it meant theirs.
  *  - **What it covers.** "Every Monday" does not tell you whether Monday's
- *    email includes Monday. It doesn't — it covers the seven days before.
+ *    email includes Monday. It doesn't, it covers the seven days before.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -125,7 +125,7 @@ export function ScheduleDialog({
    *
    * The list is sorted selected-first so a schedule with one recipient among
    * thirty doesn't open showing "1 selected" and thirty unticked boxes. It is
-   * keyed on the selection AT OPEN rather than the live one on purpose — sorting
+   * keyed on the selection AT OPEN rather than the live one on purpose, sorting
    * as you tick would slide rows out from under the cursor mid-click.
    */
   const [pinnedTop, setPinnedTop] = useState<number[]>([]);
@@ -172,7 +172,7 @@ export function ScheduleDialog({
       return;
     }
     // A half-typed address is a common way to lose a recipient silently, so it
-    // is added rather than discarded — and rejected here if it isn't valid.
+    // is added rather than discarded, and rejected here if it isn't valid.
     const pending = draftEmail.trim().toLowerCase();
     if (pending && !isEmail(pending)) {
       setError(`"${pending}" doesn't look like an email address.`);
@@ -226,7 +226,7 @@ export function ScheduleDialog({
     if (!existing) return;
     try {
       await sendNow.mutateAsync(existing.id);
-      toast.success("Sent — check your inbox");
+      toast.success("Sent. Check your inbox");
     } catch (err: any) {
       toast.error(err?.message ?? "Could not send it");
     }

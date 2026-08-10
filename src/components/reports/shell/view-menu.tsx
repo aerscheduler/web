@@ -2,19 +2,19 @@
  * Everything that shapes the table, behind one Filters button.
  *
  * Grouping, columns and filters used to be three separate controls spread over
- * three rows of chrome. They are one nested menu here — the same shape as the
- * filter menu on every other list in the console (`components/list-filters.tsx`)
- * — so the report toolbar is a single row: the window on the left, what you are
+ * three rows of chrome. They are one nested menu here (the same shape as the
+ * filter menu on every other list in the console (`components/list-filters.tsx`))
+ * so the report toolbar is a single row: the window on the left, what you are
  * asking of it on the right.
  *
  * A filter is edited where it is listed rather than added and then filled in, so
  * there is no half-built row sitting in the page. That means ONE filter per
  * field: "hours over 1 and under 5" is the `between` operator, not two filters.
- * A saved view that predates this still runs — extra filters on the same field
- * are kept and shown as chips, the menu just edits the first.
+ * A saved view that predates this still runs: extra filters on the same field
+ * are kept and shown as chips; the menu just edits the first.
  *
- * Every submenu is a fixed three-part box — search on top, the choices scrolling
- * in the middle, the condition and Clear pinned to the bottom. A school with 300
+ * Every submenu is a fixed three-part box (search on top, the choices scrolling
+ * in the middle, the condition and Clear pinned to the bottom). A school with 300
  * customers otherwise gets a list it has to page through with the mouse, and a
  * condition it only finds by scrolling past every name to reach it.
  *
@@ -59,7 +59,7 @@ import type {
 } from "@/types/reports";
 import { OPERATOR_LABELS, fromWire, isCompleteFilter, toWire, unitHint } from "./filter-builder";
 
-/** The sentinel for "no grouping" — a radio item cannot have an empty value. */
+/** The sentinel for "no grouping", a radio item cannot have an empty value. */
 const NO_GROUP = "__none__";
 
 const NO_VALUE: ReportFilterOperator[] = ["isNull", "isNotNull"];
@@ -90,7 +90,7 @@ function SubmenuBox({
 }: {
   children: ReactNode;
   className?: string;
-  /** From `useSubmenuSearch` — lets the search box find the option rows to move focus to. */
+  /** From `useSubmenuSearch`: lets the search box find the option rows to move focus to. */
   contentRef?: React.RefObject<HTMLDivElement | null>;
   onKeyDown?: (e: React.KeyboardEvent) => void;
   /** Crop target for the help documentation's screenshots. Inert. */
@@ -144,9 +144,9 @@ export function summarizeFilter(
   if (Array.isArray(filter.value)) {
     const values = filter.value.filter((v) => v != null && v !== "");
     if (filter.operator === "between") {
-      return values.map((v) => formatReportValue(v, def.type)).join(" – ");
+      return values.map((v) => formatReportValue(v, def.type)).join(", ");
     }
-    // One choice is worth naming; two aircraft descriptions are not — they only
+    // One choice is worth naming; two aircraft descriptions are not, they only
     // truncate, and "2 selected" is the part you can actually read.
     const text = values.length === 1 ? label(values[0]) : `${values.length} selected`;
     return prefix ? `${prefix} ${text}` : text;
@@ -156,7 +156,7 @@ export function summarizeFilter(
 }
 
 /**
- * The choices themselves — always searchable.
+ * The choices themselves, always searchable.
  *
  * There used to be a `>= 8 options` threshold, which meant the box appeared on Aircraft at
  * one school and not at another, and never on short lists like Type or Status. A control that
@@ -263,7 +263,7 @@ function FilterSubmenu({
 
   const put = (value: unknown) => onChange({ key: def.key, operator, value });
 
-  // Shared with the list-page filter menu — see `submenu-search.tsx` for the four separate
+  // Shared with the list-page filter menu, see `submenu-search.tsx` for the four separate
   // things Radix breaks about putting a text box inside a menu.
   const search = useSubmenuSearch();
 
@@ -409,7 +409,7 @@ function ColumnsSubmenu({
     else next.add(column.key);
     // A table with no columns is not a state worth allowing.
     if (next.size === 0) return;
-    // Report order, not click order — two people on the same saved view must see
+    // Report order, not click order, two people on the same saved view must see
     // the same table.
     onChange(columns.filter((c) => next.has(c.key)).map((c) => c.key));
   };

@@ -54,5 +54,5 @@ export function holdDragRefusalReason(hold: SlotOfferHold): string {
     hold.purpose === "instructor_confirm"
       ? `${hold.offeredToName} (instructor confirm)`
       : hold.offeredToName;
-  return `This time is held for ${who}. Open the offer to withdraw it, or wait until the hold ends.`;
+  return `This time is offered to ${who}. Open the offer to withdraw it, or wait until it ends.`;
 }

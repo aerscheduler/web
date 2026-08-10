@@ -234,7 +234,7 @@ function MembershipBody({
             <p className="text-xs text-muted-foreground">
               {formatPeriodRange(m.nextPeriod.periodStart, m.nextPeriod.periodEnd)}
               {/* The part-period from joining mid-cycle is billed before the first full one
-                  and at its own price, so say so — otherwise the amount here reads like a
+                  and at its own price, so say so, otherwise the amount here reads like a
                   short month rather than a deliberate proration. */}
               {m.nextPeriod.prorated ? " · part period, prorated" : ""}
               {m.nextPeriod.retry ? " · billing failed, retry" : ""}
@@ -270,7 +270,7 @@ function MembershipBody({
           label="Membership agreement on file"
           description={
             m.plan.FK_agreementDocumentTypeId
-              ? "This plan expects a signed agreement. Nothing is blocked if it is missing — this is a record, not a gate."
+              ? "This plan expects a signed agreement. Nothing is blocked if it is missing. This is a record, not a gate."
               : "Tick this once the member's paperwork is in. Nothing is blocked either way."
           }
           checked={!!m.agreementOnFileAt}
@@ -334,7 +334,7 @@ function MembershipBody({
  * Put somebody on a plan, or move them to a different one.
  *
  * The same dialog for both because the choice is the same one; only what happens underneath
- * differs — a new membership snapshots the plan's prices, a change re-snapshots them from
+ * differs, a new membership snapshots the plan's prices, a change re-snapshots them from
  * the next period. The copy says which.
  */
 function AssignDialog({
@@ -403,7 +403,7 @@ function AssignDialog({
             <SelectContent>
               {(plans.data ?? []).map((p) => (
                 <SelectItem key={p.id} value={String(p.id)}>
-                  {p.name} — {planPriceLine(p)}
+                  {p.name}, {planPriceLine(p)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -414,7 +414,7 @@ function AssignDialog({
           <div className="divide-y rounded-lg border px-3">
             <PreferenceToggle
               label="Start it now"
-              description="Dues begin accruing from today. Leave this off to set the membership up without charging anything yet — you can start it from their record when they are ready."
+              description="Dues begin accruing from today. Leave this off to set the membership up without charging anything yet. You can start it from their record when they are ready."
               checked={start}
               onCheckedChange={setStart}
             />

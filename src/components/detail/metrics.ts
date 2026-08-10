@@ -3,7 +3,7 @@
  * to turn them into one number.
  *
  * These endpoints are not uniform, and assuming they are is how a card ends up
- * rendering `[object Object]` — which has happened here before. Three shapes:
+ * rendering `[object Object]`, which has happened here before. Three shapes:
  *
  *   countFlightTime, countScheduledReservations, countCompletedReservations
  *       → `{ date, count }[]`, one row per day in the window.
@@ -21,7 +21,7 @@ export type PaymentTotals = { pending: number; processed: number };
 /**
  * Total a daily series.
  *
- * Returns null — not 0 — when there is no series, because "the request hasn't
+ * Returns null (not 0) when there is no series, because "the request hasn't
  * landed / failed" and "this person flew nothing" have to look different on a
  * tile. Rows with a non-numeric count are skipped rather than poisoning the sum
  * with NaN, which renders as a blank tile and reads as a bug in the data.

@@ -84,7 +84,7 @@ const CATEGORY_CLASSES = [
 function apiErr(e: unknown): string {
   if (e instanceof ApiError) return e.message;
   if (e instanceof Error) return e.message;
-  return "Something went wrong. Your entries are safe — try again.";
+  return "Something went wrong. Your entries are safe. Try again.";
 }
 
 // ---------------------------------------------------------------- orchestrator
@@ -130,7 +130,7 @@ function AllSet({ name }: { name: string }) {
 
 function PersonaRouter({ onPick }: { onPick: (p: Persona) => void }) {
   return (
-    <Shell headline="Let's get you flying." sub="Tell us who you are — we'll set up only what you need, nothing more.">
+    <Shell headline="Let's get you flying." sub="Tell us who you are. We'll set up only what you need, nothing more.">
       <Step title="What brings you to AerScheduler?" sub="This just tailors your setup. You can change anything later.">
         <div className="grid gap-3">
           <PersonaCard
@@ -142,7 +142,7 @@ function PersonaRouter({ onPick }: { onPick: (p: Persona) => void }) {
           <PersonaCard
             icon={UserIcon}
             title="I'm an independent instructor"
-            blurb="Just you — add a plane and start booking in about a minute."
+            blurb="Just you. Add a plane and start booking in about a minute."
             onClick={() => onPick("instructor")}
           />
           <PersonaCard
@@ -274,16 +274,16 @@ const SUBTYPES: { key: OrgType; label: string }[] = [
 ];
 
 /**
- * Everyone who is starting an operation — solo CFI, school, club, FBO.
+ * Everyone who is starting an operation: solo CFI, school, club, FBO.
  *
  * One flow rather than two, because after the type is chosen they differ only in
  * wording: name it, add a tail, optionally connect billing, go. Three steps is the
- * whole point — the rest of setup is a checklist on the dashboard, where it can be
+ * whole point. The rest of setup is a checklist on the dashboard, where it can be
  * done in any order, by any admin, on any day.
  *
  * There is deliberately no "book your first flight" step. It used to create a solo
  * reservation for the owner, which is a fiction at any operation where the owner
- * isn't the one flying — and it put a placeholder on a real schedule board that
+ * isn't the one flying, and it put a placeholder on a real schedule board that
  * somebody then had to cancel. Booking is the first item on the dashboard checklist
  * instead, pointing at the real form.
  */
@@ -353,7 +353,7 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
   }
 
   /** Leaving the aircraft step is the point of no return: everything after it is
-   *  optional and can be abandoned — including a redirect out to Stripe — so the org
+   *  optional and can be abandoned (including a redirect out to Stripe) so the org
    *  is marked set up here rather than at the end. */
   function toBilling() {
     void updateOrg.mutateAsync({ preferences: { newOrgOnboardingComplete: true } }).catch(() => {});
@@ -374,7 +374,7 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
       {step === 0 && (
         <Step
           title={solo ? "Name your operation" : "Tell us about your operation"}
-          sub="Just enough to hang a schedule on — you can change any of it later."
+          sub="Just enough to hang a schedule on. You can change any of it later."
         >
           {!solo && (
             <div>
@@ -439,8 +439,8 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
           title={solo ? "Add the aircraft you fly" : "Add your first aircraft"}
           sub={
             solo
-              ? "Don't own an aircraft? Skip for now — you can add one anytime from the Aircraft page."
-              : "One tail is all we need to make the schedule real — add the rest later."
+              ? "Don't own an aircraft? Skip for now. You can add one anytime from the Aircraft page."
+              : "One tail is all we need to make the schedule real. Add the rest later."
           }
           locationId={locationId}
           fallbackLocationName={airport.trim() || orgName.trim()}
@@ -460,8 +460,8 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
 /**
  * Optional Stripe Connect, then out.
  *
- * Connect is what turns close-outs into money — invoices, card and ACH payments,
- * QuickBooks — so it earns a place in the wizard. It does not earn the right to block
+ * Connect is what turns close-outs into money (invoices, card and ACH payments,
+ * QuickBooks), so it earns a place in the wizard. It does not earn the right to block
  * anyone: "I'll do this later" is the equal-weight option, and the same item is
  * waiting on the checklist either way.
  *
@@ -484,7 +484,7 @@ function BillingStep({
     try {
       const { url } = await connect.mutateAsync();
       // Recorded before the redirect, because Stripe's hosted onboarding is a different
-      // origin — once we hand off we cannot see whether they finished, only whether they
+      // origin, once we hand off we cannot see whether they finished, only whether they
       // started. The completion shows up later as Connect being enabled on the org.
       track("stripe_connect_started", { channel: attributionChannel() });
       window.location.href = url;
@@ -497,12 +497,12 @@ function BillingStep({
     <div>
       <div className="flex items-center gap-2 text-success">
         <CheckCircle2 className="size-5" />
-        <span className="text-sm font-medium">You&rsquo;re live — {orgName || "your operation"} is set up.</span>
+        <span className="text-sm font-medium">You&rsquo;re live. {orgName || "your operation"} is set up.</span>
       </div>
 
       <Step
         title="Get paid for it"
-        sub="Connect Stripe and close-outs turn into invoices your members can pay by card or ACH — and sync straight to QuickBooks. Payouts go to your own bank account."
+        sub="Connect Stripe and close-outs turn into invoices your members can pay by card or ACH, and sync straight to QuickBooks. Payouts go to your own bank account."
       >
         <div className="rounded-xl border bg-card p-4">
           <ul className="space-y-2 text-sm text-muted-foreground">
@@ -789,7 +789,7 @@ function Shell({
               </ol>
             ) : (
               <ul className="mt-8 space-y-2.5 text-sm text-white/70">
-                {["Set up in minutes — no sales call", "No credit card to start", "Every step writes real, usable data"].map(
+                {["Set up in minutes. No sales call", "No credit card to start", "Every step writes real, usable data"].map(
                   (t) => (
                     <li key={t} className="flex items-center gap-2.5">
                       <Check className="size-4 shrink-0 text-primary" /> {t}

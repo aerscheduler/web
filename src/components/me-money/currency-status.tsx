@@ -17,7 +17,7 @@ export interface CurrencyStatus {
  * be more optimistic than the server.
  *
  * ⚠️ This used to derive status from a `Currency.expiresAt` field that doesn't
- * exist, and treated "no expiry on file" as Current — so a currency that had
+ * exist, and treated "no expiry on file" as Current, so a currency that had
  * never been signed off showed a green badge to a pilot the server would refuse
  * to dispatch. Never infer currency from dates alone; `renewedBy` is what makes
  * a currency count.

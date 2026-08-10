@@ -59,7 +59,7 @@ function PersonRow({
 }
 
 /**
- * "My students" on /me for instructors. Students no longer get a "My instructors"
+ * "My students" on /me for instructors. Students no longer get a ", My instructors"
  * rail here (same as the mobile home). Admins assign from People; request from a profile.
  */
 export function InstructionPartnersCard() {

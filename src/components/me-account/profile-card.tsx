@@ -69,7 +69,7 @@ export function ProfileCard() {
               </AvatarFallback>
             </Avatar>
             <div className="min-w-0">
-              <div className="truncate text-sm font-medium">{user?.name ?? "—"}</div>
+              <div className="truncate text-sm font-medium">{user?.name ?? "–"}</div>
               <div className="truncate text-xs text-muted-foreground">
                 {user?.email ?? ""}
               </div>

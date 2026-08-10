@@ -23,7 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
  *
  * Separate from `ProfileCard` (name and email) rather than folded into it, because these
  * are the fields the school needs in order to reach you and the ones it will text when
- * SMS notifications ship — worth their own heading rather than being three more inputs
+ * SMS notifications ship, worth their own heading rather than being three more inputs
  * under "Profile".
  *
  * Numbers are reformatted as you type and checked before submit, but the SERVER decides
@@ -49,12 +49,12 @@ export function ContactDetailsCard() {
    * What the server holds, rendered the way a person writes it.
    *
    * The server stores and returns E.164, so seeding the inputs with the raw value put
-   * "+13035550142" in the box — technically correct, unreadable, and the exact thing
+   * "+13035550142" in the box, technically correct, unreadable, and the exact thing
    * this whole module exists to avoid. Formatting on the way IN means you edit
    * "(303) 555-1234"; the server re-normalizes on the way out, so the round trip is
    * lossless and the stored value is still canonical.
    *
-   * These doubles as the baseline for `dirty` — comparing a formatted input against a
+   * These doubles as the baseline for `dirty`: comparing a formatted input against a
    * raw E.164 original would mark the form dirty the moment it loaded.
    */
   const initial = useMemo(
@@ -68,7 +68,7 @@ export function ContactDetailsCard() {
     [details]
   );
 
-  // Re-seeded whenever the server's copy changes, which includes after a save — so the
+  // Re-seeded whenever the server's copy changes, which includes after a save, so the
   // inputs settle on the normalized number the server actually stored rather than
   // whatever was typed. That is the feedback that shows the field worked.
   useEffect(() => {
@@ -95,8 +95,8 @@ export function ContactDetailsCard() {
     e.preventDefault();
     if (!dirty || !valid) return;
 
-    // Empty string, not undefined, for a cleared field — the server reads `undefined` as
-    // "leave it alone" and `""` as "clear it", and clearing has to be possible.
+    // Empty string, not undefined, for a cleared field, the server reads `undefined` as
+    // "leave it alone" and `""` as "clear it"and clearing has to be possible.
     update.mutate(
       {
         phone: phone.trim(),

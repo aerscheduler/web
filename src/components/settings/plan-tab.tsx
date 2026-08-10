@@ -28,7 +28,7 @@ function StatePill({ status }: { status: SubStatus }) {
     case "exempt":
       return <Badge variant="outline">Legacy plan</Badge>;
     case "trial":
-      return <Badge variant="outline">Trial — {status.daysLeft}d left</Badge>;
+      return <Badge variant="outline">Trial, {status.daysLeft}d left</Badge>;
     case "grace":
       return <Badge variant="outline">Starts {shortDate(status.freeUntil)}</Badge>;
     case "expired":
@@ -43,9 +43,9 @@ function stateNote(status: SubStatus): string {
     case "active":
       return "Your subscription is active. Aircraft are billed monthly; add or remove tails anytime.";
     case "trial":
-      return `You won't be charged until ${shortDate(status.freeUntil)} — ${status.daysLeft} day${status.daysLeft === 1 ? "" : "s"} left in your ${TRIAL_DAYS}-day free trial.`;
+      return `You won't be charged until ${shortDate(status.freeUntil)}: ${status.daysLeft} day${status.daysLeft === 1 ? "" : "s"} left in your ${TRIAL_DAYS}-day free trial.`;
     case "grace":
-      return `AerScheduler is moving to per-aircraft pricing. Billing for your fleet starts ${shortDate(status.freeUntil)}. Add a card now to stay active — simulators and rooms remain free.`;
+      return `AerScheduler is moving to per-aircraft pricing. Billing for your fleet starts ${shortDate(status.freeUntil)}. Add a card now to stay active, simulators and rooms remain free.`;
     case "expired":
       return "Your access is paused. Subscribe to restore full access.";
   }
@@ -70,7 +70,7 @@ export function PlanTab() {
     );
   }
 
-  // Grandfathered orgs: neutral card, NO per-aircraft pricing shown — they stay on
+  // Grandfathered orgs: neutral card, NO per-aircraft pricing shown, they stay on
   // their legacy plan and shouldn't learn about the price change here.
   if (status.state === "exempt") {
     return (
@@ -115,7 +115,7 @@ export function PlanTab() {
 
         {status.planeCount === 0 ? (
           <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-            No aircraft yet — you'll be billed{" "}
+            No aircraft yet, you'll be billed{" "}
             <span className="font-medium text-foreground">${perPlane}/mo per aircraft</span> once you add your fleet.
             Simulators and rooms are free.
           </div>

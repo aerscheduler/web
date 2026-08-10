@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Parse an ISO date string safely — returns null instead of throwing.
+ * Parse an ISO date string safely, returns null instead of throwing.
  * `date-fns`' `parseISO(undefined)` throws (`.split` of undefined), which has
  * crashed whole pages when an API field like `createdAt`/`expiresAt` is missing.
  */
@@ -18,11 +18,11 @@ export function parseDate(iso: string | null | undefined): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-/** Format an ISO date string; returns `fallback` (default "—") when missing/invalid. */
+/** Format an ISO date string; returns `fallback` (default "–") when missing/invalid. */
 export function formatDate(
   iso: string | null | undefined,
   fmt = "MMM d, yyyy",
-  fallback = "—"
+  fallback = "–"
 ): string {
   const d = parseDate(iso);
   return d ? fnsFormat(d, fmt) : fallback;

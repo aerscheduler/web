@@ -51,14 +51,14 @@ export type SelectFacet = {
   key: string;
   label: string;
   /**
-   * `hint` is secondary text shown muted beside the label — an aircraft's home field, a
+   * `hint` is secondary text shown muted beside the label, an aircraft's home field, a
    * person's role. It is also SEARCHED, so typing an airport surfaces every aircraft based
    * there even though no option is literally named after it.
    */
   options: Array<{ value: string; label: string; hint?: string }>;
   /** Label for the cleared / “any” choice. Ignored when `required`. */
   allLabel?: string;
-  /** When true, omit the “any” choice — value is always one of `options`. */
+  /** When true, omit the “any” choice, value is always one of `options`. */
   required?: boolean;
   /** Allow stacking multiple values (OR). Renders checkboxes instead of radios. */
   multiple?: boolean;
@@ -115,7 +115,7 @@ function activeValueLabel(facet: FacetDef, values: ListFilterValues): string | n
     if (!values.startDate && !values.endDate) return null;
     const from = values.startDate ? format(new Date(values.startDate), "MMM d") : "…";
     const to = values.endDate ? format(new Date(values.endDate), "MMM d, yyyy") : "…";
-    return `${from} – ${to}`;
+    return `${from}, ${to}`;
   }
   return null;
 }
@@ -183,7 +183,7 @@ function toggleMultiValue(
 
 /**
  * Filter icon → nested dropdown of facets. Active filters render as dismissible
- * badges below (or beside) the trigger — use with {@link ListSearchBar}.
+ * badges below (or beside) the trigger, use with {@link ListSearchBar}.
  */
 export function ListFilters({
   facets,
@@ -289,7 +289,7 @@ export function ListFilters({
               );
             }
 
-            // dateRange — submenu with picker; keep menu open while choosing.
+            // dateRange, submenu with picker; keep menu open while choosing.
             return (
               <DropdownMenuSub key={facet.key}>
                 <DropdownMenuSubTrigger>
@@ -352,7 +352,7 @@ export function ListFilters({
  *
  * Every select facet gets the box, not just the long ones. A threshold would mean the
  * control appears and disappears depending on how many aircraft a school owns, so the same
- * menu behaves differently at two customers — and you can't build a habit on that.
+ * menu behaves differently at two customers, and you can't build a habit on that.
  */
 function SelectFacetSubmenu({
   facet,
@@ -363,7 +363,7 @@ function SelectFacetSubmenu({
   values: ListFilterValues;
   onChange: (next: ListFilterValues) => void;
 }) {
-  // All the menu-keyboard repair lives in this hook — see its notes for why each piece
+  // All the menu-keyboard repair lives in this hook, see its notes for why each piece
   // is needed. Shared with the report filter menu so the two can't drift.
   const search = useSubmenuSearch();
   const visible = facet.options.filter((o) => optionMatches(o, search.query));
@@ -449,7 +449,7 @@ function SelectFacetSubmenu({
   // it drops out as soon as you type rather than sitting above the results as a near-match.
   const showAny = !facet.required && !search.query.trim();
 
-  // A required facet always has a value, so the trigger names it — including the default.
+  // A required facet always has a value, so the trigger names it, including the default.
   // "Any" there would be a lie: People's Type is always Members or Guests, never both.
   const triggerLabel = facet.required
     ? (facet.options.find((o) => o.value === current)?.label ?? current)

@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * A single-date picker: a button that opens a calendar popover. Works with a
- * "yyyy-MM-dd" string (same shape as a native `<input type="date">`) so it drops
+ * "yyyy-MM-dd" string (same shape as a native `<input type=", date">`) so it drops
  * straight into forms that already track the date as a string. `min`/`max` are
  * inclusive "yyyy-MM-dd" bounds (days outside them are disabled).
  */

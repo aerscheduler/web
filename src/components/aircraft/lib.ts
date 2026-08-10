@@ -1,7 +1,7 @@
 import type { Plane } from "@/types/api";
 
-/** Status chip descriptor for a plane — grounded > in-flight > available.
- *  NOTE: `Plane.rampedIn` is inverted vs. its name — `rampedIn === true` means the
+/** Status chip descriptor for a plane, grounded > in-flight > available.
+ *  NOTE: `Plane.rampedIn` is inverted vs. its name, `rampedIn === true` means the
  *  plane is on the ramp (parked/available); it's only actually flying once it's been
  *  ramped OUT (`rampedIn === false`). Only show "In flight" then, so a resting plane
  *  isn't mislabeled as airborne. */
@@ -14,7 +14,7 @@ export function planeStatus(p: Plane): {
   return { label: "Available", variant: "success" };
 }
 
-/** The billable rate to surface — prefer wet, then dry — with its per-unit note. */
+/** The billable rate to surface (prefer wet, then dry) with its per-unit note. */
 export function planeRate(
   p: Plane
 ): { cents: number; basis: "wet" | "dry"; per: "/Hobbs" | "/tach" } | null {
@@ -45,7 +45,7 @@ export type PlaneTemplate = {
 
 /**
  * Quick-start templates that prefill make/model/category + a suggested rate + fuel.
- * A convenience only — every value stays editable, and none of these set the
+ * A convenience only, every value stays editable, and none of these set the
  * tail number, year, or home base. Rates/fuel are typical ballparks in cents/gallons.
  */
 export const PLANE_TEMPLATES: PlaneTemplate[] = [

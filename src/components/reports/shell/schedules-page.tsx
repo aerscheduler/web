@@ -2,7 +2,7 @@
  * Every scheduled report in one place.
  *
  * Schedules are otherwise reachable only through the saved view they belong to,
- * which is fine at two and unusable at six — there is no way to answer "what is
+ * which is fine at two and unusable at six, there is no way to answer "what is
  * this school emailing out, and to whom" without opening every view in turn.
  * That question matters most for the reports nobody is checking.
  *
@@ -104,7 +104,7 @@ export function SchedulesPage() {
     setSendingId(schedule.id);
     try {
       await sendNow.mutateAsync(schedule.id);
-      toast.success("Sent — check your inbox");
+      toast.success("Sent. Check your inbox");
     } catch (err: any) {
       toast.error(err?.message ?? "Could not send it");
     } finally {
@@ -176,7 +176,7 @@ export function SchedulesPage() {
                   {schedule.lastError ? (
                     <p className="mt-2 flex items-start gap-1.5 text-sm text-destructive">
                       <AlertCircle className="mt-0.5 size-3.5 shrink-0" />
-                      <span>Last send failed — {schedule.lastError}</span>
+                      <span>Last send failed, {schedule.lastError}</span>
                     </p>
                   ) : schedule.lastRunAt ? (
                     <p className="mt-2 text-xs text-muted-foreground">

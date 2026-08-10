@@ -20,13 +20,13 @@ import {
  * sandbox: change who they are, or leave.
  *
  * ONE LINE AT EVERY WIDTH. This sits above every page, so whatever it costs it
- * costs everywhere — and on a phone the full sentence wrapped to three lines
+ * costs everywhere, and on a phone the full sentence wrapped to three lines
  * with the buttons on a fourth, roughly a fifth of the screen, permanently. So
  * the prose is desktop-only and a phone gets the two facts that are actually
  * load-bearing: that this is a demo, and who you are in it.
  *
  * Rendered ABOVE the subscription gate, alongside the impersonation banner and
- * for the same reason stated there — the gate can replace the entire app shell,
+ * for the same reason stated there, the gate can replace the entire app shell,
  * and a banner living inside the shell would vanish exactly when the visitor most
  * needs the way out.
  *
@@ -47,7 +47,7 @@ export function DemoBanner() {
     try {
       await switchDemoRole(orgUserId);
       // Every cached query was answered for the previous role, and the roles see
-      // deliberately different data — a student's own schedule is not the whole
+      // deliberately different data, a student's own schedule is not the whole
       // board. Keeping any of it would show one role's data under another's name.
       qc.clear();
       toast.success(`Now viewing as ${name}`);
@@ -115,7 +115,7 @@ export function DemoBanner() {
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Icon-only until there's room for the word — this is the way out, so
+        {/* Icon-only until there's room for the word, this is the way out, so
             it stays on the bar at every width rather than folding into a menu. */}
         <Button
           size="sm"

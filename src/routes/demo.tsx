@@ -16,7 +16,7 @@ export const Route = createFileRoute("/demo")({
  *
  * Deliberately has no sign-in form and no Google or Apple buttons. Those create
  * REAL accounts (`completeOAuthSignIn` writes a user row), which is the opposite
- * of what someone who clicked "try it without signing up" asked for — and the
+ * of what someone who clicked "try it without signing up" asked for, and the
  * point of the demo is that there is nothing to sign up for.
  */
 function DemoEntry() {
@@ -34,7 +34,7 @@ function DemoEntry() {
 
     void (async () => {
       try {
-        // Already inside a live demo in this tab — navigating back to /demo means
+        // Already inside a live demo in this tab. Navigating back to /demo means
         // "take me to the demo", not "throw that one away and mint another".
         // Minting again would also spend the per-IP budget for no reason, and
         // that budget is small enough that a visitor who wanders back here a few

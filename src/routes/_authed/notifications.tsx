@@ -45,7 +45,7 @@ function NotificationsPage() {
   const confirm = useConfirm();
 
   const { rows: notifications, total } = pageRows(q);
-  // The whole inbox, not the page — counting the unread rows on screen would
+  // The whole inbox, not the page, counting the unread rows on screen would
   // make the badge fall as you paged forward.
   const unreadCount = unreadQ.data ?? 0;
   const searching = !!debouncedQ;

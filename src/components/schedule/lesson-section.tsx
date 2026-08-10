@@ -23,8 +23,8 @@ import { Textarea } from "@/components/ui/textarea";
  * Grade the lesson from inside the close-out.
  *
  * This is the whole reason the module was built this shape. Every competitor makes an
- * instructor close out the flight in one place and then record the training in another —
- * duplicate entry is the loudest complaint about all of them — and the fix is not a better
+ * instructor close out the flight in one place and then record the training in another.
+ * duplicate entry is the loudest complaint about all of them, and the fix is not a better
  * second screen, it is not having one. The close-out already knows who flew, for how long,
  * and on what; the only thing missing was WHICH LESSON, and that is one tap.
  *
@@ -33,7 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
  * already knows it is 1.5 is exactly the friction that sends people back to paper.
  *
  * Renders nothing at all unless this booking is instruction with a student on it and that
- * student is enrolled on something — which is most bookings, and they should see no trace
+ * student is enrolled on something, which is most bookings, and they should see no trace
  * of this.
  */
 export function LessonSection({ reservation }: { reservation: Reservation }) {
@@ -41,8 +41,8 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
   const { orgUserId, isStaff } = useAuth();
 
   //EVERY student on the booking, not just the first. Two students in one aircraft and a
-  //group ground school are both ordinary — split billing exists precisely because they
-  //are — and grading only the first would leave the second one's record silently blank.
+  //group ground school are both ordinary, split billing exists precisely because they
+  //are, and grading only the first would leave the second one's record silently blank.
   const students = r.personnel?.students ?? [];
   const isInstructional = ["dual", "ground", "sim", "solo"].includes(r.type);
   //An instructor on the booking, or staff. A student cannot grade their own lesson.
@@ -170,7 +170,7 @@ function LessonGrader({
   const [open, setOpen] = React.useState(false);
 
   //Straight off the close-out. `briefing` is what the instruction line is billed from, and
-  //the Hobbs delta is what the aircraft line is billed from — the same two numbers the
+  //the Hobbs delta is what the aircraft line is billed from: the same two numbers the
   //invoice uses, so the record and the bill can never disagree about what was flown.
   const hobbsDelta =
     r.review?.hobbsTimeIn != null && r.review?.hobbsTimeOut != null

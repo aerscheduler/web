@@ -134,7 +134,7 @@ export const CANCELLATION_TABLE_COLUMNS: ColumnDef<CancelledReservation, unknown
     accessorFn: (r) => r.cancellationReason ?? "",
     cell: ({ row }) => {
       const note = row.original.cancellationReason?.trim();
-      if (!note) return <span className="text-muted-foreground">—</span>;
+      if (!note) return <span className="text-muted-foreground">–</span>;
       return (
         <span className="block max-w-[9rem] truncate text-muted-foreground" title={note}>
           {note}
@@ -147,7 +147,7 @@ export const CANCELLATION_TABLE_COLUMNS: ColumnDef<CancelledReservation, unknown
     header: "Cancelled by",
     accessorFn: (r) => r.cancelledBy?.user?.name ?? "",
     cell: ({ row }) => (
-      <span className="max-w-[8rem] truncate">{row.original.cancelledBy?.user?.name ?? "—"}</span>
+      <span className="max-w-[8rem] truncate">{row.original.cancelledBy?.user?.name ?? "–"}</span>
     ),
   },
 ];
@@ -347,7 +347,7 @@ export function CancellationsDataTable({
   onRowClick: (row: CancelledReservation) => void;
   /** The record open in the detail panel, so the table marks it. */
   selectedId?: number | null;
-  /** The page currently on screen, so the page above can step ↑/↓ through it —
+  /** The page currently on screen, so the page above can step ↑/↓ through it.
    *  paging happens in here, so this is the only place that knows the order. */
   onRowsChange?: (rows: CancelledReservation[]) => void;
 }) {
@@ -358,8 +358,8 @@ export function CancellationsDataTable({
   );
 
   // Paged in the browser, unlike every other table here, because this is a
-  // report endpoint: it answers one object — the cancellations plus the summary
-  // charted above them — rather than a list, so it is not capped at 1,000 rows
+  // report endpoint: it answers one object, the cancellations plus the summary
+  // charted above them, rather than a list, so it is not capped at 1,000 rows
   // and the array really is the whole window. See `useClientPage`.
   const paging = usePaging({ resetKey: [startDate, endDate, listQuery] });
   const { rows: pageOfRows, total } = useClientPage(filteredRows, paging);

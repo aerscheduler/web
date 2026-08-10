@@ -15,8 +15,8 @@ import { Badge } from "@/components/ui/badge";
  *
  * Shown only when the server actually returned `user.details`. That is the whole access
  * check on this side, and deliberately so: whether a viewer may see contact details
- * depends on a relationship the client cannot evaluate — an instructor gets it for their
- * OWN students and nobody else's — so re-deriving it here would be a second, wrong copy
+ * depends on a relationship the client cannot evaluate, an instructor gets it for their
+ * OWN students and nobody else's, so re-deriving it here would be a second, wrong copy
  * of `canViewContactDetails`. If the details arrived, the server said yes.
  */
 export function PersonContact({ ou, isSelf }: { ou: OrganizationUser; isSelf: boolean }) {
@@ -41,7 +41,7 @@ export function PersonContact({ ou, isSelf }: { ou: OrganizationUser; isSelf: bo
         {!hasAnything ? (
           <CardEmpty>
             {isSelf
-              ? "Nothing on file — add a number from your profile."
+              ? "Nothing on file. Add a number from your profile."
               : "No contact details on file."}
           </CardEmpty>
         ) : (
@@ -111,7 +111,7 @@ function PersonEmergencyContacts({ ou, isSelf }: { ou: OrganizationUser; isSelf:
       ) : contacts.length === 0 ? (
         <CardEmpty>
           {isSelf
-            ? "Nobody on file — add someone from your profile."
+            ? "Nobody on file. Add someone from your profile."
             : "Nobody on file. Worth asking them to add someone."}
         </CardEmpty>
       ) : (

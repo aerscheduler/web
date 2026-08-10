@@ -33,7 +33,7 @@ export function MemberRowActions({
   align = "end",
 }: {
   ou: OrganizationUser;
-  /** Omitted on the profile page itself — "View profile" would go nowhere. */
+  /** Omitted on the profile page itself. "View profile" would go nowhere. */
   onView?: (ou: OrganizationUser) => void;
   onEditRoles: (ou: OrganizationUser) => void;
   /**
@@ -48,7 +48,7 @@ export function MemberRowActions({
   const qc = useQueryClient();
   const confirm = useConfirm();
   const { roles } = useAuth();
-  // The member's USER id, from the nested relation — see the note in types/api.ts.
+  // The member's USER id, from the nested relation, see the note in types/api.ts.
   // The /orgUsers list includes `user.id`.
   const targetUserId = ou.user?.id ?? 0;
   const orgUserMut = useUpdateMemberOrgUser(targetUserId);
@@ -71,7 +71,7 @@ export function MemberRowActions({
   const ground = canGroundMembers(roles);
 
   /**
-   * Grounding opens a modal, because the reason is mandatory — the member is
+   * Grounding opens a modal, because the reason is mandatory, the member is
    * emailed it verbatim. Ungrounding stays inline but now confirms: it used to
    * fire on a single click with no prompt, so a misclick silently reinstated
    * someone. It also clears the stale reason rather than leaving the old one
@@ -86,7 +86,7 @@ export function MemberRowActions({
     if (!ok) return;
     orgUserMut.mutate(
       // Empty string, NOT null: the server does `params.groundedReason ?? undefined`,
-      // so null collapses to undefined and Prisma skips the column — the old reason
+      // so null collapses to undefined and Prisma skips the column, the old reason
       // would survive on a now-active member. "" actually writes. (Verified against
       // the API; the Flutter unground path sends "" for the same reason.)
       { grounded: false, groundedReason: "" },
@@ -117,7 +117,7 @@ export function MemberRowActions({
         : {
             title: `Archive ${name}?`,
             description:
-              "They're not told, and they'll stop receiving any email or notification from you. They come off the roster and can't be booked, but their flights, invoices and history are all kept — and you can bring them back any time.",
+              "They're not told, and they'll stop receiving any email or notification from you. They come off the roster and can't be booked, but their flights, invoices and history are all kept, and you can bring them back any time.",
             confirmLabel: "Archive member",
           }
     );

@@ -3,7 +3,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export type ViewMode = "grid" | "list";
 
-/** Icon toggle matching Aircraft — grid cards vs dense list. */
+/** Icon toggle matching Aircraft: grid cards vs dense list. */
 export function ViewModeToggle({
   value,
   onChange,

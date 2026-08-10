@@ -25,7 +25,7 @@ import { seriesPoints, sumSeries, type DailyCount } from "@/components/detail/me
  * flown and what they've been billed, because those two are what the question
  * "how's this person doing" almost always means.
  *
- * Mounted only when `access.metrics` is true — `/reports/orgUser/*` is
+ * Mounted only when `access.metrics` is true: `/reports/orgUser/*` is
  * self-or-admin server-side, so a dispatcher never gets this far.
  */
 export function PersonMetrics({
@@ -135,8 +135,8 @@ export function PersonMetrics({
         title="Flying activity"
         description={
           activityGranularity(points.length) === "week"
-            ? "Hobbs hours per week — every closed-out flight they were on."
-            : "Hobbs hours per day — every closed-out flight they were on."
+            ? "Hobbs hours per week, every closed-out flight they were on."
+            : "Hobbs hours per day, every closed-out flight they were on."
         }
       >
         {flightTime.isError ? (

@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_authed/me/book")({
 function Book() {
   const { organization, roles, orgUserId, userId } = useAuth();
 
-  // Only the roles that seat you on a flight count here — see `selfBookableTypes`.
+  // Only the roles that seat you on a flight count here, see `selfBookableTypes`.
   const bookable = selfBookableTypes(roles);
   const canBook = bookable.length > 0;
   // A technician's only booking is taking an aircraft off the line, so the page

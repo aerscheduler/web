@@ -8,7 +8,7 @@
  * element being photographed.
  *
  * Reports are the exception. One component renders every report, so the element
- * that IS "Student progress" and the element that IS "Utilization grouped by
+ * that IS "Student progress" and the element that IS ", Utilization grouped by
  * resource" are the same box with a different report in it. This maps a report
  * to the id the documentation knows it by, which is what keeps `report-view.tsx`
  * free of any knowledge of a particular report.

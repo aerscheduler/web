@@ -24,7 +24,7 @@ export function NotificationItem({
   const unread = notification.readAt == null;
   const title = notification.title ?? notification.message ?? "Notification";
   // `subtitle` first: that is the field the server actually sends. Without it every
-  // notification rendered as a bare title — for an announcement that meant the whole
+  // notification rendered as a bare title, for an announcement that meant the whole
   // row read "Test Flight School" and nothing else, so a member could see they had a
   // notification but not what it said.
   const body =

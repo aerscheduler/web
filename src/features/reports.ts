@@ -46,7 +46,7 @@ export function useReportCatalog() {
  * The clock this school's reporting days are measured on.
  *
  * Comes from the server with the catalog, so the console and the engine resolve
- * "Last 30 days" identically — the alternative is each deciding for itself,
+ * "Last 30 days" identically, the alternative is each deciding for itself,
  * which is exactly how a tile and its own report came to show different totals.
  *
  * Falls back to the browser's zone only while the catalog is still loading; the
@@ -62,7 +62,7 @@ export function useReportTimeZone(): string {
  * Run a report.
  *
  * The whole request is the query key, so changing a filter, a column or the page
- * is a new cache entry — and stepping back to a previous configuration is
+ * is a new cache entry, and stepping back to a previous configuration is
  * instant rather than another round trip. `placeholderData` keeps the previous
  * table on screen while the next one loads, so paging doesn't blink through an
  * empty state.
@@ -108,7 +108,7 @@ export async function downloadReport(request: ReportRunRequest, format: "csv" = 
   }
 
   const blob = await res.blob();
-  // Prefer the filename the server chose — it carries the report id and window,
+  // Prefer the filename the server chose, it carries the report id and window,
   // so a folder of exports sorts chronologically.
   const disposition = res.headers.get("Content-Disposition") ?? "";
   const match = /filename="?([^";]+)"?/.exec(disposition);
@@ -125,7 +125,7 @@ export async function downloadReport(request: ReportRunRequest, format: "csv" = 
 }
 
 /**
- * The Overview — KPI tiles, needs-attention counts and trend series.
+ * The Overview: KPI tiles, needs-attention counts and trend series.
  *
  * One request rather than one per tile: the server runs each underlying report
  * once and shares it across the tiles that read from it, which a fan-out of
@@ -210,7 +210,7 @@ export function useSaveDashboard() {
  * Add one tile to the saved dashboard, without disturbing the rest of it.
  *
  * Pinning happens from a REPORT, where the board is very likely not loaded and
- * may never have been this session — so this fetches the current document
+ * may never have been this session, so this fetches the current document
  * rather than reading whatever is in cache. Read-modify-write on the server's
  * copy is the point: pinning must not resurrect a stale layout the user has
  * since changed in another tab.
@@ -262,7 +262,7 @@ export function useResetDashboard() {
 
 const SCHEDULES_KEY = ["report-schedules"] as const;
 
-/** Every schedule this caller may see — already filtered by report permission. */
+/** Every schedule this caller may see, already filtered by report permission. */
 export function useReportSchedules() {
   return useQuery({
     queryKey: SCHEDULES_KEY,

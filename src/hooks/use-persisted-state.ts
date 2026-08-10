@@ -20,7 +20,7 @@ export function usePersistedState<T>(key: string, defaultValue: T) {
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
     } catch {
-      // Quota / private mode — preference just won't persist.
+      // Quota / private mode, preference just won't persist.
     }
   }, [key, value]);
 

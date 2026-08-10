@@ -1,7 +1,7 @@
 /**
  * What a school sees on Reports before it has anything to report on.
  *
- * The alternative — the real dashboard, rendering zeros — actively teaches the wrong
+ * The alternative (the real dashboard, rendering zeros) actively teaches the wrong
  * lesson: it looks like the product has nothing to offer, when in fact it has nothing
  * to offer *yet*. So this shows what each dashboard will look like, what has to happen
  * before it can be real, and how close they are.
@@ -36,7 +36,7 @@ export type ReportsReadiness = {
 /**
  * Enough real activity that live reports beat a preview.
  *
- * A single reservation is not a report — one row on a utilization chart says less
+ * A single reservation is not a report, one row on a utilization chart says less
  * than the sample does. A handful is the point where the school's own numbers start
  * telling them something, so that's the switch.
  */
@@ -52,7 +52,7 @@ export function hasEnoughData(r: ReportsReadiness): boolean {
  * `?welcome=1` forces this page on, `?welcome=0` forces it off.
  *
  * An established school can otherwise never see it, and a brand-new one can never see
- * the real reports — the switch is their own data. Read-only, like `?sub=` and
+ * the real reports, the switch is their own data. Read-only, like `?sub=` and
  * `?track=` elsewhere. Returns null when the URL says nothing.
  */
 function previewWelcome(): boolean | null {
@@ -75,7 +75,7 @@ export function ReportsWelcome({
   onSkip,
 }: {
   readiness: ReportsReadiness;
-  /** Let someone look at the real (empty) reports anyway — this is a helpful
+  /** Let someone look at the real (empty) reports anyway, this is a helpful
    *  default, not a wall. */
   onSkip: () => void;
 }) {
@@ -86,7 +86,7 @@ export function ReportsWelcome({
       id: "revenue",
       title: "Revenue",
       blurb:
-        "What you invoiced, what you collected, and what's still outstanding — by week, aircraft, instructor or lesson type.",
+        "What you invoiced, what you collected, and what's still outstanding, by week, aircraft, instructor or lesson type.",
       unlock: {
         label: "Send your first invoice",
         done: readiness.invoices > 0,
@@ -186,7 +186,7 @@ export function ReportsWelcome({
             </h2>
             <p className="mt-1.5 text-sm text-muted-foreground">
               Rather than show you a board of zeros, here&rsquo;s what each dashboard looks like
-              with a month of real operating data behind it — and exactly what unlocks each one.
+              with a month of real operating data behind it, and exactly what unlocks each one.
               {unlocked > 0 && ` ${unlocked} of ${previews.length} already can be.`}
             </p>
           </div>
@@ -264,7 +264,7 @@ function PreviewCard({ preview, sample }: { preview: Preview; sample: boolean })
         )}
         {sample && (
           <div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Wrench className="size-3" /> Sample data — not your operation
+            <Wrench className="size-3" /> Sample data, not your operation
           </div>
         )}
       </div>

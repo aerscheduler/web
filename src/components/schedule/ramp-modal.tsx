@@ -37,7 +37,7 @@ const toHours = (deci: number | null | undefined): number | null =>
   deci == null ? null : deci / 10;
 const toDeci = (hours: number): number => Math.round(hours * 10);
 const fmtHours = (deci: number | null | undefined): string =>
-  deci == null ? "—" : (deci / 10).toFixed(1);
+  deci == null ? "–" : (deci / 10).toFixed(1);
 
 /**
  * Records the Hobbs/tach readings for a ramp-out (starting) or ramp-in (ending).
@@ -82,7 +82,7 @@ export function RampModal({
   const busy = rampOut.isPending || rampIn.isPending || updateLocation.isPending;
 
   //Instruction time is optional extra detail on a dual flight, and the ONLY figure a booking
-  //with no meters has — so a ground has to be offered it too, or its close-out has no field
+  //with no meters has, so a ground has to be offered it too, or its close-out has no field
   //to fill in at all. `noMeters` is defined below, where the reservation is in scope.
   const showBriefing =
     reservation?.type === "dual" ||
@@ -134,7 +134,7 @@ export function RampModal({
     mode === "in" && tachNum != null && outTachHrs != null && tachNum < outTachHrs;
 
   //A ground lesson has no meters, so demanding a Hobbs reading made its close-out impossible
-  //to submit — the reported bug. Instruction time takes over as the required figure, which is
+  //to submit, the reported bug. Instruction time takes over as the required figure, which is
   //what the schema says `briefing` is for. See `usesBriefingNotMeters` for why it keys on the
   //reservation TYPE and not only on the resource.
   const noMeters = reservation != null && usesBriefingNotMeters(reservation);
@@ -214,7 +214,7 @@ export function RampModal({
     // This is handled before the guard below rather than inside the mode branch, because
     // that guard (`hobbsNum == null || tachNum == null`) is exactly what made the web
     // console unable to close out a ground lesson AT ALL: the fields don't exist, so both
-    // readings are null, so the guard returned — silently, with the form valid and the
+    // readings are null, so the guard returned, silently, with the form valid and the
     // button enabled. Nothing happened and nothing said why.
     //
     // It calls rampIn regardless of which mode opened it. `briefing` is a ramp-IN field on
@@ -302,7 +302,7 @@ export function RampModal({
           </div>
         )}
 
-        {/* No aircraft, no meters to read — showing two boxes nobody can fill in is what made
+        {/* No aircraft, no meters to read, showing two boxes nobody can fill in is what made
             the ground close-out look broken rather than merely blocked. */}
         {!noMeters && (
         <div className="grid grid-cols-2 gap-3">

@@ -3,7 +3,7 @@ import { Input } from "@/components/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
-/** Shared list/table search field — same look as People / Billing.
+/** Shared list/table search field, same look as People / Billing.
  *  Pair with `useDebouncedValue` when the value drives a server `q` param.
  */
 export function ListSearch({
@@ -19,7 +19,7 @@ export function ListSearch({
    * What the field searches ("Search tail, make, model…"). Shown in full on md+;
    * on a phone the field is too narrow to finish the sentence, so it falls back
    * to plain "Search" rather than a clipped list that names one of three things.
-   * The accessible name keeps the full text at every width — a screen reader is
+   * The accessible name keeps the full text at every width, a screen reader is
    * not the thing running out of room.
    */
   placeholder?: string;

@@ -1,5 +1,5 @@
 /**
- * Get maintenance tracking running — how big is the operation, then the first reminder.
+ * Get maintenance tracking running, how big is the operation, then the first reminder.
  *
  * The old behaviour was a link to /maintenance, which is a list of reminders you don't
  * have yet. What someone actually needs here is one reminder attached to their aircraft,
@@ -9,7 +9,7 @@
  * Fleet size is ASKED, and the answer is theirs. It was briefly answered for them by
  * counting tails on file, which is wrong in the most common case there is: someone
  * evaluating the platform adds one aircraft to get moving and actually operates ten.
- * Counting rows measures how far through data entry they are, not how big they are — so
+ * Counting rows measures how far through data entry they are, not how big they are: so
  * it would hide groups from exactly the fleet that needs them.
  *
  * Groups are then OFFERED to the sizes they help, never imposed: a one-aircraft
@@ -92,11 +92,11 @@ type PresetId = (typeof PRESETS)[number]["id"];
 
 type Step = "size" | "groups" | "reminder" | "done";
 
-/** How big the OPERATION is — their answer, not a count of what they've entered. */
+/** How big the OPERATION is: their answer, not a count of what they've entered. */
 type Size = "one" | "few" | "fleet";
 
 const SIZES: { value: Size; label: string; hint: string }[] = [
-  { value: "one", label: "Just one", hint: "We'll keep this simple — no groups, no extra steps." },
+  { value: "one", label: "Just one", hint: "We'll keep this simple: no groups, no extra steps." },
   { value: "few", label: "A handful", hint: "Two to nine. Groups are optional at this size." },
   { value: "fleet", label: "Ten or more", hint: "Groups will save you real time here." },
 ];
@@ -104,7 +104,7 @@ const SIZES: { value: Size; label: string; hint: string }[] = [
 /** The smallest fleet the answer implies, for spotting "I said ten, I've entered one". */
 const IMPLIED_MINIMUM: Record<Size, number> = { one: 1, few: 2, fleet: 10 };
 
-/** Only for the progress dots. "groups" is an optional detour rather than a stage —
+/** Only for the progress dots. "groups" is an optional detour rather than a stage.
  *  giving it a dot would make the bar jump backwards for anyone taking the short path. */
 const STEP_ORDER: Step[] = ["size", "reminder", "done"];
 
@@ -122,7 +122,7 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
   // meaning different things depending on an earlier answer is how off-by-one bugs
   // get written into a wizard.
   const [step, setStep] = React.useState<Step>("size");
-  // Seeded from the fleet on file only as an opening guess — they can say anything,
+  // Seeded from the fleet on file only as an opening guess, they can say anything,
   // and what they say is what we branch on.
   // Names of groups made during this flow, so the step can confirm the work without
   // refetching, and `key` can reset the form for the next one.
@@ -165,7 +165,7 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
     }
   }
 
-  // A school with no aircraft can't have a reminder — say so instead of failing later.
+  // A school with no aircraft can't have a reminder, say so instead of failing later.
   if (!planes.isLoading && fleet.length === 0) {
     return (
       <FlowModal
@@ -185,7 +185,7 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
       >
         <p className="text-sm text-muted-foreground">
           Maintenance reminders hang off an aircraft, so there&rsquo;s nothing to track yet. Add
-          your first tail and come back — this takes about a minute after that.
+          your first tail and come back, this takes about a minute after that.
         </p>
       </FlowModal>
     );
@@ -217,7 +217,7 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
       open
       onOpenChange={(o) => !o && onClose()}
       title="Track maintenance due dates"
-      description="One reminder is enough to start — you can add the rest later."
+      description="One reminder is enough to start. You can add the rest later."
       step={progressIndex(step)}
       stepCount={STEP_ORDER.length}
       size="xl"
@@ -236,7 +236,7 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
           {fleet.length < IMPLIED_MINIMUM[size] && (
             <p className="mt-3 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
               You have {fleet.length === 1 ? "one aircraft" : `${fleet.length} aircraft`} on file
-              so far. This reminder will apply to {fleet.length === 1 ? "it" : "them"} — add the
+              so far. This reminder will apply to {fleet.length === 1 ? "it" : "them"}, add the
               rest from the Aircraft page whenever you like, and reminders you set now can be
               applied to them too.
             </p>
@@ -256,11 +256,11 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
               </div>
               <p className="mt-0.5 text-sm text-muted-foreground">
                 Groups like &ldquo;Trainers&rdquo; or &ldquo;Complex&rdquo; let a currency
-                requirement — a checkout, a flight review — apply to a whole class of aircraft
+                requirement (a checkout, a flight review) apply to a whole class of aircraft
                 at once, and they keep themselves current as you add tails.
                 {size === "fleet"
                   ? " At ten or more, that difference adds up fast."
-                  : " Optional at your size — plenty of schools never bother."}
+                  : " Optional at your size, plenty of schools never bother."}
               </p>
               {created.length > 0 && (
                 <p className="mt-1.5 text-xs text-success">
@@ -271,7 +271,7 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
           </div>
 
           {/* The real Settings form, hosted here. Creating a group is part of the task,
-              so it happens in the wizard — bouncing out to a settings page mid-flow is
+              so it happens in the wizard, bouncing out to a settings page mid-flow is
               exactly what these flows exist to stop. */}
           <div className="mt-4 rounded-xl border p-4">
             <ResourceGroupForm

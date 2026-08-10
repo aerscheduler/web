@@ -7,7 +7,7 @@ import path from "node:path";
 /**
  * Which build is this? Vercel exposes the commit it built from; locally there
  * isn't one. Baked in at build time so the API's request log can tie a report
- * ("the console is broken") to an exact deploy rather than just "a browser".
+ * ("the console is broken") to an exact deploy rather than just ", a browser".
  */
 const CLIENT_ID = `aerscheduler-web/${
   process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "dev"

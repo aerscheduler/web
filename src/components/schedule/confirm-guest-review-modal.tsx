@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 /**
- * Close out a guest reservation. Guests never confirm with a PIN — an admin, the instructor,
+ * Close out a guest reservation. Guests never confirm with a PIN, an admin, the instructor,
  * or the creator reviews the flight, which generates the invoice and emails it to the guest.
  * The guest's contact details are editable here so the invoice reaches the right inbox.
  */
@@ -49,7 +49,7 @@ export function ConfirmGuestReviewModal({
     const ok = await confirm({
       title: "Close out this guest flight?",
       description:
-        "This finalizes the review and generates the invoice — the guest is emailed a link to pay. This can't be undone.",
+        "This finalizes the review and generates the invoice. The guest is emailed a link to pay. This can't be undone.",
       confirmLabel: "Close out & bill",
       cancelLabel: "Back",
       destructive: true,
@@ -74,7 +74,7 @@ export function ConfirmGuestReviewModal({
 
     try {
       await reviewGuest.mutateAsync(body);
-      toast.success("Guest flight closed out — invoice sent");
+      toast.success("Guest flight closed out, invoice sent");
       onOpenChange(false);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't close out this flight");

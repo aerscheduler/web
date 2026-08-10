@@ -55,8 +55,8 @@ const RESERVATION_ROWS: PrefRow[] = [
   },
   {
     key: "slotOffers",
-    label: "Slot offers & standby",
-    hint: "Time-sensitive offers that must be accepted before the hold window closes.",
+    label: "Offers & standby",
+    hint: "Time-sensitive offers that must be accepted before the offer window closes.",
   },
 ];
 

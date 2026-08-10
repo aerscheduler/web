@@ -12,16 +12,20 @@ import { Button } from "@/components/ui/button";
 import { ErrorState } from "@/components/states";
 
 /**
- * Desk list of open slot offers. Uses the same DetailPanel as reservation /
+ * Desk list of open offers. Uses the same DetailPanel as reservation /
  * invoice / squawk detail so it docks beside the board on wide screens and
  * falls back to the modal sheet below that.
+ *
+ * Row click opens the same SlotOfferDetailSheet as a calendar offer click.
  */
 export function PendingOffersSheet({
   open,
   onOpenChange,
+  onSelectOffer,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSelectOffer?: (offerId: number) => void;
 }) {
   const offersQuery = usePendingSlotOffers(open);
   const withdraw = useWithdrawSlotOffer();
@@ -29,7 +33,7 @@ export function PendingOffersSheet({
   const withdrawOffer = async (offer: SlotOffer) => {
     try {
       await withdraw.mutateAsync(offer.id);
-      toast.success("Slot offer withdrawn");
+      toast.success("Offer withdrawn");
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : "Couldn't withdraw this offer");
     }
@@ -43,11 +47,11 @@ export function PendingOffersSheet({
       onOpenChange={onOpenChange}
       title={
         <span className="inline-flex items-center gap-2">
-          Pending slot offers
+          Pending offers
           <DocsHint topic="pending-slot-offers" />
         </span>
       }
-      description="Offers currently held for members. Instructor confirms come first on duals. Withdraw frees the window and stops the chain."
+      description="Offers currently open for members. Instructor confirms come first on duals. Withdraw frees the window and stops the chain."
     >
       {offersQuery.isPending ? (
         <p className="py-6 text-center text-sm text-muted-foreground">Loading offers...</p>
@@ -56,16 +60,20 @@ export function PendingOffersSheet({
       ) : offers.length === 0 ? (
         <div className="py-8 text-center">
           <RefreshCw className="mx-auto size-8 text-muted-foreground/60" />
-          <p className="mt-3 font-medium">No pending slot offers</p>
+          <p className="mt-3 font-medium">No pending offers</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Offer a canceled reservation to start recovery.
           </p>
         </div>
       ) : (
-        <ul className="divide-y divide-border rounded-lg border">
+        <ul className="-mx-4 divide-y divide-border border-t">
           {offers.map((offer) => (
-            <li key={offer.id} className="flex flex-col gap-3 p-4">
-              <div className="min-w-0">
+            <li key={offer.id} className="flex flex-col gap-3 px-4 py-3 transition-colors hover:bg-accent/40">
+              <button
+                type="button"
+                className="min-w-0 w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => onSelectOffer?.(offer.id)}
+              >
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium">
                     {offer.offeredTo?.user?.name ?? `Member #${offer.offeredTo?.id}`}
@@ -86,9 +94,9 @@ export function PendingOffersSheet({
                   {formatWindow(offer)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Hold ends in {formatDistanceToNowStrict(new Date(offer.holdUntil))}
+                  Offer ends in {formatDistanceToNowStrict(new Date(offer.holdUntil))}
                 </p>
-              </div>
+              </button>
               <Button
                 variant="outline"
                 size="sm"

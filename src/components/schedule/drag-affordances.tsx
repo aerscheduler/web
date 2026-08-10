@@ -7,7 +7,7 @@ import type { ActiveDrag } from "./use-schedule-drag";
 
 /**
  * The bits of drag UI both boards draw. They live together so the day lane grid and the
- * week time grid can't drift into explaining the same refusal two different ways — which is
+ * week time grid can't drift into explaining the same refusal two different ways, which is
  * the whole risk with a feature whose value is that it says *why* it won't move.
  */
 
@@ -20,12 +20,12 @@ const CALLOUT_MARGIN_PX = 12;
 const CALLOUT_MAX_W_PX = 320;
 
 /**
- * The live label a held block carries: the slot it would land on, or — when the drop would
- * be rejected — the reason, in place of the time.
+ * The live label a held block carries: the slot it would land on, or, when the drop would
+ * be rejected, the reason, in place of the time.
  *
  * A **portal to the document, positioned `fixed` against the viewport**, for two reasons.
  * It used to live inside the block, which put it inside a lane: it could be clipped by the
- * board's scroll container, and — because a lane is sized to the tracks it holds — it read
+ * board's scroll container, and (because a lane is sized to the tracks it holds) it read
  * as though the row had grown to make space for it. Neither is true of a popover. Out here
  * it can't affect any layout, can't be clipped, and can flip off the viewport edges.
  *
@@ -38,7 +38,7 @@ export function DragCallout({ drag }: { drag: { active: ActiveDrag | null } }) {
 
   const { x, y } = active.anchor;
   //Flip to the left / above rather than run off the edge. The height isn't known before
-  //layout, so the vertical flip uses a generous estimate — being early is harmless, and a
+  //layout, so the vertical flip uses a generous estimate, being early is harmless, and a
   //callout half off the bottom of the screen is not.
   const flipX = x + CALLOUT_OFFSET_PX + CALLOUT_MAX_W_PX > window.innerWidth - CALLOUT_MARGIN_PX;
   const flipY = y + CALLOUT_OFFSET_PX + 96 > window.innerHeight - CALLOUT_MARGIN_PX;
@@ -74,7 +74,7 @@ export function DragCallout({ drag }: { drag: { active: ActiveDrag | null } }) {
  * A grab strip on one end of a block.
  *
  * Only ever rendered for an edge that may actually move, so the resize cursor never
- * promises something the booking's state won't allow — a ramped-out flight shows one handle
+ * promises something the booking's state won't allow, a ramped-out flight shows one handle
  * (the return time) and no other.
  */
 export function ResizeHandle({

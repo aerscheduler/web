@@ -1,11 +1,11 @@
 /**
- * Developer tooling — "log in as" (impersonation) for support and troubleshooting.
+ * Developer tooling, "log in as" (impersonation) for support and troubleshooting.
  *
  * The SERVER is the authority. `POST /developer/loginAs` sits behind the
  * `isDeveloper()` guard, which checks the caller's email against an allowlist in
  * `UserService.isDeveloper`; everyone else gets a 403. The allowlist is mirrored
  * here for ONE reason: deciding whether to render the Developer UI. Hiding a menu
- * item is cosmetic — it is never the thing keeping anyone out.
+ * item is cosmetic, it is never the thing keeping anyone out.
  *
  * Keep DEVELOPER_EMAILS in sync with `server/src/services/user.ts:isDeveloper`.
  * Drifting only ever costs a developer a hidden menu item, never access.
@@ -58,7 +58,7 @@ export function clearDevStash() {
 /**
  * Read the `impersonatedBy` claim the server stamps on impersonation tokens.
  *
- * This decodes without verifying — that is fine and deliberate. The claim drives
+ * This decodes without verifying, that is fine and deliberate. The claim drives
  * a banner, nothing more; the server re-verifies the signature on every request.
  * Deriving the banner from the TOKEN rather than from React state means it
  * survives a page refresh, which matters because the whole point is that you

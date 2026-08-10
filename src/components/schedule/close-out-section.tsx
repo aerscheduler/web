@@ -85,7 +85,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const invoiceCount = (r.invoices ?? []).filter((i) => !i.voidedAt).length;
   const splitAcross = invoiceCount > 1 ? invoiceCount : null;
 
-  // A pilot on the flight may confirm — but only once. The server rejects a second
+  // A pilot on the flight may confirm, but only once. The server rejects a second
   // confirmation from the same person, so after signing off they wait on their
   // counterpart rather than being offered a button that can only 400.
   const alreadyConfirmed = hasConfirmedReview(r, orgUserId);
@@ -141,7 +141,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
     }
   }
 
-  // A cancelled reservation is off the board — nothing to dispatch or close out.
+  // A cancelled reservation is off the board, nothing to dispatch or close out.
   if (r.cancelledAt) return null;
 
   // A lesson with no aircraft is never dispatched and never ramps. It has one figure to
@@ -150,7 +150,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   // isn't on the booking. Same helper the ramp modal and the Flutter app key on.
   const noMeters = usesBriefingNotMeters(r);
 
-  // Before the aircraft is ramped out the flight is simply scheduled — frame it
+  // Before the aircraft is ramped out the flight is simply scheduled, frame it
   // as "Dispatch", not "Close-out" (which only makes sense once it has flown).
   // Mirrors the Flutter detail view, which shows a neutral "Not Started" status
   // and a plain "Ramp Out" action rather than an overdue close-out prompt.
@@ -230,7 +230,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         {step === "rampIn" && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Ramped out — record the ending readings when the aircraft is back.
+              Ramped out, record the ending readings when the aircraft is back.
             </p>
             {canRamp && (
               <Button className="w-full" onClick={() => setRampMode("in")}>
@@ -269,7 +269,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         {step === "confirmGuest" && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Flown — this guest flight needs to be closed out and billed to{" "}
+              Flown: this guest flight needs to be closed out and billed to{" "}
               <span className="text-foreground">{guestName}</span>.
             </p>
             {canConfirmGuest ? (
@@ -314,7 +314,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         )}
 
         {/* Who pays what, on a booking with more than one person on it. Offered from the
-            moment the flight is back until it's billed — after that the invoices describe
+            moment the flight is back until it's billed, after that the invoices describe
             the shares they were computed from, and the server refuses to change them.
 
             Renders nothing for a one-person booking, which is the overwhelming majority. */}
@@ -507,7 +507,7 @@ function InvoiceSummary({
   }
 
   //Says WHOSE share this is. Without it a group close-out shows one student's figures as
-  //though they were the class's bill — which is the same mistake, in the UI, that the
+  //though they were the class's bill, which is the same mistake, in the UI, that the
   //server's old students[0] payer selection made in the money.
   const items = invoice.items ?? [];
   const subtotal = invoice.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);

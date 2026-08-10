@@ -3,7 +3,7 @@
  *
  * The mechanic's own words: "on the maintenance page, airplane, and then you can click to
  * each one and see what inspections are needed and when they are due." So the entry point
- * is the AIRCRAFT, not a flat list of every reminder in the school — which is what this
+ * is the AIRCRAFT, not a flat list of every reminder in the school, which is what this
  * page led with, and which is unreadable the moment you have eight tails and seven
  * inspections apiece.
  *
@@ -61,7 +61,7 @@ export function FleetStatus({ q: search, resourceId }: { q?: string; resourceId?
       })
       .map((plane) => ({ plane, summary: fleetSummary(byResource.get(plane.id) ?? []) }))
       .sort((a, b) => {
-        // Grounded first regardless of what's due — an aircraft that isn't flying is the
+        // Grounded first regardless of what's due, an aircraft that isn't flying is the
         // top of anyone's list, and its reminders may all be green precisely because a
         // squawk is what took it off the line.
         const groundedA = a.plane.type?.plane?.grounded ? 0 : 1;
@@ -109,7 +109,7 @@ export function FleetStatus({ q: search, resourceId }: { q?: string; resourceId?
   return (
     // Sized by a MINIMUM CARD WIDTH rather than a column count. Fixed breakpoints assumed
     // the full page width, and once the nav rail took ~15rem of it three columns squeezed
-    // every card until the inspection name and its "was due" line both ellipsed — which
+    // every card until the inspection name and its "was due" line both ellipsed, which
     // removes exactly the two facts the card exists to show. `auto-fill` drops to fewer
     // columns instead of shrinking past what the content needs.
     <div
@@ -179,7 +179,7 @@ function AircraftCard({
         </div>
 
         {/* Naming the next item is the difference between "something's wrong here" and
-            "the annual is 9 days out" — one of those you can act on without clicking. */}
+            "the annual is 9 days out", one of those you can act on without clicking. */}
         {next && (
           <div className="mt-2.5 flex items-baseline justify-between gap-3 border-t border-border pt-2.5">
             <div className="min-w-0">

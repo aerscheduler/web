@@ -3,7 +3,7 @@
  *
  * The rule: **a scheduled time belongs to the airport, not to the browser looking at it.**
  * A 9am lesson at a field in Idaho is 9am for a student reading it in Phoenix. Today every
- * grid positions blocks with `d.getHours()` — the *viewer's* clock — so the whole board
+ * grid positions blocks with `d.getHours()` (the *viewer's* clock) so the whole board
  * slides when someone travels. That is the bug this file exists to fix.
  *
  * Two halves, and the second one is the dangerous one:
@@ -14,7 +14,7 @@
  *   from a different zone books flights at the wrong time with no error anywhere.
  *
  * `date-fns` has no zone support and `date-fns-tz` isn't a dependency, so the conversions
- * here are hand-rolled on `Intl` — which every target browser has, and which carries the
+ * here are hand-rolled on `Intl`: which every target browser has, and which carries the
  * tzdata we'd otherwise be shipping ourselves. The maths mirrors the server's
  * `utils/timeZone.ts` deliberately; the two must agree or a booking round-trips wrong.
  *
@@ -145,7 +145,7 @@ export function wallClockInZone(
 }
 
 /**
- * The UTC instant for a wall clock in a zone — **the input half of the fix.**
+ * The UTC instant for a wall clock in a zone: **the input half of the fix.**
  *
  * Brackets the answer rather than guessing: treat the wall clock as if it were UTC, ask what
  * that instant looks like in the target zone, correct by the difference, and verify the
@@ -183,7 +183,7 @@ export function zonedWallClockToUtc(
 }
 
 /**
- * Minutes from midnight in a zone — what a day grid positions a block by.
+ * Minutes from midnight in a zone, what a day grid positions a block by.
  *
  * Replacing `d.getHours() * 60 + d.getMinutes()` with this is the entire fix for a board that
  * slides when the viewer travels.
@@ -193,7 +193,7 @@ export function minutesFromMidnightInZone(instant: Date | string, timeZone: stri
   return hour * 60 + minute;
 }
 
-/** `2026-07-28` as the date reads in the zone — which calendar cell a block belongs to. */
+/** `2026-07-28` as the date reads in the zone, which calendar cell a block belongs to. */
 export function dateKeyInZone(instant: Date | string, timeZone: string): string {
   const { year, month, day } = wallClockInZone(instant, timeZone);
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -222,7 +222,7 @@ export function startOfDayInZone(instant: Date | string, timeZone: string): Date
 }
 
 /**
- * The short label a person reads — "MDT", "CST".
+ * The short label a person reads. "MDT", ", CST".
  *
  * Season-dependent, so it needs the instant: the same zone is MST in January and MDT in July,
  * and the wrong one is worse than none.
@@ -246,7 +246,7 @@ export function zoneAbbreviation(instant: Date | string, timeZone: string): stri
  *
  * The test for whether a zone label is worth showing. Comparing NAMES would be wrong:
  * `America/Phoenix` and `America/Denver` are identical for half the year, so a name check
- * labels every time on the page for a Phoenix viewer in January — clutter carrying no
+ * labels every time on the page for a Phoenix viewer in January, clutter carrying no
  * information. **Getting this right is what keeps the feature invisible for the ~99% of users
  * who are sitting at their own airport**, which is the whole point.
  */
@@ -339,13 +339,13 @@ export function formatDateInZone(
 }
 
 /**
- * `9:00 AM – 11:00 AM`, with the zone label appended only when the viewer is somewhere else.
+ * `9:00 AM, 11:00 AM`, with the zone label appended only when the viewer is somewhere else.
  *
  * The conditional label is deliberate. Everyone at the field sees exactly what they see
  * today; only the person who has travelled pays for the extra word, and they are the one who
  * needs it.
  *
- * WHEN THE BOOKING ENDS ON A LATER DAY the end carries its date: `3:00 PM – Sun, Aug 9 at
+ * WHEN THE BOOKING ENDS ON A LATER DAY the end carries its date: `3:00 PM, Sun, Aug 9 at
  * 4:00 PM`. Without it a trip out Friday and back Sunday reads as a one-hour Friday flight,
  * which is the single most misleading thing this function could say now that a booking can
  * span nights. Judged by date key in the RENDER zone, so an evening flight that crosses
@@ -376,7 +376,7 @@ export function formatTimeRangeInZone(
   const endText = spansDays
     ? `${formatDateInZone(end, timeZone, "short")} at ${formatTimeInZone(end, timeZone)}`
     : formatTimeInZone(end, timeZone);
-  const range = `${formatTimeInZone(start, timeZone)} – ${endText}`;
+  const range = `${formatTimeInZone(start, timeZone)}, ${endText}`;
 
   if (zonesAgreeAt(start, timeZone, viewerZone)) return range;
 
@@ -387,19 +387,19 @@ export function formatTimeRangeInZone(
 /**
  * A curated zone list for the picker, commonest first.
  *
- * `Intl.supportedValuesOf("timeZone")` returns 400+ names — correct, and unusable as a
+ * `Intl.supportedValuesOf("timeZone")` returns 400+ names, correct, and unusable as a
  * dropdown. US aviation zones lead because that is the entire customer base today; the full
  * list is still appended so nobody is locked out.
  */
 export const COMMON_TIME_ZONES: { value: string; label: string }[] = [
-  { value: "America/New_York", label: "Eastern — New York" },
-  { value: "America/Chicago", label: "Central — Chicago" },
-  { value: "America/Denver", label: "Mountain — Denver" },
-  { value: "America/Boise", label: "Mountain — Boise" },
-  { value: "America/Phoenix", label: "Arizona — Phoenix (no DST)" },
-  { value: "America/Los_Angeles", label: "Pacific — Los Angeles" },
-  { value: "America/Anchorage", label: "Alaska — Anchorage" },
-  { value: "Pacific/Honolulu", label: "Hawaii — Honolulu (no DST)" },
+  { value: "America/New_York", label: "Eastern. New York" },
+  { value: "America/Chicago", label: "Central. Chicago" },
+  { value: "America/Denver", label: "Mountain. Denver" },
+  { value: "America/Boise", label: "Mountain. Boise" },
+  { value: "America/Phoenix", label: "Arizona. Phoenix (no DST)" },
+  { value: "America/Los_Angeles", label: "Pacific. Los Angeles" },
+  { value: "America/Anchorage", label: "Alaska. Anchorage" },
+  { value: "Pacific/Honolulu", label: "Hawaii. Honolulu (no DST)" },
 ];
 
 /** Every zone this browser knows, for the "somewhere else" case. */
@@ -415,7 +415,7 @@ export function allTimeZones(): string[] {
   }
 }
 
-/** `Mountain — Boise (MDT)` for a settings row, so the choice is unambiguous. */
+/** `Mountain: Boise (MDT)` for a settings row, so the choice is unambiguous. */
 export function describeZone(zone: string, at: Date = new Date()): string {
   const known = COMMON_TIME_ZONES.find((z) => z.value === zone);
   const abbr = zoneAbbreviation(at, zone);
@@ -428,7 +428,7 @@ export function describeZone(zone: string, at: Date = new Date()): string {
  * Midnight at the start of a picked calendar date, in a zone.
  *
  * `day` is a date the user chose (a Date whose LOCAL y/m/d are the date they mean), not an
- * instant to be converted — so its own local components are read, then re-anchored in the
+ * instant to be converted, so its own local components are read, then re-anchored in the
  * target zone. Converting it as an instant instead would slide the boundary by the offset
  * between the two zones and silently shift the whole fetched window by a day.
  */

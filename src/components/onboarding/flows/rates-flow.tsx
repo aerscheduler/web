@@ -1,5 +1,5 @@
 /**
- * Set an instruction rate — one type, one number.
+ * Set an instruction rate, one type, one number.
  *
  * A lesson can't be priced until a rating has a rate against it, so this is the
  * smallest possible unblock: name the instruction you sell, say what it costs an hour.
@@ -35,7 +35,7 @@ export function RatesFlow({ onClose }: FlowProps) {
       await create.mutateAsync({
         name: name || "Flight Instruction",
         defaultInstructorRate: rate,
-        // Every instructor can teach it until someone says otherwise — the restricted
+        // Every instructor can teach it until someone says otherwise, the restricted
         // case is a Settings decision, not a first-run one.
         anyInstructorCanTeach: true,
       });

@@ -22,7 +22,7 @@ export function MonthAgenda({
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
-  /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
+  /** Block-filter marking, non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
   selectedId?: number | null;
   query?: string;

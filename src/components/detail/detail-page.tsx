@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/states";
 import { cn } from "@/lib/utils";
 
 /**
- * The shell every record page in the console is built from — a person, an
+ * The shell every record page in the console is built from: a person, an
  * aircraft, and whatever gets its own page next.
  *
  * These pages are deep-linked from search, from a notification, and from a
@@ -72,7 +72,7 @@ export function DetailHeader({
           </div>
           {/* A div, not a p: callers pass role badges and other block content
               here, and a <div> inside a <p> is invalid HTML the browser silently
-              re-parents — which shows up as a React hydration error. */}
+              re-parents, which shows up as a React hydration error. */}
           {subtitle && (
             <div className="mt-1 text-[13px] text-muted-foreground">{subtitle}</div>
           )}
@@ -140,7 +140,7 @@ export function DetailCard({
   );
 }
 
-/** Label/value rows — the record's own fields, as opposed to its activity. */
+/** Label/value rows, the record's own fields, as opposed to its activity. */
 export function KeyValueList({ children }: { children: ReactNode }) {
   return <dl className="divide-y divide-border">{children}</dl>;
 }
@@ -180,7 +180,7 @@ export function CardSkeleton({ rows = 3 }: { rows?: number }) {
   );
 }
 
-/** The quiet "nothing here" line inside a card — smaller than a full EmptyState. */
+/** The quiet "nothing here" line inside a card, smaller than a full EmptyState. */
 export function CardEmpty({ children }: { children: ReactNode }) {
   return <p className="py-1 text-[13px] text-muted-foreground">{children}</p>;
 }
@@ -188,8 +188,8 @@ export function CardEmpty({ children }: { children: ReactNode }) {
 /**
  * Does this error mean "no such record" rather than "something went wrong"?
  *
- * A record page is reached by URL — a stale bookmark, an old notification, a
- * pasted link, a typo — so a bad id is the *expected* failure, not an exotic
+ * A record page is reached by URL, a stale bookmark, an old notification, a
+ * pasted link, a typo, so a bad id is the *expected* failure, not an exotic
  * one. The server can't say "not found" for an id outside your organization
  * without confirming that it exists somewhere, so it answers 403 (people) or
  * 400 (resources) instead. Surfacing those verbatim tells someone who mistyped
@@ -205,7 +205,7 @@ export function isMissingRecord(error: unknown): boolean {
 /**
  * The "this record isn't here" page, with a way back to the list.
  *
- * Rendered for a missing record AND for a query that has settled with nothing —
+ * Rendered for a missing record AND for a query that has settled with nothing.
  * see the note at each call site. A page whose only other option is an infinite
  * skeleton has to have somewhere to land.
  */

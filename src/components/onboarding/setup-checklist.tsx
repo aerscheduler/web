@@ -3,7 +3,7 @@
  *
  * Two variants of one component, never two components: the wizard's last screen shows
  * the first few items as a send-off, the dashboard shows the whole list as the
- * school's standing to-do. Same registry, same completion logic, same copy — so an
+ * school's standing to-do. Same registry, same completion logic, same copy, so an
  * item added to `lib/onboarding-checklist.ts` turns up in both without being written
  * twice, and the two can never disagree about what's done.
  */
@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-/** Outstanding items shown before "Show more" — one full row of the grid at its
+/** Outstanding items shown before "Show more", one full row of the grid at its
  *  widest, so the collapsed state is a tidy rectangle rather than a ragged one. */
 const COLLAPSED = 4;
 
@@ -34,7 +34,7 @@ export function SetupChecklist({ className }: { className?: string }) {
   const state = useChecklist();
   const [expanded, setExpanded] = React.useState(false);
   // The open flow lives HERE, not in the card that launched it. Finishing a task
-  // removes its item from `remaining`, which unmounts that card — and a flow rendered
+  // removes its item from `remaining`, which unmounts that card, and a flow rendered
   // inside it would be torn down mid-success-screen, so the one screen confirming the
   // work actually happened is the one screen you'd never see.
   const [flowId, setFlowId] = React.useState<string | null>(null);
@@ -99,7 +99,7 @@ export function SetupChecklist({ className }: { className?: string }) {
       <Progress value={state.percent} aria-label="Setup progress" className="mt-4 h-1.5" />
 
       {/* Only what's LEFT. A list of things you already did is a trophy cabinet, not a
-          checklist — the percentage already says how far along you are. */}
+          checklist, the percentage already says how far along you are. */}
       {outstanding.length === 0 ? (
         <div className="mt-4 flex items-center gap-2 rounded-lg bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-3 py-2.5 text-sm text-success">
           <Sparkles className="size-4" /> Everything on the list is done. Nice.
@@ -138,7 +138,7 @@ export function SetupChecklist({ className }: { className?: string }) {
  * The wizard's send-off: the same items, the top few, no dismissal.
  *
  * Someone thirty seconds into the product has no basis for deciding an outcome
- * doesn't apply to them — so waving items off is a dashboard affordance, once they've
+ * doesn't apply to them, so waving items off is a dashboard affordance, once they've
  * seen the place. Here it's purely "this is what's next".
  */
 export function SetupChecklistPreview({ limit = 4 }: { limit?: number }) {
@@ -171,7 +171,7 @@ export function SetupChecklistPreview({ limit = 4 }: { limit?: number }) {
         ))}
       </div>
       <p className="mt-3 text-xs text-muted-foreground">
-        The rest is waiting on your dashboard — nothing here blocks you from flying.
+        The rest is waiting on your dashboard, nothing here blocks you from flying.
       </p>
       {ActiveFlow && <ActiveFlow onClose={() => setFlowId(null)} />}
     </div>
@@ -183,7 +183,7 @@ export function SetupChecklistPreview({ limit = 4 }: { limit?: number }) {
  *
  * Laid out top-to-bottom with the CTA pushed to the bottom by `mt-auto`, so a row of
  * these lines its buttons up however uneven the blurbs are. The blurb is clamped for
- * the same reason — one long line shouldn't set the height of the whole row.
+ * the same reason, one long line shouldn't set the height of the whole row.
  */
 function ItemCard({
   entry,
@@ -234,7 +234,7 @@ function ItemCard({
           variant="ghost"
           size="icon"
           aria-label={`Dismiss ${title}`}
-          title={`Hide "${title}" — you can bring it back from the menu above`}
+          title={`Hide "${title}". You can bring it back from the menu above`}
           className="absolute right-1.5 top-1.5 size-7 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
           onClick={onDismiss}
         >

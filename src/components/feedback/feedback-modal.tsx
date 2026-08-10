@@ -41,7 +41,7 @@ export function FeedbackModal({
 
     try {
       await submitFeedback.mutateAsync(trimmed);
-      toast.success("Thanks — your feedback was sent.");
+      toast.success("Thanks. Your feedback was sent.");
       reset();
       onOpenChange(false);
     } catch (err) {

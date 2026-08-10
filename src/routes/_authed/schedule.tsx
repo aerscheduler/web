@@ -413,7 +413,7 @@ function SchedulePage() {
   //Anyone who can't book at all still gets no click-to-create regions, rather than ones
   //that silently do nothing.
   const onCreate = canBook ? openCreate : undefined;
-  //"New reservation" when you're dispatching someone else; "Book a flight", or
+  //"New reservation" when you're dispatching someone else; ", Book a flight"or
   //"Schedule maintenance" for a technician, when the booking is your own.
   const bookLabel = staff ? "New reservation" : bookActionLabel(roles);
   //Spread onto every CREATE form on this page so the empty-slot click and "Book another
@@ -624,6 +624,7 @@ function SchedulePage() {
         <PendingOffersSheet
           open={offersOpen}
           onOpenChange={setOffersOpen}
+          onSelectOffer={openOfferDetail}
         />
       )}
 

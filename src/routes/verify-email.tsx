@@ -29,7 +29,7 @@ function VerifyEmailPage() {
     await rehydrate();
     if (isEmailVerifiedSync()) {
       // The quietest place to lose a paid signup: they create the account, never find the
-      // email, and are never seen again. Without this event that loss is invisible —
+      // email, and are never seen again. Without this event that loss is invisible.
       // they'd simply look like someone who signed up and did nothing.
       track("email_verified", { channel: attributionChannel() });
       void navigate({ to: postLoginPath() });
@@ -60,7 +60,7 @@ function VerifyEmailPage() {
     setResending(true);
     try {
       await resendVerificationEmail();
-      toast.success("Verification email sent — check your inbox.");
+      toast.success("Verification email sent. Check your inbox.");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't resend the email");
     } finally {
@@ -81,12 +81,12 @@ function VerifyEmailPage() {
         <p className="mt-1.5 text-sm text-muted-foreground">
           We sent a verification link to{" "}
           <span className="font-medium text-foreground">{user?.email ?? "your email"}</span>. Click it to
-          continue — this page updates automatically once you do.
+          continue. This page updates automatically once you do.
         </p>
 
         <Button className="mt-5 w-full" onClick={checkNow} disabled={checking}>
           {checking ? <Loader2 className="size-4 animate-spin" /> : null}
-          I've verified — continue
+          I've verified. Continue
         </Button>
 
         <button

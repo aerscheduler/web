@@ -9,8 +9,8 @@ import { Button } from "@/components/ui/button";
  * A standing reminder that you are signed in as someone else, and the way back out.
  *
  * Rendered ABOVE the subscription gate on purpose. The gate replaces the whole
- * app shell with a paywall when an org's access has lapsed — which is exactly the
- * kind of org you get asked to troubleshoot — so a banner living inside the shell
+ * app shell with a paywall when an org's access has lapsed, which is exactly the
+ * kind of org you get asked to troubleshoot, so a banner living inside the shell
  * would vanish precisely when it is needed, stranding the developer in someone
  * else's account with no exit.
  *
@@ -26,7 +26,7 @@ export function ImpersonationBanner() {
 
   const exit = () => {
     const restored = stopImpersonating();
-    // Every cached query belongs to the impersonated user — drop the lot rather
+    // Every cached query belongs to the impersonated user, drop the lot rather
     // than let one screen's stale data bleed into the next session.
     qc.clear();
 

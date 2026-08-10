@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
  *    and "this is zero" are different facts, and a tile that shows them the same
  *    way is a tile someone will make a decision on.
  *  - **A metric the viewer isn't allowed to see is not rendered.** Not greyed,
- *    not locked — absent. A row of four tiles where one says "restricted" tells
+ *    not locked, absent. A row of four tiles where one says "restricted" tells
  *    a dispatcher exactly how much revenue exists to go asking about.
  */
 
@@ -45,7 +45,7 @@ export function MetricTile({
   tone = "default",
 }: {
   label: string;
-  /** Already formatted — use `hoursValue`/`moneyValue`/`countValue` to build it. */
+  /** Already formatted, use `hoursValue`/`moneyValue`/`countValue` to build it. */
   value: ReactNode;
   hint?: ReactNode;
   icon?: LucideIcon;
@@ -69,7 +69,7 @@ export function MetricTile({
             error ? "text-muted-foreground" : TONE_CLASS[tone]
           )}
         >
-          {error ? "—" : value}
+          {error ? "–" : value}
         </div>
       )}
       {!loading && (
@@ -81,15 +81,15 @@ export function MetricTile({
   );
 }
 
-/** Deci-hours (123 ⇒ "12.3 h") — the server's integer representation for time. */
+/** Deci-hours (123 ⇒ "12.3 h"), the server's integer representation for time. */
 export function hoursValue(deciHours: number | null | undefined): string {
-  if (typeof deciHours !== "number" || !Number.isFinite(deciHours)) return "—";
+  if (typeof deciHours !== "number" || !Number.isFinite(deciHours)) return "–";
   return `${(deciHours / 10).toFixed(1)} h`;
 }
 
 /** Integer cents ⇒ "$1,234". Whole dollars: a tile is scanned, not reconciled. */
 export function moneyValue(cents: number | null | undefined): string {
-  if (typeof cents !== "number" || !Number.isFinite(cents)) return "—";
+  if (typeof cents !== "number" || !Number.isFinite(cents)) return "–";
   return (cents / 100).toLocaleString("en-US", {
     style: "currency",
     currency: "USD",
@@ -99,6 +99,6 @@ export function moneyValue(cents: number | null | undefined): string {
 }
 
 export function countValue(n: number | null | undefined): string {
-  if (typeof n !== "number" || !Number.isFinite(n)) return "—";
+  if (typeof n !== "number" || !Number.isFinite(n)) return "–";
   return n.toLocaleString("en-US");
 }

@@ -1,10 +1,10 @@
 /**
- * The setup checklist — what a new operation still has to do, expressed as outcomes.
+ * The setup checklist, what a new operation still has to do, expressed as outcomes.
  *
  * Two rules hold this together.
  *
  * **Completion is derived, never stored.** Every item answers "am I done?" from the
- * org's real data — a plane exists, Connect is on, a reminder is set. Nothing writes
+ * org's real data, a plane exists, Connect is on, a reminder is set. Nothing writes
  * a "did the aircraft step" flag, so the list cannot drift from the truth, is right
  * for every admin who looks at it, and stays right when someone adds their first
  * aircraft from the Aircraft page instead of from here. The only thing the server
@@ -53,7 +53,7 @@ export type ChecklistFacts = {
   /**
    * Has this operation decided how a shared booking's cost divides?
    *
-   * Derived from whether any split rules EXIST, not from a stored "did the step" flag —
+   * Derived from whether any split rules EXIST, not from a stored "did the step" flag.
    * same rule as every other item here. An org that has never opened the screen bills one
    * person for the whole booking, which is the safe default and also what it always did.
    */
@@ -72,8 +72,8 @@ export type ChecklistItem = {
   search?: Record<string, string>;
   cta: Copy;
   isDone: (f: ChecklistFacts) => boolean;
-  /** Items that make no sense for some operations — a solo CFI has no instructors
-   *  to invite — are absent rather than permanently unchecked. */
+  /** Items that make no sense for some operations, a solo CFI has no instructors
+   *  to invite, are absent rather than permanently unchecked. */
   appliesTo?: (orgType: OrgType) => boolean;
 };
 
@@ -82,7 +82,7 @@ export const resolveCopy = (copy: Copy, orgType: OrgType): string =>
 
 const isClubLike = (t: OrgType) => t === "flying_club" || t === "rental";
 
-/** Members holding a role, ignoring the founder — who is created holding every role
+/** Members holding a role, ignoring the founder, who is created holding every role
  *  and would otherwise mark "invite your instructors" done on day one. */
 function othersWithRole(members: OrganizationUser[], role: "instructor" | "student" | "renter"): number {
   return members.filter((m) => !m.ownerRole && rolesOf(m).includes(role)).length;
@@ -135,7 +135,7 @@ export const CHECKLIST: ChecklistItem[] = [
     cta: "Set your rules",
     isDone: (f) => f.splitRulesConfigured,
     //Placed after billing on purpose: the rules decide how invoices divide, so it reads
-    //oddly before there is any way to send one. It is NOT gated on Stripe though — a
+    //oddly before there is any way to send one. It is NOT gated on Stripe though, a
     //school can set its rules before connecting, and the wizard shouldn't hide the item
     //just because the money isn't wired up yet.
   },

@@ -26,7 +26,7 @@ export const Route = createFileRoute("/_authed/me/documents")({
 });
 
 function fmt(iso: string | null | undefined) {
-  return iso ? formatDate(iso, "MMM d, yyyy") : "—";
+  return iso ? formatDate(iso, "MMM d, yyyy") : "–";
 }
 
 const columns: ColumnDef<UserDocument, unknown>[] = [
@@ -62,7 +62,7 @@ const columns: ColumnDef<UserDocument, unknown>[] = [
     header: "Expires",
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">
-        {row.original.documentType.expires ? fmt(row.original.expiresAt) : "—"}
+        {row.original.documentType.expires ? fmt(row.original.expiresAt) : "–"}
       </span>
     ),
   },

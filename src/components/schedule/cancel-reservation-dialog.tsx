@@ -26,7 +26,7 @@ import {
 /**
  * Cancelling a booking, with a reason worth recording.
  *
- * This replaces a plain "are you sure?" that sent the literal string "Cancelled from
+ * This replaces a plain "are you sure?" that sent the literal string ", Cancelled from
  * dispatch board" as the reason for every cancellation the console ever made. Nobody
  * could report on that, which is exactly the complaint this answers.
  *
@@ -34,7 +34,7 @@ import {
  *  - the **type** is a fixed list, because it is the only thing you can count. "wx",
  *    "weather" and "Weather" are three answers to the same question.
  *  - the **note** is free text, because the type never carries the detail a person
- *    actually needs later ("ceiling 600 overcast", "student called, car trouble").
+ *    actually needs later ("ceiling 600 overcast", ", student called, car trouble").
  *
  * The server enforces both as of the same change, so this is no longer the only thing
  * standing between an empty note and the report.
@@ -142,7 +142,7 @@ export function CancelReservationDialog({
               aria-invalid={touched && missingReason}
               onChange={(e) => setReason(e.target.value)}
               onKeyDown={(e) => {
-                //Enter submits, Shift+Enter breaks the line — the textarea would
+                //Enter submits, Shift+Enter breaks the line, the textarea would
                 //otherwise swallow the key that used to send this dialog.
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -192,7 +192,7 @@ export function CancelReservationDialog({
                 </div>
               </RadioGroup>
               {/* Said plainly, because "all" reaching backwards would be a nasty
-                  surprise — it doesn't, and nobody should learn that by trying it. */}
+                  surprise, it doesn't, and nobody should learn that by trying it. */}
               <p className="text-xs text-muted-foreground">
                 Bookings that have already started are never cancelled.
               </p>

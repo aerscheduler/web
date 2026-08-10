@@ -45,7 +45,7 @@ export function canOfferRenew(
   return false;
 }
 
-/** Document-gated types renew via upload on mobile — don't fake a bare sign-off. */
+/** Document-gated types renew via upload on mobile, don't fake a bare sign-off. */
 export function isDocumentGated(currency: Currency): boolean {
   return (currency.currencyType?.documentTypes?.length ?? 0) > 0;
 }

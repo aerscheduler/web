@@ -29,7 +29,7 @@ export function EditRolesModal({
   onOpenChange: (open: boolean) => void;
 }) {
   const [roles, setRoles] = useState<RolesUpdate>(EMPTY);
-  // The member's USER id, from the nested relation — see the note in types/api.ts.
+  // The member's USER id, from the nested relation, see the note in types/api.ts.
   const mut = useUpdateRoles(member?.user?.id ?? 0);
 
   useEffect(() => {

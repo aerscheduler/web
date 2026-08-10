@@ -13,11 +13,11 @@ import { initials } from "@/lib/utils";
 /**
  * The org's reservation guests.
  *
- * Guests are not members — they're a name/email/phone captured on a booking —
+ * Guests are not members (they're a name/email/phone captured on a booking)
  * so they can't be a role filter on the roster and there is nothing to edit
  * here. The console had no guest list at all before this; the Flutter app did.
  *
- * The list pages, so search is a server `q` — filtering the loaded rows here
+ * The list pages, so search is a server `q`: filtering the loaded rows here
  * would search the page on screen and call it a search of the guest list. The
  * term is the People page's own: guests are one value of its Type filter, and a
  * second search box under the first would be two ways to search one list.
@@ -58,7 +58,7 @@ export function GuestsTable({ q: debouncedQ }: { q?: string }) {
         accessorFn: (g) => g.phone ?? "",
         cell: ({ getValue }) => (
           <span className="whitespace-nowrap text-muted-foreground">
-            {(getValue() as string) || "—"}
+            {(getValue() as string) || "–"}
           </span>
         ),
       },

@@ -26,7 +26,7 @@ import { initials } from "@/lib/utils";
  * `approvedForResourceId`. Getting this right matters twice over: the sheet once
  * opened with every switch OFF regardless of the truth, so an already-approved
  * renter looked unapproved and toggling them to check would actually revoke
- * them — and the fix that followed asked each renter in turn, which meant a
+ * them, and the fix that followed asked each renter in turn, which meant a
  * school past the first 60 renters saw the same wrong OFF further down the list.
  *
  * Local overrides still win while the sheet is open, so a flip is instant rather

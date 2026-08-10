@@ -16,14 +16,14 @@ import { ApiError } from "@/lib/api";
  * Who pays what, on a booking with more than one PAYER on it.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────
- * IT LISTS PAYERS, NOT PEOPLE — AND THAT IS NOT COSMETIC
+ * IT LISTS PAYERS, NOT PEOPLE, AND THAT IS NOT COSMETIC
  * ─────────────────────────────────────────────────────────────────────────────────────
  *
  * This used to list everyone on the booking, instructors included, which put an instructor
  * in a table headed "who pays" and asked a dispatcher to give them a share. An instructor
  * flying with students is being PAID, not billed. `buildPayers` in the server's
- * splitInvoicing.ts settles this once — students and renters, else the instructors, and on
- * a guest booking the guest — and this mirrors it exactly rather than inventing a second
+ * splitInvoicing.ts settles this once, students and renters, else the instructors, and on
+ * a guest booking the guest, and this mirrors it exactly rather than inventing a second
  * answer.
  *
  * The mismatch was not merely confusing, it produced close-outs the server then refuses.
@@ -41,7 +41,7 @@ import { ApiError } from "@/lib/api";
  * ─────────────────────────────────────────────────────────────────────────────────────
  *
  * A ground lesson has no aircraft, so it has no Hobbs reading, nobody is pilot in command
- * of a classroom, and the one figure that does divide is instruction time — which was the
+ * of a classroom, and the one figure that does divide is instruction time, which was the
  * single field this panel never offered. It asked for the three that cannot exist and
  * omitted the one that does. `usesBriefingNotMeters` is the same helper the ramp modal
  * keys on, so the two screens agree about what a booking is measured with.
@@ -156,7 +156,7 @@ const asParty = (o: { id: number; user?: { name?: string | null } | null }, side
  *
  * A straight mirror of `buildPayers` (server/src/utils/splitInvoicing.ts): students and
  * renters, or the instructors when there is nobody else, and on a guest booking the guest.
- * Order matters there — it decides who takes a `whole` line and who gets the leftover cent —
+ * Order matters there (it decides who takes a `whole` line and who gets the leftover cent)
  * so it is preserved here too, and the row order a dispatcher sees is the order the money
  * follows.
  */
@@ -193,7 +193,7 @@ function nonPayersOf(r: Reservation, payers: Party[]): string[] {
     .map((x) => x.name);
 }
 
-/** "Ann", "Ann and Bo", "Ann, Bo and Cy". */
+/** "Ann", ", Ann and Bo", ", Ann, Bo and Cy". */
 function listNames(names: string[]): string {
   if (names.length <= 1) return names[0] ?? "";
   return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
@@ -244,7 +244,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   const hasRoles = r.resource?.type?.plane != null;
 
   // Seed from what's stored. A booking with no stakes recorded is the normal case, and it
-  // seeds empty — which reads correctly as "nothing entered", not as "everyone owes zero".
+  // seeds empty, which reads correctly as "nothing entered", not as "everyone owes zero".
   const seed = React.useCallback((): Record<string, Draft> => {
     const out: Record<string, Draft> = {};
     for (const party of parties) {
@@ -270,7 +270,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>(seed);
   const [dirty, setDirty] = React.useState(false);
 
-  // Re-seed when the booking changes underneath us, but never over unsaved edits — a
+  // Re-seed when the booking changes underneath us, but never over unsaved edits, a
   // background refetch must not silently discard half-typed meter readings.
   React.useEffect(() => {
     if (!dirty) setDrafts(seed());
@@ -289,7 +289,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
    *
    * The engine refuses a close-out whose individual legs don't add up to what the aircraft
    * actually ran, because scaling them to fit would bill hours the aircraft never flew.
-   * That refusal is correct but it arrives late — after the dispatcher has finished and hit
+   * That refusal is correct but it arrives late, after the dispatcher has finished and hit
    * a button. Doing the same arithmetic here turns it into a running total they can watch
    * converge, so the refusal should never actually fire.
    */
@@ -420,7 +420,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   // shows nothing: only the student is billed.
   if (parties.length < 2) return null;
 
-  // Nothing on this booking costs anything to divide — a classroom with no instructor on it
+  // Nothing on this booking costs anything to divide, a classroom with no instructor on it
   // has neither a resource rate nor an instruction line. Asking for shares of nothing is
   // worse than asking nothing at all.
   if (!hasMeters && !hasInstruction) return null;
@@ -579,7 +579,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
                         onChange={(e) => set(party.key, { pilotRole: e.target.value as PilotRole | "" })}
                         className="h-8 w-full rounded-md border bg-transparent px-2 text-sm"
                       >
-                        <option value="">—</option>
+                        <option value="">–</option>
                         {PILOT_ROLES.map((role) => (
                           <option key={role} value={role}>
                             {ROLE_LABEL[role]}
@@ -596,7 +596,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
       </div>
 
       {/* The running totals. Each only appears once somebody has started entering the thing
-          it describes — an untouched close-out shouldn't be shouting about a mismatch. */}
+          it describes, an untouched close-out shouldn't be shouting about a mismatch. */}
       {(anyLegEntered || anyInstructionEntered || anyShareEntered) && (
         <div className="space-y-1 border-t px-3 py-2 text-xs">
           {anyLegEntered && flightTenths != null && (

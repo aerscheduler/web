@@ -2,7 +2,7 @@
  * One number, its change, and the window it covers.
  *
  * The window label is not decoration. Once tiles can carry their own ranges, a
- * card reading "$12,480" with no period is actively misleading — the whole point
+ * card reading "$12,480" with no period is actively misleading, the whole point
  * of the feature is having "this week" and "this month" side by side, and they
  * are indistinguishable without it.
  *
@@ -56,7 +56,7 @@ export function VizMetric({
   const prevRaw = previousTotals?.[metric];
   const previous = typeof prevRaw === "number" ? prevRaw : null;
 
-  // No baseline, or a zero one, means there is nothing to compute against —
+  // No baseline, or a zero one, means there is nothing to compute against.
   // "+∞%" and "+4000% from one flight" are both noise.
   const delta =
     value != null && previous != null && previous !== 0 ? (value - previous) / Math.abs(previous) : null;

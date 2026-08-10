@@ -31,7 +31,7 @@ const SIZE_CLASS = {
 export type ResponsiveModalSize = keyof typeof SIZE_CLASS;
 
 /**
- * A modal that renders as a centered Dialog on `md+` and a bottom Drawer on phones —
+ * A modal that renders as a centered Dialog on `md+` and a bottom Drawer on phones.
  * the standard container for quick create/edit forms across the console.
  *
  * Layout is always header (fixed) → body (scrolls) → optional footer (fixed), so long

@@ -78,7 +78,7 @@ export function AgendaRow({
           onCancel={onCancel}
         />
         {/* One badge for the booking even when it has an invoice per payer. "Unbilled"
-            wins while anybody's share is outstanding — a class where three of four
+            wins while anybody's share is outstanding, a class where three of four
             students have settled is still one the school is chasing. */}
         {(() => {
           const status = billingStatus(r);

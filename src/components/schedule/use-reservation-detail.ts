@@ -4,13 +4,13 @@ import { useReservation } from "@/features/queries";
 import { useReservationActions } from "./use-reservation-actions";
 
 /**
- * Detail-panel state for any surface that lists reservations — the dispatch
+ * Detail-panel state for any surface that lists reservations, the dispatch
  * board and the member pages both open the same `ReservationDetailSheet`, so
  * they share the wiring rather than each growing their own copy.
  *
  * Opens with the list row, then hydrates from `GET /reservations/:id` (same as
  * Flutter's detail sheet) so plane Hobbs/tach are available for ramp-out. While
- * that fetch is in flight — and after close-out mutations invalidate the list —
+ * that fetch is in flight (and after close-out mutations invalidate the list)
  * `detail` still tracks the live list row so the panel advances through
  * ramp out → ramp in → confirm.
  *
@@ -81,7 +81,7 @@ export function useReservationDetail(
   );
 
   /**
-   * ↑/↓ to the neighbouring booking. Clamped rather than wrapping — running off
+   * ↑/↓ to the neighbouring booking. Clamped rather than wrapping, running off
    * the end of a day's board and landing back at 6am reads as a glitch.
    */
   const step = React.useCallback(
@@ -98,7 +98,7 @@ export function useReservationDetail(
   );
 
   /**
-   * Hand off to the edit form. The panel closes first — the edit form is a
+   * Hand off to the edit form. The panel closes first, the edit form is a
    * modal, and leaving the panel open behind it means two things claiming
    * Escape at once.
    */

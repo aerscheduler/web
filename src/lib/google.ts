@@ -1,7 +1,7 @@
 // Google Sign-In for the web console.
 //
 // The AerScheduler server's POST /auth/google verifies an **OAuth access token**
-// (via google-auth-library getTokenInfo → tokeninfo endpoint) and reads the email —
+// (via google-auth-library getTokenInfo → tokeninfo endpoint) and reads the email.
 // it does NOT verify an ID token / One-Tap credential. So we use Google Identity
 // Services' OAuth 2.0 *token* model (implicit flow) to obtain an access_token,
 // then fetch the profile name/picture the server also wants.
@@ -119,7 +119,7 @@ export async function requestGoogleCalendarCode(): Promise<string> {
       // screen (Data Access → sensitive scopes = calendar.events). Requesting the
       // broader ".../auth/calendar" here is an *unapproved* scope, which is what
       // triggers the "Google hasn't verified this app" screen. calendar.events is
-      // sufficient — the server only does events.insert/update/delete on "primary".
+      // sufficient, the server only does events.insert/update/delete on "primary".
       scope: "https://www.googleapis.com/auth/calendar.events",
       ux_mode: "popup",
       callback: (resp) => {

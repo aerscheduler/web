@@ -13,7 +13,7 @@
  *    belongs on the settings page instead.
  * 2. **Never mark anything complete.** Completion is still derived from real data
  *    (`lib/onboarding-checklist.ts`), so a flow finishes by having actually created the
- *    thing — a reminder, an invite, a Connect account. That means a flow and the
+ *    thing, a reminder, an invite, a Connect account. That means a flow and the
  *    settings page can never disagree, and doing the work by hand ticks the box just
  *    the same.
  */
@@ -45,12 +45,12 @@ export function FlowModal({
   onOpenChange: (open: boolean) => void;
   title: string;
   description?: string;
-  /** 0-based. Omit both to hide the step dots — a one-screen flow doesn't need them. */
+  /** 0-based. Omit both to hide the step dots, a one-screen flow doesn't need them. */
   step?: number;
   stepCount?: number;
   /** Wider for dense steps (choice lists, embedded forms). Default matches other dialogs. */
   size?: ResponsiveModalSize;
-  /** Sticky action row — pass `FlowNav` / `FlowClose` here, not inside `children`. */
+  /** Sticky action row, pass `FlowNav` / `FlowClose` here, not inside `children`. */
   footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -95,7 +95,7 @@ export function FlowBenefits({ items }: { items: string[] }) {
   );
 }
 
-/** One choice per row — the "do you have multiple aircraft?" shape. */
+/** One choice per row, the "do you have multiple aircraft?" shape. */
 export function FlowChoice<T extends string>({
   options,
   value,
@@ -136,7 +136,7 @@ export function FlowChoice<T extends string>({
   );
 }
 
-/** Back / skip / primary — host in `FlowModal`'s `footer` so it stays pinned. */
+/** Back / skip / primary, host in `FlowModal`'s `footer` so it stays pinned. */
 export function FlowNav({
   onBack,
   onNext,
@@ -204,7 +204,7 @@ export function FlowDone({
   );
 }
 
-/** Sticky "Done" for success screens — host in `FlowModal`'s `footer`. */
+/** Sticky "Done" for success screens, host in `FlowModal`'s `footer`. */
 export function FlowClose({
   onClose,
   closeLabel = "Done",

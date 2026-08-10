@@ -59,7 +59,7 @@ import { Skeleton } from "@/components/ui/skeleton";
  * One aircraft, in full.
  *
  * Sibling of the fleet list rather than a child of it, for the same reason as
- * the person page — see `people_.$orgUserId`. The URL is still
+ * the person page, see `people_.$orgUserId`. The URL is still
  * `/aircraft/:id`.
  *
  * What a viewer gets is decided by `resourceViewAccess`: a technician opens this
@@ -101,7 +101,7 @@ function AircraftDetailPage() {
         <RecordNotFound
           icon={PlaneTakeoff}
           title="Aircraft not found"
-          body="That link doesn't point at anything in this fleet — it may have been removed."
+          body="That link doesn't point at anything in this fleet, it may have been removed."
           backTo="/aircraft"
           backLabel="Back to Aircraft"
         />
@@ -110,7 +110,7 @@ function AircraftDetailPage() {
   }
 
   // `isLoading`, not `isPending`: in React Query v5 `isPending` means "no data",
-  // which stays true for a query that has finished and has nothing to show —
+  // which stays true for a query that has finished and has nothing to show.
   // so a skeleton keyed on it can outlive the answer and spin forever. This
   // page reproduced exactly that on a bad id. `isLoading` is `isPending &&
   // isFetching`, i.e. a request is genuinely in flight.
@@ -133,7 +133,7 @@ function AircraftDetailPage() {
     );
   }
 
-  // This page is the AIRCRAFT page — its copy says "didn't fly", its Edit opens
+  // This page is the AIRCRAFT page, its copy says "didn't fly", its Edit opens
   // the aircraft form, and its back link goes to the fleet. A simulator or a
   // classroom reached by URL used to render inside all of that, which put the
   // plane form on a sim. Facilities is where those live.
@@ -142,7 +142,7 @@ function AircraftDetailPage() {
       <PageFrame>
         <RecordNotFound
           icon={PlaneTakeoff}
-          title={`${resourceKindLabel(resource)} — not an aircraft`}
+          title={`${resourceKindLabel(resource)}, not an aircraft`}
           body="Simulators and ground-school rooms are managed under Facilities."
           backTo="/facilities"
           backLabel="Go to Facilities"
@@ -365,10 +365,10 @@ function ResourceBody({ resource }: { resource: Resource }) {
                     <KeyValue label="Billed on">
                       {plane.cost?.billByHobbsTime ? "Hobbs time" : "Tach time"}
                     </KeyValue>
-                    <KeyValue label="Category & class">{plane.categoryClass || "—"}</KeyValue>
+                    <KeyValue label="Category & class">{plane.categoryClass || "–"}</KeyValue>
                   </>
                 )}
-                <KeyValue label="Home base">{resource.location?.name ?? "—"}</KeyValue>
+                <KeyValue label="Home base">{resource.location?.name ?? "–"}</KeyValue>
                 <KeyValue label="Added">{formatDate(resource.createdAt)}</KeyValue>
               </KeyValueList>
             </DetailCard>
@@ -436,7 +436,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
 /**
  * Renters checked out on this tail.
  *
- * A complete list at any roster size — the read is now one request against the
+ * A complete list at any roster size, the read is now one request against the
  * aircraft (see `useResourceApprovedPilots`), so there is no cap to disclose.
  * The renter count is only here to tell an unapproved tail apart from a school
  * that has no renters yet.
@@ -457,7 +457,7 @@ function ApprovedPilots({ resource }: { resource: Resource }) {
         <CardEmpty>Couldn&apos;t load approvals.</CardEmpty>
       ) : renterCountQ.data === 0 ? (
         <CardEmpty>
-          No renters in this organization yet — grant the renter role from{" "}
+          No renters in this organization yet, grant the renter role from{" "}
           <Link to="/people" className="underline underline-offset-2">
             People
           </Link>

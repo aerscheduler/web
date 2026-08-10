@@ -1,7 +1,7 @@
 /**
  * The rules behind dragging a booking on the dispatch board.
  *
- * Everything in here is pure — no React, no fetching — because the interesting part of
+ * Everything in here is pure (no React, no fetching) because the interesting part of
  * drag-and-drop isn't the pointer maths, it's the answer to two questions:
  *
  *   1. **Can this booking be dragged at all, and if not, why not?** A block that simply
@@ -9,8 +9,8 @@
  *      dispatcher can act on, and the grids surface it in the block's tooltip *before*
  *      anyone tries, then again as a toast if they try anyway.
  *
- *   2. **Is where they dropped it legal?** The server is the authority — it re-runs the
- *      whole type/personnel/availability matrix on PATCH — but a 400 that arrives after
+ *   2. **Is where they dropped it legal?** The server is the authority, it re-runs the
+ *      whole type/personnel/availability matrix on PATCH, but a 400 that arrives after
  *      the block has already snapped somewhere is a bad way to learn you double-booked
  *      N123. These checks mirror the server's so the answer shows up live, under the
  *      cursor, while the block is still moving.
@@ -46,11 +46,11 @@ export type DragMode = "move" | "resize-start" | "resize-end";
  * person mid-shift: it says what state the booking is in and what they can do instead.
  */
 export interface DragAbility {
-  /** Drag the whole block — change the time, and on the day board the resource. */
+  /** Drag the whole block, change the time, and on the day board the resource. */
   move: boolean;
-  /** Drag the leading edge — change the start, leaving the end where it is. */
+  /** Drag the leading edge, change the start, leaving the end where it is. */
   resizeStart: boolean;
-  /** Drag the trailing edge — change the end, leaving the start where it is. */
+  /** Drag the trailing edge, change the end, leaving the start where it is. */
   resizeEnd: boolean;
   /** Why something is denied, in a sentence. Null only when everything is allowed. */
   reason: string | null;
@@ -75,7 +75,7 @@ export interface GroundedPerson {
 
 /**
  * Ask whether an org user is grounded. Supplied by the board, which already holds the
- * roster for its Personnel filter — the reservation payload itself carries only ids and
+ * roster for its Personnel filter, the reservation payload itself carries only ids and
  * names for personnel, so this is the only place the flag is available client-side.
  */
 export type GroundedLookup = (orgUserId: number) => GroundedPerson | null;
@@ -90,7 +90,7 @@ function isAircraft(r: Resource | null | undefined): boolean {
  *
  * Mirrors step 2 of the server's `verifyOrgUserForReservationParams`, including its scope:
  * being grounded only blocks an AIRCRAFT. A grounded instructor can still be moved around
- * a ground-school room or a simulator, and the server agrees — it looks up whether the
+ * a ground-school room or a simulator, and the server agrees, it looks up whether the
  * resource is a plane before rejecting.
  */
 function groundedCrewReason(
@@ -103,7 +103,7 @@ function groundedCrewReason(
     const grounded = lookup(id);
     if (grounded) {
       const why = grounded.reason?.trim() ? ` (${grounded.reason.trim()})` : "";
-      return `${grounded.name} is grounded${why} — they can't be scheduled on an aircraft.`;
+      return `${grounded.name} is grounded${why}, they can't be scheduled on an aircraft.`;
     }
   }
   return null;
@@ -120,7 +120,7 @@ function groundingOf(r: Resource | null | undefined): { grounded: boolean; reaso
  * Can this viewer change this booking's times at all?
  *
  * Mirrors the server's `orgUserCanUpdateReservation` (creator ∪ personnel ∪ admin ∪
- * dispatcher) minus the creator, which the API strips from responses — so the board is
+ * dispatcher) minus the creator, which the API strips from responses, so the board is
  * strictly more restrictive than the server, which only ever hides an action rather than
  * offering one that 403s.
  */
@@ -129,12 +129,12 @@ function mayChange(r: Reservation, roles: Role[], orgUserId: number | null): boo
 }
 
 /**
- * Whether — and how — a booking can be dragged, and the sentence explaining any refusal.
+ * Whether (and how) a booking can be dragged, and the sentence explaining any refusal.
  *
  * The order of these tests is the design. A flight that is *out* is the case people
  * actually hit at 3pm on a Tuesday, and it must be answered before the "already in the
  * past" rule swallows it: an overdue aircraft is both out and past its booked end, and the
- * useful thing to offer is exactly the one the server still permits — pushing the return
+ * useful thing to offer is exactly the one the server still permits, pushing the return
  * time back. (`ReservationService.update` writes only `end` and `notes` once
  * `review.hobbsTimeOut` is set, so an end-only drag is the whole of what a ramped-out
  * booking can accept.)
@@ -149,7 +149,7 @@ export function dragAbility(
   groundedCrew?: GroundedLookup
 ): DragAbility {
   if (r.cancelledAt) {
-    return locked("This booking was cancelled — book a new one instead of moving it.");
+    return locked("This booking was cancelled, book a new one instead of moving it.");
   }
 
   // Money has been taken off the schedule and put on a bill. The times on that bill are
@@ -157,13 +157,13 @@ export function dragAbility(
   //Any live invoice locks the slot: its line items describe hours this booking claims to
   //have flown, and moving it would leave them describing a flight that didn't happen.
   if ((r.invoices ?? []).some((i) => !i.voidedAt)) {
-    return locked("This flight is invoiced — its times are part of the bill and can't be dragged.");
+    return locked("This flight is invoiced, its times are part of the bill and can't be dragged.");
   }
 
   // Back on the ramp: the readings are in and the close-out (or its invoice) is derived
   // from them. Nothing about the booked window is still a plan.
   if (isRampedIn(r)) {
-    return locked("The aircraft is back — this flight's times are part of its close-out now.");
+    return locked("The aircraft is back. This flight's times are part of its close-out now.");
   }
 
   if (isRampedOut(r)) {
@@ -175,7 +175,7 @@ export function dragAbility(
       move: false,
       resizeStart: false,
       resizeEnd: true,
-      reason: `${name} is already out — the only thing you can still change is when it's due back. Drag the trailing edge.`,
+      reason: `${name} is already out. The only thing you can still change is when it's due back. Drag the trailing edge.`,
     };
   }
 
@@ -251,7 +251,7 @@ export interface ProposedTimes {
  *
  * A **move** anchors on the start: the dropped pixel is the new start's wall clock, and the
  * end follows at the same real duration. Preserving elapsed time rather than wall-clock
- * span is deliberate — a two-hour block dragged across a spring-forward boundary is still a
+ * span is deliberate, a two-hour block dragged across a spring-forward boundary is still a
  * two-hour flight, and the aircraft doesn't care what the clock did.
  *
  * A **resize** moves one edge and clamps against the other so a block can never be dragged
@@ -263,7 +263,7 @@ export function proposeTimes(args: {
   /** Snapped minutes the pointer has travelled along the time axis. */
   deltaMin: number;
   zone: string;
-  /** The calendar day the pointer is over — week board only; defaults to the block's own. */
+  /** The calendar day the pointer is over, week board only; defaults to the block's own. */
   targetDayKey?: string | null;
 }): ProposedTimes {
   const { r, mode, deltaMin, zone, targetDayKey } = args;
@@ -328,10 +328,10 @@ function personLabel(r: Reservation, orgUserId: number): string {
 /**
  * Is this drop legal? Mirrors, in order, the checks `ReservationService.update` runs.
  *
- * `others` is the board's own reservation list — the same rows the dispatcher is looking
+ * `others` is the board's own reservation list, the same rows the dispatcher is looking
  * at. That's a deliberate choice over re-fetching the availability endpoints mid-drag: the
  * conflict it reports is one they can *see*, named, in the same instant they see the
- * block move. It has one honest gap — when a resource or location filter is narrowing the
+ * block move. It has one honest gap, when a resource or location filter is narrowing the
  * fetch, a clash with a booking that filter removed is invisible here. The server still
  * catches it and the block snaps back with the server's message.
  */
@@ -370,12 +370,12 @@ export function validateDrop(args: {
     return { ok: false, reason: `A booking has to be at least ${MIN_DURATION_MIN} minutes long.` };
   }
 
-  // A ramped-out flight accepts an end time and nothing else — see dragAbility.
+  // A ramped-out flight accepts an end time and nothing else, see dragAbility.
   if (isRampedOut(r)) {
     if (startMs !== new Date(r.start).getTime() || targetResourceId !== (r.resource?.id ?? null)) {
       return {
         ok: false,
-        reason: `${nameOf(r.resource)} is already out — only its return time can change.`,
+        reason: `${nameOf(r.resource)} is already out, only its return time can change.`,
       };
     }
   }
@@ -385,12 +385,12 @@ export function validateDrop(args: {
 
   if (targetResourceId !== currentResourceId) {
     // Dropping on the catch-all row would have to *remove* the aircraft, which a PATCH
-    // can't express (an absent `resource` means "leave it alone" server-side) — so say so
+    // can't express (an absent `resource` means "leave it alone" server-side), so say so
     // rather than appearing to work and silently leaving the booking where it was.
     if (overLeftoverRow || targetResourceId == null) {
       return {
         ok: false,
-        reason: "Drop this on a resource lane — dragging can't take a booking off its aircraft.",
+        reason: "Drop this on a resource lane, dragging can't take a booking off its aircraft.",
       };
     }
     if (!targetResource) {
@@ -403,7 +403,7 @@ export function validateDrop(args: {
         ok: false,
         reason: `A ${typeLabel(r.type).toLowerCase()} booking needs ${
           requirement.resource === "Aircraft" ? "an aircraft" : `a ${requirement.resource.toLowerCase()}`
-        } — ${nameOf(targetResource)} is a ${targetKind.toLowerCase()}.`,
+        }: ${nameOf(targetResource)} is a ${targetKind.toLowerCase()}.`,
       };
     }
 
@@ -444,7 +444,7 @@ export function validateDrop(args: {
           other.start,
           other.end,
           zone
-        )} — ${other.title}.`,
+        )}: ${other.title}.`,
       };
     }
 
@@ -476,7 +476,7 @@ export function validateDrop(args: {
       const until = formatTimeInZone(hold.holdUntil, zone);
       return {
         ok: false,
-        reason: `${nameOf(targetResource ?? r.resource)} is held for ${who} (${window}). Offer expires ${until}.`,
+        reason: `${nameOf(targetResource ?? r.resource)} is offered to ${who} (${window}). Offer ends ${until}.`,
       };
     }
   }

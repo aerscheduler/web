@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useQuickBooksSettings, useSyncInvoiceToQuickBooks } from "@/features/queries";
 
-/** Deep-link into a Sales Receipt — must match sandbox vs production Intuit company. */
+/** Deep-link into a Sales Receipt: must match sandbox vs production Intuit company. */
 export function qboSalesReceiptUrl(receiptId: string, useSandbox: boolean): string {
   const host = useSandbox
     ? "https://app.sandbox.qbo.intuit.com"
@@ -79,7 +79,7 @@ export function InvoiceQuickBooksSection({ invoice }: { invoice: Invoice }) {
           )}
           {!synced && !failed && (
             <p className="text-sm text-muted-foreground">
-              Will sync when QuickBooks is connected and sync is enabled — or retry now.
+              Will sync when QuickBooks is connected and sync is enabled, or retry now.
             </p>
           )}
         </div>

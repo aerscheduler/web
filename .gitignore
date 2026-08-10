@@ -26,7 +26,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# Local env files — never commit real values (keep the example)
+# Local env files: never commit real values (keep the example)
 .env
 .env.*
 !.env.example

@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 /**
- * "What am I on, and what do I owe?" — the member's own view of their membership.
+ * "What am I on, and what do I owe?", the member's own view of their membership.
  *
  * DELIBERATELY READ-ONLY. There is no cancel button and no plan picker, because nobody
  * self-serves a membership: joining a club is the club's decision and leaving has money
@@ -64,7 +64,7 @@ export function MyMembershipCard() {
       {m.joinFeeStatus === "owed" ? (
         <p className="mt-3 rounded-lg border border-dashed p-2.5 text-xs text-muted-foreground">
           A one-time join fee of {formatMoney(m.joinFeeCents)} is on your account. It has not been
-          invoiced yet — you will get an invoice when the school raises it.
+          invoiced yet, you will get an invoice when the school raises it.
         </p>
       ) : null}
 

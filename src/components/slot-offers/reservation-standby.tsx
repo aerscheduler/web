@@ -64,7 +64,7 @@ export function ReservationStandby({ reservation }: { reservation: Reservation }
       });
       toast.success("You're standing by for this booking");
       if (interest.notificationDelivery?.anyChannelEnabled === false) {
-        toast.warning("Turn on slot offer notifications so you do not miss an opening.");
+        toast.warning("Turn on offer notifications so you do not miss an opening.");
       }
     } catch (error) {
       toast.error(
@@ -89,9 +89,9 @@ export function ReservationStandby({ reservation }: { reservation: Reservation }
       });
       toast.success(
         offer?.offeredTo?.user?.name
-          ? `Slot offered to ${offer.offeredTo.user.name}`
+          ? `Offered to ${offer.offeredTo.user.name}`
           : offer
-            ? "Slot offer sent"
+            ? "Offer sent"
             : "No eligible standby members matched this slot"
       );
     } catch (error) {

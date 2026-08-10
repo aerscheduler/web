@@ -58,7 +58,7 @@ function MyDayPage() {
   const reservations = React.useMemo(() => reservationsQ.data ?? [], [reservationsQ.data]);
   const bookLabel = bookActionLabel(roles);
   const bookings = bookingNouns(roles);
-  // Same detail sheet the dispatch board opens — cancel and the ramp-out /
+  // Same detail sheet the dispatch board opens, cancel and the ramp-out /
   // ramp-in / close-out flow behave identically here.
   // No `onStep` and no URL param: My day is a dashboard, not one ordered list, so
   // there is no "next record" for ↑/↓ to mean and nothing worth linking to.
@@ -215,7 +215,7 @@ function MyDayPage() {
                     fails, so the list closes up as if it were never here. */}
                 {next && (
                   <WeatherBadge
-                    // The RESERVATION's location, not the resource's — the API returns
+                    // The RESERVATION's location, not the resource's, the API returns
                     // `resource.location` as a bare { id } stub with no address, so the
                     // badge would never have coordinates to look weather up with.
                     location={(next as unknown as { location?: unknown }).location}

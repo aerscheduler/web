@@ -16,7 +16,7 @@ import { canCreateReservationType } from "@/lib/permissions";
 
 /**
  * Row/block overflow menu. Only rendered when the viewer can actually act on the
- * reservation — the block/row itself already opens details on click, so for a
+ * reservation, the block/row itself already opens details on click, so for a
  * plain member looking at someone else's flight there's nothing to show and the
  * menu is hidden entirely (mirrors Flutter, which never surfaces cancel to a
  * non-staff/non-crew viewer).
@@ -41,7 +41,7 @@ export function ReservationMenu({
   const { roles, orgUserId } = useAuth();
   const canCancel = canCancelReservation(r, roles, orgUserId);
   const canEdit = onEdit != null && canEditReservation(r, roles, orgUserId);
-  // Duplicating CREATES, so it is gated on being allowed to create that type —
+  // Duplicating CREATES, so it is gated on being allowed to create that type.
   // not on being allowed to edit this particular booking. Someone can be able to
   // book another dual flight without being able to touch this one.
   const canDuplicate = onDuplicate != null && canCreateReservationType(roles, r.type);

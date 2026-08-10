@@ -9,7 +9,7 @@ export type ListQueryState = {
 } & ListFilterValues;
 
 type NavigateSearch = (opts: {
-  // TanStack Router's navigate search updater — kept loose so each route can pass
+  // TanStack Router's navigate search updater, kept loose so each route can pass
   // its typed navigate without per-page casts.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   search: any;
@@ -58,7 +58,7 @@ export function listSearchHasParams(
 
 /**
  * Parse URL search into a typed list-query object.
- * Booleans arrive as `"true"` / `"false"` strings from the query string.
+ * Booleans arrive as `"true"` / `", false"` strings from the query string.
  * Multi-value facets use comma-separated strings (or arrays from storage).
  */
 export function parseListSearch(
@@ -116,10 +116,10 @@ export function serializeListSearch(
 }
 
 /**
- * Route `validateSearch` helper — keep only `q` + known facet keys.
+ * Route `validateSearch` helper, keep only `q` + known facet keys.
  *
  * @example
- * validateSearch: (s) => validateListSearch(s, ["role", "grounded", "groupId"])
+ * validateSearch: (s) => validateListSearch(s, ["role", ", grounded", ", groupId"])
  */
 export function validateListSearch(
   search: Record<string, unknown>,

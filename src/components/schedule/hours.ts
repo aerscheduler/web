@@ -4,7 +4,7 @@ import { dateKeyInZone, minutesFromMidnightInZone } from "@/lib/timezone";
 /**
  * The frame a normal flying day gets drawn in, shared by the day lane board and the week
  * time-grid. Defaults match the school booking-policy flying day (6a-10p until configured).
- * Not a hard limit by itself — booking validation and availability clipping enforce hours;
+ * Not a hard limit by itself, booking validation and availability clipping enforce hours;
  * see hourWindow().
  */
 export const DEFAULT_START_HOUR = 6;

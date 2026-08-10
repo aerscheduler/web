@@ -4,7 +4,7 @@ import { isAdmin, isInstructor, isStaff, isTechnician } from "@/lib/permissions"
 /**
  * Where a reservation sits in the ramp-out → ramp-in → review → invoice pipeline.
  * Driven off the review readings + confirmations + invoice (all unambiguous), NOT the
- * `Plane.rampedIn` flag — whose "in flight vs on the ramp" meaning is inverted between the
+ * `Plane.rampedIn` flag, whose "in flight vs on the ramp" meaning is inverted between the
  * server contract and the existing web `planeStatus` helper.
  */
 export type CloseOutStep = "rampOut" | "rampIn" | "confirm" | "confirmGuest" | "reviewed" | "invoiced";
@@ -35,14 +35,14 @@ export function canReviewGuest(
 }
 
 /**
- * Pilots who must sign off the review — instructors + students + renters (guests excluded),
+ * Pilots who must sign off the review, instructors + students + renters (guests excluded),
  * counted as DISTINCT people rather than as seats.
  *
  * The server used to accept the same org user in two seats (booked as both the instructor
  * and the student). A confirmation is keyed on the person, so they can only ever sign off
  * once; summing the sides would ask for two and strand the close-out at "1 of 2 confirmed"
  * forever. New bookings are rejected server-side now, so this only has to read the ones
- * already in the database correctly — and it matches the server's own completion check
+ * already in the database correctly, and it matches the server's own completion check
  * (server/src/utils/reservationPersonnel.ts).
  */
 export function reviewerCount(r: Reservation): number {
@@ -60,7 +60,7 @@ export function confirmationCount(r: Reservation): number {
 
 /**
  * Has `orgUserId` already signed off this review? The server rejects a second confirmation
- * from the same person, so once they have, the button has to go — otherwise a pilot waiting
+ * from the same person, so once they have, the button has to go, otherwise a pilot waiting
  * on their counterpart still sees "Confirm review" and gets a 400 for pressing it.
  *
  * Reads the nested relation id, never a `FK_*` scalar: the server strips every FK_* field
@@ -85,7 +85,7 @@ export function isReservationPersonnel(r: Reservation, orgUserId: number | null)
  *
  * The server releases an invoice to staff (owner/admin/dispatcher), to the person billed
  * for it, and to the instructor on a guest booking. The reservation payload carries only a
- * slim invoice (id/total/paidAt/voidedAt — no customer), so the closest the web can get is
+ * slim invoice (id/total/paidAt/voidedAt, no customer), so the closest the web can get is
  * "staff, or someone rostered on this flight". That is enough to stop the common case: a
  * member with no billing role opening someone else's reservation and firing a request that
  * can only ever 403.
@@ -108,15 +108,15 @@ export function canViewReservationInvoice(
  * for a number nobody can produce, and the ramp modal refused to submit without it. Reported
  * from the field against GROUP grounds, which is the shape a ground school actually books.
  *
- * `ReservationReview.briefing` is what ground time is measured with — the schema says so in
- * as many words — so that is the reading that stands in.
+ * `ReservationReview.briefing` is what ground time is measured with: the schema says so in
+ * as many words, so that is the reading that stands in.
  *
  * Keyed on the TYPE first rather than only on the resource, because schools run a ground
  * lesson sitting in the aeroplane and that still has nothing to read at ramp-out. The
  * resource checks then cover a classroom booking and a booking with nothing booked at all.
  *
  * The app reaches the same conclusion via `Reservation.briefingOnlyNoRampIn`, which is
- * narrower — it requires an instructor, so a group ground with none still asks for Hobbs
+ * narrower, it requires an instructor, so a group ground with none still asks for Hobbs
  * there. Worth aligning; this is the surface the bug was reported on.
  */
 export function usesBriefingNotMeters(r: Reservation): boolean {
@@ -133,7 +133,7 @@ export function isRampedOut(r: Reservation): boolean {
 
 export function isRampedIn(r: Reservation): boolean {
   const rev = r.review;
-  //One briefing figure covers the whole lesson — there is no out-and-back to tell apart, so
+  //One briefing figure covers the whole lesson, there is no out-and-back to tell apart, so
   //recording it satisfies both steps and the flow moves straight to the sign-offs.
   if (usesBriefingNotMeters(r)) return rev?.briefing != null;
   return rev?.hobbsTimeIn != null || rev?.tachTimeIn != null;
@@ -141,18 +141,18 @@ export function isRampedIn(r: Reservation): boolean {
 
 export function closeOutStep(r: Reservation): CloseOutStep {
   //ANY live invoice means the money side has started. A partial fan-out (invoice 2 of 3
-  //failed) is still "invoiced" as far as the close-out FLOW is concerned — the pilots have
-  //signed off and the readings are locked — and the retry lives on the billing side, which
+  //failed) is still "invoiced" as far as the close-out FLOW is concerned, the pilots have
+  //signed off and the readings are locked, and the retry lives on the billing side, which
   //knows which payers are still owed one.
   if ((r.invoices ?? []).some((i) => !i.voidedAt)) return "invoiced";
   if (!isRampedOut(r)) return "rampOut";
   if (!isRampedIn(r)) return "rampIn";
-  // Guest reservations don't collect pilot PINs — they're closed out by staff/instructor.
+  // Guest reservations don't collect pilot PINs, they're closed out by staff/instructor.
   if (isGuestReservation(r)) {
     return guestIsReviewed(r) ? "reviewed" : "confirmGuest";
   }
   const needed = reviewerCount(r);
-  // Nobody to sign off (e.g. maintenance / solo with no personnel) — treat as complete.
+  // Nobody to sign off (e.g. maintenance / solo with no personnel), treat as complete.
   if (needed === 0) return "reviewed";
   if (confirmationCount(r) >= needed) return "reviewed";
   return "confirm";
@@ -162,7 +162,7 @@ export function closeOutStep(r: Reservation): CloseOutStep {
 // Flutter gates each reservation action with three actor concepts: STAFF
 // (admin/dispatcher, +technician for cancel), the PERSONNEL assigned to *this*
 // reservation, and the CREATOR. The API strips FK_* scalars (so we can't see
-// `createdBy` on the web) — where Flutter also allows the creator we stay
+// `createdBy` on the web), where Flutter also allows the creator we stay
 // strictly more-restrictive, which only ever hides actions, never leaks them.
 
 /** Is `orgUserId` listed as an INSTRUCTOR on this reservation specifically? */
@@ -172,11 +172,11 @@ export function isReservationInstructor(r: Reservation, orgUserId: number | null
 }
 
 /**
- * Who may CANCEL a reservation — mirrors Flutter's `canCancel` getter: the flight
+ * Who may CANCEL a reservation, mirrors Flutter's `canCancel` getter: the flight
  * hasn't been ramped out, isn't already cancelled, AND the viewer is staff
  * (owner/admin/dispatcher), a technician, or the instructor assigned to it.
  * Students/renters can't cancel someone else's flight (Flutter also allows the
- * creator, but that field isn't exposed to the web — see note above).
+ * creator, but that field isn't exposed to the web, see note above).
  */
 export function canCancelReservation(
   r: Reservation,
@@ -189,7 +189,7 @@ export function canCancelReservation(
 }
 
 /**
- * Who may RAMP OUT / RAMP IN a reservation — mirrors Flutter's `!viewOnly`:
+ * Who may RAMP OUT / RAMP IN a reservation, mirrors Flutter's `!viewOnly`:
  * staff or any pilot assigned to the flight. (Creator branch omitted, as above.)
  */
 export function canRampReservation(
@@ -202,7 +202,7 @@ export function canRampReservation(
 }
 
 /**
- * Who may EDIT / reschedule a reservation — mirrors Flutter's `canEdit`: not
+ * Who may EDIT / reschedule a reservation, mirrors Flutter's `canEdit`: not
  * cancelled, not yet departed, not already past, and the viewer is staff or a
  * pilot on it. The server's `PATCH /reservations/:id` allows creator ∪ personnel
  * ∪ admin ∪ dispatcher; as elsewhere we can't see the creator, so we stay
@@ -290,7 +290,7 @@ export function canOverridePricesInOrg(
  * Maintenance is excluded because pricing refuses it outright ("disabled"), and a
  * cancelled booking bills nobody. The rest is the server's own refusal, stated up front:
  * once every reviewer has confirmed, the endpoint answers "You can't override payment for
- * a reservation that has already been completed", and on a guest booking `completedByForGuest`
+ * a reservation that has already been completed"and on a guest booking `completedByForGuest`
  * says the same thing. Offering the action there would be an invitation to a 400.
  */
 export function canOverrideReservationPayment(

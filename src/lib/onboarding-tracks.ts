@@ -8,7 +8,7 @@
  *
  * This map is the whole feature. The server stores the slug opaquely and never reads
  * it, so launching a campaign means one entry here and a `?src=` on the website's
- * CTA — no migration, no deploy ordering, and an unknown slug degrades to the default
+ * CTA: no migration, no deploy ordering, and an unknown slug degrades to the default
  * order rather than breaking.
  */
 
@@ -21,23 +21,23 @@ export type Track = {
 
 export const TRACKS: Record<string, Track> = {
   quickbooks: {
-    caption: "You came in from QuickBooks — here's that path first.",
+    caption: "You came in from QuickBooks: here's that path first.",
     lead: ["billing", "quickbooks", "invoice"],
   },
   billing: {
-    caption: "You came in looking at billing — start here.",
+    caption: "You came in looking at billing, start here.",
     lead: ["billing", "invoice", "rules"],
   },
   maintenance: {
-    caption: "You came in from maintenance tracking — start here.",
+    caption: "You came in from maintenance tracking, start here.",
     lead: ["maintenance", "aircraft", "groups"],
   },
   clubs: {
-    caption: "You came in from flying clubs — start here.",
+    caption: "You came in from flying clubs, start here.",
     lead: ["students", "rules", "reservation"],
   },
   scheduling: {
-    caption: "You came in from scheduling — start here.",
+    caption: "You came in from scheduling, start here.",
     lead: ["aircraft", "reservation", "instructors"],
   },
 };

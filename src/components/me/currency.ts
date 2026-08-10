@@ -3,7 +3,7 @@ import type { Currency } from "@/types/api";
 export type CurrencyStanding = "current" | "expiring" | "expired" | "notSignedOff";
 
 export interface CurrencyAttention {
-  /** Lapsed — the server has stamped `expiredAt`. */
+  /** Lapsed: the server has stamped `expiredAt`. */
   expired: number;
   /** Inside the warning period, not yet lapsed. */
   expiring: number;
@@ -16,7 +16,7 @@ export interface CurrencyAttention {
 /**
  * Where a single currency stands.
  *
- * Mirrors the server's `checkIfCurrencyIsCurrent`, which is the authority —
+ * Mirrors the server's `checkIfCurrencyIsCurrent`, which is the authority.
  * `orgUserIsCurrentForResource` gates booking with it. Current means not
  * expired, not archived, AND carrying a `renewedBy`, which the server stamps on
  * a manual renewal or a document upload. A row that has never been signed off

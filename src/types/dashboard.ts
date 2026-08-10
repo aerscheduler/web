@@ -1,7 +1,7 @@
 /**
  * The dashboard wire types, mirroring `server/src/reports/dashboard/schema.ts`.
  *
- * The server is the authority — it validates every config on the way in AND on
+ * The server is the authority, it validates every config on the way in AND on
  * the way out, so nothing here is load-bearing for safety. These exist so the
  * builder can be written against a real shape, and there is a matching Zod
  * schema in `lib/dashboard-schema.ts` used to check a config before it is sent,
@@ -35,7 +35,7 @@ export interface Visualization {
   metrics: string[];
   dimension?: string;
   filters: ReportFilterInput[];
-  /** "inherit" takes the panel's window — the default. */
+  /** "inherit" takes the panel's window, the default. */
   range: "inherit" | RangeSpec;
   compare: "inherit" | CompareSpec;
   layout: GridPosition;
@@ -64,7 +64,7 @@ export interface DashboardDocument {
   isDefault: boolean;
   config: DashboardConfig;
   /**
-   * Visualizations the server refused to serve — a report that was removed, a
+   * Visualizations the server refused to serve, a report that was removed, a
    * metric that no longer exists, or one this user may not see. Shown rather
    * than swallowed, so a shorter dashboard is never a silent surprise.
    */
@@ -76,7 +76,7 @@ export interface VisualizationResult {
   id: string;
   viz: VizType;
   reportId: string;
-  /** The window actually used — each card states its own, since they can differ. */
+  /** The window actually used, each card states its own, since they can differ. */
   window: { startDate: string; endDate: string };
   comparison: { startDate: string; endDate: string } | null;
   columns: ReportColumn[];
@@ -86,7 +86,7 @@ export interface VisualizationResult {
   error?: string;
 }
 
-/** Minimum grid size per type — a line chart at 1×1 is unreadable. */
+/** Minimum grid size per type, a line chart at 1×1 is unreadable. */
 export const VIZ_MIN_SIZE: Record<VizType, { w: number; h: number }> = {
   metric: { w: 2, h: 1 },
   line: { w: 4, h: 2 },
@@ -112,6 +112,6 @@ export const VIZ_LABEL: Record<VizType, string> = {
 export const VIZ_HINT: Record<VizType, string> = {
   metric: "One headline figure, with a change against the comparison period.",
   line: "A metric over time. Pick up to three to overlay.",
-  bar: "Ranks one metric by a dimension — which aircraft, which instructor.",
+  bar: "Ranks one metric by a dimension, which aircraft, which instructor.",
   table: "The rows themselves, for detail you want on the dashboard.",
 };

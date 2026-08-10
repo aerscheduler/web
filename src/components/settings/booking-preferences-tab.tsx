@@ -232,12 +232,12 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
       {
         onSuccess: async () => {
           await rehydrate();
-          toast.success("Slot offer rules updated");
+          toast.success("Offer rules updated");
         },
         onError: (err) => {
           revert();
           toast.error(
-            err instanceof ApiError ? err.message : "Couldn't save those slot offer rules"
+            err instanceof ApiError ? err.message : "Couldn't save those offer rules"
           );
         },
         onSettled: () => setPending(null),
@@ -340,17 +340,18 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
         {slotOffers && (
           <div className="space-y-4 py-4">
             <div className="flex items-center gap-1.5">
-              <p className="text-sm font-medium">Slot offer rules</p>
+              <p className="text-sm font-medium">Offer rules</p>
               <DocsHint topic="slot-offers" />
               {policySaving && (
                 <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Quiet hours use each airport&apos;s time zone (then the school zone). Soft
-              holds lock the aircraft while an offer is pending. Decline cooldown stops
-              re-offering the same person an overlapping window on that aircraft after they
-              decline or let an offer expire.
+              Quiet hours use each airport&apos;s time zone (then the school zone). A
+              pending offer reserves the aircraft until someone accepts, declines, or
+              the offer ends. Decline cooldown stops re-offering the same person an
+              overlapping window on that aircraft after they decline or let an offer
+              expire.
             </p>
 
             <PreferenceToggle
@@ -499,7 +500,7 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                 ]}
               />
               <PolicySelect
-                label="Hold when slot is within 24 hours"
+                label="Offer window when slot is within 24 hours"
                 docs="slot-offer-hold-urgent"
                 value={holdUrgent}
                 disabled={policyDisabled}
@@ -519,7 +520,7 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                 ]}
               />
               <PolicySelect
-                label="Hold when slot is further out"
+                label="Offer window when slot is further out"
                 docs="slot-offer-hold-normal"
                 value={holdNormal}
                 disabled={policyDisabled}

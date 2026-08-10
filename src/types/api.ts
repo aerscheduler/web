@@ -4,7 +4,7 @@
 // There are deliberately NO `FK_*` fields here. The server strips every property
 // whose name contains "FK_" from outgoing JSON (server/src/middleware/
 // stripForeignKeys.ts), so declaring them would describe fields that are always
-// `undefined` at runtime — which is exactly how the dispatch board once grouped
+// `undefined` at runtime, which is exactly how the dispatch board once grouped
 // every reservation into "Unassigned" and the location filter silently matched
 // nothing. Read the nested relation's id instead: `r.resource?.id`,
 // `r.location?.id`, `member.user?.id`. Leaving them off the types makes that a
@@ -40,7 +40,7 @@ export interface User {
  *
  * Optional on `User` and frequently absent: the server only returns it to the person
  * themselves, an admin or dispatcher, or an instructor of that student. Treat a missing
- * `details` as "you may not see this", not as "they haven't filled it in" — the two look
+ * `details` as "you may not see this", not as "they haven't filled it in", the two look
  * the same from here and only the server can tell them apart.
  *
  * Every phone field is **E.164** (`+13035551234`). Render it through `formatPhone` from
@@ -53,7 +53,7 @@ export interface UserDetails {
   phoneCountry?: string | null;
   homePhone?: string | null;
   workPhone?: string | null;
-  /** `YYYY-MM-DD`. A calendar date — no time, no zone. */
+  /** `YYYY-MM-DD`. A calendar date, no time, no zone. */
   dateOfBirth?: string | null;
   preferredName?: string | null;
   sex?: string | null;
@@ -66,7 +66,7 @@ export interface EmergencyContact {
   id: number;
   name: string;
   relationship: string | null;
-  /** E.164. Required — a contact with no number isn't a contact. */
+  /** E.164. Required: a contact with no number isn't a contact. */
   phone: string;
   phoneCountry?: string | null;
   altPhone: string | null;
@@ -116,7 +116,7 @@ export interface Organization {
  * Two settings, deliberately: `timeZoneMode` decides which zone is "mine" (follow the device,
  * or a pinned one), while `scheduleTimeZoneMode` decides which zone the SCHEDULE renders in.
  * They are separate because a personal zone silently driving the board is the bug this whole
- * feature exists to fix — so the schedule defaults to airport time and says so.
+ * feature exists to fix, so the schedule defaults to airport time and says so.
  */
 export interface TimeZonePreferences {
   timeZone?: string | null;
@@ -201,7 +201,7 @@ export interface OrganizationPreferences {
  *
  * Note what is NOT here: any record of which items are done. That is derived from the
  * org's own data by `lib/onboarding-checklist.ts`, so this only carries the two things
- * data can't answer — where they came from, and what they chose to ignore.
+ * data can't answer, where they came from, and what they chose to ignore.
  */
 export interface OrgOnboarding {
   id: number;
@@ -291,7 +291,7 @@ export interface OrganizationBillingSettings {
   /**
    * How many unpaid invoices before a member is grounded, or null/0 for off.
    *
-   * A COUNT, not a number of days — the server evaluates it when an invoice is raised and
+   * A COUNT, not a number of days, the server evaluates it when an invoice is raised and
    * again on the nightly overdue sweep. Grounding blocks AIRCRAFT bookings only; ground
    * school, simulators and rooms are unaffected. Paying releases the member automatically.
    */
@@ -316,7 +316,7 @@ export interface RoleRow {
  * One side of an instructor↔student assignment, as it arrives nested under
  * `instructorRole.students` / `studentRole.instructors` on `GET /users/:id`.
  *
- * Note `id` here is the ROLE-table id, not an OrganizationUser id — the id the
+ * Note `id` here is the ROLE-table id, not an OrganizationUser id, the id the
  * reservation API wants is `orgUser.id`.
  */
 export interface AssignedPerson {
@@ -328,12 +328,12 @@ export interface AssignedPerson {
   };
 }
 
-/** `instructorRole` as returned by `GET /users/:id` — carries the assigned students. */
+/** `instructorRole` as returned by `GET /users/:id`, carries the assigned students. */
 export interface InstructorRoleRow extends RoleRow {
   students?: AssignedPerson[];
 }
 
-/** `studentRole` as returned by `GET /users/:id` — carries the assigned instructors. */
+/** `studentRole` as returned by `GET /users/:id`, carries the assigned instructors. */
 export interface StudentRoleRow extends RoleRow {
   instructors?: AssignedPerson[];
 }
@@ -362,7 +362,7 @@ export interface OrganizationUser {
    * When they were retired from the roster; null for a current member.
    *
    * Not the same thing as `grounded`. Grounding is a live restriction on somebody who
-   * is still here and is deliberately noisy — they're emailed about it. Archiving is a
+   * is still here and is deliberately noisy, they're emailed about it. Archiving is a
    * filing decision, tells them nothing, and takes them out of every list.
    */
   archivedAt?: string | null;
@@ -377,7 +377,7 @@ export interface OrganizationUser {
   user?: User;
   /**
    * Whether they are checked out on the aircraft the request named in
-   * `approvedForResourceId`. Absent unless that filter was passed — so treat
+   * `approvedForResourceId`. Absent unless that filter was passed, so treat
    * `undefined` as "not asked", not as "not approved".
    */
   approvedForResource?: boolean;
@@ -412,12 +412,12 @@ export type ReservationType =
   | "instructor"
   | "solo"
   /**
-   * Several pilots aboard with NO instructor — two pilots splitting a cross-country, or a
+   * Several pilots aboard with NO instructor, two pilots splitting a cross-country, or a
    * safety-pilot arrangement for instrument practice.
    *
    * Distinct from `solo` for a regulatory reason: 14 CFR 61.87 defines solo flight as the
    * time "during which a student pilot is the sole occupant of the aircraft", so a solo with
-   * two people on it is a false record — and dual-versus-solo is the split a training record
+   * two people on it is a false record, and dual-versus-solo is the split a training record
    * and an examiner actually read.
    */
   | "shared"
@@ -429,7 +429,7 @@ export type ReservationType =
 export interface Reservation {
   id: number;
   createdAt: string;
-  /** Last change of any kind — rescheduling, personnel, notes. */
+  /** Last change of any kind, rescheduling, personnel, notes. */
   updatedAt?: string;
   cancelledAt: string | null;
   /** Free text the canceller typed, and the fixed category they picked. */
@@ -449,11 +449,11 @@ export interface Reservation {
   resource?: Resource;
   /**
    * The field this booking is at. Carries `timeZone`, which is what every schedule surface
-   * positions and formats against — the airport's clock, not the viewer's.
+   * positions and formats against, the airport's clock, not the viewer's.
    */
   location?: Location | null;
   /**
-   * ONE PER PAYER. A booking split between several people mints an invoice each — a Stripe
+   * ONE PER PAYER. A booking split between several people mints an invoice each, a Stripe
    * invoice bills exactly one customer, so splitting has to be N invoices rather than one
    * invoice with shares underneath.
    *
@@ -466,7 +466,7 @@ export interface Reservation {
   /** Ramp/close-out readings + sign-offs. Present on the retrieve include set. */
   review?: ReservationReview | null;
   /**
-   * Each person's stake in the cost, when anyone has one recorded. SPARSE — no row means
+   * Each person's stake in the cost, when anyone has one recorded. SPARSE, no row means
    * "ordinary payer, split by the org's rules", so an empty list is the normal case.
    */
   payers?: ReservationPayer[] | null;
@@ -476,7 +476,7 @@ export interface Reservation {
    */
   paymentOverrides?: ReservationPaymentOverrides | null;
   /**
-   * The staff member who closed out a guest reservation (guests never confirm with a PIN —
+   * The staff member who closed out a guest reservation (guests never confirm with a PIN.
    * an admin, the instructor, or the creator reviews it via `confirmReviewGuest`). Non-null
    * ⇒ the guest reservation has been reviewed and its invoice generated.
    */
@@ -496,7 +496,7 @@ export interface ReservationPersonnel {
 /**
  * Close-out record for a reservation. Hobbs/tach/briefing are meter readings in
  * decimal hours (round-tripped verbatim, the same representation as `Plane.hobbsTime`).
- * A null `*Out` pair means "not ramped out yet"; a null `*In` pair means "not ramped in yet".
+ * A null `*Out` pair means "not ramped out yet"; a null `*In` pair means ", not ramped in yet".
  */
 export interface ReservationReview {
   id: number;
@@ -507,7 +507,7 @@ export interface ReservationReview {
   tachTimeIn: number | null;
   comments?: string[];
   /**
-   * When the aircraft actually left and came back — the times, as opposed to the meter
+   * When the aircraft actually left and came back, the times, as opposed to the meter
    * readings above. Null on anything ramped before these columns shipped (2026-08-02),
    * and `rampedInAt` is null on a flight that is still out.
    *
@@ -517,7 +517,7 @@ export interface ReservationReview {
    */
   rampedOutAt?: string | null;
   rampedInAt?: string | null;
-  /** Row lifecycle — `createdAt` is when the booking was made, not when it flew. */
+  /** Row lifecycle, `createdAt` is when the booking was made, not when it flew. */
   createdAt?: string;
   updatedAt?: string;
   /** One row per pilot who has signed off; length === personnel count ⇒ fully reviewed. */
@@ -624,7 +624,7 @@ export interface Simulator {
   rampedIn: boolean;
   grounded: boolean;
   groundedReason?: string | null;
-  /** Deci-hours, like Plane.hobbsTime/tachTime — divide by 10 to display. */
+  /** Deci-hours, like Plane.hobbsTime/tachTime: divide by 10 to display. */
   tachTime?: number;
   hobbsTime?: number;
   cost?: SimulatorCost | null;
@@ -646,7 +646,7 @@ export interface Location {
   id: number;
   name: string;
   /**
-   * The airport's IANA zone, e.g. "America/Boise" — the operational truth a schedule is
+   * The airport's IANA zone, e.g. "America/Boise", the operational truth a schedule is
    * pinned to. Null falls back to the organization's, then to the viewer's own, which is
    * exactly today's behaviour.
    */
@@ -709,7 +709,7 @@ export interface OrganizationRating {
 }
 
 /**
- * A currency RULE — "you may not fly this aircraft unless you're current on
+ * A currency RULE: "you may not fly this aircraft unless you're current on
  * this". The server enforces it at booking (`orgUserIsCurrentForResource`),
  * and applicability is decided by `resourceGroups`: a currency type with no
  * resource group attached matches no aircraft and therefore enforces nothing.
@@ -720,7 +720,7 @@ export interface CurrencyType {
   description?: string | null;
   active?: boolean;
 
-  // Expiration rules — days/months/on are alternative ways to say the same
+  // Expiration rules, days/months/on are alternative ways to say the same
   // thing; the server stores whichever was set.
   expiresInDays?: number | null;
   expiresInMonths?: number | null;
@@ -730,7 +730,7 @@ export interface CurrencyType {
   canFlyWithInstructor?: boolean;
   applyToAllGuests?: boolean;
 
-  // Renewal rules — who may sign this off, besides an admin.
+  // Renewal rules, who may sign this off, besides an admin.
   dispatcherCanRenew?: boolean;
   instructorCanRenew?: boolean;
   canRenewSelf?: boolean;
@@ -741,7 +741,7 @@ export interface CurrencyType {
   documentTypes?: DocumentType[];
 }
 
-/** Body for POST/PATCH /currencies/types — relations go as id arrays. */
+/** Body for POST/PATCH /currencies/types, relations go as id arrays. */
 export interface CurrencyTypeInput {
   name: string;
   description?: string | null;
@@ -762,7 +762,7 @@ export interface CurrencyTypeInput {
 
 /**
  * A set of resources a currency rule applies to. The `addNew*` flags make the
- * group self-maintaining — a newly added aircraft joins automatically.
+ * group self-maintaining, a newly added aircraft joins automatically.
  */
 export interface ResourceGroup {
   id: number;
@@ -827,11 +827,11 @@ export interface Announcement {
 /**
  * One person's standing against a currency type.
  *
- * ⚠️ There is no `expiresAt` — the server model is startedAt / warnedAt /
+ * ⚠️ There is no `expiresAt`: the server model is startedAt / warnedAt /
  * expiredAt / archivedAt, and the server decides currency rather than the
  * client inferring it from a date. Per `checkIfCurrencyIsCurrent`, current
  * means: not expired, not archived, HAS a `renewedBy` (stamped on manual renew
- * or document upload), and — when the type expects documents — those documents
+ * or document upload), and (when the type expects documents) those documents
  * are attached. See `components/me/currency.ts`.
  */
 export interface Currency {
@@ -857,14 +857,14 @@ export interface AppNotification {
   title: string | null;
   /**
    * The body text. The server calls this `subtitle` (notification.subtitle), which is
-   * the field GET /notifications actually returns — `body`/`message` were never on the
+   * the field GET /notifications actually returns, `body`/`message` were never on the
    * payload, so every notification rendered with its text missing.
    */
   subtitle?: string | null;
   /**
    * Where the notification points, e.g. "/announcements".
    *
-   * A FLUTTER go_router location, not a console route — see `lib/notification-link.ts`,
+   * A FLUTTER go_router location, not a console route, see `lib/notification-link.ts`,
    * which translates the shapes this console has a destination for and ignores the rest.
    */
   link?: string | null;
@@ -908,15 +908,15 @@ export interface Squawk {
  * How much is left on an inspection, computed by the server on read.
  *
  * This console used to declare `dueAt` and `name` directly on the reminder and the server
- * never sent either, so every row said "Maintenance reminder — No due date" no matter what
- * was actually coming due. The countdown needs three things at once — the template's
- * interval, the reminder's starting point, and the aircraft's current meters — so it is
+ * never sent either, so every row said "Maintenance reminder. No due date" no matter what
+ * was actually coming due. The countdown needs three things at once, the template's
+ * interval, the reminder's starting point, and the aircraft's current meters, so it is
  * worked out once on the server rather than reassembled here. See
  * `server/src/utils/maintenanceDue.ts`.
  */
 export interface MaintenanceDue {
   kind: "hours" | "days" | "date" | "unknown";
-  /** `dueSoon` is the template's own warning period — the same threshold that emails. */
+  /** `dueSoon` is the template's own warning period, the same threshold that emails. */
   status: "overdue" | "dueSoon" | "ok" | "resolved";
   name: string | null;
   notes: string | null;
@@ -972,7 +972,7 @@ export interface MaintenanceReminderTemplate {
 }
 
 /**
- * A ready-made inspection interval — the AVIATES set plus the common shop intervals.
+ * A ready-made inspection interval, the AVIATES set plus the common shop intervals.
  *
  * Served from `GET /maintenance/reminders/presets` rather than hard-coded here, so the
  * regulation text has one home across this console and the mobile app.
@@ -984,7 +984,7 @@ export interface InspectionPreset {
   name: string;
   regulation: string | null;
   interval: string;
-  /** Where the default doesn't apply to every aircraft — rendered as a caution. */
+  /** Where the default doesn't apply to every aircraft, rendered as a caution. */
   caveat: string | null;
   ground: boolean;
   payload: CreateReminderTemplateInput;
@@ -1027,14 +1027,14 @@ export interface CreatePlaneResourceInput {
       tailNumber: string;
       make?: string;
       model?: string;
-      /** REQUIRED by the server — must be exactly 4 digits, e.g. "2018". */
+      /** REQUIRED by the server, must be exactly 4 digits, e.g. "2018". */
       year: string;
       categoryClass: string;
       tachTime: number;
       hobbsTime: number;
-      /** REQUIRED by the server — non-negative. */
+      /** REQUIRED by the server, non-negative. */
       fuelCapacity: number;
-      /** REQUIRED by the server — "gallons" or "liters". */
+      /** REQUIRED by the server, "gallons" or "liters". */
       fuelMeasurement: "gallons" | "liters";
       cost: { wetRate?: number; dryRate?: number; billByHobbsTime: boolean };
     };
@@ -1054,7 +1054,7 @@ export interface CreateSimulatorResourceInput {
   };
 }
 
-/** Create a room resource — only a room number is required. */
+/** Create a room resource, only a room number is required. */
 export interface CreateRoomResourceInput {
   location: { id: number };
   type: {
@@ -1114,7 +1114,7 @@ export type ApiKeyRole = (typeof API_KEY_ROLES)[number];
 /**
  * A credential that lets software act on the organization's behalf.
  *
- * Never carries the secret — the server stores only a hash, so after creation
+ * Never carries the secret, the server stores only a hash, so after creation
  * there is nothing to return. `prefix` is the displayable head, enough to tell
  * two keys apart and not enough to reconstruct one.
  */
@@ -1133,7 +1133,7 @@ export interface ApiKey {
 
 /**
  * The response to creating a key. `secret` appears here and in no other
- * response, ever — if the user navigates away without copying it, the only
+ * response, ever, if the user navigates away without copying it, the only
  * remedy is to revoke and mint another.
  */
 export interface ApiKeyWithSecret extends Omit<ApiKey, "status" | "revokedAt" | "lastUsedAt"> {
@@ -1187,7 +1187,7 @@ export interface InviteInput {
   technician?: boolean;
   dispatcher?: boolean;
   orgUserGroupIds?: number[];
-  /** Tier to put them on when they accept. Applied as `pending` — nothing is charged. */
+  /** Tier to put them on when they accept. Applied as `pending`: nothing is charged. */
   membershipPlanId?: number | null;
 }
 
@@ -1213,8 +1213,8 @@ export interface CreateReservationInput {
     guests?: { id?: number; name: string; email: string; phone?: string }[];
   };
   /**
-   * Optional. When present the server creates a repeating booking — one real
-   * reservation per occurrence — instead of the single one described by
+   * Optional. When present the server creates a repeating booking, one real
+   * reservation per occurrence, instead of the single one described by
    * `start`/`end`, and returns `{ seriesId, reservations, occurrences }`.
    *
    * All or nothing: if any occurrence clashes, nothing is created and the error
@@ -1227,9 +1227,9 @@ export type RecurrenceFrequency = "daily" | "weekly" | "monthly" | "yearly";
 
 /**
  * How a monthly rule picks its day.
- * - `dayOfMonth`  — "the 27th of every month"
- * - `nthWeekday`  — "the fourth Monday"
- * - `lastWeekday` — "the last Monday", which differs from "the fourth" in any month
+ * - `dayOfMonth` : "the 27th of every month"
+ * - `nthWeekday` : "the fourth Monday"
+ * - `lastWeekday`: "the last Monday", which differs from "the fourth" in any month
  *                   with five Mondays
  */
 export type MonthlyMode = "dayOfMonth" | "nthWeekday" | "lastWeekday";
@@ -1268,7 +1268,7 @@ export interface ReservationSeries {
   startDate?: string | null;
   /**
    * The human sentence for this rule, rendered server-side at creation ("Monthly on the
-   * fourth Monday"). Prefer it over re-deriving the wording here — it is what stops the
+   * fourth Monday"). Prefer it over re-deriving the wording here, it is what stops the
    * console and the app describing the same rule differently. Null on series created
    * before it existed, which is why `describeSeries` still has a fallback.
    */
@@ -1285,11 +1285,11 @@ export interface CreatedSeries {
 }
 
 /**
- * "Weekly on Tue" / "Monthly on the fourth Monday" — for a badge or a summary line.
+ * "Weekly on Tue" / ", Monthly on the fourth Monday"for a badge or a summary line.
  *
  * Uses the server's stored `label` when there is one, which is the whole point of
  * storing it: the wording is decided in one place and every surface repeats it.
- * The fallback below only ever runs for series created before that column existed —
+ * The fallback below only ever runs for series created before that column existed.
  * all of which are weekly, which is why it only knows how to say "weekly".
  */
 export function describeSeries(
@@ -1304,7 +1304,7 @@ export function describeSeries(
 }
 
 /**
- * Ramp-out readings — `hobbsTimeOut` and `tachTimeOut` are both required by the server
+ * Ramp-out readings, `hobbsTimeOut` and `tachTimeOut` are both required by the server
  * (decimal-hour meter readings, sent verbatim). `comments[0]` is appended to the review.
  */
 export interface RampOutInput {
@@ -1314,11 +1314,11 @@ export interface RampOutInput {
 }
 
 /**
- * Ramp-in readings — `hobbsTimeIn`/`tachTimeIn` are the ending meter readings; `briefing`
+ * Ramp-in readings, `hobbsTimeIn`/`tachTimeIn` are the ending meter readings; `briefing`
  * is instruction time (decimal hours). `comments[0]` is appended to the review.
  *
  * EVERY FIELD IS OPTIONAL, because a booking with no aircraft has no meters to send. The
- * server has always supported this — `ReservationService.rampIn` passes each field straight
+ * server has always supported this. `ReservationService.rampIn` passes each field straight
  * to Prisma, where `undefined` means "leave it alone", and its own comment says so ("For
  * reservations that don't have a resource, we will only update the briefing"). It is what
  * the Flutter app sends for a ground lesson.
@@ -1369,7 +1369,7 @@ export interface ConfirmReviewInput {
 }
 
 /**
- * Close out a guest reservation (no PIN — guests never confirm). An admin, the instructor,
+ * Close out a guest reservation (no PIN, guests never confirm). An admin, the instructor,
  * or the creator reviews it; `guestOverrides` optionally corrects the guest's contact details
  * before the invoice is emailed to them.
  */
@@ -1432,8 +1432,8 @@ export type DayBlocks = { start: string; end: string }[];
 /**
  * A free (bookable) time window returned by the availability endpoints
  * (`/availability/resource/:id`, `/availability/user/:userId`). These are the
- * INVERSE of existing reservations — the server has already subtracted booked
- * time — spanning roughly [yesterday, +1 year]. An empty array means fully booked.
+ * INVERSE of existing reservations, the server has already subtracted booked
+ * time, spanning roughly [yesterday, +1 year]. An empty array means fully booked.
  */
 export interface AvailabilityWindow {
   start: string; // ISO
@@ -1464,14 +1464,14 @@ export function resourceLabel(r: Resource): { name: string; kind: "Aircraft" | "
 /**
  * One thing somebody did, as the server recorded it.
  *
- * `entityType`/`entityId` carry no `FK_` prefix deliberately — the response middleware
+ * `entityType`/`entityId` carry no `FK_` prefix deliberately, the response middleware
  * deletes every `FK_*` field, and these two are what link an entry back to its booking.
  * The relations arrive nested for the same reason.
  */
 export interface AuditEvent {
   id: number;
   createdAt: string;
-  /** "reservation.rescheduled", "reservation.cancelled", … */
+  /** "reservation.rescheduled", ", reservation.cancelled", … */
   action: string;
   entityType: string;
   entityId: number;
@@ -1479,7 +1479,7 @@ export interface AuditEvent {
   summary: string | null;
   /** Only the fields that moved. Shape is `{ field: { from, to } }`. */
   changes: Record<string, { from: unknown; to: unknown }> | null;
-  /** web | ios | api | system — null when we couldn't tell. */
+  /** web | ios | api | system, null when we couldn't tell. */
   source: string | null;
   /** Null for system-originated events (cron, webhooks). */
   actor: { id: number; user?: User } | null;
@@ -1492,7 +1492,7 @@ export interface AuditEvent {
 
 /**
  * Which occurrences a cancel applies to, for a booking in a repeating series.
- * Google Calendar's three choices. Meaningless — and ignored — for a one-off.
+ * Google Calendar's three choices. Meaningless (and ignored) for a one-off.
  */
 export type CancelScope = "this" | "following" | "all";
 
@@ -1514,7 +1514,7 @@ export type CancelledReservation = {
   cancellationCategory: string | null;
   /** Resolved server-side, so "Not recorded" reads the same everywhere. */
   categoryLabel: string;
-  /** Cancelled with less than 24 hours' notice — including after the fact. */
+  /** Cancelled with less than 24 hours' notice, including after the fact. */
   isLate: boolean;
   resource?: {
     id: number;
@@ -1536,7 +1536,7 @@ export type CancellationReport = {
   cancellations: CancelledReservation[];
   summary: {
     total: number;
-    /** Every booking in the window, cancelled or not — the denominator for `rate`. */
+    /** Every booking in the window, cancelled or not, the denominator for `rate`. */
     totalInWindow: number;
     /** 0–1. Already guarded against an empty window server-side. */
     rate: number;
@@ -1558,10 +1558,10 @@ export function cancelledResourceLabel(r: CancelledReservation["resource"]): str
   if (t?.plane) return t.plane.tailNumber;
   if (t?.room) return `Room ${t.room.roomNumber}`;
   if (t?.simulator) return t.simulator.name;
-  return "—";
+  return "–";
 }
 
-/** Whoever the booking was for — the person a cancellation is actually about. */
+/** Whoever the booking was for: the person a cancellation is actually about. */
 export function cancelledForLabel(r: CancelledReservation): string {
   const names = [
     ...(r.personnel?.students ?? []),
@@ -1571,12 +1571,12 @@ export function cancelledForLabel(r: CancelledReservation): string {
     .map((p) => p.user?.name)
     .filter(Boolean) as string[];
 
-  return names.length ? names.join(", ") : "—";
+  return names.length ? names.join(", ") : "–";
 }
 
 /* ── Revenue reports ─────────────────────────────────────────────────────────
  * One shape behind every revenue tab. Adding "by instructor" or "by student" to the
- * UI is a new tab reading the same endpoint with a different `groupBy` — the server
+ * UI is a new tab reading the same endpoint with a different `groupBy`: the server
  * already returns all four.
  */
 
@@ -1591,7 +1591,7 @@ export type RevenueRow = {
   billed: number;
   /** Of that, cents actually paid. */
   collected: number;
-  /** Deci-hours, matching the invoice column — divide by 10 to display. */
+  /** Deci-hours, matching the invoice column, divide by 10 to display. */
   resourceHours: number;
 };
 
@@ -1605,7 +1605,7 @@ export type RevenueReport = {
 /**
  * What PATCH /invoices/:id accepts.
  *
- * Intent, not timestamps — the server has to void/pay through Stripe as well as the row,
+ * Intent, not timestamps, the server has to void/pay through Stripe as well as the row,
  * and records which org user did it. A body of `{ paidAt }` is silently ignored AND
  * answered with 200, so this type exists to make that mistake unrepresentable.
  */
@@ -1614,7 +1614,7 @@ export type InvoiceUpdate = { markPaid: true } | { markVoided: true };
 /* ── Global search ───────────────────────────────────────────────────────────
  * `GET /search` flattens every entity to ONE row shape so the palette can render
  * a squawk and a currency without knowing either. The server decides both which
- * types this caller may search and which rows within them they may see — never
+ * types this caller may search and which rows within them they may see, never
  * re-filter by role here, and never assume a type is present just because it
  * exists (`types` is the caller's real category list).
  */
@@ -1631,7 +1631,7 @@ export type SearchEntityType =
   | "squawk"
   //Training. `course` is the syllabus library and only reaches someone who may configure
   //training; the other two are per-person and are narrowed to the viewer's own unless
-  //they teach or administer — so never assume any of the three is in `types`.
+  //they teach or administer, so never assume any of the three is in `types`.
   | "course"
   | "enrollment"
   | "endorsement";
@@ -1641,21 +1641,21 @@ export interface SearchResult {
   id: number;
   title: string;
   subtitle: string | null;
-  /** ISO-8601, unformatted on purpose — render it with `timeZone` below. */
+  /** ISO-8601, unformatted on purpose, render it with `timeZone` below. */
   date: string | null;
-  /** What `date` means: "Starts", "Expires", "Reported"… */
+  /** What `date` means: "Starts", ", Expires", ", Reported"… */
   dateLabel: string | null;
   /** IANA zone to render `date` in; null means the viewer's own. */
   timeZone: string | null;
-  /** Status chip: "Open", "Expired", "Cancelled", "Grounded". */
+  /** Status chip: "Open", ", Expired", ", Cancelled", ", Grounded". */
   badge: string | null;
-  /** Ids for deep-linking — see `lib/search-links.ts`. */
+  /** Ids for deep-linking, see `lib/search-links.ts`. */
   params: Record<string, number | string>;
 }
 
 export interface SearchResponse {
   q: string;
-  /** Every type this caller may search — the category list, not just what came back. */
+  /** Every type this caller may search, the category list, not just what came back. */
   types: SearchEntityType[];
   counts: Partial<Record<SearchEntityType, number>>;
   results: SearchResult[];
@@ -1669,7 +1669,7 @@ export interface SearchResponse {
  * returns `apportionments`, `chargeLines`, `presets`, `copy` and worked `examples`
  * alongside the rules). That is deliberate: the server's engine is the authority on
  * what these mean, and a client that kept its own list would eventually offer a rule
- * the server rejects — or describe one differently from the way it actually bills.
+ * the server rejects, or describe one differently from the way it actually bills.
  *
  * These string unions exist for editor help only. Treat a value that isn't in them as
  * data, not an error: it means the server is newer than this build.
@@ -1686,7 +1686,7 @@ export type SplitRuleRow = {
   apportionment: string;
 };
 
-/** Where a resolved rule came from — drives the "Default" vs "Set by you" badge. */
+/** Where a resolved rule came from: drives the "Default" vs ", Set by you" badge. */
 export type SplitRuleSource = "override" | "type_rule" | "org_default" | "product_default";
 
 export type SplitPlan = {
@@ -1745,8 +1745,8 @@ export type SplitRulesDescription = {
  * What each person on a booking was doing, and what they owe.
  *
  * `pilotRole` is the AUDIT half and prices nothing. Two pilots on one flight log different
- * things, and under 14 CFR 61.51(e) both may log PIC — the sole manipulator of the controls
- * and the acting pilot in command — so logged time across a crew can legitimately exceed the
+ * things, and under 14 CFR 61.51(e) both may log PIC, the sole manipulator of the controls
+ * and the acting pilot in command, so logged time across a crew can legitimately exceed the
  * airframe's Hobbs. The meter fields must sum to what the aircraft ran; the role doesn't
  * constrain them, and it is deliberately not coupled to whether somebody is billed.
  */
@@ -1758,7 +1758,7 @@ export type ReservationPayerInput = {
   /** Exactly one of these. */
   orgUserId?: number | null;
   guestId?: number | null;
-  /** Percentage share in basis points — 6000 is 60%. */
+  /** Percentage share in basis points: 6000 is 60%. */
   weightBps?: number | null;
   /** This person's own readings, in TENTHS of an hour (the unit the meters use). */
   hobbsOut?: number | null;
@@ -1779,7 +1779,7 @@ export type ReservationPayer = ReservationPayerInput & {
 };
 
 //---------------------------------------------------------------------------------
-// Training — courses, syllabi, enrollments and the requirement ledger
+// Training: courses, syllabi, enrollments and the requirement ledger
 //
 // Hours are DECI-HOURS (tenths) everywhere, matching the server and the meters.
 // `deciHoursLabel` in lib/training.ts is the only thing that should turn them into
@@ -1913,7 +1913,7 @@ export type CourseRequirement = {
    *
    * Missing from this type was why the syllabus editor could not round-trip it: the editor
    * never read it, so it never sent it, and the server treats an absent value as "clear the
-   * window" — meaning editing a requirement's label silently deleted it.
+   * window"meaning editing a requirement's label silently deleted it.
    */
   recencyCalendarMonths: number | null;
 };
@@ -1990,7 +1990,7 @@ export type Standing = {
   requiredCount: number | null;
   creditedDeciHours: number;
   creditedCount: number;
-  /** Before the ceiling — so the UI can explain a difference rather than just show a smaller number. */
+  /** Before the ceiling, so the UI can explain a difference rather than just show a smaller number. */
   rawDeciHours: number;
   disallowedDeciHours: number;
   cappedBy: "simulator" | "transfer" | null;
@@ -2020,7 +2020,7 @@ export type EnrollmentProgress = {
   lessonsTotal: number;
   lessonsComplete: number;
   completedLessonIds: number[];
-  /** Advisory only — never gates anything. */
+  /** Advisory only, never gates anything. */
   pace: Pace;
   /** Non-null means graduation is refused, and this is why. */
   graduationBlocker: string | null;
@@ -2030,7 +2030,7 @@ export type Endorsement = {
   id: number;
   templateCode: string | null;
   title: string;
-  /** As signed. Never re-rendered — the AC gets revised and this must not. */
+  /** As signed. Never re-rendered, the AC gets revised and this must not. */
   renderedText: string;
   signedAt: string;
   expiresAt: string | null;
@@ -2123,7 +2123,7 @@ export type TrainingGrantOption = {
   grant: string;
   label: string;
   description: string;
-  /** Only `checkInstructor` — §141.37 designates per approved course. */
+  /** Only `checkInstructor`: §141.37 designates per approved course. */
   courseScoped: boolean;
 };
 
@@ -2150,7 +2150,7 @@ export type MyTrainingGrants = {
 // Membership
 //
 // FK_-prefixed fields survive here because memberships are read through routes that do NOT
-// strip them — see [[aerscheduler-fk-strip]]; the console reads `FK_joinFeeInvoiceId` to
+// strip them, see [[aerscheduler-fk-strip]]; the console reads `FK_joinFeeInvoiceId` to
 // link at the invoice. Everything money is CENTS, matching the rest of the API.
 //=========================================================================================
 
@@ -2178,11 +2178,11 @@ export type MembershipPlan = {
    *  so it is snapshotted onto the membership at join. */
   duesDueInDays: number | null;
   /** How far ahead a member on this tier may book. Null means no limit. An ENTITLEMENT, so
-   *  it is read live off the plan — relaxing it relaxes it for everyone immediately. */
+   *  it is read live off the plan, relaxing it relaxes it for everyone immediately. */
   bookingWindowDays: number | null;
   FK_agreementDocumentTypeId: number | null;
   agreementDocumentType?: { id: number; name: string } | null;
-  /** Live memberships on this plan — not its history. */
+  /** Live memberships on this plan, not its history. */
   memberCount: number;
 };
 
@@ -2240,7 +2240,7 @@ export type Membership = {
   orgUser?: { id: number; identifier: string | null; user?: { id: number; name: string | null; email: string | null } | null };
   /** Only on a single-membership read. */
   charges?: MembershipCharge[];
-  /** What "bill now" would raise — the SAME period and amount the server will invoice,
+  /** What "bill now" would raise, the SAME period and amount the server will invoice,
    *  including a prorated part-period when one is outstanding. Null when nothing is owed. */
   nextPeriod?: {
     periodStart: string;

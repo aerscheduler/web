@@ -55,7 +55,7 @@ export function LogSquawkModal({
   async function submit() {
     const trimmed = title.trim();
     //The server requires BOTH. Sending `description: undefined` came back "Description is
-    //required.", which read as the console being broken rather than the form being
+    //required."which read as the console being broken rather than the form being
     //incomplete, because nothing on screen had said the field was needed.
     const trimmedDescription = description.trim();
     if (!trimmed || !trimmedDescription) return;
@@ -66,7 +66,7 @@ export function LogSquawkModal({
         resourceId: effectiveResourceId ? Number(effectiveResourceId) : undefined,
         grounding,
       });
-      toast.success(grounding ? "Squawk logged — aircraft grounded." : "Squawk logged.");
+      toast.success(grounding ? "Squawk logged, aircraft grounded." : "Squawk logged.");
       reset();
       onOpenChange(false);
     } catch (e) {

@@ -4,7 +4,7 @@ export type RoleKey = keyof RolesUpdate;
 
 /** Role options for the full role editor, in display order (owner ⇒ admin). */
 export const ROLE_OPTIONS: { key: RoleKey; label: string; hint?: string }[] = [
-  { key: "owner", label: "Owner", hint: "Full control — implies Admin" },
+  { key: "owner", label: "Owner", hint: "Full control, implies Admin" },
   { key: "admin", label: "Admin", hint: "Manage members, aircraft & billing" },
   { key: "instructor", label: "Instructor", hint: "Teach and sign off flights" },
   { key: "student", label: "Student", hint: "Book training flights" },

@@ -41,11 +41,11 @@ const SOURCES: Record<string, { label: string; icon: typeof Monitor }> = {
 /**
  * The diff fields that hold an hour figure in TENTHS.
  *
- * Every hour column in this schema is an integer in tenths — 92310 means 9231.0 — and the
+ * Every hour column in this schema is an integer in tenths (92310 means 9231.0) and the
  * stored diff keeps the raw value, correctly: it is structured data, and dividing it before
  * storage would make the log disagree with the column it came from. So the conversion
  * belongs here, in the one place a person reads it. Without this the panel showed
- * "Hobbs 92310 → 92500" beside a summary that said "9231.0 → 9250.0" — the same event
+ * "Hobbs 92310 → 92500" beside a summary that said "9231.0 → 9250.0", the same event
  * disagreeing with itself by a factor of ten, two inches apart.
  */
 const TENTHS_FIELDS = new Set(["hobbs", "tach", "hobbsTimeIn", "hobbsTimeOut", "tachTimeIn", "tachTimeOut"]);
@@ -53,12 +53,12 @@ const TENTHS_FIELDS = new Set(["hobbs", "tach", "hobbsTimeIn", "hobbsTimeOut", "
 /**
  * One changed value, rendered.
  *
- * `changes` is free-form JSON by design — it holds only the fields that moved — so this has
+ * `changes` is free-form JSON by design (it holds only the fields that moved) so this has
  * to cope with whatever a domain helper put there rather than with a fixed shape. Arrays
  * are the common non-scalar (a role set, a crew list) and read best as a list.
  */
 function renderValue(v: unknown, field?: string): React.ReactNode {
-  if (v == null || v === "") return <span className="text-muted-foreground">—</span>;
+  if (v == null || v === "") return <span className="text-muted-foreground">–</span>;
   if (typeof v === "boolean") return v ? "on" : "off";
   if (Array.isArray(v)) {
     return v.length ? v.join(", ") : <span className="text-muted-foreground">none</span>;
@@ -78,7 +78,7 @@ function renderValue(v: unknown, field?: string): React.ReactNode {
   return s;
 }
 
-/** "hobbsTime" → "Hobbs time", so a raw column name reads as a label. */
+/** "hobbsTime" → ", Hobbs time"so a raw column name reads as a label. */
 function fieldLabel(key: string): string {
   return key
     .replace(/^FK_/, "")
@@ -129,7 +129,7 @@ export function AuditDetailSheet({
   const source = event?.source ? SOURCES[event.source] : undefined;
   const SourceIcon = source?.icon;
 
-  //A null actor is an automated event, not a missing one — a cron sweep, a Stripe webhook,
+  //A null actor is an automated event, not a missing one, a cron sweep, a Stripe webhook,
   //the invoice a close-out raises. Saying "AerScheduler" is the truthful reading.
   const actor = event ? (personName(event.actor) ?? "AerScheduler") : null;
   const subject = event ? personName(event.subject) : null;
@@ -156,7 +156,7 @@ export function AuditDetailSheet({
     >
       {!event ? null : (
         <div className="space-y-5" data-doc-shot="audit-detail-panel">
-          {/* The stored sentence. Shown even when it repeats the title — in the table that
+          {/* The stored sentence. Shown even when it repeats the title, in the table that
               repetition is noise beside the title, but here it is the event's own words and
               the only place an API consumer's view of the row is visible. */}
           {event.summary && <p className="text-sm">{event.summary}</p>}
@@ -182,7 +182,7 @@ export function AuditDetailSheet({
             </Row>
             {/* The record this points at. Deliberately shown as type + id rather than as a
                 link: an audit event outlives the row it describes, so a link here would be
-                dead exactly when the entry matters most — the cancelled booking, the
+                dead exactly when the entry matters most, the cancelled booking, the
                 deleted document. */}
             <Row label="Record">
               <span className="text-muted-foreground">

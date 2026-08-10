@@ -13,7 +13,7 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
   validateSearch: (search: Record<string, unknown>): { error?: string; redirect?: string } => ({
     error: typeof search.error === "string" ? search.error : undefined,
-    // Where to land after signing in — set when an expired session bounced the
+    // Where to land after signing in. Set when an expired session bounced the
     // user out of a page they were already on. Same-origin paths only.
     redirect:
       typeof search.redirect === "string" &&
@@ -42,7 +42,7 @@ function LoginPage() {
     try {
       await login(email.trim(), password);
       const next = postLoginPath();
-      // Send them back where they were bounced from — but only once the account
+      // Send them back where they were bounced from, but only once the account
       // is actually usable. A user who still has to verify or onboard has to go
       // through that first, so the gate wins over the remembered page.
       if (redirect && (next === "/dashboard" || next === "/me")) {
@@ -141,7 +141,7 @@ function LoginPage() {
   );
 }
 
-/** The signature deep-navy brand panel with the checkered grid — shared by auth pages. */
+/** The signature deep-navy brand panel with the checkered grid, shared by auth pages. */
 export function BrandPanel() {
   return (
     <aside className="relative hidden flex-col justify-between overflow-hidden bg-brand-surface p-12 text-white lg:flex">

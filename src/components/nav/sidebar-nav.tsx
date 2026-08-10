@@ -122,7 +122,7 @@ function OperationsGroup({
   //
   // Adjusted DURING RENDER rather than in an effect, which is the whole point:
   // an effect runs after paint, so landing on a page under More painted the
-  // collapsed rail first and then popped seven rows in — the nav visibly
+  // collapsed rail first and then popped seven rows in, the nav visibly
   // reassembling itself a frame after the page had already arrived. Setting
   // state while rendering makes React re-run this component before it commits
   // anything to the DOM, so the first paint already has the rows.
@@ -180,7 +180,7 @@ function OperationsGroup({
 
 /**
  * The line between "in your five" and "under More". Deliberately just another
- * row — same height, same rhythm, no rule or count beside it — so the rail reads
+ * row (same height, same rhythm, no rule or count beside it) so the rail reads
  * as one list whose tail happens to fold; only the chevron marks it as a
  * disclosure. It doubles as a drop target, so dragging a link across it is how
  * you promote or demote a page: the same gesture in both directions, with no
@@ -205,7 +205,7 @@ function MoreRow({
       onDragOver={(e) => {
         if (!isDragging()) return;
         e.preventDefault();
-        // Boundary target (not a list row) — drop onto the More index directly.
+        // Boundary target (not a list row), drop onto the More index directly.
         onDragOver();
       }}
     >
@@ -278,7 +278,7 @@ function PinnedGroup({
 const RECENT_SHOWN = 4;
 
 /**
- * Recently visited pages — but only ones the rail isn't already showing.
+ * Recently visited pages, but only ones the rail isn't already showing.
  * Repeating Calendar back at someone two inches under the Calendar link is
  * noise; what earns the space is the page they had to dig for. That also makes
  * the pin affordance land where it's useful: the list is, by construction, the
@@ -387,12 +387,12 @@ const FLIP_MS = 180;
  * Used for keyboard reorder (Alt+↑/↓). During an HTML5 drag we intentionally
  * do not animate: CSS transforms on siblings change hit-testing under the
  * cursor, so dragging upward (where the rows between old and new index slide
- * down through the pointer) oscillates — reorder → FLIP → different row under
+ * down through the pointer) oscillates, reorder → FLIP → different row under
  * cursor → reorder → flicker. Live draft order without transforms is stable.
  *
  * Positions are measured RELATIVE TO THE LIST, never the viewport. A row's
  * viewport position also changes when the rail is scrolled or the window
- * resized — neither of which renders, so the stored boxes silently go stale and
+ * resized, neither of which renders, so the stored boxes silently go stale and
  * the next render (any navigation) reads the difference as movement and slides
  * every row. Relative offsets only change when the list actually reorders,
  * which is the one thing this is for.
@@ -463,7 +463,7 @@ function useFlipRows<T extends HTMLElement>(
 }
 
 /**
- * Drag-to-reorder over a list of nav items, using native HTML5 drag and drop —
+ * Drag-to-reorder over a list of nav items, using native HTML5 drag and drop.
  * a dependency-free fit for a dozen rows, where a full DnD toolkit would be
  * several times the size of the feature.
  *
@@ -472,7 +472,7 @@ function useFlipRows<T extends HTMLElement>(
  * rather than fifty.
  *
  * React state that restyles the drag source (opacity, More expand, FLIP) is
- * deferred one frame after dragstart — mutating the source synchronously
+ * deferred one frame after dragstart, mutating the source synchronously
  * cancels the native drag in Chromium. Handlers read refs so the first
  * dragover after start still works in that gap.
  */
@@ -496,7 +496,7 @@ function useReorder(items: NavItem[], onCommit: (order: string[]) => void) {
     dragging: dragKey !== null,
     isDragging: () => dragKeyRef.current !== null,
     // Touch has no HTML5 drag events, so don't advertise a gesture that can't
-    // fire — the order still travels with the user from their desktop.
+    // fire, the order still travels with the user from their desktop.
     enabled: !isMobile,
     start(to: string) {
       // Refs update synchronously so dragover can reorder before the deferred
@@ -573,7 +573,7 @@ function NavRow({
   index: number;
   reorder: Reorder;
   action?: React.ReactNode;
-  /** Sits under "More" — inset with a guide line so it reads as belonging to it. */
+  /** Sits under "More", inset with a guide line so it reads as belonging to it. */
   indented?: boolean;
 }) {
   const dragging = reorder.dragKey === item.to;

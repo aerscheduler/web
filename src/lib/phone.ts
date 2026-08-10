@@ -7,14 +7,14 @@ import {
 /**
  * Phone numbers in the console.
  *
- * The server stores E.164 (`+13035551234`) and is the authority on what is valid — see
+ * The server stores E.164 (`+13035551234`) and is the authority on what is valid, see
  * `server/src/utils/phone.ts`. Nothing here decides whether a number is acceptable; a
  * submit always goes to the server and a rejection always comes back from it. What this
  * module does is stop the round trip being the *first* time somebody is told, and stop
  * raw E.164 being shown to a human.
  *
  * The default (`min`) metadata bundle, not the `max` one the server uses. `max` is ~145KB
- * and buys mobile-vs-landline detection and slightly stricter validation — worth it in a
+ * and buys mobile-vs-landline detection and slightly stricter validation, worth it in a
  * Node process, not in a page nobody visits twice. The cost of the smaller bundle is that
  * `looksValid` is a little more permissive than the server; that is the right direction
  * for a hint, since the server still has the final say.
@@ -26,7 +26,7 @@ const DEFAULT_COUNTRY: CountryCode = "US";
 /**
  * E.164 to something a person reads: "(303) 555-1234".
  *
- * Returns the input unchanged when it can't be parsed rather than an empty string —
+ * Returns the input unchanged when it can't be parsed rather than an empty string.
  * rows written before normalization existed hold arbitrary text, and blanking those
  * on screen looks like data loss.
  */
@@ -42,12 +42,12 @@ export function formatPhone(
   );
   if (!parsed || !parsed.isValid()) return String(value);
 
-  // A foreign number gets its country code spelled out, a domestic one doesn't —
+  // A foreign number gets its country code spelled out, a domestic one doesn't.
   // "+44 7400 123456" is useful, "+1 303 555 1234" to an American reader is noise.
   return parsed.country === DEFAULT_COUNTRY ? parsed.formatNational() : parsed.formatInternational();
 }
 
-/** A `tel:` href — always the E.164 form, which is what a dialer wants. */
+/** A `tel:` href, always the E.164 form, which is what a dialer wants. */
 export function telHref(value: string | null | undefined): string | undefined {
   if (!value) return undefined;
 
@@ -58,7 +58,7 @@ export function telHref(value: string | null | undefined): string | undefined {
 /**
  * Reformat as the user types: "3035" -> "(303) 5".
  *
- * `AsYouType` is stateful per instance, so a fresh one per keystroke is deliberate —
+ * `AsYouType` is stateful per instance, so a fresh one per keystroke is deliberate.
  * reusing one across renders makes deleting a character reformat against stale state.
  *
  * Input containing a "+" is left completely alone. Someone typing an international
@@ -97,7 +97,7 @@ export function formatDateOfBirth(value: string | null | undefined): string {
 
   const [, y, m, d] = match;
   // Constructed in UTC and read back in UTC. `new Date("1994-03-17")` is UTC midnight,
-  // which prints as the 16th for anybody west of Greenwich — the entire reason this
+  // which prints as the 16th for anybody west of Greenwich, the entire reason this
   // helper exists rather than the shared `formatDate`.
   const date = new Date(Date.UTC(Number(y), Number(m) - 1, Number(d)));
   return date.toLocaleDateString(undefined, {

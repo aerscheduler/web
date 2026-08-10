@@ -2,7 +2,7 @@ import { Box, DoorOpen, MonitorPlay, Plane, type LucideIcon } from "lucide-react
 import { resourceLabel, type Reservation, type ReservationType, type Resource } from "@/types/api";
 import { RESERVATION_TYPE_ORDER } from "@/lib/permissions";
 
-/** The icon for a resource, by kind — aircraft get the plane, sims/rooms don't. */
+/** The icon for a resource, by kind, aircraft get the plane, sims/rooms don't. */
 export function resourceIcon(r: Resource): LucideIcon {
   switch (resourceLabel(r).kind) {
     case "Aircraft":
@@ -39,7 +39,7 @@ export const TYPE_ORDER = RESERVATION_TYPE_ORDER;
 // Tailwind can only see class names that appear as complete literals, so every
 // variant is written out in full below (never string-concatenated).
 
-/** Solid swatch — legend dots, form select rows. */
+/** Solid swatch, legend dots, form select rows. */
 export const DOT_CLASS: Record<ReservationType, string> = {
   dual: "bg-res-dual",
   instructor: "bg-res-dual",

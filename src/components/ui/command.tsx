@@ -34,7 +34,7 @@ function CommandDialog({
   className,
   showCloseButton = true,
   // Forwarded to the inner <Command>. `shouldFilter={false}` hands matching to
-  // the server — cmdk's own substring filter would then re-filter results that
+  // the server, cmdk's own substring filter would then re-filter results that
   // matched on a field it can't see (an email, a squawk's description).
   shouldFilter,
   ...props

@@ -1,7 +1,7 @@
 /**
  * The table every report renders into.
  *
- * Nothing here knows what report it is showing — columns, types, alignment and
+ * Nothing here knows what report it is showing, columns, types, alignment and
  * the totals row all come from the engine's response. A new report gets this for
  * free, which is the entire point of the registry.
  *
@@ -44,8 +44,8 @@ export function ReportTable({
    *
    * Two cases where it isn't, and both used to render a bar that actively
    * misled. With ONE group the share is trivially 100%, so a bar says nothing.
-   * And when the chosen measure is zero across every row — a school with no tax
-   * rates configured opening the Tax report — every bar renders at the 2% floor,
+   * And when the chosen measure is zero across every row, a school with no tax
+   * rates configured opening the Tax report, every bar renders at the 2% floor,
    * which reads as "this row is negligible" about a row that is 100% of the
    * invoices and 100% of the gross.
    */
@@ -61,7 +61,7 @@ export function ReportTable({
     // under a header and over a totals row that both stay put.
     <div className="relative min-h-0 min-w-0 flex-1 overflow-auto">
       {/* Keep the previous table readable while the next one loads rather than
-          collapsing to a spinner — paging should not blink. */}
+          collapsing to a spinner, paging should not blink. */}
       <table
         className={cn("w-full text-sm transition-opacity", loading && "opacity-50")}
         aria-busy={loading}
@@ -146,7 +146,7 @@ export function ReportTable({
                       </span>
                       {/* Grouped rows say how many records they stand for, so a
                           one-flight aircraft doesn't read like a fifty-flight one.
-                          On its own line — inline it wraps mid-phrase and reads as
+                          On its own line, inline it wraps mid-phrase and reads as
                           part of the label ("N152TS 2 records"). */}
                       {grouped && column.key === columns[0].key && row.__count != null && (
                         <span className="block text-xs text-muted-foreground">
@@ -191,7 +191,7 @@ export function ReportTable({
                     )}
                   >
                     {/* A column with no aggregate is blank in the totals row on
-                        purpose — there is no honest way to add up a tail number. */}
+                        purpose, there is no honest way to add up a tail number. */}
                     {i === 0 && value == null
                       ? "Total"
                       : value == null

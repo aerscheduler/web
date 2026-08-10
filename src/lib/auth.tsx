@@ -52,7 +52,7 @@ const SESSION_KEY = "aer.session";
 /**
  * A demo tab keeps its session in per-tab sessionStorage instead, so a visitor
  * trying the demo never overwrites their own signed-in session in another tab.
- * Same reasoning as the token split in lib/api.ts — see lib/demo.ts.
+ * Same reasoning as the token split in lib/api.ts, see lib/demo.ts.
  */
 function loadSession(): SessionState {
   try {
@@ -72,7 +72,7 @@ function saveSession(s: SessionState) {
   localStorage.setItem(SESSION_KEY, JSON.stringify(s));
 }
 
-/** Read synchronously — used by the router guard before React renders.
+/** Read synchronously, used by the router guard before React renders.
  *
  *  A token whose own `exp` has passed counts as signed out: the server would
  *  reject it anyway, and catching it here means an expired tab goes to /login
@@ -83,13 +83,13 @@ export function isAuthenticated(): boolean {
 }
 
 /** The caller's roles in the active org, read synchronously from the stored
- * session — used by router guards before React renders. */
+ * session, used by router guards before React renders. */
 export function rolesFromSession(): Role[] {
   const s = loadSession();
   const ous = s.user?.orgUsers ?? [];
   // The server's /auth scopes `user.orgUsers` to the ACTIVE org (org switch does a
   // full reload), so the first (only) entry is the caller's active-org membership.
-  // We can't match on FK_organizationId — the server strips every FK_* field.
+  // We can't match on FK_organizationId, the server strips every FK_* field.
   const membership = ous[0];
   return membership ? rolesOf(membership) : [];
 }
@@ -99,7 +99,7 @@ export function isStaffSync(): boolean {
   return rolesFromSession().some((r) => r === "owner" || r === "admin" || r === "dispatcher");
 }
 
-/** Synchronous developer check from the stored session — for the /developer route
+/** Synchronous developer check from the stored session, for the /developer route
  *  guard. Cosmetic: the server enforces the same allowlist on every request. */
 export function isDeveloperSync(): boolean {
   return isDeveloperEmail(loadSession().user?.email);
@@ -111,7 +111,7 @@ export function hasActiveOrg(): boolean {
 }
 
 /** True if the signed-in user has verified their email. Read synchronously from
- *  the stored session for router guards — mirrors the Flutter app, which already
+ *  the stored session for router guards, mirrors the Flutter app, which already
  *  blocks unverified users after signup. */
 export function isEmailVerifiedSync(): boolean {
   return Boolean(loadSession().user?.emailVerifiedAt);
@@ -130,7 +130,7 @@ export function isDemoSync(): boolean {
 }
 
 /** Whether the email-verification gate should apply. Bypassed on local dev
- *  (`npm run dev`) so onboarding is testable without a real verification link —
+ *  (`npm run dev`) so onboarding is testable without a real verification link.
  *  the dev server talks to the prod API, which never auto-verifies. Enforced in
  *  every built (preview/prod) bundle.
  *
@@ -180,14 +180,14 @@ interface AuthContextValue extends SessionState {
   /** Create a new org (caller becomes owner+admin). Swaps the active token. */
   createOrganization: (input: Record<string, unknown>) => Promise<Organization>;
   /**
-   * Join a school by its code. Returns "joined" (public/invited — token swapped to the new org)
-   * or "requested" (private school — a join request was sent for an admin to approve).
+   * Join a school by its code. Returns "joined" (public/invited, token swapped to the new org)
+   * or "requested" (private school, a join request was sent for an admin to approve).
    */
   joinByCode: (code: string) => Promise<"joined" | "requested">;
   /** Re-send the account verification email to the signed-in user. */
   resendVerificationEmail: () => Promise<void>;
   rehydrate: () => Promise<void>;
-  /** True if this user's email is on the developer allowlist (UI gating only —
+  /** True if this user's email is on the developer allowlist (UI gating only.
    *  the server independently enforces it on every /developer request). */
   isDeveloper: boolean;
   /** True if the active session came from "log in as" rather than a real login. */
@@ -202,7 +202,7 @@ interface AuthContextValue extends SessionState {
 
   /** True if this tab is driving the public demo sandbox. */
   isDemo: boolean;
-  /** The sandbox's roles, clock and ids — null outside a demo. */
+  /** The sandbox's roles, clock and ids, null outside a demo. */
   demo: DemoMeta | null;
   /** Start a demo in THIS TAB. Anything already signed in elsewhere is untouched. */
   startDemo: () => Promise<void>;
@@ -216,7 +216,7 @@ interface AuthContextValue extends SessionState {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/** In-flight `POST /demo/session`, shared across every caller — see startDemo. */
+/** In-flight `POST /demo/session`, shared across every caller, see startDemo. */
 let demoStartInFlight: Promise<AuthEnvelope & { demo: DemoMeta }> | null = null;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -225,7 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const apply = useCallback((env: AuthEnvelope) => {
-    // Whatever was on screen belongs to the session that just ended — most of
+    // Whatever was on screen belongs to the session that just ended, most of
     // all the "you've been signed out" toast, which is actively wrong now.
     toast.dismiss();
     setToken(env.auth.accessToken);
@@ -334,7 +334,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const env = await apiRaw<AuthEnvelope>("/auth/", {});
       apply(env);
     } catch {
-      /* token invalid — the route guard will redirect to /login */
+      /* token invalid, the route guard will redirect to /login */
     }
   }, [apply]);
 
@@ -343,7 +343,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    *
    * Driven off session state rather than called from each of login/register/OAuth/
    * switchOrg, so a future sign-in path cannot forget to do it. Signing out resets the
-   * identity, which matters on the shared front-desk computer every flight school has —
+   * identity, which matters on the shared front-desk computer every flight school has.
    * without it, the next person's events would be attributed to the last one.
    */
   useEffect(() => {
@@ -384,14 +384,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setToken(null);
     localStorage.removeItem(SESSION_KEY);
-    // Signing out means signing out — never leave a parked developer token behind
+    // Signing out means signing out, never leave a parked developer token behind
     // in storage for the next person at this browser.
     clearDevStash();
     setSession({ user: null, organization: null, organizations: [] });
   }, []);
 
   /**
-   * Sign in as another user (developer only — the server enforces it).
+   * Sign in as another user (developer only, the server enforces it).
    *
    * The developer's own token is parked first so the swap is reversible. Note the
    * resulting session is a *real* session for that user: every request after this
@@ -425,7 +425,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // The public demo sandbox.
   //
   // Every one of these writes through the same `apply()` the real sign-in paths
-  // use — the server returns the identical envelope on purpose — so the demo needs
+  // use (the server returns the identical envelope on purpose) so the demo needs
   // no parallel session handling. The only demo-specific part is WHERE the token
   // lands, and that is settled once, in getToken/setToken and loadSession/
   // saveSession, by whether this tab is a demo tab.
@@ -457,7 +457,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // provider that sits above the router, which remounts the route that just
     // asked for the session. Measured seven mints for one visit before this. That
     // is mostly wasted work, but it also spends a per-IP budget deliberately set
-    // low — so the failure mode is a visitor locked out of the demo by the act of
+    // low, so the failure mode is a visitor locked out of the demo by the act of
     // opening it.
     //
     // Same shape as the session probe in lib/api.ts, for the same reason: the
@@ -491,7 +491,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const exitDemo = useCallback(() => {
     // Tell the server first, while the token is still here to authenticate with, so
     // the pool gets this sandbox back now rather than at lease expiry. Best-effort and
-    // fire-and-forget — see beaconDemoExit; the reaper reclaims it either way.
+    // fire-and-forget, see beaconDemoExit; the reaper reclaims it either way.
     beaconDemoExit();
     clearDemo();
     setDemo(null);
@@ -509,7 +509,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       restored = JSON.parse(stash.session) as SessionState;
     } catch {
-      // The parked session is unreadable — drop it rather than restore garbage.
+      // The parked session is unreadable, drop it rather than restore garbage.
       // The caller falls back to sending the developer to /login.
       clearDevStash();
       return false;

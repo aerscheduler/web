@@ -31,7 +31,7 @@ export const FLOWS: Record<string, ComponentType<FlowProps>> = {
   // screen is not a focused experience, and that one in particular opened twelve live
   // billing controls at once.
   "cost-splitting": CostSplittingFlow,
-  // Same flow, different starting answer — the question it opens on is the only
+  // Same flow, different starting answer, the question it opens on is the only
   // difference between "invite your instructors" and "invite your students".
   instructors: (props) => <InviteFlow {...props} defaultWho="instructor" />,
   students: (props) => <InviteFlow {...props} defaultWho="student" />,

@@ -16,7 +16,7 @@ const LABEL_MAX = 60;
  * What the school charges to enroll on this course.
  *
  * Editable even after the syllabus is published, unlike everything else on this page. A
- * price is a commercial decision, not part of the document filed with the FSDO — and it is
+ * price is a commercial decision, not part of the document filed with the FSDO, and it is
  * safe here because each enrollment stores its own snapshot of the fee, so changing it
  * cannot re-price anybody already training.
  *

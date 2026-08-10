@@ -29,11 +29,11 @@ export function EmptyState({
 }
 
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
-  // A genuinely expired session never reaches here — the API layer signs the
+  // A genuinely expired session never reaches here, the API layer signs the
   // user out and routes to /login. So a 401/403 that does land here means "you
-  // aren't allowed to see this", and retrying it would just fail again.
+  // aren't allowed to see this"and retrying it would just fail again.
   const auth = error instanceof ApiError && (error.status === 401 || error.status === 403);
-  // Show the API's real message (a 400 can mean many things — don't assume "no org").
+  // Show the API's real message (a 400 can mean many things, don't assume "no org").
   const message =
     error instanceof ApiError ? error.message : "Something went wrong loading this data.";
   return (

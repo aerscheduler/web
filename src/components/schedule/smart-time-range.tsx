@@ -36,12 +36,12 @@ import {
  * Availability-aware date + start + end picker (a web port of the Flutter
  * create-reservation time engine). Given the chosen resource and assigned
  * personnel, it fetches their conflict-free windows, intersects them, and offers
- * only 15-minute slots during which everyone is simultaneously free — so an
+ * only 15-minute slots during which everyone is simultaneously free, so an
  * invalid (double-booked or past) appointment can't be selected. Picking a start
  * auto-fills a valid end (default 1h, backing off to fit the free window).
  */
 /** ISO string for a Select value; "" for null or an invalid Date. Prevents a bad
- * Date from crashing the render via `toISOString()` ("Invalid time value") — the
+ * Date from crashing the render via `toISOString()` ("Invalid time value"), the
  * selection then self-heals through the reconcile effect below. */
 function isoValue(d: Date | null): string {
   return d && !Number.isNaN(d.getTime()) ? d.toISOString() : "";
@@ -85,7 +85,7 @@ export function SmartTimeRange({
   onChange: (start: Date | null, end: Date | null) => void;
   resourceId: number | null;
   /**
-   * What to CALL the booked thing, lower-cased: "aircraft", "simulator", "room". A booking
+   * What to CALL the booked thing, lower-cased: "aircraft", ", simulator", ", room". A booking
    * is not always a flight, and this text used to say "aircraft" regardless, which reads
    * as a bug to anyone booking a classroom. Falls back to the neutral "resource", which is
    * the word the dispatch board's own column header uses.
@@ -99,7 +99,7 @@ export function SmartTimeRange({
    * count it as busy, so without this its own slot would read as unavailable.
    */
   restoreWindow?: { start: Date; end: Date } | null;
-  /** Lock the date and start — used once a flight has ramped out. */
+  /** Lock the date and start, used once a flight has ramped out. */
   lockStart?: boolean;
   /**
    * Whether this school has turned multi-day bookings on. Off, the End field is a time on
@@ -159,7 +159,7 @@ export function SmartTimeRange({
   //`usableDate`, not a truthiness check. An Invalid Date is an OBJECT, so `end ? …` lets it
   //through, and `dateKeyInZone` formats via Intl, which THROWS `RangeError: Invalid time
   //value` on a NaN time rather than returning anything. In a render that throw reaches the
-  //error boundary and takes the whole booking form down with it — which it did, because this
+  //error boundary and takes the whole booking form down with it, which it did, because this
   //form has a legitimate transient state where the end is momentarily invalid. That is
   //exactly why `isoValue` and `valid` above exist; this line has to use the same discipline.
   const endDate = usableDate(end) ? dateKeyInZone(end, tz.zone) : date;
@@ -201,7 +201,7 @@ export function SmartTimeRange({
   // Reconcile the selection whenever the loaded availability changes (a refetch,
   // or the resource/personnel/date changed). If the start is no longer a valid
   // slot, clear both; if the start still holds but the window shrank under the
-  // chosen end, refit the end to a valid one — otherwise a stale out-of-window
+  // chosen end, refit the end to a valid one, otherwise a stale out-of-window
   // end could be submitted while the End field only *looks* empty.
   React.useEffect(() => {
     if (loading || !start) return;

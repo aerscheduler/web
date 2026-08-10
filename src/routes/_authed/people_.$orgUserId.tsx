@@ -68,7 +68,7 @@ import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-ra
  * The URL is still `/people/:id`, so browser Back and the explicit back link
  * both land on the roster.
  *
- * Access is NOT the same for everyone who can open it. See `personViewAccess` —
+ * Access is NOT the same for everyone who can open it. See `personViewAccess`.
  * every section below is the client half of a guard the server already enforces,
  * and the two are meant to be read together.
  *
@@ -94,8 +94,8 @@ function PersonPage() {
   const access = personViewAccess(roles, isSelf);
 
   // A bad id, someone in another organization, and a removed member all land
-  // here. The server answers 403 rather than 404 — it can't say "no such
-  // member" without confirming that member exists somewhere — so surfacing it
+  // here. The server answers 403 rather than 404, it can't say "no such
+  // member" without confirming that member exists somewhere, so surfacing it
   // verbatim would tell a person who mistyped a URL that they aren't
   // authorized. This says the one true thing, and offers the way back.
   const missing =
@@ -112,7 +112,7 @@ function PersonPage() {
         <RecordNotFound
           icon={UserRound}
           title="Member not found"
-          body="That link doesn't point at anyone in this organization — they may have been removed."
+          body="That link doesn't point at anyone in this organization, they may have been removed."
           backTo="/people"
           backLabel="Back to People"
         />
@@ -121,7 +121,7 @@ function PersonPage() {
   }
 
   // `isLoading`, not `isPending`: in React Query v5 `isPending` means "no data",
-  // which stays true for a query that has finished and has nothing to show —
+  // which stays true for a query that has finished and has nothing to show.
   // so a skeleton keyed on it can outlive the answer and spin forever. This
   // page reproduced exactly that on a bad id. `isLoading` is `isPending &&
   // isFetching`, i.e. a request is genuinely in flight.
@@ -272,7 +272,7 @@ function PersonBody({
           <div className="rounded-lg border bg-muted/50 px-3.5 py-2.5 text-[13px] text-muted-foreground">
             <span className="font-medium text-foreground">Archived {formatDate(ou.archivedAt)}.</span>{" "}
             They're off the roster, can't be booked, and receive no email or notifications from you.
-            Their history is kept — return them to the roster to undo this.
+            Their history is kept, return them to the roster to undo this.
           </div>
         ) : (
           ou.grounded && (
@@ -305,7 +305,7 @@ function PersonBody({
                     #{ou.id}
                   </KeyValue>
                   <KeyValue label="Identifier" mono>
-                    {ou.identifier || "—"}
+                    {ou.identifier || "–"}
                   </KeyValue>
                   <KeyValue label="Joined">{formatDate(ou.createdAt, "MMMM d, yyyy")}</KeyValue>
                   <KeyValue label="Last active">
@@ -314,7 +314,7 @@ function PersonBody({
                 </KeyValueList>
               </DetailCard>
 
-              {/* Renders itself only when the server returned contact details — the
+              {/* Renders itself only when the server returned contact details, the
                   instructor-of-that-student rule can't be evaluated client-side, so
                   the payload IS the permission answer. See PersonContact. */}
               <PersonContact ou={ou} isSelf={isSelf} />
@@ -324,7 +324,7 @@ function PersonBody({
           {active === "activity" && (access.metrics || access.flights) && (
             <>
               {/* The window drives every number below it, so it sits above them all
-                  rather than inside one card — two cards measuring different windows on
+                  rather than inside one card, two cards measuring different windows on
                   one page is how a page stops being believed. */}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-[13px] text-muted-foreground">
@@ -448,7 +448,7 @@ function ApprovedAircraft({
         <CardEmpty>Couldn&apos;t load approvals.</CardEmpty>
       ) : planes.length === 0 ? (
         <CardEmpty>
-          No aircraft approved{isSelf ? " for you" : ""} yet — approvals are granted per
+          No aircraft approved{isSelf ? " for you" : ""} yet, approvals are granted per
           tail from the aircraft page.
         </CardEmpty>
       ) : (

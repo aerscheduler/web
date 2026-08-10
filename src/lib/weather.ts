@@ -1,18 +1,18 @@
 /**
- * Pre-flight weather — a TypeScript port of the Flutter app's WeatherService +
+ * Pre-flight weather, a TypeScript port of the Flutter app's WeatherService +
  * Weather model (app/lib/services/weather_service.dart, app/lib/models/weather_model.dart).
  *
  * Two free, key-less sources, exactly as the app uses them:
  *
- *  * METAR observations — https://aviationweather.gov/api/data/metar (NOAA/NWS
- *    Aviation Weather Center). `fltCat` is already "VFR" | "MVFR" | "IFR" | "LIFR",
+ *  * METAR observations, https://aviationweather.gov/api/data/metar (NOAA/NWS
+ *    Aviation Weather Center). `fltCat` is already "VFR" | ", MVFR" | ", IFR" | ", LIFR",
  *    so no METAR string is ever parsed here. Rate limited to ~100 req/min, which is
  *    why the query keys below round coordinates: every reservation at the same field
  *    shares one cache entry and one in-flight request.
  *
- *  * Sunrise/sunset/civil twilight — https://api.sunrise-sunset.org
+ *  * Sunrise/sunset/civil twilight, https://api.sunrise-sunset.org
  *    ATTRIBUTION: sun and civil-twilight times are provided by https://sunrise-sunset.org/,
- *    whose terms require the service to be credited. The credit is surfaced in the UI —
+ *    whose terms require the service to be credited. The credit is surfaced in the UI.
  *    see SUN_ATTRIBUTION, rendered in the weather badge's tooltip.
  *
  * A Location has no ICAO identifier, only a geocoded address, so the nearest reporting
@@ -20,13 +20,13 @@
  * picking the closest station by great-circle distance.
  *
  * Nothing in here ever throws or rejects. Weather is supplementary: every failure path
- * resolves to null and the UI renders nothing at all — no spinner, no error, no toast.
+ * resolves to null and the UI renders nothing at all, no spinner, no error, no toast.
  *
  * Deltas from Flutter, deliberate:
  *  - No User-Agent header. `User-Agent` is a forbidden header name for fetch(), so the
  *    browser strips it; the browser sends its own instead. (Flutter's http client sets
  *    the descriptive UA aviationweather.gov asks for.)
- *  - No hand-rolled cache/in-flight maps. React Query is the cache — see
+ *  - No hand-rolled cache/in-flight maps. React Query is the cache, see
  *    useMetarObservation / useSunTimes in features/queries.ts, whose keys and staleTimes
  *    reproduce the Dart maps (5 min observations, per-date-immutable sun times, a short
  *    hold on failure so a dead network isn't re-requested on every badge that mounts).
@@ -86,7 +86,7 @@ const FLIGHT_CATEGORIES: FlightCategory[] = ["VFR", "MVFR", "IFR", "LIFR"];
  * One surface observation from the station nearest a location.
  *
  * The aviationweather.gov payload is loosely typed and confirmed to send strings where
- * numbers are expected — `wdir` comes back as the string "VRB", `visib` as "10+" — and
+ * numbers are expected (`wdir` comes back as the string "VRB", `visib` as "10+") and
  * `fltCat` can be absent entirely. Everything below is therefore parsed defensively and
  * every field is nullable.
  */
@@ -99,7 +99,7 @@ export interface Observation {
   windDirectionDegrees: number | null;
   windIsVariable: boolean;
   windSpeedKnots: number | null;
-  /** Kept as the reported string ("10+", "7", "1.5") — "10+" is meaningful to a pilot. */
+  /** Kept as the reported string ("10+", "7", "1.5"): "10+" is meaningful to a pilot. */
   visibility: string | null;
   temperatureCelsius: number | null;
   dewPointCelsius: number | null;
@@ -216,7 +216,7 @@ export function parseObservation(raw: unknown): Observation | null {
  * Typed as `unknown` on purpose: the shared `Location` interface in types/api.ts doesn't
  * declare the address/coordinates the API actually returns on a reservation's resource,
  * and this feature isn't the place to widen a shared type. A location without coordinates
- * simply has no weather — that is not an error.
+ * simply has no weather, that is not an error.
  */
 export function coordinatesFromLocation(location: unknown): Coordinates | null {
   const record = asRecord(location);
@@ -255,7 +255,7 @@ export function dateKey(date: Date, timeZone?: string | null): string {
       const day = part("day");
       if (year && month && day) return `${year}-${month}-${day}`;
     } catch {
-      // Bad zone — fall through to the viewer's own.
+      // Bad zone, fall through to the viewer's own.
     }
   }
   return format(date, "yyyy-MM-dd");
@@ -283,7 +283,7 @@ export function distanceInKilometers(from: Coordinates, to: Coordinates): number
  * The nearest reporting station to `coordinates`, or null when the lookup fails, the
  * bounding box is empty, or the browser blocks the request (see the CORS note above).
  *
- * A station that reports a flight category beats a closer one that doesn't — an
+ * A station that reports a flight category beats a closer one that doesn't, an
  * observation with no `fltCat` can't answer the only question the badge exists to answer.
  */
 export async function fetchNearestObservation(
@@ -310,7 +310,7 @@ export async function fetchNearestObservation(
 
 /**
  * Sun and civil-twilight times for one day at one point (`day` is `YYYY-MM-DD`).
- * Courtesy of https://sunrise-sunset.org/ — see SUN_ATTRIBUTION.
+ * Courtesy of https://sunrise-sunset.org/, see SUN_ATTRIBUTION.
  */
 export async function fetchSunTimes(
   coordinates: Coordinates,
@@ -418,7 +418,7 @@ export function isStaleObservation(observation: Observation, now: Date): boolean
   return now.getTime() - observation.observedAt.getTime() > STALE_OBSERVATION_MIN * 60_000;
 }
 
-/** "Byron Arpt, CA, US (KC83)" — always say which field the observation came from. */
+/** "Byron Arpt, CA, US (KC83)". Always say which field the observation came from. */
 export function stationLabel(observation: Observation): string | null {
   if (observation.stationName) {
     return observation.stationId

@@ -1,7 +1,7 @@
 /**
  * Gathers everything the setup checklist needs and works out where the org stands.
  *
- * One hook so the items stay pure functions of data — no item fires a request of its
+ * One hook so the items stay pure functions of data, no item fires a request of its
  * own, and the same facts drive the dashboard card and the wizard's last screen.
  *
  * Every query here is gated on the checklist actually being live. Once it has been
@@ -42,7 +42,7 @@ export type ChecklistEntry = { item: ChecklistItem; done: boolean; dismissed: bo
 export type ChecklistState = {
   /** Applicable items in the order to render them, track-first. */
   entries: ChecklistEntry[];
-  /** Items still worth doing — not done, not waved off. */
+  /** Items still worth doing, not done, not waved off. */
   remaining: ChecklistEntry[];
   done: number;
   total: number;
@@ -61,7 +61,7 @@ export type ChecklistState = {
  * "Has this org ever booked / invoiced?" answered over a window rather than all time.
  *
  * An unbounded list would be the wrong trade: the checklist only exists for operations
- * that are still setting up, and it retires itself for good the moment it completes —
+ * that are still setting up, and it retires itself for good the moment it completes.
  * so a window wide enough to catch a new school's first booking is wide enough, and it
  * keeps the dashboard from pulling a year of reservations to tick one box.
  */
@@ -73,7 +73,7 @@ const LOOKAHEAD_DAYS = 60;
  *
  * `?track=quickbooks` reorders the list as if the org had arrived from that campaign,
  * and `?checklist=show` brings back a checklist that has already retired itself. Both
- * are display-only — neither writes anything, so previewing a track cannot overwrite
+ * are display-only, neither writes anything, so previewing a track cannot overwrite
  * the org's real attribution.
  *
  * Same trick, and the same reason, as `?sub=trial|grace|expired` in
@@ -146,7 +146,7 @@ export function useChecklist(): ChecklistState {
         (r) => r.isLoading
       ));
 
-  // A dozen predicates over already-fetched counts — cheaper to just run than to
+  // A dozen predicates over already-fetched counts, cheaper to just run than to
   // memoize, and memoizing would mean keeping a dependency list in step with every
   // field an item reads.
   const applicable = CHECKLIST.filter((i) => i.appliesTo?.(orgType) ?? true);
@@ -196,7 +196,7 @@ export function useChecklist(): ChecklistState {
     trackCaption: trackFor(source)?.caption ?? null,
     orgType,
     // Still show a completed board for the moment between finishing and the retire
-    // landing — vanishing mid-click reads as a bug.
+    // landing, vanishing mid-click reads as a bug.
     visible: live && !retired,
     loading,
     dismissItem: (id) => setDismissed([...dismissedItems.filter((d) => d !== id), id]),
@@ -219,7 +219,7 @@ export function useReportsReadiness(enabled: boolean) {
   const q = { enabled };
 
   const reservations = useReservations(from, to, undefined, q);
-  // Reports are open to dispatchers and technicians, who cannot read invoices —
+  // Reports are open to dispatchers and technicians, who cannot read invoices.
   // asking anyway would just 403 in their logs. They fall back to the reservation
   // count, which is the other half of the same OR.
   const invoices = useInvoices({ startDate: from }, { enabled: enabled && isAdmin(roles) });

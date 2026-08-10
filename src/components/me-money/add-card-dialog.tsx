@@ -25,7 +25,7 @@ function errMessage(e: unknown): string {
 
 /**
  * Save a card for future use / autopay via a Stripe SetupIntent + Payment Element (card data
- * stays in Stripe's iframe — PCI-safe). Scoped to the org's connected account.
+ * stays in Stripe's iframe. PCI-safe). Scoped to the org's connected account.
  */
 export function AddCardDialog({
   open,

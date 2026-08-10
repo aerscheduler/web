@@ -9,8 +9,8 @@
  * Two decisions worth knowing:
  *
  *  • The tile is a COPY, not a link. Editing the view later does not change the
- *    tile. A live link is defensible — arguably better for a shared view a
- *    school standardises on — but it needs the view's id in the dashboard
+ *    tile. A live link is defensible, arguably better for a shared view a
+ *    school standardises on, but it needs the view's id in the dashboard
  *    schema and resolution at run time, with its own answers for "the view was
  *    deleted" and "the view is shared and someone else changed it". Copying is
  *    the honest version of what this actually does, and the dialog says so
@@ -18,7 +18,7 @@
  *
  *  • The shape is a SUGGESTION, made visible before anything is saved. A view
  *    grouped by aircraft becomes a bar chart, one grouped by day becomes a line
- *    chart, and an ungrouped one becomes a single number — then the builder
+ *    chart, and an ungrouped one becomes a single number, then the builder
  *    opens with that filled in, so the guess is something you correct rather
  *    than something you discover on the board afterwards.
  */
@@ -36,7 +36,7 @@ import { TileBuilder, metricLimit } from "./tile-builder";
 /**
  * The starting point for a tile built from a saved view.
  *
- * Returns null only when the report has no number that can be totalled at all —
+ * Returns null only when the report has no number that can be totalled at all.
  * a view of it can be a useful table, but there is nothing to put on a tile.
  * Callers check `report.metrics.length` and don't offer the action in that case.
  */
@@ -66,7 +66,7 @@ export function tileFromSavedView(view: SavedReportView, report: ReportMeta): Vi
     metrics: metrics.slice(0, metricLimit(viz)),
     ...(dimension ? { dimension } : {}),
     // A half-built filter narrows nothing on the report and must not narrow
-    // anything here either — a saved view can hold one.
+    // anything here either, a saved view can hold one.
     filters: (view.config.filters ?? []).filter(isCompleteFilter),
     range: savedRangeToTileRange(view),
     compare: "inherit",
@@ -78,7 +78,7 @@ export function tileFromSavedView(view: SavedReportView, report: ReportMeta): Vi
  * Money first, then hours, then counts.
  *
  * Most shapes take one metric, so which one comes FIRST decides what the tile
- * shows. Column order is the report author's reading order, not a ranking — on
+ * shows. Column order is the report author's reading order, not a ranking, on
  * the revenue report it puts the invoice COUNT ahead of the amount billed, so
  * "Revenue by aircraft" pinned as a bar chart of how many invoices each aircraft
  * generated. `primaryMeasure` is the same rule the report table already uses to
@@ -94,7 +94,7 @@ function ordered(keys: string[], report: ReportMeta): string[] {
  *
  * Saved views store the dates that were on screen, so most carry a fixed window
  * like "1–31 July". Pinning that verbatim would produce a tile permanently
- * stuck on July, which is not what anyone means by pinning a view — so a fixed
+ * stuck on July, which is not what anyone means by pinning a view, so a fixed
  * window becomes "follow the dashboard", and the dialog says the dates were
  * dropped. A view that stored a NAMED window keeps it: that one still means
  * something next month.
@@ -143,7 +143,7 @@ export function PinViewDialog({
       initial={initial}
       note={
         <>
-          Starting from “{view.name}”. The tile is a copy — changing the saved
+          Starting from “{view.name}”. The tile is a copy, changing the saved
           view later won’t change it.
           {hasPinnedDates(view) &&
             " Its saved dates follow the dashboard instead; pick a range below to fix the tile to its own window."}

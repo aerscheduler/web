@@ -1,9 +1,9 @@
 /**
- * The dashboard — a panel of visualizations you arrange yourself.
+ * The dashboard, a panel of visualizations you arrange yourself.
  *
  * Replaces the fixed Overview. The eight cards and two charts that used to be
  * hardcoded are now the DEFAULT layout, so nothing changes for anyone until they
- * choose to change it — and "Reset" brings that layout back.
+ * choose to change it, and "Reset" brings that layout back.
  *
  * Edit mode is explicit. Drag and resize are off until you turn it on, so a
  * mis-click on a chart cannot rearrange the board, and changes are only written
@@ -60,7 +60,7 @@ export function Dashboard({
   const save = useSaveDashboard();
   const reset = useResetDashboard();
   const retry = useRetryDashboard();
-  // One clock for the whole board — the school's. See `lib/report-format.ts`.
+  // One clock for the whole board, the school's. See `lib/report-format.ts`.
   const timeZone = useReportTimeZone();
   const confirm = useConfirm();
 
@@ -82,7 +82,7 @@ export function Dashboard({
   const config = draft ?? stored.data?.config ?? null;
   const panel = config?.panels[0] ?? null;
 
-  // Opening Customise and touching nothing isn't progress worth protecting —
+  // Opening Customise and touching nothing isn't progress worth protecting.
   // only a draft that actually differs from what the server holds.
   const dirty =
     editing &&
@@ -97,7 +97,7 @@ export function Dashboard({
 
   // Covers leaving the route entirely (the sidebar, back/forward) and closing
   // the tab. Leaving Overview for a report doesn't change the route, so the
-  // Reports page guards that one — see DISCARD_DASHBOARD_EDITS.
+  // Reports page guards that one, see DISCARD_DASHBOARD_EDITS.
   useBlocker({
     disabled: !dirty,
     enableBeforeUnload: () => dirty,
@@ -151,8 +151,8 @@ export function Dashboard({
     }
   };
 
-  // The needs-attention strip is not a tile — it is a fixed strip of counts
-  // rather than one visualization — so it keeps its own small request.
+  // The needs-attention strip is not a tile, it is a fixed strip of counts
+  // rather than one visualization, so it keeps its own small request.
   const attentionRange = useMemo(
     () => (panel ? rangeToIso(namedToDateRange(panel.range, timeZone), timeZone) : null),
     [panel?.range, timeZone]
@@ -164,7 +164,7 @@ export function Dashboard({
   }
 
   // A failed load must not read as a slow one. Without this the skeleton stays
-  // up forever and the page looks like it is still thinking — which is exactly
+  // up forever and the page looks like it is still thinking, which is exactly
   // what happened when the dev proxy pointed at a server without the endpoint.
   if (stored.isError || !config || !panel) {
     return (
@@ -183,7 +183,7 @@ export function Dashboard({
     // Same bargain as a report: the toolbar is fixed and the board scrolls under
     // it, so the window and comparison you are reading by never leave the screen.
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" data-doc-shot="dashboard-edit-mode">
-      {/* Title and blurb first, controls on their own row underneath — the shape
+      {/* Title and blurb first, controls on their own row underneath, the shape
           every report view uses. Sharing one row with the blurb is what made the
           board jump: Customise adds four buttons, the row runs out of width and
           wraps, and everything below drops a line. On its own row the toolbar
@@ -227,7 +227,7 @@ export function Dashboard({
           </Select>
 
           {/* What you do with the board sits right, away from what the board is
-              showing — the same split as a report's toolbar. */}
+              showing, the same split as a report's toolbar. */}
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {editing ? (
               <>
@@ -300,7 +300,7 @@ export function Dashboard({
           loading={overview.isLoading}
           //Open on the window the COUNT was taken over, not the dashboard's current
           //range. A strip reading "3 endorsements expiring" that opened a table reading
-          //"Nothing matched" is what this fixes — the tiles each declare their own window
+          //"Nothing matched" is what this fixes, the tiles each declare their own window
           //precisely because "what is overdue" is not a question about the period you
           //happen to be looking at.
           onOpen={(item) =>
@@ -325,7 +325,7 @@ export function Dashboard({
               ? panel.visualizations.map((v) => (v.id === viz.id ? viz : v))
               : [...panel.visualizations, placeAtBottom(panel.visualizations, viz)]
           );
-          // Adding a tile puts you in edit mode — you'll want to place it.
+          // Adding a tile puts you in edit mode, you'll want to place it.
           setEditing(true);
         }}
       />

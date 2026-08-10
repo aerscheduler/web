@@ -24,7 +24,7 @@ import { dateKeyInZone } from "./timezone";
  * Is this a Date that can actually be formatted?
  *
  * `new Date("nonsense")` is an OBJECT, so it is truthy, and a `!start` guard sails straight
- * past it — but its time value is NaN and `Intl.DateTimeFormat.formatToParts` throws
+ * past it, but its time value is NaN and `Intl.DateTimeFormat.formatToParts` throws
  * `RangeError: Invalid time value` on it rather than returning something useless. Inside a
  * React render that throw reaches the error boundary and takes the whole booking form down,
  * which is what it did: the form has a legitimate half-built state where the end instant is
@@ -37,7 +37,7 @@ const usable = (d: Date | null | undefined): d is Date =>
 /**
  * Local midnights crossed between out and back. 0 for a booking home the same day.
  *
- * Measured to the last instant the booking OCCUPIES — its end minus a millisecond — because
+ * Measured to the last instant the booking OCCUPIES (its end minus a millisecond) because
  * a booking is `[start, end)` and its end is a boundary, not a moment the aircraft is out.
  * Only visible at midnight, and there it is the whole answer: 10 pm → midnight is an evening
  * flight the picker offers as the last slot of every day, and reading the boundary's own
@@ -59,7 +59,7 @@ export function nightsAway(start: Date, end: Date, timeZone: string): number {
  * The minimum in force: the aircraft's own, else the organization's, else none.
  *
  * `null` on the aircraft means inherit and `0` means explicitly exempt, so this tests for
- * null rather than falsiness — same as the server's `minimumForBooking`.
+ * null rather than falsiness, same as the server's `minimumForBooking`.
  */
 export function effectiveOvernightMinimumTenths(args: {
   aircraftMinimumTenths?: number | null;

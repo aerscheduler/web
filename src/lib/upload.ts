@@ -1,6 +1,6 @@
 /**
  * S3 presigned-POST upload helpers. The server hands us `{ url, fields }`; we POST a multipart
- * form with every field first and the `file` part LAST (S3 requires that order), straight to S3 —
+ * form with every field first and the `file` part LAST (S3 requires that order), straight to S3.
  * never through our API (no Bearer header, no JSON). Mirrors the Flutter client's flow so the
  * stored URL matches (`url + "/" + fields.key`).
  */

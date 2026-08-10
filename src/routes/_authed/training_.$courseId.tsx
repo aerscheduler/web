@@ -77,7 +77,7 @@ export const Route = createFileRoute("/_authed/training_/$courseId")({
 /**
  * The three things a course is: what gets taught, what has to add up, and who is on it.
  *
- * A rail rather than tabs, like every other sectioned page in the console — and here it
+ * A rail rather than tabs, like every other sectioned page in the console, and here it
  * also buys the syllabus its own scroll, so the version selector and the published/draft
  * badge stay on screen instead of scrolling away above thirty lessons.
  */
@@ -185,10 +185,10 @@ function CourseDetailPage() {
           ) : null}
           {version.data?.publishedAt ? (
             <Badge variant="secondary" className="gap-1">
-              <Lock className="size-3" /> Locked — students are enrolled against these lessons
+              <Lock className="size-3" /> Locked: students are enrolled against these lessons
             </Badge>
           ) : (
-            <Badge variant="outline">Draft — safe to edit</Badge>
+            <Badge variant="outline">Draft. Safe to edit</Badge>
           )}
         </div>
       </TableView.Header>
@@ -384,7 +384,7 @@ function RequirementsView({ version }: { version: CourseVersion }) {
             <div className="font-mono text-xs text-muted-foreground">{r.code}</div>
           </div>
           <div className="text-sm tabular-nums">
-            {r.minDeciHours != null ? deciHoursLabel(r.minDeciHours) : `${r.minCount ?? "—"}`}
+            {r.minDeciHours != null ? deciHoursLabel(r.minDeciHours) : `${r.minCount ?? "–"}`}
           </div>
           <Badge variant={r.source === "school" ? "outline" : "secondary"}>
             {r.source === "school" ? "School" : PART_LABEL[r.source]}
@@ -461,7 +461,7 @@ function PublishDialog({ version }: { version: CourseVersion }) {
             {/* Said plainly, because it is the one irreversible act in this module and the
                 consequence is invisible until somebody tries to fix a typo. */}
             Publishing locks this version permanently. Its {lessons} lessons, tasks and requirements can
-            never be changed again — students will be enrolled against exactly these. To revise it later you
+            never be changed again, students will be enrolled against exactly these. To revise it later you
             make a new version from this one, and anyone already enrolled finishes on the old.
           </DialogDescription>
         </DialogHeader>
@@ -560,7 +560,7 @@ function EnrollDialog({ versionId, courseName }: { versionId: number; courseName
   const members = useMembers(undefined, { enabled: open });
   const enroll = useEnrollStudent();
 
-  //Students first — they are who gets enrolled — but not students ONLY: schools put
+  //Students first (they are who gets enrolled) but not students ONLY: schools put
   //instructors through their own courses (a CFI adding an instrument rating), and a roster
   //that hides them makes that impossible without a role change.
   const candidates = (members.data ?? [])

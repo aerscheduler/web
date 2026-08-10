@@ -6,7 +6,7 @@
  * reminders list can't drift into saying the same state three different ways.
  *
  * The phrasing rule throughout: lead with the NUMBER, because that is what somebody is
- * scanning for. "12.4 hrs" not "Due in 12.4 hours on the tach" — the basis and the noun go
+ * scanning for. "12.4 hrs" not "Due in 12.4 hours on the tach"the basis and the noun go
  * in the secondary line where there's room for them.
  */
 
@@ -36,11 +36,11 @@ export function dueTone(due: MaintenanceDue | undefined): DueTone {
  * The headline figure: how much is left, in the unit the interval is counted in.
  *
  * Hours and days are deliberately NOT converted into each other. An hour-based 100-hour
- * has no due date — it depends entirely on how much the aircraft flies — and inventing one
+ * has no due date (it depends entirely on how much the aircraft flies) and inventing one
  * from an average would be a guess presented as a fact.
  */
 export function dueAmount(due: MaintenanceDue | undefined): string {
-  if (!due) return "—";
+  if (!due) return "–";
   if (due.status === "resolved") return "Signed off";
 
   if (due.kind === "hours") {
@@ -67,11 +67,11 @@ export function dueAmount(due: MaintenanceDue | undefined): string {
  */
 export function dueDetail(due: MaintenanceDue | undefined): string {
   if (!due) return "No interval set.";
-  if (due.status === "resolved") return "Signed off — the next interval has started.";
+  if (due.status === "resolved") return "Signed off. The next interval has started.";
 
   if (due.kind === "hours") {
     const meter = due.basis === "hobbs" ? "Hobbs" : "tach";
-    if (due.dueAtHours == null) return "No starting meter reading — sign it off once to start the clock.";
+    if (due.dueAtHours == null) return "No starting meter reading, sign it off once to start the clock.";
     const at = `Due at ${fromDeciHours(due.dueAtHours)} ${meter}`;
     if (due.currentHours == null) return `${at}.`;
     return `${at}, now ${fromDeciHours(due.currentHours)}.`;
@@ -85,7 +85,7 @@ export function dueDetail(due: MaintenanceDue | undefined): string {
   return `Due ${on}.`;
 }
 
-/** Short badge text. Empty string means "don't badge this one" — an ok item needs none. */
+/** Short badge text. Empty string means "don't badge this one", an ok item needs none. */
 export function dueBadge(due: MaintenanceDue | undefined): string {
   if (due?.status === "overdue") return "Overdue";
   if (due?.status === "dueSoon") return "Due soon";
@@ -103,7 +103,7 @@ export function duePercent(due: MaintenanceDue | undefined): number {
   return Math.max(0, Math.min(100, Math.round(due.progress * 100)));
 }
 
-/** What a template's interval says, in words — for the templates list. */
+/** What a template's interval says, in words, for the templates list. */
 export function intervalLabel(t: {
   remindDays?: number | null;
   remindHours?: number | null;
@@ -114,7 +114,7 @@ export function intervalLabel(t: {
     return `Every ${fromDeciHours(t.remindHours)} hours ${t.hourBasedOn === "hobbs" ? "Hobbs" : "tach"}`;
   }
   if (t.remindDays) {
-    // Say "12 months" rather than "365 days" where it lands on a round figure — that is how
+    // Say "12 months" rather than "365 days" where it lands on a round figure, that is how
     // the reg is written and how a mechanic says it out loud.
     //
     // Two months is the floor, and the VOR check is why: it is 30 days by regulation, not
@@ -140,7 +140,7 @@ export function warningLabel(t: { remindDaysBefore?: number | null; remindHoursB
 /**
  * Roll a tail's reminders up into the one line a fleet card shows.
  *
- * The rule is "worst first, then soonest", which the server's `urgency` already encodes —
+ * The rule is "worst first, then soonest", which the server's `urgency` already encodes.
  * so this trusts the order it arrived in rather than re-deriving it and risking a
  * different answer than the list on the next page.
  */
@@ -154,7 +154,7 @@ export function fleetSummary(reminders: MaintenanceReminder[]) {
     total: live.length,
     overdue: overdue.length,
     dueSoon: dueSoon.length,
-    /** The item to name on the card — the one that needs attention first. */
+    /** The item to name on the card, the one that needs attention first. */
     next: sorted[0] ?? null,
     tone: overdue.length ? ("danger" as const) : dueSoon.length ? ("warning" as const) : ("success" as const),
   };

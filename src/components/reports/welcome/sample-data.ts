@@ -7,7 +7,7 @@
  * like what the school will actually get.
  *
  * The figures are a plausible four-aircraft school over a month. Deliberately not
- * round — a preview full of 100s and 250s reads as a mock-up.
+ * round, a preview full of 100s and 250s reads as a mock-up.
  */
 
 import type { ReportColumn } from "@/types/reports";
@@ -22,7 +22,7 @@ export const REVENUE_COLUMNS: ReportColumn[] = [
 export const REVENUE_TOTALS = { revenue: 4_284_500, collected: 3_910_000, outstanding: 374_500 };
 export const REVENUE_PREVIOUS = { revenue: 3_766_000, collected: 3_512_000, outstanding: 254_000 };
 
-/** The `date` dimension is a real time axis in `VizLine` — it parses these — so they
+/** The `date` dimension is a real time axis in `VizLine` (it parses these) so they
  *  have to be ISO dates, not "Wk 1". Fixed rather than computed: the previews must
  *  render the same thing every time, and the card says plainly that it's sample data. */
 export const REVENUE_BY_WEEK = [

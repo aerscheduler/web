@@ -3,7 +3,7 @@ import { DEVICE_TIME_ZONE } from "./timezone";
 import { getDemoToken, isDemoTab, setDemoToken } from "./demo";
 import { track } from "./analytics";
 
-/** Injected by vite.config.ts at build time — `aerscheduler-web/<commit>`. */
+/** Injected by vite.config.ts at build time, `aerscheduler-web/<commit>`. */
 declare const __CLIENT_ID__: string;
 const CLIENT_ID = typeof __CLIENT_ID__ === "string" ? __CLIENT_ID__ : "aerscheduler-web";
 
@@ -11,7 +11,7 @@ const TOKEN_KEY = "aer.token";
 
 /**
  * A demo tab reads and writes its own token, in sessionStorage. Routing it here
- * — rather than at each of the ~20 call sites — is what keeps a demo from
+ * (rather than at each of the ~20 call sites) is what keeps a demo from
  * overwriting a real session the same person has open in another tab. See
  * lib/demo.ts for why that is per-tab storage and not a flag.
  */
@@ -30,7 +30,7 @@ export function setToken(token: string | null) {
 
 /**
  * When the token's own `exp` claim says it is dead, in ms since the epoch.
- * Decoded without verifying — the server re-verifies the signature on every
+ * Decoded without verifying, the server re-verifies the signature on every
  * request. This only ever makes us sign someone out EARLIER than the server
  * would, never later, so an unverified read is safe.
  */
@@ -96,7 +96,7 @@ export function setUnauthorizedHandler(fn: (() => void) | null) {
  * Called when the server says this demo sandbox is gone (410 `DEMO_ENDED`).
  *
  * Deliberately NOT the unauthorized handler. That one signs the user out and
- * sends them to /login — which for a demo visitor is a sign-in form for an
+ * sends them to /login, which for a demo visitor is a sign-in form for an
  * account they have never had, and reads as the product being broken. A demo
  * that ends should offer another demo. Registered by <DemoWatcher>.
  */
@@ -125,7 +125,7 @@ export function beaconDemoExit(): void {
       headers: { Authorization: `Bearer ${token}`, "X-Client": CLIENT_ID },
     }).catch(() => {});
   } catch {
-    /* fetch threw synchronously — nothing to salvage on the way out */
+    /* fetch threw synchronously, nothing to salvage on the way out */
   }
 }
 
@@ -137,7 +137,7 @@ export function beaconDemoExit(): void {
  *
  * A bare fetch and NOT apiRaw, on purpose: a heartbeat must stay SILENT. If the sandbox
  * was already reclaimed it answers 410, and the visitor's next real action is what should
- * turn that into the friendly "start another" flow — a background ping firing that toast
+ * turn that into the friendly "start another" flow, a background ping firing that toast
  * would be startling. Reads the demo token directly and never throws.
  */
 export function beaconDemoHeartbeat(): void {
@@ -159,7 +159,7 @@ export function beaconDemoHeartbeat(): void {
  *
  * The token guard matters: several requests are usually in flight together, so
  * a dead session produces a burst of 401s. Without it, the first one signs the
- * user out and the rest fire the handler again over an already-empty session —
+ * user out and the rest fire the handler again over an already-empty session.
  * or, worse, stomp a NEWER token if a login landed in between.
  */
 export function expireSession(token: string | null = getToken()) {
@@ -171,8 +171,8 @@ export function expireSession(token: string | null = getToken()) {
 /**
  * Is this token really dead, or did the server just say 401 when it meant 403?
  *
- * The convention is 401 = "sign in again", 403 = "you aren't allowed to do
- * that", and the routes that had those backwards are fixed. But signing someone
+ * The convention is 401 = "sign in again", 403 = ", you aren't allowed to do
+ * that"and the routes that had those backwards are fixed. But signing someone
  * out is destructive and one stray 401 anywhere in the API would do it, so we
  * don't take a single response's word for it: we ask `GET /auth/session`, the
  * endpoint whose only job is to answer this question.
@@ -188,7 +188,7 @@ export function tokenIsDead(token: string | null = getToken()): Promise<boolean>
   if (isTokenExpired(token)) return Promise.resolve(true);
   if (sessionProbe?.token === token) return sessionProbe.result;
 
-  // Deliberately a bare fetch, not `raw()` — routing the probe through the
+  // Deliberately a bare fetch, not `raw()`: routing the probe through the
   // request builder would send it straight back here on a 401.
   const result = fetch(`${API_URL}/auth/session`, {
     headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
@@ -226,7 +226,7 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
 
   // Identify the console to the API's request log. The browser's User-Agent
   // already says "a browser on Windows", but not *which of our clients* nor
-  // which build — so a bug report can't be tied to a deploy. The app sends the
+  // which build, so a bug report can't be tied to a deploy. The app sends the
   // same shape via its User-Agent (it has no shared request builder to add a
   // header to); the server logs both.
   headers.set("X-Client", CLIENT_ID);

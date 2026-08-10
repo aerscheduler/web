@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * Above this the record gets its own column beside the list; below it, the
  * modal drawer we have always shipped. 1180px is the point where the content
  * column (max 1280px) plus a 384px panel stops fitting without crushing the
- * table — narrower than that and the push costs more than it gives.
+ * table, narrower than that and the push costs more than it gives.
  */
 const DOCK_QUERY = "(min-width: 1180px)";
 
@@ -23,7 +23,7 @@ const DOCK_QUERY = "(min-width: 1180px)";
 const PANEL_WIDTH = "24rem";
 
 type Ctx = {
-  /** The docked column's DOM node — the portal target. Null until mounted. */
+  /** The docked column's DOM node, the portal target. Null until mounted. */
   mount: HTMLElement | null;
   setMount: (el: HTMLElement | null) => void;
   /** True while a panel is docked, so the outlet can claim its width. */
@@ -47,8 +47,8 @@ export function DetailPanelProvider({ children }: { children: React.ReactNode })
 /**
  * The column a docked panel renders into. Lives in the app shell, OUTSIDE the
  * content's `max-w-[1280px]` wrapper, so on a wide monitor the panel spends the
- * empty gutter instead of eating the list. It is always in the DOM — the portal
- * needs a target before anything can decide to dock — and simply has no width
+ * empty gutter instead of eating the list. It is always in the DOM, the portal
+ * needs a target before anything can decide to dock, and simply has no width
  * while closed.
  */
 export function DetailPanelOutlet() {
@@ -76,7 +76,7 @@ export function DetailPanelOutlet() {
  * breakpoint it falls back to the modal `Sheet`, which is already the right
  * answer on a laptop and a phone.
  *
- * `onStep` opts a surface into ↑/↓ paging through its list — pass it only when
+ * `onStep` opts a surface into ↑/↓ paging through its list, pass it only when
  * the caller knows the order on screen.
  */
 export function DetailPanel({
@@ -115,7 +115,7 @@ export function DetailPanel({
     return () => setDocked(false);
   }, [setDocked, docked, open]);
 
-  // Docked, the panel is NOT modal — no scrim, no focus trap — so Escape and the
+  // Docked, the panel is NOT modal (no scrim, no focus trap) so Escape and the
   // arrow keys have to be claimed deliberately, and given up whenever a dialog,
   // dropdown or popover is layered above us (those own the keyboard while open).
   const stepRef = React.useRef(onStep);

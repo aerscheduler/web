@@ -37,7 +37,7 @@ const categoryChip = cva("", {
 });
 
 /**
- * Pre-flight weather for a reservation's location — the web port of the Flutter
+ * Pre-flight weather for a reservation's location, the web port of the Flutter
  * WeatherBadge (app/lib/widgets/weather_badge.dart).
  *
  * Supplementary information, so it renders NOTHING at all while loading, when the
@@ -47,7 +47,7 @@ const categoryChip = cva("", {
  * A surface observation describes the weather right now, so the METAR half is only
  * requested for a flight inside the 12-hour window; sunset and civil twilight are
  * properties of the date and are shown however far out the reservation is (the web board
- * runs a month). The station the observation came from is ALWAYS shown — the nearest
+ * runs a month). The station the observation came from is ALWAYS shown, the nearest
  * reporting field can be miles away, and an unattributed "VFR" is not something a pilot
  * should have to trust.
  */
@@ -84,7 +84,7 @@ export function WeatherBadge({
   const sunQ = useSunTimes(coordinates, day, { enabled: applies });
 
   // Outside the 12-hour window the observation is dropped even if a sibling badge already
-  // put one in the cache under this station's key — a METAR issued minutes ago says
+  // put one in the cache under this station's key, a METAR issued minutes ago says
   // nothing about a flight three weeks out, and `enabled: false` still reads the cache.
   const observation = withObservation ? (metarQ.data ?? null) : null;
   const sunTimes = sunQ.data ?? null;
@@ -202,7 +202,7 @@ function DetailBody({ observation, sunTimes, timeZone, now }: BodyProps) {
         <div className="text-muted-foreground">Sunset {timeLabel(sunTimes.sunset, timeZone)}</div>
       )}
       {/* 14 CFR 1.1 night runs from the END of evening civil twilight, not from sunset, so
-          this — not the sunset above — is the number that counts for night currency. */}
+          this (not the sunset above) is the number that counts for night currency. */}
       {sunTimes?.civilTwilightEnd && (
         <div className="text-muted-foreground">
           Night begins {timeLabel(sunTimes.civilTwilightEnd, timeZone)}
@@ -222,7 +222,7 @@ function DetailBody({ observation, sunTimes, timeZone, now }: BodyProps) {
   );
 }
 
-/** Provenance: which field, the raw METAR, how old it is — and the required sun credit. */
+/** Provenance: which field, the raw METAR, how old it is, and the required sun credit. */
 function WeatherTooltip({ observation, sunTimes, timeZone, now }: BodyProps) {
   const station = observation ? stationLabel(observation) : null;
   const age = observation ? observationAgeLabel(observation, now) : null;

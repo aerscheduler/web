@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authed/me/currencies")({
 });
 
 const EMPTY_COPY =
-  "No currencies tracked yet — your school adds these (medicals, flight reviews, checkouts) so you always know you're legal to fly.";
+  "No currencies tracked yet. Your school adds these (medicals, flight reviews, checkouts) so you always know you're legal to fly.";
 
 function MyCurrenciesPage() {
   const { organization } = useAuth();
@@ -30,7 +30,7 @@ function MyCurrenciesPage() {
 
   const { current, expiring, expired, notSignedOff, sorted } = useMemo(() => {
     // Counts come from the shared helper so this page can't drift from the
-    // server's definition of current. "Not signed off" is its own state — it
+    // server's definition of current. "Not signed off" is its own state, it
     // used to be lumped in with expired, which overstated the expired count and
     // hid the fact that the currency simply hasn't been signed off yet.
     const att = currencyAttention(currencies);
@@ -73,7 +73,7 @@ function MyCurrenciesPage() {
     <div data-doc-shot="me-currencies">
       <PageHeader
         title="Currencies"
-        subtitle="Medicals, flight reviews and checkouts — so you always know you're legal to fly."
+        subtitle="Medicals, flight reviews and checkouts, so you always know you're legal to fly."
       />
 
       {currenciesQ.isPending ? (

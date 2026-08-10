@@ -1,5 +1,5 @@
 /**
- * Time zone settings — the school's field, and the member's own.
+ * Time zone settings, the school's field, and the member's own.
  *
  * Two cards because they answer two different questions, and conflating them is exactly the
  * bug this feature exists to fix:
@@ -10,7 +10,7 @@
  *   most it adds "…and that's 8am where you are."
  *
  * Both are quiet by default. If the org has no zone set, the schedule keeps rendering in the
- * viewer's zone exactly as it does today — so this is opt-in, and unsetting it is a real
+ * viewer's zone exactly as it does today, so this is opt-in, and unsetting it is a real
  * choice rather than a broken state.
  */
 
@@ -43,7 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/** Common zones first, then everything else — 400+ names is correct and unusable unsorted. */
+/** Common zones first, then everything else: 400+ names is correct and unusable unsorted. */
 function zoneOptions(): ComboOption[] {
   const common = COMMON_TIME_ZONES.map((z) => ({ value: z.value, label: z.label }));
   const seen = new Set(common.map((c) => c.value));
@@ -55,7 +55,7 @@ function zoneOptions(): ComboOption[] {
   return [...common, ...rest];
 }
 
-/** The school's primary zone. Admin-only — it changes what time a lesson is for everyone. */
+/** The school's primary zone. Admin-only: it changes what time a lesson is for everyone. */
 export function OrganizationTimeZoneCard() {
   const { organization, rehydrate } = useAuth();
   const update = useUpdateOrganizationTimeZone();
@@ -97,13 +97,13 @@ export function OrganizationTimeZoneCard() {
 
         <p className="text-xs text-muted-foreground">
           The schedule shows times at your field, so a 9:00 AM lesson stays 9:00 AM for
-          everyone — including anyone travelling. Times get a zone label only when the person
+          everyone, including anyone travelling. Times get a zone label only when the person
           reading is somewhere else.
         </p>
 
         {!current && (
           <p className="text-xs text-muted-foreground">
-            Not set, so times currently show in each person&apos;s own zone — which is what
+            Not set, so times currently show in each person&apos;s own zone, which is what
             makes the schedule look different when someone travels.
           </p>
         )}
@@ -154,9 +154,9 @@ export function MyTimeZoneCard() {
             </SelectTrigger>
             <SelectContent>
               {/* Follows the operating system, which already updates itself as you travel.
-                  No location permission is involved — the OS knows its own zone. */}
+                  No location permission is involved, the OS knows its own zone. */}
               <SelectItem value="auto">
-                Automatic — {describeZone(DEVICE_TIME_ZONE)}
+                Automatic: {describeZone(DEVICE_TIME_ZONE)}
               </SelectItem>
               <SelectItem value="manual">Choose a time zone</SelectItem>
             </SelectContent>

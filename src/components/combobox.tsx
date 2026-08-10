@@ -18,7 +18,7 @@ export type ComboOption = { value: string; label: string; hint?: string };
  * Searchable MULTI-select (Popover + Command). The checkbox sibling of {@link Combobox}.
  *
  * Built on `Command` rather than a plain checkbox list so search and keyboard navigation come
- * from cmdk instead of being hand-rolled — a Popover is not a Radix menu, so none of the
+ * from cmdk instead of being hand-rolled, a Popover is not a Radix menu, so none of the
  * menu-typeahead repair in `submenu-search.tsx` is needed or wanted here.
  */
 export function MultiCombobox({
@@ -43,7 +43,7 @@ export function MultiCombobox({
   const [open, setOpen] = React.useState(false);
   const selected = new Set(values);
 
-  // One choice is worth naming; two are not — they only truncate, and the count is the part
+  // One choice is worth naming; two are not, they only truncate, and the count is the part
   // you can actually read. Mirrors the report chips.
   const label =
     selected.size === 0
@@ -109,7 +109,7 @@ export function MultiCombobox({
 }
 
 /**
- * Searchable single-select (Popover + Command). Client-side fuzzy filter — the API has
+ * Searchable single-select (Popover + Command). Client-side fuzzy filter, the API has
  * no server search, so this is how large rosters/fleets stay usable.
  */
 export function Combobox({

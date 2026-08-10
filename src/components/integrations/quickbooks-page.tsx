@@ -53,7 +53,7 @@ export function QuickBooksIntegrationPage({
 
   useEffect(() => {
     if (oauthResult === "connected") {
-      toast.success("QuickBooks connected — choose an income item to finish setup");
+      toast.success("QuickBooks connected, choose an income item to finish setup");
     } else if (oauthResult === "error") {
       toast.error("QuickBooks connection did not complete");
     }
@@ -70,7 +70,7 @@ export function QuickBooksIntegrationPage({
       >
         <IntegrationSection title="Owner required">
           <p className="text-sm text-muted-foreground">
-            Only the organization owner can connect accounting integrations — same as Stripe
+            Only the organization owner can connect accounting integrations, same as Stripe
             Connect. Ask an owner if you need this wired up.
           </p>
         </IntegrationSection>
@@ -195,7 +195,7 @@ function QuickBooksOwnerPage() {
     try {
       const result = await backfill.mutateAsync(25);
       toast.success(
-        `Backfill finished — ${result.synced} synced, ${result.failed} failed, ${result.skipped} skipped (${result.attempted} attempted)`
+        `Backfill finished: ${result.synced} synced, ${result.failed} failed, ${result.skipped} skipped (${result.attempted} attempted)`
       );
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Backfill failed");
@@ -208,7 +208,7 @@ function QuickBooksOwnerPage() {
       icon={BookOpenCheck}
       iconClassName="bg-emerald-600"
       title="QuickBooks Online"
-      subtitle="Paid AerScheduler invoices land in your books as Sales Receipts — matched to customers by email, once, with a clear trail here."
+      subtitle="Paid AerScheduler invoices land in your books as Sales Receipts, matched to customers by email, once, with a clear trail here."
       status={
         settings.isLoading ? (
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
@@ -246,7 +246,7 @@ function QuickBooksOwnerPage() {
         description={
           row?.status === "needs_reconnect"
             ? "Your QuickBooks connection expired. Reconnect to resume syncing."
-            : "Link your Intuit company. Owner-only — same bar as Stripe Connect."
+            : "Link your Intuit company. Owner-only: same bar as Stripe Connect."
         }
       >
         {!connected || row?.status === "needs_reconnect" ? (
@@ -282,7 +282,7 @@ function QuickBooksOwnerPage() {
         <>
           <IntegrationSection
             title="Configuration"
-            description="Income items are your QuickBooks Products & Services — we load them live from the connected company. Every Sales Receipt line posts to the one you pick."
+            description="Income items are your QuickBooks Products & Services. We load them live from the connected company. Every Sales Receipt line posts to the one you pick."
           >
             <div className="space-y-2">
               <Label className="text-sm">Income item (from QuickBooks)</Label>
@@ -297,7 +297,7 @@ function QuickBooksOwnerPage() {
                       items.isLoading
                         ? "Loading Products & Services from QuickBooks…"
                         : itemOptions.length === 0
-                          ? "No active items in QuickBooks — create one there first"
+                          ? "No active items in QuickBooks: create one there first"
                           : "Select a Product/Service"
                     }
                   />
@@ -317,7 +317,7 @@ function QuickBooksOwnerPage() {
               <div>
                 <p className="text-sm font-medium">Sync paid invoices</p>
                 <p className="text-xs text-muted-foreground">
-                  Soft-fails if QuickBooks is down — Stripe payments still succeed.
+                  Soft-fails if QuickBooks is down. Stripe payments still succeed.
                 </p>
               </div>
               <Switch
@@ -342,7 +342,7 @@ function QuickBooksOwnerPage() {
 
           <IntegrationSection
             title="Activity"
-            description="Every sync attempt lands here — success, skip, or failure."
+            description="Every sync attempt lands here, success, skip, or failure."
             footer={
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -416,7 +416,7 @@ function ActivityRow({ event }: { event: QuickBooksSyncEvent }) {
       <div className="min-w-0">
         <p className={`font-medium capitalize ${tone}`}>{event.status}</p>
         <p className="truncate text-muted-foreground">
-          {event.message || "—"}
+          {event.message || "–"}
           {event.invoiceId != null && (
             <span className="text-foreground/80"> · Invoice #{event.invoiceId}</span>
           )}

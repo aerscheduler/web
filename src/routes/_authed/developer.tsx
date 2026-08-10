@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 /**
- * Developer tools. Gated to the allowlisted developer accounts — but only for
+ * Developer tools. Gated to the allowlisted developer accounts, but only for
  * tidiness: every endpoint behind this page is independently enforced server-side
  * by `isDeveloper()`, so reaching the route by URL gains nothing.
  */
@@ -93,7 +93,7 @@ function LoginAsTab() {
       // Nothing cached belongs to this new user.
       qc.clear();
       toast.success(`Signed in as ${target}`);
-      // Land exactly where a real login would put them — staff get /dashboard,
+      // Land exactly where a real login would put them, staff get /dashboard,
       // everyone else /me, and a user mid-signup gets /onboarding.
       await navigate({ to: postLoginPath() });
     } catch (err) {
@@ -149,7 +149,7 @@ function LoginAsTab() {
           </div>
 
           {/* Enabled regardless of field state; validation happens on submit with a
-              visible reason. (House rule — never ship a silently-disabled submit.) */}
+              visible reason. (House rule, never ship a silently-disabled submit.) */}
           <Button type="submit" disabled={pending} className="self-start">
             {pending ? "Signing in…" : "Log in as this user"}
           </Button>

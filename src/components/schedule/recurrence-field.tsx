@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
  *
  * Modelled on Google Calendar, and specifically on the thing Google gets right: the
  * booking form shows ONE dropdown of ready-made cadences derived from the date you
- * already picked — "Weekly on Monday", "Monthly on the fourth Monday" — and everything
+ * already picked ("Weekly on Monday", ", Monthly on the fourth Monday") and everything
  * fiddly lives behind "Custom…". That is what keeps this usable in a narrow modal; the
  * previous version put seven day-chips, an interval and an end picker inline, and they
  * overflowed the dialog.
@@ -62,8 +62,8 @@ const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frid
 const ORDINALS = ["", "first", "second", "third", "fourth", "fifth"];
 
 /* ── calendar helpers ─────────────────────────────────────────────────────────
- * Deliberately mirrors server/src/utils/recurrence.ts. The server is the authority — it
- * re-derives all of this and rejects anything that doesn't hold — but the picker has to
+ * Deliberately mirrors server/src/utils/recurrence.ts. The server is the authority, it
+ * re-derives all of this and rejects anything that doesn't hold, but the picker has to
  * know "is the 27th the last Monday?" to offer the right presets without a round trip.
  */
 
@@ -80,7 +80,7 @@ function isLastWeekdayOfMonth(d: Date): boolean {
   return d.getDate() + 7 > daysInMonth(d.getFullYear(), d.getMonth() + 1);
 }
 
-/** Local yyyy-MM-dd. Never `toISOString()` — that shifts the date in western zones. */
+/** Local yyyy-MM-dd. Never `toISOString()`: that shifts the date in western zones. */
 function ymd(d: Date): string {
   return format(d, "yyyy-MM-dd");
 }
@@ -91,7 +91,7 @@ function addMonths(d: Date, months: number): Date {
   return out;
 }
 
-/** "1st" / "2nd" / "31st" — for the month-end warning copy. */
+/** "1st" / "2nd" / "31st", for the month-end warning copy. */
 function ordinalSuffix(n: number): string {
   if (n % 100 >= 11 && n % 100 <= 13) return "th";
   return ["th", "st", "nd", "rd"][n % 10] ?? "th";
@@ -166,7 +166,7 @@ export function presetsFor(start: Date | null): RecurrencePreset[] {
     build: () => base({ frequency: "weekly", daysOfWeek: [weekday], count: DEFAULT_COUNTS.weekly }),
   });
 
-  //Not one of Google's, but the cadence a flight school actually asks for after weekly —
+  //Not one of Google's, but the cadence a flight school actually asks for after weekly.
   //"so-and-so takes the plane every other Tuesday". Google buries it in Custom.
   presets.push({
     id: "fortnightly",
@@ -219,7 +219,7 @@ export function presetsFor(start: Date | null): RecurrencePreset[] {
  * dropdown honest after a trip through Custom: nudge the interval to 3 and it reads
  * "Custom…", set it back to 1 and it snaps to "Weekly on Monday" again.
  *
- * Deliberately ignores the end condition — "Weekly on Monday, 12 times" and "Weekly on
+ * Deliberately ignores the end condition. "Weekly on Monday, 12 times" and "Weekly on
  * Monday until March" are the same cadence, and demoting one to "Custom…" just because
  * the end date moved would be noise.
  */
@@ -264,7 +264,7 @@ export function defaultRecurrence(startAt: Date | null, date: string): Recurrenc
  * Turn the form state into the server's rule.
  *
  * Returns a `problem` rather than throwing so the form can block submit and say why. The
- * server validates all of this again — this is only the fast path that avoids a round
+ * server validates all of this again, this is only the fast path that avoids a round
  * trip to be told something the form already knows.
  */
 export function toRecurrenceInput(
@@ -343,7 +343,7 @@ export function summarise(state: RecurrenceState, start: Date | null): string {
       ? state.until
         ? ` until ${state.until}`
         : ""
-      : ` — ${state.count} booking${state.count === 1 ? "" : "s"}`;
+      : `: ${state.count} booking${state.count === 1 ? "" : "s"}`;
 
   return `Repeats ${cadence}${ends}.`;
 }
@@ -358,7 +358,7 @@ export function RecurrenceField({
 }: {
   value: RecurrenceState;
   onChange: (next: RecurrenceState) => void;
-  /** The reservation's start — every preset is derived from it. */
+  /** The reservation's start, every preset is derived from it. */
   start: Date | null;
   disabled?: boolean;
 }) {
@@ -401,7 +401,7 @@ export function RecurrenceField({
       {value.enabled && (
         <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-muted/30 px-3 py-2">
           <p className="min-w-0 flex-1 text-xs text-muted-foreground">{summarise(value, start)}</p>
-          {/* Also the way back into Custom when the dropdown already reads "Custom…" —
+          {/* Also the way back into Custom when the dropdown already reads "Custom…".
               re-picking the selected item fires no change event. */}
           <Button
             type="button"
@@ -435,7 +435,7 @@ export function RecurrenceField({
  * sense of "monthly", and where it stops.
  *
  * A dialog rather than an inline panel because the booking form is a modal in a narrow
- * column — seven day-chips alone need more width than that column has, which is exactly
+ * column, seven day-chips alone need more width than that column has, which is exactly
  * how they came to overflow it.
  */
 function CustomRecurrenceDialog({
@@ -453,7 +453,7 @@ function CustomRecurrenceDialog({
 }) {
   const [draft, setDraft] = React.useState<RecurrenceState>(value);
 
-  //Re-seeded each time it opens, so closing abandons the edit — which is what Cancel in
+  //Re-seeded each time it opens, so closing abandons the edit, which is what Cancel in
   //a dialog is expected to mean.
   React.useEffect(() => {
     if (open) {
@@ -486,7 +486,7 @@ function CustomRecurrenceDialog({
         <DialogHeader>
           <DialogTitle>Custom repeat</DialogTitle>
           <DialogDescription>
-            Every date has to be free — if one clashes, nothing is booked and you&apos;ll be told
+            Every date has to be free, if one clashes, nothing is booked and you&apos;ll be told
             which.
           </DialogDescription>
         </DialogHeader>
@@ -535,7 +535,7 @@ function CustomRecurrenceDialog({
           {draft.frequency === "weekly" && (
             <div className="space-y-2">
               <Label>Repeat on</Label>
-              {/* flex-wrap, not a fixed row — seven chips have to be able to fall onto a
+              {/* flex-wrap, not a fixed row, seven chips have to be able to fall onto a
                   second line rather than run out of the dialog. */}
               <div className="flex flex-wrap gap-1.5">
                 {DAY_INITIALS.map((initial, day) => {
@@ -626,7 +626,7 @@ function CustomRecurrenceDialog({
             {/* Said plainly: Google offers "Never" and we cannot, because each occurrence
                 is a real booking holding a real aircraft. */}
             <p className="text-xs text-muted-foreground">
-              A repeat always has an end — each booking holds the aircraft, so there is no
+              A repeat always has an end, each booking holds the aircraft, so there is no
               &ldquo;forever&rdquo;. Up to 200 at a time.
             </p>
           </div>

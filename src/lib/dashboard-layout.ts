@@ -1,14 +1,14 @@
 /**
  * Where a tile goes, and how big it is allowed to be.
  *
- * Placement is shared because a tile can now arrive from two directions — the
+ * Placement is shared because a tile can now arrive from two directions, the
  * builder on the dashboard, and "Pin to dashboard" from a saved view on a report
  * the board isn't even on screen for. Both have to answer the same question
  * ("where does this land?") and they must answer it identically, or pinning
  * drops a tile on top of an existing one.
  *
  * The bounds here mirror `server/src/reports/dashboard/schema.ts`. They are not
- * the enforcement — the server validates every write — they are what keeps us
+ * the enforcement (the server validates every write) they are what keeps us
  * from sending something we already know it will reject.
  */
 
@@ -45,7 +45,7 @@ export function fitToGrid(viz: VizType, layout: GridPosition): GridPosition {
 /**
  * Put a new tile below everything already placed.
  *
- * The builder can't work this out — only the board knows what is already on it.
+ * The builder can't work this out, only the board knows what is already on it.
  * Bottom rather than "first gap" on purpose: a new tile should appear somewhere
  * predictable that you then drag, not tucked into a hole you have to hunt for.
  */

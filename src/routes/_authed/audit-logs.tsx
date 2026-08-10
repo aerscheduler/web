@@ -25,7 +25,7 @@ import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 //`startDate`/`endDate` are facet keys rather than local state so the window travels in the
-//URL with the other two filters — an audit finding is something you paste to someone else.
+//URL with the other two filters, an audit finding is something you paste to someone else.
 const FACET_KEYS = ["entityType", "actorOrgUserId", "startDate", "endDate", "event"] as const;
 
 export const Route = createFileRoute("/_authed/audit-logs")({
@@ -36,7 +36,7 @@ export const Route = createFileRoute("/_authed/audit-logs")({
   component: AuditLogsPage,
 });
 
-/** The entity types the server will accept — anything else is a 400, not an empty list. */
+/** The entity types the server will accept, anything else is a 400, not an empty list. */
 const ENTITY_TYPES: { value: string; label: string }[] = [
   { value: "reservation", label: "Reservations" },
   { value: "invoice", label: "Invoices" },
@@ -58,7 +58,7 @@ const ENTITY_LABEL = new Map(ENTITY_TYPES.map((e) => [e.value, e.label]));
  * How an action reads as a title. The stored `action` is a stable dotted string that must
  * never be renamed; this is the display layer that lets it stay that way.
  *
- * An unmapped action falls back to its own verb rather than to "Unknown" — a new event type
+ * An unmapped action falls back to its own verb rather than to "Unknown", a new event type
  * shipped by the server should show up here as something readable on day one, not disappear.
  */
 function actionLabel(action: string): string {
@@ -162,7 +162,7 @@ function actionLabel(action: string): string {
  * The stored summary, or null when it adds nothing.
  *
  * A summary has to stand on its own for an API consumer, so an event with no names to
- * work with stores the plain sentence — "Checkout removed". Printed under a title that
+ * work with stores the plain sentence. "Checkout removed". Printed under a title that
  * already says "Checkout removed", that's a line of noise, and the About column is
  * already showing the member and the aircraft.
  */
@@ -177,7 +177,7 @@ function detailLine(e: AuditEvent): string | null {
  *
  * Deliberately conservative: red is for something being taken away or undone, not for
  * anything merely consequential. `meterCorrected` and `lessonGradeChanged` are two of the
- * most serious entries in the feed and are NOT red — they are ordinary corrections far more
+ * most serious entries in the feed and are NOT red, they are ordinary corrections far more
  * often than they are anything else, and colouring every correction as an alarm is how a
  * page teaches people to ignore its colours.
  */
@@ -213,7 +213,7 @@ function personName(p: AuditEvent["actor"]): string | null {
 }
 
 /**
- * Who or what the event was about — "Sam Reyes · N172TS".
+ * Who or what the event was about. "Sam Reyes · N172TS".
  *
  * Read off the `subject` and `resource` relations rather than out of the summary text, so
  * it stays correct after a rename and is there even for the events whose summary is a bare
@@ -226,7 +226,7 @@ function subjectLine(e: AuditEvent): string | null {
   return parts.length ? parts.join(" · ") : null;
 }
 
-/** "from the console" — only worth saying when we actually know. */
+/** "from the console", only worth saying when we actually know. */
 function sourceLabel(source: string | null): string | null {
   switch (source) {
     case "web":
@@ -255,7 +255,7 @@ function AuditLogsPage() {
 
   const entityType = asFacetStrings(facets.entityType)[0];
   const actorOrgUserId = asFacetInts(facets.actorOrgUserId)?.[0];
-  //Which row is open, in the URL beside the filters so an audit finding is one paste — the
+  //Which row is open, in the URL beside the filters so an audit finding is one paste, the
   //whole reason this page keeps its state there. It is deliberately NOT part of `filter`
   //below: opening a row must not re-query the page it was opened from.
   const openEventId = asFacetInts(facets.event)?.[0] ?? null;
@@ -267,7 +267,7 @@ function AuditLogsPage() {
   //its day, or a range ending "today" would exclude everything that happened today.
   //
   //Reduced to strings here rather than inside the memo so the dependency list holds plain
-  //values — two Dates parsed from the same URL are never `===`, and would re-fetch forever.
+  //values, two Dates parsed from the same URL are never `===`, and would re-fetch forever.
   const startDate = startOfDayIso(
     asDate(facets.startDate) ?? new Date(Date.now() - DEFAULT_WINDOW_DAYS * 24 * 60 * 60 * 1000)
   );
@@ -279,14 +279,14 @@ function AuditLogsPage() {
     [entityType, actorOrgUserId, startDate, endDate]
   );
 
-  //Any filter change sends the table back to page one — otherwise you narrow to one person
+  //Any filter change sends the table back to page one, otherwise you narrow to one person
   //while on page 7 and stare at an empty table that says there are 400 results.
   const paging = usePaging({ resetKey: JSON.stringify(filter) });
   const q = useAuditPage(filter, paging);
   const { rows, total } = pageRows<AuditEvent>(q);
 
   //Resolved against the rows on screen rather than fetched on its own. Unlike an invoice,
-  //an audit event has no endpoint that returns one by id — and it needs none: the panel is
+  //an audit event has no endpoint that returns one by id, and it needs none: the panel is
   //opened by clicking a row, so the row is always in hand. A stale `?event=` from a pasted
   //link whose filters no longer match simply opens nothing, which is the honest outcome.
   const openEvent = React.useMemo(
@@ -312,7 +312,7 @@ function AuditLogsPage() {
         id: "when",
         //Every column but Action is pinned. Left to the browser, each one sizes to the
         //widest cell on the CURRENT page, so applying a filter re-laid out the whole table
-        //— the same five columns in visibly different places, which reads as a different
+        // the same five columns in visibly different places, which reads as a different
         //screen rather than as the same one showing fewer rows.
         meta: { width: "12rem" },
         header: "When",
@@ -373,7 +373,7 @@ function AuditLogsPage() {
         meta: { width: "14rem" },
         header: "About",
         cell: ({ row }) => (
-          <span className="text-muted-foreground">{subjectLine(row.original) ?? "—"}</span>
+          <span className="text-muted-foreground">{subjectLine(row.original) ?? "–"}</span>
         ),
       },
       {
@@ -404,7 +404,7 @@ function AuditLogsPage() {
         key: "actorOrgUserId",
         label: "Person",
         allLabel: "Anyone",
-        //Everyone in the org, not just those who happen to appear on this page — the
+        //Everyone in the org, not just those who happen to appear on this page, the
         //question is "what did this person do", which you ask before you can see them.
         options: (peopleQ.data ?? [])
           .map((ou) => ({
@@ -462,7 +462,7 @@ function AuditLogsPage() {
             <EmptyState
               icon={ScrollText}
               title="Nothing in this window"
-              body="Auditing records what people do from the moment it was switched on — widen the dates, or clear the filters."
+              body="Auditing records what people do from the moment it was switched on, widen the dates, or clear the filters."
             />
           }
           mobileCard={(e) => {

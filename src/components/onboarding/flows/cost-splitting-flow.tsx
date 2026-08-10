@@ -1,5 +1,5 @@
 /**
- * Decide how a shared booking's cost divides — in one question.
+ * Decide how a shared booking's cost divides, in one question.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────
  * WHY THIS EXISTS, AND WHAT IT REPLACED
@@ -8,12 +8,12 @@
  * The settings screen used to be the whole answer: six booking types × two charge lines,
  * twelve live billing controls open at once, each with five options, a paragraph and a
  * worked example. Every one of those twelve looked identical because they were all on the
- * default, so the repetition carried no information — and the first reaction to it was
+ * default, so the repetition carried no information, and the first reaction to it was
  * "I'm scared to change anything," which for a page that decides who gets invoiced is the
  * worst possible outcome.
  *
  * The mistake was the shape, not the words. An operator does not arrive wanting to
- * configure a policy matrix; they arrive knowing ONE thing — what kind of operation they
+ * configure a policy matrix; they arrive knowing ONE thing, what kind of operation they
  * run. That single fact already implies every rule, which is exactly what the presets are.
  * So this flow asks the one question an operator can answer without being taught anything,
  * and the matrix goes back to being what it should always have been: an escape hatch for
@@ -24,7 +24,7 @@
  *  1. **It shows what it will do before it does it.** Billing must never be rewritten by a
  *     button whose effect could not be read first. The rules appear as sentences, not as a
  *     grid, because a grid is what made the settings page unreadable.
- *  2. **It never marks anything complete** — same rule as every flow here. It finishes by
+ *  2. **It never marks anything complete**, same rule as every flow here. It finishes by
  *     actually writing the rules, so the checklist ticks because the work is done, and
  *     doing it by hand in Settings ticks it just the same.
  *

@@ -83,7 +83,7 @@ import {
 } from "@/components/ui/select";
 
 /**
- * One student's enrollment — progress, lessons, ledger, fee and endorsements.
+ * One student's enrollment, progress, lessons, ledger, fee and endorsements.
  *
  * A rail rather than tabs, like every other sectioned page in the console. The
  * summary (how far along, fee, solo sign-offs) sits on Overview so you can see
@@ -186,9 +186,9 @@ function EnrollmentPage() {
                 />
                 {/* Two different numbers on purpose. "12 of 30 lessons" and "18.4 of 40.0 hours"
                     are different axes, and a student can be a long way along one and short on the
-                    other — which is exactly the question a chief instructor is asking. */}
+                    other, which is exactly the question a chief instructor is asking. */}
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Lessons and hours move independently — one flight can credit several
+                  Lessons and hours move independently, one flight can credit several
                   requirements at once.
                 </p>
               </Card>
@@ -314,7 +314,7 @@ function LessonsTab({ progress }: { progress: EnrollmentProgress }) {
 
   //"Enrolled" says the RECORD is open. It does not say the viewer may write to it, and
   //conflating the two put a Grade button on a student's own lessons the moment this page
-  //stopped being admin-only — the classic client-offers-what-the-server-refuses failure.
+  //stopped being admin-only, the classic client-offers-what-the-server-refuses failure.
   //
   //`canGrade` comes from the server on /training/grants/mine rather than being re-derived
   //here, for the same reason the admin bypass is sent rather than reimplemented: two
@@ -458,10 +458,10 @@ function GradeDialog({
 
   const [grade, setGrade] = useState(existing?.grade ?? scale[0] ?? "S");
   const [flight, setFlight] = useState(
-    deciHours(existing?.flightDeciHours ?? lesson.minFlightDeciHours ?? null).replace("—", "")
+    deciHours(existing?.flightDeciHours ?? lesson.minFlightDeciHours ?? null).replace("–", "")
   );
   const [ground, setGround] = useState(
-    deciHours(existing?.instructionDeciHours ?? lesson.minGroundDeciHours ?? null).replace("—", "")
+    deciHours(existing?.instructionDeciHours ?? lesson.minGroundDeciHours ?? null).replace("–", "")
   );
   const [notes, setNotes] = useState(existing?.notes ?? "");
   const [warning, setWarning] = useState<string | null>(null);
@@ -613,7 +613,7 @@ function GradeDialog({
             )}
           </div>
 
-          {/* What this lesson will post if signed — shown BEFORE signing, because the
+          {/* What this lesson will post if signed, shown BEFORE signing, because the
               signature is what freezes it. */}
           {lesson.creditsWhat.length ? (
             <p className="text-xs text-muted-foreground">
@@ -680,7 +680,7 @@ function AmendDialog({ recordId }: { recordId: number }) {
           </DialogTitle>
           <DialogDescription>
             A signed record is never edited. This adds a correction beside it and takes back the hours the
-            original credited — both stay on the record. The correction has to be signed before it counts.
+            original credited, both stay on the record. The correction has to be signed before it counts.
           </DialogDescription>
         </DialogHeader>
 
@@ -740,7 +740,7 @@ function LedgerTab({ progress }: { progress: EnrollmentProgress }) {
       <EmptyState
         icon={History}
         title="Nothing credited yet"
-        body="Hours appear here the moment a lesson is signed — one flight can post to several requirements at once."
+        body="Hours appear here the moment a lesson is signed, one flight can post to several requirements at once."
       />
     );
   }
@@ -877,7 +877,7 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
         <DialogHeader>
           <DialogTitle>Graduate this student</DialogTitle>
           <DialogDescription>
-            {/* "Issues" promised a document. Nothing is generated — the number below is
+            {/* "Issues" promised a document. Nothing is generated, the number below is
                 typed in and stored against the record, which is what a school needs for the
                 audit trail and is not the same as producing the certificate. */}
             {is141
@@ -923,7 +923,7 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
 /**
  * Graduate, certify, terminate, transfer.
  *
- * All four together, because they are the same decision seen from different angles — this
+ * All four together, because they are the same decision seen from different angles, this
  * enrollment is ending, and how it ends is what §141.101 asks the school to record. Splitting
  * them across the page would make "they moved to another school" a hunt.
  */
@@ -938,8 +938,8 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
   if (e.status !== "enrolled") return null;
 
   //Every action below is `hasTrainingGrant("manageEnrollment")` on the server. This page
-  //is open to any member — a student reads their own record here, and their instructor
-  //reads it too — so offering these unconditionally put a "Graduate" button in front of
+  //is open to any member, a student reads their own record here, and their instructor
+  //reads it too, so offering these unconditionally put a "Graduate" button in front of
   //the student it would graduate. Fails closed while the grants load.
   if (!holdsTrainingGrant(mine.data, "manageEnrollment")) return null;
 
@@ -947,7 +947,7 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
 
   return (
     <div className="flex flex-wrap gap-2">
-      {/* §141.85 — the chief instructor certifying the record. Only shown for Part 141,
+      {/* §141.85, the chief instructor certifying the record. Only shown for Part 141,
           because under Part 61 nobody is asking for it and a button that means nothing is
           a button somebody will press anyway. */}
       {is141 && !e.certifiedAt ? (
@@ -966,7 +966,7 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
           <DialogHeader>
             <DialogTitle>End this enrollment</DialogTitle>
             <DialogDescription>
-              Their record stays exactly as it is — §141.101 keeps it either way. This only records
+              Their record stays exactly as it is: §141.101 keeps it either way. This only records
               that they stopped, and why.
             </DialogDescription>
           </DialogHeader>

@@ -1,5 +1,5 @@
 /**
- * Needs attention — a to-do list, not a statistic.
+ * Needs attention, a to-do list, not a statistic.
  *
  * The part of the Overview neither competitor has. Every entry is a real filter
  * over a real report, so the count is always clickable through to the exact rows

@@ -305,6 +305,12 @@ export const DOCS_TOPICS = {
       "Offers currently held after a cancel, desk send, or AerScheduler AI. They also appear as dashed holds on the day and week boards. Instructor confirms appear first on duals. Withdraw releases the soft hold and stops the chain so the desk can book by hand.",
     href: "scheduling/standby-and-slot-offers",
   },
+  "flying-day-hours": {
+    title: "Flying day",
+    summary:
+      "The local hours when aircraft can be booked on a normal day. Same-day bookings must start and finish inside this window. Multi-day trips skip it. An aircraft can override the school default on its edit screen.",
+    href: "scheduling/booking-rules-and-settings#flying-day",
+  },
   "multi-day-bookings": {
     title: "Multi-day bookings",
     summary:

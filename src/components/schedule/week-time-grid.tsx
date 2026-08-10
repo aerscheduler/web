@@ -11,7 +11,7 @@ import {
   type SlotOfferHold,
 } from "@/lib/slot-offer-holds";
 import { formatTimeInZone, formatTimeRangeInZone } from "@/lib/timezone";
-import { hourLabel, hourWindow } from "./hours";
+import { hourLabel, hourWindow, type FlyingDayFrame } from "./hours";
 import { BLOCK_CLASS, personnelNames, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import { dimClass, selectedClass, type BoardMarks } from "./board-filters";
@@ -96,11 +96,14 @@ export function WeekTimeGrid({
   selectedId,
   query,
   drag,
+  flyingDayFrame,
 }: {
   weekStart: Date;
   reservations: Reservation[];
   /** Pending soft-holds painted into the day columns (resource lanes live on Day view). */
   slotOfferHolds?: SlotOfferHold[];
+  /** School flying-day frame from booking policy. */
+  flyingDayFrame?: FlyingDayFrame;
   onView: (r: Reservation) => void;
   /** Omitted for roles that may not create — the columns then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
@@ -143,7 +146,7 @@ export function WeekTimeGrid({
   const drawn = reservations;
 
   // Computed over the WHOLE week, not per column, so all seven days share one time axis.
-  const { startHour, endHour } = hourWindow(drawn, tz.zone, undefined, slotOfferHolds);
+  const { startHour, endHour } = hourWindow(drawn, tz.zone, undefined, slotOfferHolds, flyingDayFrame);
   const hours = endHour - startHour;
   const totalMin = hours * 60;
   const gridHeight = hours * HOUR_HEIGHT;

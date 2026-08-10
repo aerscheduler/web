@@ -221,12 +221,15 @@ export interface OrganizationBookingPolicy {
    * Whether a booking may keep the resource past local midnight.
    *
    * Off by default and deliberately opt-in, because a multi-day booking overrides the
-   * aircraft's operating hours (every other booking has to fit inside one contiguous free
-   * window, which is how a school says "this aircraft flies 08:00 to 18:00") and it makes
-   * the booking's time zone decide the night count, which the overnight minimum turns into
-   * money. Gated on the school having a resolvable time zone: see MultiDayReadiness.
+   * aircraft's flying-day hours and it makes the booking's time zone decide the night
+   * count, which the overnight minimum turns into money. Gated on the school having a
+   * resolvable time zone: see MultiDayReadiness.
    */
   multiDayEnabled: boolean;
+  /** Local minutes past midnight when same-day booking opens (default 360 = 6am). Equal to end = 24h. */
+  flyingDayStartMinute?: number;
+  /** Local minutes past midnight when same-day booking closes (default 1320 = 10pm). */
+  flyingDayEndMinute?: number;
 }
 
 /** Org-wide slot offer / standby settings (1:1). Master switch plus hold / spam governors. */
@@ -594,6 +597,9 @@ export interface Plane {
   categoryClass: string;
   fuelCapacity?: number | null;
   fuelMeasurement?: "gallons" | "liters" | null;
+  /** Override school flying day. Both null = inherit. Equal ends = 24h for this plane. */
+  flyingDayStartMinute?: number | null;
+  flyingDayEndMinute?: number | null;
   cost?: PlaneCost;
 }
 

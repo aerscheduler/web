@@ -74,8 +74,15 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     bookingPolicy?.requirePaymentMethod ?? false
   );
   const [multiDay, setMultiDay] = useState(bookingPolicy?.multiDayEnabled ?? false);
+  const [flyingDayKey, setFlyingDayKey] = useState(() => flyingDayKeyFromPolicy(bookingPolicy));
   const [pending, setPending] = useState<
-    PrefField | "requirePaymentMethod" | "multiDayEnabled" | "slotOffersEnabled" | "slotOfferPolicy" | null
+    | PrefField
+    | "requirePaymentMethod"
+    | "multiDayEnabled"
+    | "flyingDay"
+    | "slotOffersEnabled"
+    | "slotOfferPolicy"
+    | null
   >(null);
 
   const [quietKey, setQuietKey] = useState(() => quietHoursKey(slotOfferSettings));
@@ -113,6 +120,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     setSlotOffers(slotOfferSettings?.enabled !== false);
     setRequirePaymentMethod(bookingPolicy?.requirePaymentMethod ?? false);
     setMultiDay(bookingPolicy?.multiDayEnabled ?? false);
+    setFlyingDayKey(flyingDayKeyFromPolicy(bookingPolicy));
     setQuietKey(quietHoursKey(slotOfferSettings));
     setMaxPending(String(slotOfferSettings?.maxPendingOffers ?? 10));
     setCooldownHours(String(slotOfferSettings?.declineCooldownHours ?? 48));
@@ -138,6 +146,8 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     slotOfferSettings?.scannerMaxPerDay,
     bookingPolicy?.requirePaymentMethod,
     bookingPolicy?.multiDayEnabled,
+    bookingPolicy?.flyingDayStartMinute,
+    bookingPolicy?.flyingDayEndMinute,
   ]);
 
   function savePref(field: PrefField, value: boolean, apply: (v: boolean) => void) {
@@ -185,7 +195,37 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     );
   }
 
-  function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
+  
+  function saveFlyingDay(key: string) {
+    const previous = flyingDayKey;
+    const opt = FLYING_DAY_OPTIONS.find((o) => o.key === key);
+    if (!opt) return;
+    setFlyingDayKey(key);
+    setPending("flyingDay");
+    update.mutate(
+      {
+        bookingPolicy: {
+          flyingDayStartMinute: opt.start,
+          flyingDayEndMinute: opt.end,
+        },
+      },
+      {
+        onSuccess: async () => {
+          await rehydrate();
+          toast.success("Flying day updated");
+        },
+        onError: (err) => {
+          setFlyingDayKey(previous);
+          toast.error(
+            err instanceof ApiError ? err.message : "Couldn't save flying day hours"
+          );
+        },
+        onSettled: () => setPending(null),
+      }
+    );
+  }
+
+function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
     setPending("slotOfferPolicy");
     update.mutate(
       { slotOfferSettings: patch },
@@ -511,6 +551,37 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
           saving={pending === "requirePaymentMethod"}
           onCheckedChange={saveRequirePaymentMethod}
         />
+        <div className="space-y-2 py-2">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium">Flying day</p>
+            <DocsHint topic="flying-day-hours" />
+            {pending === "flyingDay" && (
+              <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            When aircraft can be booked on a normal day (airport local time). Same-day
+            bookings must start and finish inside this window. Multi-day trips skip it.
+            Individual aircraft can override this on their edit screen.
+          </p>
+          <Select
+            value={flyingDayKey}
+            disabled={pending !== null}
+            onValueChange={saveFlyingDay}
+          >
+            <SelectTrigger className="max-w-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {FLYING_DAY_OPTIONS.map((o) => (
+                <SelectItem key={o.key} value={o.key}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <PreferenceToggle
           label="Allow multi-day bookings"
           docs="multi-day-bookings"
@@ -591,6 +662,23 @@ function quietHoursKey(
   const end = settings?.quietHoursEndMinute ?? 7 * 60;
   const match = QUIET_OPTIONS.find((o) => o.start === start && o.end === end);
   return match?.key ?? "21-7";
+}
+
+const FLYING_DAY_OPTIONS = [
+  { key: "6-22", label: "6:00 AM to 10:00 PM", start: 6 * 60, end: 22 * 60 },
+  { key: "7-19", label: "7:00 AM to 7:00 PM", start: 7 * 60, end: 19 * 60 },
+  { key: "8-18", label: "8:00 AM to 6:00 PM", start: 8 * 60, end: 18 * 60 },
+  { key: "5-23", label: "5:00 AM to 11:00 PM", start: 5 * 60, end: 23 * 60 },
+  { key: "24h", label: "24 hours", start: 0, end: 0 },
+] as const;
+
+function flyingDayKeyFromPolicy(
+  policy: Organization["bookingPolicy"] | undefined
+): string {
+  const start = policy?.flyingDayStartMinute ?? 6 * 60;
+  const end = policy?.flyingDayEndMinute ?? 22 * 60;
+  const match = FLYING_DAY_OPTIONS.find((o) => o.start === start && o.end === end);
+  return match?.key ?? "6-22";
 }
 
 type PrefField =

@@ -37,6 +37,8 @@ type FormState = {
   rateBasis: "wet" | "dry";
   billByHobbs: boolean;
   locationId: string;
+  /** "inherit" | preset key | custom handled via presets only for v1 */
+  flyingDayKey: string;
 };
 
 /** Required fields, in focus order, mapped to their input ids for error focus. */
@@ -66,6 +68,7 @@ function emptyState(): FormState {
     rateBasis: "wet",
     billByHobbs: true,
     locationId: "",
+    flyingDayKey: "inherit",
   };
 }
 
@@ -90,6 +93,7 @@ function stateFromResource(r: Resource): FormState {
     // Nested location relation, not FK_locationId (stripped by the server → always
     // undefined, which left the edit form's home base blank). /resources includes location.
     locationId: r.location?.id ? String(r.location.id) : "",
+    flyingDayKey: planeFlyingDayKey(p?.flyingDayStartMinute, p?.flyingDayEndMinute),
   };
 }
 
@@ -203,6 +207,7 @@ export function AircraftFormModal({
               tachTime,
               fuelCapacity: Number(form.fuelCapacity) || 0,
               fuelMeasurement: form.fuelMeasurement,
+              ...flyingDayPayload(form.flyingDayKey),
               cost: {
                 billByHobbsTime: form.billByHobbs,
                 wetRate: form.rateBasis === "wet" ? form.rateCents : null,
@@ -236,6 +241,7 @@ export function AircraftFormModal({
           tachTime,
           fuelCapacity: Number(form.fuelCapacity) || 0,
           fuelMeasurement: form.fuelMeasurement,
+          ...flyingDayPayload(form.flyingDayKey),
           cost,
         },
       },
@@ -462,6 +468,33 @@ export function AircraftFormModal({
         </div>
 
         <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="ac-flying-day">Flying day</Label>
+            <DocsHint topic="flying-day-hours" />
+          </div>
+          <Select
+            value={form.flyingDayKey}
+            onValueChange={(v) => set("flyingDayKey", v)}
+          >
+            <SelectTrigger id="ac-flying-day" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inherit">Use school hours</SelectItem>
+              {PLANE_FLYING_DAY_OPTIONS.map((o) => (
+                <SelectItem key={o.key} value={o.key}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Override when this aircraft can be booked. Leave as school hours unless this
+            tail really runs a different day.
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
           <Label>Home base</Label>
           <Combobox
             options={locationOptions}
@@ -515,4 +548,33 @@ export function AircraftFormModal({
       </form>
     </ResponsiveModal>
   );
+}
+
+const PLANE_FLYING_DAY_OPTIONS = [
+  { key: "6-22", label: "6:00 AM to 10:00 PM", start: 6 * 60, end: 22 * 60 },
+  { key: "7-19", label: "7:00 AM to 7:00 PM", start: 7 * 60, end: 19 * 60 },
+  { key: "8-18", label: "8:00 AM to 6:00 PM", start: 8 * 60, end: 18 * 60 },
+  { key: "5-23", label: "5:00 AM to 11:00 PM", start: 5 * 60, end: 23 * 60 },
+  { key: "24h", label: "24 hours", start: 0, end: 0 },
+] as const;
+
+function planeFlyingDayKey(
+  start: number | null | undefined,
+  end: number | null | undefined
+): string {
+  if (start == null || end == null) return "inherit";
+  const match = PLANE_FLYING_DAY_OPTIONS.find((o) => o.start === start && o.end === end);
+  return match?.key ?? "inherit";
+}
+
+function flyingDayPayload(key: string): {
+  flyingDayStartMinute: number | null;
+  flyingDayEndMinute: number | null;
+} {
+  if (key === "inherit") {
+    return { flyingDayStartMinute: null, flyingDayEndMinute: null };
+  }
+  const opt = PLANE_FLYING_DAY_OPTIONS.find((o) => o.key === key);
+  if (!opt) return { flyingDayStartMinute: null, flyingDayEndMinute: null };
+  return { flyingDayStartMinute: opt.start, flyingDayEndMinute: opt.end };
 }

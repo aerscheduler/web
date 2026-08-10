@@ -35,6 +35,7 @@ import {
   type ScheduleView,
 } from "@/components/schedule/schedule-controls";
 import { LaneGrid } from "@/components/schedule/lane-grid";
+import { flyingDayFrameFromPolicy } from "@/components/schedule/hours";
 import { WeekTimeGrid } from "@/components/schedule/week-time-grid";
 import { MonthGrid } from "@/components/schedule/month-grid";
 import { MonthAgenda } from "@/components/schedule/month-agenda";
@@ -98,6 +99,7 @@ const REFRESH_MS = 20_000;
 
 function SchedulePage() {
   const { roles, orgUserId, userId, organization } = useAuth();
+  const flyingDayFrame = flyingDayFrameFromPolicy(organization?.bookingPolicy);
   //Who may open a booking from the board, and as what.
   //
   //Staff dispatch: they assign other people, from a full picker.
@@ -525,6 +527,7 @@ function SchedulePage() {
                 weekStart={startOfWeek(day)}
                 reservations={reservations}
                 slotOfferHolds={slotOfferHolds}
+                flyingDayFrame={flyingDayFrame}
                 onView={openReservationDetail}
                 onCreate={onCreate}
                 onSelectDay={selectDay}
@@ -549,6 +552,7 @@ function SchedulePage() {
               resources={filteredResources}
               reservations={reservations}
               slotOfferHolds={slotOfferHolds}
+              flyingDayFrame={flyingDayFrame}
               onView={openReservationDetail}
               onEdit={startEdit}
               onDuplicate={setDuplicating}

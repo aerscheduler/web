@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { highlightMatch } from "@/lib/highlight-match";
-import { hourLabel, hourWindow } from "./hours";
+import { hourLabel, hourWindow, type FlyingDayFrame } from "./hours";
 import { BLOCK_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
@@ -103,12 +103,15 @@ export function LaneGrid({
   selectedId,
   query,
   drag,
+  flyingDayFrame,
 }: {
   day: Date;
   resources: Resource[];
   reservations: Reservation[];
   /** Pending slot-offer soft holds for this org (resource lanes). */
   slotOfferHolds?: SlotOfferHold[];
+  /** School flying-day frame from booking policy. */
+  flyingDayFrame?: FlyingDayFrame;
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
   onDuplicate?: (r: Reservation) => void;
@@ -205,7 +208,7 @@ export function LaneGrid({
   // late booking gets its own hour instead of collapsing onto the edge of the ruler.
   //The displayed day, as the key both the ruler and the block geometry measure against.
   const dayKey = format(day, "yyyy-MM-dd");
-  const { startHour, endHour } = hourWindow(drawn, tz.zone, dayKey, slotOfferHolds);
+  const { startHour, endHour } = hourWindow(drawn, tz.zone, dayKey, slotOfferHolds, flyingDayFrame);
   const hours = endHour - startHour;
   const totalMin = hours * 60;
   const laneWidth = hours * HOUR_WIDTH;

@@ -121,17 +121,40 @@ const DEFAULT_COUNTS = {
   yearly: 3,
 } as const;
 
-const base = (over: Partial<RecurrenceState>): RecurrenceState => ({
-  enabled: true,
-  frequency: "weekly",
-  interval: 1,
-  daysOfWeek: [],
-  monthlyMode: "dayOfMonth",
-  endMode: "after",
-  until: "",
-  count: DEFAULT_COUNTS.weekly,
-  ...over,
-});
+/** Absolute ceiling the server will expand in one request. */
+export const MAX_SERIES_OCCURRENCES = 200;
+
+/**
+ * Cap a desired occurrence count under the school "max upcoming bookings" rule when set,
+ * otherwise under the hard series ceiling.
+ */
+export function cappedOccurrenceCount(
+  desired: number,
+  maxUpcomingBookings?: number | null
+): number {
+  const schoolCap =
+    maxUpcomingBookings != null && maxUpcomingBookings > 0 ? maxUpcomingBookings : null;
+  const hard = schoolCap == null ? MAX_SERIES_OCCURRENCES : Math.min(MAX_SERIES_OCCURRENCES, schoolCap);
+  return Math.max(1, Math.min(desired, hard));
+}
+
+const base = (
+  over: Partial<RecurrenceState>,
+  maxUpcomingBookings?: number | null
+): RecurrenceState => {
+  const count = cappedOccurrenceCount(over.count ?? DEFAULT_COUNTS.weekly, maxUpcomingBookings);
+  return {
+    enabled: true,
+    frequency: "weekly",
+    interval: 1,
+    daysOfWeek: [],
+    monthlyMode: "dayOfMonth",
+    endMode: "after",
+    until: "",
+    ...over,
+    count,
+  };
+};
 
 /** The id the dropdown uses for the entry that opens the Custom dialog. */
 export const CUSTOM_PRESET_ID = "custom";
@@ -144,26 +167,34 @@ export const CUSTOM_PRESET_ID = "custom";
  * for a fifth weekday, because a fifth-weekday rule skips most months and is a trap
  * rather than a shortcut. Anyone who genuinely wants it can still build it in Custom.
  */
-export function presetsFor(start: Date | null): RecurrencePreset[] {
+export function presetsFor(
+  start: Date | null,
+  maxUpcomingBookings?: number | null
+): RecurrencePreset[] {
   const presets: RecurrencePreset[] = [
-    { id: "none", label: "Does not repeat", build: () => ({ ...base({}), enabled: false }) },
+    {
+      id: "none",
+      label: "Does not repeat",
+      build: () => ({ ...base({}, maxUpcomingBookings), enabled: false }),
+    },
   ];
 
   if (!start || Number.isNaN(start.getTime())) return presets;
 
   const weekday = start.getDay();
   const ordinal = weekdayOrdinalOf(start.getDate());
+  const withCap = (over: Partial<RecurrenceState>) => base(over, maxUpcomingBookings);
 
   presets.push({
     id: "daily",
     label: "Daily",
-    build: () => base({ frequency: "daily", count: DEFAULT_COUNTS.daily }),
+    build: () => withCap({ frequency: "daily", count: DEFAULT_COUNTS.daily }),
   });
 
   presets.push({
     id: "weekly",
     label: `Weekly on ${DAY_NAMES[weekday]}`,
-    build: () => base({ frequency: "weekly", daysOfWeek: [weekday], count: DEFAULT_COUNTS.weekly }),
+    build: () => withCap({ frequency: "weekly", daysOfWeek: [weekday], count: DEFAULT_COUNTS.weekly }),
   });
 
   //Not one of Google's, but the cadence a flight school actually asks for after weekly.
@@ -172,14 +203,20 @@ export function presetsFor(start: Date | null): RecurrencePreset[] {
     id: "fortnightly",
     label: `Every 2 weeks on ${DAY_NAMES[weekday]}`,
     build: () =>
-      base({ frequency: "weekly", interval: 2, daysOfWeek: [weekday], count: DEFAULT_COUNTS.fortnightly }),
+      withCap({
+        frequency: "weekly",
+        interval: 2,
+        daysOfWeek: [weekday],
+        count: DEFAULT_COUNTS.fortnightly,
+      }),
   });
 
   if (ordinal <= 4) {
     presets.push({
       id: "monthly-nth",
       label: `Monthly on the ${ORDINALS[ordinal]} ${DAY_NAMES[weekday]}`,
-      build: () => base({ frequency: "monthly", monthlyMode: "nthWeekday", count: DEFAULT_COUNTS.monthly }),
+      build: () =>
+        withCap({ frequency: "monthly", monthlyMode: "nthWeekday", count: DEFAULT_COUNTS.monthly }),
     });
   }
 
@@ -187,26 +224,29 @@ export function presetsFor(start: Date | null): RecurrencePreset[] {
     presets.push({
       id: "monthly-last",
       label: `Monthly on the last ${DAY_NAMES[weekday]}`,
-      build: () => base({ frequency: "monthly", monthlyMode: "lastWeekday", count: DEFAULT_COUNTS.monthly }),
+      build: () =>
+        withCap({ frequency: "monthly", monthlyMode: "lastWeekday", count: DEFAULT_COUNTS.monthly }),
     });
   }
 
   presets.push({
     id: "monthly-day",
     label: `Monthly on day ${start.getDate()}`,
-    build: () => base({ frequency: "monthly", monthlyMode: "dayOfMonth", count: DEFAULT_COUNTS.monthly }),
+    build: () =>
+      withCap({ frequency: "monthly", monthlyMode: "dayOfMonth", count: DEFAULT_COUNTS.monthly }),
   });
 
   presets.push({
     id: "yearly",
     label: `Annually on ${format(start, "MMMM d")}`,
-    build: () => base({ frequency: "yearly", count: DEFAULT_COUNTS.yearly }),
+    build: () => withCap({ frequency: "yearly", count: DEFAULT_COUNTS.yearly }),
   });
 
   presets.push({
     id: "weekday",
     label: "Every weekday (Monday to Friday)",
-    build: () => base({ frequency: "weekly", daysOfWeek: [1, 2, 3, 4, 5], count: DEFAULT_COUNTS.weekday }),
+    build: () =>
+      withCap({ frequency: "weekly", daysOfWeek: [1, 2, 3, 4, 5], count: DEFAULT_COUNTS.weekday }),
   });
 
   return presets;
@@ -223,10 +263,14 @@ export function presetsFor(start: Date | null): RecurrencePreset[] {
  * Monday until March" are the same cadence, and demoting one to "Custom…" just because
  * the end date moved would be noise.
  */
-export function matchPreset(state: RecurrenceState, start: Date | null): string {
+export function matchPreset(
+  state: RecurrenceState,
+  start: Date | null,
+  maxUpcomingBookings?: number | null
+): string {
   if (!state.enabled) return "none";
 
-  for (const preset of presetsFor(start)) {
+  for (const preset of presetsFor(start, maxUpcomingBookings)) {
     if (preset.id === "none") continue;
     const candidate = preset.build();
     if (
@@ -243,7 +287,11 @@ export function matchPreset(state: RecurrenceState, start: Date | null): string 
   return CUSTOM_PRESET_ID;
 }
 
-export function defaultRecurrence(startAt: Date | null, date: string): RecurrenceState {
+export function defaultRecurrence(
+  startAt: Date | null,
+  date: string,
+  maxUpcomingBookings?: number | null
+): RecurrenceState {
   const anchor = startAt ?? (date ? new Date(`${date}T12:00:00`) : new Date());
   const valid = !Number.isNaN(anchor.getTime());
   const until = addMonths(valid ? anchor : new Date(), 2);
@@ -256,8 +304,47 @@ export function defaultRecurrence(startAt: Date | null, date: string): Recurrenc
     monthlyMode: "dayOfMonth",
     endMode: "after",
     until: ymd(until),
-    count: DEFAULT_COUNTS.weekly,
+    count: cappedOccurrenceCount(DEFAULT_COUNTS.weekly, maxUpcomingBookings),
   };
+}
+
+/**
+ * How many bookings a rule would create. Exact for "after N"; a close upper estimate for
+ * "until" dates so the form can refuse a series the school cap would reject.
+ */
+export function estimateOccurrenceCount(state: RecurrenceState, start: Date | null): number | null {
+  if (!state.enabled) return null;
+  if (state.endMode === "after") {
+    return Number.isFinite(state.count) && state.count >= 1 ? state.count : null;
+  }
+  if (!start || !state.until) return null;
+  const until = new Date(`${state.until}T23:59:59`);
+  if (Number.isNaN(until.getTime()) || until.getTime() < start.getTime()) return null;
+
+  const interval = Math.max(1, state.interval || 1);
+  const dayMs = 86_400_000;
+  const spanMs = until.getTime() - start.getTime();
+
+  switch (state.frequency) {
+    case "daily":
+      return Math.floor(spanMs / (dayMs * interval)) + 1;
+    case "weekly": {
+      const daysPerWeek = Math.max(1, state.daysOfWeek.length);
+      const weeks = Math.floor(spanMs / (dayMs * 7 * interval)) + 1;
+      return weeks * daysPerWeek;
+    }
+    case "monthly": {
+      const months =
+        (until.getFullYear() - start.getFullYear()) * 12 + (until.getMonth() - start.getMonth());
+      return Math.floor(Math.max(0, months) / interval) + 1;
+    }
+    case "yearly": {
+      const years = until.getFullYear() - start.getFullYear();
+      return Math.floor(Math.max(0, years) / interval) + 1;
+    }
+    default:
+      return null;
+  }
 }
 
 /**
@@ -271,7 +358,8 @@ export function toRecurrenceInput(
   state: RecurrenceState,
   startAt: Date | null,
   endAt: Date | null,
-  timeZoneName: string
+  timeZoneName: string,
+  opts?: { maxUpcomingBookings?: number | null }
 ): { input: RecurrenceInput | null; problem: string | null } {
   if (!state.enabled) return { input: null, problem: null };
   if (!startAt || !endAt) return { input: null, problem: "Pick a start and end time first." };
@@ -288,6 +376,30 @@ export function toRecurrenceInput(
   }
   if (state.endMode === "on" && !state.until) {
     return { input: null, problem: "Pick a date for the repeat to end on." };
+  }
+
+  const maxUpcoming = opts?.maxUpcomingBookings;
+  const estimated = estimateOccurrenceCount(state, startAt);
+  if (
+    maxUpcoming != null &&
+    maxUpcoming > 0 &&
+    estimated != null &&
+    estimated > maxUpcoming
+  ) {
+    return {
+      input: null,
+      problem:
+        state.endMode === "after"
+          ? `This repeat would create ${estimated} bookings, but the school limit is ${maxUpcoming} upcoming. Shorten the series, or ask an admin to raise the limit.`
+          : `This repeat would create about ${estimated} bookings, but the school limit is ${maxUpcoming} upcoming. Pick an earlier end date, or ask an admin to raise the limit.`,
+    };
+  }
+
+  if (estimated != null && estimated > MAX_SERIES_OCCURRENCES) {
+    return {
+      input: null,
+      problem: `A repeating booking can create at most ${MAX_SERIES_OCCURRENCES} bookings at once. Shorten the series.`,
+    };
   }
 
   return {
@@ -355,17 +467,23 @@ export function RecurrenceField({
   onChange,
   start,
   disabled,
+  maxUpcomingBookings,
 }: {
   value: RecurrenceState;
   onChange: (next: RecurrenceState) => void;
   /** The reservation's start, every preset is derived from it. */
   start: Date | null;
   disabled?: boolean;
+  /** School "max upcoming bookings" cap. When set, presets and Custom cannot exceed it. */
+  maxUpcomingBookings?: number | null;
 }) {
   const [customOpen, setCustomOpen] = React.useState(false);
 
-  const presets = React.useMemo(() => presetsFor(start), [start]);
-  const selected = matchPreset(value, start);
+  const presets = React.useMemo(
+    () => presetsFor(start, maxUpcomingBookings),
+    [start, maxUpcomingBookings]
+  );
+  const selected = matchPreset(value, start, maxUpcomingBookings);
 
   const choose = (id: string) => {
     if (id === CUSTOM_PRESET_ID) {
@@ -421,6 +539,7 @@ export function RecurrenceField({
         onOpenChange={setCustomOpen}
         value={value}
         start={start}
+        maxUpcomingBookings={maxUpcomingBookings}
         onSave={(next) => {
           onChange(next);
           setCustomOpen(false);
@@ -444,14 +563,17 @@ function CustomRecurrenceDialog({
   value,
   start,
   onSave,
+  maxUpcomingBookings,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: RecurrenceState;
   start: Date | null;
   onSave: (next: RecurrenceState) => void;
+  maxUpcomingBookings?: number | null;
 }) {
   const [draft, setDraft] = React.useState<RecurrenceState>(value);
+  const countCap = cappedOccurrenceCount(MAX_SERIES_OCCURRENCES, maxUpcomingBookings);
 
   //Re-seeded each time it opens, so closing abandons the edit, which is what Cancel in
   //a dialog is expected to mean.
@@ -463,9 +585,10 @@ function CustomRecurrenceDialog({
         //"Does not repeat" carries no days; turning it into a weekly rule needs one.
         daysOfWeek:
           value.daysOfWeek.length === 0 && start ? [start.getDay()] : value.daysOfWeek,
+        count: cappedOccurrenceCount(value.count, maxUpcomingBookings),
       });
     }
-  }, [open, value, start]);
+  }, [open, value, start, maxUpcomingBookings]);
 
   const set = (patch: Partial<RecurrenceState>) => setDraft((d) => ({ ...d, ...patch }));
 
@@ -479,6 +602,14 @@ function CustomRecurrenceDialog({
   };
 
   const plural = (one: string, many: string) => (draft.interval === 1 ? one : many);
+
+  const untilEstimate = estimateOccurrenceCount(draft, start);
+  const untilOverCap =
+    draft.endMode === "on" &&
+    maxUpcomingBookings != null &&
+    maxUpcomingBookings > 0 &&
+    untilEstimate != null &&
+    untilEstimate > maxUpcomingBookings;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -605,9 +736,13 @@ function CustomRecurrenceDialog({
                   <Input
                     type="number"
                     min={1}
-                    max={200}
+                    max={countCap}
                     value={draft.count}
-                    onChange={(e) => set({ count: Math.max(1, Math.min(200, Number(e.target.value) || 1)) })}
+                    onChange={(e) =>
+                      set({
+                        count: cappedOccurrenceCount(Number(e.target.value) || 1, maxUpcomingBookings),
+                      })
+                    }
                     className="w-20"
                     aria-label="Number of bookings"
                   />
@@ -627,8 +762,17 @@ function CustomRecurrenceDialog({
                 is a real booking holding a real aircraft. */}
             <p className="text-xs text-muted-foreground">
               A repeat always has an end, each booking holds the aircraft, so there is no
-              &ldquo;forever&rdquo;. Up to 200 at a time.
+              &ldquo;forever&rdquo;.{" "}
+              {maxUpcomingBookings != null && maxUpcomingBookings > 0
+                ? `Up to ${countCap} at a time (school upcoming-booking limit).`
+                : `Up to ${MAX_SERIES_OCCURRENCES} at a time.`}
             </p>
+            {untilOverCap && (
+              <p className="text-xs text-destructive">
+                That end date would create about {untilEstimate} bookings, over the school
+                limit of {maxUpcomingBookings}. Pick an earlier date.
+              </p>
+            )}
           </div>
 
           <p className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -640,7 +784,7 @@ function CustomRecurrenceDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" onClick={() => onSave(draft)}>
+          <Button type="button" disabled={untilOverCap} onClick={() => onSave(draft)}>
             Done
           </Button>
         </DialogFooter>

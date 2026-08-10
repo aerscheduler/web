@@ -23,6 +23,7 @@ import {
 import { PreferenceToggle } from "@/components/settings/parts";
 import { DocsHint } from "@/components/docs-hint";
 import type { DocsTopicKey } from "@/lib/docs-links";
+import { Input } from "@/components/ui/input";
 
 type SlotOfferPolicyPatch = Partial<
   Pick<
@@ -75,6 +76,20 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   );
   const [multiDay, setMultiDay] = useState(bookingPolicy?.multiDayEnabled ?? false);
   const [flyingDayKey, setFlyingDayKey] = useState(() => flyingDayKeyFromPolicy(bookingPolicy));
+  const [cancelLockHours, setCancelLockHours] = useState(
+    () => String(bookingPolicy?.cancelEditLockHours ?? "")
+  );
+  const [lateFeeDollars, setLateFeeDollars] = useState(() =>
+    bookingPolicy?.lateCancelFeeCents != null
+      ? String(bookingPolicy.lateCancelFeeCents / 100)
+      : ""
+  );
+  const [maxFuture, setMaxFuture] = useState(
+    () => String(bookingPolicy?.maxFutureBookings ?? "")
+  );
+  const [maxLengthMinutes, setMaxLengthMinutes] = useState(
+    () => String(bookingPolicy?.maxReservationMinutes ?? "")
+  );
   const [pending, setPending] = useState<
     | PrefField
     | "requirePaymentMethod"
@@ -82,6 +97,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     | "flyingDay"
     | "slotOffersEnabled"
     | "slotOfferPolicy"
+    | "bookingRules"
     | null
   >(null);
 
@@ -121,6 +137,14 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     setRequirePaymentMethod(bookingPolicy?.requirePaymentMethod ?? false);
     setMultiDay(bookingPolicy?.multiDayEnabled ?? false);
     setFlyingDayKey(flyingDayKeyFromPolicy(bookingPolicy));
+    setCancelLockHours(String(bookingPolicy?.cancelEditLockHours ?? ""));
+    setLateFeeDollars(
+      bookingPolicy?.lateCancelFeeCents != null
+        ? String(bookingPolicy.lateCancelFeeCents / 100)
+        : ""
+    );
+    setMaxFuture(String(bookingPolicy?.maxFutureBookings ?? ""));
+    setMaxLengthMinutes(String(bookingPolicy?.maxReservationMinutes ?? ""));
     setQuietKey(quietHoursKey(slotOfferSettings));
     setMaxPending(String(slotOfferSettings?.maxPendingOffers ?? 10));
     setCooldownHours(String(slotOfferSettings?.declineCooldownHours ?? 48));
@@ -148,6 +172,10 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     bookingPolicy?.multiDayEnabled,
     bookingPolicy?.flyingDayStartMinute,
     bookingPolicy?.flyingDayEndMinute,
+    bookingPolicy?.cancelEditLockHours,
+    bookingPolicy?.lateCancelFeeCents,
+    bookingPolicy?.maxFutureBookings,
+    bookingPolicy?.maxReservationMinutes,
   ]);
 
   function savePref(field: PrefField, value: boolean, apply: (v: boolean) => void) {
@@ -291,8 +319,45 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
     );
   }
 
+  function saveBookingRules(patch: {
+    cancelEditLockHours?: number | null;
+    lateCancelFeeCents?: number | null;
+    maxFutureBookings?: number | null;
+    maxReservationMinutes?: number | null;
+  }) {
+    setPending("bookingRules");
+    update.mutate(
+      { bookingPolicy: patch },
+      {
+        onSuccess: async () => {
+          await rehydrate();
+          toast.success("Booking rules updated");
+        },
+        onError: (err) => {
+          toast.error(
+            err instanceof ApiError ? err.message : "Couldn't save those booking rules"
+          );
+          // Revert from org after rehydrate fails; pull from last known policy
+          setCancelLockHours(String(bookingPolicy?.cancelEditLockHours ?? ""));
+          setLateFeeDollars(
+            bookingPolicy?.lateCancelFeeCents != null
+              ? String(bookingPolicy.lateCancelFeeCents / 100)
+              : ""
+          );
+          setMaxFuture(String(bookingPolicy?.maxFutureBookings ?? ""));
+          setMaxLengthMinutes(String(bookingPolicy?.maxReservationMinutes ?? ""));
+        },
+        onSettled: () => setPending(null),
+      }
+    );
+  }
+
+  const stripeReady = organization.billing?.stripeEnabled === true;
+  const lockEnabled = cancelLockHours.trim() !== "";
   const policyDisabled = pending !== null || !slotOffers;
   const policySaving = pending === "slotOfferPolicy";
+  const rulesSaving = pending === "bookingRules";
+  const rulesDisabled = pending !== null;
 
   return (
     <Card data-doc-shot="booking-preferences-tab">
@@ -607,6 +672,145 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
           saving={pending === "multiDayEnabled"}
           onCheckedChange={saveMultiDay}
         />
+
+        <div className="space-y-4 py-4">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium">Booking and cancellation rules</p>
+            <DocsHint topic="booking-policy-rules" />
+            {rulesSaving && (
+              <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            All off by default. Turn on only what your school needs. Members see a clear
+            reason when a rule refuses a booking or cancel.
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <PolicySelect
+              label="Cancel and edit lock"
+              docs="booking-policy-rules"
+              hint="Inside this window, members cannot cancel or edit. Front desk, instructors, and technicians can still override."
+              value={cancelLockHours === "" ? "off" : cancelLockHours}
+              disabled={rulesDisabled}
+              onValueChange={(value) => {
+                if (value === "off") {
+                  setCancelLockHours("");
+                  setLateFeeDollars("");
+                  saveBookingRules({ cancelEditLockHours: null, lateCancelFeeCents: null });
+                  return;
+                }
+                setCancelLockHours(value);
+                saveBookingRules({ cancelEditLockHours: Number(value) });
+              }}
+              options={[
+                { value: "off", label: "Off" },
+                { value: "1", label: "1 hour before start" },
+                { value: "2", label: "2 hours before start" },
+                { value: "4", label: "4 hours before start" },
+                { value: "12", label: "12 hours before start" },
+                { value: "24", label: "24 hours before start" },
+                { value: "48", label: "48 hours before start" },
+              ]}
+            />
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Late-cancel fee (optional)
+                </Label>
+                <DocsHint topic="booking-policy-rules" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">$</span>
+                <Input
+                  type="number"
+                  min={0}
+                  step="1"
+                  placeholder="Off"
+                  className="max-w-[8rem]"
+                  value={lateFeeDollars}
+                  disabled={rulesDisabled || !lockEnabled || !stripeReady}
+                  onChange={(e) => setLateFeeDollars(e.target.value)}
+                  onBlur={() => {
+                    const raw = lateFeeDollars.trim();
+                    if (raw === "") {
+                      saveBookingRules({ lateCancelFeeCents: null });
+                      return;
+                    }
+                    const dollars = Number(raw);
+                    if (!Number.isFinite(dollars) || dollars <= 0) {
+                      setLateFeeDollars("");
+                      saveBookingRules({ lateCancelFeeCents: null });
+                      return;
+                    }
+                    saveBookingRules({ lateCancelFeeCents: Math.round(dollars * 100) });
+                  }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {!lockEnabled
+                  ? "Turn on the cancel and edit lock first. Inside that window, members can cancel by agreeing to this fee."
+                  : !stripeReady
+                    ? "Connect Stripe under Billing before setting a fee."
+                    : "Inside the lock window, members can still cancel if they agree to this fee. Staff cancels never charge."}
+              </p>
+            </div>
+
+            <PolicySelect
+              label="Max upcoming bookings per member"
+              docs="booking-policy-rules"
+              hint="Counts every future booking they already hold, including each date in a repeating series. A repeat that would push them over the limit is refused."
+              value={maxFuture === "" ? "off" : maxFuture}
+              disabled={rulesDisabled}
+              onValueChange={(value) => {
+                if (value === "off") {
+                  setMaxFuture("");
+                  saveBookingRules({ maxFutureBookings: null });
+                  return;
+                }
+                setMaxFuture(value);
+                saveBookingRules({ maxFutureBookings: Number(value) });
+              }}
+              options={[
+                { value: "off", label: "Off" },
+                { value: "1", label: "1" },
+                { value: "2", label: "2" },
+                { value: "3", label: "3" },
+                { value: "5", label: "5" },
+                { value: "7", label: "7" },
+                { value: "10", label: "10" },
+                { value: "15", label: "15" },
+                { value: "20", label: "20" },
+              ]}
+            />
+
+            <PolicySelect
+              label="Max reservation length"
+              docs="booking-policy-rules"
+              value={maxLengthMinutes === "" ? "off" : maxLengthMinutes}
+              disabled={rulesDisabled}
+              onValueChange={(value) => {
+                if (value === "off") {
+                  setMaxLengthMinutes("");
+                  saveBookingRules({ maxReservationMinutes: null });
+                  return;
+                }
+                setMaxLengthMinutes(value);
+                saveBookingRules({ maxReservationMinutes: Number(value) });
+              }}
+              options={[
+                { value: "off", label: "Off" },
+                { value: "120", label: "2 hours" },
+                { value: "180", label: "3 hours" },
+                { value: "240", label: "4 hours" },
+                { value: "360", label: "6 hours" },
+                { value: "480", label: "8 hours" },
+                { value: "720", label: "12 hours" },
+              ]}
+            />
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
@@ -615,6 +819,7 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
 function PolicySelect({
   label,
   docs,
+  hint,
   value,
   disabled,
   onValueChange,
@@ -622,6 +827,7 @@ function PolicySelect({
 }: {
   label: string;
   docs?: DocsTopicKey;
+  hint?: string;
   value: string;
   disabled: boolean;
   onValueChange: (value: string) => void;
@@ -645,6 +851,7 @@ function PolicySelect({
           ))}
         </SelectContent>
       </Select>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }

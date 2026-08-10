@@ -323,6 +323,12 @@ export const DOCS_TOPICS = {
       "Approving somebody on a tail records a checkout, on their record and on the aircraft page. With this on, a student or renter booking themselves is refused any aircraft or simulator they aren't checked out on, whichever surface they book from. Instructors, admins and dispatchers are never held to the list.",
     href: "scheduling/booking-rules-and-settings",
   },
+  "booking-policy-rules": {
+    title: "Booking and cancellation rules",
+    summary:
+      "Opt-in rules for cancel/edit lock, late-cancel fee, max upcoming bookings, and max reservation length. Off by default. Members see a clear reason when a rule refuses them. Currency checks at book stay always on under Compliance.",
+    href: "scheduling/booking-rules-and-settings#booking-and-cancellation-rules",
+  },
   "what-you-can-book": {
     title: "What you can book",
     summary:

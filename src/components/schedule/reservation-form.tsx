@@ -458,6 +458,7 @@ export function ReservationForm({
   //org rather than passed in, because it is a property of the school and not of this form,
   //and this is the one booking form both the dispatch and self variants share.
   const allowMultiDay = organization?.bookingPolicy?.multiDayEnabled ?? false;
+  const maxUpcomingBookings = organization?.bookingPolicy?.maxFutureBookings ?? null;
 
   const isSelf = variant === "self";
   //A self booking on /me/book renders as a page card, so there is no modal to close and
@@ -1039,7 +1040,9 @@ export function ReservationForm({
     //Repeating booking. Editing never carries a rule: changing one occurrence is an
     //ordinary edit, and the server ignores `recurrence` on PATCH anyway.
     if (!editing) {
-      const { input: rule, problem } = toRecurrenceInput(recurrence, startAt, endAt, DEVICE_TZ);
+      const { input: rule, problem } = toRecurrenceInput(recurrence, startAt, endAt, DEVICE_TZ, {
+        maxUpcomingBookings,
+      });
       if (problem) {
         setError(problem);
         toast.error(problem);
@@ -1451,6 +1454,7 @@ export function ReservationForm({
               onChange={setRecurrence}
               start={startAt}
               disabled={create.isPending}
+              maxUpcomingBookings={maxUpcomingBookings}
             />
           )}
 

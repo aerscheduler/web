@@ -134,6 +134,8 @@ export interface ChannelNotificationPreferences {
   reservationInvoicePaid?: boolean;
   reservationInvoiceDeclined?: boolean;
   reservationInvoiceReminders?: boolean;
+  /** Nudge to finish ramp-in / review on a past booking. Same shape as invoice reminders. */
+  reservationReviewReminders?: boolean;
   joinedOrganization?: boolean;
   leftOrganization?: boolean;
   invitedToOrganization?: boolean;
@@ -230,6 +232,28 @@ export interface OrganizationBookingPolicy {
   flyingDayStartMinute?: number;
   /** Local minutes past midnight when same-day booking closes (default 1320 = 10pm). */
   flyingDayEndMinute?: number;
+  /**
+   * Hours before start when members cannot cancel or edit. Null/absent = off.
+   * Staff (owner, admin, dispatcher, technician, instructor) always override.
+   */
+  cancelEditLockHours?: number | null;
+  /**
+   * Late-cancel fee in cents when a member cancels inside the lock window.
+   * Null = members are blocked (must ask the desk). Set with cancelEditLockHours to
+   * let members cancel by agreeing to the fee. Requires Stripe.
+   */
+  lateCancelFeeCents?: number | null;
+  /** Max upcoming (not ended, not cancelled) bookings per member. Null = off. */
+  maxFutureBookings?: number | null;
+  /**
+   * Longest a single booking may run, in minutes. Null = off.
+   */
+  maxReservationMinutes?: number | null;
+  /**
+   * @deprecated Currency checks at book are always enforced. Kept on the wire for
+   * older clients; the server ignores this flag.
+   */
+  enforceCurrenciesAtBook?: boolean;
 }
 
 /** Org-wide slot offer / standby settings (1:1). Master switch plus hold / spam governors. */
@@ -288,6 +312,14 @@ export interface OrganizationBillingSettings {
    * at the minimum.
    */
   overnightMinimumTenths: number | null;
+  /**
+   * Minutes of grace after local midnight on the return day within which the last night is
+   * not charged. Null means no grace, the return-at-midnight rule bites exactly as before.
+   *
+   * Mirrors the server's `nightsAway(..., graceMinutes)` in `utils/bookingMinimums.ts`: a
+   * flight back at 12:20am with a 30-minute grace still counts the earlier nights, just not
+   * the one it landed into.
+   */
   /**
    * How many unpaid invoices before a member is grounded, or null/0 for off.
    *
@@ -1332,6 +1364,11 @@ export interface RampInInput {
   tachTimeIn?: number;
   briefing?: number;
   comments?: string[];
+  /**
+   * Re-submit after a 409 `METER_ANOMALY`: the desk has looked at the reading and confirms
+   * it is real. Omit on the first attempt, the server only asks for this once.
+   */
+  confirmMeterAnomaly?: boolean;
 }
 
 /**
@@ -1348,6 +1385,8 @@ export interface CorrectReviewTimesInput {
   tachTimeOut?: number;
   tachTimeIn?: number;
   briefing?: number;
+  /** Re-submit after a 409 `METER_ANOMALY` once the desk confirms the reading is real. */
+  confirmMeterAnomaly?: boolean;
 }
 
 /**

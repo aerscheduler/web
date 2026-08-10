@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth";
 import { useCancellationCategories } from "@/features/queries";
 import type { CancelScope, Reservation } from "@/types/api";
 import { describeSeries } from "@/types/api";
+import { formatFeeCents, memberCancelLockInfo } from "@/lib/booking-policy";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,6 +17,7 @@ import { DocsHint } from "@/components/docs-hint";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -23,26 +26,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/**
- * Cancelling a booking, with a reason worth recording.
- *
- * This replaces a plain "are you sure?" that sent the literal string ", Cancelled from
- * dispatch board" as the reason for every cancellation the console ever made. Nobody
- * could report on that, which is exactly the complaint this answers.
- *
- * Two fields, deliberately, and BOTH required:
- *  - the **type** is a fixed list, because it is the only thing you can count. "wx",
- *    "weather" and "Weather" are three answers to the same question.
- *  - the **note** is free text, because the type never carries the detail a person
- *    actually needs later ("ceiling 600 overcast", ", student called, car trouble").
- *
- * The server enforces both as of the same change, so this is no longer the only thing
- * standing between an empty note and the report.
- *
- * For a booking in a repeating series it also asks Google Calendar's question: this one,
- * this and all later, or the whole series.
- */
-
 /** Matches CANCELLATION_REASON_MAX_LENGTH server-side, and the column behind it. */
 const REASON_MAX_LENGTH = 200;
 
@@ -50,6 +33,7 @@ export type CancelSubmission = {
   reason: string;
   category: string;
   scope: CancelScope;
+  acceptLateCancelFee?: boolean;
 };
 
 export function CancelReservationDialog({
@@ -65,33 +49,59 @@ export function CancelReservationDialog({
   onConfirm: (submission: CancelSubmission) => void;
   isBusy?: boolean;
 }) {
+  const { organization, roles } = useAuth();
   const { data: categories } = useCancellationCategories();
 
   const [category, setCategory] = useState("");
   const [reason, setReason] = useState("");
   const [scope, setScope] = useState<CancelScope>("this");
+  const [acceptFee, setAcceptFee] = useState(false);
   const [touched, setTouched] = useState(false);
 
-  //Reset every time it opens on a different booking, so a reason typed for one
-  //cancellation can never be submitted against another.
   useEffect(() => {
     if (open) {
       setCategory("");
       setReason("");
       setScope("this");
+      setAcceptFee(false);
       setTouched(false);
     }
   }, [open, reservation?.id]);
 
   if (!reservation) return null;
 
+  const staffOverride = roles.some(
+    (r) =>
+      r === "owner" ||
+      r === "admin" ||
+      r === "dispatcher" ||
+      r === "technician" ||
+      r === "instructor"
+  );
+  const lock = memberCancelLockInfo({
+    start: reservation.start,
+    cancelEditLockHours: organization?.bookingPolicy?.cancelEditLockHours,
+    lateCancelFeeCents: organization?.bookingPolicy?.lateCancelFeeCents,
+    staffOverride,
+  });
+  const memberLocked = lock.locked && !lock.staffOverride;
+  const feeRequired =
+    memberLocked && lock.feeCents != null && lock.feeCents > 0;
+  const blockedWithoutFee = memberLocked && !feeRequired;
+
   const missingCategory = category === "";
   const missingReason = reason.trim() === "";
+  const missingFeeAgree = feeRequired && !acceptFee;
 
   const submit = () => {
     setTouched(true);
-    if (missingCategory || missingReason) return;
-    onConfirm({ reason: reason.trim(), category, scope });
+    if (missingCategory || missingReason || missingFeeAgree || blockedWithoutFee) return;
+    onConfirm({
+      reason: reason.trim(),
+      category,
+      scope,
+      ...(feeRequired ? { acceptLateCancelFee: true } : {}),
+    });
   };
 
   return (
@@ -105,13 +115,48 @@ export function CancelReservationDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {blockedWithoutFee && (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+            This booking starts in less than {lock.lockHours} hours, so you can&apos;t cancel
+            it yourself. Call or message the front desk and they can take it off the board.
+          </div>
+        )}
+
+        {feeRequired && (
+          <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
+            <p className="text-sm">
+              This booking starts in less than {lock.lockHours} hours. You can still cancel,
+              but a {formatFeeCents(lock.feeCents!)} late-cancel fee will be charged.
+            </p>
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox
+                checked={acceptFee}
+                onCheckedChange={(v) => setAcceptFee(v === true)}
+                className="mt-0.5"
+              />
+              <span>
+                I agree to the {formatFeeCents(lock.feeCents!)} late-cancel fee
+              </span>
+            </label>
+            {touched && missingFeeAgree && (
+              <p className="text-xs text-destructive">
+                Confirm the fee to cancel, or ask the front desk.
+              </p>
+            )}
+          </div>
+        )}
+
         <div className="grid gap-4">
           <div className="grid gap-2">
             <div className="flex items-center gap-1.5">
               <Label htmlFor="cancel-category">Reason type</Label>
               <DocsHint topic="cancellation-reason" />
             </div>
-            <Select value={category} onValueChange={setCategory}>
+            <Select
+              value={category}
+              onValueChange={setCategory}
+              disabled={blockedWithoutFee}
+            >
               <SelectTrigger id="cancel-category" aria-invalid={touched && missingCategory}>
                 <SelectValue placeholder="Pick one" />
               </SelectTrigger>
@@ -123,16 +168,13 @@ export function CancelReservationDialog({
                 ))}
               </SelectContent>
             </Select>
-            {touched && missingCategory && (
+            {touched && missingCategory && !blockedWithoutFee && (
               <p className="text-xs text-destructive">Pick what kind of cancellation this is.</p>
             )}
           </div>
 
           <div className="grid gap-2">
             <Label htmlFor="cancel-reason">What happened?</Label>
-            {/* A textarea rather than a single line: the field takes 200 characters now,
-                and an input that scrolls sideways past what you typed reads as a much
-                shorter field than it is. */}
             <Textarea
               id="cancel-reason"
               value={reason}
@@ -140,10 +182,9 @@ export function CancelReservationDialog({
               maxLength={REASON_MAX_LENGTH}
               placeholder="Ceiling 600 overcast at the field, forecast to lift after 1400"
               aria-invalid={touched && missingReason}
+              disabled={blockedWithoutFee}
               onChange={(e) => setReason(e.target.value)}
               onKeyDown={(e) => {
-                //Enter submits, Shift+Enter breaks the line, the textarea would
-                //otherwise swallow the key that used to send this dialog.
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   submit();
@@ -151,13 +192,11 @@ export function CancelReservationDialog({
               }}
             />
             <div className="flex items-start justify-between gap-2">
-              {touched && missingReason ? (
+              {touched && missingReason && !blockedWithoutFee ? (
                 <p className="text-xs text-destructive">Say briefly what happened.</p>
               ) : (
                 <span />
               )}
-              {/* Only once it's close enough to matter, so the dialog isn't nagging
-                  somebody who typed four words. */}
               {reason.length > REASON_MAX_LENGTH - 40 && (
                 <p className="shrink-0 text-xs text-muted-foreground">
                   {REASON_MAX_LENGTH - reason.length} left
@@ -166,7 +205,7 @@ export function CancelReservationDialog({
             </div>
           </div>
 
-          {reservation.series && (
+          {reservation.series && !blockedWithoutFee && (
             <div className="grid gap-2 rounded-lg border border-border bg-muted/30 p-3">
               <p className="text-xs text-muted-foreground">
                 This is a repeating booking · {describeSeries(reservation.series)}
@@ -191,8 +230,6 @@ export function CancelReservationDialog({
                   </Label>
                 </div>
               </RadioGroup>
-              {/* Said plainly, because "all" reaching backwards would be a nasty
-                  surprise, it doesn't, and nobody should learn that by trying it. */}
               <p className="text-xs text-muted-foreground">
                 Bookings that have already started are never cancelled.
               </p>
@@ -204,9 +241,15 @@ export function CancelReservationDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isBusy}>
             Keep it
           </Button>
-          <Button variant="destructive" onClick={submit} disabled={isBusy}>
-            {isBusy ? "Cancelling…" : "Cancel reservation"}
-          </Button>
+          {!blockedWithoutFee && (
+            <Button variant="destructive" onClick={submit} disabled={isBusy}>
+              {isBusy
+                ? "Cancelling…"
+                : feeRequired
+                  ? `Cancel and pay ${formatFeeCents(lock.feeCents!)}`
+                  : "Cancel reservation"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

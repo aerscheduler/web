@@ -184,7 +184,10 @@ function PeopleOnSide({
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <Label>{max > 1 && chosen > 1 ? pluralLabel : label}</Label>
+        <Label>
+          {max > 1 && chosen > 1 ? pluralLabel : label}
+          {!TYPE_REQUIREMENTS[type].requiresAll.includes(side) && " (optional)"}
+        </Label>
         {max > 1 && chosen > 1 && (
           <span className="text-xs text-muted-foreground">
             {chosen} of up to {max}
@@ -642,6 +645,40 @@ export function ReservationForm({
     selfSide === "instructors" ? selfOrgUserId : instructorId;
   const effectiveStudentId = selfSide === "students" ? selfOrgUserId : studentId;
   const effectiveRenterId = selfSide === "renters" ? selfOrgUserId : renterId;
+
+  // Solo (and any exclusive type): at most one of instructor / student. Hide the empty
+  // counterpart so it does not look required next to a filled seat.
+  const typeExclusive = TYPE_REQUIREMENTS[type].exclusive.length > 0;
+  const dispatchHasInstructor = !!instructorId;
+  const dispatchHasStudent = !!studentId || extraStudentIds.some(Boolean);
+  const showDispatchInstructor =
+    !isSelf &&
+    TYPE_REQUIREMENTS[type].allows.includes("instructors") &&
+    (!typeExclusive || !dispatchHasStudent);
+  const showDispatchStudent =
+    !isSelf &&
+    TYPE_REQUIREMENTS[type].allows.includes("students") &&
+    (!typeExclusive || !dispatchHasInstructor);
+
+  const setDispatchInstructorId = React.useCallback(
+    (id: string) => {
+      setInstructorId(id);
+      if (id && TYPE_REQUIREMENTS[type].exclusive.length > 0) {
+        setStudentId("");
+        setExtraStudentIds([]);
+      }
+    },
+    [type]
+  );
+  const setDispatchStudentId = React.useCallback(
+    (id: string) => {
+      setStudentId(id);
+      if (id && TYPE_REQUIREMENTS[type].exclusive.length > 0) {
+        setInstructorId("");
+      }
+    },
+    [type]
+  );
 
   /**
    * The org users already spoken for on the OTHER sides of this booking, so no
@@ -1315,22 +1352,30 @@ export function ReservationForm({
               )
             ) : null}
 
-            {/* Only the sides this type accepts — a rental has no instructor, a
-                dual has no renter. Mirrors the server's type matrix. */}
-            {!isSelf && TYPE_REQUIREMENTS[type].allows.includes("instructors") && (
+            {/* Only the sides this type accepts: a rental has no instructor, a dual has
+                no renter. Mirrors the server's type matrix.
+
+                Solo is exclusive (one pilot): show Instructor OR Student, never both.
+                Picking one clears and hides the other so the empty dropdown does not
+                look required beside an already-filled seat. */}
+            {!isSelf && showDispatchInstructor && (
               <div className="space-y-1.5">
-                <Label>Instructor</Label>
+                <Label>
+                  Instructor
+                  {!TYPE_REQUIREMENTS[type].requiresAll.includes("instructors") &&
+                    " (optional)"}
+                </Label>
                 <Combobox
                   options={memberOptions(instructorsQ.data, assignedElsewhere("instructors"))}
                   value={instructorId}
-                  onChange={setInstructorId}
+                  onChange={setDispatchInstructorId}
                   placeholder="Assign instructor"
                   searchPlaceholder="Search instructors…"
                   emptyText="No instructors."
                 />
               </div>
             )}
-            {!isSelf && TYPE_REQUIREMENTS[type].allows.includes("students") && (
+            {!isSelf && showDispatchStudent && (
               <PeopleOnSide
                 label="Student"
                 pluralLabel="Students"
@@ -1338,7 +1383,7 @@ export function ReservationForm({
                 type={type}
                 roster={studentsQ.data}
                 primaryId={studentId}
-                setPrimaryId={setStudentId}
+                setPrimaryId={setDispatchStudentId}
                 extraIds={extraStudentIds}
                 setExtraIds={setExtraStudentIds}
                 assignedElsewhere={assignedElsewhere("students")}
@@ -1346,12 +1391,6 @@ export function ReservationForm({
                 searchPlaceholder="Search students…"
                 emptyText="No students."
               />
-            )}
-            {/* Where this student is in their syllabus, while the booking is still being
-                made. Both competitors surface this here, and it is the moment it is useful:
-                the person picking a slot is usually deciding what the lesson is. */}
-            {!isSelf && TYPE_REQUIREMENTS[type].allows.includes("students") && (
-              <NextLessonHint orgUserId={Number(effectiveStudentId) || null} type={type} />
             )}
             {!isSelf && TYPE_REQUIREMENTS[type].allows.includes("renters") && (
               <PeopleOnSide
@@ -1381,6 +1420,25 @@ export function ReservationForm({
                 emptyText="No ratings."
               />
             </div>
+            {/* Solo: the other seat is hidden, not disabled. Say why, and how to get a dual. */}
+            {!isSelf &&
+              typeExclusive &&
+              (dispatchHasInstructor || dispatchHasStudent) && (
+                <p className="text-xs text-muted-foreground sm:col-span-2">
+                  Solo has one pilot. To fly with an instructor, switch the type to Dual.
+                </p>
+              )}
+            {/* Where this student is in their syllabus, while the booking is still being
+                made. Full-width under the people row so it does not crowd the instructor
+                column. Both competitors surface this here, and it is the moment it is
+                useful: the person picking a slot is usually deciding what the lesson is. */}
+            {!isSelf && showDispatchStudent && (
+              <NextLessonHint
+                className="sm:col-span-2"
+                orgUserId={Number(effectiveStudentId) || null}
+                type={type}
+              />
+            )}
           </div>
         )}
 

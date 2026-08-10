@@ -229,11 +229,29 @@ export interface OrganizationBookingPolicy {
   multiDayEnabled: boolean;
 }
 
-/** Org-wide slot offer / standby settings (1:1). Source of truth for the master switch and later hold rules. */
+/** Org-wide slot offer / standby settings (1:1). Master switch plus hold / spam governors. */
 export interface OrganizationSlotOfferSettings {
   id?: number;
   /** When false, no new cancel-recovery or desk offers; standby UI stays hidden. Default on. */
   enabled: boolean;
+  /** Local minutes past midnight when offer creation pauses (default 1260 = 9pm). */
+  quietHoursStartMinute?: number;
+  /** Local minutes past midnight when offer creation resumes (default 420 = 7am). */
+  quietHoursEndMinute?: number;
+  /** Max concurrent pending offers for the school (default 10). */
+  maxPendingOffers?: number;
+  /** Hours before re-offering someone who declined/expired a similar window (default 48). */
+  declineCooldownHours?: number;
+  /** Hold minutes when the slot starts within 24h (default 30). */
+  holdUrgentMinutes?: number;
+  /** Hold minutes when the slot starts more than 24h out (default 120). */
+  holdNormalMinutes?: number;
+  /** AerScheduler AI empty-window scanner. Default off. */
+  scannerEnabled?: boolean;
+  scannerMinGapMinutes?: number;
+  scannerHorizonDays?: number;
+  /** Max new AI system offers per local day (default 20). */
+  scannerMaxPerDay?: number;
 }
 
 

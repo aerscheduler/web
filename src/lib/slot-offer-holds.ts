@@ -47,3 +47,12 @@ export function holdOverlaps(
   const e = new Date(hold.end).getTime();
   return s < endMs && e > startMs;
 }
+
+/** Why a soft-hold block cannot be dragged, in the same voice as locked bookings. */
+export function holdDragRefusalReason(hold: SlotOfferHold): string {
+  const who =
+    hold.purpose === "instructor_confirm"
+      ? `${hold.offeredToName} (instructor confirm)`
+      : hold.offeredToName;
+  return `This time is held for ${who}. Open the offer to withdraw it, or wait until the hold ends.`;
+}

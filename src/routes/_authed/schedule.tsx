@@ -524,9 +524,13 @@ function SchedulePage() {
               <WeekTimeGrid
                 weekStart={startOfWeek(day)}
                 reservations={reservations}
+                slotOfferHolds={slotOfferHolds}
                 onView={openReservationDetail}
                 onCreate={onCreate}
                 onSelectDay={selectDay}
+                onOfferHoldClick={(hold) => {
+                  openOfferDetail(hold.id);
+                }}
                 drag={drag}
                 {...marks}
               />

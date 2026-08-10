@@ -9,10 +9,11 @@ import {
 } from "@/features/slot-offers";
 import { useOrgUserPreferences } from "@/features/queries";
 import { ApiError } from "@/lib/api";
-import { resourceLabel, type Resource } from "@/types/api";
+import { resourceLabel, type ReservationType, type Resource } from "@/types/api";
 import type { SlotOffer } from "@/types/slot-offers";
 import { SlotOfferNotificationWarning } from "@/components/slot-offers/notification-warning";
 import { DocsHint } from "@/components/docs-hint";
+import { typeLabel } from "@/components/schedule/meta";
 import { EmptyState, ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -141,15 +142,20 @@ function OfferCard({
           <CardTitle>
             {instructorConfirm
               ? "Confirm you can teach this slot"
-              : offer.title || "Available reservation"}
+              : resource !== "No resource assigned"
+                ? `${resource} · ${typeLabel(offer.reservationType as ReservationType)}`
+                : "Available reservation"}
           </CardTitle>
           <p className="mt-1 text-sm text-muted-foreground">
-            {formatWindow(offer)} · {resource}
+            {formatWindow(offer)}
+            {resource !== "No resource assigned" ? ` · ${resource}` : ""}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {instructorConfirm && <Badge variant="secondary">Instructor confirm</Badge>}
-          <Badge variant="outline">{offer.reservationType}</Badge>
+          <Badge variant="outline">
+            {typeLabel(offer.reservationType as ReservationType)}
+          </Badge>
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 pt-0 sm:flex-row sm:items-center sm:justify-between">

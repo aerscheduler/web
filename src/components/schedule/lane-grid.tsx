@@ -9,8 +9,11 @@ import {
   minutesFromMidnightInZone,
 } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
-import type { SlotOfferHold } from "@/lib/slot-offer-holds";
-import { holdOverlaps } from "@/lib/slot-offer-holds";
+import {
+  holdDragRefusalReason,
+  holdOverlaps,
+  type SlotOfferHold,
+} from "@/lib/slot-offer-holds";
 import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -468,6 +471,7 @@ export function LaneGrid({
                             height: TRACK_HEIGHT,
                           }}
                           onClick={onOfferHoldClick}
+                          drag={drag}
                         />
                       );
                     })}
@@ -516,11 +520,13 @@ function OfferHoldBlock({
   zone,
   style,
   onClick,
+  drag,
 }: {
   hold: SlotOfferHold;
   zone: string;
   style: React.CSSProperties;
   onClick?: (hold: SlotOfferHold) => void;
+  drag?: ScheduleDrag;
 }) {
   const label =
     hold.purpose === "instructor_confirm"
@@ -530,6 +536,7 @@ function OfferHoldBlock({
     hold.holdUntil,
     zone
   )}.`;
+  const refuseReason = holdDragRefusalReason(hold);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -540,12 +547,22 @@ function OfferHoldBlock({
             "absolute z-[2] flex items-center overflow-hidden rounded-md border border-dashed",
             "border-amber-600/60 bg-amber-50 px-1.5 text-left shadow-sm",
             "dark:border-amber-500/50 dark:bg-amber-950",
+            // Locked bookings use pointer, not grab: the block opens, it does not move.
             "cursor-pointer"
           )}
           style={style}
-          aria-label={`${label}. ${detail}`}
+          aria-label={`${label}. ${detail} Can't be rescheduled: ${refuseReason}`}
+          onPointerDown={
+            drag
+              ? (e) => {
+                  e.stopPropagation();
+                  drag.refuse(e, refuseReason);
+                }
+              : undefined
+          }
           onClick={(e) => {
             e.stopPropagation();
+            if (drag?.consumeClick()) return;
             onClick?.(hold);
           }}
         >
@@ -564,6 +581,7 @@ function OfferHoldBlock({
           <div className="mt-1 opacity-80">
             Soft hold: this time is not free to book until the offer ends or is withdrawn.
           </div>
+          <div className="mt-1 border-t border-border/50 pt-1 opacity-90">{refuseReason}</div>
         </div>
       </TooltipContent>
     </Tooltip>

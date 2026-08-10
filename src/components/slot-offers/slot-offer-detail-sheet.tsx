@@ -49,10 +49,13 @@ export function SlotOfferDetailSheet({
   const locationName =
     (o?.resource as Resource | null | undefined)?.location?.name ?? null;
 
+  // Match reservation detail: resource · type. Desk "Demo hold…" titles are seed noise.
   const title =
     o?.purpose === "instructor_confirm"
       ? "Instructor confirm"
-      : o?.title?.trim() || typeLabel(reservationType);
+      : res
+        ? `${res.name} · ${typeLabel(reservationType)}`
+        : typeLabel(reservationType);
 
   const withdrawOffer = async () => {
     if (!o) return;
@@ -187,12 +190,12 @@ export function SlotOfferDetailSheet({
 
 function triggerLabel(trigger: SlotOffer["trigger"]): string {
   switch (trigger) {
-    case "cancel_recovery":
-      return "Cancel recovery";
+    case "system":
+      return "AerScheduler AI";
     case "desk":
       return "Desk offer";
-    case "system":
-      return "System offer";
+    case "cancel_recovery":
+      return "Cancel recovery";
     default:
       return trigger;
   }

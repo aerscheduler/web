@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { usePendingSlotOffers, useWithdrawSlotOffer } from "@/features/slot-offers";
 import { ApiError } from "@/lib/api";
 import type { SlotOffer } from "@/types/slot-offers";
+import { resourceLabel, type Resource } from "@/types/api";
 import { DetailPanel } from "@/components/detail-panel";
 import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +47,7 @@ export function PendingOffersSheet({
           <DocsHint topic="pending-slot-offers" />
         </span>
       }
-      description="Offers currently held for members. Instructor confirms come first on duals; withdrawing a recovery offer moves to the next eligible step."
+      description="Offers currently held for members. Instructor confirms come first on duals. Withdraw frees the window and stops the chain."
     >
       {offersQuery.isPending ? (
         <p className="py-6 text-center text-sm text-muted-foreground">Loading offers...</p>
@@ -72,12 +73,18 @@ export function PendingOffersSheet({
                   {offer.purpose === "instructor_confirm" && (
                     <Badge variant="secondary">Instructor confirm</Badge>
                   )}
+                  <Badge variant="outline">{triggerLabel(offer.trigger)}</Badge>
                   <Badge variant="outline">{offer.reservationType}</Badge>
                   {offer.notificationDelivery?.anyChannelEnabled === false && (
                     <Badge variant="outline">Notifications off</Badge>
                   )}
                 </div>
-                <p className="mt-1 text-sm text-muted-foreground">{formatWindow(offer)}</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {offer.resource
+                    ? `${resourceLabel(offer.resource as Resource).name} · `
+                    : ""}
+                  {formatWindow(offer)}
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Hold ends in {formatDistanceToNowStrict(new Date(offer.holdUntil))}
                 </p>
@@ -116,3 +123,10 @@ function formatWindow(offer: SlotOffer): string {
   });
   return `${date.format(new Date(offer.start))} to ${time.format(new Date(offer.end))}`;
 }
+
+function triggerLabel(trigger: SlotOffer["trigger"]): string {
+  if (trigger === "system") return "AerScheduler AI";
+  if (trigger === "desk") return "Desk";
+  return "Cancel";
+}
+

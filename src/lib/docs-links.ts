@@ -242,13 +242,67 @@ export const DOCS_TOPICS = {
   "slot-offers": {
     title: "Slot offers",
     summary:
-      "Accept before the hold ends to book the slot, or decline so the next eligible member can be offered. Dual recoveries ask the instructor to confirm first. Holds never run past the slot start, and very soon starts are not offered. Turn on Slot offers & standby notifications so you do not miss the window.",
+      "Accept before the hold ends to book the slot, or decline so the next eligible member can be offered. Dual recoveries ask the instructor to confirm first. Schools set hold length, quiet hours, pending caps, and decline cooldown under Booking preferences. Turn on Slot offers & standby notifications so you do not miss the window.",
     href: "scheduling/standby-and-slot-offers",
+  },
+  "slot-offer-quiet-hours": {
+    title: "Quiet hours",
+    summary:
+      "During this local window, cancel recovery waits before creating a new offer so a late-night cancel does not soft-hold the aircraft overnight. Uses the airport time zone, then the school zone. Desk offers still go out immediately.",
+    href: "scheduling/standby-and-slot-offers#quiet-hours",
+  },
+  "slot-offer-decline-cooldown": {
+    title: "Decline cooldown",
+    summary:
+      "After someone declines or lets an offer expire, they are not offered another overlapping window on that same aircraft for this long. It is not limited to one cancelled booking.",
+    href: "scheduling/standby-and-slot-offers#decline-cooldown",
+  },
+  "slot-offer-max-pending": {
+    title: "Max pending offers",
+    summary:
+      "A pending offer soft-holds the aircraft for the offered window. This cap limits how many of those holds can be open at once for the school, so the board does not fill with locked time.",
+    href: "scheduling/standby-and-slot-offers#max-pending-offers",
+  },
+  "slot-offer-hold-urgent": {
+    title: "Hold when the slot is soon",
+    summary:
+      "When the slot starts within 24 hours, the offer soft-holds the aircraft for this long. Keep it short so a last-minute recovery does not lock the plane for hours.",
+    href: "scheduling/standby-and-slot-offers#hold-when-slot-is-within-24-hours",
+  },
+  "slot-offer-ai-scanner": {
+    title: "Fill idle time automatically",
+    summary:
+      "AerScheduler AI watches flying-day open aircraft time that matches standing preferences and sends timed offers. Off by default. Respects gap cooldown and a daily offer budget. Nobody is booked until they accept.",
+    href: "scheduling/standby-and-slot-offers#fill-idle-time-automatically",
+  },
+  "slot-offer-hold-normal": {
+    title: "Hold when the slot is further out",
+    summary:
+      "When the slot starts more than 24 hours from now, the offer soft-holds the aircraft for this long so the member has time to see the notification and respond.",
+    href: "scheduling/standby-and-slot-offers#hold-when-slot-is-further-out",
+  },
+  "slot-offer-scanner-min-gap": {
+    title: "Minimum idle gap",
+    summary:
+      "AerScheduler AI ignores free scraps shorter than this. Shorter windows stay open for walk-up bookings.",
+    href: "scheduling/standby-and-slot-offers#minimum-idle-gap--look-ahead",
+  },
+  "slot-offer-scanner-horizon": {
+    title: "Look-ahead window",
+    summary:
+      "How many days ahead AerScheduler AI looks for matching idle aircraft time.",
+    href: "scheduling/standby-and-slot-offers#minimum-idle-gap--look-ahead",
+  },
+  "slot-offer-scanner-max-day": {
+    title: "Max AI offers per day",
+    summary:
+      "Caps how many new AerScheduler AI offers the school can create in a local day, so soft holds and notifications stay bounded.",
+    href: "scheduling/standby-and-slot-offers#max-ai-offers-per-day",
   },
   "pending-slot-offers": {
     title: "Pending offers",
     summary:
-      "Offers currently held after a cancel or a desk send. They also appear as dashed holds on the day board so that time is not mistaken for free. Instructor confirms appear first on duals. Withdraw one to release the soft hold and continue or stop the recovery chain.",
+      "Offers currently held after a cancel, desk send, or AerScheduler AI. They also appear as dashed holds on the day and week boards. Instructor confirms appear first on duals. Withdraw releases the soft hold and stops the chain so the desk can book by hand.",
     href: "scheduling/standby-and-slot-offers",
   },
   "multi-day-bookings": {

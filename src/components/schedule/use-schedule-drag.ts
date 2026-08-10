@@ -355,6 +355,35 @@ export function useScheduleDrag(args: {
 
   // ── pointer drag ───────────────────────────────────────────────────────────
 
+  /**
+   * A press that becomes a drag on something that cannot move. Same path locked bookings
+   * use: wait until the pointer actually travels, then say why, and swallow the click that
+   * would otherwise open details.
+   */
+  const refuse = React.useCallback((e: React.PointerEvent, reason: string) => {
+    if (e.button !== 0) return;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let explained = false;
+    const watch = (ev: PointerEvent) => {
+      if (explained || Math.hypot(ev.clientX - x0, ev.clientY - y0) <= DRAG_THRESHOLD_PX) return;
+      explained = true;
+      toast.info(reason);
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", watch);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+      //Armed on RELEASE, not on the first move: the flag is short-lived by design, and a
+      //slow drag would outlive one armed when the pointer first travelled — leaving the
+      //trailing click to open the details of a booking the user was trying to move.
+      if (explained) swallowRef.current();
+    };
+    window.addEventListener("pointermove", watch);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  }, []);
+
   const begin = React.useCallback(
     (e: React.PointerEvent, r: Reservation, mode: DragMode, geom: DragGeometry) => {
       if (e.button !== 0) return;
@@ -371,27 +400,7 @@ export function useScheduleDrag(args: {
         //be noise. So watch this one gesture: if it travels past the threshold, that was a
         //drag attempt — say why it went nowhere and eat the trailing click.
         if (!ability.reason) return;
-        const reason = ability.reason;
-        const x0 = e.clientX;
-        const y0 = e.clientY;
-        let explained = false;
-        const watch = (ev: PointerEvent) => {
-          if (explained || Math.hypot(ev.clientX - x0, ev.clientY - y0) <= DRAG_THRESHOLD_PX) return;
-          explained = true;
-          toast.info(reason);
-        };
-        const stop = () => {
-          window.removeEventListener("pointermove", watch);
-          window.removeEventListener("pointerup", stop);
-          window.removeEventListener("pointercancel", stop);
-          //Armed on RELEASE, not on the first move: the flag is short-lived by design, and a
-          //slow drag would outlive one armed when the pointer first travelled — leaving the
-          //trailing click to open the details of a booking the user was trying to move.
-          if (explained) swallowRef.current();
-        };
-        window.addEventListener("pointermove", watch);
-        window.addEventListener("pointerup", stop);
-        window.addEventListener("pointercancel", stop);
+        refuse(e, ability.reason);
         return;
       }
       //A booking already being written must not be dragged again on top of itself.
@@ -525,7 +534,7 @@ export function useScheduleDrag(args: {
       window.addEventListener("pointercancel", onCancel);
       window.addEventListener("keydown", onKey);
     },
-    [abilityFor, evaluate, pendingId]
+    [abilityFor, evaluate, pendingId, refuse]
   );
 
   //Nothing else can reach these listeners, so unmounting mid-drag has to.
@@ -629,6 +638,7 @@ export function useScheduleDrag(args: {
     isBusy: active != null || pendingId != null,
     abilityFor,
     begin,
+    refuse,
     nudge,
     previewOf,
     consumeClick,

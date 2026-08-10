@@ -6,6 +6,11 @@ import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { highlightMatch } from "@/lib/highlight-match";
+import {
+  holdDragRefusalReason,
+  type SlotOfferHold,
+} from "@/lib/slot-offer-holds";
+import { formatTimeInZone, formatTimeRangeInZone } from "@/lib/timezone";
 import { hourLabel, hourWindow } from "./hours";
 import { BLOCK_CLASS, personnelNames, typeLabel } from "./meta";
 import { packTracks } from "./pack";
@@ -82,9 +87,11 @@ function occupiesDay(
 export function WeekTimeGrid({
   weekStart,
   reservations,
+  slotOfferHolds = [],
   onView,
   onCreate,
   onSelectDay,
+  onOfferHoldClick,
   matchedIds,
   selectedId,
   query,
@@ -92,10 +99,13 @@ export function WeekTimeGrid({
 }: {
   weekStart: Date;
   reservations: Reservation[];
+  /** Pending soft-holds painted into the day columns (resource lanes live on Day view). */
+  slotOfferHolds?: SlotOfferHold[];
   onView: (r: Reservation) => void;
   /** Omitted for roles that may not create — the columns then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
   onSelectDay: (day: Date) => void;
+  onOfferHoldClick?: (hold: SlotOfferHold) => void;
   /** Block-filter marking — non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
   selectedId?: number | null;
@@ -133,7 +143,7 @@ export function WeekTimeGrid({
   const drawn = reservations;
 
   // Computed over the WHOLE week, not per column, so all seven days share one time axis.
-  const { startHour, endHour } = hourWindow(drawn, tz.zone);
+  const { startHour, endHour } = hourWindow(drawn, tz.zone, undefined, slotOfferHolds);
   const hours = endHour - startHour;
   const totalMin = hours * 60;
   const gridHeight = hours * HOUR_HEIGHT;
@@ -281,6 +291,33 @@ export function WeekTimeGrid({
                   </div>
                 );
               })}
+              {slotOfferHolds
+                .filter((hold) => occupiesDay(
+                  { start: hold.start, end: hold.end } as Reservation,
+                  tz.zone,
+                  startHour,
+                  totalMin,
+                  dayKey
+                ))
+                .map((hold) => {
+                  const { top, height } = blockGeometry(
+                    { start: hold.start, end: hold.end } as Reservation,
+                    tz.zone,
+                    startHour,
+                    totalMin,
+                    dayKey
+                  );
+                  return (
+                    <WeekOfferHoldBlock
+                      key={`hold-${hold.id}`}
+                      hold={hold}
+                      zone={tz.zone}
+                      style={{ top, height, left: 2, right: 2 }}
+                      onClick={onOfferHoldClick}
+                      drag={drag}
+                    />
+                  );
+                })}
               {/* The carried block, painted last so it sits over whatever is already in this
                   column rather than displacing it. */}
               {heldPreview && heldDayKey === dayKey && (
@@ -299,7 +336,77 @@ export function WeekTimeGrid({
   );
 }
 
-/** The outline a block leaves in its committed slot while it's being carried. */
+function WeekOfferHoldBlock({
+  hold,
+  zone,
+  style,
+  onClick,
+  drag,
+}: {
+  hold: SlotOfferHold;
+  zone: string;
+  style: React.CSSProperties;
+  onClick?: (hold: SlotOfferHold) => void;
+  drag?: ScheduleDrag;
+}) {
+  const label =
+    hold.purpose === "instructor_confirm"
+      ? `Confirm: ${hold.offeredToName}`
+      : `Offer: ${hold.offeredToName}`;
+  const detail = `${formatTimeRangeInZone(hold.start, hold.end, zone)}. Expires ${formatTimeInZone(
+    hold.holdUntil,
+    zone
+  )}.`;
+  const refuseReason = holdDragRefusalReason(hold);
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "absolute z-[2] flex items-center overflow-hidden rounded-md border border-dashed",
+            "border-amber-600/60 bg-amber-50 px-1.5 text-left shadow-sm",
+            "dark:border-amber-500/50 dark:bg-amber-950",
+            "cursor-pointer"
+          )}
+          style={style}
+          aria-label={`${label}. ${detail} Can't be rescheduled: ${refuseReason}`}
+          onPointerDown={
+            drag
+              ? (e) => {
+                  e.stopPropagation();
+                  drag.refuse(e, refuseReason);
+                }
+              : undefined
+          }
+          onClick={(e) => {
+            e.stopPropagation();
+            if (drag?.consumeClick()) return;
+            onClick?.(hold);
+          }}
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-xs font-semibold leading-tight text-foreground">
+              {label}
+            </div>
+            <div className="truncate text-[11px] leading-tight opacity-80">Held</div>
+          </div>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <div className="max-w-[16rem] text-xs">
+          <div className="font-medium">{label}</div>
+          <div className="tabular-nums">{detail}</div>
+          <div className="mt-1 opacity-80">
+            Soft hold: this time is not free to book until the offer ends or is withdrawn.
+          </div>
+          <div className="mt-1 border-t border-border/50 pt-1 opacity-90">{refuseReason}</div>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function WeekGhost({ style }: { style: React.CSSProperties }) {
   return (
     <div

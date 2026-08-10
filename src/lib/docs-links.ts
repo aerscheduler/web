@@ -400,6 +400,21 @@ export const DOCS_TOPICS = {
       "AerScheduler in this column means the system did it: a scheduled job, a payment webhook, or an invoice raised by a close-out. It is not a missing name.",
     href: "reports/audit-log",
   },
+
+  /* ── Profile / calendars ──────────────────────────────────────────────── */
+
+  "notification-preferences": {
+    title: "Notification channels",
+    summary:
+      "Email, push, and SMS share the same categories, and each channel has its own master switch. SMS needs a verified US mobile first and is included in your plan. Reply STOP on any AerScheduler text to opt out.",
+    href: "getting-started/notifications-and-emails",
+  },
+  "personal-calendar-sync": {
+    title: "Personal calendars",
+    summary:
+      "Google gets a live push to your primary calendar. Apple Calendar and Outlook subscribe with a private link. Both are one-way from AerScheduler; regenerate the link if it ever leaks.",
+    href: "scheduling/sync-your-personal-calendar",
+  },
 } satisfies Record<string, DocsTopic>;
 
 export type DocsTopicKey = keyof typeof DOCS_TOPICS;

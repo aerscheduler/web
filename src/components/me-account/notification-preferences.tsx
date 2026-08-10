@@ -1,19 +1,22 @@
 /**
  * Member notification preferences against `GET/PATCH /orgUsers/preferences`.
  *
- * Email and push share the same category keys. Push delivery still needs the iPhone
- * app installed (device token), but the category choices themselves are no longer
- * phone-only: saving them here is what the phone reads when it registers.
+ * Email, push, and SMS share the same category keys. SMS requires a verified US
+ * mobile on the profile first (`GET/POST /users/sms`).
  */
 
-import type { ReactNode } from "react";
-import { Bell, Loader2, Smartphone } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { Bell, Loader2, MessageSquare, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { isAdmin, isInstructor, isTechnician } from "@/lib/permissions";
 import {
+  useConfirmSmsVerification,
   useOrgUserPreferences,
+  useSmsOptOut,
+  useSmsStatus,
+  useStartSmsVerification,
   useUpdateOrgUserPreferences,
 } from "@/features/queries";
 import type { ChannelNotificationPreferences } from "@/types/api";
@@ -23,6 +26,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Link } from "@tanstack/react-router";
+import { DocsHint } from "@/components/docs-hint";
 
 type PrefKey = keyof ChannelNotificationPreferences;
 
@@ -147,18 +154,33 @@ const MAINTENANCE_ROWS: PrefRow[] = [
 export function NotificationPreferencesPanel() {
   const { roles } = useAuth();
   const prefsQ = useOrgUserPreferences();
+  const smsQ = useSmsStatus();
   const update = useUpdateOrgUserPreferences();
+  const startVerify = useStartSmsVerification();
+  const confirmVerify = useConfirmSmsVerification();
+  const optOut = useSmsOptOut();
+  const [otp, setOtp] = useState("");
+  const [awaitingCode, setAwaitingCode] = useState(false);
 
   const emailEnabled = prefsQ.data?.notificationPreferences?.emailEnabled ?? true;
   const pushEnabled = prefsQ.data?.notificationPreferences?.pushEnabled ?? true;
+  const smsEnabled = prefsQ.data?.notificationPreferences?.smsEnabled ?? false;
   const email = prefsQ.data?.notificationPreferences?.emailNotificationPreferences;
   const push = prefsQ.data?.notificationPreferences?.pushNotificationPreferences;
+  const sms = prefsQ.data?.notificationPreferences?.smsNotificationPreferences;
+  const smsStatus = smsQ.data;
+  const smsVerified = Boolean(smsStatus?.smsPhoneVerifiedAt && smsStatus?.smsOptedInAt);
+  const smsEligible = Boolean(smsStatus?.eligible);
 
-  const patchMaster = (channel: "email" | "push", value: boolean) => {
+  const patchMaster = (channel: "email" | "push" | "sms", value: boolean) => {
     update.mutate(
       {
         notificationPreferences:
-          channel === "email" ? { emailEnabled: value } : { pushEnabled: value },
+          channel === "email"
+            ? { emailEnabled: value }
+            : channel === "push"
+              ? { pushEnabled: value }
+              : { smsEnabled: value },
       },
       {
         onError: (err) =>
@@ -167,13 +189,15 @@ export function NotificationPreferencesPanel() {
     );
   };
 
-  const patchPref = (channel: "email" | "push", key: PrefKey, value: boolean) => {
+  const patchPref = (channel: "email" | "push" | "sms", key: PrefKey, value: boolean) => {
     update.mutate(
       {
         notificationPreferences:
           channel === "email"
             ? { emailNotificationPreferences: { [key]: value } }
-            : { pushNotificationPreferences: { [key]: value } },
+            : channel === "push"
+              ? { pushNotificationPreferences: { [key]: value } }
+              : { smsNotificationPreferences: { [key]: value } },
       },
       {
         onError: (err) =>
@@ -239,6 +263,212 @@ export function NotificationPreferencesPanel() {
         onPrefChange={(key, v) => patchPref("push", key, v)}
         shotId="me-notifications-push"
       />
+
+      {smsStatus?.available === true ? (
+      <Card data-doc-shot="me-notifications-sms">
+        <CardHeader className="flex-row items-center gap-2 space-y-0">
+          <MessageSquare className="size-4 text-muted-foreground" />
+          <CardTitle className="text-sm">SMS</CardTitle>
+          {(saving || smsQ.isFetching) && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            SMS alerts are available for <span className="font-medium text-foreground">US mobile numbers only</span>.
+            Other countries need local numbers we do not offer yet. Message and data rates may apply. Reply STOP to
+            cancel anytime; reply HELP for help.
+          </p>
+
+          {!smsStatus?.phone ? (
+            <p className="text-xs text-muted-foreground">
+              Add a US mobile on your{" "}
+              <Link to="/me/profile" className="underline underline-offset-2">
+                profile
+              </Link>{" "}
+              before enabling SMS.
+            </p>
+          ) : !smsVerified ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                Verify {smsStatus.phone} to turn on text alerts for this school.
+              </p>
+              {!awaitingCode ? (
+                <Button
+                  size="sm"
+                  disabled={startVerify.isPending}
+                  onClick={() => {
+                    startVerify.mutate(undefined, {
+                      onSuccess: () => {
+                        setAwaitingCode(true);
+                        toast.success("Code sent. Check your texts.");
+                      },
+                      onError: (err) =>
+                        toast.error(err instanceof ApiError ? err.message : "Couldn't send the code"),
+                    });
+                  }}
+                >
+                  {startVerify.isPending ? "Sending…" : "Send verification code"}
+                </Button>
+              ) : (
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="space-y-1">
+                    <Label htmlFor="sms-otp">6-digit code</Label>
+                    <Input
+                      id="sms-otp"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className="w-36"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    disabled={confirmVerify.isPending || otp.length < 6}
+                    onClick={() => {
+                      confirmVerify.mutate(otp, {
+                        onSuccess: () => {
+                          setOtp("");
+                          setAwaitingCode(false);
+                          toast.success("Phone verified. You can turn on SMS below.");
+                          void smsQ.refetch();
+                        },
+                        onError: (err) =>
+                          toast.error(err instanceof ApiError ? err.message : "Couldn't verify that code"),
+                      });
+                    }}
+                  >
+                    {confirmVerify.isPending ? "Checking…" : "Verify"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <SwitchRow
+                id="sms-enabled"
+                label="SMS notifications"
+                hint={
+                  smsEligible
+                    ? "Master switch for transactional texts for this school."
+                    : smsStatus.reason === "opted_out" || smsStatus.smsDisabledReason === "user_stop"
+                      ? "You opted out. Reply START to your last AerScheduler text, then verify again here."
+                      : "SMS is paused for this number. Re-verify or update your mobile on your profile."
+                }
+                checked={smsEnabled}
+                disabled={saving || !smsEligible}
+                onChange={(v) => {
+                  if (!v) {
+                    patchMaster("sms", false);
+                    return;
+                  }
+                  patchMaster("sms", true);
+                }}
+              />
+              {smsEnabled && smsEligible && (
+                <>
+                  {showAdmin && (
+                    <PrefSection
+                      channel="sms"
+                      title="Organization"
+                      rows={ADMIN_ROWS}
+                      prefs={sms}
+                      saving={saving}
+                      onChange={(key, v) => patchPref("sms", key, v)}
+                    />
+                  )}
+                  <PrefSection
+                    channel="sms"
+                    title="Reservations"
+                    rows={RESERVATION_ROWS}
+                    prefs={sms}
+                    saving={saving}
+                    onChange={(key, v) => patchPref("sms", key, v)}
+                  />
+                  <PrefSection
+                    channel="sms"
+                    title="Billing"
+                    rows={BILLING_ROWS}
+                    prefs={sms}
+                    saving={saving}
+                    onChange={(key, v) => patchPref("sms", key, v)}
+                  />
+                  <PrefSection
+                    channel="sms"
+                    title="Documents"
+                    rows={DOCUMENT_ROWS}
+                    prefs={sms}
+                    saving={saving}
+                    onChange={(key, v) => patchPref("sms", key, v)}
+                  />
+                  <PrefSection
+                    channel="sms"
+                    title="Currency"
+                    rows={CURRENCY_ROWS}
+                    prefs={sms}
+                    saving={saving}
+                    onChange={(key, v) => patchPref("sms", key, v)}
+                  />
+                  {showEndorsements && (
+                    <PrefSection
+                      channel="sms"
+                      title="Endorsements"
+                      rows={ENDORSEMENT_ROWS}
+                      prefs={sms}
+                      saving={saving}
+                      onChange={(key, v) => patchPref("sms", key, v)}
+                    />
+                  )}
+                  {showMaintenance && (
+                    <PrefSection
+                      channel="sms"
+                      title="Maintenance"
+                      rows={MAINTENANCE_ROWS}
+                      prefs={sms}
+                      saving={saving}
+                      onChange={(key, v) => patchPref("sms", key, v)}
+                    />
+                  )}
+                  <PrefSection
+                    channel="sms"
+                    title="Status"
+                    rows={STATUS_ROWS}
+                    prefs={sms}
+                    saving={saving}
+                    onChange={(key, v) => patchPref("sms", key, v)}
+                  />
+                  <PrefSection
+                    channel="sms"
+                    title="Announcements"
+                    rows={ANNOUNCEMENT_ROWS}
+                    prefs={sms}
+                    saving={saving}
+                    onChange={(key, v) => patchPref("sms", key, v)}
+                  />
+                </>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground"
+                disabled={optOut.isPending}
+                onClick={() => {
+                  optOut.mutate(undefined, {
+                    onSuccess: () => {
+                      patchMaster("sms", false);
+                      toast.success("Opted out of SMS.");
+                    },
+                    onError: (err) =>
+                      toast.error(err instanceof ApiError ? err.message : "Couldn't opt out"),
+                  });
+                }}
+              >
+                Opt out of SMS
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+      ) : null}
     </div>
   );
 }
@@ -261,7 +491,7 @@ function ChannelCard({
   onPrefChange,
   shotId,
 }: {
-  channel: "email" | "push";
+  channel: "email" | "push" | "sms";
   title: string;
   icon: ReactNode;
   masterId: string;
@@ -392,7 +622,7 @@ function PrefSection({
   saving,
   onChange,
 }: {
-  channel: "email" | "push";
+  channel: "email" | "push" | "sms";
   title: string;
   rows: PrefRow[];
   prefs: ChannelNotificationPreferences | null | undefined;
@@ -480,6 +710,7 @@ export function NotificationPreferencesPage() {
       <PageHeader
         title="Notification settings"
         subtitle="Choose which AerScheduler emails and push alerts reach you."
+        actions={<DocsHint topic="notification-preferences" />}
       />
       <NotificationPreferencesPanel />
     </div>

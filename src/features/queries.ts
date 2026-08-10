@@ -79,6 +79,7 @@ import type {
   OrgOnboarding,
   TimeZonePreferences,
   OrgUserPreferences,
+  SmsStatus,
   OrganizationBillingSettings,
   OrganizationRating,
   OrganizationUser,
@@ -2816,6 +2817,57 @@ export function useConnectGoogleCalendar() {
   });
 }
 
+export function useDisconnectGoogleCalendar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api("/integrations/googleCalendar", { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["integration", "googleCalendar"] }),
+  });
+}
+
+export type CalendarFeedUrls = {
+  httpsUrl: string;
+  webcalUrl: string;
+  token: string;
+};
+
+export function useCalendarFeed(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["integration", "calendarFeed"],
+    queryFn: async () => {
+      try {
+        return await api<CalendarFeedUrls>("/integrations/calendarFeed");
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
+      }
+    },
+    ...opts,
+  });
+}
+
+export function useEnsureCalendarFeed() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<CalendarFeedUrls>("/integrations/calendarFeed", { method: "POST" }),
+    onSuccess: (data) => {
+      qc.setQueryData(["integration", "calendarFeed"], data);
+    },
+  });
+}
+
+export function useRotateCalendarFeed() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<CalendarFeedUrls>("/integrations/calendarFeed/rotate", { method: "POST" }),
+    onSuccess: (data) => {
+      qc.setQueryData(["integration", "calendarFeed"], data);
+    },
+  });
+}
+
 // ── Pre-flight weather (third-party, keyless) ────────────────────────────────
 // NOT AerScheduler API calls: these go straight to aviationweather.gov and
 // api.sunrise-sunset.org, so they use the plain fetches in lib/weather.ts rather than
@@ -2930,6 +2982,10 @@ export function useUpdateOrgUserPreferences() {
                 ...previous.notificationPreferences?.pushNotificationPreferences,
                 ...patch.notificationPreferences.pushNotificationPreferences,
               },
+              smsNotificationPreferences: {
+                ...previous.notificationPreferences?.smsNotificationPreferences,
+                ...patch.notificationPreferences.smsNotificationPreferences,
+              },
             }
           : previous.notificationPreferences;
         qc.setQueryData<OrgUserPreferences>(["orgUser", "preferences"], {
@@ -2946,6 +3002,44 @@ export function useUpdateOrgUserPreferences() {
       }
     },
     onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["orgUser", "preferences"] });
+    },
+  });
+}
+
+export function useSmsStatus(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["user", "sms"],
+    queryFn: () => api<SmsStatus>("/users/sms"),
+    enabled: opts?.enabled ?? true,
+    staleTime: 30_000,
+  });
+}
+
+export function useStartSmsVerification() {
+  return useMutation({
+    mutationFn: () => api<{ sent: boolean }>("/users/sms/verify/start", { method: "POST", body: {} }),
+  });
+}
+
+export function useConfirmSmsVerification() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (code: string) =>
+      api<{ verified: boolean }>("/users/sms/verify/confirm", { method: "POST", body: { code } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["user", "sms"] });
+      void qc.invalidateQueries({ queryKey: ["contactDetails"] });
+    },
+  });
+}
+
+export function useSmsOptOut() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ optedOut: boolean }>("/users/sms/opt-out", { method: "POST", body: {} }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["user", "sms"] });
       void qc.invalidateQueries({ queryKey: ["orgUser", "preferences"] });
     },
   });

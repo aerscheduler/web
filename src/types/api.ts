@@ -156,6 +156,23 @@ export interface OrgUserNotificationPreferences {
   smsEnabled?: boolean;
   emailNotificationPreferences?: ChannelNotificationPreferences | null;
   pushNotificationPreferences?: ChannelNotificationPreferences | null;
+  smsNotificationPreferences?: ChannelNotificationPreferences | null;
+}
+
+/** Person-level SMS opt-in / verify status from GET /users/sms. */
+export interface SmsStatus {
+  /** False until SMS_NOTIFICATIONS_ENABLED is flipped on the server (10DLC approved). */
+  available: boolean;
+  eligible: boolean;
+  reason: string | null;
+  phone: string | null;
+  phoneCountry: string | null;
+  smsOptedInAt: string | null;
+  smsOptedOutAt: string | null;
+  smsPhoneVerifiedAt: string | null;
+  smsDisabledReason: string | null;
+  smsDisabledAt: string | null;
+  usOnly: boolean;
 }
 
 /** Full member preferences row (timezone + notifications). */

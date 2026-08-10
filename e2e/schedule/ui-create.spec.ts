@@ -48,34 +48,11 @@ test.describe("Schedule UI create", () => {
     });
 
     await pickByPlaceholder(page, /Select resource/i, /N172TS/, /Search fleet/i);
-    await pickByPlaceholder(page, /Assign student/i, /Test Student/, /Search student/i);
 
-    // Curriculum can flip Type → Dual after the student is chosen; wait briefly then assign.
-    await page.waitForTimeout(800);
-    await expect
-      .poll(
-        async () =>
-          (await page
-            .getByRole("combobox")
-            .filter({ hasText: /Assign instructor/i })
-            .count()) > 0,
-        { timeout: 10_000 },
-      )
-      .toBeTruthy()
-      .catch(() => undefined);
-    if (
-      (await page
-        .getByRole("combobox")
-        .filter({ hasText: /Assign instructor/i })
-        .count()) > 0
-    ) {
-      await pickByPlaceholder(
-        page,
-        /Assign instructor/i,
-        /Test Instructor/,
-        /Search instructor/i,
-      );
-    }
+    // Prefer rental + renter: the seeded student is often grounded for unpaid invoices.
+    await page.locator("#res-type").click();
+    await page.getByRole("option", { name: /^Rental$/i }).click();
+    await pickByPlaceholder(page, /Assign renter/i, /Test Renter/, /Search renters/i);
 
     // Today may have no mutual free window; jump to the next available slot.
     const nextAvail = page.getByRole("button", { name: /Next available:/i });

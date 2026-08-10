@@ -39,34 +39,45 @@ test.describe("Schedule API lifecycle (owner)", () => {
     const usersBody = await orgUsers.json();
     const users = Array.isArray(usersBody) ? usersBody : (usersBody.data ?? []);
     const student = users.find((u: any) => u?.user?.email === ACCOUNTS.student);
-    expect(student).toBeTruthy();
+    const renter = users.find((u: any) => u?.user?.email === ACCOUNTS.renter);
+    expect(renter || student).toBeTruthy();
 
+    // Prefer renter: the seeded student is often grounded for unpaid invoices locally.
+    const useRenter = !!renter;
     // Denver daytime (MDT/MST). Avoid UTC hours that fall outside 6 AM-10 PM local.
-    const probe = new Date(Date.now() + 3 * 864e5);
-    const ymd = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "America/Denver",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(probe);
-    const start = new Date(`${ymd}T10:00:00-06:00`);
-    const end = new Date(start.getTime() + 3600_000);
-    const notes = `E2E-UI-web-${Date.now()}`;
-    const created = await request.post(`${base}/reservations/`, {
-      headers,
-      data: {
-        title: "E2E Web Solo",
-        type: "solo",
-        start: start.toISOString(),
-        end: end.toISOString(),
-        timeZoneName: "America/Denver",
-        notes,
-        resource: { id: plane.id },
-        personnel: { students: [{ id: student.id }] },
-      },
-    });
-    expect(created.status(), await created.text()).toBeLessThan(300);
-    const createdBody = await created.json();
+    // Probe several days for a free window; soft holds / prior e2e can pack today.
+    let created: Awaited<ReturnType<typeof request.post>> | null = null;
+    let notes = "";
+    for (let dayOffset = 2; dayOffset <= 10; dayOffset++) {
+      const probe = new Date(Date.now() + dayOffset * 864e5);
+      const ymd = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Denver",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(probe);
+      const start = new Date(`${ymd}T10:00:00-06:00`);
+      const end = new Date(start.getTime() + 3600_000);
+      notes = `E2E-UI-web-${Date.now()}`;
+      created = await request.post(`${base}/reservations/`, {
+        headers,
+        data: {
+          title: useRenter ? "E2E Web Rental" : "E2E Web Solo",
+          type: useRenter ? "rental" : "solo",
+          start: start.toISOString(),
+          end: end.toISOString(),
+          timeZoneName: "America/Denver",
+          notes,
+          resource: { id: plane.id },
+          personnel: useRenter
+            ? { renters: [{ id: renter.id }] }
+            : { students: [{ id: student.id }] },
+        },
+      });
+      if (created.status() < 300) break;
+    }
+    expect(created!.status(), await created!.text()).toBeLessThan(300);
+    const createdBody = await created!.json();
     const id = (createdBody.data ?? createdBody).id as number;
     expect(id).toBeTruthy();
 

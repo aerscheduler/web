@@ -55,6 +55,8 @@ const EXACT: Record<string, NotificationHref | undefined> = {
   "/organization-settings": "/settings?tab=organization",
   //Automatic dunning handoff: admins/owners only. App org-invoice list; console Billing.
   "/organization-invoices": "/billing",
+  // Slot-offer list (no id). Same destination as /slot-offers/:id.
+  "/slot-offers": "/me/schedule?tab=offers",
 };
 
 /**
@@ -81,7 +83,7 @@ const WITH_ID: Record<string, ((id: number) => NotificationHref) | undefined> = 
   //page on either surface; the app's link opens the list too.
   "/documents": () => "/me/documents",
   "/currencies": () => "/me/currencies",
-  // Member list lives under Schedule; the offer id is not a separate console page.
+  // Member list lives under Schedule; offer detail is not a separate console page.
   "/slot-offers": () => `/me/schedule?tab=offers`,
 };
 

@@ -31,6 +31,7 @@ type SlotOfferPolicyPatch = Partial<
     | "quietHoursStartMinute"
     | "quietHoursEndMinute"
     | "maxPendingOffers"
+    | "maxPendingOffersPerMember"
     | "declineCooldownHours"
     | "holdUrgentMinutes"
     | "holdNormalMinutes"
@@ -105,6 +106,9 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   const [maxPending, setMaxPending] = useState(
     String(slotOfferSettings?.maxPendingOffers ?? 10)
   );
+  const [maxPendingPerMember, setMaxPendingPerMember] = useState(
+    String(slotOfferSettings?.maxPendingOffersPerMember ?? 2)
+  );
   const [cooldownHours, setCooldownHours] = useState(
     String(slotOfferSettings?.declineCooldownHours ?? 48)
   );
@@ -147,6 +151,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     setMaxLengthMinutes(String(bookingPolicy?.maxReservationMinutes ?? ""));
     setQuietKey(quietHoursKey(slotOfferSettings));
     setMaxPending(String(slotOfferSettings?.maxPendingOffers ?? 10));
+    setMaxPendingPerMember(String(slotOfferSettings?.maxPendingOffersPerMember ?? 2));
     setCooldownHours(String(slotOfferSettings?.declineCooldownHours ?? 48));
     setHoldUrgent(String(slotOfferSettings?.holdUrgentMinutes ?? 30));
     setHoldNormal(String(slotOfferSettings?.holdNormalMinutes ?? 120));
@@ -161,6 +166,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     slotOfferSettings?.quietHoursStartMinute,
     slotOfferSettings?.quietHoursEndMinute,
     slotOfferSettings?.maxPendingOffers,
+    slotOfferSettings?.maxPendingOffersPerMember,
     slotOfferSettings?.declineCooldownHours,
     slotOfferSettings?.holdUrgentMinutes,
     slotOfferSettings?.holdNormalMinutes,
@@ -562,6 +568,27 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                   { value: "15", label: "15" },
                   { value: "20", label: "20" },
                   { value: "50", label: "50" },
+                ]}
+              />
+              <PolicySelect
+                label="Max pending offers per person"
+                docs="slot-offer-max-pending-per-member"
+                value={maxPendingPerMember}
+                disabled={policyDisabled}
+                onValueChange={(value) => {
+                  const previous = maxPendingPerMember;
+                  setMaxPendingPerMember(value);
+                  saveSlotOfferPolicy(
+                    { maxPendingOffersPerMember: Number(value) },
+                    () => setMaxPendingPerMember(previous)
+                  );
+                }}
+                options={[
+                  { value: "1", label: "1" },
+                  { value: "2", label: "2" },
+                  { value: "3", label: "3" },
+                  { value: "5", label: "5" },
+                  { value: "10", label: "10" },
                 ]}
               />
               <PolicySelect

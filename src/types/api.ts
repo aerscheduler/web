@@ -267,6 +267,8 @@ export interface OrganizationSlotOfferSettings {
   quietHoursEndMinute?: number;
   /** Max concurrent pending offers for the school (default 10). */
   maxPendingOffers?: number;
+  /** Max concurrent pending offers for one member (default 2). */
+  maxPendingOffersPerMember?: number;
   /** Hours before re-offering someone who declined/expired a similar window (default 48). */
   declineCooldownHours?: number;
   /** Hold minutes when the slot starts within 24h (default 30). */
@@ -320,6 +322,7 @@ export interface OrganizationBillingSettings {
    * flight back at 12:20am with a 30-minute grace still counts the earlier nights, just not
    * the one it landed into.
    */
+  overnightGraceMinutes: number | null;
   /**
    * How many unpaid invoices before a member is grounded, or null/0 for off.
    *

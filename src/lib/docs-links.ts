@@ -260,8 +260,14 @@ export const DOCS_TOPICS = {
   "slot-offer-max-pending": {
     title: "Max pending offers",
     summary:
-      "A pending offer reserves the aircraft for the offered window. This cap limits how many of those offers can be open at once for the school, so the board does not fill with locked time.",
+      "A pending offer reserves the aircraft for the offered window. This school-wide cap limits how many can be open at once, so the board does not fill with locked time.",
     href: "scheduling/standby-and-slot-offers#max-pending-offers",
+  },
+  "slot-offer-max-pending-per-member": {
+    title: "Max pending offers per person",
+    summary:
+      "Limits how many pending offers one member can hold at once (default 2). Stops a broad standby preference from filling one inbox and soft-holding that person across many windows.",
+    href: "scheduling/standby-and-slot-offers#max-pending-offers-per-person",
   },
   "slot-offer-hold-urgent": {
     title: "Offer window when the slot is soon",

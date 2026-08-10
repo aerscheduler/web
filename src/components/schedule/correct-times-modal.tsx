@@ -4,6 +4,8 @@ import { TriangleAlert } from "lucide-react";
 import { useCorrectReviewTimes } from "@/features/queries";
 import type { CorrectReviewTimesInput, Reservation } from "@/types/api";
 import { ApiError } from "@/lib/api";
+import { useConfirm } from "@/components/confirm-dialog";
+import { meterAnomalyMessages } from "@/lib/meter-anomaly";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +73,7 @@ export function CorrectTimesModal({
   const r = reservation;
   const review = r?.review ?? null;
   const correct = useCorrectReviewTimes(r?.id ?? 0);
+  const confirm = useConfirm();
 
   // A pair is correctable only when the booking already holds both halves of it.
   const hasHobbs = review?.hobbsTimeOut != null && review?.hobbsTimeIn != null;
@@ -185,7 +188,8 @@ export function CorrectTimesModal({
     };
 
     try {
-      await correct.mutateAsync(body);
+      const done = await submitCorrection(body);
+      if (!done) return;
       toast.success(
         confirmed > 0
           ? "Times corrected. The pilots will need to sign off again."
@@ -194,6 +198,34 @@ export function CorrectTimesModal({
       onOpenChange(false);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't correct the times");
+    }
+  }
+
+  /**
+   * Save the correction, and if the server refuses with 409 `METER_ANOMALY`, ask the desk
+   * to confirm the reading before resubmitting with `confirmMeterAnomaly: true`.
+   */
+  async function submitCorrection(body: CorrectReviewTimesInput): Promise<boolean> {
+    try {
+      await correct.mutateAsync(body);
+      return true;
+    } catch (e) {
+      const anomalies = meterAnomalyMessages(e);
+      if (!anomalies || anomalies.length === 0) throw e;
+      const ok = await confirm({
+        title: "Check these readings",
+        description: (
+          <div className="space-y-1.5">
+            {anomalies.map((m, i) => (
+              <p key={i}>{m}</p>
+            ))}
+          </div>
+        ),
+        confirmLabel: "Confirm and continue",
+      });
+      if (!ok) return false;
+      await correct.mutateAsync({ ...body, confirmMeterAnomaly: true });
+      return true;
     }
   }
 

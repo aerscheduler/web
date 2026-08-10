@@ -6,7 +6,12 @@ import { routeTree } from "./routeTree.gen";
 import { queryClient } from "./lib/query";
 import { AuthProvider } from "./lib/auth";
 import { captureAttribution } from "./lib/attribution";
-import { startAnalytics, startDwell, trackFilters, trackPageview } from "./lib/analytics";
+import {
+  bootstrapAnalyticsConsent,
+  startDwell,
+  trackFilters,
+  trackPageview,
+} from "./lib/analytics";
 import { initTheme } from "./lib/theme";
 import "./styles.css";
 
@@ -14,8 +19,9 @@ initTheme();
 // Before the router touches the URL and before any OAuth hop leaves our origin,
 // both of which would take the campaign params with them. See lib/attribution.ts.
 captureAttribution();
-// No-op unless they already accepted the banner, here or on the marketing site.
-startAnalytics();
+// Starts PostHog when consent already exists, or when US geo implies it. The banner
+// uses the same helper so it does not flash for US visitors.
+bootstrapAnalyticsConsent();
 
 const router = createRouter({
   routeTree,

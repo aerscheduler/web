@@ -4,6 +4,8 @@ import { useBilling, useLocations, useRampIn, useRampOut, useUpdateResourceLocat
 import type { Reservation } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useConfirm } from "@/components/confirm-dialog";
+import { meterAnomalyMessages } from "@/lib/meter-anomaly";
 import { usesBriefingNotMeters } from "@/components/schedule/close-out";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
@@ -14,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Moon } from "lucide-react";
 import { overnightBilling } from "@/lib/overnight-minimum";
 import { useTimeZone } from "@/lib/use-timezone";
+import type { RampInInput } from "@/types/api";
 
 type RampMode = "out" | "in";
 
@@ -56,6 +59,7 @@ export function RampModal({
   mode: RampMode;
 }) {
   const tz = useTimeZone();
+  const confirm = useConfirm();
   //Only while the modal is open: this is the school's org-wide minimum, and there is no
   //reason to hold it for every closed modal on the board.
   const billingQ = useBilling({ enabled: open });
@@ -189,7 +193,37 @@ export function RampModal({
     flownTenths: hoursFlown == null ? null : Math.round(hoursFlown * 10),
     aircraftMinimumTenths: plane?.cost?.overnightMinimumTenths ?? null,
     orgMinimumTenths: billingQ.data?.overnightMinimumTenths ?? null,
+    graceMinutes: billingQ.data?.overnightGraceMinutes ?? null,
   });
+
+  /**
+   * Ramp in, and if the server refuses with 409 `METER_ANOMALY`, ask the desk to look at
+   * the reading before resubmitting with `confirmMeterAnomaly: true`. Declining leaves the
+   * form open with whatever was typed, rather than losing it.
+   */
+  async function submitRampIn(body: RampInInput): Promise<boolean> {
+    try {
+      await rampIn.mutateAsync(body);
+      return true;
+    } catch (e) {
+      const anomalies = meterAnomalyMessages(e);
+      if (!anomalies || anomalies.length === 0) throw e;
+      const ok = await confirm({
+        title: "Check these readings",
+        description: (
+          <div className="space-y-1.5">
+            {anomalies.map((m, i) => (
+              <p key={i}>{m}</p>
+            ))}
+          </div>
+        ),
+        confirmLabel: "Confirm and continue",
+      });
+      if (!ok) return false;
+      await rampIn.mutateAsync({ ...body, confirmMeterAnomaly: true });
+      return true;
+    }
+  }
 
   async function submit() {
     if (!reservation) return;
@@ -225,9 +259,11 @@ export function RampModal({
     if (noMeters) {
       if (briefingNum == null) return;
       try {
-        await rampIn.mutateAsync({ briefing: toDeci(briefingNum) });
-        toast.success("Times saved");
-        onOpenChange(false);
+        const done = await submitRampIn({ briefing: toDeci(briefingNum) });
+        if (done) {
+          toast.success("Times saved");
+          onOpenChange(false);
+        }
       } catch (e) {
         toast.error(e instanceof ApiError ? e.message : "Couldn't save the times");
       }
@@ -235,32 +271,35 @@ export function RampModal({
     }
 
     if (hobbsNum == null || tachNum == null) return;
-    try {
-      if (mode === "out") {
+
+    if (mode === "out") {
+      try {
         await rampOut.mutateAsync({ hobbsTimeOut: toDeci(hobbsNum), tachTimeOut: toDeci(tachNum) });
         toast.success("Aircraft ramped out");
-      } else {
-        // Same order as the iPhone sheet: move the home base first, then record meters.
-        // A failed location update must not leave meters written against the wrong field.
-        if (showLocationPicker && locationId) {
-          await updateLocation.mutateAsync(Number(locationId));
-        }
-        await rampIn.mutateAsync({
-          hobbsTimeIn: toDeci(hobbsNum),
-          tachTimeIn: toDeci(tachNum),
-          ...(briefingNum != null ? { briefing: toDeci(briefingNum) } : {}),
-        });
-        toast.success("Aircraft ramped in");
+        onOpenChange(false);
+      } catch (e) {
+        toast.error(e instanceof ApiError ? e.message : "Couldn't ramp out the flight");
       }
-      onOpenChange(false);
+      return;
+    }
+
+    try {
+      // Same order as the iPhone sheet: move the home base first, then record meters.
+      // A failed location update must not leave meters written against the wrong field.
+      if (showLocationPicker && locationId) {
+        await updateLocation.mutateAsync(Number(locationId));
+      }
+      const done = await submitRampIn({
+        hobbsTimeIn: toDeci(hobbsNum),
+        tachTimeIn: toDeci(tachNum),
+        ...(briefingNum != null ? { briefing: toDeci(briefingNum) } : {}),
+      });
+      if (done) {
+        toast.success("Aircraft ramped in");
+        onOpenChange(false);
+      }
     } catch (e) {
-      toast.error(
-        e instanceof ApiError
-          ? e.message
-          : mode === "out"
-            ? "Couldn't ramp out the flight"
-            : "Couldn't ramp in the flight"
-      );
+      toast.error(e instanceof ApiError ? e.message : "Couldn't ramp in the flight");
     }
   }
 

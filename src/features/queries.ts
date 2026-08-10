@@ -704,7 +704,19 @@ export function useUpdateReservation() {
 export function useCancelReservation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, reason, category, scope }: { id: number; reason?: string; category?: string; scope?: CancelScope }) =>
+    mutationFn: ({
+      id,
+      reason,
+      category,
+      scope,
+      acceptLateCancelFee,
+    }: {
+      id: number;
+      reason?: string;
+      category?: string;
+      scope?: CancelScope;
+      acceptLateCancelFee?: boolean;
+    }) =>
       api<void>(`/reservations/${id}`, {
         method: "DELETE",
         body: {
@@ -712,6 +724,7 @@ export function useCancelReservation() {
           ...(category ? { category } : {}),
           //Absent means just this one, which is what the server has always assumed.
           ...(scope && scope !== "this" ? { scope } : {}),
+          ...(acceptLateCancelFee ? { acceptLateCancelFee: true } : {}),
         },
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["reservations"] }),
@@ -1082,8 +1095,20 @@ export function useUpdateInvoice() {
     //back as a `warning` alongside `data`, and `api` unwraps to `data` and drops it.
     mutationFn: async ({ id, patch }: { id: number; patch: InvoiceUpdate }) => {
       const { body } = await raw(`/invoices/${id}`, { method: "PATCH", body: patch });
-      const envelope = (body ?? {}) as { data?: Invoice; warning?: string };
-      return { invoice: envelope.data, warning: envelope.warning };
+      const envelope = (body ?? {}) as {
+        data?: Invoice;
+        warning?: string;
+        //Set only on a void that leaves a past, uncancelled reservation with nothing else
+        //billed for it, see `useVoidInvoiceFlow`, which is what actually surfaces this.
+        leavesUnbilled?: boolean;
+        reservationId?: number;
+      };
+      return {
+        invoice: envelope.data,
+        warning: envelope.warning,
+        leavesUnbilled: envelope.leavesUnbilled,
+        reservationId: envelope.reservationId,
+      };
     },
     onSuccess: (_data, vars) => {
       void qc.invalidateQueries({ queryKey: ["invoices"] });

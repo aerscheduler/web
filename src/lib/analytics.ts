@@ -23,11 +23,14 @@
  *
  * Shares the `aer_consent` cookie with the marketing site, on `.aerscheduler.com`, so
  * somebody who answered the banner there is never asked again here. Undecided is treated
- * as "no", so nothing loads until they accept.
+ * as "no", so nothing loads until they accept, except for US visitors: the console
+ * implies grant there (see `bootstrapAnalyticsConsent`) so dispatchers are not nagged
+ * for product analytics. An explicit prior decline is always respected.
  */
 
 import type { PostHog } from "posthog-js";
 import { attributionChannel, readAttribution } from "./attribution";
+import { getVisitorCountry, isConsentImpliedRegion } from "./geo";
 
 /** Public, write-only ingest key, meant to ship in the client bundle. */
 const POSTHOG_KEY =
@@ -75,6 +78,30 @@ export function setConsent(state: "granted" | "denied"): void {
 
   if (state === "granted") startAnalytics();
   else stopAnalytics();
+}
+
+/**
+ * Resolve regional consent before the banner decides whether to show.
+ *
+ * - Already answered → start PostHog only if granted.
+ * - US + unset → write `granted` (shared cookie) and start tracking.
+ * - Anywhere else + unset → leave unset; the banner asks.
+ *
+ * Returns whether the cookie banner should still prompt.
+ */
+export function bootstrapAnalyticsConsent(): boolean {
+  const existing = readConsent();
+  if (existing === "granted") {
+    startAnalytics();
+    return false;
+  }
+  if (existing === "denied") return false;
+
+  if (isConsentImpliedRegion(getVisitorCountry())) {
+    setConsent("granted");
+    return false;
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------- lifecycle

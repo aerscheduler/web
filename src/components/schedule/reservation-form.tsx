@@ -1231,6 +1231,7 @@ export function ReservationForm({
               timeZone={tz.zone}
               resource={selectedResource}
               orgMinimumTenths={billingQ.data?.overnightMinimumTenths ?? null}
+              graceMinutes={billingQ.data?.overnightGraceMinutes ?? null}
             />
           </>
         )}

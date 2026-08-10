@@ -22,12 +22,14 @@ export function OvernightMinimumNotice({
   timeZone,
   resource,
   orgMinimumTenths,
+  graceMinutes,
 }: {
   start: Date | null;
   end: Date | null;
   timeZone: string;
   resource: Resource | undefined;
   orgMinimumTenths?: number | null;
+  graceMinutes?: number | null;
 }) {
   const disclosure = overnightDisclosure({
     start,
@@ -35,6 +37,7 @@ export function OvernightMinimumNotice({
     timeZone,
     aircraftMinimumTenths: resource?.type?.plane?.cost?.overnightMinimumTenths ?? null,
     orgMinimumTenths,
+    graceMinutes,
     resourceName: resource ? resourceLabel(resource).name : null,
   });
   if (!disclosure) return null;

@@ -2,7 +2,6 @@ import { test, expect } from "@playwright/test";
 import { ACCOUNTS, TEST_PASSWORD, apiProxyTarget } from "../helpers/env";
 import { cleanupE2eReservations } from "../helpers/api";
 
-/** Click a closed Combobox trigger that still shows its placeholder text. */
 async function pickByPlaceholder(
   page: import("@playwright/test").Page,
   placeholder: RegExp,
@@ -35,7 +34,7 @@ test.describe("Schedule UI create", () => {
     await cleanupE2eReservations(request);
   });
 
-  test("owner books via lane click + reservation form", async ({ page, request }) => {
+  test("owner books via New reservation form", async ({ page, request }) => {
     const marker = `E2E-UI-web-${Date.now()}`;
     await page.goto("/schedule");
     await expect(page).not.toHaveURL(/\/login/);
@@ -43,43 +42,33 @@ test.describe("Schedule UI create", () => {
     const accept = page.getByRole("button", { name: /^Accept$/i });
     if (await accept.isVisible().catch(() => false)) await accept.click();
 
-    // Lane click seeds Out on / Start / Back at from the grid (avoids empty time pickers).
-    const lane = page.getByLabel(/Book time on N172TS/i).first();
-    if (await lane.isVisible().catch(() => false)) {
-      await lane.click({ position: { x: 120, y: 28 } });
-    } else {
-      // Fallback: New reservation CTA, then pick resource.
-      const pageCta = page.getByRole("button", { name: /\+?\s*New reservation/i });
-      await pageCta.click();
-      await pickByPlaceholder(page, /Select resource/i, /N172TS/, /Search fleet/i);
-    }
-
+    await page.getByRole("button", { name: /\+?\s*New reservation/i }).click();
     await expect(page.getByText("New reservation").first()).toBeVisible({
       timeout: 15_000,
     });
 
-    // Ensure resource is N172TS when lane missed the plane row.
-    const resourceEmpty = page
-      .getByRole("combobox")
-      .filter({ hasText: /Select resource/i })
-      .first();
-    if (await resourceEmpty.isVisible().catch(() => false)) {
-      await pickByPlaceholder(page, /Select resource/i, /N172TS/, /Search fleet/i);
-    }
+    await pickByPlaceholder(page, /Select resource/i, /N172TS/, /Search fleet/i);
+    await pickByPlaceholder(page, /Assign student/i, /Test Student/, /Search student/i);
 
-    const studentTrigger = page
-      .getByRole("combobox")
-      .filter({ hasText: /Assign student/i })
-      .first();
-    if (await studentTrigger.isVisible().catch(() => false)) {
-      await pickByPlaceholder(page, /Assign student/i, /Test Student/, /Search student/i);
-    }
-
-    const instructorTrigger = page
-      .getByRole("combobox")
-      .filter({ hasText: /Assign instructor/i })
-      .first();
-    if (await instructorTrigger.isVisible().catch(() => false)) {
+    // Curriculum can flip Type → Dual after the student is chosen; wait briefly then assign.
+    await page.waitForTimeout(800);
+    await expect
+      .poll(
+        async () =>
+          (await page
+            .getByRole("combobox")
+            .filter({ hasText: /Assign instructor/i })
+            .count()) > 0,
+        { timeout: 10_000 },
+      )
+      .toBeTruthy()
+      .catch(() => undefined);
+    if (
+      (await page
+        .getByRole("combobox")
+        .filter({ hasText: /Assign instructor/i })
+        .count()) > 0
+    ) {
       await pickByPlaceholder(
         page,
         /Assign instructor/i,
@@ -88,17 +77,32 @@ test.describe("Schedule UI create", () => {
       );
     }
 
-    // If Start is still unset, pick the first available option.
-    const startCombo = page
-      .locator("div")
-      .filter({ has: page.getByText(/^Start$/, { exact: true }) })
-      .getByRole("combobox")
-      .first();
-    const startText = ((await startCombo.textContent().catch(() => "")) ?? "").trim();
-    if (/^Select$/i.test(startText) || startText.length === 0) {
-      await startCombo.click();
-      const opt = page.getByRole("option").first();
-      await expect(opt).toBeVisible({ timeout: 25_000 });
+    // Today may have no mutual free window; jump to the next available slot.
+    const nextAvail = page.getByRole("button", { name: /Next available:/i });
+    await expect
+      .poll(
+        async () => {
+          if (await nextAvail.isVisible().catch(() => false)) return "next";
+          const start = page.locator("#smart-start");
+          const disabled = await start.isDisabled().catch(() => true);
+          return disabled ? "wait" : "ready";
+        },
+        { timeout: 30_000 },
+      )
+      .not.toBe("wait");
+
+    if (await nextAvail.isVisible().catch(() => false)) {
+      await nextAvail.click();
+      await page.waitForTimeout(800);
+    }
+
+    const startTrigger = page.locator("#smart-start");
+    await expect(startTrigger).toBeEnabled({ timeout: 20_000 });
+    const startLabel = ((await startTrigger.textContent()) ?? "").trim();
+    if (/^Select$/i.test(startLabel) || /Checking/i.test(startLabel)) {
+      await startTrigger.click();
+      const opt = page.locator('[role="listbox"] [role="option"]').first();
+      await expect(opt).toBeVisible({ timeout: 15_000 });
       await opt.click();
     }
 

@@ -54,6 +54,11 @@ const RESERVATION_ROWS: PrefRow[] = [
     hint: "When a flight is reviewed / closed out.",
   },
   {
+    key: "reservationReviewReminders",
+    label: "Review reminders",
+    hint: "Nudges to ramp in or close out a past booking.",
+  },
+  {
     key: "slotOffers",
     label: "Offers & standby",
     hint: "Time-sensitive offers that must be accepted before the offer window closes.",

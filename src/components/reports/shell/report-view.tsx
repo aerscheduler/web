@@ -23,7 +23,6 @@ import { DocsHint } from "@/components/docs-hint";
 import { downloadReport, useReportRun, useReportTimeZone } from "@/features/reports";
 import { rangeToIso, resolveRange } from "@/lib/report-format";
 import { reportDocShot } from "@/lib/docs-shots";
-import { formatMoney } from "@/lib/utils";
 import type {
   ReportConfig,
   ReportFilterInput,
@@ -34,8 +33,9 @@ import type {
 } from "@/types/reports";
 import type { Invoice, Reservation } from "@/types/api";
 import { useRemindInvoice, useUpdateInvoice } from "@/features/queries";
-import { useConfirm } from "@/components/confirm-dialog";
+import { useVoidInvoiceFlow } from "@/features/void-invoice-flow";
 import { InvoiceDetailSheet } from "@/components/billing/invoice-detail-sheet";
+import { VoidInvoiceDialog } from "@/components/billing/void-invoice-dialog";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
 import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
 import { ReservationForm } from "@/components/schedule/reservation-form";
@@ -88,9 +88,9 @@ export function ReportView({
   const [invoiceId, setInvoiceId] = useState<number | null>(null);
   const [reservationId, setReservationId] = useState<number | null>(null);
 
-  const confirm = useConfirm();
   const updateInvoice = useUpdateInvoice();
   const remindInvoiceMut = useRemindInvoice();
+  const voidFlow = useVoidInvoiceFlow();
 
   // No reset effect: the caller keys this component on the report (and on the
   // deep link), so switching reports remounts it and the initial state above IS
@@ -240,27 +240,6 @@ export function ReportView({
             : toast.success(`Invoice #${inv.id} marked paid`),
         onError: (err) =>
           toast.error(err instanceof Error ? err.message : "Couldn't update invoice"),
-      }
-    );
-  }
-
-  async function voidInvoice(inv: Invoice) {
-    const ok = await confirm({
-      title: `Void invoice #${inv.id}?`,
-      description: `This marks the ${formatMoney(inv.total)} invoice as void. This can't be undone.`,
-      confirmLabel: "Void invoice",
-      destructive: true,
-    });
-    if (!ok) return;
-    updateInvoice.mutate(
-      { id: inv.id, patch: { markVoided: true } },
-      {
-        onSuccess: (res) =>
-          res.warning
-            ? toast.warning(res.warning, { duration: 8000 })
-            : toast.success(`Invoice #${inv.id} voided`),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : "Couldn't void invoice"),
       }
     );
   }
@@ -419,11 +398,13 @@ export function ReportView({
         open={invoiceId != null}
         onOpenChange={(o) => !o && setInvoiceId(null)}
         onMarkPaid={markPaid}
-        onVoid={voidInvoice}
+        onVoid={voidFlow.voidInvoice}
         onRemind={sendReminder}
         onStep={stepInvoice}
         busy={updateInvoice.isPending || remindInvoiceMut.isPending}
       />
+
+      <VoidInvoiceDialog {...voidFlow.voidDialog} />
 
       <CancelReservationDialog {...cancelDialog} />
 

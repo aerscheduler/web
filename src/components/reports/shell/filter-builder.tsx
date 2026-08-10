@@ -251,7 +251,7 @@ export function FilterBuilder({
         />
       ))}
 
-      <Popover open={adding} onOpenChange={setAdding}>
+      <Popover open={adding} onOpenChange={setAdding} modal>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="gap-2">
             {usable.length === 0 ? <Filter className="size-4" /> : <Plus className="size-4" />}

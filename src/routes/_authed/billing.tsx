@@ -25,6 +25,7 @@ import {
   useUpdateInvoice,
 } from "@/features/queries";
 import { useBillReservation } from "@/features/billing-mutations";
+import { useVoidInvoiceFlow } from "@/features/void-invoice-flow";
 import { usePaging } from "@/lib/paging";
 import { guardRoute } from "@/lib/permissions";
 import type { Invoice, Reservation } from "@/types/api";
@@ -39,6 +40,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { DateRangePicker, lastNDays } from "@/components/billing/date-range-picker";
 import { CreateInvoiceDialog } from "@/components/billing/create-invoice-dialog";
 import { InvoiceDetailSheet } from "@/components/billing/invoice-detail-sheet";
+import { VoidInvoiceDialog } from "@/components/billing/void-invoice-dialog";
 import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -461,6 +463,7 @@ function BillingPage() {
   const update = useUpdateInvoice();
   const remind = useRemindInvoice();
   const bill = useBillReservation();
+  const voidFlow = useVoidInvoiceFlow();
 
   const { rows: invoices, total: invoiceTotal } = pageRows(invoicesQ);
   const { rows: unbilled, total: unbilledTotal } = pageRows(reservationsQ);
@@ -511,27 +514,6 @@ function BillingPage() {
             : toast.success(`Invoice #${inv.id} marked paid`),
         onError: (err) =>
           toast.error(err instanceof Error ? err.message : "Couldn't update invoice"),
-      }
-    );
-  }
-
-  async function voidInvoice(inv: Invoice) {
-    const ok = await confirm({
-      title: `Void invoice #${inv.id}?`,
-      description: `This marks the ${formatMoney(inv.total)} invoice as void. This can't be undone.`,
-      confirmLabel: "Void invoice",
-      destructive: true,
-    });
-    if (!ok) return;
-    update.mutate(
-      { id: inv.id, patch: { markVoided: true } },
-      {
-        onSuccess: (res) =>
-          res.warning
-            ? toast.warning(res.warning, { duration: 8000 })
-            : toast.success(`Invoice #${inv.id} voided`),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : "Couldn't void invoice"),
       }
     );
   }
@@ -589,7 +571,7 @@ function BillingPage() {
   const actions: InvoiceActions = {
     onView: (inv) => setViewId(inv.id),
     onMarkPaid: markPaid,
-    onVoid: voidInvoice,
+    onVoid: voidFlow.voidInvoice,
     busy: update.isPending || remind.isPending,
   };
 
@@ -779,11 +761,13 @@ function BillingPage() {
         open={viewId != null}
         onOpenChange={(o) => !o && setViewId(null)}
         onMarkPaid={markPaid}
-        onVoid={voidInvoice}
+        onVoid={voidFlow.voidInvoice}
         onRemind={remindInvoice}
         onStep={stepInvoice}
         busy={update.isPending || remind.isPending}
       />
+
+      <VoidInvoiceDialog {...voidFlow.voidDialog} />
 
       <CreateInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} />
     </TableView>

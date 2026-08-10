@@ -1,5 +1,5 @@
 import * as React from "react";
-import { readConsent, setConsent } from "@/lib/analytics";
+import { bootstrapAnalyticsConsent, setConsent } from "@/lib/analytics";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -11,6 +11,10 @@ import { Button } from "@/components/ui/button";
  * common path (read a feature page, click a CTA, land here) never sees this twice.
  * Being asked again immediately after answering reads as the product being broken.
  *
+ * US visitors are not prompted: product analytics is treated as granted there (see
+ * `bootstrapAnalyticsConsent`). Non-US and unknown geo still get this card. An
+ * explicit prior decline always wins over geo.
+ *
  * Deliberately bottom-left and small: the console is a working tool, and a modal in
  * front of a dispatcher's schedule on a Monday morning is not a reasonable thing to do
  * over analytics.
@@ -19,9 +23,10 @@ export function ConsentBanner() {
   const [visible, setVisible] = React.useState(false);
 
   React.useEffect(() => {
-    // Read on the client only. The answer lives in a cookie, and rendering from it
-    // before mount would flash the banner at people who already decided.
-    if (readConsent() === "unset") setVisible(true);
+    // Country cookie is stamped by middleware on the HTML response, so it is already
+    // readable when this effect runs. Read on the client only so we never flash the
+    // banner at people who already decided (or who are in the US).
+    if (bootstrapAnalyticsConsent()) setVisible(true);
   }, []);
 
   if (!visible) return null;

@@ -298,6 +298,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
             timeZone={tz.zone}
             resource={r.resource ?? undefined}
             orgMinimumTenths={billingQ.data?.overnightMinimumTenths ?? null}
+            graceMinutes={billingQ.data?.overnightGraceMinutes ?? null}
           />
         )}
 

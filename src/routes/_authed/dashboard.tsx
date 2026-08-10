@@ -18,6 +18,7 @@ import {
   useReservations,
   useUpdateInvoice,
 } from "@/features/queries";
+import { useVoidInvoiceFlow } from "@/features/void-invoice-flow";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -28,12 +29,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatDate, formatMoney, cn } from "@/lib/utils";
 import { resourceLabel, type Invoice, type Reservation } from "@/types/api";
 import { canManageBilling, guardRoute } from "@/lib/permissions";
-import { useConfirm } from "@/components/confirm-dialog";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
 import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
 import { ReservationForm } from "@/components/schedule/reservation-form";
 import { InvoiceDetailSheet } from "@/components/billing/invoice-detail-sheet";
+import { VoidInvoiceDialog } from "@/components/billing/void-invoice-dialog";
 
 export const Route = createFileRoute("/_authed/dashboard")({
   beforeLoad: guardRoute("/dashboard"),
@@ -51,7 +52,6 @@ const RES_TONE: Record<string, string> = {
 
 function DashboardPage() {
   const { user, organization, roles } = useAuth();
-  const confirm = useConfirm();
 
   /**
    * This page is staff (admin OR dispatcher) but the money on it is admin-only
@@ -77,6 +77,7 @@ function DashboardPage() {
   const recent = useInvoices({ startDate: twoWeeksAgo }, { enabled: canSeeMoney });
   const updateInvoice = useUpdateInvoice();
   const remindInvoice = useRemindInvoice();
+  const voidFlow = useVoidInvoiceFlow();
 
   const outstanding = (unpaid.data ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
   const todays = (week.data ?? [])
@@ -112,27 +113,6 @@ function DashboardPage() {
             : toast.success(`Invoice #${inv.id} marked paid`),
         onError: (err) =>
           toast.error(err instanceof Error ? err.message : "Couldn't update invoice"),
-      }
-    );
-  }
-
-  async function voidInvoice(inv: Invoice) {
-    const ok = await confirm({
-      title: `Void invoice #${inv.id}?`,
-      description: `This marks the ${formatMoney(inv.total)} invoice as void. This can't be undone.`,
-      confirmLabel: "Void invoice",
-      destructive: true,
-    });
-    if (!ok) return;
-    updateInvoice.mutate(
-      { id: inv.id, patch: { markVoided: true } },
-      {
-        onSuccess: (res) =>
-          res.warning
-            ? toast.warning(res.warning, { duration: 8000 })
-            : toast.success(`Invoice #${inv.id} voided`),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : "Couldn't void invoice"),
       }
     );
   }
@@ -366,12 +346,14 @@ function DashboardPage() {
           open={viewInvoiceId != null}
           onOpenChange={(o) => !o && setViewInvoiceId(null)}
           onMarkPaid={markPaid}
-          onVoid={voidInvoice}
+          onVoid={voidFlow.voidInvoice}
           onRemind={sendReminder}
           onStep={stepInvoice}
           busy={updateInvoice.isPending || remindInvoice.isPending}
         />
       )}
+
+      {canSeeMoney && <VoidInvoiceDialog {...voidFlow.voidDialog} />}
     </div>
   );
 }

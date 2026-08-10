@@ -18,7 +18,7 @@
  * promising something the invoice does not do, which is worse than saying nothing.
  */
 
-import { dateKeyInZone } from "./timezone";
+import { dateKeyInZone, zonedWallClockToUtc } from "./timezone";
 
 /**
  * Is this a Date that can actually be formatted?
@@ -43,16 +43,40 @@ const usable = (d: Date | null | undefined): d is Date =>
  * flight the picker offers as the last slot of every day, and reading the boundary's own
  * date called it a night away. Mirrors `lastOccupiedInstant` in server/src/utils/
  * multiDayBooking.ts, which the server's night count and its multi-day gate both use.
+ *
+ * `graceMinutes` drops the LAST night when the aircraft is back within that many minutes
+ * after local midnight on the return day, mirroring the server's own `graceMinutes` param
+ * in `utils/bookingMinimums.ts`. Null/0/absent means no grace, same as before this existed.
  */
-export function nightsAway(start: Date, end: Date, timeZone: string): number {
+export function nightsAway(
+  start: Date,
+  end: Date,
+  timeZone: string,
+  graceMinutes?: number | null
+): number {
   //Checked here as well as at the entry points, because this is exported and the throw it
   //prevents is not local to it.
   if (!usable(start) || !usable(end)) return 0;
   const from = dateKeyInZone(start, timeZone);
-  const to = dateKeyInZone(new Date(end.getTime() - 1), timeZone);
+  const lastOccupied = new Date(end.getTime() - 1);
+  const to = dateKeyInZone(lastOccupied, timeZone);
   const ms = Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`);
   if (!Number.isFinite(ms)) return 0;
-  return Math.max(0, Math.round(ms / 86_400_000));
+  let nights = Math.max(0, Math.round(ms / 86_400_000));
+  if (nights === 0) return 0;
+
+  const grace =
+    graceMinutes != null && Number.isFinite(graceMinutes) ? Math.max(0, Math.trunc(graceMinutes)) : 0;
+  if (grace <= 0) return nights;
+
+  const [y, m, d] = to.split("-").map((p) => Number(p));
+  if (!y || !m || !d) return nights;
+  const midnight = zonedWallClockToUtc(y, m, d, 0, 0, timeZone);
+  const after = lastOccupied.getTime() - midnight.getTime();
+  if (after >= 0 && after <= grace * 60_000) {
+    nights = Math.max(0, nights - 1);
+  }
+  return nights;
 }
 
 /**
@@ -93,6 +117,8 @@ export function overnightDisclosure(args: {
   orgMinimumTenths?: number | null;
   /** For "keeps N172TS out two nights". Falls back to a neutral noun. */
   resourceName?: string | null;
+  /** Minutes of grace after local midnight on the return day. Null/absent means none. */
+  graceMinutes?: number | null;
 }): OvernightDisclosure | null {
   //`usable`, not a truthiness check: an Invalid Date is truthy and throws when formatted.
   if (!usable(args.start) || !usable(args.end)) return null;
@@ -100,12 +126,13 @@ export function overnightDisclosure(args: {
   const minimumTenthsPerNight = effectiveOvernightMinimumTenths(args);
   if (minimumTenthsPerNight <= 0) return null;
 
-  const nights = nightsAway(args.start, args.end, args.timeZone);
+  const nights = nightsAway(args.start, args.end, args.timeZone, args.graceMinutes);
   if (nights <= 0) return null;
 
   const floorTenths = minimumTenthsPerNight * nights;
   const hours = (t: number) => (t / 10).toFixed(1);
   const what = args.resourceName?.trim() || "the aircraft";
+  const grace = args.graceMinutes != null && args.graceMinutes > 0 ? args.graceMinutes : null;
 
   return {
     nights,
@@ -114,7 +141,10 @@ export function overnightDisclosure(args: {
     message:
       `This keeps ${what} out ${nights === 1 ? "overnight" : `for ${nights} nights`}. ` +
       `Your school bills at least ${hours(minimumTenthsPerNight)} hours per night away, ` +
-      `so this booking will bill a minimum of ${hours(floorTenths)} hours even if you fly less.`,
+      `so this booking will bill a minimum of ${hours(floorTenths)} hours even if you fly less.` +
+      (grace
+        ? ` Landing within ${grace} minutes after midnight doesn't count as another night.`
+        : ""),
   };
 }
 
@@ -147,6 +177,8 @@ export function overnightBilling(args: {
   flownTenths: number | null;
   aircraftMinimumTenths?: number | null;
   orgMinimumTenths?: number | null;
+  /** Minutes of grace after local midnight on the return day. Null/absent means none. */
+  graceMinutes?: number | null;
 }): OvernightBilling | null {
   const start = typeof args.start === "string" ? new Date(args.start) : args.start;
   const end = typeof args.end === "string" ? new Date(args.end) : args.end;
@@ -157,7 +189,7 @@ export function overnightBilling(args: {
   const minimumTenthsPerNight = effectiveOvernightMinimumTenths(args);
   if (minimumTenthsPerNight <= 0) return null;
 
-  const nights = nightsAway(start, end, args.timeZone);
+  const nights = nightsAway(start, end, args.timeZone, args.graceMinutes);
   if (nights <= 0) return null;
 
   const flownTenths = Math.max(0, Math.round(args.flownTenths));

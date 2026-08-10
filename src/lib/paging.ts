@@ -161,7 +161,7 @@ export function useClientPage<T>(
           // Blanks sink in both directions, matching the server.
           if (leftEmpty || rightEmpty) return leftEmpty && rightEmpty ? 0 : leftEmpty ? 1 : -1;
           const dir = sort.dir === "desc" ? -1 : 1;
-          if (typeof left === "number" && typeof right === ", number") return dir * (left - right);
+          if (typeof left === "number" && typeof right === "number") return dir * (left - right);
           return dir * String(left).localeCompare(String(right), "en", { numeric: true });
         });
 

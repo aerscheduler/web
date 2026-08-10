@@ -60,7 +60,9 @@ export function MultiCombobox({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    // `modal` so Dialog's RemoveScroll treats this portaled list as a scroll shard;
+    // without it, wheel events over the list are preventDefault'd and the roster won't scroll.
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         <Button
           type="button"
@@ -141,7 +143,9 @@ export function Combobox({
   const selected = options.find((o) => o.value === value);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    // `modal` so Dialog's RemoveScroll treats this portaled list as a scroll shard;
+    // without it, wheel events over the list are preventDefault'd and the roster won't scroll.
+    <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
         <Button
           type="button"

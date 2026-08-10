@@ -88,6 +88,8 @@ const UNCONFIGURED_BILLING: OrganizationBillingSettings = {
   stripeEnabled: false,
   //Null, not 0: a new school charges no overnight minimum until it says otherwise.
   overnightMinimumTenths: null,
+  //Null means no grace, the return-at-midnight rule bites exactly as it always has.
+  overnightGraceMinutes: null,
   //Off until a school opts in, grounding somebody by surprise is worse than not grounding.
   groundUserUnpaidInvoices: null,
   //Both match the column defaults: a new school bills through admins until it says otherwise.
@@ -105,6 +107,9 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
   const [feeLabel, setFeeLabel] = useState(billing.serviceFeeLabel ?? "");
   const [overnightText, setOvernightText] = useState(
     billing.overnightMinimumTenths == null ? "" : (billing.overnightMinimumTenths / 10).toFixed(1)
+  );
+  const [graceText, setGraceText] = useState(
+    billing.overnightGraceMinutes == null ? "" : String(billing.overnightGraceMinutes)
   );
   //Auto-grounding for money. It has worked on the server for a long time but was only
   //settable from the phone app, so a school that lives in the console could not turn it on.
@@ -127,6 +132,15 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
       : `Out Friday and back Sunday is 2 nights, so that trip would bill at least ` +
         `${((nextOvernightTenths * 2) / 10).toFixed(1)} hours however little it flew. A booking back the same day is never affected.`;
 
+  // Blank means no grace, exactly like the fields above. A flight back a few minutes after
+  // midnight would otherwise count as a whole extra night away.
+  const nextGraceMinutes =
+    graceText.trim() === "" ? null : Math.max(0, Math.round(parseFloat(graceText)));
+  const graceHint =
+    nextGraceMinutes == null || Number.isNaN(nextGraceMinutes) || nextGraceMinutes === 0
+      ? "Off. Landing even one minute after midnight counts as another night away."
+      : `Landing up to ${nextGraceMinutes} minutes after midnight still counts as the same night, not another one.`;
+
   //Blank means OFF, and so does zero, the server treats null and 0 identically. Normalising
   //here means the field can be cleared to turn the feature off, which is what an operator
   //expects from an empty box.
@@ -147,6 +161,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
     nextBps !== billing.serviceFeePercent ||
     effectiveLabel !== (billing.serviceFeeLabel ?? "") ||
     nextOvernightTenths !== (billing.overnightMinimumTenths ?? null) ||
+    nextGraceMinutes !== (billing.overnightGraceMinutes ?? null) ||
     nextGroundThreshold !== (billing.groundUserUnpaidInvoices ?? null);
 
   function handleSubmit(e: FormEvent) {
@@ -159,6 +174,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
         serviceFeePercent: nextBps,
         serviceFeeLabel: effectiveLabel,
         overnightMinimumTenths: Number.isNaN(nextOvernightTenths as number) ? null : nextOvernightTenths,
+        overnightGraceMinutes: Number.isNaN(nextGraceMinutes as number) ? null : nextGraceMinutes,
         groundUserUnpaidInvoices: nextGroundThreshold,
       },
       {
@@ -268,6 +284,26 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
                   />
                   <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                     hrs/night
+                  </span>
+                </div>
+              </Field>
+
+              <Field
+                label="Return grace after midnight"
+                htmlFor="billing-overnight-grace"
+                hint={graceHint}
+              >
+                <div className="relative">
+                  <Input
+                    id="billing-overnight-grace"
+                    inputMode="numeric"
+                    value={graceText}
+                    onChange={(e) => setGraceText(e.target.value.replace(/[^0-9]/g, ""))}
+                    placeholder="Off"
+                    className="pr-16 tnum"
+                  />
+                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                    minutes
                   </span>
                 </div>
               </Field>

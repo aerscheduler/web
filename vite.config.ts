@@ -36,6 +36,7 @@ export default defineConfig({
         target: process.env.VITE_API_PROXY ?? "https://api.aerscheduler.com",
         changeOrigin: true,
         secure: true,
+        ws: true,
         rewrite: (p) => p.replace(/^\/api/, ""),
       },
     },

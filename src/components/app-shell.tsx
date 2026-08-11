@@ -16,6 +16,7 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { useRealtime } from "@/lib/realtime";
 import {
   canCreateReservation,
   canSelfBook,
@@ -66,6 +67,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   // Recorded here rather than in the rail so history keeps accruing while the
   // rail is closed (mobile), nav lives in `components/nav/sidebar-nav`.
   useRecordRecentPage();
+
+  const { organization } = useAuth();
+  useRealtime({
+    enabled: organization?.id != null,
+    channels: ["notifications", "billing"],
+    orgId: organization?.id ?? null,
+  });
 
   return (
     <ConfirmProvider>

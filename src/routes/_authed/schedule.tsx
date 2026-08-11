@@ -30,6 +30,7 @@ import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
+import { useRealtime } from "@/lib/realtime";
 import {
   ScheduleControls,
   type ScheduleView,
@@ -95,7 +96,7 @@ export const Route = createFileRoute("/_authed/schedule")({
   component: SchedulePage,
 });
 
-const REFRESH_MS = 20_000;
+const FALLBACK_REFRESH_MS = 90_000;
 
 function SchedulePage() {
   const { roles, orgUserId, userId, organization } = useAuth();
@@ -226,20 +227,31 @@ function SchedulePage() {
     slotOfferHolds,
   });
 
-  // Live board: quietly re-pull the range on an interval (ref keeps the timer
-  // stable across renders while always calling the latest refetch).
-  const refetchRef = React.useRef(q.refetch);
-  refetchRef.current = q.refetch;
-  //A refetch mid-drag would yank the block out from under the cursor, and one landing
-  //between the optimistic write and the server's answer would flash it back to where it
-  //started. Skipping a tick costs 20 seconds of staleness; both alternatives look broken.
+  // Live board: WebSocket invalidates reservation queries when anyone in the
+  // org mutates the schedule. A slow interval remains as a safety net if a
+  // message is missed. Skip both while dragging, a refetch mid-drag yanks the
+  // block out from under the cursor.
   const dragBusyRef = React.useRef(false);
   dragBusyRef.current = drag.isBusy;
+
+  const refetchRef = React.useRef(q.refetch);
+  refetchRef.current = q.refetch;
+
+  useRealtime({
+    enabled: organization?.id != null,
+    channels: ["schedule"],
+    orgId: organization?.id ?? null,
+    shouldApply: () => !dragBusyRef.current,
+    onConnected: () => {
+      if (!dragBusyRef.current) void refetchRef.current();
+    },
+  });
+
   React.useEffect(() => {
     const id = window.setInterval(() => {
       if (dragBusyRef.current) return;
       void refetchRef.current();
-    }, REFRESH_MS);
+    }, FALLBACK_REFRESH_MS);
     return () => window.clearInterval(id);
   }, []);
 

@@ -22,10 +22,16 @@ export function getToken(): string | null {
 export function setToken(token: string | null) {
   if (isDemoTab()) {
     setDemoToken(token);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("aer:token-change"));
+    }
     return;
   }
   if (token) localStorage.setItem(TOKEN_KEY, token);
   else localStorage.removeItem(TOKEN_KEY);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("aer:token-change"));
+  }
 }
 
 /**

@@ -68,6 +68,7 @@ import type {
   JoinRequest,
   Location,
   OrgUserBillingSettings,
+  MemberLedger,
   PaymentMethod,
   SetupIntentResponse,
   CreateReminderTemplateInput,
@@ -1685,6 +1686,16 @@ export function useMyBillingSettings(opts?: QueryOpts) {
     queryKey: ["orgUsers", "billing"],
     queryFn: () => api<OrgUserBillingSettings>("/orgUsers/billing"),
     retry: false,
+    ...opts,
+  });
+}
+
+/** Member account ledger + balance (`GET /orgUsers/:id/ledger`). Self or admin. */
+export function useMemberLedger(orgUserId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["orgUsers", orgUserId, "ledger"],
+    queryFn: () => api<MemberLedger>(`/orgUsers/${orgUserId}/ledger`),
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
     ...opts,
   });
 }

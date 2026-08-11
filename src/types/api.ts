@@ -1471,8 +1471,35 @@ export interface SetupIntentResponse {
 
 /** The member's own billing settings (GET /orgUsers/billing). */
 export interface OrgUserBillingSettings {
-  stripeCustomerId: string;
+  stripeCustomerId: string | null;
   autoPay: boolean;
+  /** Account balance in cents (ledger mode). 0 when unused. */
+  balanceCents?: number;
+  /** Whether the organization is in ledger billing mode. */
+  ledgerEnabled?: boolean;
+}
+
+/** One append-only money movement on a member's account. */
+export interface LedgerEntry {
+  id: number;
+  createdAt: string;
+  amountCents: number;
+  type: string;
+  memo: string | null;
+  orgUserId: number;
+  organizationId: number;
+  createdByOrgUserId: number | null;
+  invoiceId: number | null;
+  reservationId: number | null;
+  reversesId: number | null;
+  items: { id: number; name: string; qty: number; unitPrice: number }[];
+}
+
+/** GET /orgUsers/:id/ledger payload (inside `data`). */
+export interface MemberLedger {
+  balanceCents: number;
+  ledgerEnabled: boolean;
+  entries: LedgerEntry[];
 }
 
 export interface CreateInvoiceInput {

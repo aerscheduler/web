@@ -50,6 +50,7 @@ import { EndorsementsCard } from "@/components/training/endorsements-card";
 import { PersonContact } from "@/components/people/detail/person-contact";
 import { PersonFlights } from "@/components/people/detail/person-flights";
 import { PersonInvoices } from "@/components/people/detail/person-invoices";
+import { PersonLedger } from "@/components/people/detail/person-ledger";
 import { PersonMembership } from "@/components/people/detail/person-membership";
 import {
   PersonCurrencies,
@@ -381,6 +382,7 @@ function PersonBody({
               {access.membership && (
                 <PersonMembership orgUserId={ou.id} canManage={access.membership} />
               )}
+              {access.money && <PersonLedger orgUserId={ou.id} />}
               {access.money && (
                 <PersonInvoices orgUserId={ou.id} range={window} isSelf={isSelf} />
               )}

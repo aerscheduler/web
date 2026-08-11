@@ -16,6 +16,7 @@ import { bookActionLabel, bookingNouns } from "@/lib/permissions";
 import {
   useAnnouncements,
   useMemberInvoices,
+  useMyBillingSettings,
   useMyCurrencies,
   useUserReservations,
 } from "@/features/queries";
@@ -52,6 +53,7 @@ function MyDayPage() {
 
   const reservationsQ = useUserReservations(userId, startISO, endISO);
   const invoicesQ = useMemberInvoices(orgUserId, { paid: false });
+  const billingQ = useMyBillingSettings();
   const currenciesQ = useMyCurrencies();
   const announcementsQ = useAnnouncements();
 
@@ -97,6 +99,8 @@ function MyDayPage() {
   const nextResource = next?.resource ? resourceLabel(next.resource).name : undefined;
 
   const outstanding = (invoicesQ.data ?? []).reduce((sum, i) => sum + (i.total ?? 0), 0);
+  const ledgerOn = billingQ.data?.ledgerEnabled === true;
+  const accountBalance = billingQ.data?.balanceCents ?? 0;
 
   // Standing comes from the server's own flags, not a client-side date window.
   const att = currencyAttention(currenciesQ.data);
@@ -128,16 +132,31 @@ function MyDayPage() {
           icon={CalendarClock}
           loading={reservationsQ.isLoading}
         />
-        <StatCard
-          label="Outstanding balance"
-          value={formatMoney(outstanding)}
-          hint={`${invoicesQ.data?.length ?? 0} unpaid ${
-            (invoicesQ.data?.length ?? 0) === 1 ? "invoice" : "invoices"
-          }`}
-          icon={Receipt}
-          accent={outstanding > 0 ? "warning" : "success"}
-          loading={invoicesQ.isLoading}
-        />
+        {ledgerOn ? (
+          <StatCard
+            label="Account balance"
+            value={formatMoney(accountBalance)}
+            hint={
+              accountBalance >= 0
+                ? "Credit on account"
+                : "Amount owed on account"
+            }
+            icon={Receipt}
+            accent={accountBalance < 0 ? "warning" : "success"}
+            loading={billingQ.isLoading}
+          />
+        ) : (
+          <StatCard
+            label="Outstanding balance"
+            value={formatMoney(outstanding)}
+            hint={`${invoicesQ.data?.length ?? 0} unpaid ${
+              (invoicesQ.data?.length ?? 0) === 1 ? "invoice" : "invoices"
+            }`}
+            icon={Receipt}
+            accent={outstanding > 0 ? "warning" : "success"}
+            loading={invoicesQ.isLoading}
+          />
+        )}
         <StatCard
           label="Currency status"
           value={att.attention === 0 ? "All current" : `${att.attention} need attention`}

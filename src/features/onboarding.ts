@@ -26,6 +26,7 @@ import {
   useResourceGroups,
   useRooms,
   useSimulators,
+  useCourses,
   useUpdateOrgOnboarding,
 } from "@/features/queries";
 import {
@@ -114,6 +115,7 @@ export function useChecklist(): ChecklistState {
   const rooms = useRooms(undefined, q);
   const reminders = useMaintenanceReminders(undefined, q);
   const groups = useResourceGroups(q);
+  const courses = useCourses(undefined, q);
   const billing = useBilling(q);
   const quickBooks = useQuickBooksSettings(q);
   const splitRules = useSplitRules(q);
@@ -130,6 +132,7 @@ export function useChecklist(): ChecklistState {
     facilities: (sims.data?.length ?? 0) + (rooms.data?.length ?? 0),
     reminders: reminders.data?.length ?? 0,
     groups: groups.data?.length ?? 0,
+    courses: courses.data?.length ?? 0,
     stripeConnected: Boolean(billing.data?.stripeEnabled),
     quickBooksConnected: quickBooks.data?.status === "connected",
     splitRulesConfigured: (splitRules.data?.rules.length ?? 0) > 0,
@@ -142,7 +145,7 @@ export function useChecklist(): ChecklistState {
   const loading =
     onboarding.isLoading ||
     (live &&
-      [planes, members, reservations, invoices, ratings, sims, rooms, reminders, groups, billing].some(
+      [planes, members, reservations, invoices, ratings, sims, rooms, reminders, groups, courses, billing].some(
         (r) => r.isLoading
       ));
 

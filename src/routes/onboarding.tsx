@@ -25,7 +25,16 @@ import {
   attributionPayload,
   attributionSource,
   clearAttribution,
+  readAttribution,
 } from "@/lib/attribution";
+import {
+  SETUP_INTENTS,
+  HEARD_FROM_OPTIONS,
+  inferredIntent,
+  resolveSetupSource,
+  shouldAskHeardFrom,
+  type SetupIntent,
+} from "@/lib/onboarding-intent";
 import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -295,6 +304,8 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
 
   const solo = persona === "instructor";
   const who = user?.name?.trim().split(" ")[0];
+  const attribution = React.useMemo(() => readAttribution(), []);
+  const askHeardFrom = shouldAskHeardFrom(attribution);
 
   const [step, setStep] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
@@ -305,6 +316,9 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
   );
   const [airport, setAirport] = React.useState("");
   const [locationId, setLocationId] = React.useState<number | null>(null);
+  const [intent, setIntent] = React.useState<SetupIntent | null>(() => inferredIntent(attribution) ?? "scheduling");
+  const [heardFrom, setHeardFrom] = React.useState<string | null>(null);
+  const [heardFromDetail, setHeardFromDetail] = React.useState("");
 
   const STEPS = ["Operation", "Aircraft", "Billing"];
 
@@ -314,20 +328,37 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
       document.getElementById("op-orgName")?.focus();
       return;
     }
+    if (!intent) {
+      setShowErrors(true);
+      document.getElementById("op-intent")?.focus();
+      return;
+    }
     setBusy(true);
     try {
+      const source =
+        resolveSetupSource({
+          intent,
+          src: attribution?.src,
+          landingPath: attribution?.landingPath,
+          utmCampaign: attribution?.utm_campaign,
+          utmSource: attribution?.utm_source,
+        }) ?? intent;
+      const attributionBody = {
+        ...attributionPayload(),
+        ...(askHeardFrom && heardFrom ? { heardFrom } : {}),
+        ...(askHeardFrom && heardFrom && heardFromDetail.trim()
+          ? { heardFromDetail: heardFromDetail.trim().slice(0, 255) }
+          : {}),
+      };
       await createOrganization({
         name: orgName.trim(),
         organizationType: subtype,
         details: { email: user?.email ?? "", phone: "", address: { ...EMPTY_ADDRESS } },
         location: { name: airport.trim() || orgName.trim(), address: { ...EMPTY_ADDRESS } },
-        // Which marketing page sent them here, captured at landing. The checklist
-        // reads it back to lead with what they were already reading about.
-        source: attributionSource(),
-        // The whole campaign tuple, which answers a different question: which ad spend
-        // produced this school. Stored on the org and graded in the weekly report,
-        // because no ad platform can see a school that pays three weeks after clicking.
-        attribution: attributionPayload(),
+        // Intent (or inferred campaign) orders the dashboard checklist.
+        source,
+        // Campaign tuple for spend reporting, plus optional human "how did you hear".
+        attribution: Object.keys(attributionBody).length ? attributionBody : undefined,
       });
       // The single most important event in the product: a school now exists. Everything
       // upstream is a cost, and this is the first thing that could become revenue.
@@ -335,7 +366,9 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
         org_type: subtype,
         persona,
         channel: attributionChannel(),
-        campaign: attributionSource() ?? null,
+        campaign: source,
+        intent,
+        heard_from: askHeardFrom ? heardFrom : null,
       });
       clearAttribution();
       try {
@@ -364,6 +397,8 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
     qc.clear();
     void navigate({ to: "/dashboard" });
   }
+
+  const heardDetailLabel = HEARD_FROM_OPTIONS.find((o) => o.id === heardFrom)?.detailLabel;
 
   return (
     <Shell
@@ -420,6 +455,71 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
               placeholder="KAPA"
             />
           </Field>
+
+          <div id="op-intent">
+            <Label>What do you want working first?</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              We will put that at the top of your setup checklist. Everything else stays available.
+            </p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {SETUP_INTENTS.map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setIntent(opt.id)}
+                  className={cn(
+                    "rounded-lg border px-3 py-2.5 text-left transition-colors",
+                    intent === opt.id
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "hover:bg-accent"
+                  )}
+                >
+                  <div className="text-sm font-medium">{opt.label}</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">{opt.blurb}</div>
+                </button>
+              ))}
+            </div>
+            {showErrors && !intent ? (
+              <p className="mt-1.5 text-xs text-destructive">Pick one so we know where to start.</p>
+            ) : null}
+          </div>
+
+          {askHeardFrom && (
+            <div>
+              <Label>How did you hear about us? <span className="font-normal text-muted-foreground">(optional)</span></Label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {HEARD_FROM_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setHeardFrom((cur) => (cur === opt.id ? null : opt.id))}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                      heardFrom === opt.id
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "hover:bg-accent"
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              {heardDetailLabel && heardFrom ? (
+                <div className="mt-3">
+                  <Field id="op-heard-detail" label={heardDetailLabel}>
+                    <Input
+                      id="op-heard-detail"
+                      value={heardFromDetail}
+                      onChange={(e) => setHeardFromDetail(e.target.value)}
+                      placeholder={heardFrom === "switching" ? "MyFBO, Flight Circle…" : undefined}
+                      maxLength={255}
+                    />
+                  </Field>
+                </div>
+              ) : null}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 pt-2">
             <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back" disabled={busy}>
               <ArrowLeft className="size-4" />

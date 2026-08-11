@@ -23,13 +23,19 @@ export default defineConfig({
   projects: [
     { name: "setup", testMatch: /auth\.setup\.ts/ },
     {
+      // Pure helpers (no browser, no API). Kept under e2e/ so we do not add a second
+      // runner just for onboarding source/track math.
+      name: "unit",
+      testMatch: /intent-logic\.spec\.ts/,
+    },
+    {
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
         storageState: ".auth/owner.json",
       },
       dependencies: ["setup"],
-      testIgnore: /auth\.setup\.ts/,
+      testIgnore: [/auth\.setup\.ts/, /intent-logic\.spec\.ts/],
     },
   ],
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER

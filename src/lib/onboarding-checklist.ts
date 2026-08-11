@@ -48,6 +48,8 @@ export type ChecklistFacts = {
   facilities: number;
   reminders: number;
   groups: number;
+  /** Published training courses (curriculum). */
+  courses: number;
   stripeConnected: boolean;
   quickBooksConnected: boolean;
   /**
@@ -200,6 +202,16 @@ export const CHECKLIST: ChecklistItem[] = [
     to: "/maintenance",
     cta: "Add reminders",
     isDone: (f) => f.reminders > 0,
+  },
+  {
+    id: "training",
+    title: "Add a training course",
+    blurb: "A syllabus your instructors grade against, and enrollments your students can see.",
+    icon: GraduationCap,
+    to: "/training",
+    cta: "Open training",
+    isDone: (f) => f.courses > 0,
+    appliesTo: (t) => t !== "solo_instructor" && t !== "rental",
   },
   {
     id: "facilities",

@@ -61,11 +61,11 @@ export function SetupChecklist({ className }: { className?: string }) {
   const waived = state.entries.filter((e) => e.dismissed);
 
   return (
-    <Card className={cn("gap-0 p-5", className)}>
+    <Card className={cn("gap-0 p-5", className)} data-testid="setup-checklist">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="text-[15px] font-semibold tracking-tight">Finish setting up</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-0.5 text-sm text-muted-foreground" data-testid="setup-checklist-caption">
             {state.trackCaption ?? "Each one makes the schedule, the money, or the paperwork work harder."}
           </p>
         </div>
@@ -203,7 +203,10 @@ function ItemCard({
   // the focused experience. See components/onboarding/flows/index.tsx.
   const hasFlow = !!flowFor(item.id);
   return (
-    <div className="group relative flex flex-col rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-accent/30">
+    <div
+      className="group relative flex flex-col rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-accent/30"
+      data-testid={`setup-checklist-item-${item.id}`}
+    >
       <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
         <Icon className="size-4.5" />
       </span>

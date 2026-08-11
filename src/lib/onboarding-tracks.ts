@@ -10,6 +10,9 @@
  * it, so launching a campaign means one entry here and a `?src=` on the website's
  * CTA: no migration, no deploy ordering, and an unknown slug degrades to the default
  * order rather than breaking.
+ *
+ * Landing pages without `?src=` are inferred in `onboarding-intent.ts` before the
+ * slug is written at org create.
  */
 
 export type Track = {
@@ -39,6 +42,14 @@ export const TRACKS: Record<string, Track> = {
   scheduling: {
     caption: "You came in from scheduling, start here.",
     lead: ["aircraft", "reservation", "instructors"],
+  },
+  training: {
+    caption: "You came in for training records, start here.",
+    lead: ["training", "students", "instructors"],
+  },
+  reports: {
+    caption: "Reports light up once flights are on the board. Start there.",
+    lead: ["aircraft", "reservation", "invoice"],
   },
 };
 

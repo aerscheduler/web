@@ -138,15 +138,22 @@ export function readAttribution(): Attribution | null {
   }
 }
 
+import { resolveSetupSource } from "@/lib/onboarding-intent";
+
 /**
- * The single slug sent to the server as the org's `source`.
+ * The single slug sent to the server as the org's `source` when the wizard does not
+ * override it with an intent pick.
  *
- * Our own `src` wins, then the campaign, then the ad network, most specific first,
- * because the checklist keys off it and "google" tells it nothing.
+ * Explicit `src` wins, then landing-path inference (organic content pages), then utm.
  */
 export function attributionSource(): string | undefined {
   const a = readAttribution();
-  return a?.src ?? a?.utm_campaign ?? a?.utm_source;
+  return resolveSetupSource({
+    src: a?.src,
+    landingPath: a?.landingPath,
+    utmCampaign: a?.utm_campaign,
+    utmSource: a?.utm_source,
+  });
 }
 
 /**

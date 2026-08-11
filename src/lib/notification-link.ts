@@ -1,6 +1,13 @@
 /**
  * Turning a notification's `link` into somewhere this console can actually go.
  *
+ * Keep this table aligned with `linksFor()` in
+ * `server/src/utils/notificationLinks.ts` and the Flutter rewrite in
+ * `app/lib/helpers/firebase_messaging_helper.dart`. The server owns the
+ * catalogue; this file only translates stored Flutter `app` links for the
+ * console inbox.
+
+ *
  * `notification.link` is a **Flutter go_router location**. It is written by the server for
  * the mobile app's resolver, and the two clients do not share a route vocabulary. The app
  * says `/personnel/42`; the console says `/people/42`. The app says `/invoices/91`; the
@@ -97,8 +104,10 @@ const WITH_ID: Record<string, ((id: number) => NotificationHref) | undefined> = 
  */
 const WITH_QUERY_ID: Record<string, ((id: number) => NotificationHref) | undefined> = {
   "/reservations": (id) => `/schedule?reservation=${id}`,
-  //Automatic dunning handoff to admins/owners. App opens the org invoice list (query ignored);
-  //console opens the Billing detail panel for that invoice.
+  // Canonical app destination from linksFor({ kind: "reservation" }).
+  "/view-reservation": (id) => `/schedule?reservation=${id}`,
+  //Automatic dunning handoff to admins/owners. App opens the member invoice
+  //detail (via Flutter rewrite); console opens the Billing detail panel.
   "/organization-invoices": (id) => `/billing?invoice=${id}`,
 };
 

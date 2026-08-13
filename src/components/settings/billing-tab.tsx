@@ -553,15 +553,7 @@ function TopUpCardFeeCard({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!canEdit || !dirty) return;
-    if (!parsedPct.ok) {
-      toast.error(parsedPct.error);
-      return;
-    }
-    if (!parsedFlat.ok) {
-      toast.error(parsedFlat.error);
-      return;
-    }
+    if (!canEdit || !dirty || !parsedPct.ok || !parsedFlat.ok) return;
     update.mutate(
       {
         topUpCardFeePercent: parsedPct.value,

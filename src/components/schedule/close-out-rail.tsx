@@ -68,6 +68,9 @@ export function CloseOutRail({
 }) {
   const stops = noMeters ? GROUND_STOPS : FLIGHT_STOPS;
   const at = (noMeters ? GROUND_POSITION : POSITION)[step];
+  // Signed off, no money yet. `reviewed` maps onto the Billed index so Review
+  // can tick; lighting Billed as live read as "this flight is billed".
+  const awaitingBill = step === "reviewed";
 
   return (
     <ol
@@ -76,8 +79,8 @@ export function CloseOutRail({
       aria-label="Close-out progress"
     >
       {stops.map((stop, i) => {
-        const done = i < at;
-        const live = i === at;
+        const done = i < (awaitingBill ? stops.length - 1 : at);
+        const live = !awaitingBill && i === at && at < stops.length;
         return (
           <li key={stop.key} className="flex min-w-0 items-center gap-1">
             {i > 0 && (

@@ -1,6 +1,17 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, ArchiveRestore, Ban, Eye, MoreHorizontal, Shield, Trash2, Undo2 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import {
+  Archive,
+  ArchiveRestore,
+  Ban,
+  CalendarPlus,
+  Eye,
+  MoreHorizontal,
+  Shield,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { OrganizationUser } from "@/types/api";
 import { useSetMemberArchived, useUpdateMemberOrgUser } from "@/features/queries";
@@ -30,12 +41,15 @@ export function MemberRowActions({
   onView,
   onEditRoles,
   onRemoved,
+  showBook = false,
   align = "end",
 }: {
   ou: OrganizationUser;
   /** Omitted on the profile page itself. "View profile" would go nowhere. */
   onView?: (ou: OrganizationUser) => void;
   onEditRoles: (ou: OrganizationUser) => void;
+  /** Self profile: Book a flight, same destination as the old header button. */
+  showBook?: boolean;
   /**
    * Called after a successful removal. On the roster the row just disappears, so
    * there is nothing to do; on that member's own page the record you are looking
@@ -167,6 +181,13 @@ export function MemberRowActions({
           {onView && (
             <DropdownMenuItem onSelect={() => onView(ou)}>
               <Eye /> View profile
+            </DropdownMenuItem>
+          )}
+          {showBook && (
+            <DropdownMenuItem asChild>
+              <Link to="/me/book">
+                <CalendarPlus /> Book
+              </Link>
             </DropdownMenuItem>
           )}
           {manage && (

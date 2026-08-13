@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, apiList, ApiError, raw } from "@/lib/api";
+import { api, apiList, apiRaw, ApiError, raw, type PaginationMeta } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import type { Paged, PagingState } from "@/lib/paging";
 import {
@@ -69,6 +69,12 @@ import type {
   Location,
   OrgUserBillingSettings,
   MemberLedger,
+  LedgerAccount,
+  LedgerAccountSummary,
+  LedgerEntry,
+  LedgerTopUpIntent,
+  LedgerTopUpConfirm,
+  LedgerRefundable,
   PaymentMethod,
   SetupIntentResponse,
   CreateReminderTemplateInput,
@@ -82,6 +88,7 @@ import type {
   OrgUserPreferences,
   SmsStatus,
   OrganizationBillingSettings,
+  OrganizationLedgerSettings,
   OrganizationRating,
   OrganizationUser,
   RampInInput,
@@ -560,6 +567,76 @@ export function useBilling(opts?: QueryOpts) {
   });
 }
 
+const EMPTY_LEDGER_ACCOUNT_SUMMARY: LedgerAccountSummary = {
+  receivableCents: 0,
+  creditOnAccountCents: 0,
+  owingCount: 0,
+  creditCount: 0,
+  zeroCount: 0,
+  memberCount: 0,
+};
+
+export type LedgerAccountFilter = {
+  q?: string;
+  status?: string | string[];
+};
+
+/** School-wide ledger roster (`GET /organizations/ledger/accounts`). Admin only. */
+export function useLedgerAccountsPage(
+  filter: LedgerAccountFilter | undefined,
+  paging: PagingState,
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["ledger", "accounts", { ...(filter ?? {}), ...paging.query }],
+    queryFn: async (): Promise<Paged<LedgerAccount> & { summary: LedgerAccountSummary }> => {
+      const body = await apiRaw<{
+        data?: LedgerAccount[];
+        pagination?: PaginationMeta;
+        summary?: LedgerAccountSummary;
+      }>("/organizations/ledger/accounts", {
+        query: { ...(filter ?? {}), ...paging.query },
+      });
+      const rows = body.data ?? [];
+      return {
+        rows,
+        total: body.pagination?.total ?? rows.length,
+        hasMore: body.pagination?.hasMore ?? false,
+        summary: body.summary ?? EMPTY_LEDGER_ACCOUNT_SUMMARY,
+      };
+    },
+    placeholderData: (prev) => prev,
+    ...opts,
+  });
+}
+
+/** Org ledger mode (`GET /organizations/ledger`). Any member may read. */
+export function useOrgLedgerSettings(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["organizations", "ledger"],
+    queryFn: () => api<OrganizationLedgerSettings>("/organizations/ledger"),
+    ...opts,
+  });
+}
+
+/** Owner: ledger mode and optional card surcharge on top-ups (`PATCH /organizations/ledger`). */
+export function useUpdateOrgLedgerSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      enabled?: boolean;
+      topUpCardFeePercent?: number | null;
+      topUpCardFeeFlatCents?: number | null;
+    }) => api<OrganizationLedgerSettings>("/organizations/ledger", { method: "PATCH", body: input }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["organizations", "ledger"] });
+      void qc.invalidateQueries({ queryKey: ["billing"] });
+      // Member ledgers embed `ledgerEnabled`; refresh so Add funds / desk actions appear.
+      void qc.invalidateQueries({ queryKey: ["orgUsers"] });
+    },
+  });
+}
+
 export function useAnnouncements(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["announcements"],
@@ -936,6 +1013,9 @@ export function useCreateReservationInvoice(id: number) {
       void qc.invalidateQueries({ queryKey: ["reservations"] });
       void qc.invalidateQueries({ queryKey: ["invoices"] });
       void qc.invalidateQueries({ queryKey: ["revenue-report"] });
+      // Ledger-mode posts flight_charges through this same endpoint.
+      void qc.invalidateQueries({ queryKey: ["orgUsers"] });
+      void qc.invalidateQueries({ queryKey: ["organizations", "ledger"] });
     },
   });
 }
@@ -976,10 +1056,18 @@ export function useUpdateResource(id: number) {
   });
 }
 
-export function useApproveResource(resourceId: number) {
+export function useApproveResource() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, approve }: { userId: number; approve: boolean }) =>
+    mutationFn: ({
+      resourceId,
+      userId,
+      approve,
+    }: {
+      resourceId: number;
+      userId: number;
+      approve: boolean;
+    }) =>
       api(`/resources/${resourceId}/${approve ? "approve" : "unapprove"}`, {
         method: "POST",
         body: { userId },
@@ -988,9 +1076,9 @@ export function useApproveResource(resourceId: number) {
       void qc.invalidateQueries({ queryKey: ["resources"] });
       void qc.invalidateQueries({ queryKey: ["members"] });
       // Refresh the caller's bookable fleet (the /me/book "checked out" list)
-      // so a just-approved renter sees the aircraft without a reload.
+      // so a just-approved student or renter sees the aircraft without a reload.
       void qc.invalidateQueries({ queryKey: ["approvedResources"] });
-      // The other direction, the aircraft's own list of approved renters.
+      // The other direction, the aircraft's own list of approved members.
       void qc.invalidateQueries({ queryKey: ["resourceApprovedUsers"] });
     },
   });
@@ -1700,6 +1788,170 @@ export function useMemberLedger(orgUserId: number | null, opts?: QueryOpts) {
   });
 }
 
+export type LedgerListFilter = {
+  q?: string;
+  type?: string | string[];
+  startDate?: string;
+  endDate?: string;
+};
+
+/** One page of a member's ledger entries, for the /me Billing table. */
+export function useMemberLedgerPage(
+  orgUserId: number | null,
+  filter: LedgerListFilter | undefined,
+  paging: PagingState,
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["orgUsers", orgUserId, "ledger", { ...(filter ?? {}), ...paging.query }],
+    queryFn: async (): Promise<
+      Paged<LedgerEntry> & { balanceCents: number; ledgerEnabled: boolean }
+    > => {
+      const body = await apiRaw<{
+        data?: MemberLedger;
+        pagination?: PaginationMeta;
+      }>(`/orgUsers/${orgUserId}/ledger`, {
+        query: { ...(filter ?? {}), ...paging.query },
+      });
+      const data = body.data;
+      const pagination = body.pagination;
+      const rows = data?.entries ?? [];
+      return {
+        rows,
+        total: pagination?.total ?? rows.length,
+        hasMore: pagination?.hasMore ?? false,
+        balanceCents: data?.balanceCents ?? 0,
+        ledgerEnabled: data?.ledgerEnabled === true,
+      };
+    },
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
+    placeholderData: (prev) => prev,
+    ...opts,
+  });
+}
+
+/** Refundable top-ups for the desk Refund UI. */
+export function useLedgerRefundable(orgUserId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["orgUsers", orgUserId, "ledger", "refundable"],
+    queryFn: () => api<LedgerRefundable>(`/orgUsers/${orgUserId}/ledger/refundable`),
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
+    ...opts,
+  });
+}
+
+/** Start a card top-up PaymentIntent (`POST /orgUsers/:id/ledger/topups`). */
+export function useCreateLedgerTopUp(orgUserId: number | null) {
+  return useMutation({
+    mutationFn: (body: { amountCents: number; paymentMethodId?: string; idempotencyKey?: string }) =>
+      api<LedgerTopUpIntent>(`/orgUsers/${orgUserId}/ledger/topups`, { method: "POST", body }),
+  });
+}
+
+/** Credit a Stripe.js-confirmed top-up without waiting on the webhook. */
+export function useConfirmLedgerTopUp(orgUserId: number | null) {
+  return useMutation({
+    mutationFn: (body: { paymentIntentId: string }) =>
+      api<LedgerTopUpConfirm>(`/orgUsers/${orgUserId}/ledger/topups/confirm`, {
+        method: "POST",
+        body,
+      }),
+  });
+}
+
+/** Home balance, member ledger pages, and school-wide accounts roster. */
+export function invalidateLedgerMoney(
+  qc: ReturnType<typeof useQueryClient>,
+  balanceCents?: number
+) {
+  if (typeof balanceCents === "number") {
+    qc.setQueryData<OrgUserBillingSettings>(["orgUsers", "billing"], (old) =>
+      old ? { ...old, balanceCents } : old
+    );
+    qc.setQueriesData<{ balanceCents?: number }>(
+      {
+        predicate: (q) =>
+          Array.isArray(q.queryKey) &&
+          q.queryKey[0] === "orgUsers" &&
+          q.queryKey[2] === "ledger",
+      },
+      (old) => (old && typeof old === "object" ? { ...old, balanceCents } : old)
+    );
+  }
+  return Promise.all([
+    qc.invalidateQueries({ queryKey: ["orgUsers"] }),
+    qc.invalidateQueries({ queryKey: ["ledger"] }),
+    qc.invalidateQueries({ queryKey: ["stripe", "paymentMethods"] }),
+  ]);
+}
+
+/** Admin cash/check/other credit or adjustment. */
+export function usePostLedgerEntry(orgUserId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      amountCents: number;
+      type: "cash" | "check" | "other" | "adjustment";
+      memo: string;
+    }) =>
+      api<{ balanceCents: number; entry: LedgerEntry }>(`/orgUsers/${orgUserId}/ledger/entries`, {
+        method: "POST",
+        body,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["orgUsers", orgUserId, "ledger"] });
+      void qc.invalidateQueries({ queryKey: ["orgUsers", "billing"] });
+      void qc.invalidateQueries({ queryKey: ["orgUsers", orgUserId, "billing"] });
+    },
+  });
+}
+
+/** Desk refund (Stripe or check/cash). */
+export function usePostLedgerRefund(orgUserId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      amountCents: number;
+      method: "stripe" | "check_cash";
+      memo: string;
+      topupEntryId?: number;
+      idempotencyKey?: string;
+    }) =>
+      api<{ balanceCents: number; entry: LedgerEntry }>(`/orgUsers/${orgUserId}/ledger/refunds`, {
+        method: "POST",
+        body,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["orgUsers", orgUserId, "ledger"] });
+      void qc.invalidateQueries({ queryKey: ["orgUsers", "billing"] });
+      void qc.invalidateQueries({ queryKey: ["orgUsers", orgUserId, "billing"] });
+    },
+  });
+}
+
+/** Reassign a flight_charge to another member (admin). */
+export function useReassignLedgerFlightCharge(orgUserId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { entryId: number; toOrgUserId: number; memo?: string }) =>
+      api<{
+        reversal: LedgerEntry;
+        entry: LedgerEntry;
+        fromBalanceCents: number;
+        toBalanceCents: number;
+      }>(`/orgUsers/${orgUserId}/ledger/entries/${body.entryId}/reassign`, {
+        method: "POST",
+        body: { toOrgUserId: body.toOrgUserId, memo: body.memo },
+      }),
+    onSuccess: (_data, vars) => {
+      void qc.invalidateQueries({ queryKey: ["orgUsers", orgUserId, "ledger"] });
+      void qc.invalidateQueries({ queryKey: ["orgUsers", vars.toOrgUserId, "ledger"] });
+      void qc.invalidateQueries({ queryKey: ["orgUsers", "billing"] });
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+    },
+  });
+}
+
 /** Start a card SetupIntent so the member can save a card (`POST /stripe/setupIntent`). */
 /** One page of the caller's saved cards. */
 export function usePaymentMethodsPage(paging: PagingState, opts?: QueryOpts) {
@@ -1904,31 +2156,34 @@ export function useApprovedResources(userId: number | null, opts?: QueryOpts) {
  * list might be incomplete. `GET /resources/:id/approvedUsers` reads the
  * relation in this direction, so the answer is now whole at any roster size.
  *
- * Renters only: they are the role the approval gate governs, and who the
- * approve sheet writes to.
+ * Students and renters, the roles the approval gate holds to the list.
+ * Instructors, admins and dispatchers can already book any tail, so they are
+ * omitted even if somebody recorded a checkout against them.
  */
 export function useResourceApprovedPilots(resourceId: number | null, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["resourceApprovedUsers", resourceId],
     queryFn: () =>
-      api<OrganizationUser[]>(`/resources/${resourceId}/approvedUsers`, { query: { renter: true } }),
+      api<OrganizationUser[]>(`/resources/${resourceId}/approvedUsers`, {
+        query: { student: true, renter: true },
+      }),
     enabled: (opts?.enabled ?? true) && resourceId != null,
   });
 }
 
 /**
- * How many renters the org has at all, without pulling the roster.
+ * How many students and renters the org has, without pulling the roster.
  *
- * Only used to tell "nobody is approved on this tail" apart from "this school
- * has no renters yet"two empty lists that need very different advice. Asks
- * for a single row and reads the total off the pagination envelope.
+ * Used to tell "nobody is approved on this tail" apart from "this school has
+ * nobody the gate applies to yet", two empty lists that need different advice.
+ * Asks for a single row and reads the total off the pagination envelope.
  */
-export function useRenterCount(opts?: QueryOpts) {
+export function useCheckoutRosterCount(opts?: QueryOpts) {
   return useQuery({
-    queryKey: ["members", "renterCount"],
+    queryKey: ["members", "checkoutRosterCount"],
     queryFn: async () => {
       const { pagination } = await apiList<OrganizationUser>("/orgUsers", {
-        query: { renter: true, limit: 1 },
+        query: { student: true, renter: true, limit: 1 },
       });
       return pagination.total;
     },

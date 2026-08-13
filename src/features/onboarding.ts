@@ -50,6 +50,11 @@ export type ChecklistState = {
   percent: number;
   /** Copy explaining a campaign-driven ordering, when there is one. */
   trackCaption: string | null;
+  /**
+   * Track lead item ids that still apply to this org, in lead order. Empty when
+   * there is no campaign track. The dashboard puts these under "Start here".
+   */
+  trackLeadIds: string[];
   orgType: OrgType;
   /** False when the checklist should not be on screen at all. */
   visible: boolean;
@@ -73,21 +78,25 @@ const LOOKAHEAD_DAYS = 60;
  * Preview overrides, read from the URL.
  *
  * `?track=quickbooks` reorders the list as if the org had arrived from that campaign,
- * and `?checklist=show` brings back a checklist that has already retired itself. Both
- * are display-only, neither writes anything, so previewing a track cannot overwrite
- * the org's real attribution.
+ * `?checklist=show` brings back a checklist that has already retired itself, and
+ * `?checklist=fresh` does both of those plus treats every item as still undone so a
+ * mature test org can show what a brand-new school on that track would see. All are
+ * display-only, none write anything, so previewing cannot overwrite real attribution.
  *
  * Same trick, and the same reason, as `?sub=trial|grace|expired` in
  * `components/subscription/plan.tsx`: these are states you would otherwise have to
  * manufacture a whole organization to see. Harmless in prod.
  */
-function previewOverrides(): { track: string | null; force: boolean } {
-  if (typeof window === "undefined") return { track: null, force: false };
+function previewOverrides(): { track: string | null; force: boolean; fresh: boolean } {
+  if (typeof window === "undefined") return { track: null, force: false, fresh: false };
   const p = new URLSearchParams(window.location.search);
   const track = p.get("track");
+  const checklist = p.get("checklist");
+  const fresh = checklist === "fresh";
   return {
     track: track && TRACKS[track.toLowerCase()] ? track.toLowerCase() : null,
-    force: p.get("checklist") === "show" || !!track,
+    force: checklist === "show" || fresh || !!track,
+    fresh,
   };
 }
 
@@ -153,6 +162,9 @@ export function useChecklist(): ChecklistState {
   // memoize, and memoizing would mean keeping a dependency list in step with every
   // field an item reads.
   const applicable = CHECKLIST.filter((i) => i.appliesTo?.(orgType) ?? true);
+  const trackLeadIds = (trackFor(source)?.lead ?? []).filter((id) =>
+    applicable.some((i) => i.id === id)
+  );
   const entries: ChecklistEntry[] = orderForTrack(
     applicable.map((i) => i.id),
     source
@@ -160,8 +172,9 @@ export function useChecklist(): ChecklistState {
     .map((id) => applicable.find((i) => i.id === id)!)
     .map((item) => ({
       item,
-      done: item.isDone(facts),
-      dismissed: dismissedItems.includes(item.id),
+      // `?checklist=fresh` pretends nothing is done so track previews work on AERTEST01.
+      done: preview.fresh ? false : item.isDone(facts),
+      dismissed: preview.fresh ? false : dismissedItems.includes(item.id),
     }));
 
   const counted = entries.filter((e) => !e.dismissed);
@@ -197,6 +210,7 @@ export function useChecklist(): ChecklistState {
     total,
     percent,
     trackCaption: trackFor(source)?.caption ?? null,
+    trackLeadIds,
     orgType,
     // Still show a completed board for the moment between finishing and the retire
     // landing, vanishing mid-click reads as a bug.

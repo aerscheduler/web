@@ -134,6 +134,54 @@ export const DOCS_TOPICS = {
       "Your own surcharge, not AerScheduler's and not Stripe's, added as a line on every invoice you raise. A booking split between three people carries it three times, once on each person's invoice.",
     href: "billing/turn-on-invoicing-and-card-payments",
   },
+  "how-members-pay": {
+    title: "How members pay",
+    summary:
+      "Invoice each booking (flights, sims, ground, and fees) or use an account ledger balance. Guests always get a pay-this-visit invoice. Only the organization owner can change this.",
+    href: "billing/choose-invoice-or-account-ledger",
+  },
+  "ledger-topup-card-fee": {
+    title: "Card fee on account top-ups",
+    summary:
+      "Optional percent and/or flat fee when members add funds by card. They pay a little more and still get the credit they asked for. Desk cash and check stay dollar-for-dollar.",
+    href: "billing/set-a-card-fee-on-account-top-ups",
+  },
+  "post-to-ledger": {
+    title: "Post to ledger",
+    summary:
+      "With Account ledger on, a member flight posts a balance charge instead of a Stripe invoice. Guests still get a pay-this-visit invoice. Retrying after a live charge does nothing.",
+    href: "billing/charge-a-flight-to-the-account-ledger",
+  },
+  "ledger-accounts": {
+    title: "Account balances",
+    summary:
+      "Who has credit and who owes, for the whole school. Click a row to open that member's ledger. Guest invoices stay on the Invoices tab. Age and export live under Reports → Accounts receivable.",
+    href: "billing/review-account-balances-and-who-owes",
+  },
+  "account-ledger": {
+    title: "Account ledger",
+    summary:
+      "Running balance for this member. Posted by is who put the row on; click a row to open the detail panel.",
+    href: "billing/manage-a-member-account-ledger",
+  },
+  "ledger-receipt": {
+    title: "Receipt",
+    summary:
+      "Printable line items for a live flight charge, fee, or desk charge. Reversed charges and top-ups have no receipt here.",
+    href: "billing/manage-a-member-account-ledger#receipts",
+  },
+  "reassign-flight-charge": {
+    title: "Reassign flight charge",
+    summary:
+      "Moves a live flight charge to another member by reversing the original and posting a new one. Admins only. Fees and desk charges cannot be reassigned.",
+    href: "billing/manage-a-member-account-ledger#reassign-a-flight-charge",
+  },
+  "ledger-refund": {
+    title: "Refund",
+    summary:
+      "Original card can only return what is still unused on the charge you pick, even if the account is higher; refund each charge separately, or use check/cash for the full balance. Card fees stay charged.",
+    href: "billing/manage-a-member-account-ledger#refund",
+  },
   "overnight-minimum": {
     title: "Overnight minimum",
     summary:
@@ -326,8 +374,14 @@ export const DOCS_TOPICS = {
   "approved-resources": {
     title: "Approved resources",
     summary:
-      "Approving somebody on a tail records a checkout, on their record and on the aircraft page. With this on, a student or renter booking themselves is refused any aircraft or simulator they aren't checked out on, whichever surface they book from. Instructors, admins and dispatchers are never held to the list.",
+      "With this on, a student or renter booking themselves is refused any aircraft or simulator they aren't checked out on. Instructors, admins and dispatchers are never held to the list. Approve people from the aircraft or from their profile. This is not people groups.",
     href: "scheduling/booking-rules-and-settings",
+  },
+  "approve-members": {
+    title: "Approve someone on an aircraft",
+    summary:
+      "Flip the switch on the aircraft (Approve members) or on their profile under Compliance, Approved aircraft. Students and renters both appear. Instructors are never held to the list. People groups are for currency rules, not checkouts.",
+    href: "getting-started/approve-a-member-on-an-aircraft",
   },
   "booking-policy-rules": {
     title: "Booking and cancellation rules",

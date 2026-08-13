@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { SessionWatcher } from "@/components/session-watcher";
 import { DemoWatcher } from "@/components/demo/demo-watcher";
 import { ConsentBanner } from "@/components/consent-banner";
+import { useOrgLedgerSettings } from "@/features/queries";
+import { getToken } from "@/lib/api";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -51,10 +53,17 @@ const TITLES: Array<[string, string]> = [
 /** Keeps the browser-tab title in sync as the route changes. */
 function RouteTitle() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const ledgerQ = useOrgLedgerSettings({
+    enabled: !!getToken(),
+  });
   useEffect(() => {
     const match = TITLES.find(([p]) => pathname === p || pathname.startsWith(p + "/"));
-    document.title = match ? `${match[1]} · AerScheduler` : "AerScheduler";
-  }, [pathname]);
+    let label = match?.[1];
+    if (pathname.startsWith("/me/invoices") && ledgerQ.data?.enabled === true) {
+      label = "Billing";
+    }
+    document.title = label ? `${label} · AerScheduler` : "AerScheduler";
+  }, [pathname, ledgerQ.data?.enabled]);
   return null;
 }
 

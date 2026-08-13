@@ -44,7 +44,7 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
         value: "booking-preferences",
         label: "Booking preferences",
         icon: SlidersHorizontal,
-        keywords: ["booking policy", "multi-day", "overnight", "payment method required", "rules"],
+        keywords: ["booking policy", "multi-day", "overnight", "payment method required", "rules", "approved resources", "checkout"],
       },
       { value: "groups", label: "Groups", icon: Layers, keywords: ["resource groups", "fleet groups"] },
       { value: "documents", label: "Document types", icon: FileCog, keywords: ["required documents", "licenses", "expiry"] },
@@ -54,7 +54,7 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
     label: "Billing",
     tabs: [
       { value: "plan", label: "Plan", icon: BadgeDollarSign, keywords: ["subscription", "price", "per aircraft"] },
-      { value: "billing", label: "Billing", icon: CreditCard, keywords: ["stripe", "connect", "payouts", "fees"] },
+      { value: "billing", label: "Billing", icon: CreditCard, keywords: ["stripe", "connect", "payouts", "fees", "ledger", "invoice"] },
       {
         value: "memberships",
         label: "Memberships",

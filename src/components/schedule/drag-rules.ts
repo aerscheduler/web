@@ -31,7 +31,7 @@ import {
 import type { SlotOfferHold } from "@/lib/slot-offer-holds";
 import { holdOverlaps } from "@/lib/slot-offer-holds";
 import { MIN_DURATION_MIN, SLOT_MIN } from "@/lib/scheduling";
-import { isRampedIn, isRampedOut, isReservationPersonnel } from "./close-out";
+import { hasLiveBill, isRampedIn, isRampedOut, isReservationPersonnel } from "./close-out";
 import { TYPE_REQUIREMENTS } from "./reservation-shared";
 import { personnelIds } from "./board-filters";
 import { typeLabel } from "./meta";
@@ -154,10 +154,11 @@ export function dragAbility(
 
   // Money has been taken off the schedule and put on a bill. The times on that bill are
   // what the customer was charged against, so they stop being a scheduling question.
-  //Any live invoice locks the slot: its line items describe hours this booking claims to
-  //have flown, and moving it would leave them describing a flight that didn't happen.
-  if ((r.invoices ?? []).some((i) => !i.voidedAt)) {
-    return locked("This flight is invoiced, its times are part of the bill and can't be dragged.");
+  // Any live invoice OR ledger flight_charge locks the slot: line items describe hours
+  // this booking claims to have flown, and moving it would leave them describing a flight
+  // that didn't happen.
+  if (hasLiveBill(r)) {
+    return locked("This flight is billed, its times are part of the charge and can't be dragged.");
   }
 
   // Back on the ramp: the readings are in and the close-out (or its invoice) is derived

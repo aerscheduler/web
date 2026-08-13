@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, CreditCard, Loader2, Plus, Star, Trash2, Zap } from "lucide-react";
+import { Building2, CreditCard, Loader2, Plus, Receipt, Star, Trash2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import {
   useMyBillingSettings,
@@ -10,10 +10,12 @@ import {
 } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
+import { formatMoney } from "@/lib/utils";
 import type { PaymentMethod } from "@/types/api";
 import { EmptyState } from "@/components/states";
 import { DocsHint } from "@/components/docs-hint";
 import { AddCardDialog } from "@/components/me-money/add-card-dialog";
+import { AddFundsDialog } from "@/components/me-money/add-funds-dialog";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
   Card,
@@ -46,9 +48,10 @@ function cardExpiry(m: PaymentMethod): string | null {
  * the Profile page; carries no page header of its own.
  */
 export function PaymentMethodsPanel() {
-  const { organization } = useAuth();
+  const { organization, orgUserId } = useAuth();
   const confirm = useConfirm();
   const [addOpen, setAddOpen] = useState(false);
+  const [addFundsOpen, setAddFundsOpen] = useState(false);
 
   const methodsQ = usePaymentMethods({ enabled: organization != null });
   const billingQ = useMyBillingSettings({ enabled: organization != null });
@@ -67,6 +70,8 @@ export function PaymentMethodsPanel() {
   const methods = methodsQ.data ?? [];
   const hasDefault = methods.some((m) => m.defaultPaymentMethod);
   const autoPay = billingQ.data?.autoPay ?? false;
+  const ledgerOn = billingQ.data?.ledgerEnabled === true;
+  const balanceCents = billingQ.data?.balanceCents ?? 0;
 
   // A billing 500/404 here means the org hasn't finished Stripe onboarding.
   const billingUnavailable =
@@ -135,6 +140,32 @@ export function PaymentMethodsPanel() {
   return (
     <>
       <div data-doc-shot="payment-methods-autopay" className="space-y-5">
+        {ledgerOn && orgUserId != null && (
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
+              <div className="min-w-0">
+                <CardTitle className="flex items-center gap-2">
+                  <Receipt className="size-4 text-primary" /> Account balance
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  {billingQ.isLoading ? (
+                    "Loading…"
+                  ) : (
+                    <>
+                      <span className="font-medium text-foreground">{formatMoney(balanceCents)}</span>
+                      {" · "}
+                      Top up with a card to put credit on your account.
+                    </>
+                  )}
+                </CardDescription>
+              </div>
+              <Button size="sm" onClick={() => setAddFundsOpen(true)}>
+                Add funds
+              </Button>
+            </CardHeader>
+          </Card>
+        )}
+
         {/* Autopay */}
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
@@ -235,6 +266,13 @@ export function PaymentMethodsPanel() {
       </div>
 
       <AddCardDialog open={addOpen} onOpenChange={setAddOpen} />
+      {ledgerOn && orgUserId != null && (
+        <AddFundsDialog
+          orgUserId={orgUserId}
+          open={addFundsOpen}
+          onOpenChange={setAddFundsOpen}
+        />
+      )}
     </>
   );
 }

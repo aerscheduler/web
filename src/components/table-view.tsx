@@ -115,7 +115,7 @@ function Body({
   className?: string;
 }) {
   return (
-    <div className={cn(FILL_BODY_MIN, "md:flex-1 md:overflow-auto", className)}>{children}</div>
+    <div className={cn(FILL_BODY_MIN, "min-w-0 md:flex-1 md:overflow-auto", className)}>{children}</div>
   );
 }
 

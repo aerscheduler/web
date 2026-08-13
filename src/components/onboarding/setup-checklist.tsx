@@ -26,9 +26,34 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-/** Outstanding items shown before "Show more", one full row of the grid at its
- *  widest, so the collapsed state is a tidy rectangle rather than a ragged one. */
-const COLLAPSED = 4;
+/** Outstanding items shown before "Show more" when there is no campaign track. */
+const COLLAPSED_DEFAULT = 4;
+
+function ItemGrid({
+  entries,
+  orgType,
+  onDismiss,
+  onOpenFlow,
+}: {
+  entries: ChecklistEntry[];
+  orgType: OrgType;
+  onDismiss: (id: string) => void;
+  onOpenFlow: (id: string) => void;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {entries.map((entry) => (
+        <ItemCard
+          key={entry.item.id}
+          entry={entry}
+          orgType={orgType}
+          onDismiss={() => onDismiss(entry.item.id)}
+          onOpenFlow={() => onOpenFlow(entry.item.id)}
+        />
+      ))}
+    </div>
+  );
+}
 
 export function SetupChecklist({ className }: { className?: string }) {
   const state = useChecklist();
@@ -57,7 +82,22 @@ export function SetupChecklist({ className }: { className?: string }) {
   }
 
   const outstanding = state.remaining;
-  const shown = expanded ? outstanding : outstanding.slice(0, COLLAPSED);
+  const leadSet = new Set(state.trackLeadIds);
+  const hasTrack = state.trackLeadIds.length > 0;
+  const startHere = hasTrack ? outstanding.filter((e) => leadSet.has(e.item.id)) : [];
+  const also = hasTrack ? outstanding.filter((e) => !leadSet.has(e.item.id)) : outstanding;
+  // Lead items always show. The rest stays behind "Also set up" when a track is active
+  // and the lead still has work, so campaign tracks read differently at a glance. If
+  // every lead item is already done, surface the rest immediately (nothing to lead with).
+  const collapseAlso = hasTrack && startHere.length > 0;
+  const alsoShown = collapseAlso
+    ? expanded
+      ? also
+      : []
+    : expanded
+      ? also
+      : also.slice(0, COLLAPSED_DEFAULT);
+  const alsoHidden = collapseAlso ? also.length : Math.max(0, also.length - COLLAPSED_DEFAULT);
   const waived = state.entries.filter((e) => e.dismissed);
 
   return (
@@ -105,27 +145,52 @@ export function SetupChecklist({ className }: { className?: string }) {
           <Sparkles className="size-4" /> Everything on the list is done. Nice.
         </div>
       ) : (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {shown.map((entry) => (
-            <ItemCard
-              key={entry.item.id}
-              entry={entry}
-              orgType={state.orgType}
-              onDismiss={() => state.dismissItem(entry.item.id)}
-              onOpenFlow={() => setFlowId(entry.item.id)}
-            />
-          ))}
+        <div className="mt-4 space-y-5">
+          {startHere.length > 0 && (
+            <section data-testid="setup-checklist-start-here">
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Start here
+              </h3>
+              <ItemGrid
+                entries={startHere}
+                orgType={state.orgType}
+                onDismiss={state.dismissItem}
+                onOpenFlow={setFlowId}
+              />
+            </section>
+          )}
+
+          {alsoShown.length > 0 && (
+            <section data-testid="setup-checklist-also">
+              {collapseAlso && (
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Also set up
+                </h3>
+              )}
+              <ItemGrid
+                entries={alsoShown}
+                orgType={state.orgType}
+                onDismiss={state.dismissItem}
+                onOpenFlow={setFlowId}
+              />
+            </section>
+          )}
         </div>
       )}
 
-      {outstanding.length > COLLAPSED && (
+      {alsoHidden > 0 && (
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
           className="mt-3 inline-flex items-center gap-1 self-start text-xs text-muted-foreground hover:text-foreground"
+          data-testid="setup-checklist-expand"
         >
           <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
-          {expanded ? "Show less" : `Show ${outstanding.length - COLLAPSED} more`}
+          {expanded
+            ? "Show less"
+            : collapseAlso
+              ? `Also set up (${alsoHidden})`
+              : `Show ${alsoHidden} more`}
         </button>
       )}
 

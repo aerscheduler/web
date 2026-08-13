@@ -17,12 +17,18 @@ import type { Invoice, Reservation } from "@/types/api";
 import { WhoPaysSection } from "./who-pays-section";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
-import { useBilling, useCreateReservationInvoice, useReservationInvoice } from "@/features/queries";
+import {
+  useBilling,
+  useCreateReservationInvoice,
+  useOrgLedgerSettings,
+  useReservationInvoice,
+} from "@/features/queries";
 import { useTimeZone } from "@/lib/use-timezone";
 import { OvernightMinimumNotice } from "./overnight-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { DocsHint } from "@/components/docs-hint";
 import { formatMoney } from "@/lib/utils";
 import {
   canCorrectReviewTimes,
@@ -33,6 +39,8 @@ import {
   canRampReservation,
   canViewReservationInvoice,
   billingIsLive,
+  hasLiveInvoice,
+  liveLedgerStakes,
   closeOutStep,
   usesBriefingNotMeters,
   confirmationCount,
@@ -65,6 +73,9 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   //anything at all. The session's copy of the org carries the same two flags, so the money
   //actions below appear immediately rather than popping in when the fetch lands.
   const billing = billingQ.data ?? organization?.billing ?? null;
+  //Ledger mode: same endpoint posts a flight_charge, but the copy must not say "invoice".
+  const ledgerQ = useOrgLedgerSettings();
+  const ledgerMode = ledgerQ.data?.enabled === true;
 
   const [rampMode, setRampMode] = React.useState<"out" | "in" | null>(null);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -74,7 +85,10 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const [squawkOpen, setSquawkOpen] = React.useState(false);
 
   const invoiceQ = useReservationInvoice(r.id, {
-    enabled: step === "invoiced" && canViewReservationInvoice(r, orgUserId, isStaff),
+    enabled:
+      step === "invoiced" &&
+      hasLiveInvoice(r) &&
+      canViewReservationInvoice(r, orgUserId, isStaff),
   });
   //The detail fetch is authoritative. Falling back to the row, take the first LIVE
   //invoice: on a split booking this is one payer's share rather than the booking's bill,
@@ -83,7 +97,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   //How many people were billed. Shown beside the invoice so a group close-out doesn't
   //present one student's share as though it were the whole class's bill.
   const invoiceCount = (r.invoices ?? []).filter((i) => !i.voidedAt).length;
-  const splitAcross = invoiceCount > 1 ? invoiceCount : null;
+  const ledgerStakeCount = liveLedgerStakes(r).length;
 
   // A pilot on the flight may confirm, but only once. The server rejects a second
   // confirmation from the same person, so after signing off they wait on their
@@ -128,16 +142,27 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
       const { invoices, warnings } = await createInvoice.mutateAsync();
       //Says HOW MANY people were billed. A group close-out reporting "Invoice sent" leaves
       //a dispatcher unsure whether the rest of the class was charged at all.
+      //Ledger mode posts flight_charges through the same endpoint — wording must match.
       toast.success(
-        invoices.length === 1
-          ? "Invoice sent"
-          : `${invoices.length} invoices sent, one per person`
+        ledgerMode
+          ? invoices.length === 1
+            ? "Charged to account ledger"
+            : `${invoices.length} ledger charges posted, one per person`
+          : invoices.length === 1
+            ? "Invoice sent"
+            : `${invoices.length} invoices sent, one per person`
       );
       //A partial fan-out is a success AND a problem: invoices 1 and 3 are real money in
       //Stripe, and number 2 is not. Both have to be said.
       for (const warning of warnings) toast.warning(warning);
     } catch (e) {
-      toast.error(e instanceof ApiError ? e.message : "Couldn't create the invoice");
+      toast.error(
+        e instanceof ApiError
+          ? e.message
+          : ledgerMode
+            ? "Couldn't post the ledger charge"
+            : "Couldn't create the invoice"
+      );
     }
   }
 
@@ -315,11 +340,20 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         )}
 
         {/* Who pays what, on a booking with more than one person on it. Offered from the
-            moment the flight is back until it's billed, after that the invoices describe
+            moment the flight is back until it's billed, after that the charges describe
             the shares they were computed from, and the server refuses to change them.
 
             Renders nothing for a one-person booking, which is the overwhelming majority. */}
         {step !== "invoiced" && canRamp && <WhoPaysSection r={r} />}
+        {step === "invoiced" && canRamp && (r.payers?.length ?? 0) >= 2 && (
+          <p className="text-sm text-muted-foreground">
+            Who pays what is locked
+            {ledgerStakeCount > 0
+              ? " — this flight was charged to the ledger"
+              : " — see the invoice(s) above for each share"}
+            .
+          </p>
+        )}
 
         {/* Corrections and hand-typed prices. Both were phone-only until now, which meant a
             dispatcher at a desk with a mistyped Hobbs reading in front of them had to pick
@@ -384,7 +418,10 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
                 <Lock className="mt-0.5 size-4 shrink-0" />
                 <span>
                   Everyone has signed off, so this flight&rsquo;s rates and readings are now
-                  fixed. Any adjustment has to be made on the invoice.
+                  fixed.{" "}
+                  {ledgerMode
+                    ? "Any money fix has to be a ledger reassign or adjustment on the member&rsquo;s billing tab."
+                    : "Any adjustment has to be made on the invoice."}
                 </span>
               </p>
             )}
@@ -398,40 +435,64 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
               <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
               <span>
                 {canInvoice
-                  ? "Review complete, and this flight has no invoice against it. Raise one when you're ready."
-                  : "Review complete. The invoice will appear here once it’s generated."}
+                  ? ledgerMode
+                    ? "Review complete, and this flight has no ledger charge yet. Post one when you're ready."
+                    : "Review complete, and this flight has no invoice against it. Raise one when you're ready."
+                  : ledgerMode
+                    ? "Review complete. The ledger charge will appear here once it’s posted."
+                    : "Review complete. The invoice will appear here once it’s generated."}
               </span>
             </div>
-            {/* The invoice normally mints itself the moment the last pilot signs off. When
+            {/* The bill normally mints itself the moment the last pilot signs off. When
                 that fails (Stripe unreachable, a rate missing at the time) the booking sits
                 here reviewed and unbilled, and until now the only way to bill it was the
-                phone. Admin only, because the endpoint is. */}
+                phone. Admin only, because the endpoint is. Ledger mode posts a
+                flight_charge through the same route — label must not say "invoice". */}
             {canInvoice && (
-              <Button
-                className="w-full"
-                onClick={() => void raiseInvoice()}
-                disabled={createInvoice.isPending}
-              >
-                {createInvoice.isPending ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" /> Creating invoice…
-                  </>
-                ) : (
-                  <>
-                    <Receipt className="size-4" /> Create invoice
-                  </>
-                )}
-              </Button>
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  {ledgerMode ? "Post to ledger" : "Create invoice"}
+                  {ledgerMode && <DocsHint topic="post-to-ledger" />}
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => void raiseInvoice()}
+                  disabled={createInvoice.isPending}
+                >
+                  {createInvoice.isPending ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />{" "}
+                      {ledgerMode ? "Posting charge…" : "Creating invoice…"}
+                    </>
+                  ) : (
+                    <>
+                      <Receipt className="size-4" />{" "}
+                      {ledgerMode ? "Post to ledger" : "Create invoice"}
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         )}
 
         {step === "invoiced" && (
-          <InvoiceSummary
-            invoice={invoice}
-            loading={invoiceQ.isLoading && !invoice}
-            splitAcross={splitAcross}
-          />
+          <div className="space-y-3">
+            {/* Mixed voided-invoice leftovers + live ledger stake, or a true split across
+                invoice + ledger: show every live money artifact, not only the first invoice. */}
+            {ledgerStakeCount > 0 && (
+              <LedgerChargeSummary
+                splitAcross={ledgerStakeCount > 1 ? ledgerStakeCount : null}
+              />
+            )}
+            {invoiceCount > 0 && (
+              <InvoiceSummary
+                invoice={invoice}
+                loading={invoiceQ.isLoading && !invoice}
+                splitAcross={invoiceCount > 1 ? invoiceCount : null}
+              />
+            )}
+          </div>
         )}
       </section>
 
@@ -480,6 +541,28 @@ function StepBadge({ invoice }: { invoice: Invoice | null }) {
   if (invoice?.paidAt) return <Badge variant="success">Paid</Badge>;
   if (invoice?.voidedAt) return <Badge variant="outline">Void</Badge>;
   return <Badge variant="warning">Billed</Badge>;
+}
+
+function LedgerChargeSummary({ splitAcross }: { splitAcross: number | null }) {
+  return (
+    <div
+      data-doc-shot="close-out-ledger-summary"
+      className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-sm"
+    >
+      <Receipt className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+      <div>
+        <div className="inline-flex items-center gap-1.5 font-medium">
+          Charged to account ledger
+          <DocsHint topic="post-to-ledger" />
+        </div>
+        <p className="mt-0.5 text-muted-foreground">
+          This flight was posted to the member&rsquo;s ledger
+          {splitAcross ? ` (${splitAcross} shares)` : ""}. Open their billing tab for the
+          receipt or to reassign the charge.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function InvoiceSummary({

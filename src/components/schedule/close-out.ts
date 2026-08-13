@@ -139,12 +139,37 @@ export function isRampedIn(r: Reservation): boolean {
   return rev?.hobbsTimeIn != null || rev?.tachTimeIn != null;
 }
 
+/**
+ * Live ledger flight_charge stakes (not reversed). Same notion of "already billed" as
+ * `invoiceCoverage` / `alreadyBilledRefs` on the server.
+ *
+ * Do NOT require `FK_ledgerEntryId`: every `FK_*` field is stripped from API responses
+ * (`stripForeignKeys`), so the wire payload only carries the nested `ledgerEntry`.
+ * Requiring the scalar left ledger-billed flights looking unbilled — Create invoice
+ * stayed live and meter corrections unlocked after money had already moved.
+ */
+export function liveLedgerStakes(r: Reservation) {
+  return (r.payers ?? []).filter(
+    (p) => !p.waived && p.ledgerEntry != null && !p.ledgerEntry.reversedBy
+  );
+}
+
+/**
+ * Has this booking been billed already — Stripe invoice and/or ledger flight_charge?
+ *
+ * Ledger mode posts no Invoice rows for members; treating those flights as unbilled would
+ * keep "Create invoice" live and unlock meter corrections after money had moved.
+ */
+export function hasLiveBill(r: Reservation): boolean {
+  return hasLiveInvoice(r) || liveLedgerStakes(r).length > 0;
+}
+
 export function closeOutStep(r: Reservation): CloseOutStep {
-  //ANY live invoice means the money side has started. A partial fan-out (invoice 2 of 3
+  //ANY live bill means the money side has started. A partial fan-out (invoice 2 of 3
   //failed) is still "invoiced" as far as the close-out FLOW is concerned, the pilots have
   //signed off and the readings are locked, and the retry lives on the billing side, which
-  //knows which payers are still owed one.
-  if ((r.invoices ?? []).some((i) => !i.voidedAt)) return "invoiced";
+  //knows which payers are still owed one. Ledger stakes count the same way.
+  if (hasLiveBill(r)) return "invoiced";
   if (!isRampedOut(r)) return "rampOut";
   if (!isRampedIn(r)) return "rampIn";
   // Guest reservations don't collect pilot PINs, they're closed out by staff/instructor.
@@ -250,7 +275,7 @@ export function reviewIsComplete(r: Reservation): boolean {
   return confirmationCount(r) >= reviewerCount(r);
 }
 
-/** Does this booking have a live (non-void) invoice against it? */
+/** Does this booking have a live (non-void) Stripe invoice against it? */
 export function hasLiveInvoice(r: Reservation): boolean {
   return (r.invoices ?? []).some((i) => !i.voidedAt);
 }
@@ -331,7 +356,7 @@ export function canCorrectReviewTimes(
 ): boolean {
   if (r.cancelledAt) return false;
   if (!isRampedIn(r)) return false;
-  if (hasLiveInvoice(r)) return false;
+  if (hasLiveBill(r)) return false;
   if (reviewerCount(r) === 0) return false;
   if (reviewIsComplete(r)) return false;
   return canRampReservation(r, roles, orgUserId);
@@ -357,7 +382,7 @@ export function canCreateReservationInvoice(
   if (r.type === "maintenance") return false;
   if (!billingIsLive(billing)) return false;
   if (!isAdmin(roles)) return false;
-  if (hasLiveInvoice(r)) return false;
+  if (hasLiveBill(r)) return false;
   if (isGuestReservation(r)) return false;
   if (reviewerCount(r) === 0) return false;
   return reviewIsComplete(r);

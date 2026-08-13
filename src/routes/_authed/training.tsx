@@ -19,7 +19,7 @@ import { DocsHint, DocsLink } from "@/components/docs-hint";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { TrainingPermissions } from "@/components/training/training-permissions";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatGrid } from "@/components/stat-card";
 import { EmptyState, ErrorState, CardGridSkeleton } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -152,7 +152,7 @@ function TrainingPage() {
         >
           {activeTab === "courses" && (
             <>
-              <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <StatGrid>
                 <StatCard label="Courses" value={teaching.length} icon={BookOpen} />
                 <StatCard
                   label="Published syllabi"
@@ -167,7 +167,7 @@ function TrainingPage() {
                   value={teaching.filter((c) => c.regulatoryPart === "part141").length}
                   icon={Sparkles}
                 />
-              </div>
+              </StatGrid>
 
               <div className="flex justify-end">
                 <Button

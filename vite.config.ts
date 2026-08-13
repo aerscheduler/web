@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
@@ -14,31 +14,38 @@ const CLIENT_ID = `aerscheduler-web/${
 }`;
 
 // https://vite.dev/config/
-export default defineConfig({
-  define: {
-    __CLIENT_ID__: JSON.stringify(CLIENT_ID),
-  },
-  plugins: [
-    // Router plugin must run before the React plugin.
-    tanstackRouter({ target: "react", autoCodeSplitting: true }),
-    react(),
-    tailwindcss(),
-  ],
-  resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
-  },
-  server: {
-    port: 5173,
-    // During dev, proxy /api -> the real API so cookies/CORS behave like prod.
-    // Point VITE_API_PROXY at a local server to develop against one.
-    proxy: {
-      "/api": {
-        target: process.env.VITE_API_PROXY ?? "https://api.aerscheduler.com",
-        changeOrigin: true,
-        secure: true,
-        ws: true,
-        rewrite: (p) => p.replace(/^\/api/, ""),
+// loadEnv: vite.config itself does not auto-load `.env*`; without this,
+// VITE_API_PROXY in `.env.local` is ignored and the proxy stays on production.
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
+  const apiProxy = env.VITE_API_PROXY || process.env.VITE_API_PROXY || "https://api.aerscheduler.com";
+
+  return {
+    define: {
+      __CLIENT_ID__: JSON.stringify(CLIENT_ID),
+    },
+    plugins: [
+      // Router plugin must run before the React plugin.
+      tanstackRouter({ target: "react", autoCodeSplitting: true }),
+      react(),
+      tailwindcss(),
+    ],
+    resolve: {
+      alias: { "@": path.resolve(__dirname, "./src") },
+    },
+    server: {
+      port: 5173,
+      // During dev, proxy /api -> the real API so cookies/CORS behave like prod.
+      // Point VITE_API_PROXY at a local server to develop against one.
+      proxy: {
+        "/api": {
+          target: apiProxy,
+          changeOrigin: true,
+          secure: true,
+          ws: true,
+          rewrite: (p) => p.replace(/^\/api/, ""),
+        },
       },
     },
-  },
+  };
 });

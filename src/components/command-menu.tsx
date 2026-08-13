@@ -19,7 +19,11 @@ import { commandPages, type CommandPage } from "@/lib/nav-items";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTimeZone } from "@/lib/use-timezone";
-import { useTimeZonePreferences } from "@/features/queries";
+import {
+  useGlobalSearch,
+  useOrgLedgerSettings,
+  useTimeZonePreferences,
+} from "@/features/queries";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
   SEARCH_TYPE_ICON,
@@ -28,7 +32,6 @@ import {
   searchLinkFor,
 } from "@/lib/search-links";
 import type { Role, SearchEntityType, SearchResult } from "@/types/api";
-import { useGlobalSearch } from "@/features/queries";
 import { cn } from "@/lib/utils";
 
 type CommandMenuContextValue = {
@@ -278,6 +281,8 @@ export function CommandMenuSearch() {
   const qc = useQueryClient();
   const { logout, organization, roles, orgUserId } = useAuth();
   const R = roles as Role[];
+  const ledgerQ = useOrgLedgerSettings({ enabled: open && !!organization });
+  const ledgerBilling = ledgerQ.data?.enabled === true;
   const tz = useTimeZone();
   // "Show the schedule in my zone" is an explicit opt-out of airport time, and it
   // has to win over a reservation's own zone, otherwise the palette quietly
@@ -386,8 +391,9 @@ export function CommandMenuSearch() {
       commandPages(R, {
         isDeveloper: isDeveloperSync(),
         slotOffersEnabled: organization?.slotOfferSettings?.enabled !== false,
+        ledgerBilling,
       }),
-    [R, organization?.slotOfferSettings?.enabled]
+    [R, organization?.slotOfferSettings?.enabled, ledgerBilling]
   );
   const navItems = React.useMemo(() => rankPages(pages, highlightQuery), [pages, highlightQuery]);
 

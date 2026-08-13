@@ -390,7 +390,7 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
         <PreferenceToggle
           label="Members can only book approved resources"
           docs="approved-resources"
-          description="Restrict members to aircraft they're approved on. Admins and dispatchers can still assign anyone to any resource; rooms are unaffected."
+          description="Restrict students and renters to aircraft they're approved on. Approve them from the aircraft or from their profile. Admins and dispatchers can still assign anyone to any resource; rooms are unaffected."
           checked={approvedOnly}
           disabled={pending !== null}
           saving={pending === "personnelCanOnlyUseApprovedResources"}

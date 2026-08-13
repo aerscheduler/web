@@ -137,8 +137,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                   overflowing element travels with it. Note this can't be solved by
                   moving the padding out to `main` either: a scroll container's end
                   padding is not re-applied after descendant overflow. */}
-              <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-                <div className="mx-auto flex min-h-full w-full max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 md:[&:has([data-fill-page])]:h-full md:[&:has([data-fill-page])]:pb-0">
+              <main className="min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto">
+                <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 md:[&:has([data-fill-page])]:h-full md:[&:has([data-fill-page])]:pb-0">
                   {children}
                 </div>
               </main>

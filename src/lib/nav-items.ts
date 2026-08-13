@@ -81,8 +81,8 @@ const OPERATIONS: NavItem[] = [
     icon: Wrench,
     keywords: ["squawks", "defects", "grounded", "inspections", "reminders"],
   },
-  { to: "/people", label: "People", icon: Users, keywords: ["members", "roster", "students", "instructors", "renters"] },
-  { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff, keywords: ["planes", "fleet", "resources", "n-number", "tail"] },
+  { to: "/people", label: "People", icon: Users, keywords: ["members", "roster", "students", "instructors", "renters", "checkout", "approved aircraft"] },
+  { to: "/aircraft", label: "Aircraft", icon: PlaneTakeoff, keywords: ["planes", "fleet", "resources", "n-number", "tail", "checkout", "approve members"] },
   { to: "/billing", label: "Billing", icon: Receipt, keywords: ["invoices", "payments", "money", "revenue"] },
   { to: "/compliance", label: "Go / No-Go", icon: ShieldCheck, keywords: ["gng", "go no go", "currency", "medical", "documents"] },
   {
@@ -112,7 +112,7 @@ export function operationsNav(roles: string[]): NavItem[] {
  * finds their own things in the same place. Payment methods and availability live
  * as tabs under Profile (the account menu at the foot of the rail owns that page).
  */
-export function youNav(roles: string[]): NavItem[] {
+export function youNav(roles: string[], opts?: { ledgerBilling?: boolean }): NavItem[] {
   const R = roles as Role[];
   return [
     { to: "/me", label: "Home", icon: Home, keywords: ["my home", "personal"] },
@@ -122,7 +122,13 @@ export function youNav(roles: string[]): NavItem[] {
     ...(canSelfBook(R)
       ? [{ to: "/me/book", label: "Book", icon: CalendarPlus, keywords: ["book a flight", "new booking", "reserve"] }]
       : []),
-    { to: "/me/invoices", label: "Invoices", icon: Wallet, keywords: ["my bill", "pay", "balance", "statement"] },
+    {
+      to: "/me/invoices",
+      // Ledger mode: the page is account balance + charges, not a Stripe invoice list.
+      label: opts?.ledgerBilling ? "Billing" : "Invoices",
+      icon: Wallet,
+      keywords: ["my bill", "pay", "balance", "statement", "ledger", "invoices"],
+    },
     // Only for people who can actually be on a syllabus. A dispatcher or technician
     // has no training record, and an empty page in their personal nav reads as broken.
     ...(R.includes("student") || R.includes("instructor")
@@ -226,12 +232,12 @@ function pageKey(page: CommandPage): string {
 
 export function commandPages(
   roles: string[],
-  opts: { isDeveloper: boolean; slotOffersEnabled?: boolean }
+  opts: { isDeveloper: boolean; slotOffersEnabled?: boolean; ledgerBilling?: boolean }
 ): CommandPage[] {
   const R = roles as Role[];
   const pages = [
     ...asCommandPages(operationsNav(roles), "Operations"),
-    ...asCommandPages(youNav(roles), "You"),
+    ...asCommandPages(youNav(roles, { ledgerBilling: opts.ledgerBilling }), "You"),
     ...asCommandPages(
       OFF_RAIL.filter((item) => item.to !== "/developer" || opts.isDeveloper).filter((item) =>
         canAccess(item.to, R)

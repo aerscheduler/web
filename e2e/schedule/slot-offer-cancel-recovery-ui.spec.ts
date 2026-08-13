@@ -126,14 +126,34 @@ test.describe("Slot offer cancel recovery (UI)", () => {
     });
 
     // 4) Admin accepts from My Schedule → Offers.
+    // Cookie banner also has an Accept button — dismiss it first or we click that.
     await adminPage.goto("/me/schedule?tab=offers");
-    await expect(
-      adminPage.getByRole("button", { name: /^Accept$/i }).first(),
-    ).toBeVisible({ timeout: 20_000 });
-    await adminPage.getByRole("button", { name: /^Accept$/i }).first().click();
+    await dismissCookieBanner(adminPage);
+    const acceptBtn = adminPage
+      .getByRole("button", { name: /^Accept$/i })
+      .filter({ has: adminPage.locator("svg") });
+    await expect(acceptBtn.first()).toBeVisible({ timeout: 20_000 });
+    await acceptBtn.first().click();
+
+    // Prefer API confirmation: toast copy is easy to miss under cookie/banner races.
+    const adminApi = await authAs(request, ACCOUNTS.admin);
+    await expect
+      .poll(
+        async () => {
+          const mine = await request.get(`${base}/slot-offers/me`, {
+            headers: adminApi.headers,
+          });
+          if (!mine.ok()) return -1;
+          const body = await mine.json();
+          const items = Array.isArray(body) ? body : (body.data ?? []);
+          return items.filter((o: { status?: string }) => o.status === "pending").length;
+        },
+        { timeout: 20_000 },
+      )
+      .toBe(0);
     await expect(
       adminPage.getByText(/Slot accepted|reservation is booked|No pending offers/i).first(),
-    ).toBeVisible({ timeout: 20_000 });
+    ).toBeVisible({ timeout: 10_000 });
 
     // API: resulting booking exists and is not cancelled.
     const pending = await request.get(`${base}/slot-offers`, {

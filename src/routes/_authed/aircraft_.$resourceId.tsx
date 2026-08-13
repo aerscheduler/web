@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Resource } from "@/types/api";
-import { useLocations, useRenterCount, useResource, useResourceApprovedPilots } from "@/features/queries";
+import { useLocations, useCheckoutRosterCount, useResource, useResourceApprovedPilots } from "@/features/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
@@ -175,7 +175,7 @@ function sectionsFor(access: ResourceViewAccess): RailSection[] {
       ? [{ value: "maintenance", label: "Maintenance", icon: Wrench }]
       : []),
     ...(access.approvedPilots
-      ? [{ value: "approved-renters", label: "Approved renters", icon: UserCheck }]
+      ? [{ value: "approved-renters", label: "Approved members", icon: UserCheck }]
       : []),
   ];
   return [{ items }];
@@ -287,7 +287,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
                   <Pencil className="size-4" /> Edit
                 </Button>
                 <Button variant="outline" onClick={() => setApproving(true)}>
-                  <UserCheck className="size-4" /> Approve renters
+                  <UserCheck className="size-4" /> Approve members
                 </Button>
                 <Button
                   variant={plane?.grounded ? "outline" : "destructive"}
@@ -434,37 +434,42 @@ function ResourceBody({ resource }: { resource: Resource }) {
 }
 
 /**
- * Renters checked out on this tail.
+ * Students and renters checked out on this tail.
  *
  * A complete list at any roster size, the read is now one request against the
  * aircraft (see `useResourceApprovedPilots`), so there is no cap to disclose.
- * The renter count is only here to tell an unapproved tail apart from a school
- * that has no renters yet.
+ * The checkout-roster count is only here to tell an unapproved tail apart from
+ * a school that has no students or renters yet.
  */
 function ApprovedPilots({ resource }: { resource: Resource }) {
   const q = useResourceApprovedPilots(resource.id);
-  const renterCountQ = useRenterCount();
+  const rosterCountQ = useCheckoutRosterCount();
   const pilots = q.data ?? [];
 
   return (
     <DetailCard
-      title="Approved renters"
-      description="Renters checked out to book this aircraft."
+      title="Approved members"
+      description="Students and renters checked out to book this aircraft."
     >
       {q.isPending ? (
         <CardSkeleton rows={2} />
       ) : q.isError ? (
         <CardEmpty>Couldn&apos;t load approvals.</CardEmpty>
-      ) : renterCountQ.data === 0 ? (
+      ) : rosterCountQ.data === 0 ? (
         <CardEmpty>
-          No renters in this organization yet, grant the renter role from{" "}
+          No students or renters in this organization yet. Grant a student or
+          renter role from{" "}
           <Link to="/people" className="underline underline-offset-2">
             People
           </Link>
-          .
+          , then approve them here or on their profile.
         </CardEmpty>
       ) : pilots.length === 0 ? (
-        <CardEmpty>Nobody is approved on this tail yet.</CardEmpty>
+        <CardEmpty>
+          Nobody is approved on this tail yet. Use{" "}
+          <span className="font-medium text-foreground">Approve members</span>{" "}
+          above, or flip the switches on a person&apos;s profile.
+        </CardEmpty>
       ) : (
         <ul className="space-y-1.5">
           {pilots.map((m) => {

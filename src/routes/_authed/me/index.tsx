@@ -5,11 +5,13 @@ import {
   BadgeCheck,
   CalendarClock,
   CalendarPlus,
+  CircleDollarSign,
   Megaphone,
   PlaneTakeoff,
   Receipt,
   ShieldCheck,
   UserRound,
+  Wallet,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { bookActionLabel, bookingNouns } from "@/lib/permissions";
@@ -23,7 +25,7 @@ import {
 import type { Reservation, Role } from "@/types/api";
 import { resourceLabel } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatGrid } from "@/components/stat-card";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +38,7 @@ import { CancelReservationDialog } from "@/components/schedule/cancel-reservatio
 import { ReservationForm } from "@/components/schedule/reservation-form";
 import { InstructionPartnersCard } from "@/components/me/instruction-partners-card";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
+import { AddFundsDialog } from "@/components/me-money/add-funds-dialog";
 
 export const Route = createFileRoute("/_authed/me/")({
   component: MyDayPage,
@@ -46,6 +49,7 @@ const MAX_UPCOMING = 6;
 
 function MyDayPage() {
   const { user, organization, userId, orgUserId, roles } = useAuth();
+  const [addFundsOpen, setAddFundsOpen] = React.useState(false);
 
   const now = new Date();
   const startISO = startOfDay(now).toISOString();
@@ -117,13 +121,14 @@ function MyDayPage() {
         subtitle={`${roleSummary(roles)} · ${organization.name} · ${format(now, "EEEE, MMM d")}`}
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <StatGrid>
         <StatCard
           label={`Next ${bookings.one}`}
           value={next ? format(parseISO(next.start), "EEE h:mm a") : "None"}
           hint={next ? (nextResource ?? "Unassigned") : "Nothing on the books"}
           icon={PlaneTakeoff}
           loading={reservationsQ.isLoading}
+          to="/me/schedule"
         />
         <StatCard
           label={`Upcoming ${bookings.many}`}
@@ -131,6 +136,7 @@ function MyDayPage() {
           hint={`next ${HORIZON_DAYS} days`}
           icon={CalendarClock}
           loading={reservationsQ.isLoading}
+          to="/me/schedule"
         />
         {ledgerOn ? (
           <StatCard
@@ -144,6 +150,7 @@ function MyDayPage() {
             icon={Receipt}
             accent={accountBalance < 0 ? "warning" : "success"}
             loading={billingQ.isLoading}
+            to="/me/invoices"
           />
         ) : (
           <StatCard
@@ -155,6 +162,7 @@ function MyDayPage() {
             icon={Receipt}
             accent={outstanding > 0 ? "warning" : "success"}
             loading={invoicesQ.isLoading}
+            to="/me/invoices"
           />
         )}
         <StatCard
@@ -174,57 +182,65 @@ function MyDayPage() {
           icon={att.attention === 0 ? BadgeCheck : ShieldCheck}
           accent={att.attention > 0 ? "warning" : "success"}
           loading={currenciesQ.isLoading}
+          to="/me/currencies"
         />
-      </div>
+      </StatGrid>
 
       {announcements.length > 0 && (
         <div className="mt-5 space-y-3">
           {announcements.map((a) => (
-            <Card
+            <Link
               key={a.id}
-              className="border-primary/30 bg-primary/5 p-4"
+              to="/operations/announcements"
+              className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <div className="flex items-start gap-3">
-                <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                  <Megaphone className="size-4" />
-                </span>
-                <div className="min-w-0">
-                  <div className="font-medium">{a.title}</div>
-                  <p className="mt-0.5 text-sm text-muted-foreground">{a.message}</p>
+              <Card className="border-primary/30 bg-primary/5 p-4 transition-colors hover:bg-primary/10">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <Megaphone className="size-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <div className="font-medium">{a.title}</div>
+                    <p className="mt-0.5 text-sm text-muted-foreground">{a.message}</p>
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            </Link>
           ))}
         </div>
       )}
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
+        <Card className="relative transition-colors hover:bg-muted/30">
+          <Link
+            to="/me/schedule"
+            aria-label="Open my schedule"
+            className="absolute inset-0 z-0 rounded-xl"
+          />
+          <CardHeader className="relative z-10 flex-row items-center justify-between pointer-events-none">
             <CardTitle>Today &amp; upcoming</CardTitle>
-            <Link
-              to="/me/schedule"
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-            >
-              Schedule
-            </Link>
+            <span className="text-sm font-medium text-primary">Schedule</span>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent className="relative z-10 pt-0 pointer-events-none">
             {reservationsQ.isPending ? (
               <CalendarGridSkeleton />
             ) : reservationsQ.isError ? (
-              <ErrorState error={reservationsQ.error} onRetry={() => reservationsQ.refetch()} />
+              <div className="pointer-events-auto">
+                <ErrorState error={reservationsQ.error} onRetry={() => reservationsQ.refetch()} />
+              </div>
             ) : upcoming.length === 0 ? (
               <EmptyState
                 icon={CalendarClock}
                 title={`No upcoming ${bookings.many}`}
                 body={`${bookLabel} and it'll show up here.`}
                 action={
-                  <Button asChild>
-                    <Link to="/me/book">
-                      <CalendarPlus className="size-4" /> {bookLabel}
-                    </Link>
-                  </Button>
+                  <div className="pointer-events-auto">
+                    <Button asChild>
+                      <Link to="/me/book">
+                        <CalendarPlus className="size-4" /> {bookLabel}
+                      </Link>
+                    </Button>
+                  </div>
                 }
               />
             ) : (
@@ -233,17 +249,19 @@ function MyDayPage() {
                     Hides itself entirely when the location isn't geocoded or the lookup
                     fails, so the list closes up as if it were never here. */}
                 {next && (
-                  <WeatherBadge
-                    // The RESERVATION's location, not the resource's, the API returns
-                    // `resource.location` as a bare { id } stub with no address, so the
-                    // badge would never have coordinates to look weather up with.
-                    location={(next as unknown as { location?: unknown }).location}
-                    start={next.start}
-                    timeZone={next.timeZoneName}
-                    className="mb-3"
-                  />
+                  <div className="pointer-events-auto">
+                    <WeatherBadge
+                      // The RESERVATION's location, not the resource's, the API returns
+                      // `resource.location` as a bare { id } stub with no address, so the
+                      // badge would never have coordinates to look weather up with.
+                      location={(next as unknown as { location?: unknown }).location}
+                      start={next.start}
+                      timeZone={next.timeZoneName}
+                      className="mb-3"
+                    />
+                  </div>
                 )}
-                <div className="max-h-[min(28rem,50vh)] overflow-y-auto">
+                <div className="pointer-events-auto max-h-[min(28rem,50vh)] overflow-y-auto">
                   <ul className="space-y-2">
                     {upcoming.slice(0, MAX_UPCOMING).map((r) => (
                       <li key={r.id}>
@@ -279,15 +297,32 @@ function MyDayPage() {
             </Button>
             <Button asChild variant="outline" className="justify-start">
               <Link to="/me/invoices">
-                <Receipt className="size-4" /> Invoices
+                <Wallet className="size-4" /> Billing
               </Link>
             </Button>
+            {ledgerOn && orgUserId != null && (
+              <Button
+                variant="outline"
+                className="justify-start"
+                onClick={() => setAddFundsOpen(true)}
+              >
+                <CircleDollarSign className="size-4" /> Add funds
+              </Button>
+            )}
           </CardContent>
         </Card>
 
         {/* Renders nothing unless you instruct or study. */}
         <InstructionPartnersCard />
       </div>
+
+      {ledgerOn && orgUserId != null && (
+        <AddFundsDialog
+          orgUserId={orgUserId}
+          open={addFundsOpen}
+          onOpenChange={setAddFundsOpen}
+        />
+      )}
 
       {editing && (
         <ReservationForm

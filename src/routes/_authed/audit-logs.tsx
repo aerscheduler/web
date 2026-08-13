@@ -50,6 +50,7 @@ const ENTITY_TYPES: { value: string; label: string }[] = [
   { value: "joinRequest", label: "Join requests" },
   { value: "organization", label: "Settings" },
   { value: "apiKey", label: "API keys" },
+  { value: "ledgerEntry", label: "Ledger" },
 ];
 
 const ENTITY_LABEL = new Map(ENTITY_TYPES.map((e) => [e.value, e.label]));
@@ -130,6 +131,13 @@ function actionLabel(action: string): string {
     "invoice.lineEdited": "Line edited",
     "invoice.discountApplied": "Discount applied",
     "invoice.sent": "Invoice sent",
+
+    //Account ledger
+    "ledger.credited": "Ledger credit",
+    "ledger.adjusted": "Ledger adjustment",
+    "ledger.refunded": "Ledger refund",
+    "ledger.charged": "Ledger charge",
+    "ledger.reversed": "Ledger reversal",
 
     //Memberships
     "membership.created": "Membership started",

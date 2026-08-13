@@ -117,7 +117,7 @@ export const CHECKLIST: ChecklistItem[] = [
     id: "billing",
     title: "Connect billing",
     blurb:
-      "Stripe lets you charge cards and ACH, invoice members, and sync to QuickBooks. Payouts land in your own account.",
+      "Stripe lets you charge cards and ACH. Bill with invoices per booking, or use an account ledger. Payouts land in your own bank; QuickBooks sync is optional.",
     icon: CreditCard,
     to: "/settings",
     search: { tab: "billing" },

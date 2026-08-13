@@ -5,7 +5,7 @@ import { useMyCurrencies } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import type { Currency } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatGrid } from "@/components/stat-card";
 import { EmptyState, ErrorState, CardGridSkeleton, StatSkeleton } from "@/components/states";
 import { CurrencyCard } from "@/components/me-money/currency-card";
 import { currencyStatus } from "@/components/me-money/currency-status";
@@ -79,7 +79,7 @@ function MyCurrenciesPage() {
       {currenciesQ.isPending ? (
         <StatSkeleton count={3} />
       ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatGrid>
           <StatCard label="Current" value={current} icon={CheckCircle2} accent="success" />
           <StatCard label="Expiring soon" value={expiring} icon={Clock} accent="warning" />
           <StatCard label="Expired" value={expired} icon={AlertTriangle} accent="warning" />
@@ -90,7 +90,7 @@ function MyCurrenciesPage() {
             accent="warning"
             hint="Never signed off"
           />
-        </div>
+        </StatGrid>
       )}
 
       <div className="mt-5">

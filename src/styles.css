@@ -279,6 +279,22 @@
   .tnum {
     font-variant-numeric: tabular-nums;
   }
+  /* Ledger receipt print: only the receipt body, not the rest of the console. */
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    [data-print-receipt],
+    [data-print-receipt] * {
+      visibility: visible;
+    }
+    [data-print-receipt] {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      padding: 0;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

@@ -162,7 +162,11 @@ export function DataTable<T>({
     <div
       data-fill-page={fill ? "" : undefined}
       data-doc-shot={docShot}
-      className={fill ? "flex flex-col gap-3 md:min-h-0 md:flex-1" : "space-y-3"}
+      className={
+        fill
+          ? "flex min-w-0 flex-col gap-3 md:min-h-0 md:flex-1"
+          : "min-w-0 space-y-3"
+      }
     >
       {toolbar ? <div className={fill ? "md:shrink-0" : undefined}>{toolbar}</div> : null}
 
@@ -182,8 +186,11 @@ export function DataTable<T>({
         <Table
           containerClassName={cn(
             fill
-              ? cn("rounded-md border border-border md:flex-1 md:overflow-auto", FILL_BODY_MIN)
-              : undefined,
+              ? cn(
+                  "min-w-0 rounded-xl border border-border bg-card md:min-w-0 md:flex-1 md:overflow-auto",
+                  FILL_BODY_MIN
+                )
+              : "min-w-0",
             // Keep the previous page readable while the next one loads rather
             // than collapsing to a spinner, paging should not blink.
             loading && "opacity-60"
@@ -200,7 +207,7 @@ export function DataTable<T>({
               ))}
             </colgroup>
           )}
-          <THead className={fill ? "sticky top-0 z-10 bg-background" : undefined}>
+          <THead className={fill ? "sticky top-0 z-10 bg-card" : undefined}>
             {table.getHeaderGroups().map((hg) => (
               <TR key={hg.id} className="hover:bg-transparent">
                 {hg.headers.map((h) => {

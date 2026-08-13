@@ -9,11 +9,16 @@ import {
   UserRoundCog,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useBilling, useConnectStripe, useUpdateBilling } from "@/features/queries";
+import { useBilling, useConnectStripe, useUpdateBilling, useOrgLedgerSettings, useUpdateOrgLedgerSettings } from "@/features/queries";
 import type { OrganizationBillingSettings } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { canManageBillingSettings } from "@/lib/permissions";
+import {
+  BillingModeCards,
+  type BillingMode,
+} from "@/components/billing/billing-mode-choice";
+import { DocsHint } from "@/components/docs-hint";
 import {
   Card,
   CardContent,
@@ -24,10 +29,18 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ErrorState } from "@/components/states";
 import { MoneyInput } from "@/components/money-input";
 import { Field, PreferenceToggle } from "@/components/settings/parts";
@@ -47,8 +60,9 @@ function textToBps(text: string): number | null {
 
 export function BillingTab() {
   const q = useBilling();
+  const ledgerQ = useOrgLedgerSettings();
 
-  if (q.isLoading) {
+  if (q.isLoading || ledgerQ.isLoading) {
     return (
       <Card>
         <CardHeader>
@@ -75,7 +89,55 @@ export function BillingTab() {
   //optional), so rather than a dead end we render the real form seeded with the
   //server's defaults: a school can set its instructor rate and service fee on day one,
   //and the Stripe card inside the form is already the "Connect payouts" prompt.
-  return <BillingForms billing={q.data ?? UNCONFIGURED_BILLING} />;
+  const billing = q.data ?? UNCONFIGURED_BILLING;
+  const ledgerMode = ledgerQ.data?.enabled === true ? "ledger" : "invoice";
+  return (
+    <BillingPage
+      billing={billing}
+      ledgerMode={ledgerMode}
+      topUpPercent={ledgerQ.data?.topUpCardFeePercent ?? null}
+      topUpFlatCents={ledgerQ.data?.topUpCardFeeFlatCents ?? null}
+      loadError={ledgerQ.isError ? ledgerQ.error : null}
+      onRetry={() => void ledgerQ.refetch()}
+    />
+  );
+}
+
+/** Holds the live Billing enabled flag so rates/fees unlock as soon as the switch flips. */
+function BillingPage({
+  billing,
+  ledgerMode,
+  topUpPercent,
+  topUpFlatCents,
+  loadError,
+  onRetry,
+}: {
+  billing: OrganizationBillingSettings;
+  ledgerMode: BillingMode;
+  topUpPercent: number | null;
+  topUpFlatCents: number | null;
+  loadError: unknown;
+  onRetry: () => void;
+}) {
+  const [billingOn, setBillingOn] = useState(billing.enabled);
+  useEffect(() => {
+    setBillingOn(billing.enabled);
+  }, [billing.enabled]);
+
+  return (
+    <div className="space-y-4">
+      <BillingConnectCard
+        billing={billing}
+        billingOn={billingOn}
+        onBillingOnChange={setBillingOn}
+      />
+      <BillingModePicker mode={ledgerMode} loadError={loadError} onRetry={onRetry} />
+      {ledgerMode === "ledger" && (
+        <TopUpCardFeeCard percent={topUpPercent} flatCents={topUpFlatCents} />
+      )}
+      <BillingForms billing={billing} />
+    </div>
+  );
 }
 
 /** What the server would give a brand-new row. Editing and saving creates it. */
@@ -98,10 +160,10 @@ const UNCONFIGURED_BILLING: OrganizationBillingSettings = {
 };
 
 function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
+  const { roles } = useAuth();
   const update = useUpdateBilling();
-  const connect = useConnectStripe();
+  const canEdit = canManageBillingSettings(roles);
 
-  const [enabled, setEnabled] = useState(billing.enabled);
   const [rateCents, setRateCents] = useState(billing.defaultInstructorRate);
   const [feeText, setFeeText] = useState(feeToText(billing.serviceFeePercent));
   const [feeLabel, setFeeLabel] = useState(billing.serviceFeeLabel ?? "");
@@ -156,7 +218,6 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
   const nextBps = textToBps(feeText);
   const effectiveLabel = feeLabel.trim() || "Service Fee";
   const dirty =
-    enabled !== billing.enabled ||
     rateCents !== billing.defaultInstructorRate ||
     nextBps !== billing.serviceFeePercent ||
     effectiveLabel !== (billing.serviceFeeLabel ?? "") ||
@@ -166,10 +227,9 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!dirty) return;
+    if (!dirty || !canEdit) return;
     update.mutate(
       {
-        enabled,
         defaultInstructorRate: rateCents,
         serviceFeePercent: nextBps,
         serviceFeeLabel: effectiveLabel,
@@ -185,21 +245,8 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
     );
   }
 
-  async function handleConnect() {
-    try {
-      const { url } = await connect.mutateAsync();
-      if (!url) throw new Error("No onboarding URL returned");
-      window.location.assign(url);
-    } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "Couldn't start Stripe onboarding"
-      );
-    }
-  }
-
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-      <div className="flex flex-col gap-4">
+    <div className="space-y-4">
         <Card data-doc-shot="billing-settings-card">
           <form onSubmit={handleSubmit}>
             <CardHeader className="flex-row items-center gap-2.5">
@@ -207,30 +254,14 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
                 <CreditCard className="size-4" />
               </span>
               <div>
-                <CardTitle>Billing settings</CardTitle>
+                <CardTitle>Rates and fees</CardTitle>
                 <CardDescription>
-                  Control invoicing, instructor rates, and service fees.
+                  Instructor rates, service fees, overnight minimums, and unpaid-invoice grounding.
                 </CardDescription>
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
-              <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/30 p-3">
-                <div className="min-w-0">
-                  <Label htmlFor="billing-enabled" className="text-sm">
-                    Billing enabled
-                  </Label>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    Generate invoices for reservations and flight time.
-                  </p>
-                </div>
-                <Switch
-                  id="billing-enabled"
-                  checked={enabled}
-                  onCheckedChange={setEnabled}
-                  aria-label="Billing enabled"
-                />
-              </div>
-
+              <fieldset disabled={!canEdit} className="space-y-5 disabled:opacity-60">
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field
                   label="Default instructor rate"
@@ -341,9 +372,10 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
                   placeholder="Service Fee"
                 />
               </Field>
+              </fieldset>
             </CardContent>
             <CardFooter className="justify-end gap-2">
-              <Button type="submit" disabled={!dirty || update.isPending}>
+              <Button type="submit" disabled={!canEdit || !dirty || update.isPending}>
                 {update.isPending && <Loader2 className="size-4 animate-spin" />}
                 Save changes
               </Button>
@@ -352,57 +384,6 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
         </Card>
 
         <ManualInvoiceCard billing={billing} />
-      </div>
-
-      <Card
-        // Two documentation shots, same card: the connected and not-connected states differ
-        // only in the data, so each names itself for whichever one is on screen.
-        data-doc-shot={
-          billing.stripeEnabled ? "billing-payouts-connected" : "billing-payouts-not-connected"
-        }
-        className="h-fit"
-      >
-        <CardHeader className="flex-row items-center gap-2.5">
-          <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
-            <Receipt className="size-4" />
-          </span>
-          <div>
-            <CardTitle>Payouts</CardTitle>
-            <CardDescription>Collect payments through Stripe.</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-muted-foreground">Status</span>
-            {billing.stripeEnabled ? (
-              <Badge variant="success">
-                <ShieldCheck className="size-3" /> Connected
-              </Badge>
-            ) : (
-              <Badge variant="outline">Not connected</Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {billing.stripeEnabled
-              ? "Your Stripe account is active. You can review or update payout details anytime."
-              : "Connect a Stripe account to accept card payments and receive payouts."}
-          </p>
-          <Button
-            type="button"
-            variant={billing.stripeEnabled ? "outline" : "default"}
-            className="w-full"
-            onClick={handleConnect}
-            disabled={connect.isPending}
-          >
-            {connect.isPending ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <ExternalLink className="size-4" />
-            )}
-            {billing.stripeEnabled ? "Manage payouts" : "Connect payouts"}
-          </Button>
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -525,5 +506,460 @@ function StripeNeeded() {
       <TriangleAlert className="mt-px size-3.5 shrink-0" />
       <span>Connect Stripe before anyone can send an invoice.</span>
     </p>
+  );
+}
+
+/**
+ * Optional school card surcharge on member Add funds. Cash/check desk credit
+ * stays 1:1. Separate from AerScheduler's legacy 0.5% Connect application fee.
+ */
+function TopUpCardFeeCard({
+  percent,
+  flatCents,
+}: {
+  percent: number | null;
+  flatCents: number | null;
+}) {
+  const { roles } = useAuth();
+  const update = useUpdateOrgLedgerSettings();
+  const canEdit = canManageBillingSettings(roles);
+  const [feeText, setFeeText] = useState(feeToText(percent));
+  const [flatText, setFlatText] = useState(
+    flatCents == null || flatCents === 0 ? "" : (flatCents / 100).toFixed(2)
+  );
+
+  useEffect(() => {
+    setFeeText(feeToText(percent));
+    setFlatText(flatCents == null || flatCents === 0 ? "" : (flatCents / 100).toFixed(2));
+  }, [percent, flatCents]);
+
+  const parsedPct = parseTopUpFeePercent(feeText);
+  const parsedFlat = parseTopUpFeeFlatDollars(flatText);
+  const nextPct = parsedPct.ok ? parsedPct.value : null;
+  const nextFlat = parsedFlat.ok ? parsedFlat.value : null;
+  const savedFlat = flatCents == null || flatCents === 0 ? null : flatCents;
+  const dirty =
+    parsedPct.ok &&
+    parsedFlat.ok &&
+    (nextPct !== (percent ?? null) || nextFlat !== savedFlat);
+
+  const previewCredit = 10_000;
+  const previewFee =
+    parsedPct.ok && parsedFlat.ok
+      ? Math.floor((previewCredit * (nextPct ?? 0)) / 10_000) + (nextFlat ?? 0)
+      : 0;
+  const previewCharge = previewCredit + previewFee;
+  const hasFee = (nextPct ?? 0) > 0 || (nextFlat ?? 0) > 0;
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!canEdit || !dirty) return;
+    if (!parsedPct.ok) {
+      toast.error(parsedPct.error);
+      return;
+    }
+    if (!parsedFlat.ok) {
+      toast.error(parsedFlat.error);
+      return;
+    }
+    update.mutate(
+      {
+        topUpCardFeePercent: parsedPct.value,
+        topUpCardFeeFlatCents: parsedFlat.value,
+      },
+      {
+        onSuccess: () => toast.success("Card top-up fee saved"),
+        onError: (err) =>
+          toast.error(err instanceof ApiError ? err.message : "Couldn't save card fee"),
+      }
+    );
+  }
+
+  return (
+    <Card data-doc-shot="ledger-topup-card-fee">
+      <CardHeader className="flex-row items-start gap-2.5">
+        <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+          <CreditCard className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <CardTitle className="inline-flex items-center gap-1.5">
+            Card fee on account top-ups
+            <DocsHint topic="ledger-topup-card-fee" />
+          </CardTitle>
+          <CardDescription>
+            Recover Stripe processing when members add funds by card. Desk cash and check
+            credit stay dollar-for-dollar. Leave blank if the school absorbs card fees.
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <form onSubmit={handleSubmit}>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field
+              label="Percent"
+              htmlFor="ledger-topup-fee-pct"
+              hint="e.g. 2.9 for 2.9%. Blank or 0.0 = no percent fee. Max 100."
+            >
+              <div className="relative">
+                <Input
+                  id="ledger-topup-fee-pct"
+                  inputMode="decimal"
+                  step="0.01"
+                  value={feeText}
+                  disabled={!canEdit || update.isPending}
+                  onChange={(e) => setFeeText(e.target.value)}
+                  placeholder="0.0"
+                  className="pr-7 tnum"
+                  aria-invalid={!parsedPct.ok}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  %
+                </span>
+              </div>
+            </Field>
+            <Field
+              label="Plus flat"
+              htmlFor="ledger-topup-fee-flat"
+              hint="e.g. 0.30 per top-up. Blank or 0.00 = none. Max $100.00."
+            >
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  $
+                </span>
+                <Input
+                  id="ledger-topup-fee-flat"
+                  inputMode="decimal"
+                  step="0.01"
+                  value={flatText}
+                  disabled={!canEdit || update.isPending}
+                  onChange={(e) => setFlatText(e.target.value)}
+                  placeholder="0.00"
+                  className="pl-7 tnum"
+                  aria-invalid={!parsedFlat.ok}
+                />
+              </div>
+            </Field>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {hasFee && parsedPct.ok && parsedFlat.ok
+              ? `Example: pay $${(previewCharge / 100).toFixed(2)} → $${(previewCredit / 100).toFixed(2)} credited on a $100 top-up.`
+              : "No surcharge. Members are charged exactly what they credit."}
+          </p>
+          {!canEdit && (
+            <p className="text-xs text-muted-foreground">Only the organization owner can change this.</p>
+          )}
+        </CardContent>
+        {canEdit && (
+          <CardFooter className="justify-end">
+            <Button type="submit" disabled={!dirty || update.isPending}>
+              {update.isPending && <Loader2 className="size-4 animate-spin" />}
+              Save card fee
+            </Button>
+          </CardFooter>
+        )}
+      </form>
+    </Card>
+  );
+}
+
+/** Blank/0 → null. Rejects negatives, >100%, and junk like "2.9abc". */
+function parseTopUpFeePercent(
+  text: string
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  const trimmed = text.trim();
+  if (trimmed === "") return { ok: true, value: null };
+  if (!/^\d+(\.\d+)?$/.test(trimmed)) {
+    return { ok: false, error: "Percent must be a number like 2.9" };
+  }
+  const pct = Number(trimmed);
+  if (!Number.isFinite(pct) || pct < 0) {
+    return { ok: false, error: "Percent can't be negative" };
+  }
+  if (pct > 100) {
+    return { ok: false, error: "Percent can't be more than 100" };
+  }
+  const bps = Math.round(pct * 100);
+  if (bps === 0) return { ok: true, value: null };
+  return { ok: true, value: bps };
+}
+
+/** Blank/0 → null. Dollars → cents. Max $100.00 to match the server. */
+function parseTopUpFeeFlatDollars(
+  text: string
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  const trimmed = text.trim();
+  if (trimmed === "") return { ok: true, value: null };
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) {
+    return { ok: false, error: "Flat fee must be dollars and cents, like 0.30" };
+  }
+  const dollars = Number(trimmed);
+  if (!Number.isFinite(dollars) || dollars < 0) {
+    return { ok: false, error: "Flat fee can't be negative" };
+  }
+  const cents = Math.round(dollars * 100);
+  if (cents > 10_000) {
+    return { ok: false, error: "Flat fee can't be more than $100.00" };
+  }
+  if (cents === 0) return { ok: true, value: null };
+  return { ok: true, value: cents };
+}
+
+function BillingConnectCard({
+  billing,
+  billingOn,
+  onBillingOnChange,
+}: {
+  billing: OrganizationBillingSettings;
+  billingOn: boolean;
+  onBillingOnChange: (next: boolean) => void;
+}) {
+  const { roles } = useAuth();
+  const update = useUpdateBilling();
+  const connect = useConnectStripe();
+  const canEdit = canManageBillingSettings(roles);
+  const payoutsReady = billing.stripeEnabled;
+  const [confirmOff, setConfirmOff] = useState(false);
+
+  async function handleConnect() {
+    try {
+      const { url } = await connect.mutateAsync();
+      if (!url) throw new Error("No onboarding URL returned");
+      window.location.assign(url);
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "Couldn't start Stripe onboarding"
+      );
+    }
+  }
+
+  function requestEnable(next: boolean) {
+    if (!canEdit || update.isPending || next === billingOn) return;
+    if (next && !payoutsReady) return;
+    if (!next) {
+      setConfirmOff(true);
+      return;
+    }
+    apply(true);
+  }
+
+  function apply(next: boolean) {
+    const previous = billingOn;
+    onBillingOnChange(next);
+    setConfirmOff(false);
+    update.mutate(
+      { enabled: next },
+      {
+        onSuccess: () => toast.success(next ? "Billing is on" : "Billing is off"),
+        onError: (err) => {
+          onBillingOnChange(previous);
+          toast.error(err instanceof ApiError ? err.message : "Couldn't update billing");
+        },
+      }
+    );
+  }
+
+  return (
+    <>
+      <Card
+        data-doc-shot={
+          payoutsReady ? "billing-payouts-connected" : "billing-payouts-not-connected"
+        }
+      >
+        <CardHeader className="flex-row items-center gap-2.5">
+          <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+            <Receipt className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <CardTitle>Payouts</CardTitle>
+            <CardDescription>Collect card and ACH through Stripe. Billing stays off until this is connected.</CardDescription>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {payoutsReady && (
+              <Badge variant="success">
+                <ShieldCheck className="size-3" /> Connected
+              </Badge>
+            )}
+            <Button
+              type="button"
+              variant={payoutsReady ? "outline" : "default"}
+              size="sm"
+              onClick={handleConnect}
+              disabled={!canEdit || connect.isPending}
+            >
+              {connect.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <ExternalLink className="size-4" />
+              )}
+              {payoutsReady ? "Manage payouts" : "Connect payouts"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+            <PreferenceToggle
+              label="Billing enabled"
+              description={
+                !payoutsReady
+                  ? billingOn
+                    ? "Payouts are not connected. Nothing will be charged until you reconnect."
+                    : "Connect payouts first. Nothing is charged until Stripe is connected."
+                  : "Charge for reservations, fees, and flight time."
+              }
+              checked={billingOn}
+              disabled={!canEdit || update.isPending || (!payoutsReady && !billingOn)}
+              saving={update.isPending}
+              onCheckedChange={requestEnable}
+            />
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={confirmOff} onOpenChange={setConfirmOff}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Turn billing off?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Close-outs will still complete, but members will not be charged. Rates and How
+              members pay stay saved for when you turn it back on.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={update.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={update.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                apply(false);
+              }}
+            >
+              {update.isPending && <Loader2 className="size-4 animate-spin" />}
+              Turn off
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+/**
+ * Invoice each booking or account ledger. Owner-only write; confirm when switching.
+ */
+function BillingModePicker({
+  mode,
+  loadError,
+  onRetry,
+}: {
+  mode: BillingMode;
+  loadError: unknown;
+  onRetry: () => void;
+}) {
+  const { roles } = useAuth();
+  const update = useUpdateOrgLedgerSettings();
+  const canEdit = canManageBillingSettings(roles);
+  const [selected, setSelected] = useState<BillingMode>(mode);
+  const [pending, setPending] = useState(false);
+  const [confirmTo, setConfirmTo] = useState<BillingMode | null>(null);
+
+  useEffect(() => {
+    setSelected(mode);
+  }, [mode]);
+
+  if (loadError) {
+    return (
+      <Card data-doc-shot="ledger-mode-card">
+        <ErrorState error={loadError} onRetry={onRetry} />
+      </Card>
+    );
+  }
+
+  function requestChange(next: BillingMode) {
+    if (!canEdit || pending || next === selected) return;
+    if (next === mode) {
+      setSelected(next);
+      return;
+    }
+    setConfirmTo(next);
+  }
+
+  function apply(next: BillingMode) {
+    const previous = selected;
+    setSelected(next);
+    setPending(true);
+    setConfirmTo(null);
+    update.mutate(
+      { enabled: next === "ledger" },
+      {
+        onSuccess: () =>
+          toast.success(
+            next === "ledger"
+              ? "Members will use account ledgers"
+              : "Members will be billed with invoices"
+          ),
+        onError: (err) => {
+          setSelected(previous);
+          toast.error(err instanceof ApiError ? err.message : "Couldn't update billing mode");
+        },
+        onSettled: () => setPending(false),
+      }
+    );
+  }
+
+  return (
+    <>
+      <Card data-doc-shot="ledger-mode-card">
+        <CardHeader className="flex-row items-start gap-2.5">
+          <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+            <Receipt className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <CardTitle className="inline-flex items-center gap-1.5">
+              How members pay
+              <DocsHint topic="how-members-pay" />
+            </CardTitle>
+            <CardDescription>
+              {canEdit
+                ? "Most schools keep invoices for each booking; ledger is for prepaid / house-account billing. Guests always get a pay-this-visit invoice."
+                : "Only the organization owner can change this."}
+            </CardDescription>
+          </div>
+          {pending && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
+        </CardHeader>
+        <CardContent>
+          <BillingModeCards
+            value={selected}
+            disabled={!canEdit || pending}
+            onChange={requestChange}
+          />
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={confirmTo != null} onOpenChange={(open) => !open && setConfirmTo(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirmTo === "ledger" ? "Switch to account ledger?" : "Switch to invoices?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmTo === "ledger"
+                ? "Members will use an account balance instead of a new invoice for every booking. Existing unpaid invoices are unchanged. Guests still get pay-this-visit invoices."
+                : "Members go back to a new invoice per booking. Existing ledger balances stay on the account until you refund or adjust them. They are not deleted."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={pending || confirmTo == null}
+              onClick={(e) => {
+                e.preventDefault();
+                if (confirmTo) apply(confirmTo);
+              }}
+            >
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              Switch
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

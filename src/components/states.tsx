@@ -1,9 +1,10 @@
-import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { StatGrid } from "@/components/stat-card";
 
 export function EmptyState({
   icon: Icon,
@@ -72,14 +73,14 @@ export function TableSkeleton({ rows = 6, cols = 4 }: { rows?: number; cols?: nu
 
 export function StatSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    <StatGrid>
       {Array.from({ length: count }).map((_, i) => (
         <div key={i} className="rounded-lg border bg-card p-4">
           <Skeleton className="h-4 w-24" />
           <Skeleton className="mt-3 h-7 w-16" />
         </div>
       ))}
-    </div>
+    </StatGrid>
   );
 }
 

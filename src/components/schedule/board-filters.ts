@@ -1,7 +1,7 @@
 import { resourceLabel, type Reservation, type ReservationType } from "@/types/api";
 import type { ListFilterValues } from "@/components/list-filters";
 import { asFacetStrings } from "@/lib/list-query-state";
-import { closeOutStep, isRampedIn, isRampedOut } from "./close-out";
+import { closeOutStep, isRampedIn, isRampedOut, liveLedgerStakes } from "./close-out";
 import { TYPE_LABEL, personnelNames } from "./meta";
 
 /**
@@ -41,7 +41,8 @@ export const RAMP_OPTIONS: Array<{ value: RampStatus; label: string }> = [
 export type BillingStatus = "notInvoiced" | "unpaid" | "paid" | "voided";
 
 export const BILLING_OPTIONS: Array<{ value: BillingStatus; label: string }> = [
-  { value: "notInvoiced", label: "Not invoiced" },
+  // "Not billed" covers invoice mode (no Stripe invoice) and ledger mode (no flight_charge).
+  { value: "notInvoiced", label: "Not billed" },
   { value: "unpaid", label: "Unpaid" },
   { value: "paid", label: "Paid" },
   { value: "voided", label: "Voided" },
@@ -68,21 +69,31 @@ export function rampStatuses(r: Reservation, now: Date = new Date()): RampStatus
 }
 
 /**
- * One status for a booking that may now carry several invoices, one per payer.
+ * One status for a booking that may now carry several invoices, one per payer —
+ * and/or live ledger flight_charge stakes (ledger billing mode).
  *
- * The order of these tests is the whole design. "Unpaid" has to win over ", paid"a class
+ * The order of these tests is the whole design. "Unpaid" has to win over paid: a class
  * where three of four students have settled up is a booking the school is still chasing,
  * and showing it as paid would hide the one that matters. Void invoices are owed by nobody,
- * so they are ignored unless they are ALL there is.
+ * so they are ignored unless they are ALL there is. Live ledger stakes count as paid (the
+ * member account was already charged); without them a ledger-billed flight would keep
+ * matching "Not billed" and clutter Billing → Unbilled / the board filter.
  */
 export function billingStatus(r: Reservation): BillingStatus {
   const all = r.invoices ?? [];
-  if (!all.length) return "notInvoiced";
-
   const live = all.filter((i) => !i.voidedAt);
-  if (!live.length) return "voided";
+  const hasLedger = liveLedgerStakes(r).length > 0;
 
-  return live.some((i) => !i.paidAt) ? "unpaid" : "paid";
+  if (!live.length && !hasLedger) {
+    return all.length ? "voided" : "notInvoiced";
+  }
+
+  if (live.length) {
+    return live.some((i) => !i.paidAt) ? "unpaid" : "paid";
+  }
+
+  // Ledger stakes only (including voided Stripe leftovers + a live flight_charge).
+  return "paid";
 }
 
 /** Every org-user id rostered on this booking, whichever seat they're in. */

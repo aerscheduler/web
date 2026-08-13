@@ -12,6 +12,7 @@ import {
   youNav,
   type NavItem,
 } from "@/lib/nav-items";
+import { useOrgLedgerSettings } from "@/features/queries";
 import {
   recordRecent,
   setNavOrder,
@@ -43,9 +44,14 @@ export function SidebarNav() {
   const { roles, organization } = useAuth();
   const orgId = organization?.id ?? null;
   const prefs = useNavPrefs(orgId);
+  const ledgerQ = useOrgLedgerSettings();
+  const ledgerBilling = ledgerQ.data?.enabled === true;
 
   const operations = React.useMemo(() => operationsNav(roles), [roles]);
-  const you = React.useMemo(() => youNav(roles), [roles]);
+  const you = React.useMemo(
+    () => youNav(roles, { ledgerBilling }),
+    [roles, ledgerBilling]
+  );
   const ordered = React.useMemo(
     () => mergeNavOrder(operations, prefs.order),
     [operations, prefs.order]

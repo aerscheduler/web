@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { GraduationCap, UserMinus } from "lucide-react";
 import type { AssignedPerson } from "@/types/api";
@@ -31,8 +32,9 @@ function PersonRow({
   removing?: boolean;
 }) {
   const user = person.orgUser?.user;
-  return (
-    <li className="flex items-center gap-3">
+  const orgUserId = person.orgUser?.id;
+  const identity = (
+    <>
       <Avatar className="size-8">
         <AvatarFallback className="text-xs">{initials(user?.name)}</AvatarFallback>
       </Avatar>
@@ -42,6 +44,21 @@ function PersonRow({
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         )}
       </div>
+    </>
+  );
+  return (
+    <li className="relative z-10 flex items-center gap-3">
+      {orgUserId != null ? (
+        <Link
+          to="/people/$orgUserId"
+          params={{ orgUserId: String(orgUserId) }}
+          className="flex min-w-0 flex-1 items-center gap-3 rounded-md outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {identity}
+        </Link>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-3">{identity}</div>
+      )}
       {onRemove && (
         <Button
           variant="ghost"
@@ -49,7 +66,11 @@ function PersonRow({
           disabled={removing}
           aria-label={`Remove ${user?.name ?? "partner"}`}
           className="text-muted-foreground hover:text-destructive"
-          onClick={onRemove}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onRemove();
+          }}
         >
           <UserMinus className="size-4" />
         </Button>
@@ -113,14 +134,19 @@ export function InstructionPartnersCard() {
   return (
     <>
       {sections.map((s) => (
-        <Card key={s.key}>
-          <CardHeader>
+        <Card key={s.key} className="relative transition-colors hover:bg-muted/30">
+          <Link
+            to="/people"
+            aria-label="Open people"
+            className="absolute inset-0 z-0 rounded-xl"
+          />
+          <CardHeader className="relative z-10 pointer-events-none">
             <CardTitle className="flex items-center gap-2">
               <s.icon className="size-4 text-muted-foreground" aria-hidden />
               {s.title}
             </CardTitle>
           </CardHeader>
-          <CardContent className="pt-0">
+          <CardContent className="relative z-10 pt-0 pointer-events-none">
             {q.isPending ? (
               <div className="space-y-3">
                 <Skeleton className="h-8 w-full" />
@@ -131,7 +157,7 @@ export function InstructionPartnersCard() {
             ) : s.people.length === 0 ? (
               <p className="text-sm text-muted-foreground">{s.empty}</p>
             ) : (
-              <ul className="space-y-3">
+              <ul className="pointer-events-auto space-y-3">
                 {s.people.map((p) => (
                   <PersonRow
                     key={p.id}

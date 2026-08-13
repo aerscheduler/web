@@ -223,7 +223,7 @@ export interface ResourceViewAccess {
   resolveSquawks: boolean;
   /** Who is checked out on it. Derived from the roster, so staff only. */
   approvedPilots: boolean;
-  /** Edit, ground, approve renters. Server: admin. */
+  /** Edit, ground, approve members. Server: admin. */
   manage: boolean;
   /** File a squawk against this aircraft. Server: any member. */
   reportSquawk: boolean;

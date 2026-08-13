@@ -20,6 +20,7 @@ import {
   pageRows,
   useInvoicesPage,
   useInvoiceSummary,
+  useOrgLedgerSettings,
   useRemindInvoice,
   useReservationsPage,
   useUpdateInvoice,
@@ -31,17 +32,21 @@ import { guardRoute } from "@/lib/permissions";
 import type { Invoice, Reservation } from "@/types/api";
 import { resourceLabel } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
-import { StatCard } from "@/components/stat-card";
+import { DocsHint } from "@/components/docs-hint";
+import { StatCard, StatGrid } from "@/components/stat-card";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { DateRangePicker, lastNDays } from "@/components/billing/date-range-picker";
+import { hasLiveBill } from "@/components/schedule/close-out";
 import { CreateInvoiceDialog } from "@/components/billing/create-invoice-dialog";
 import { InvoiceDetailSheet } from "@/components/billing/invoice-detail-sheet";
 import { VoidInvoiceDialog } from "@/components/billing/void-invoice-dialog";
 import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
+import { LedgerAccountsTable } from "@/components/billing/ledger-accounts-table";
+import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,6 +63,15 @@ import { formatDate, formatMoney } from "@/lib/utils";
 
 const FACET_KEYS = ["status", "startDate", "endDate"] as const;
 
+const LEDGER_BILLING_RAIL = [
+  {
+    items: [
+      { value: "accounts", label: "Accounts", icon: Wallet },
+      { value: "invoices", label: "Invoices", icon: Receipt },
+    ],
+  },
+];
+
 export const Route = createFileRoute("/_authed/billing")({
   beforeLoad: guardRoute("/billing"),
   /**
@@ -73,9 +87,11 @@ export const Route = createFileRoute("/_authed/billing")({
     // a string id serializes as `?invoice=%225978%22`: unreadable, and not what
     // anyone would type by hand.
     const invoice = Number.parseInt(String(s.invoice ?? ""), 10);
+    const pane = s.pane === "invoices" || s.pane === "accounts" ? s.pane : undefined;
     return {
       ...list,
       ...(Number.isFinite(invoice) ? { invoice } : {}),
+      ...(pane ? { pane } : {}),
     };
   },
   component: BillingPage,
@@ -341,8 +357,11 @@ function UnbilledCard({
 
 function BillingPage() {
   const confirm = useConfirm();
+  const ledgerQ = useOrgLedgerSettings();
+  const ledgerOn = ledgerQ.data?.enabled === true;
   const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
+  const accountsPane = ledgerOn && routeSearch.pane !== "invoices";
   // One loosely-typed navigate for every search-param update on this page, the
   // same cast `useListQueryState` already needs for its own reducers.
   const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
@@ -370,6 +389,14 @@ function BillingPage() {
     navigateSearch({
       search: ({ invoice: _drop, ...rest }: Record<string, unknown>) =>
         id == null ? rest : { ...rest, invoice: id },
+      replace: true,
+    });
+  }
+
+  function setPane(next: "accounts" | "invoices") {
+    navigateSearch({
+      search: ({ pane: _drop, invoice: _inv, ...rest }: Record<string, unknown>) =>
+        next === "accounts" ? rest : { ...rest, pane: "invoices" },
       replace: true,
     });
   }
@@ -431,7 +458,10 @@ function BillingPage() {
   // stable across a render instead of changing on every millisecond.
   const nowISO = useMemo(() => new Date().toISOString(), [startISO, endISO]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const statsQ = useInvoiceSummary({ startDate: startISO, endDate: endISO });
+  const statsQ = useInvoiceSummary(
+    { startDate: startISO, endDate: endISO },
+    { enabled: !accountsPane }
+  );
 
   const invoiceFilter = {
     startDate: startISO,
@@ -443,7 +473,9 @@ function BillingPage() {
     resetKey: invoiceFilter,
     defaultSort: { key: "createdAt", dir: "desc" },
   });
-  const invoicesQ = useInvoicesPage(invoiceFilter, invoicePaging, { enabled: showInvoices });
+  const invoicesQ = useInvoicesPage(invoiceFilter, invoicePaging, {
+    enabled: showInvoices && !accountsPane,
+  });
 
   // "Unbilled" is a server filter now. Fetching the window and keeping the rows
   // with no invoice worked only while the whole window arrived at once; against
@@ -457,7 +489,7 @@ function BillingPage() {
     endISO ?? "",
     { uninvoiced: true, endedBefore: nowISO },
     unbilledPaging,
-    { enabled: !!startISO && !!endISO && showUnbilled }
+    { enabled: !!startISO && !!endISO && showUnbilled && !accountsPane }
   );
 
   const update = useUpdateInvoice();
@@ -466,7 +498,17 @@ function BillingPage() {
   const voidFlow = useVoidInvoiceFlow();
 
   const { rows: invoices, total: invoiceTotal } = pageRows(invoicesQ);
-  const { rows: unbilled, total: unbilledTotal } = pageRows(reservationsQ);
+  // Defense: even if an older API still returns ledger-staked rows under
+  // `uninvoiced`, do not list flights that already have a live flight_charge.
+  const { rows: unbilledRaw, total: unbilledTotalRaw } = pageRows(reservationsQ);
+  const unbilled = useMemo(
+    () => unbilledRaw.filter((r) => !hasLiveBill(r)),
+    [unbilledRaw]
+  );
+  const unbilledTotal =
+    unbilled.length === unbilledRaw.length
+      ? unbilledTotalRaw
+      : Math.max(0, unbilledTotalRaw - (unbilledRaw.length - unbilled.length));
 
   const stats = statsQ.data ?? { revenue: 0, outstanding: 0, paidCount: 0, outstandingCount: 0 };
 
@@ -683,76 +725,116 @@ function BillingPage() {
         ? "No paid invoices in this range yet."
         : "No invoices match your filters.";
 
+  const invoiceTables =
+    showInvoices && showUnbilled ? (
+      // No `min-h-0`/`overflow-hidden` on the halves: each table keeps its own
+      // floor (see <TableView>), and clipping here would hide exactly the rows
+      // the floor exists to protect. Two tables that don't both fit push the
+      // page into scrolling, which beats two slivers.
+      <div className="flex flex-1 flex-col gap-4">
+        <div className="flex flex-1 flex-col">{renderInvoiceTable(emptyByStatus)}</div>
+        <div className="flex flex-1 flex-col">{renderUnbilled()}</div>
+      </div>
+    ) : showUnbilled ? (
+      renderUnbilled()
+    ) : (
+      renderInvoiceTable(emptyByStatus)
+    );
+
+  const invoicePane = (
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden"
+      data-doc-shot="billing-invoice-list"
+    >
+      {statsQ.isPending ? (
+        <StatSkeleton count={4} />
+      ) : (
+        <StatGrid>
+          <StatCard
+            label="Revenue"
+            value={formatMoney(stats.revenue, { cents: false })}
+            icon={TrendingUp}
+            accent="success"
+            hint="Paid invoices in range"
+          />
+          <StatCard
+            label="Outstanding"
+            value={formatMoney(stats.outstanding, { cents: false })}
+            icon={Wallet}
+            accent="warning"
+            hint="Unpaid, not voided"
+          />
+          <StatCard
+            label="Paid"
+            value={stats.paidCount}
+            icon={CheckCircle2}
+            hint="Invoices settled"
+          />
+          <StatCard
+            label="Unbilled"
+            value={unbilled.length}
+            icon={Plane}
+            accent="warning"
+            loading={reservationsQ.isLoading}
+            hint={
+              ledgerOn
+                ? "Past reservations, no invoice or ledger charge"
+                : "Past reservations, no invoice"
+            }
+          />
+        </StatGrid>
+      )}
+      <div className="shrink-0">{toolbar}</div>
+      {invoiceTables}
+    </div>
+  );
+
   return (
-    // The documentation shot of the invoice list is the stat row AND the table under it,
-    // which are siblings here, so the id sits on the page column that holds both. The
-    // unbilled-only view is a different shot and doesn't answer to this one.
-    <TableView data-doc-shot={showInvoices ? "billing-invoice-list" : undefined}>
+    <TableView className={ledgerOn ? "gap-5" : undefined}>
       <TableView.Header>
         <PageHeader
-          title="Billing"
-          subtitle={`Invoices · ${rangeSubtitle}`}
+          title={
+            <span className="inline-flex items-center gap-1.5">
+              Billing
+              {ledgerOn ? (
+                <DocsHint topic={accountsPane ? "ledger-accounts" : "post-to-ledger"} />
+              ) : (
+                <DocsHint topic="how-members-pay" />
+              )}
+            </span>
+          }
+          subtitle={
+            accountsPane
+              ? "Who has credit and who owes. Guest invoices stay under Invoices."
+              : ledgerOn
+                ? `Invoices and unbilled flights · ${rangeSubtitle}. Member flights post to the account ledger.`
+                : `Invoices · ${rangeSubtitle}`
+          }
           actions={
-            <div className="flex items-center gap-2">
-              <DateRangePicker value={range} onChange={setRange} />
-              <Button onClick={() => setCreateOpen(true)}>
-                <Plus className="size-4" /> New invoice
-              </Button>
-            </div>
+            accountsPane ? undefined : (
+              <div className="flex items-center gap-2">
+                <DateRangePicker value={range} onChange={setRange} />
+                <Button onClick={() => setCreateOpen(true)}>
+                  <Plus className="size-4" /> New invoice
+                </Button>
+              </div>
+            )
           }
         />
-
-        {statsQ.isPending ? (
-          <StatSkeleton count={4} />
-        ) : (
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard
-              label="Revenue"
-              value={formatMoney(stats.revenue, { cents: false })}
-              icon={TrendingUp}
-              accent="success"
-              hint="Paid invoices in range"
-            />
-            <StatCard
-              label="Outstanding"
-              value={formatMoney(stats.outstanding, { cents: false })}
-              icon={Wallet}
-              accent="warning"
-              hint="Unpaid, not voided"
-            />
-            <StatCard
-              label="Paid"
-              value={stats.paidCount}
-              icon={CheckCircle2}
-              hint="Invoices settled"
-            />
-            <StatCard
-              label="Unbilled"
-              value={unbilled.length}
-              icon={Plane}
-              accent="warning"
-              loading={reservationsQ.isLoading}
-              hint="Past reservations, no invoice"
-            />
-          </div>
-        )}
-
-        {toolbar}
       </TableView.Header>
 
-      {showInvoices && showUnbilled ? (
-        // No `min-h-0`/`overflow-hidden` on the halves: each table keeps its own
-        // floor (see <TableView>), and clipping here would hide exactly the rows
-        // the floor exists to protect. Two tables that don't both fit push the
-        // page into scrolling, which beats two slivers.
-        <div className="flex flex-1 flex-col gap-4">
-          <div className="flex flex-1 flex-col">{renderInvoiceTable(emptyByStatus)}</div>
-          <div className="flex flex-1 flex-col">{renderUnbilled()}</div>
+      {ledgerOn ? (
+        <div className={RAIL_ROW}>
+          <SectionRail
+            label="Billing"
+            sections={LEDGER_BILLING_RAIL}
+            value={accountsPane ? "accounts" : "invoices"}
+            onChange={(v) => setPane(v === "invoices" ? "invoices" : "accounts")}
+          />
+          {accountsPane ? <LedgerAccountsTable /> : invoicePane}
         </div>
-      ) : showUnbilled ? (
-        renderUnbilled()
       ) : (
-        renderInvoiceTable(emptyByStatus)
+        invoicePane
       )}
 
       <InvoiceDetailSheet

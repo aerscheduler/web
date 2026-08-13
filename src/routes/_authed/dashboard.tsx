@@ -21,7 +21,7 @@ import {
 import { useVoidInvoiceFlow } from "@/features/void-invoice-flow";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
 import { PageHeader } from "@/components/page-header";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatGrid } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -170,13 +170,7 @@ function DashboardPage() {
         <FirstDayNote />
       ) : (
         <>
-          <div
-            className={
-              canSeeMoney
-                ? "grid grid-cols-2 gap-4 lg:grid-cols-4"
-                : "grid grid-cols-2 gap-4 lg:grid-cols-3"
-            }
-          >
+          <StatGrid wideCols={canSeeMoney ? 4 : 3}>
             <StatCard
               label="Aircraft"
               value={planes.data?.length ?? 0}
@@ -208,7 +202,7 @@ function DashboardPage() {
                 hint={`${unpaid.data?.length ?? 0} unpaid invoices`}
               />
             )}
-          </div>
+          </StatGrid>
 
           <div
             className={

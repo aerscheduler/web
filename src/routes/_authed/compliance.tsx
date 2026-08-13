@@ -12,7 +12,7 @@ import { guardRoute } from "@/lib/permissions";
 import { rolesOf, resourceLabel } from "@/types/api";
 import type { Resource, OrganizationUser } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
-import { StatCard } from "@/components/stat-card";
+import { StatCard, StatGrid } from "@/components/stat-card";
 import { EmptyState, ErrorState, CardGridSkeleton } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +56,7 @@ function CompliancePage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <StatGrid>
         <StatCard
           label="No-go items"
           value={noGoCount}
@@ -67,7 +67,7 @@ function CompliancePage() {
         <StatCard label="Grounded aircraft" value={groundedAircraft.length} icon={PlaneTakeoff} accent={groundedAircraft.length ? "warning" : "success"} />
         <StatCard label="Grounded members" value={groundedMembers.length} icon={UserX} accent={groundedMembers.length ? "warning" : "success"} />
         <StatCard label="Currencies tracked" value={currencyTypes.data?.length ?? 0} icon={ShieldCheck} />
-      </div>
+      </StatGrid>
 
       {loading ? (
         <CardGridSkeleton count={3} />

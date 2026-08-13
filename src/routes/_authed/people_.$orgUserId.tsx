@@ -1,35 +1,32 @@
 import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   CalendarClock,
-  CalendarPlus,
   FileCheck2,
   GraduationCap,
   Hash,
   Mail,
   Phone,
-  PlaneTakeoff,
   Receipt,
-  Shield,
   UserRound,
+  Wallet,
 } from "lucide-react";
 import { rolesOf, type OrganizationUser } from "@/types/api";
-import { useApprovedResources, useMember } from "@/features/queries";
+import { useMember, useOrgLedgerSettings } from "@/features/queries";
+import { PersonApprovedAircraft } from "@/components/people/detail/person-approved-aircraft";
 import { useAuth } from "@/lib/auth";
 import { personViewAccess, type PersonViewAccess } from "@/lib/permissions";
-import { formatDate, initials } from "@/lib/utils";
+import { cn, formatDate, initials } from "@/lib/utils";
 import { formatPhone } from "@/lib/phone";
 import { ErrorState } from "@/components/states";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RoleBadges } from "@/components/role-badges";
+import { RolesMenuBadge } from "@/components/role-badges";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
 import {
   CardEmpty,
-  CardSkeleton,
   DetailBack,
   DetailCard,
   DetailHeader,
@@ -158,15 +155,23 @@ function PersonPage() {
   return <PersonBody ou={ou} isSelf={isSelf} access={access} />;
 }
 
-function sectionsFor(access: PersonViewAccess): RailSection[] {
-  const items = [
+function sectionsFor(access: PersonViewAccess, ledgerOn: boolean): RailSection[] {
+  const top = [
     { value: "overview", label: "Overview", icon: UserRound },
     ...(access.metrics || access.flights
       ? [{ value: "activity", label: "Activity", icon: CalendarClock }]
       : []),
-    ...(access.money || access.membership
-      ? [{ value: "billing", label: "Billing", icon: Receipt }]
-      : []),
+  ];
+  const billing =
+    access.money && ledgerOn
+      ? [
+          { value: "ledger", label: "Ledger", icon: Wallet },
+          { value: "invoices", label: "Invoices", icon: Receipt },
+        ]
+      : access.money || access.membership
+        ? [{ value: "billing", label: "Billing", icon: Receipt }]
+        : [];
+  const rest = [
     ...(access.instruction
       ? [{ value: "training", label: "Training", icon: GraduationCap }]
       : []),
@@ -174,7 +179,17 @@ function sectionsFor(access: PersonViewAccess): RailSection[] {
       ? [{ value: "compliance", label: "Compliance", icon: FileCheck2 }]
       : []),
   ];
-  return [{ items }];
+  return [
+    { items: top },
+    ...(billing.length
+      ? [
+          access.money && ledgerOn
+            ? { label: "Billing", items: billing }
+            : { items: billing },
+        ]
+      : []),
+    ...(rest.length ? [{ items: rest }] : []),
+  ];
 }
 
 function PersonBody({
@@ -191,13 +206,21 @@ function PersonBody({
   const { tab } = Route.useSearch();
   const { range, setRange, window } = useDetailRange(90);
   const [editingRoles, setEditingRoles] = useState<OrganizationUser | null>(null);
+  const ledgerOn = useOrgLedgerSettings().data?.enabled === true;
 
-  const sections = sectionsFor(access);
+  const sections = sectionsFor(access, ledgerOn);
   const allowed = sections.flatMap((s) => s.items.map((i) => i.value));
-  const active = tab && allowed.includes(tab) ? tab : "overview";
+  let active = tab && allowed.includes(tab) ? tab : "overview";
+  // Accounts roster and older links still use ?tab=billing. Ledger orgs land on
+  // the ledger pane; invoice-only orgs keep the single Billing item.
+  if (tab === "billing" && ledgerOn && access.money) active = "ledger";
+  if ((active === "ledger" || active === "invoices") && !ledgerOn) {
+    active = access.money || access.membership ? "billing" : "overview";
+  }
   const pick = (next: string) => {
     void routeNavigate({ search: (prev) => ({ ...prev, tab: next }), replace: true });
   };
+  const moneyPane = active === "billing" || active === "ledger" || active === "invoices";
 
   const name = memberName(ou);
   useDetailTitle(name);
@@ -228,9 +251,13 @@ function PersonBody({
                 <Badge variant="outline">Active</Badge>
               )}
               {isSelf && <Badge variant="secondary">You</Badge>}
+              <RolesMenuBadge
+                roles={subjectRoles}
+                canEdit={access.manage}
+                onEdit={() => setEditingRoles(ou)}
+              />
             </>
           }
-          subtitle={<RoleBadges roles={subjectRoles} />}
           meta={
             <>
               {email && <MetaItem icon={Mail}>{email}</MetaItem>}
@@ -239,30 +266,14 @@ function PersonBody({
             </>
           }
           actions={
-            <>
-              {access.manage && (
-                <Button variant="outline" onClick={() => setEditingRoles(ou)}>
-                  <Shield className="size-4" /> Edit roles
-                </Button>
-              )}
-              {isSelf && (
-                <Button asChild>
-                  <Link to="/me/book">
-                    <CalendarPlus className="size-4" /> Book
-                  </Link>
-                </Button>
-              )}
-              {/* `ground` as well as `manage`: a dispatcher may ground and reinstate,
-                  and this menu is where that lives. It renders per-item, so a dispatcher
-                  opens it to Ground alone and an admin still gets the full set. */}
-              {(access.manage || access.ground) && (
-                <MemberRowActions
-                  ou={ou}
-                  onEditRoles={setEditingRoles}
-                  onRemoved={() => void navigate({ to: "/people" })}
-                />
-              )}
-            </>
+            (access.manage || access.ground || isSelf) && (
+              <MemberRowActions
+                ou={ou}
+                showBook={isSelf}
+                onEditRoles={setEditingRoles}
+                onRemoved={() => void navigate({ to: "/people" })}
+              />
+            )
           }
         />
 
@@ -296,7 +307,12 @@ function PersonBody({
                 ? "person-training-card"
                 : undefined
           }
-          className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto"
+          className={cn(
+            "min-h-0 min-w-0 flex-1",
+            moneyPane
+              ? "flex flex-col gap-4 overflow-hidden"
+              : "space-y-4 overflow-y-auto"
+          )}
         >
           {active === "overview" && (
             <>
@@ -365,26 +381,26 @@ function PersonBody({
             </>
           )}
 
-          {active === "billing" && (access.money || access.membership) && (
+          {moneyPane && (access.money || access.membership) && (
             <>
-              {access.money && (
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-[13px] text-muted-foreground">
-                    Invoices over the selected window.
-                  </p>
-                  <DateRangePicker value={range} onChange={setRange} />
-                </div>
-              )}
-              {/* Membership above invoices on purpose: a club treasurer opening somebody's
+              {/* Membership above money on purpose: a club treasurer opening somebody's
                   record is usually here for "are they paid up as a member", and the dues they
                   owe are the reason half the invoices below exist. Renders nothing at an
                   organization with no membership plans. */}
               {access.membership && (
-                <PersonMembership orgUserId={ou.id} canManage={access.membership} />
+                <div className="shrink-0">
+                  <PersonMembership orgUserId={ou.id} canManage={access.membership} />
+                </div>
               )}
-              {access.money && <PersonLedger orgUserId={ou.id} />}
-              {access.money && (
-                <PersonInvoices orgUserId={ou.id} range={window} isSelf={isSelf} />
+              {access.money && active === "ledger" && (
+                <PersonLedger
+                  orgUserId={ou.id}
+                  isSelf={isSelf}
+                  canManage={access.manage}
+                />
+              )}
+              {access.money && (active === "invoices" || active === "billing") && (
+                <PersonInvoices orgUserId={ou.id} isSelf={isSelf} fill />
               )}
             </>
           )}
@@ -407,7 +423,11 @@ function PersonBody({
                 {access.currencies && <PersonCurrencies ou={ou} isSelf={isSelf} />}
                 {access.documents && <PersonDocuments ou={ou} isSelf={isSelf} />}
                 {access.approvedAircraft && (
-                  <ApprovedAircraft userId={ou.user?.id ?? null} isSelf={isSelf} />
+                  <PersonApprovedAircraft
+                    userId={ou.user?.id ?? null}
+                    isSelf={isSelf}
+                    canManage={access.manage}
+                  />
                 )}
               </>
             )}
@@ -420,56 +440,6 @@ function PersonBody({
         onOpenChange={(o) => !o && setEditingRoles(null)}
       />
     </TableView>
-  );
-}
-
-/**
- * Which tails this person may take. Empty is a real answer for a student who
- * only ever flies dual, so it says so rather than looking like a failed load.
- */
-function ApprovedAircraft({
-  userId,
-  isSelf,
-}: {
-  userId: number | null;
-  isSelf: boolean;
-}) {
-  const q = useApprovedResources(userId);
-  const planes = (q.data ?? []).filter((r) => r.type?.plane);
-
-  return (
-    <DetailCard
-      title="Approved aircraft"
-      description={
-        isSelf ? "Tails you're checked out to fly." : "Tails they're checked out to fly."
-      }
-    >
-      {q.isPending ? (
-        <CardSkeleton rows={2} />
-      ) : q.isError ? (
-        <CardEmpty>Couldn&apos;t load approvals.</CardEmpty>
-      ) : planes.length === 0 ? (
-        <CardEmpty>
-          No aircraft approved{isSelf ? " for you" : ""} yet, approvals are granted per
-          tail from the aircraft page.
-        </CardEmpty>
-      ) : (
-        <ul className="flex flex-wrap gap-1.5">
-          {planes.map((r) => (
-            <li key={r.id}>
-              <Link
-                to="/aircraft/$resourceId"
-                params={{ resourceId: String(r.id) }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 font-mono text-xs transition-colors hover:bg-accent/50"
-              >
-                <PlaneTakeoff className="size-3.5 opacity-70" />
-                {r.type!.plane!.tailNumber}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
-    </DetailCard>
   );
 }
 

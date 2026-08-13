@@ -40,7 +40,8 @@ export async function cleanupE2eReservations(
 
   const now = new Date();
   const start = new Date(now.getTime() - 14 * 864e5).toISOString();
-  const end = new Date(now.getTime() + 30 * 864e5).toISOString();
+  // Far-future seeds (ledger verify in 2032) still count toward "upcoming" caps.
+  const end = new Date(Date.UTC(2035, 0, 1)).toISOString();
   const list = await request.get(
     `${base}/reservations?startDate=${start}&endDate=${end}&includeCanceled=false`,
     { headers },
@@ -54,6 +55,9 @@ export async function cleanupE2eReservations(
     const notes = item.notes ?? "";
     const isE2e =
       title === "E2E Ramp" ||
+      title.startsWith("E2E L3") ||
+      title.startsWith("L3-C") ||
+      title.startsWith("UI-walk L3") ||
       notes.includes("E2E-UI-") ||
       notes.includes("Seeded for integration_test") ||
       notes.startsWith("E2E");

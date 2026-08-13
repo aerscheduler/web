@@ -1489,9 +1489,16 @@ export interface LedgerEntry {
   orgUserId: number;
   organizationId: number;
   createdByOrgUserId: number | null;
+  createdBy?: { orgUserId: number; name: string | null } | null;
   invoiceId: number | null;
   reservationId: number | null;
   reversesId: number | null;
+  /** Present when another entry reversed this one; hide Reassign when set. */
+  reversedBy?: { id: number } | null;
+  stripePaymentIntentId?: string | null;
+  refundMethod?: string | null;
+  stripeRefundId?: string | null;
+  refundsTopupId?: number | null;
   items: { id: number; name: string; qty: number; unitPrice: number }[];
 }
 
@@ -1500,6 +1507,91 @@ export interface MemberLedger {
   balanceCents: number;
   ledgerEnabled: boolean;
   entries: LedgerEntry[];
+}
+
+/** GET /orgUsers/:id/ledger/entries/:entryId/receipt */
+export interface LedgerReceipt {
+  entry: LedgerEntry;
+  member: { orgUserId: number; name: string | null; email: string | null };
+  organization: { id: number; name: string };
+  reservation: {
+    id: number;
+    start: string;
+    end: string;
+    type: string | null;
+    resourceLabel: string | null;
+  } | null;
+}
+
+/** POST /orgUsers/:id/ledger/topups */
+export interface LedgerTopUpIntent {
+  clientSecret: string;
+  paymentIntentId: string;
+  orgStripeAccountId: string;
+  customerId: string;
+  ephemeralKey: string | null;
+  confirmed: boolean;
+  /** Amount credited to the ledger. */
+  creditCents: number;
+  /** Org card surcharge included in the charge. */
+  feeCents: number;
+  /** Total charged to the card. */
+  chargeCents: number;
+  /** Present after a saved-card confirm. */
+  balanceCents?: number;
+}
+
+/** POST /orgUsers/:id/ledger/topups/confirm */
+export interface LedgerTopUpConfirm {
+  credited: boolean;
+  balanceCents: number;
+}
+
+/** One row from GET /organizations/ledger/accounts. */
+export interface LedgerAccount {
+  orgUserId: number;
+  name: string;
+  email: string | null;
+  balanceCents: number;
+  lastActivityAt: string | null;
+  owingSince: string | null;
+  daysOwing: number | null;
+}
+
+/** Org-wide totals beside the accounts list. Ignores search/status filters. */
+export interface LedgerAccountSummary {
+  receivableCents: number;
+  creditOnAccountCents: number;
+  owingCount: number;
+  creditCount: number;
+  zeroCount: number;
+  memberCount: number;
+}
+
+/** GET/PATCH /organizations/ledger */
+export interface OrganizationLedgerSettings {
+  enabled: boolean;
+  /** Hundredths of a percent (290 = 2.9%). Null = none. */
+  topUpCardFeePercent: number | null;
+  /** Flat cents (30 = $0.30). Null = none. */
+  topUpCardFeeFlatCents: number | null;
+}
+
+/** One refundable card top-up from GET …/ledger/refundable. */
+export interface LedgerRefundableTopup {
+  id: number;
+  createdAt: string;
+  amountCents: number;
+  refundedCents: number;
+  refundableCents: number;
+  stripePaymentIntentId: string | null;
+  memo: string | null;
+}
+
+export interface LedgerRefundable {
+  balanceCents: number;
+  ledgerEnabled: boolean;
+  topups: LedgerRefundableTopup[];
 }
 
 export interface CreateInvoiceInput {
@@ -1862,6 +1954,22 @@ export type ReservationPayer = ReservationPayerInput & {
   id: number;
   orgUser?: { id: number; user?: { id: number; name: string } | null } | null;
   guest?: { id: number; name: string } | null;
+  /**
+   * Set when this stake was billed via Stripe invoice.
+   * May be absent on the wire: every `FK_*` field is stripped from API responses.
+   */
+  FK_invoiceId?: number | null;
+  /**
+   * Set when this stake was posted as a ledger flight_charge.
+   * May be absent on the wire (FK strip). Prefer `ledgerEntry` for client billing state.
+   */
+  FK_ledgerEntryId?: number | null;
+  /**
+   * Nested ledger flight_charge for this stake (retrieve/list).
+   * This is what the web must read for "already billed" — `FK_ledgerEntryId` is stripped.
+   * `reversedBy` means the stake is no longer billed.
+   */
+  ledgerEntry?: { id: number; reversedBy?: { id: number } | null } | null;
 };
 
 //---------------------------------------------------------------------------------

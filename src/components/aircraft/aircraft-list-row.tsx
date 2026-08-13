@@ -133,7 +133,7 @@ export function AircraftListRow({
                 )}
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => actions.onApprove(r)}>
-                <ShieldCheck className="size-4" /> Approve renters
+                <ShieldCheck className="size-4" /> Approve members
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>

@@ -34,10 +34,17 @@ Defaults: `VITE_API_PROXY=http://127.0.0.1:5001`, Playwright starts Vite on
 | `e2e/schedule/slot-offer-cancel-recovery.spec.ts` | API: Standby → cancel → offer → accept; desk withdraw; Pending offers opens |
 | `e2e/schedule/slot-offer-cancel-recovery-ui.spec.ts` | UI clicks: stand by → cancel dialog → Pending offers → Accept on Offers tab; Withdraw |
 | `e2e/billing/invoices.spec.ts` | Billing / invoices reachable |
+| `e2e/billing/ledger.spec.ts` | Ledger GET/auth/write contracts; `/me` Add funds + desk credit/refund/adjustment when mode is on |
 | `e2e/people/invite.spec.ts` | People + invite sheet |
 | `e2e/access/route-matrix.spec.ts` | Owner can open first N `ROUTE_ACCESS` routes |
 | `e2e/onboarding/intent-logic.spec.ts` | Pure: landingPath→source, tracks, heard-from gate |
-| `e2e/onboarding/checklist-tracks.spec.ts` | Dashboard `?track=` reorders checklist (maintenance / training / reports) |
+| `e2e/onboarding/checklist-tracks.spec.ts` | Dashboard `?track=` + `?checklist=fresh` Start here leads |
+
+Preview query params (display-only, safe on any org):
+
+- `?track=maintenance|clubs|reports|...` - reorder as that campaign
+- `?checklist=show` - show a retired checklist
+- `?checklist=fresh` - show and treat every item as undone (best for comparing tracks)
 
 Cleanup cancels only E2E-tagged reservations (same markers as Flutter).
 

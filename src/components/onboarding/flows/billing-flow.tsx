@@ -1,5 +1,5 @@
 /**
- * Connect billing, why → Stripe → QuickBooks.
+ * Connect billing: why → how members pay → Stripe → QuickBooks.
  *
  * Replaces a link to Settings → Billing, which for a new school was both the wrong
  * page (it errors until Connect exists, since the billing row is created lazily) and
@@ -8,15 +8,31 @@
  * Stripe onboarding leaves our origin entirely, so this flow cannot watch the user
  * finish it. It hands off, and the checklist tells the truth when they come back:
  * `stripeEnabled` is set by Stripe's `account.updated` webhook, so the item ticks on
- * its own. Step 3 is therefore only reachable when they return already connected.
+ * its own. The QuickBooks step is therefore only reachable when they return already
+ * connected (or they skipped ahead somehow).
+ *
+ * "How members pay" is a real choice (invoice default vs ledger), saved before Stripe
+ * so the school isn't surprised later in Settings.
  */
 
 import * as React from "react";
 import { CreditCard, ExternalLink, Loader2, Puzzle } from "lucide-react";
 import { toast } from "sonner";
-import { useBilling, useConnectStripe, useQuickBooksAuthorize, useQuickBooksSettings } from "@/features/queries";
+import {
+  useBilling,
+  useConnectStripe,
+  useOrgLedgerSettings,
+  useQuickBooksAuthorize,
+  useQuickBooksSettings,
+  useUpdateOrgLedgerSettings,
+} from "@/features/queries";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import {
+  BillingModeCards,
+  type BillingMode,
+} from "@/components/billing/billing-mode-choice";
+import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
 import {
   FlowBenefits,
@@ -30,16 +46,25 @@ import {
 export function BillingFlow({ onClose }: FlowProps) {
   const { isDemo } = useAuth();
   const billing = useBilling();
+  const ledger = useOrgLedgerSettings();
   const quickBooks = useQuickBooksSettings();
   const connect = useConnectStripe();
   const authorizeQb = useQuickBooksAuthorize();
+  const updateLedger = useUpdateOrgLedgerSettings();
 
   const stripeConnected = Boolean(billing.data?.stripeEnabled);
   const qbConnected = quickBooks.data?.status === "connected";
+  const savedMode: BillingMode = ledger.data?.enabled === true ? "ledger" : "invoice";
 
-  // Someone who already has Stripe opens straight on the QuickBooks step, the "why"
-  // pitch is for people who haven't decided yet.
-  const [step, setStep] = React.useState(stripeConnected ? 2 : 0);
+  // Someone who already has Stripe opens on QuickBooks; the pitch + mode pick are for
+  // people who haven't finished Connect yet.
+  const [step, setStep] = React.useState(stripeConnected ? 3 : 0);
+  const [mode, setMode] = React.useState<BillingMode>(savedMode);
+  const [savingMode, setSavingMode] = React.useState(false);
+
+  React.useEffect(() => {
+    setMode(savedMode);
+  }, [savedMode]);
 
   async function startStripe() {
     try {
@@ -61,11 +86,45 @@ export function BillingFlow({ onClose }: FlowProps) {
     }
   }
 
+  async function saveModeAndContinue() {
+    if (mode === savedMode) {
+      setStep(2);
+      return;
+    }
+    setSavingMode(true);
+    updateLedger.mutate(
+      { enabled: mode === "ledger" },
+      {
+        onSuccess: () => {
+          toast.success(
+            mode === "ledger"
+              ? "Account ledger selected. You can change this later in Settings"
+              : "Invoice billing selected. You can change this later in Settings"
+          );
+          setStep(2);
+        },
+        onError: (err) => {
+          toast.error(err instanceof ApiError ? err.message : "Couldn't save billing mode");
+        },
+        onSettled: () => setSavingMode(false),
+      }
+    );
+  }
+
   const footer =
     step === 0 ? (
       <FlowNav onNext={() => setStep(1)} onSkip={onClose} skipLabel="Not now" />
     ) : step === 1 ? (
-      <FlowNav onBack={() => setStep(0)} onSkip={onClose} skipLabel="I'll do this later" />
+      <FlowNav
+        onBack={() => setStep(0)}
+        onNext={() => void saveModeAndContinue()}
+        nextLabel={savingMode ? "Saving…" : "Continue"}
+        nextDisabled={savingMode || ledger.isLoading}
+        onSkip={onClose}
+        skipLabel="I'll do this later"
+      />
+    ) : step === 2 ? (
+      <FlowNav onBack={() => setStep(1)} onSkip={onClose} skipLabel="I'll do this later" />
     ) : qbConnected ? (
       <FlowClose onClose={onClose} />
     ) : (
@@ -77,9 +136,10 @@ export function BillingFlow({ onClose }: FlowProps) {
       open
       onOpenChange={(o) => !o && onClose()}
       title="Connect billing"
-      description="Three screens, and the last one is optional."
+      description="Four screens. QuickBooks is optional."
       step={step}
-      stepCount={3}
+      stepCount={4}
+      size={step === 1 ? "lg" : "md"}
       footer={footer}
     >
       {step === 0 && (
@@ -89,9 +149,9 @@ export function BillingFlow({ onClose }: FlowProps) {
           </p>
           <FlowBenefits
             items={[
-              "Invoice students and renters automatically at close-out",
+              "Bill members with invoices per booking, or with an account ledger",
               "Collect card and ACH payments, with autopay if they want it",
-              "Sync every invoice to QuickBooks",
+              "Sync money to QuickBooks when you're ready",
               "Payouts go straight to your own bank. We never hold your money",
             ]}
           />
@@ -99,6 +159,25 @@ export function BillingFlow({ onClose }: FlowProps) {
       )}
 
       {step === 1 && (
+        <div>
+          <p className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
+            How members pay
+            <DocsHint topic="how-members-pay" />
+          </p>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Most schools invoice each booking (flights, sims, ground, and fees). Ledger is
+            for prepaid / house-account style billing. Guests always get a pay-this-visit
+            invoice. You can change this later in Settings → Billing.
+          </p>
+          <BillingModeCards
+            value={mode}
+            onChange={setMode}
+            disabled={savingMode || isDemo}
+          />
+        </div>
+      )}
+
+      {step === 2 && (
         <div>
           <div className="rounded-xl border bg-card p-4">
             <div className="flex items-start gap-3">
@@ -131,11 +210,11 @@ export function BillingFlow({ onClose }: FlowProps) {
         </div>
       )}
 
-      {step === 2 &&
+      {step === 3 &&
         (qbConnected ? (
           <FlowDone
             headline="Billing is connected."
-            body="Stripe and QuickBooks are both live. Close-outs will invoice, collect, and land in your books."
+            body="Stripe and QuickBooks are both live. Close-outs will bill, collect, and land in your books."
           />
         ) : (
           <div>
@@ -148,7 +227,7 @@ export function BillingFlow({ onClose }: FlowProps) {
                   {stripeConnected ? "Stripe is connected." : "One more thing"}
                 </div>
                 <p className="mt-0.5 text-sm text-muted-foreground">
-                  Want to connect QuickBooks too? Every invoice you send lands in your books
+                  Want to connect QuickBooks too? Paid activity lands in your books
                   automatically, so month-end doesn&rsquo;t mean re-keying anything.
                 </p>
               </div>

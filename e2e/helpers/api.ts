@@ -56,6 +56,8 @@ export async function cleanupE2eReservations(
     const isE2e =
       title === "E2E Ramp" ||
       title.startsWith("E2E L3") ||
+      title.startsWith("E2E L4") ||
+      title.startsWith("E2E L5") ||
       title.startsWith("L3-C") ||
       title.startsWith("UI-walk L3") ||
       notes.includes("E2E-UI-") ||

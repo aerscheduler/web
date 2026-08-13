@@ -271,6 +271,16 @@ export interface OrganizationBookingPolicy {
    * older clients; the server ignores this flag.
    */
   enforceCurrenciesAtBook?: boolean;
+  /**
+   * Ledger mode only. Self-book students/renters must have balance >= this (cents).
+   * Null = off. 0 = cannot book while owing. Staff and instructor-led skip.
+   */
+  minimumBalanceCents?: number | null;
+  /**
+   * Ledger mode only. Self-book blocked when they owe more than this (balance < -value).
+   * Null = off. 0 = cannot book with any negative balance.
+   */
+  balanceMaximumCents?: number | null;
 }
 
 /** Org-wide slot offer / standby settings (1:1). Master switch plus hold / spam governors. */
@@ -1507,6 +1517,16 @@ export interface MemberLedger {
   balanceCents: number;
   ledgerEnabled: boolean;
   entries: LedgerEntry[];
+}
+
+/** GET /orgUsers/:id/ledger/statement */
+export interface LedgerStatement {
+  start: string;
+  end: string;
+  openingCents: number;
+  closingCents: number;
+  periodSumCents: number;
+  entries: Array<LedgerEntry & { runningBalanceCents: number }>;
 }
 
 /** GET /orgUsers/:id/ledger/entries/:entryId/receipt */

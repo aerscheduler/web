@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format, parseISO } from "date-fns";
-import { CircleDollarSign, Wallet } from "lucide-react";
+import { CircleDollarSign, FileText, Wallet } from "lucide-react";
 import { pageRows, useMemberLedgerPage } from "@/features/queries";
 import { usePaging } from "@/lib/paging";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -26,6 +26,7 @@ import {
 } from "@/components/people/detail/ledger-desk-dialogs";
 import { LedgerEntryDetailSheet } from "@/components/people/detail/ledger-entry-detail-sheet";
 import { LedgerReceiptSheet } from "@/components/people/detail/ledger-receipt-dialog";
+import { LedgerStatementSheet } from "@/components/people/detail/ledger-statement-sheet";
 import { LedgerReassignDialog } from "@/components/people/detail/ledger-reassign-dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -253,6 +254,7 @@ export function MemberLedgerTable({
   const debouncedQ = useDebouncedValue(search);
   const [facets, setFacets] = useState<ListFilterValues>({});
   const [addFunds, setAddFunds] = useState(false);
+  const [statement, setStatement] = useState(false);
   const [credit, setCredit] = useState(false);
   const [adjustment, setAdjustment] = useState(false);
   const [refund, setRefund] = useState(false);
@@ -350,11 +352,22 @@ export function MemberLedgerTable({
     />
   );
 
+  const statementButton = (
+    <Button
+      size={showTitle ? "sm" : "default"}
+      variant="outline"
+      onClick={() => setStatement(true)}
+    >
+      <FileText className="size-4" /> Statement
+    </Button>
+  );
+
   const actions =
     isSelf || canManage ? (
       <div className="flex flex-wrap gap-2">
-        {isSelf && (
-          <Button size={showTitle ? "sm" : "default"} onClick={() => setAddFunds(true)}>
+        {statementButton}
+        {isSelf && showTitle && (
+          <Button size="sm" onClick={() => setAddFunds(true)}>
             <CircleDollarSign className="size-4" /> Add funds
           </Button>
         )}
@@ -411,14 +424,17 @@ export function MemberLedgerTable({
             <StatSkeleton count={1} />
           </div>
         ) : (
-          <div className="grid shrink-0 grid-cols-1 gap-4 sm:grid-cols-2 sm:max-w-md">
-            <StatCard
-              label="Account balance"
-              value={formatMoney(balanceCents)}
-              icon={Wallet}
-              accent={balanceCents < 0 ? "warning" : "success"}
-              hint={balanceCents >= 0 ? "Credit on account" : "Amount owed on account"}
-            />
+          <div className="flex shrink-0 flex-wrap items-end justify-between gap-3">
+            <div className="grid min-w-0 flex-1 grid-cols-1 gap-4 sm:grid-cols-2 sm:max-w-md">
+              <StatCard
+                label="Account balance"
+                value={formatMoney(balanceCents)}
+                icon={Wallet}
+                accent={balanceCents < 0 ? "warning" : "success"}
+                hint={balanceCents >= 0 ? "Credit on account" : "Amount owed on account"}
+              />
+            </div>
+            {statementButton}
           </div>
         ))}
 
@@ -436,9 +452,14 @@ export function MemberLedgerTable({
 
       {table}
 
-      {showTitle && isSelf && (
+      {isSelf && (
         <AddFundsDialog orgUserId={orgUserId} open={addFunds} onOpenChange={setAddFunds} />
       )}
+      <LedgerStatementSheet
+        orgUserId={orgUserId}
+        open={statement}
+        onOpenChange={setStatement}
+      />
       {canManage && (
         <>
           <LedgerAddCreditDialog orgUserId={orgUserId} open={credit} onOpenChange={setCredit} />

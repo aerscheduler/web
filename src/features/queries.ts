@@ -69,6 +69,7 @@ import type {
   Location,
   OrgUserBillingSettings,
   MemberLedger,
+  LedgerStatement,
   LedgerAccount,
   LedgerAccountSummary,
   LedgerEntry,
@@ -1830,6 +1831,33 @@ export function useMemberLedgerPage(
   });
 }
 
+/** Inclusive period statement (`GET /orgUsers/:id/ledger/statement`). */
+export function useMemberLedgerStatement(
+  orgUserId: number | null,
+  range: { start: string; end: string } | null,
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["orgUsers", orgUserId, "ledger", "statement", range?.start, range?.end],
+    queryFn: () =>
+      api<LedgerStatement>(`/orgUsers/${orgUserId}/ledger/statement`, {
+        query: { start: range!.start, end: range!.end },
+      }),
+    enabled: (opts?.enabled ?? true) && orgUserId != null && range != null,
+    ...opts,
+  });
+}
+
+export function useEmailLedgerStatement(orgUserId: number | null) {
+  return useMutation({
+    mutationFn: (body: { start: string; end: string; periodLabel?: string }) =>
+      api<{ sent: boolean; to: string }>(`/orgUsers/${orgUserId}/ledger/statement/email`, {
+        method: "POST",
+        body,
+      }),
+  });
+}
+
 /** Refundable top-ups for the desk Refund UI. */
 export function useLedgerRefundable(orgUserId: number | null, opts?: QueryOpts) {
   return useQuery({
@@ -1873,7 +1901,8 @@ export function invalidateLedgerMoney(
         predicate: (q) =>
           Array.isArray(q.queryKey) &&
           q.queryKey[0] === "orgUsers" &&
-          q.queryKey[2] === "ledger",
+          q.queryKey[2] === "ledger" &&
+          typeof q.queryKey[3] !== "string",
       },
       (old) => (old && typeof old === "object" ? { ...old, balanceCents } : old)
     );

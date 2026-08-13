@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { useMultiDayReadiness, useUpdateOrganization } from "@/features/queries";
+import { useMultiDayReadiness, useOrgLedgerSettings, useUpdateOrganization } from "@/features/queries";
 import type { Organization, OrganizationSlotOfferSettings } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import {
@@ -58,6 +58,21 @@ export function BookingPreferencesTab() {
   return <BookingPreferencesCard organization={organization} />;
 }
 
+const MAX_LEDGER_GATE_DOLLARS = 1_000_000;
+
+function parseLedgerGateDollars(
+  raw: string
+): { cents: number } | { clear: true } | { error: string } {
+  const trimmed = raw.trim();
+  if (trimmed === "") return { clear: true };
+  const dollars = Number(trimmed);
+  if (!Number.isFinite(dollars) || dollars < 0) return { clear: true };
+  if (dollars > MAX_LEDGER_GATE_DOLLARS) {
+    return { error: "Must be $0–$1,000,000, or leave it off." };
+  }
+  return { cents: Math.round(dollars * 100) };
+}
+
 function BookingPreferencesCard({ organization }: { organization: Organization }) {
   const { rehydrate } = useAuth();
   const update = useUpdateOrganization();
@@ -90,6 +105,17 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   );
   const [maxLengthMinutes, setMaxLengthMinutes] = useState(
     () => String(bookingPolicy?.maxReservationMinutes ?? "")
+  );
+  const ledgerOn = useOrgLedgerSettings().data?.enabled === true;
+  const [minCreditDollars, setMinCreditDollars] = useState(() =>
+    bookingPolicy?.minimumBalanceCents != null
+      ? String(bookingPolicy.minimumBalanceCents / 100)
+      : ""
+  );
+  const [maxOwedDollars, setMaxOwedDollars] = useState(() =>
+    bookingPolicy?.balanceMaximumCents != null
+      ? String(bookingPolicy.balanceMaximumCents / 100)
+      : ""
   );
   const [pending, setPending] = useState<
     | PrefField
@@ -149,6 +175,16 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     );
     setMaxFuture(String(bookingPolicy?.maxFutureBookings ?? ""));
     setMaxLengthMinutes(String(bookingPolicy?.maxReservationMinutes ?? ""));
+    setMinCreditDollars(
+      bookingPolicy?.minimumBalanceCents != null
+        ? String(bookingPolicy.minimumBalanceCents / 100)
+        : ""
+    );
+    setMaxOwedDollars(
+      bookingPolicy?.balanceMaximumCents != null
+        ? String(bookingPolicy.balanceMaximumCents / 100)
+        : ""
+    );
     setQuietKey(quietHoursKey(slotOfferSettings));
     setMaxPending(String(slotOfferSettings?.maxPendingOffers ?? 10));
     setMaxPendingPerMember(String(slotOfferSettings?.maxPendingOffersPerMember ?? 2));
@@ -182,6 +218,8 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     bookingPolicy?.lateCancelFeeCents,
     bookingPolicy?.maxFutureBookings,
     bookingPolicy?.maxReservationMinutes,
+    bookingPolicy?.minimumBalanceCents,
+    bookingPolicy?.balanceMaximumCents,
   ]);
 
   function savePref(field: PrefField, value: boolean, apply: (v: boolean) => void) {
@@ -330,6 +368,8 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
     lateCancelFeeCents?: number | null;
     maxFutureBookings?: number | null;
     maxReservationMinutes?: number | null;
+    minimumBalanceCents?: number | null;
+    balanceMaximumCents?: number | null;
   }) {
     setPending("bookingRules");
     update.mutate(
@@ -352,6 +392,16 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
           );
           setMaxFuture(String(bookingPolicy?.maxFutureBookings ?? ""));
           setMaxLengthMinutes(String(bookingPolicy?.maxReservationMinutes ?? ""));
+          setMinCreditDollars(
+            bookingPolicy?.minimumBalanceCents != null
+              ? String(bookingPolicy.minimumBalanceCents / 100)
+              : ""
+          );
+          setMaxOwedDollars(
+            bookingPolicy?.balanceMaximumCents != null
+              ? String(bookingPolicy.balanceMaximumCents / 100)
+              : ""
+          );
         },
         onSettled: () => setPending(null),
       }
@@ -837,6 +887,98 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
               ]}
             />
           </div>
+
+          {ledgerOn && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Minimum credit to self-book
+                  </Label>
+                  <DocsHint topic="ledger-booking-gates" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="1"
+                    placeholder="Off"
+                    className="max-w-[8rem]"
+                    value={minCreditDollars}
+                    disabled={rulesDisabled}
+                    onChange={(e) => setMinCreditDollars(e.target.value)}
+                    onBlur={() => {
+                      const parsed = parseLedgerGateDollars(minCreditDollars);
+                      if ("error" in parsed) {
+                        toast.error(parsed.error);
+                        setMinCreditDollars(
+                          bookingPolicy?.minimumBalanceCents != null
+                            ? String(bookingPolicy.minimumBalanceCents / 100)
+                            : ""
+                        );
+                        return;
+                      }
+                      if ("clear" in parsed) {
+                        setMinCreditDollars("");
+                        saveBookingRules({ minimumBalanceCents: null });
+                        return;
+                      }
+                      saveBookingRules({ minimumBalanceCents: parsed.cents });
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Students and renters on the booking need this much credit.
+                  $0 means they cannot book while owing. Staff and instructor-led
+                  bookings skip this. On a shared flight every billed seat is checked.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Maximum owing to self-book
+                  </Label>
+                  <DocsHint topic="ledger-booking-gates" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="1"
+                    placeholder="Off"
+                    className="max-w-[8rem]"
+                    value={maxOwedDollars}
+                    disabled={rulesDisabled}
+                    onChange={(e) => setMaxOwedDollars(e.target.value)}
+                    onBlur={() => {
+                      const parsed = parseLedgerGateDollars(maxOwedDollars);
+                      if ("error" in parsed) {
+                        toast.error(parsed.error);
+                        setMaxOwedDollars(
+                          bookingPolicy?.balanceMaximumCents != null
+                            ? String(bookingPolicy.balanceMaximumCents / 100)
+                            : ""
+                        );
+                        return;
+                      }
+                      if ("clear" in parsed) {
+                        setMaxOwedDollars("");
+                        saveBookingRules({ balanceMaximumCents: null });
+                        return;
+                      }
+                      saveBookingRules({ balanceMaximumCents: parsed.cents });
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Block self-book once they owe more than this. $0 means any
+                  negative balance is refused. Same staff bypass as payment method.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>

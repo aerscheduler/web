@@ -176,6 +176,18 @@ export const DOCS_TOPICS = {
       "Moves a live flight charge to another member by reversing the original and posting a new one. Admins only. Fees and desk charges cannot be reassigned.",
     href: "billing/manage-a-member-account-ledger#reassign-a-flight-charge",
   },
+  "ledger-statement": {
+    title: "Account statement",
+    summary:
+      "Pick a date range to see opening balance, every entry with a running total, and closing. Print or email it. This is not a Stripe invoice and does not go to QuickBooks.",
+    href: "billing/manage-a-member-account-ledger#statements",
+  },
+  "ledger-booking-gates": {
+    title: "Minimum credit and max owing",
+    summary:
+      "When the school uses an account ledger, you can require prepaid credit before self-book, or stop members who already owe more than a cap. A shared flight checks every billed seat. Owners, admins, and dispatchers still book on someone's behalf. Invoice-mode schools ignore these.",
+    href: "scheduling/booking-rules-and-settings#account-ledger-booking-gates",
+  },
   "ledger-refund": {
     title: "Refund",
     summary:
@@ -386,7 +398,7 @@ export const DOCS_TOPICS = {
   "booking-policy-rules": {
     title: "Booking and cancellation rules",
     summary:
-      "Opt-in rules for cancel/edit lock, late-cancel fee, max upcoming bookings, and max reservation length. Off by default. Members see a clear reason when a rule refuses them. Currency checks at book stay always on under Compliance.",
+      "Opt-in rules for cancel/edit lock, late-cancel fee, max upcoming bookings, max reservation length, and (ledger mode) minimum credit or max owing to self-book. Off by default. Members see a clear reason when a rule refuses them. Currency checks at book stay always on under Compliance.",
     href: "scheduling/booking-rules-and-settings#booking-and-cancellation-rules",
   },
   "what-you-can-book": {

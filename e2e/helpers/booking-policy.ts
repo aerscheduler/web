@@ -7,6 +7,9 @@ export type BookingPolicySnapshot = {
   maxReservationMinutes: number | null;
   cancelEditLockHours: number | null;
   lateCancelFeeCents: number | null;
+  minimumBalanceCents: number | null;
+  balanceMaximumCents: number | null;
+  requirePaymentMethod: boolean;
 };
 
 /** Read bookingPolicy from a fresh owner login (auth payload carries the org). */
@@ -34,6 +37,11 @@ export async function readBookingPolicy(
       typeof policy.cancelEditLockHours === "number" ? policy.cancelEditLockHours : null,
     lateCancelFeeCents:
       typeof policy.lateCancelFeeCents === "number" ? policy.lateCancelFeeCents : null,
+    minimumBalanceCents:
+      typeof policy.minimumBalanceCents === "number" ? policy.minimumBalanceCents : null,
+    balanceMaximumCents:
+      typeof policy.balanceMaximumCents === "number" ? policy.balanceMaximumCents : null,
+    requirePaymentMethod: policy.requirePaymentMethod === true,
   };
 }
 
@@ -64,6 +72,9 @@ export async function restoreBookingPolicy(
         maxReservationMinutes: prior.maxReservationMinutes,
         cancelEditLockHours: prior.cancelEditLockHours,
         lateCancelFeeCents: prior.lateCancelFeeCents,
+        minimumBalanceCents: prior.minimumBalanceCents,
+        balanceMaximumCents: prior.balanceMaximumCents,
+        requirePaymentMethod: prior.requirePaymentMethod,
       },
     },
   });

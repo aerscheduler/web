@@ -43,6 +43,7 @@ export function StatCard({
   loading,
   accent = "primary",
   to,
+  search,
 }: {
   label: string;
   value: string | number;
@@ -50,8 +51,20 @@ export function StatCard({
   hint?: string;
   loading?: boolean;
   accent?: "primary" | "warning" | "success";
-  /** When set, the whole card is a link. */
-  to?: "/me/schedule" | "/me/invoices" | "/me/currencies" | "/people" | "/compliance" | "/billing" | "/training";
+  /** When set, the whole card is a link. A stat nobody can click is a number
+   *  with no next step: every tile should land on the list behind it. */
+  to?:
+    | "/me/schedule"
+    | "/me/invoices"
+    | "/me/currencies"
+    | "/people"
+    | "/compliance"
+    | "/billing"
+    | "/training"
+    | "/aircraft"
+    | "/schedule";
+  /** Search params for `to`, so a tile can land on the filtered list it counts. */
+  search?: Record<string, string>;
 }) {
   const tone =
     accent === "warning"
@@ -88,6 +101,7 @@ export function StatCard({
   return (
     <Link
       to={to}
+      search={search}
       aria-label={label}
       className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >

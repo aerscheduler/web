@@ -207,6 +207,9 @@ export type ResourceListFilter = {
 export type InvoiceListFilter = {
   q?: string;
   paid?: boolean;
+  /** Voided is its own axis: `paid: false` alone still includes voided invoices,
+   *  which nobody owes. Pass `voided: false` for "outstanding". */
+  voided?: boolean;
   startDate?: string;
   endDate?: string;
 };
@@ -439,7 +442,7 @@ export function useInvoices(filter?: InvoiceListFilter, opts?: QueryOpts) {
  * invoices than that in the range was shown the total of an arbitrary thousand.
  */
 export function useInvoiceSummary(
-  filter?: { startDate?: string; endDate?: string; q?: string },
+  filter?: { startDate?: string; endDate?: string; q?: string; voided?: boolean },
   opts?: QueryOpts
 ) {
   return useQuery({

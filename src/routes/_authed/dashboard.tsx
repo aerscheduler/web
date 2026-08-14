@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import {
   useInvoices,
+  useInvoiceSummary,
   useMembers,
   usePlanes,
   useRemindInvoice,
@@ -73,13 +74,17 @@ function DashboardPage() {
   const planes = usePlanes();
   const members = useMembers();
   const week = useReservations(todayStart, weekEnd);
-  const unpaid = useInvoices({ paid: false }, { enabled: canSeeMoney });
+  // Aggregated by the database, not summed from a list. Summing `useInvoices({
+  // paid: false })` counted every VOIDED invoice as money owed, which is how
+  // Murray Aviation's 24 open invoices ($4,942) showed here as 339 / $305,000,
+  // and it silently capped at whatever the list endpoint returned.
+  const unpaid = useInvoiceSummary({ voided: false }, { enabled: canSeeMoney });
   const recent = useInvoices({ startDate: twoWeeksAgo }, { enabled: canSeeMoney });
   const updateInvoice = useUpdateInvoice();
   const remindInvoice = useRemindInvoice();
   const voidFlow = useVoidInvoiceFlow();
 
-  const outstanding = (unpaid.data ?? []).reduce((s, i) => s + (i.total ?? 0), 0);
+  const outstanding = unpaid.data?.outstanding ?? 0;
   const todays = (week.data ?? [])
     .filter((r) => isToday(parseISO(r.start)))
     .sort((a, b) => a.start.localeCompare(b.start));
@@ -153,7 +158,9 @@ function DashboardPage() {
     // For a dispatcher these two never ran, so they are not evidence of
     // anything, only the schedule can say whether this school is new.
     (!canSeeMoney ||
-      ((unpaid.data?.length ?? 0) === 0 && (recent.data?.length ?? 0) === 0));
+      ((unpaid.data?.outstandingCount ?? 0) === 0 &&
+        (unpaid.data?.paidCount ?? 0) === 0 &&
+        (recent.data?.length ?? 0) === 0));
 
   return (
     <div>
@@ -177,6 +184,7 @@ function DashboardPage() {
               icon={PlaneTakeoff}
               loading={planes.isLoading}
               hint="in your fleet"
+              to="/aircraft"
             />
             <StatCard
               label="People"
@@ -184,6 +192,7 @@ function DashboardPage() {
               icon={Users}
               loading={members.isLoading}
               hint="active members"
+              to="/people"
             />
             <StatCard
               label="Flights · next 7 days"
@@ -191,6 +200,7 @@ function DashboardPage() {
               icon={CalendarClock}
               loading={week.isLoading}
               hint={`${todays.length} today`}
+              to="/schedule"
             />
             {canSeeMoney && (
               <StatCard
@@ -199,7 +209,11 @@ function DashboardPage() {
                 icon={Receipt}
                 loading={unpaid.isLoading}
                 accent="warning"
-                hint={`${unpaid.data?.length ?? 0} unpaid invoices`}
+                hint={`${unpaid.data?.outstandingCount ?? 0} unpaid invoices`}
+                // Lands on the same set the tile counts, not on Billing's own
+                // default window, so the number on screen is the number you clicked.
+                to="/billing"
+                search={{ status: "outstanding" }}
               />
             )}
           </StatGrid>

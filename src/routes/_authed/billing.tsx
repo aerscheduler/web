@@ -468,6 +468,11 @@ function BillingPage() {
     endDate: endISO,
     q: debouncedQ,
     ...(paidFilter !== undefined ? { paid: paidFilter } : {}),
+    // "Outstanding" means owed, and a voided invoice is owed by nobody. This has
+    // to be a server filter: dropping voided rows from the page after it arrived
+    // gave a table that paged three rows, then one, then several empty pages,
+    // with a total that counted every voided invoice.
+    ...(wantsOutstanding && !wantsPaid ? { voided: false } : {}),
   };
   const invoicePaging = usePaging({
     resetKey: invoiceFilter,
@@ -512,10 +517,9 @@ function BillingPage() {
 
   const stats = statsQ.data ?? { revenue: 0, outstanding: 0, paidCount: 0, outstandingCount: 0 };
 
-  const rows = useMemo(() => {
-    if (wantsOutstanding && !wantsPaid) return invoices.filter((i) => i.voidedAt == null);
-    return invoices;
-  }, [invoices, wantsOutstanding, wantsPaid]);
+  // Voided rows are excluded by the query itself now (see `invoiceFilter`), so
+  // what came back is what is drawn.
+  const rows = invoices;
 
   // Only the page in hand can be resolved locally now, so the panel falls back
   // to fetching the one it was asked for.

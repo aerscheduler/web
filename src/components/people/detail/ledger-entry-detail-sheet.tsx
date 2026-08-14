@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { ledgerEntryLabel, ledgerPostedByLabel } from "@/lib/ledger-labels";
 import type { LedgerEntry } from "@/types/api";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatMoney } from "@/lib/utils";
+import { useTimeZone } from "@/lib/use-timezone";
 import { DetailPanel } from "@/components/detail-panel";
 import { Separator } from "@/components/ui/separator";
 
@@ -30,15 +31,19 @@ export function LedgerEntryDetailSheet({
   onStep?: (delta: -1 | 1) => void;
 }) {
   const cents = entry?.amountCents ?? 0;
+  const tz = useTimeZone();
+  const when = entry
+    ? `${tz.date(entry.createdAt)} at ${tz.time(entry.createdAt)}${
+        tz.differs(entry.createdAt) ? ` ${tz.label(entry.createdAt)}` : ""
+      }`
+    : undefined;
   return (
     <DetailPanel
       open={open}
       onOpenChange={onOpenChange}
       onStep={onStep}
       title={entry ? ledgerEntryLabel(entry.type) : "Entry"}
-      description={
-        entry ? formatDate(entry.createdAt, "MMM d, yyyy 'at' h:mm a") ?? undefined : undefined
-      }
+      description={when}
     >
       {entry && (
         <div className="space-y-5 pt-4">
@@ -80,7 +85,7 @@ export function LedgerEntryDetailSheet({
             {entry.reversedBy ? <Row label="Reversed by">#{entry.reversedBy.id}</Row> : null}
           </dl>
 
-          {entry.items.length > 0 ? (
+          {entry.items.length > 0 || entry.memo ? (
             <>
               <Separator />
               <section>
@@ -88,15 +93,22 @@ export function LedgerEntryDetailSheet({
                   Line items
                 </h3>
                 <ul className="space-y-1 text-sm">
-                  {entry.items.map((item) => (
-                    <li key={item.id} className="flex justify-between gap-3">
-                      <span className="min-w-0 truncate">
-                        {item.name}
-                        {item.qty !== 1 ? ` × ${item.qty}` : ""}
-                      </span>
-                      <span className="tnum shrink-0">{formatMoney(item.qty * item.unitPrice)}</span>
-                    </li>
-                  ))}
+                  {entry.items.length > 0
+                    ? entry.items.map((item) => (
+                        <li key={item.id} className="flex justify-between gap-3">
+                          <span className="min-w-0 truncate">
+                            {item.name}
+                            {item.qty !== 1 ? ` × ${item.qty}` : ""}
+                          </span>
+                          <span className="tnum shrink-0">{formatMoney(item.qty * item.unitPrice)}</span>
+                        </li>
+                      ))
+                    : (
+                        <li className="flex justify-between gap-3">
+                          <span className="min-w-0 truncate">{entry.memo}</span>
+                          <span className="tnum shrink-0">{formatMoney(entry.amountCents)}</span>
+                        </li>
+                      )}
                 </ul>
               </section>
             </>

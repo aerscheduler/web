@@ -188,6 +188,24 @@ export const DOCS_TOPICS = {
       "When the school uses an account ledger, you can require prepaid credit before self-book, or stop members who already owe more than a cap. A shared flight checks every billed seat. Owners, admins, and dispatchers still book on someone's behalf. Invoice-mode schools ignore these.",
     href: "scheduling/booking-rules-and-settings#account-ledger-booking-gates",
   },
+  "ledger-dispatch-gates": {
+    title: "Minimum credit and max owing at dispatch",
+    summary:
+      "Same idea as the self-book gates, checked when someone ramps out. Leave them blank and booking rules are not re-applied at dispatch. Owners, admins, and dispatchers still override. Invoice-mode schools ignore these.",
+    href: "scheduling/booking-rules-and-settings#account-ledger-dispatch-gates",
+  },
+  "ledger-auto-refill": {
+    title: "Auto-refill",
+    summary:
+      "Charges the default card on a schedule: when the balance drops under a floor, to pay what they owe, or a fixed amount even at zero. Daily or monthly. Three failed charges pause it; the card is not deleted.",
+    href: "billing/manage-a-member-account-ledger#auto-refill",
+  },
+  "ledger-late-fees": {
+    title: "Late fees",
+    summary:
+      "Once a month, members who have stayed owing past the grace period get a fee posted to the ledger. Percent of the amount owing, plus an optional flat amount. Ledger mode only.",
+    href: "billing/manage-a-member-account-ledger#late-fees",
+  },
   "ledger-refund": {
     title: "Refund",
     summary:

@@ -97,6 +97,9 @@ export function BillingTab() {
       ledgerMode={ledgerMode}
       topUpPercent={ledgerQ.data?.topUpCardFeePercent ?? null}
       topUpFlatCents={ledgerQ.data?.topUpCardFeeFlatCents ?? null}
+      lateFeePercent={ledgerQ.data?.lateFeePercent ?? null}
+      lateFeeFlatCents={ledgerQ.data?.lateFeeFlatCents ?? null}
+      lateFeeGraceDays={ledgerQ.data?.lateFeeGraceDays ?? null}
       loadError={ledgerQ.isError ? ledgerQ.error : null}
       onRetry={() => void ledgerQ.refetch()}
     />
@@ -109,6 +112,9 @@ function BillingPage({
   ledgerMode,
   topUpPercent,
   topUpFlatCents,
+  lateFeePercent,
+  lateFeeFlatCents,
+  lateFeeGraceDays,
   loadError,
   onRetry,
 }: {
@@ -116,6 +122,9 @@ function BillingPage({
   ledgerMode: BillingMode;
   topUpPercent: number | null;
   topUpFlatCents: number | null;
+  lateFeePercent: number | null;
+  lateFeeFlatCents: number | null;
+  lateFeeGraceDays: number | null;
   loadError: unknown;
   onRetry: () => void;
 }) {
@@ -133,7 +142,14 @@ function BillingPage({
       />
       <BillingModePicker mode={ledgerMode} loadError={loadError} onRetry={onRetry} />
       {ledgerMode === "ledger" && (
-        <TopUpCardFeeCard percent={topUpPercent} flatCents={topUpFlatCents} />
+        <>
+          <TopUpCardFeeCard percent={topUpPercent} flatCents={topUpFlatCents} />
+          <LateFeeCard
+            percent={lateFeePercent}
+            flatCents={lateFeeFlatCents}
+            graceDays={lateFeeGraceDays}
+          />
+        </>
       )}
       <BillingForms billing={billing} />
     </div>
@@ -652,6 +668,194 @@ function TopUpCardFeeCard({
       </form>
     </Card>
   );
+}
+
+function LateFeeCard({
+  percent,
+  flatCents,
+  graceDays,
+}: {
+  percent: number | null;
+  flatCents: number | null;
+  graceDays: number | null;
+}) {
+  const { roles } = useAuth();
+  const update = useUpdateOrgLedgerSettings();
+  const canEdit = canManageBillingSettings(roles);
+  const [pctText, setPctText] = useState(percent == null || percent === 0 ? "" : String(percent));
+  const [flatText, setFlatText] = useState(
+    flatCents == null || flatCents === 0 ? "" : (flatCents / 100).toFixed(2)
+  );
+  const [graceText, setGraceText] = useState(graceDays == null ? "" : String(graceDays));
+
+  useEffect(() => {
+    setPctText(percent == null || percent === 0 ? "" : String(percent));
+    setFlatText(flatCents == null || flatCents === 0 ? "" : (flatCents / 100).toFixed(2));
+    setGraceText(graceDays == null ? "" : String(graceDays));
+  }, [percent, flatCents, graceDays]);
+
+  const parsedPct = parseLateFeePercent(pctText);
+  const parsedFlat = parseLateFeeFlatDollars(flatText);
+  const parsedGrace = parseLateFeeGraceDays(graceText);
+  const dirty =
+    parsedPct.ok &&
+    parsedFlat.ok &&
+    parsedGrace.ok &&
+    (parsedPct.value !== (percent == null || percent === 0 ? null : percent) ||
+      parsedFlat.value !== (flatCents == null || flatCents === 0 ? null : flatCents) ||
+      parsedGrace.value !== graceDays);
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!canEdit || !dirty || !parsedPct.ok || !parsedFlat.ok || !parsedGrace.ok) return;
+    update.mutate(
+      {
+        lateFeePercent: parsedPct.value,
+        lateFeeFlatCents: parsedFlat.value,
+        lateFeeGraceDays: parsedGrace.value,
+      },
+      {
+        onSuccess: () => toast.success("Late fees saved"),
+        onError: (err) =>
+          toast.error(err instanceof ApiError ? err.message : "Couldn't save late fees"),
+      }
+    );
+  }
+
+  return (
+    <Card data-doc-shot="ledger-late-fees">
+      <CardHeader className="flex-row items-start gap-2.5">
+        <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+          <Receipt className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <CardTitle className="inline-flex items-center gap-1.5">
+            Late fees
+            <DocsHint topic="ledger-late-fees" />
+          </CardTitle>
+          <CardDescription>
+            Posted once a month on members who stay owing past the grace period.
+            We email a receipt when it posts, and a reminder a week before if
+            grace is longer than 7 days. Leave blank to turn late fees off.
+          </CardDescription>
+        </div>
+      </CardHeader>
+      <form onSubmit={handleSubmit}>
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field
+              label="Percent of amount owing"
+              htmlFor="ledger-late-fee-pct"
+              hint="Whole percent, e.g. 5. Blank or 0 = no percent."
+            >
+              <div className="relative">
+                <Input
+                  id="ledger-late-fee-pct"
+                  inputMode="numeric"
+                  value={pctText}
+                  disabled={!canEdit || update.isPending}
+                  onChange={(e) => setPctText(e.target.value)}
+                  placeholder="0"
+                  className="pr-7 tnum"
+                  aria-invalid={!parsedPct.ok}
+                />
+                <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  %
+                </span>
+              </div>
+            </Field>
+            <Field
+              label="Plus flat"
+              htmlFor="ledger-late-fee-flat"
+              hint="Added to the percent. Blank or 0 = none."
+            >
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  $
+                </span>
+                <Input
+                  id="ledger-late-fee-flat"
+                  inputMode="decimal"
+                  value={flatText}
+                  disabled={!canEdit || update.isPending}
+                  onChange={(e) => setFlatText(e.target.value)}
+                  placeholder="0.00"
+                  className="pl-7 tnum"
+                  aria-invalid={!parsedFlat.ok}
+                />
+              </div>
+            </Field>
+            <Field
+              label="Grace days"
+              htmlFor="ledger-late-fee-grace"
+              hint="Days owing before a fee posts. Blank = 30. 0 = first eligible sweep."
+            >
+              <Input
+                id="ledger-late-fee-grace"
+                inputMode="numeric"
+                value={graceText}
+                disabled={!canEdit || update.isPending}
+                onChange={(e) => setGraceText(e.target.value)}
+                placeholder="30"
+                className="tnum"
+                aria-invalid={!parsedGrace.ok}
+              />
+            </Field>
+          </div>
+          {!canEdit && (
+            <p className="text-xs text-muted-foreground">Only the organization owner can change this.</p>
+          )}
+        </CardContent>
+        {canEdit && (
+          <CardFooter className="justify-end">
+            <Button type="submit" disabled={!dirty || update.isPending}>
+              {update.isPending && <Loader2 className="size-4 animate-spin" />}
+              Save late fees
+            </Button>
+          </CardFooter>
+        )}
+      </form>
+    </Card>
+  );
+}
+
+function parseLateFeePercent(
+  text: string
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  const trimmed = text.trim();
+  if (trimmed === "") return { ok: true, value: null };
+  if (!/^\d+$/.test(trimmed)) {
+    return { ok: false, error: "Percent must be a whole number" };
+  }
+  const n = Number(trimmed);
+  if (n < 0 || n > 100) return { ok: false, error: "Percent must be 0–100" };
+  return { ok: true, value: n === 0 ? null : n };
+}
+
+function parseLateFeeFlatDollars(
+  text: string
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  const trimmed = text.trim();
+  if (trimmed === "") return { ok: true, value: null };
+  if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) {
+    return { ok: false, error: "Flat fee must be dollars and cents, like 10.00" };
+  }
+  const cents = Math.round(Number(trimmed) * 100);
+  if (cents > 100_000_000) return { ok: false, error: "Flat fee is too large" };
+  return { ok: true, value: cents === 0 ? null : cents };
+}
+
+function parseLateFeeGraceDays(
+  text: string
+): { ok: true; value: number | null } | { ok: false; error: string } {
+  const trimmed = text.trim();
+  if (trimmed === "") return { ok: true, value: null };
+  if (!/^\d+$/.test(trimmed)) {
+    return { ok: false, error: "Grace days must be a whole number" };
+  }
+  const n = Number(trimmed);
+  if (n < 0 || n > 365) return { ok: false, error: "Grace days must be 0–365" };
+  return { ok: true, value: n };
 }
 
 /** Blank/0 → null. Rejects negatives, >100%, and junk like "2.9abc". */

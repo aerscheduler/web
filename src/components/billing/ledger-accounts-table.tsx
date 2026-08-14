@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useTimeZone } from "@/lib/use-timezone";
 import { useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Users, Wallet } from "lucide-react";
@@ -12,7 +13,7 @@ import { DataTable } from "@/components/data-table";
 import { ListSearchBar, type FacetDef, type ListFilterValues } from "@/components/list-filters";
 import { EmptyState, ErrorState, StatSkeleton, TableSkeleton } from "@/components/states";
 import { Card } from "@/components/ui/card";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatMoney } from "@/lib/utils";
 
 const STATUS_FACETS: FacetDef[] = [
   {
@@ -29,7 +30,7 @@ const STATUS_FACETS: FacetDef[] = [
   },
 ];
 
-function accountColumns(): ColumnDef<LedgerAccount, unknown>[] {
+function accountColumns(formatDay: (iso: string | null) => string): ColumnDef<LedgerAccount, unknown>[] {
   return [
     {
       id: "name",
@@ -88,7 +89,7 @@ function accountColumns(): ColumnDef<LedgerAccount, unknown>[] {
       accessorFn: (r) => r.lastActivityAt,
       cell: ({ getValue }) => (
         <span className="tnum whitespace-nowrap text-sm text-muted-foreground">
-          {formatDate(getValue() as string | null)}
+          {formatDay(getValue() as string | null)}
         </span>
       ),
     },
@@ -147,7 +148,11 @@ export function LedgerAccountsTable() {
   const q = useLedgerAccountsPage(filter, paging);
   const { rows, total } = pageRows(q);
   const summary = q.data?.summary;
-  const columns = useMemo(() => accountColumns(), []);
+  const tz = useTimeZone();
+  const columns = useMemo(
+    () => accountColumns((iso) => (iso ? tz.date(iso) : "–")),
+    [tz]
+  );
 
   function openAccount(account: LedgerAccount) {
     void navigate({
@@ -160,7 +165,10 @@ export function LedgerAccountsTable() {
   const filtersActive = !!debouncedQ || status.length > 0;
 
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden"
+      data-doc-shot="ledger-accounts-table"
+    >
       {q.isPending ? (
         <StatSkeleton count={4} />
       ) : (

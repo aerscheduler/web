@@ -281,6 +281,12 @@ export interface OrganizationBookingPolicy {
    * Null = off. 0 = cannot book with any negative balance.
    */
   balanceMaximumCents?: number | null;
+  /**
+   * Ledger mode only. Checked at ramp-out. Null = off (book gates are not re-applied).
+   * Staff (owner/admin/dispatcher) skip.
+   */
+  dispatchMinimumBalanceCents?: number | null;
+  dispatchBalanceMaximumCents?: number | null;
 }
 
 /** Org-wide slot offer / standby settings (1:1). Master switch plus hold / spam governors. */
@@ -1595,6 +1601,38 @@ export interface OrganizationLedgerSettings {
   topUpCardFeePercent: number | null;
   /** Flat cents (30 = $0.30). Null = none. */
   topUpCardFeeFlatCents: number | null;
+  /** Whole percent (5 = 5%). Null/0 = off. */
+  lateFeePercent: number | null;
+  lateFeeFlatCents: number | null;
+  lateFeeGraceDays: number | null;
+}
+
+export type LedgerAutoRefillMode = "under_threshold" | "pay_balance" | "fixed_amount";
+export type LedgerAutoRefillCadence = "daily" | "monthly";
+export type LedgerAutoRefillPausedReason =
+  | "declined_card"
+  | "needs_authentication"
+  | "no_payment_method"
+  /** The SCHOOL has not connected Stripe. Never blame the member's card for this. */
+  | "org_not_connected"
+  /** Repeated failures we could not attribute to the card. */
+  | "stripe_unavailable"
+  | "disabled_by_member"
+  | "disabled_by_admin";
+
+export interface LedgerAutoRefill {
+  enabled: boolean;
+  mode: LedgerAutoRefillMode;
+  thresholdCents: number | null;
+  chargeCents: number | null;
+  cadence: LedgerAutoRefillCadence;
+  monthlyDay: number | null;
+  runHourLocal: number;
+  lastAttemptAt: string | null;
+  lastSuccessAt: string | null;
+  consecutiveFailures: number;
+  nextEligibleAt: string | null;
+  pausedReason: LedgerAutoRefillPausedReason | null;
 }
 
 /** One refundable card top-up from GET …/ledger/refundable. */

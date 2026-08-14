@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { format, parseISO } from "date-fns";
+import { useTimeZone } from "@/lib/use-timezone";
 import { CircleDollarSign, FileText, Wallet } from "lucide-react";
 import { pageRows, useMemberLedgerPage } from "@/features/queries";
 import { usePaging } from "@/lib/paging";
@@ -47,8 +47,8 @@ const LEDGER_FACETS: FacetDef[] = [
   { kind: "dateRange", key: "dateRange", label: "Date range" },
 ];
 
-function fmtDate(iso: string | null | undefined) {
-  return iso ? format(parseISO(iso), "MMM d, yyyy") : "–";
+function fmtDate(iso: string | null | undefined, date: (instant: string) => string) {
+  return iso ? date(iso) : "–";
 }
 
 function canReassignFlightCharge(entry: LedgerEntry): boolean {
@@ -61,6 +61,7 @@ function canReassignFlightCharge(entry: LedgerEntry): boolean {
 function ledgerColumns(opts: {
   onReceipt: (entry: LedgerEntry) => void;
   onReassign?: (entry: LedgerEntry) => void;
+  formatDay: (iso: string) => string;
 }): ColumnDef<LedgerEntry, unknown>[] {
   return [
     {
@@ -70,7 +71,7 @@ function ledgerColumns(opts: {
       accessorFn: (r) => r.createdAt,
       cell: ({ getValue }) => (
         <span className="tnum whitespace-nowrap text-sm text-muted-foreground">
-          {fmtDate(getValue() as string)}
+          {fmtDate(getValue() as string, opts.formatDay)}
         </span>
       ),
     },
@@ -172,11 +173,13 @@ function LedgerCard({
   onReceipt,
   onReassign,
   onOpen,
+  formatDay,
 }: {
   entry: LedgerEntry;
   onReceipt: (entry: LedgerEntry) => void;
   onReassign?: (entry: LedgerEntry) => void;
   onOpen?: () => void;
+  formatDay: (iso: string) => string;
 }) {
   const canReceipt = LEDGER_RECEIPT_TYPES.has(entry.type);
   const canReassign = onReassign != null && canReassignFlightCharge(entry);
@@ -186,7 +189,7 @@ function LedgerCard({
         <div className="min-w-0">
           <div className="text-sm font-medium">{ledgerEntryLabel(entry.type)}</div>
           <div className="tnum mt-0.5 text-xs text-muted-foreground">
-            {fmtDate(entry.createdAt)} · {ledgerPostedByLabel(entry)}
+            {fmtDate(entry.createdAt, formatDay)} · {ledgerPostedByLabel(entry)}
             {entry.memo ? ` · ${entry.memo}` : ""}
           </div>
           {(canReceipt || canReassign) && (
@@ -250,6 +253,8 @@ export function MemberLedgerTable({
   /** People tab: show the Account ledger heading and desk actions here. */
   showTitle?: boolean;
 }) {
+  const tz = useTimeZone();
+  const formatDay = useCallback((iso: string) => tz.date(iso), [tz]);
   const [search, setSearch] = useState("");
   const debouncedQ = useDebouncedValue(search);
   const [facets, setFacets] = useState<ListFilterValues>({});
@@ -284,13 +289,14 @@ export function MemberLedgerTable({
   const columns = useMemo(
     () =>
       ledgerColumns({
+        formatDay,
         onReceipt: (entry) => {
           setDetailEntry(null);
           setReceiptEntryId(entry.id);
         },
         onReassign: canManage ? (entry) => setReassignEntry(entry) : undefined,
       }),
-    [canManage]
+    [canManage, formatDay]
   );
   const stepEntry = useCallback(
     (delta: -1 | 1) => {
@@ -330,6 +336,7 @@ export function MemberLedgerTable({
       mobileCard={(entry) => (
         <LedgerCard
           entry={entry}
+          formatDay={formatDay}
           onOpen={() => {
             setReceiptEntryId(null);
             setDetailEntry(entry);

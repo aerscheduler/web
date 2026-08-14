@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import type { LedgerReceipt } from "@/types/api";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatMoney } from "@/lib/utils";
+import { useTimeZone } from "@/lib/use-timezone";
 import { DetailPanel } from "@/components/detail-panel";
 import { Button } from "@/components/ui/button";
 import { DocsHint } from "@/components/docs-hint";
@@ -42,6 +43,7 @@ export function LedgerReceiptSheet({
   });
 
   const receipt = q.data;
+  const tz = useTimeZone();
 
   return (
     <DetailPanel
@@ -82,7 +84,9 @@ export function LedgerReceiptSheet({
               {receipt.member.email ? ` · ${receipt.member.email}` : ""}
             </div>
             <div className="mt-1 text-xs tabular-nums text-muted-foreground">
-              {formatDate(receipt.entry.createdAt)} · Ref #{receipt.entry.id}
+              {tz.date(receipt.entry.createdAt)}
+              {tz.differs(receipt.entry.createdAt) ? ` ${tz.label(receipt.entry.createdAt)}` : ""}
+              {" · "}Ref #{receipt.entry.id}
             </div>
           </div>
 
@@ -101,18 +105,38 @@ export function LedgerReceiptSheet({
           )}
 
           <ul className="divide-y rounded-md border">
-            {receipt.entry.items.map((item) => (
+            {/*
+              Ledger line items are stored SIGNED so their sum equals the entry's
+              signed amountCents (see itemsToLedger on the server). A receipt is a
+              customer-facing document listing what they were charged, and the total
+              below is already absolute, so the lines have to be absolute too. Printing
+              the raw values put "-$150.00" above "Total $150.00" on every receipt.
+            */}
+            {(receipt.entry.items.length > 0
+              ? receipt.entry.items.map((item) => ({
+                  key: String(item.id),
+                  name: item.name,
+                  qty: item.qty,
+                  amount: Math.abs(item.qty * item.unitPrice),
+                }))
+              : [
+                  {
+                    key: "memo",
+                    name: receipt.entry.memo?.trim() || entryLabel(receipt.entry.type),
+                    qty: 1,
+                    amount: Math.abs(receipt.entry.amountCents),
+                  },
+                ]
+            ).map((item) => (
               <li
-                key={item.id}
+                key={item.key}
                 className="flex items-center justify-between gap-3 px-3 py-2"
               >
                 <span>
                   {item.name}
                   {item.qty !== 1 ? ` × ${item.qty}` : ""}
                 </span>
-                <span className="tabular-nums">
-                  {formatMoney(item.qty * item.unitPrice)}
-                </span>
+                <span className="tabular-nums">{formatMoney(item.amount)}</span>
               </li>
             ))}
           </ul>

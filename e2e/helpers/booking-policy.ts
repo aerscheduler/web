@@ -9,6 +9,8 @@ export type BookingPolicySnapshot = {
   lateCancelFeeCents: number | null;
   minimumBalanceCents: number | null;
   balanceMaximumCents: number | null;
+  dispatchMinimumBalanceCents: number | null;
+  dispatchBalanceMaximumCents: number | null;
   requirePaymentMethod: boolean;
 };
 
@@ -41,6 +43,14 @@ export async function readBookingPolicy(
       typeof policy.minimumBalanceCents === "number" ? policy.minimumBalanceCents : null,
     balanceMaximumCents:
       typeof policy.balanceMaximumCents === "number" ? policy.balanceMaximumCents : null,
+    dispatchMinimumBalanceCents:
+      typeof policy.dispatchMinimumBalanceCents === "number"
+        ? policy.dispatchMinimumBalanceCents
+        : null,
+    dispatchBalanceMaximumCents:
+      typeof policy.dispatchBalanceMaximumCents === "number"
+        ? policy.dispatchBalanceMaximumCents
+        : null,
     requirePaymentMethod: policy.requirePaymentMethod === true,
   };
 }
@@ -74,6 +84,8 @@ export async function restoreBookingPolicy(
         lateCancelFeeCents: prior.lateCancelFeeCents,
         minimumBalanceCents: prior.minimumBalanceCents,
         balanceMaximumCents: prior.balanceMaximumCents,
+        dispatchMinimumBalanceCents: prior.dispatchMinimumBalanceCents,
+        dispatchBalanceMaximumCents: prior.dispatchBalanceMaximumCents,
         requirePaymentMethod: prior.requirePaymentMethod,
       },
     },

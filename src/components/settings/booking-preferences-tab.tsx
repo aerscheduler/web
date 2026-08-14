@@ -117,6 +117,16 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
       ? String(bookingPolicy.balanceMaximumCents / 100)
       : ""
   );
+  const [dispatchMinDollars, setDispatchMinDollars] = useState(() =>
+    bookingPolicy?.dispatchMinimumBalanceCents != null
+      ? String(bookingPolicy.dispatchMinimumBalanceCents / 100)
+      : ""
+  );
+  const [dispatchMaxOwedDollars, setDispatchMaxOwedDollars] = useState(() =>
+    bookingPolicy?.dispatchBalanceMaximumCents != null
+      ? String(bookingPolicy.dispatchBalanceMaximumCents / 100)
+      : ""
+  );
   const [pending, setPending] = useState<
     | PrefField
     | "requirePaymentMethod"
@@ -185,6 +195,16 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
         ? String(bookingPolicy.balanceMaximumCents / 100)
         : ""
     );
+    setDispatchMinDollars(
+      bookingPolicy?.dispatchMinimumBalanceCents != null
+        ? String(bookingPolicy.dispatchMinimumBalanceCents / 100)
+        : ""
+    );
+    setDispatchMaxOwedDollars(
+      bookingPolicy?.dispatchBalanceMaximumCents != null
+        ? String(bookingPolicy.dispatchBalanceMaximumCents / 100)
+        : ""
+    );
     setQuietKey(quietHoursKey(slotOfferSettings));
     setMaxPending(String(slotOfferSettings?.maxPendingOffers ?? 10));
     setMaxPendingPerMember(String(slotOfferSettings?.maxPendingOffersPerMember ?? 2));
@@ -220,6 +240,8 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     bookingPolicy?.maxReservationMinutes,
     bookingPolicy?.minimumBalanceCents,
     bookingPolicy?.balanceMaximumCents,
+    bookingPolicy?.dispatchMinimumBalanceCents,
+    bookingPolicy?.dispatchBalanceMaximumCents,
   ]);
 
   function savePref(field: PrefField, value: boolean, apply: (v: boolean) => void) {
@@ -370,6 +392,8 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
     maxReservationMinutes?: number | null;
     minimumBalanceCents?: number | null;
     balanceMaximumCents?: number | null;
+    dispatchMinimumBalanceCents?: number | null;
+    dispatchBalanceMaximumCents?: number | null;
   }) {
     setPending("bookingRules");
     update.mutate(
@@ -400,6 +424,16 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
           setMaxOwedDollars(
             bookingPolicy?.balanceMaximumCents != null
               ? String(bookingPolicy.balanceMaximumCents / 100)
+              : ""
+          );
+          setDispatchMinDollars(
+            bookingPolicy?.dispatchMinimumBalanceCents != null
+              ? String(bookingPolicy.dispatchMinimumBalanceCents / 100)
+              : ""
+          );
+          setDispatchMaxOwedDollars(
+            bookingPolicy?.dispatchBalanceMaximumCents != null
+              ? String(bookingPolicy.dispatchBalanceMaximumCents / 100)
               : ""
           );
         },
@@ -975,6 +1009,99 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                 <p className="text-xs text-muted-foreground">
                   Block self-book once they owe more than this. $0 means any
                   negative balance is refused. Same staff bypass as payment method.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {ledgerOn && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Minimum credit to dispatch
+                  </Label>
+                  <DocsHint topic="ledger-dispatch-gates" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="1"
+                    placeholder="Off"
+                    className="max-w-[8rem]"
+                    value={dispatchMinDollars}
+                    disabled={rulesDisabled}
+                    onChange={(e) => setDispatchMinDollars(e.target.value)}
+                    onBlur={() => {
+                      const parsed = parseLedgerGateDollars(dispatchMinDollars);
+                      if ("error" in parsed) {
+                        toast.error(parsed.error);
+                        setDispatchMinDollars(
+                          bookingPolicy?.dispatchMinimumBalanceCents != null
+                            ? String(bookingPolicy.dispatchMinimumBalanceCents / 100)
+                            : ""
+                        );
+                        return;
+                      }
+                      if ("clear" in parsed) {
+                        setDispatchMinDollars("");
+                        saveBookingRules({ dispatchMinimumBalanceCents: null });
+                        return;
+                      }
+                      saveBookingRules({ dispatchMinimumBalanceCents: parsed.cents });
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Checked at ramp-out, not when they book. Leave blank to skip
+                  (book gates are not re-applied). Owners and admins still
+                  override; dispatchers do not, so the front desk cannot launch
+                  a member who is under the floor.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Maximum owing to dispatch
+                  </Label>
+                  <DocsHint topic="ledger-dispatch-gates" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">$</span>
+                  <Input
+                    type="number"
+                    min={0}
+                    step="1"
+                    placeholder="Off"
+                    className="max-w-[8rem]"
+                    value={dispatchMaxOwedDollars}
+                    disabled={rulesDisabled}
+                    onChange={(e) => setDispatchMaxOwedDollars(e.target.value)}
+                    onBlur={() => {
+                      const parsed = parseLedgerGateDollars(dispatchMaxOwedDollars);
+                      if ("error" in parsed) {
+                        toast.error(parsed.error);
+                        setDispatchMaxOwedDollars(
+                          bookingPolicy?.dispatchBalanceMaximumCents != null
+                            ? String(bookingPolicy.dispatchBalanceMaximumCents / 100)
+                            : ""
+                        );
+                        return;
+                      }
+                      if ("clear" in parsed) {
+                        setDispatchMaxOwedDollars("");
+                        saveBookingRules({ dispatchBalanceMaximumCents: null });
+                        return;
+                      }
+                      saveBookingRules({ dispatchBalanceMaximumCents: parsed.cents });
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Block ramp-out once they owe more than this. Independent of the
+                  self-book ceiling.
                 </p>
               </div>
             </div>

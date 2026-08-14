@@ -3,6 +3,7 @@ import { Building2, CreditCard, Loader2, Plus, Receipt, Star, Trash2, Zap } from
 import { toast } from "sonner";
 import {
   useMyBillingSettings,
+  useOrgLedgerSettings,
   usePaymentMethods,
   useRemovePaymentMethod,
   useSetAutoPay,
@@ -16,6 +17,7 @@ import { EmptyState } from "@/components/states";
 import { DocsHint } from "@/components/docs-hint";
 import { AddCardDialog } from "@/components/me-money/add-card-dialog";
 import { AddFundsDialog } from "@/components/me-money/add-funds-dialog";
+import { AutoRefillCard } from "@/components/me-money/auto-refill-card";
 import { useConfirm } from "@/components/confirm-dialog";
 import {
   Card,
@@ -55,6 +57,7 @@ export function PaymentMethodsPanel() {
 
   const methodsQ = usePaymentMethods({ enabled: organization != null });
   const billingQ = useMyBillingSettings({ enabled: organization != null });
+  const ledgerQ = useOrgLedgerSettings({ enabled: organization != null });
   const remove = useRemovePaymentMethod();
   const setDefault = useSetDefaultPaymentMethod();
   const setAutoPay = useSetAutoPay();
@@ -70,7 +73,8 @@ export function PaymentMethodsPanel() {
   const methods = methodsQ.data ?? [];
   const hasDefault = methods.some((m) => m.defaultPaymentMethod);
   const autoPay = billingQ.data?.autoPay ?? false;
-  const ledgerOn = billingQ.data?.ledgerEnabled === true;
+  const ledgerOn =
+    ledgerQ.data?.enabled === true || billingQ.data?.ledgerEnabled === true;
   const balanceCents = billingQ.data?.balanceCents ?? 0;
 
   // A billing 500/404 here means the org hasn't finished Stripe onboarding.
@@ -125,16 +129,18 @@ export function PaymentMethodsPanel() {
     }
   }
 
-  if (billingUnavailable) {
-    return (
-      <Card className="p-0">
-        <EmptyState
-          icon={CreditCard}
-          title="Online payments aren't set up"
-          body="Your school hasn't enabled card payments yet. Once they do, you can save a card and pay invoices here."
-        />
-      </Card>
-    );
+  const stripeEmpty = (
+    <Card className="p-0">
+      <EmptyState
+        icon={CreditCard}
+        title="Online payments aren't set up"
+        body="Your school hasn't enabled card payments yet. Once they do, you can save a card and pay invoices here."
+      />
+    </Card>
+  );
+
+  if (billingUnavailable && !ledgerOn && !ledgerQ.isPending) {
+    return stripeEmpty;
   }
 
   return (
@@ -159,13 +165,19 @@ export function PaymentMethodsPanel() {
                   )}
                 </CardDescription>
               </div>
-              <Button size="sm" onClick={() => setAddFundsOpen(true)}>
+              <Button size="sm" onClick={() => setAddFundsOpen(true)} disabled={billingUnavailable}>
                 Add funds
               </Button>
             </CardHeader>
           </Card>
         )}
 
+        {ledgerOn && orgUserId != null && <AutoRefillCard orgUserId={orgUserId} />}
+
+        {billingUnavailable ? (
+          stripeEmpty
+        ) : (
+          <>
         {/* Autopay */}
         <Card>
           <CardHeader className="flex-row items-center justify-between gap-4 space-y-0">
@@ -263,6 +275,8 @@ export function PaymentMethodsPanel() {
             )}
           </CardContent>
         </Card>
+          </>
+        )}
       </div>
 
       <AddCardDialog open={addOpen} onOpenChange={setAddOpen} />

@@ -74,7 +74,7 @@ export function LedgerAddCreditDialog({
           <DialogTitle>Add credit</DialogTitle>
           <DialogDescription>
             Record cash, check, or other money received at the desk. This credits the account ledger
-            only — it does not move money through Stripe.
+            only. It does not move money through Stripe.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -173,8 +173,8 @@ export function LedgerAdjustmentDialog({
         <DialogHeader>
           <DialogTitle>Adjustment</DialogTitle>
           <DialogDescription>
-            Correct the balance with a signed amount. Use Refund when money is leaving the school —
-            adjustments are for true corrections, not payouts.
+            Correct the balance with a signed amount. Use Refund when money is leaving the school.
+            Adjustments are for true corrections, not payouts.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
@@ -252,6 +252,8 @@ export function LedgerRefundDialog({
   const [dollars, setDollars] = React.useState("");
   const [memo, setMemo] = React.useState("");
   const [submitted, setSubmitted] = React.useState(false);
+  /** One id per time the dialog is opened; feeds the Stripe idempotency key. */
+  const [attemptId, setAttemptId] = React.useState(() => Math.random().toString(36).slice(2));
 
   const balance = refundableQ.data?.balanceCents ?? 0;
   const stripeTopups = (refundableQ.data?.topups ?? []).filter(
@@ -265,6 +267,7 @@ export function LedgerRefundDialog({
       setDollars("");
       setMemo("");
       setSubmitted(false);
+      setAttemptId(Math.random().toString(36).slice(2));
       refund.reset();
       return;
     }
@@ -452,6 +455,10 @@ export function LedgerRefundDialog({
                   method,
                   memo: memo.trim(),
                   topupEntryId: method === "stripe" ? Number(topupId) : undefined,
+                  // Keyed to this dialog session AND the exact amount/charge, so a retry
+                  // after a lost response reuses Stripe's first refund instead of issuing
+                  // a second one, while an edited amount correctly gets a fresh key.
+                  idempotencyKey: `ledger_refund_${orgUserId}_${attemptId}_${nextCents}_${topupId || "none"}`,
                 });
                 toast.success(
                   method === "stripe"

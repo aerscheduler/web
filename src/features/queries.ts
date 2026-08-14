@@ -90,6 +90,7 @@ import type {
   SmsStatus,
   OrganizationBillingSettings,
   OrganizationLedgerSettings,
+  LedgerAutoRefill,
   OrganizationRating,
   OrganizationUser,
   RampInInput,
@@ -628,12 +629,38 @@ export function useUpdateOrgLedgerSettings() {
       enabled?: boolean;
       topUpCardFeePercent?: number | null;
       topUpCardFeeFlatCents?: number | null;
+      lateFeePercent?: number | null;
+      lateFeeFlatCents?: number | null;
+      lateFeeGraceDays?: number | null;
     }) => api<OrganizationLedgerSettings>("/organizations/ledger", { method: "PATCH", body: input }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["organizations", "ledger"] });
       void qc.invalidateQueries({ queryKey: ["billing"] });
       // Member ledgers embed `ledgerEnabled`; refresh so Add funds / desk actions appear.
       void qc.invalidateQueries({ queryKey: ["orgUsers"] });
+    },
+  });
+}
+
+export function useLedgerAutoRefill(orgUserId: number | null | undefined, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["orgUsers", orgUserId, "ledger", "auto-refill"],
+    queryFn: () => api<LedgerAutoRefill>(`/orgUsers/${orgUserId}/ledger/auto-refill`),
+    enabled: orgUserId != null,
+    ...opts,
+  });
+}
+
+export function useUpdateLedgerAutoRefill(orgUserId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: Partial<LedgerAutoRefill>) =>
+      api<LedgerAutoRefill>(`/orgUsers/${orgUserId}/ledger/auto-refill`, {
+        method: "PATCH",
+        body: input,
+      }),
+    onSuccess: (data) => {
+      qc.setQueryData(["orgUsers", orgUserId, "ledger", "auto-refill"], data);
     },
   });
 }

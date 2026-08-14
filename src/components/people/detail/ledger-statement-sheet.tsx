@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
-import { format, isValid, parseISO, subDays } from "date-fns";
+import { useState } from "react";
 import { toast } from "sonner";
 import { useEmailLedgerStatement, useMemberLedgerStatement } from "@/features/queries";
 import { ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/utils";
+import { dateKeyInZone } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
 import { DetailPanel } from "@/components/detail-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,27 +16,10 @@ const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 /** Match server STATEMENT_MAX_SPAN_MS (two calendar years including a leap day). */
 const STATEMENT_MAX_SPAN_MS = 2 * 366 * 24 * 60 * 60 * 1000;
 
-function ymd(d: Date) {
-  return format(d, "yyyy-MM-dd");
-}
-
-function dayStartIso(day: string) {
-  if (!DAY_RE.test(day)) return null;
-  const d = new Date(`${day}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
-
-function dayEndIso(day: string) {
-  if (!DAY_RE.test(day)) return null;
-  const d = new Date(`${day}T23:59:59.999`);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString();
-}
-
-function fmtWhen(iso: string) {
-  const d = parseISO(iso);
-  return isValid(d) ? format(d, "MMM d, yyyy") : iso.slice(0, 10);
+function shiftDayKey(day: string, deltaDays: number): string {
+  const ms = Date.parse(`${day}T00:00:00Z`);
+  if (!Number.isFinite(ms)) return day;
+  return new Date(ms + deltaDays * 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
@@ -51,26 +35,26 @@ export function LedgerStatementSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const today = useMemo(() => new Date(), []);
-  const [fromDay, setFromDay] = useState(() => ymd(subDays(today, 30)));
-  const [toDay, setToDay] = useState(() => ymd(today));
+  const tz = useTimeZone();
+  const schoolZone = tz.orgZone ?? tz.zone;
+  const todayKey = dateKeyInZone(new Date(), schoolZone);
+  const [fromDay, setFromDay] = useState(() => shiftDayKey(todayKey, -30));
+  const [toDay, setToDay] = useState(() => todayKey);
 
   let range: { start: string; end: string } | null = null;
   let rangeError: string | null = null;
-  if (!fromDay || !toDay) {
+  if (!DAY_RE.test(fromDay) || !DAY_RE.test(toDay)) {
     rangeError = "Pick a start and end date.";
   } else if (fromDay > toDay) {
     rangeError = "Start must be on or before end.";
+  } else if (
+    Date.parse(`${toDay}T00:00:00Z`) - Date.parse(`${fromDay}T00:00:00Z`) >
+    STATEMENT_MAX_SPAN_MS
+  ) {
+    rangeError = "Statement period cannot exceed two years.";
   } else {
-    const start = dayStartIso(fromDay);
-    const end = dayEndIso(toDay);
-    if (!start || !end) {
-      rangeError = "Pick a start and end date.";
-    } else if (Date.parse(end) - Date.parse(start) > STATEMENT_MAX_SPAN_MS) {
-      rangeError = "Statement period cannot exceed two years.";
-    } else {
-      range = { start, end };
-    }
+    // Date-only: the API reads these as school-local midnights, not the browser's.
+    range = { start: fromDay, end: toDay };
   }
 
   const q = useMemberLedgerStatement(orgUserId, open ? range : null);
@@ -160,7 +144,8 @@ export function LedgerStatementSheet({
             <div>
               <div className="font-medium">Account statement</div>
               <div className="text-muted-foreground">
-                {fmtWhen(stmt.start)} to {fmtWhen(stmt.end)}
+                {fromDay} to {toDay}
+                {tz.differs(new Date()) ? ` · ${tz.label(new Date())}` : ""}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
@@ -188,7 +173,9 @@ export function LedgerStatementSheet({
                 <tbody>
                   {stmt.entries.map((row) => (
                     <tr key={row.id} className="border-b border-border/60">
-                      <td className="py-1.5 text-muted-foreground">{fmtWhen(row.createdAt)}</td>
+                      <td className="py-1.5 text-muted-foreground">
+                        {tz.date(row.createdAt)}
+                      </td>
                       <td className="py-1.5">
                         {ledgerEntryLabel(row.type)}
                         {row.memo ? (

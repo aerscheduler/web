@@ -890,6 +890,8 @@ export interface Announcement {
   createdAt: string;
   expireAt: string | null;
   forRoles?: Role[] | null;
+  /** When this member tapped Got it. Null until then. */
+  seenAt?: string | null;
 }
 
 /**

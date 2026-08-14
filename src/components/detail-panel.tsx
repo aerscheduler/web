@@ -26,9 +26,12 @@ type Ctx = {
   /** The docked column's DOM node, the portal target. Null until mounted. */
   mount: HTMLElement | null;
   setMount: (el: HTMLElement | null) => void;
-  /** True while a panel is docked, so the outlet can claim its width. */
-  docked: boolean;
-  setDocked: (v: boolean) => void;
+  /** Which panel currently owns the dock. Null while it is empty. */
+  active: string | null;
+  /** Take the dock, closing whoever held it. */
+  claim: (id: string, close: () => void) => void;
+  /** Give it up, if this panel still holds it. */
+  release: (id: string) => void;
 };
 
 const DetailPanelCtx = React.createContext<Ctx | null>(null);
@@ -36,11 +39,40 @@ const DetailPanelCtx = React.createContext<Ctx | null>(null);
 /**
  * Wraps the app shell so a page anywhere below can dock a detail panel into the
  * outlet without threading props through every layout.
+ *
+ * There is ONE dock, and it holds ONE record. Every open panel on the page used to
+ * portal into the same column, so a page with two kinds of record on it (the
+ * dashboard's schedule and its invoices, a report's rows) stacked them: the second
+ * one rendered below the first, off the bottom of a column that does not scroll, so
+ * clicking a booking while an invoice was open looked like the click did nothing,
+ * and closing one revealed the other still sitting there. The dock is a claim now,
+ * and taking it closes the previous holder, which is what "swaps in place" already
+ * meant on a single-record page.
  */
 export function DetailPanelProvider({ children }: { children: React.ReactNode }) {
   const [mount, setMount] = React.useState<HTMLElement | null>(null);
-  const [docked, setDocked] = React.useState(false);
-  const value = React.useMemo(() => ({ mount, setMount, docked, setDocked }), [mount, docked]);
+  const [active, setActive] = React.useState<string | null>(null);
+  //Held outside state so a claim can reach the outgoing panel's closer without the
+  //claiming effect having to depend on it (and re-run when it changes).
+  const holder = React.useRef<{ id: string; close: () => void } | null>(null);
+
+  const claim = React.useCallback((id: string, close: () => void) => {
+    const prev = holder.current;
+    holder.current = { id, close };
+    setActive(id);
+    if (prev && prev.id !== id) prev.close();
+  }, []);
+
+  const release = React.useCallback((id: string) => {
+    if (holder.current?.id !== id) return;
+    holder.current = null;
+    setActive(null);
+  }, []);
+
+  const value = React.useMemo(
+    () => ({ mount, setMount, active, claim, release }),
+    [mount, active, claim, release],
+  );
   return <DetailPanelCtx.Provider value={value}>{children}</DetailPanelCtx.Provider>;
 }
 
@@ -53,15 +85,16 @@ export function DetailPanelProvider({ children }: { children: React.ReactNode })
  */
 export function DetailPanelOutlet() {
   const ctx = React.useContext(DetailPanelCtx);
+  const open = ctx?.active != null;
   return (
     <aside
       ref={ctx?.setMount ?? null}
-      aria-hidden={ctx?.docked ? undefined : true}
-      style={{ width: ctx?.docked ? PANEL_WIDTH : 0 }}
+      aria-hidden={open ? undefined : true}
+      style={{ width: open ? PANEL_WIDTH : 0 }}
       className={cn(
         "flex min-h-0 shrink-0 flex-col overflow-hidden bg-background",
         "transition-[width] duration-200 ease-out motion-reduce:transition-none",
-        ctx?.docked && "border-l",
+        open && "border-l",
       )}
     />
   );
@@ -108,12 +141,24 @@ export function DetailPanel({
   const canDock = useMediaQuery(DOCK_QUERY);
   const docked = canDock && ctx?.mount != null;
 
-  const setDocked = ctx?.setDocked;
+  //Take the dock while open, hand it back on close or unmount. Whoever held it is
+  //closed by the claim, so a page never has to remember to shut one panel before
+  //opening another (and every page that forgot ended up with two in the column).
+  const id = React.useId();
+  const closeRef = React.useRef(onOpenChange);
+  closeRef.current = onOpenChange;
+  const claim = ctx?.claim;
+  const release = ctx?.release;
   React.useEffect(() => {
-    if (!setDocked) return;
-    setDocked(docked && open);
-    return () => setDocked(false);
-  }, [setDocked, docked, open]);
+    if (!claim || !release || !docked || !open) return;
+    claim(id, () => closeRef.current(false));
+    return () => release(id);
+  }, [claim, release, docked, open, id]);
+
+  //Never two in the column at once. The claim above settles this an effect later than
+  //the render that opened us, so until it lands the incoming panel draws nothing rather
+  //than drawing underneath the outgoing one.
+  const holdsDock = ctx?.active === id;
 
   // Docked, the panel is NOT modal (no scrim, no focus trap) so Escape and the
   // arrow keys have to be claimed deliberately, and given up whenever a dialog,
@@ -121,7 +166,7 @@ export function DetailPanel({
   const stepRef = React.useRef(onStep);
   stepRef.current = onStep;
   React.useEffect(() => {
-    if (!open || !docked) return;
+    if (!open || !docked || !holdsDock) return;
     function onKey(e: KeyboardEvent) {
       if (e.defaultPrevented) return;
       if (document.querySelector("[role='dialog'], [data-radix-popper-content-wrapper]")) return;
@@ -146,14 +191,14 @@ export function DetailPanel({
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, docked, onOpenChange]);
+  }, [open, docked, holdsDock, onOpenChange]);
 
   const body = (
     <div className={cn("min-h-0 flex-1 overflow-y-auto px-4 pb-4", className)}>{children}</div>
   );
 
   if (docked) {
-    if (!open || !ctx?.mount) return null;
+    if (!open || !holdsDock || !ctx?.mount) return null;
     return createPortal(
       <section
         aria-label={typeof title === "string" ? title : "Details"}

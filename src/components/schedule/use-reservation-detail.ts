@@ -55,10 +55,19 @@ export function useReservationDetail(
     //
     // The resource is overlaid only when the detail actually has one: a ground lesson has
     // none, and blanking the row's copy would lose the classroom.
+    //
+    // `payers` likewise. The list ships a DELIBERATELY slim stake, enough to tell a
+    // ledger-billed flight from an unbilled one and nothing more: no `orgUser`, so no way
+    // to tell whose stake it is, and no meters. Everything on this panel that reads a stake
+    // matches on `orgUser.id`, so against a list row it matched nothing and silently
+    // rendered as "none recorded": Who pays what reopened blank over stakes that were saved,
+    // and the lesson grader fell back to the airframe's hours for every student. The detail
+    // stake is a superset of the slim one, so the board's billing helpers keep working.
     if (fullQ.data?.id === fromList.id) {
       return {
         ...fromList,
         ...(fullQ.data.resource ? { resource: fullQ.data.resource } : {}),
+        ...(fullQ.data.payers ? { payers: fullQ.data.payers } : {}),
         paymentOverrides: fullQ.data.paymentOverrides ?? null,
       };
     }

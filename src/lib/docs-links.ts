@@ -429,6 +429,12 @@ export const DOCS_TOPICS = {
 
   /* ── Organization ─────────────────────────────────────────────────────── */
 
+  "hide-announcement": {
+    title: "Got it",
+    summary:
+      "Hides this notice from your Home. It stays on this page until an admin deletes it or it expires. Other members still see it until they tap Got it themselves.",
+    href: "getting-started/post-an-announcement",
+  },
   "delete-organization": {
     title: "Delete this school",
     summary:

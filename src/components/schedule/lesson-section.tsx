@@ -1,10 +1,15 @@
 import * as React from "react";
 import { FileSignature, GraduationCap, Loader2, PenLine } from "lucide-react";
-import type { CandidateLesson, Reservation } from "@/types/api";
+import type {
+  CandidateEnrollment,
+  CandidateLesson,
+  Reservation,
+  ReservationPayer,
+} from "@/types/api";
 import { gradeCodesOf } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import {
-  useCandidateLessons,
+  useCandidateLessonsFor,
   useSaveLessonRecord,
   useSignLessonRecord,
 } from "@/features/queries";
@@ -38,16 +43,31 @@ import { Textarea } from "@/components/ui/textarea";
  */
 export function LessonSection({ reservation }: { reservation: Reservation }) {
   const r = reservation;
-  const { orgUserId, isStaff } = useAuth();
+  const { roles, isAdmin } = useAuth();
 
   //EVERY student on the booking, not just the first. Two students in one aircraft and a
   //group ground school are both ordinary, split billing exists precisely because they
   //are, and grading only the first would leave the second one's record silently blank.
   const students = r.personnel?.students ?? [];
   const isInstructional = ["dual", "ground", "sim", "solo"].includes(r.type);
-  //An instructor on the booking, or staff. A student cannot grade their own lesson.
-  const canGrade =
-    isStaff || (r.personnel?.instructors ?? []).some((i) => i.id === orgUserId);
+  //The SERVER's rule, verbatim (curriculum.routes canGrade): any instructor in the school,
+  //or an owner/admin. Not `isStaff`, which also takes in dispatchers, and not "an instructor
+  //ON THIS BOOKING", which was two wrongs at once: a dispatcher was shown a form the server
+  //then refused, and an instructor grading a student's SOLO, a booking that by definition
+  //carries no instructor, was shown nothing to grade it with.
+  const canGrade = isAdmin || roles.includes("instructor");
+  const eligible = isInstructional && canGrade;
+
+  //Asked for the WHOLE booking up here, not per student down in `StudentLessons`.
+  //Whether there is any grading to do is a question about all of them at once, and
+  //while each student answered it privately the section could not tell "no one here is
+  //enrolled" from "still loading": it drew the header and an empty "Grade the lesson"
+  //card on every dual booking at a school that has never touched curriculum.
+  const candidates = useCandidateLessonsFor(
+    students.map((s) => s.id),
+    r.type,
+    { enabled: eligible }
+  );
 
   //How much grading this booking is carrying, and how much of it is done. Kept up here so
   //the card can answer its own question while shut: on a two-student lesson "1 of 2 graded"
@@ -58,9 +78,25 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
     setGraders((prev) => (prev[key] === signed ? prev : { ...prev, [key]: signed }));
   }, []);
 
-  if (students.length === 0 || !isInstructional || !canGrade) return null;
+  if (students.length === 0 || !eligible) return null;
+  //Nothing at all until every student has answered, then nothing at all unless at least
+  //one of them is enrolled on a course with lessons this booking could close out. Most
+  //schools will never use curriculum and should see no trace of this.
+  if (candidates.some((q) => q.isPending)) return null;
+  const rows = students
+    .map((s, i) => ({
+      student: s,
+      enrollments: (candidates[i]?.data ?? []).filter((e) => e.lessons.length > 0),
+    }))
+    .filter((row) => row.enrollments.length > 0);
+  if (rows.length === 0) return null;
 
-  const total = Object.keys(graders).length;
+  //One grader per course per student, counted from the data rather than from the graders
+  //that have reported in. `CollapsibleContent` unmounts its children while shut, which is
+  //every grader, so counting reports made the summary read 0 and hide itself at exactly the
+  //moment it was supposed to be earning the fold: "0 of 5 graded" is the whole reason to
+  //open a class of six.
+  const total = rows.reduce((n, row) => n + row.enrollments.length, 0);
   const signed = Object.values(graders).filter(Boolean).length;
 
   return (
@@ -75,13 +111,11 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
           title="Grade the lesson"
           icon={GraduationCap}
           summary={
-            total === 0
-              ? undefined
-              : signed === total
-                ? total === 1
-                  ? "signed"
-                  : `all ${total} signed`
-                : `${signed} of ${total} graded`
+            signed === total
+              ? total === 1
+                ? "signed"
+                : `all ${total} signed`
+              : `${signed} of ${total} graded`
           }
           //Shut, always. This was the single longest thing on the sheet: one form per
           //course per student, so a two-student booking opened five of them and pushed the
@@ -89,8 +123,14 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
           //work here without spending a screen and a half to say it.
         >
           <div className="space-y-2">
-            {students.map((s) => (
-              <StudentLessons key={s.id} student={s} reservation={r} onReport={report} />
+            {rows.map(({ student, enrollments }) => (
+              <StudentLessons
+                key={student.id}
+                student={student}
+                enrollments={enrollments}
+                reservation={r}
+                onReport={report}
+              />
             ))}
           </div>
         </CloseOutCard>
@@ -99,25 +139,29 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
   );
 }
 
-/** One student's courses on this booking. Renders nothing if they are enrolled on none. */
+/**
+ * One student's courses on this booking. The section above has already fetched and
+ * filtered these, and only renders this for a student with at least one, so that the
+ * header and the card can be withheld entirely when nobody on the booking has any.
+ */
 function StudentLessons({
   student,
+  enrollments,
   reservation,
   onReport,
 }: {
   student: { id: number; user?: { name?: string } | null };
+  /** This student's enrollments that carry lessons. Never empty. */
+  enrollments: CandidateEnrollment[];
   reservation: Reservation;
   /** Tells the section a grader exists, and whether it has been signed. */
   onReport: (key: string, signed: boolean) => void;
 }) {
-  const candidates = useCandidateLessons({ orgUserId: student.id, type: reservation.type });
-  const enrollments = (candidates.data ?? []).filter((e) => e.lessons.length > 0);
-
-  if (candidates.isLoading) return null;
-  //Not enrolled on anything this booking could be a lesson for. Silence is right: most
-  //schools will never use curriculum, and a "no courses" notice on every dual booking
-  //would be noise on the busiest screen in the product.
-  if (enrollments.length === 0) return null;
+  //THIS student's stake, if the close-out recorded one. On a split booking the operator has
+  //already typed each person's own meters and instruction time in Who pays what, directly
+  //above this, and the grader used to ignore all of it and seed everybody from the
+  //airframe. See the prefill in `LessonGrader`.
+  const payer = (reservation.payers ?? []).find((p) => p.orgUser?.id === student.id) ?? null;
 
   return (
     <div className="space-y-2">
@@ -130,6 +174,7 @@ function StudentLessons({
           key={e.enrollmentId}
           enrollmentId={e.enrollmentId}
           courseName={e.course.name}
+          payer={payer}
           //The course's OWN marks. This grader offered a hard-coded S/U/I, so a school on
           //its own scale could not grade from the close-out at all: the server refused the
           //grade, and the close-out is where most grading happens.
@@ -147,6 +192,7 @@ function StudentLessons({
 function LessonGrader({
   enrollmentId,
   courseName,
+  payer,
   scale,
   lessons,
   reservation,
@@ -155,6 +201,8 @@ function LessonGrader({
 }: {
   enrollmentId: number;
   courseName: string;
+  /** This student's own stake in the close-out, when one was recorded. */
+  payer: ReservationPayer | null;
   /** This course's marks, in display order. Never empty. */
   scale: string[];
   lessons: CandidateLesson[];
@@ -177,12 +225,34 @@ function LessonGrader({
       ? Math.max(0, r.review.hobbsTimeIn - r.review.hobbsTimeOut)
       : null;
 
-  const [flight, setFlight] = React.useState(() =>
-    hobbsDelta ? deciHours(hobbsDelta) : ""
-  );
-  const [ground, setGround] = React.useState(() =>
-    r.review?.briefing ? deciHours(r.review.briefing) : ""
-  );
+  //THIS person's own hours, when the close-out recorded them, in preference to the
+  //airframe's.
+  //
+  //On a `measured` split the operator has already typed each payer's meters and instruction
+  //time, and the engine refuses the split unless they reconcile to what the aircraft ran, so
+  //these are the truest per-person numbers in the system. Seeding every student from the
+  //whole-booking figure instead meant a safety pilot or an observer was prefilled the full
+  //dual time and was one click from signing it into a record an examiner reads, and into the
+  //§61.109 counters that decide whether somebody may test.
+  //
+  //Falls back to the booking's figure whenever there is no stake for this person, which is
+  //every ordinary single-student lesson, so the common case is unchanged. Deliberately does
+  //NOT consult `pilotRole`: a safety pilot logging SIC still flew the time, what their
+  //training record should say about it is a records question, not a prefill.
+  const payerHobbsDelta =
+    payer?.hobbsIn != null && payer?.hobbsOut != null
+      ? Math.max(0, payer.hobbsIn - payer.hobbsOut)
+      : null;
+  //Minutes on the stake, tenths of an hour everywhere in training. Same conversion Who pays
+  //what uses to render the field the operator typed it into.
+  const payerGround =
+    payer?.instructionMinutes != null ? Math.round(payer.instructionMinutes / 6) : null;
+
+  const flightSeed = payerHobbsDelta ?? hobbsDelta;
+  const groundSeed = payerGround ?? r.review?.briefing ?? null;
+
+  const [flight, setFlight] = React.useState(() => (flightSeed ? deciHours(flightSeed) : ""));
+  const [ground, setGround] = React.useState(() => (groundSeed ? deciHours(groundSeed) : ""));
   //The course's first mark, which is the pass on every scale we ship and on almost every
   //scale a school writes. Not the literal "S": that is refused outright by a course that
   //does not use it.

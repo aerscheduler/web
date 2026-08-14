@@ -723,6 +723,17 @@ export function useUpdateAnnouncement() {
   });
 }
 
+/** Member: hide a notice from Home. `POST /announcements/:id/seen`. */
+export function useMarkAnnouncementSeen() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<Announcement>(`/announcements/${id}/seen`, { method: "POST", body: {} }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["announcements"] });
+    },
+  });
+}
+
 /** Admin: remove a notice. `DELETE /announcements/:id`. */
 export function useDeleteAnnouncement() {
   const qc = useQueryClient();
@@ -3569,6 +3580,35 @@ export function useCandidateLessons(
       }),
     enabled: (opts?.enabled ?? true) && args.orgUserId != null,
     ...opts,
+  });
+}
+
+/**
+ * The same lookup for EVERY student on one booking, one query per student, sharing
+ * the cache keys `useCandidateLessons` writes.
+ *
+ * A booking can carry several students (two in the aircraft, a whole ground class),
+ * and whether the close-out has any grading on it at all is a question about the
+ * WHOLE set, not about one student. Asking per-student down in the tree meant the
+ * section could not tell "nobody here is enrolled on anything" from "still loading",
+ * so it drew a Training record header over an empty card. Returns a stable array
+ * aligned to `orgUserIds`.
+ */
+export function useCandidateLessonsFor(
+  orgUserIds: number[],
+  type?: string | null,
+  opts?: QueryOpts
+) {
+  const enabled = opts?.enabled ?? true;
+  return useQueries({
+    queries: orgUserIds.map((id) => ({
+      queryKey: ["training", "candidates", id, type ?? null],
+      queryFn: () =>
+        api<CandidateEnrollment[]>("/training/candidates", {
+          query: { orgUserId: id, type: type ?? undefined },
+        }),
+      enabled: enabled && id != null,
+    })),
   });
 }
 

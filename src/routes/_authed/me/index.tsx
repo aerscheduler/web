@@ -5,6 +5,7 @@ import {
   BadgeCheck,
   CalendarClock,
   CalendarPlus,
+  Check,
   CircleDollarSign,
   Megaphone,
   PlaneTakeoff,
@@ -17,6 +18,7 @@ import { useAuth } from "@/lib/auth";
 import { bookActionLabel, bookingNouns } from "@/lib/permissions";
 import {
   useAnnouncements,
+  useMarkAnnouncementSeen,
   useMemberInvoices,
   useMyBillingSettings,
   useMyCurrencies,
@@ -60,6 +62,7 @@ function MyDayPage() {
   const billingQ = useMyBillingSettings();
   const currenciesQ = useMyCurrencies();
   const announcementsQ = useAnnouncements();
+  const markSeen = useMarkAnnouncementSeen();
 
   const reservations = React.useMemo(() => reservationsQ.data ?? [], [reservationsQ.data]);
   const bookLabel = bookActionLabel(roles);
@@ -110,6 +113,7 @@ function MyDayPage() {
   const att = currencyAttention(currenciesQ.data);
 
   const announcements = [...(announcementsQ.data ?? [])]
+    .filter((a) => !a.seenAt)
     .filter((a) => !a.expireAt || parseISO(a.expireAt).getTime() >= now.getTime())
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 2);
@@ -189,13 +193,12 @@ function MyDayPage() {
       {announcements.length > 0 && (
         <div className="mt-5 space-y-3">
           {announcements.map((a) => (
-            <Link
-              key={a.id}
-              to="/operations/announcements"
-              className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Card className="border-primary/30 bg-primary/5 p-4 transition-colors hover:bg-primary/10">
-                <div className="flex items-start gap-3">
+            <Card key={a.id} className="border-primary/30 bg-primary/5 p-4">
+              <div className="flex items-start gap-3">
+                <Link
+                  to="/operations/announcements"
+                  className="flex min-w-0 flex-1 items-start gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
                   <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
                     <Megaphone className="size-4" />
                   </span>
@@ -203,9 +206,21 @@ function MyDayPage() {
                     <div className="font-medium">{a.title}</div>
                     <p className="mt-0.5 text-sm text-muted-foreground">{a.message}</p>
                   </div>
-                </div>
-              </Card>
-            </Link>
+                </Link>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0"
+                  data-testid={`announcement-got-it-${a.id}`}
+                  disabled={markSeen.isPending}
+                  onClick={() => void markSeen.mutateAsync(a.id)}
+                >
+                  <Check className="size-4" />
+                  Got it
+                </Button>
+              </div>
+            </Card>
           ))}
         </div>
       )}

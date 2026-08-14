@@ -1,12 +1,13 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Megaphone, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Megaphone, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { parseISO } from "date-fns";
 import { toast } from "sonner";
 import {
   pageRows,
   useAnnouncementsPage,
   useDeleteAnnouncement,
+  useMarkAnnouncementSeen,
 } from "@/features/queries";
 import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 import type { Announcement } from "@/types/api";
 import { formatDate } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
+import { DocsHint } from "@/components/docs-hint";
 import { TableView } from "@/components/table-view";
 import { ListSearchBar } from "@/components/list-filters";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
@@ -85,7 +87,12 @@ function AnnouncementsPage() {
       <TableView.Header>
         <PageHeader
           title="Announcements"
-          subtitle="Notices posted to the school."
+          subtitle={
+            <span className="inline-flex items-center gap-1.5">
+              Notices posted to the school.
+              <DocsHint topic="hide-announcement" />
+            </span>
+          }
           actions={
             admin ? (
               <Button onClick={openCreate} data-doc-shot="announcements-new-button">
@@ -177,8 +184,9 @@ function AnnouncementCard({
   canManage: boolean;
   onEdit: () => void;
 }) {
-  const { title, message, expireAt, createdAt, forRoles } = announcement;
+  const { title, message, expireAt, createdAt, forRoles, seenAt } = announcement;
   const remove = useDeleteAnnouncement();
+  const markSeen = useMarkAnnouncementSeen();
   const confirm = useConfirm();
 
   async function onDelete() {
@@ -207,6 +215,7 @@ function AnnouncementCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-medium">{title}</h3>
             {expired && <Badge variant="outline">Expired</Badge>}
+            {seenAt && !expired && <Badge variant="secondary">Seen</Badge>}
             {(forRoles ?? []).map((role) => (
               <Badge key={role} variant="secondary">
                 {role}
@@ -221,33 +230,48 @@ function AnnouncementCard({
             {expireAt && ` · ${expired ? "Expired" : "Expires"} ${formatDate(expireAt, "MMM d, yyyy")}`}
           </p>
         </div>
-        {canManage && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                aria-label="Announcement actions"
-              >
-                <MoreHorizontal className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={onEdit}>
-                <Pencil className="size-4" /> Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => void onDelete()}
-                disabled={remove.isPending}
-              >
-                <Trash2 className="size-4" /> Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {!seenAt && !expired && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-testid={`announcement-got-it-${announcement.id}`}
+              disabled={markSeen.isPending}
+              onClick={() => void markSeen.mutateAsync(announcement.id)}
+            >
+              <Check className="size-4" />
+              Got it
+            </Button>
+          )}
+          {canManage && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0"
+                  aria-label="Announcement actions"
+                >
+                  <MoreHorizontal className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={onEdit}>
+                  <Pencil className="size-4" /> Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => void onDelete()}
+                  disabled={remove.isPending}
+                >
+                  <Trash2 className="size-4" /> Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </div>
     </Card>
   );

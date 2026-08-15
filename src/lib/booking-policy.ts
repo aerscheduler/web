@@ -2,13 +2,17 @@
  * Client-side helpers for cancel/edit lock UX. Mirror server bookingPolicy.ts so the
  * cancel dialog can explain the fee before the request is sent.
  */
+import { formatMoney } from "@/lib/utils";
+
 export function hoursUntilStart(start: Date | string, now: Date = new Date()): number {
   return (new Date(start).getTime() - now.getTime()) / (1000 * 60 * 60);
 }
 
+// A cancellation fee is money the member is charged, and it lands on an invoice
+// carrying cents. Quoting "$25" here and billing "$25.00" there is a small
+// disagreement that makes somebody re-read both.
 export function formatFeeCents(cents: number): string {
-  const dollars = cents / 100;
-  return dollars % 1 === 0 ? `$${dollars.toFixed(0)}` : `$${dollars.toFixed(2)}`;
+  return formatMoney(cents);
 }
 
 export type MemberCancelLockInfo = {

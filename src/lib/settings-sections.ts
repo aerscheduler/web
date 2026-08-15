@@ -33,6 +33,12 @@ export type SettingsTab = {
   icon: LucideIcon;
   /** Other words for this section, for the palette. See `NavItem.keywords`. */
   keywords?: string[];
+  /**
+   * Only shown to an Enterprise school. The server is the authority (it refuses the
+   * endpoints outright), this just keeps a screen nobody can use out of the rail and
+   * out of the command palette. Filter with `settingsSectionsFor`.
+   */
+  enterpriseOnly?: boolean;
 };
 
 export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
@@ -75,10 +81,28 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
     label: "Connections",
     tabs: [
       { value: "integrations", label: "Integrations", icon: Puzzle, keywords: ["quickbooks", "google calendar", "sync"] },
-      { value: "api-keys", label: "API keys", icon: KeyRound, keywords: ["api", "token", "credential", "zapier", "developer"] },
+      {
+        value: "api-keys",
+        label: "API keys",
+        icon: KeyRound,
+        keywords: ["api", "token", "credential", "zapier", "developer", "enterprise"],
+        enterpriseOnly: true,
+      },
     ],
   },
 ];
+
+/**
+ * The sections this school actually gets, with empty groups dropped.
+ *
+ * Anything reading SETTINGS_SECTIONS directly shows Enterprise-only screens to
+ * everyone, so the rail and the command palette both come through here.
+ */
+export const settingsSectionsFor = (enterprise: boolean) =>
+  SETTINGS_SECTIONS.map((section) => ({
+    ...section,
+    tabs: section.tabs.filter((tab) => enterprise || !tab.enterpriseOnly),
+  })).filter((section) => section.tabs.length > 0);
 
 export const SETTINGS_TABS: SettingsTab[] = SETTINGS_SECTIONS.flatMap((s) => s.tabs);
 

@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { isDeveloperSync, useAuth } from "@/lib/auth";
 import { shortcutLabel } from "@/lib/platform";
 import { commandPages, type CommandPage } from "@/lib/nav-items";
+import { isEnterpriseOrg } from "@/lib/enterprise";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTimeZone } from "@/lib/use-timezone";
@@ -392,8 +393,9 @@ export function CommandMenuSearch() {
         isDeveloper: isDeveloperSync(),
         slotOffersEnabled: organization?.slotOfferSettings?.enabled !== false,
         ledgerBilling,
+        enterprise: isEnterpriseOrg(organization),
       }),
-    [R, organization?.slotOfferSettings?.enabled, ledgerBilling]
+    [R, organization?.slotOfferSettings?.enabled, organization?.isEnterprise, ledgerBilling]
   );
   const navItems = React.useMemo(() => rankPages(pages, highlightQuery), [pages, highlightQuery]);
 

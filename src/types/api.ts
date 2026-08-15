@@ -103,6 +103,13 @@ export interface Organization {
    * via POST /organizations/cancelDeletion.
    */
   scheduledDeletionAt?: string | null;
+  /**
+   * The school is on the Enterprise plan. Set by hand in the database when a school
+   * signs; there is no endpoint that turns it on, so nothing in this console writes it.
+   * Read-only here, and only ever used to decide what to SHOW , the server enforces the
+   * plan itself on /apiKeys. See `lib/enterprise.ts`.
+   */
+  isEnterprise?: boolean;
   billing?: OrganizationBillingSettings;
   preferences?: OrganizationPreferences;
   bookingPolicy?: OrganizationBookingPolicy;

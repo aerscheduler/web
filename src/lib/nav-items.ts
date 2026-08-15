@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import type { Role } from "@/types/api";
 import { canAccess, canSelfBook, isInstructor, isStaff } from "@/lib/permissions";
-import { SETTINGS_SECTIONS } from "@/lib/settings-sections";
+import { settingsSectionsFor } from "@/lib/settings-sections";
 import { TRAINING_TABS } from "@/lib/training-sections";
 import { MAINTENANCE_SECTIONS } from "@/lib/maintenance-sections";
 import { FACILITIES_TABS } from "@/lib/facilities-sections";
@@ -232,7 +232,7 @@ function pageKey(page: CommandPage): string {
 
 export function commandPages(
   roles: string[],
-  opts: { isDeveloper: boolean; slotOffersEnabled?: boolean; ledgerBilling?: boolean }
+  opts: { isDeveloper: boolean; slotOffersEnabled?: boolean; ledgerBilling?: boolean; enterprise?: boolean }
 ): CommandPage[] {
   const R = roles as Role[];
   const pages = [
@@ -256,7 +256,7 @@ export function commandPages(
     return true;
   });
 
-  return [...unique, ...nestedCommandPages(R, opts.slotOffersEnabled !== false)];
+  return [...unique, ...nestedCommandPages(R, opts.slotOffersEnabled !== false, opts.enterprise === true)];
 }
 
 /**
@@ -266,11 +266,11 @@ export function commandPages(
  * palette never offers a pane the member cannot open. Settings established the pattern;
  * Training, Maintenance, Facilities, Reports, Profile and My training follow it.
  */
-function nestedCommandPages(roles: Role[], slotOffersOn: boolean): CommandPage[] {
+function nestedCommandPages(roles: Role[], slotOffersOn: boolean, enterprise: boolean): CommandPage[] {
   const out: CommandPage[] = [];
 
   if (canAccess("/settings", roles)) {
-    out.push(...settingsPages());
+    out.push(...settingsPages(enterprise));
   }
 
   if (canAccess("/training", roles)) {
@@ -385,8 +385,8 @@ function nestedCommandPages(roles: Role[], slotOffersOn: boolean): CommandPage[]
 }
 
 /** Each Settings section as its own destination. See `CommandPage.search`. */
-function settingsPages(): CommandPage[] {
-  return SETTINGS_SECTIONS.flatMap((section) =>
+function settingsPages(enterprise: boolean): CommandPage[] {
+  return settingsSectionsFor(enterprise).flatMap((section) =>
     section.tabs.map((tab) => ({
       to: "/settings",
       label: tab.label,

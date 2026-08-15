@@ -1,6 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { guardRoute } from "@/lib/permissions";
-import { SETTINGS_SECTIONS, settingsTabOrDefault } from "@/lib/settings-sections";
+import { settingsSectionsFor, settingsTabOrDefault } from "@/lib/settings-sections";
+import { isEnterpriseOrg } from "@/lib/enterprise";
+import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
@@ -16,6 +18,7 @@ import { IntegrationsTab } from "@/components/settings/integrations-tab";
 import { ApiKeysTab } from "@/components/settings/api-keys-tab";
 import { CostSplittingTab } from "@/components/settings/cost-splitting-tab";
 import { MembershipsTab } from "@/components/settings/memberships-tab";
+import { EnterpriseUpsell } from "@/components/settings/enterprise-upsell";
 
 type SettingsSearch = {
   tab?: string;
@@ -49,15 +52,19 @@ export const Route = createFileRoute("/_authed/settings/")({
  * onboarding deep links and bookmarks keep working. The section list itself lives in
  * `lib/settings-sections.ts`, because the command palette offers these as destinations.
  */
-const SECTIONS: RailSection[] = SETTINGS_SECTIONS.map((section) => ({
-  label: section.label,
-  items: section.tabs,
-}));
+const sectionsFor = (enterprise: boolean): RailSection[] =>
+  settingsSectionsFor(enterprise).map((section) => ({
+    label: section.label,
+    items: section.tabs,
+  }));
 
 function SettingsPage() {
   const navigate = Route.useNavigate();
   const search = Route.useSearch();
   const active = settingsTabOrDefault(search.tab);
+  const { organization } = useAuth();
+  const enterprise = isEnterpriseOrg(organization);
+  const sections = sectionsFor(enterprise);
 
   const pick = (tab: string) => {
     void navigate({ search: (prev) => ({ ...prev, tab }), replace: true });
@@ -73,7 +80,7 @@ function SettingsPage() {
       </TableView.Header>
 
       <div className={RAIL_ROW}>
-        <SectionRail label="Settings" sections={SECTIONS} value={active} onChange={pick} />
+        <SectionRail label="Settings" sections={sections} value={active} onChange={pick} />
 
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           {active === "organization" && <OrganizationTab />}
@@ -87,7 +94,9 @@ function SettingsPage() {
           {active === "groups" && <GroupsTab />}
           {active === "currencies" && <CurrencyTypesTab />}
           {active === "integrations" && <IntegrationsTab />}
-          {active === "api-keys" && <ApiKeysTab />}
+          {/* Not in the rail without Enterprise, but still reachable by deep link, so it
+              answers with the offer rather than an empty pane. */}
+          {active === "api-keys" && (enterprise ? <ApiKeysTab /> : <EnterpriseUpsell />)}
         </div>
       </div>
     </TableView>

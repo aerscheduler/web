@@ -202,6 +202,11 @@ export interface SubscriptionStatus {
   trialEnd?: string | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
+  /** TEMPORARY. Set only on a server-side courtesy extension: the org is unblocked but
+   *  has no subscription and must still subscribe by this date (YYYY-MM-DD). Drives the
+   *  countdown banner. See server SUBSCRIPTION_GRANTS and
+   *  docs/subscription-grants.reference.md. */
+  grantedUntil?: string;
 }
 
 export interface OrganizationPreferences {

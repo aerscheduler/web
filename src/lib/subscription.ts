@@ -25,10 +25,12 @@ export const TRIAL_DAYS = 14;
  * existing customers (grace window from launch, not a signup trial). Set this to
  * the actual ship date before deploying.
  *
- * Reset to 2026-08-05 when the mobile app finally shipped (the original 2026-07-25
- * date burned most of its 14-day grace while the App Store build was still pending).
+ * Reset to 2026-08-16 on 2026-08-15: this banner is admin-only, so schools whose admins
+ * are light users got no warning at all and were 4 days from lockout. Restarting the 14
+ * days puts the deadline at 2026-08-30. Previous 2026-08-05, before that 2026-07-25.
+ * MUST match the server constant and the mobile app's _launchDate.
  */
-export const PRICING_LAUNCH_DATE = new Date("2026-08-05T00:00:00Z");
+export const PRICING_LAUNCH_DATE = new Date("2026-08-16T00:00:00Z");
 
 /**
  * Org join-codes that never see the per-aircraft paywall or reminder banner.
@@ -63,12 +65,15 @@ export type SubStatus = {
   subscribed: boolean;
   /** UI gate: is the org currently blocked from using the app? */
   blocked: boolean;
+  /** TEMPORARY. True when the free window comes from a server-side courtesy grant
+   *  rather than the launch-date maths, so the banner can say so. */
+  granted?: boolean;
 };
 
 export function subscriptionStatus(
   org: Organization,
   planeCount: number,
-  opts: { connectEnabled?: boolean; subscribed?: boolean } = {}
+  opts: { connectEnabled?: boolean; subscribed?: boolean; grantedUntil?: string } = {}
 ): SubStatus {
   const created = new Date(org.createdAt);
   const isExisting = created.getTime() < PRICING_LAUNCH_DATE.getTime();
@@ -79,10 +84,21 @@ export function subscriptionStatus(
   const exemptByCode = SUBSCRIPTION_EXEMPT_ORG_CODES.has(org.code);
   const exempt = exemptByCode || (isExisting && (opts.connectEnabled ?? false));
   const base = isExisting ? PRICING_LAUNCH_DATE : created;
-  const freeUntil = new Date(base.getTime() + TRIAL_DAYS * DAY_MS);
+  // A courtesy grant REPLACES the computed deadline and is deliberately not treated as
+  // a subscription: the org keeps working, and keeps being told it has to subscribe.
+  // Without the override the server reports these orgs as `trialing`, which reads as
+  // "active" here and hides the banner entirely, exactly the silent lockout the grant
+  // was meant to prevent. See docs/subscription-grants.reference.md.
+  const granted = Boolean(opts.grantedUntil);
+  // LOCAL midnight, not UTC. The grant is a plain calendar date and the banner prints it
+  // back to the reader, so parsing it as UTC renders "Aug 29" for a 2026-08-30 grant to
+  // anyone west of Greenwich, which is every school we have.
+  const freeUntil = granted
+    ? new Date(`${opts.grantedUntil}T00:00:00`)
+    : new Date(base.getTime() + TRIAL_DAYS * DAY_MS);
   const now = Date.now();
   // "Subscribed" is now the server's truth (a trialing/active Stripe subscription).
-  const subscribed = opts.subscribed ?? false;
+  const subscribed = granted ? false : (opts.subscribed ?? false);
   const withinFree = now < freeUntil.getTime();
   const daysLeft = Math.max(0, Math.ceil((freeUntil.getTime() - now) / DAY_MS));
 
@@ -104,6 +120,7 @@ export function subscriptionStatus(
     // otherwise a 0-plane org whose trial lapsed is stuck with no way to add a plane.
     // They add aircraft freely; once they have one and the trial is over, the paywall applies.
     blocked: state === "expired" && planeCount > 0,
+    granted,
   };
 }
 

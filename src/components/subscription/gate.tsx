@@ -85,7 +85,11 @@ function SubscriptionBanner({ status }: { status: SubStatus }) {
             <>
               <span className="font-medium">AerScheduler is moving to ${PRICE_PER_AIRCRAFT_CENTS / 100}/mo per aircraft.</span>{" "}
               <span className="text-muted-foreground">
-                Billing starts {shortDate(status.freeUntil)} ({status.daysLeft} day{status.daysLeft === 1 ? "" : "s"}). Sims &amp; rooms stay free.
+                {/* A granted org is on an extension we gave them by hand, so say so.
+                    "Billing starts" alone would read as a date they already knew about,
+                    and these are the schools that never got the first notice. */}
+                {status.granted ? "We've extended your free access to " : "Billing starts "}
+                {shortDate(status.freeUntil)} ({status.daysLeft} day{status.daysLeft === 1 ? "" : "s"}). Sims &amp; rooms stay free.
               </span>
             </>
           ) : (

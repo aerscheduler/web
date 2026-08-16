@@ -66,6 +66,7 @@ export function useSubStatus(): SubStatus | null {
     const base = subscriptionStatus(organization, planes.data?.length ?? 0, {
       connectEnabled: Boolean(billing.data?.stripeEnabled),
       subscribed: serverSubscribed,
+      grantedUntil: s?.grantedUntil,
     });
     const ov = overrideState();
     return ov ? { ...base, state: ov, blocked: ov === "expired" } : base;

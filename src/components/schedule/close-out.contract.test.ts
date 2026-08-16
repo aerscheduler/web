@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Reservation } from "@/types/api";
-import { hasInstruction, isRampedIn, isRampedOut, usesBriefingNotMeters } from "./close-out";
+import { billsOnHobbs, hasInstruction, isRampedIn, isRampedOut, usesBriefingNotMeters } from "./close-out";
 
 /**
  * THE CLOSE-OUT CONTRACT, console side.
@@ -139,5 +139,51 @@ describe("a booking with meters is unaffected", () => {
 
     expect(isRampedIn(out)).toBe(false);
     expect(isRampedIn(back)).toBe(true);
+  });
+});
+
+/**
+ * WHICH METER THE BOOKING BILLS ON.
+ *
+ * The server prices a booking off the resource's own `billByHobbsTime` (payment.ts), and a
+ * `measured` split then reconciles each pilot's leg against that figure. The console has to
+ * agree, or the panel that collects those legs asks for readings off the other meter and the
+ * close-out is refused for a mismatch the software invented. Server side:
+ * `server/test/unit/pricingResourceKind.test.ts` and `splitInvoicing.test.ts`.
+ */
+describe("billsOnHobbs mirrors the resource's own setting", () => {
+  const withCost = (kind: "plane" | "simulator", billByHobbsTime?: boolean) =>
+    ({
+      id: 1,
+      type: "solo",
+      resource: {
+        id: 1,
+        type:
+          kind === "plane"
+            ? { plane: { id: 1, tailNumber: "N172TS", ...(billByHobbsTime == null ? {} : { cost: { billByHobbsTime } }) } }
+            : { simulator: { id: 1, name: "Redbird", ...(billByHobbsTime == null ? {} : { cost: { billByHobbsTime } }) } },
+      },
+      personnel: { id: 1, instructors: [], students: [] },
+      review: {},
+    }) as unknown as Reservation;
+
+  it("reads Hobbs when the aircraft says Hobbs", () => {
+    expect(billsOnHobbs(withCost("plane", true))).toBe(true);
+  });
+
+  it("reads tach when the aircraft says tach", () => {
+    expect(billsOnHobbs(withCost("plane", false))).toBe(false);
+  });
+
+  it("reads the simulator's own setting too", () => {
+    expect(billsOnHobbs(withCost("simulator", false))).toBe(false);
+    expect(billsOnHobbs(withCost("simulator", true))).toBe(true);
+  });
+
+  it("defaults to Hobbs, which is the column default", () => {
+    // No cost row loaded, or a resource with no rate at all. Never guess tach: a wrong
+    // guess here changes which reading the desk is asked for.
+    expect(billsOnHobbs(withCost("plane"))).toBe(true);
+    expect(billsOnHobbs({ id: 1, type: "ground", resource: null, personnel: {}, review: {} } as unknown as Reservation)).toBe(true);
   });
 });

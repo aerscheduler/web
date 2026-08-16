@@ -142,6 +142,28 @@ export function hasInstruction(r: Reservation): boolean {
 }
 
 /**
+ * Which meter does this booking's aircraft bill on?
+ *
+ * `PlaneCost.billByHobbsTime` / `SimulatorCost.billByHobbsTime`, defaulting to Hobbs, which
+ * is the column default and what every resource has unless somebody changed it.
+ *
+ * This is not a display preference. The server prices the booking off exactly this meter
+ * (`payment.ts`), and a `measured` split then reconciles each pilot's own leg against that
+ * number. So the panel that collects those legs has to ask for the SAME meter: collecting
+ * Hobbs legs for a tach-billed aircraft produced a sum that could not match the total, and
+ * the close-out was refused with a message blaming the crew's readings.
+ *
+ * Hobbs and tach do not run at the same rate, so this is not a rounding difference.
+ */
+export function billsOnHobbs(r: Reservation): boolean {
+  const t = r.resource?.type as
+    | { plane?: { cost?: { billByHobbsTime?: boolean } | null } | null; simulator?: { cost?: { billByHobbsTime?: boolean } | null } | null }
+    | undefined;
+  const cost = t?.plane?.cost ?? t?.simulator?.cost ?? null;
+  return cost?.billByHobbsTime !== false;
+}
+
+/**
  * A briefing-only booking is "ramped out" once the briefing is recorded, OR immediately
  * when there is no instruction to record.
  *

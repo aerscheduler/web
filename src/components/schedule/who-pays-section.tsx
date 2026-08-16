@@ -3,7 +3,7 @@ import { Loader2, Save, SplitSquareHorizontal, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useSetReservationPayers } from "@/features/queries";
 import { PILOT_ROLES, type PilotRole, type Reservation, type ReservationPayerInput } from "@/types/api";
-import { usesBriefingNotMeters, hasInstruction } from "./close-out";
+import { billsOnHobbs, usesBriefingNotMeters, hasInstruction } from "./close-out";
 import { CloseOutCard } from "./close-out-card";
 import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
@@ -91,8 +91,10 @@ type Party = {
 
 /** Editable state for one person. Strings, because these are text inputs mid-typing. */
 type Draft = {
-  hobbsOut: string;
-  hobbsIn: string;
+  /** The out reading on the meter this booking BILLS on. See `billsOnHobbs`. */
+  meterOut: string;
+  /** The in reading on the same meter. */
+  meterIn: string;
   /** Hours, not minutes. See the header. */
   instructionHours: string;
   sharePercent: string;
@@ -102,8 +104,8 @@ type Draft = {
 };
 
 const EMPTY: Draft = {
-  hobbsOut: "",
-  hobbsIn: "",
+  meterOut: "",
+  meterIn: "",
   instructionHours: "",
   sharePercent: "",
   waived: false,
@@ -239,6 +241,13 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   // briefing room, and offering the field there invites a record that isn't true.
   const hasRoles = r.resource?.type?.plane != null;
 
+  // WHICH METER. The server prices this booking off the resource's own `billByHobbsTime`
+  // and reconciles each leg below against that figure, so the panel has to ask for the same
+  // one. Collecting Hobbs legs on a tach-billed aircraft produced a sum that could never
+  // match the total, and the close-out was refused with a message blaming the readings.
+  const onHobbs = billsOnHobbs(r);
+  const meterName = onHobbs ? "Hobbs" : "Tach";
+
   // Seed from what's stored. A booking with no stakes recorded is the normal case, and it
   // seeds empty, which reads correctly as "nothing entered", not as "everyone owes zero".
   const seed = React.useCallback((): Record<string, Draft> => {
@@ -249,8 +258,8 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
       );
       out[party.key] = stored
         ? {
-            hobbsOut: tenthsToHours(stored.hobbsOut),
-            hobbsIn: tenthsToHours(stored.hobbsIn),
+            meterOut: tenthsToHours(onHobbs ? stored.hobbsOut : stored.tachOut),
+            meterIn: tenthsToHours(onHobbs ? stored.hobbsIn : stored.tachIn),
             instructionHours:
               stored.instructionMinutes == null ? "" : tenthsToHours(Math.round(stored.instructionMinutes / 6)),
             sharePercent: stored.weightBps == null ? "" : String(stored.weightBps / 100),
@@ -261,7 +270,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
         : { ...EMPTY };
     }
     return out;
-  }, [parties, r.payers]);
+  }, [parties, r.payers, onHobbs]);
 
   const [drafts, setDrafts] = React.useState<Record<string, Draft>>(seed);
   const [dirty, setDirty] = React.useState(false);
@@ -291,25 +300,30 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
    */
   const flightTenths = React.useMemo(() => {
     const rev = r.review;
-    if (rev?.hobbsTimeIn != null && rev?.hobbsTimeOut != null) return rev.hobbsTimeIn - rev.hobbsTimeOut;
-    if (rev?.tachTimeIn != null && rev?.tachTimeOut != null) return rev.tachTimeIn - rev.tachTimeOut;
-    return null;
-  }, [r.review]);
+    // The BILLED meter, with no fallback to the other one. This used to prefer Hobbs and
+    // fall back to tach, so on a tach-billed aircraft where both were recorded the running
+    // total was measured against the Hobbs figure while the server priced the tach one, and
+    // a panel that said the legs added up met a refusal that said they did not.
+    if (onHobbs) {
+      return rev?.hobbsTimeIn != null && rev?.hobbsTimeOut != null ? rev.hobbsTimeIn - rev.hobbsTimeOut : null;
+    }
+    return rev?.tachTimeIn != null && rev?.tachTimeOut != null ? rev.tachTimeIn - rev.tachTimeOut : null;
+  }, [r.review, onHobbs]);
 
   const legsTenths = billed.reduce((sum, p) => {
     const d = drafts[p.key];
-    const out = hoursToTenths(d?.hobbsOut ?? "");
-    const inn = hoursToTenths(d?.hobbsIn ?? "");
+    const out = hoursToTenths(d?.meterOut ?? "");
+    const inn = hoursToTenths(d?.meterIn ?? "");
     return out != null && inn != null ? sum + (inn - out) : sum;
   }, 0);
 
   const anyLegEntered = billed.some(
-    (p) => hoursToTenths(drafts[p.key]?.hobbsOut ?? "") != null && hoursToTenths(drafts[p.key]?.hobbsIn ?? "") != null
+    (p) => hoursToTenths(drafts[p.key]?.meterOut ?? "") != null && hoursToTenths(drafts[p.key]?.meterIn ?? "") != null
   );
   const allLegsEntered =
     billed.length > 0 &&
     billed.every(
-      (p) => hoursToTenths(drafts[p.key]?.hobbsOut ?? "") != null && hoursToTenths(drafts[p.key]?.hobbsIn ?? "") != null
+      (p) => hoursToTenths(drafts[p.key]?.meterOut ?? "") != null && hoursToTenths(drafts[p.key]?.meterIn ?? "") != null
     );
 
   const legsReconcile = flightTenths != null && legsTenths === flightTenths;
@@ -357,7 +371,10 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
     if (n === 0) return;
 
     const legs = flightTenths != null && flightTenths > 0 ? evenTenths(flightTenths, n) : null;
-    const legStart = hoursToTenths(tenthsToHours(r.review?.hobbsTimeOut));
+    //Lay the legs out from the booking's own out reading, on the meter it bills from.
+    const legStart = hoursToTenths(
+      tenthsToHours(onHobbs ? r.review?.hobbsTimeOut : r.review?.tachTimeOut)
+    );
     const instruction =
       briefingTenths != null && briefingTenths > 0 ? evenTenths(briefingTenths, n) : null;
     const shares = evenTenths(10_000, n);
@@ -368,9 +385,9 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
       const d = next[party.key] ?? EMPTY;
       const patch: Draft = { ...d, sharePercent: String(shares[i] / 100) };
       if (hasMeters && legs && cursor != null) {
-        patch.hobbsOut = tenthsToHours(cursor);
+        patch.meterOut = tenthsToHours(cursor);
         cursor += legs[i];
-        patch.hobbsIn = tenthsToHours(cursor);
+        patch.meterIn = tenthsToHours(cursor);
       }
       if (billsInstruction && instruction) {
         patch.instructionHours = tenthsToHours(instruction[i]);
@@ -391,8 +408,13 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
         // Never send a figure for something this booking can't have. A stale Hobbs reading
         // left on a booking that was later changed to a ground lesson would otherwise be
         // rewritten back with every save.
-        hobbsOut: hasMeters ? hoursToTenths(d.hobbsOut) : null,
-        hobbsIn: hasMeters ? hoursToTenths(d.hobbsIn) : null,
+        // Only the meter this booking bills on. Sending the other one too would put a
+        // number nobody entered on the record, and the reading it implies is not the one
+        // the aircraft was priced from.
+        hobbsOut: hasMeters && onHobbs ? hoursToTenths(d.meterOut) : null,
+        hobbsIn: hasMeters && onHobbs ? hoursToTenths(d.meterIn) : null,
+        tachOut: hasMeters && !onHobbs ? hoursToTenths(d.meterOut) : null,
+        tachIn: hasMeters && !onHobbs ? hoursToTenths(d.meterIn) : null,
         // Tenths back to minutes, always a whole multiple of six. See the header.
         instructionMinutes: instructionTenthsForPayer == null ? null : instructionTenthsForPayer * 6,
         weightBps: percentToBps(d.sharePercent),
@@ -522,20 +544,20 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
                   {hasMeters && (
                     <>
                       <div className="space-y-1">
-                        <Label className="whitespace-nowrap text-xs text-muted-foreground">Hobbs out</Label>
+                        <Label className="whitespace-nowrap text-xs text-muted-foreground">{meterName} out</Label>
                         <Input
-                          value={d.hobbsOut}
-                          onChange={(e) => set(party.key, { hobbsOut: e.target.value })}
+                          value={d.meterOut}
+                          onChange={(e) => set(party.key, { meterOut: e.target.value })}
                           inputMode="decimal"
                           placeholder="e.g. 1014.2"
                           className="h-8 text-sm"
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="whitespace-nowrap text-xs text-muted-foreground">Hobbs in</Label>
+                        <Label className="whitespace-nowrap text-xs text-muted-foreground">{meterName} in</Label>
                         <Input
-                          value={d.hobbsIn}
-                          onChange={(e) => set(party.key, { hobbsIn: e.target.value })}
+                          value={d.meterIn}
+                          onChange={(e) => set(party.key, { meterIn: e.target.value })}
                           inputMode="decimal"
                           placeholder="e.g. 1015.6"
                           className="h-8 text-sm"

@@ -25,5 +25,8 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  /* Tests live in their own project (tsconfig.test.json): they run under Node globals
+     the app must never have. See that file. */
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }

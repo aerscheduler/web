@@ -83,7 +83,17 @@ export function subscriptionStatus(
   // App Store review / internal orgs are hard-exempt by join code regardless.
   const exemptByCode = SUBSCRIPTION_EXEMPT_ORG_CODES.has(org.code);
   const exempt = exemptByCode || (isExisting && (opts.connectEnabled ?? false));
-  const base = isExisting ? PRICING_LAUNCH_DATE : created;
+  // The launch date is a calendar date we print back to the reader, so the grace window
+  // has to run from LOCAL midnight on that day. Adding 14 days to the UTC instant put the
+  // deadline at 00:00Z, which renders as the previous day everywhere west of Greenwich:
+  // prod showed "Billing starts Aug 29" for an Aug 30 deadline. A new org's base is a real
+  // signup timestamp, so it is left alone.
+  const launchLocal = new Date(
+    PRICING_LAUNCH_DATE.getUTCFullYear(),
+    PRICING_LAUNCH_DATE.getUTCMonth(),
+    PRICING_LAUNCH_DATE.getUTCDate()
+  );
+  const base = isExisting ? launchLocal : created;
   // A courtesy grant REPLACES the computed deadline and is deliberately not treated as
   // a subscription: the org keeps working, and keeps being told it has to subscribe.
   // Without the override the server reports these orgs as `trialing`, which reads as

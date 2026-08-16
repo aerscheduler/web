@@ -3838,7 +3838,7 @@ export function useUpsertLesson() {
       versionId: number; lessonId?: number; stageId: number; name: string; position: number;
       kind: string; objectives?: string | null; completionStandards?: string | null;
       minFlightDeciHours?: number | null; minGroundDeciHours?: number | null;
-      requiresSignoff?: boolean; requiresNotes?: boolean;
+      requiresSignoff?: boolean; requiresNotes?: boolean; isStageCheck?: boolean;
       credits?: { requirementId: number; creditFrom: string }[];
     }) => api<{ id: number }>(`/training/versions/${versionId}/lessons`, { method: "PUT", body }),
     onSuccess: () => invalidateTraining(qc),

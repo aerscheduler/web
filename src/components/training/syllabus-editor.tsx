@@ -232,6 +232,7 @@ function EditableLessonRow({
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           {lesson.requiresSignoff ? <span>Requires sign-off</span> : <span>Sign-off optional</span>}
+          {lesson.isStageCheck ? <span>· Stage check</span> : null}
           {lesson.requiresNotes ? <span>· Notes required</span> : null}
           <span className="flex-1" />
           <Button size="sm" variant="outline" className="h-7" onClick={onTasks}>
@@ -355,6 +356,7 @@ function LessonDialog({
   const [ground, setGround] = useState("");
   const [signoff, setSignoff] = useState(true);
   const [notes, setNotes] = useState(false);
+  const [stageCheck, setStageCheck] = useState(false);
   const [credits, setCredits] = useState<{ requirementId: number; creditFrom: string }[]>([]);
   const [seeded, setSeeded] = useState<number | null>(null);
   const save = useUpsertLesson();
@@ -370,6 +372,7 @@ function LessonDialog({
     setGround(lesson?.minGroundDeciHours ? deciHours(lesson.minGroundDeciHours) : "");
     setSignoff(lesson?.requiresSignoff ?? true);
     setNotes(lesson?.requiresNotes ?? false);
+    setStageCheck(lesson?.isStageCheck ?? false);
     setCredits(
       (lesson?.creditsWhat ?? []).map((c) => ({ requirementId: c.requirementId, creditFrom: c.creditFrom }))
     );
@@ -446,6 +449,16 @@ function LessonDialog({
               <Checkbox checked={notes} onCheckedChange={(v) => setNotes(!!v)} />
               Notes required
             </label>
+            {/* The one lesson §141.37 is about. Only offered when the stage says it needs a
+                check, because outside that it means nothing and would only invite a school
+                to tick it. Signing a lesson marked here requires a designated check
+                instructor who is not the student's own. */}
+            {stage?.requiresStageCheck ? (
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox checked={stageCheck} onCheckedChange={(v) => setStageCheck(!!v)} />
+                This is the stage check
+              </label>
+            ) : null}
           </div>
 
           {/* The fan-out, chosen here. This is the single most consequential thing on the
@@ -516,6 +529,7 @@ function LessonDialog({
                 minGroundDeciHours: toDeci(ground),
                 requiresSignoff: signoff,
                 requiresNotes: notes,
+                isStageCheck: stage?.requiresStageCheck ? stageCheck : false,
                 credits,
               });
               setSeeded(null);

@@ -2152,6 +2152,8 @@ export type SyllabusLesson = {
   minGroundDeciHours: number | null;
   requiresSignoff: boolean;
   requiresNotes: boolean;
+  /** The one lesson in this stage that IS the §141.37 stage check. */
+  isStageCheck: boolean;
   tasks: LessonTask[];
   creditsWhat: LessonCredit[];
 };

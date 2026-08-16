@@ -1,4 +1,6 @@
 import { format, isToday, parseISO } from "date-fns";
+import { dateKeyInZone } from "@/lib/timezone";
+import { useTimeZone } from "@/lib/use-timezone";
 import type { Reservation } from "@/types/api";
 import { AgendaRow } from "./agenda-row";
 import type { BoardMarks } from "./board-filters";
@@ -27,12 +29,17 @@ export function MonthAgenda({
   selectedId?: number | null;
   query?: string;
 }) {
+  const tz = useTimeZone();
   const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "", selectedId };
   const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
   const groups = new Map<string, DayGroup>();
   for (const r of sorted) {
     const date = parseISO(r.start);
-    const key = format(date, "yyyy-MM-dd");
+    // The AIRPORT's day, not the device's. MonthGrid has always bucketed on
+    // `dateKeyInZone`; this grouped on the device zone, so the same booking could sit
+    // under a different date depending on which month view you were looking at. A
+    // late booking read one day earlier for anyone west of the field.
+    const key = dateKeyInZone(r.start, tz.zone);
     const g = groups.get(key);
     if (g) g.items.push(r);
     else groups.set(key, { date, items: [r] });

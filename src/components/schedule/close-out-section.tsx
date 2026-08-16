@@ -420,7 +420,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
                   Everyone has signed off, so this flight&rsquo;s rates and readings are now
                   fixed.{" "}
                   {ledgerMode
-                    ? "Any money fix has to be a ledger reassign or adjustment on the member&rsquo;s billing tab."
+                    ? "Any money fix has to be a ledger reassign or adjustment on the member\u2019s billing tab."
                     : "Any adjustment has to be made on the invoice."}
                 </span>
               </p>

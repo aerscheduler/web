@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { guardRoute } from "@/lib/permissions";
 import { settingsSectionsFor, settingsTabOrDefault } from "@/lib/settings-sections";
-import { isEnterpriseOrg } from "@/lib/enterprise";
+import { orgCan } from "@/lib/entitlements";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
@@ -63,7 +63,7 @@ function SettingsPage() {
   const search = Route.useSearch();
   const active = settingsTabOrDefault(search.tab);
   const { organization } = useAuth();
-  const enterprise = isEnterpriseOrg(organization);
+  const enterprise = orgCan(organization, "api");
   const sections = sectionsFor(enterprise);
 
   const pick = (tab: string) => {

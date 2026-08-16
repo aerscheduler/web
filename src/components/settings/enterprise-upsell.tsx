@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ENTERPRISE_CONTACT_URL, ENTERPRISE_FEATURES } from "@/lib/enterprise";
+import { ENTERPRISE_CONTACT_URL, ENTERPRISE_FEATURES } from "@/lib/entitlements";
 
 /**
  * What a non-Enterprise school sees where API keys would be.

@@ -90,7 +90,14 @@ export function ReservationDetailSheet({
       }
     >
       {r && (
-        <div data-doc-shot="reservation-detail-panel" className="space-y-5 pt-4">
+        /* Keyed on the booking, so picking another row REPLACES this subtree rather
+           than re-rendering it with new props. Everything below holds typed state
+           seeded from the reservation (hours in the close-out, a grade and lesson
+           notes in the training record), and React keeps that state across a prop
+           change: open one booking, type a grade, click the next booking in the
+           list, and the previous student's grade and notes were still sitting in
+           the form under someone else's name, ready to submit. */
+        <div key={r.id} data-doc-shot="reservation-detail-panel" className="space-y-5 pt-4">
           {/* Airport time, and only says so when the reader is somewhere else. The old
               version formatted with r.timeZoneName, the zone of the DEVICE THAT BOOKED
               IT, and printed the raw "America/Boise" next to every booking whether or

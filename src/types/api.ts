@@ -155,6 +155,12 @@ export interface ChannelNotificationPreferences {
   currencyReminders?: boolean;
   endorsementReminders?: boolean;
   grounded?: boolean;
+  /**
+   * Onboarding and activation nudges from AerScheduler itself, not from the school.
+   * Email only: there is no push or SMS column for it, so the toggle is rendered
+   * in the email column alone.
+   */
+  onboardingTips?: boolean;
 }
 
 export interface OrgUserNotificationPreferences {

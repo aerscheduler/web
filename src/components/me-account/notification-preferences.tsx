@@ -135,6 +135,19 @@ const ANNOUNCEMENT_ROWS: PrefRow[] = [
   },
 ];
 
+/**
+ * Email only. This is the one category that comes from AerScheduler rather than
+ * from the school, and there is no push or SMS column behind it, so it is
+ * rendered in the email section alone.
+ */
+const ONBOARDING_ROWS: PrefRow[] = [
+  {
+    key: "onboardingTips",
+    label: "Getting started tips",
+    hint: "Occasional setup suggestions from AerScheduler while your school is new.",
+  },
+];
+
 const ADMIN_ROWS: PrefRow[] = [
   {
     key: "joinedOrganization",
@@ -607,6 +620,17 @@ function ChannelCard({
               saving={saving}
               onChange={onPrefChange}
             />
+            {/* Email only, there is no push or SMS column behind this one. */}
+            {channel === "email" && (
+              <PrefSection
+                channel={channel}
+                title="Getting started"
+                rows={ONBOARDING_ROWS}
+                prefs={prefs}
+                saving={saving}
+                onChange={onPrefChange}
+              />
+            )}
           </>
         )}
       </CardContent>

@@ -286,6 +286,23 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
     throw new ApiError(410, "This demo has ended. Start a new one to keep exploring.", parsed);
   }
 
+  // The server now refuses an unverified account rather than trusting the client
+  // to keep it on /verify-email, so any request that slips past that redirect (a
+  // background refetch, a deep link, an older app build) comes back 403 here.
+  // Route to the verification screen instead of showing a generic "not allowed"
+  // toast, which would be both alarming and unactionable: the thing they need is
+  // the resend button, and it lives on that page.
+  //
+  // Not a 401 and deliberately not treated as one. The session is perfectly
+  // valid, so signing them out would strand them at the login screen with the
+  // same problem and no way to reach the fix.
+  if (res.status === 403 && errorCode(parsed) === "email_not_verified") {
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/verify-email")) {
+      window.location.assign("/verify-email");
+    }
+    throw new ApiError(403, "Please verify your email address to continue.", parsed);
+  }
+
   // Only a 401 on a request we actually authenticated can mean "session over".
   // An unauthenticated 401 (a wrong password on login) must fall through so the
   // server's real message ("Invalid email or password") is what gets shown.

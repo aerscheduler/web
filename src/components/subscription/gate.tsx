@@ -5,6 +5,7 @@ import { AlertTriangle, Clock, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
+import { trackAdConversion } from "@/lib/ads";
 import { formatMonthly, PRICE_PER_AIRCRAFT_CENTS, type SubStatus } from "@/lib/subscription";
 import { AppShell } from "@/components/app-shell";
 import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
@@ -29,6 +30,13 @@ export function SubscriptionGate() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("subscribed") !== "1") return;
+    // The one conversion that is actually money, and the other PRIMARY action in Google
+    // Ads. Stripe's hosted checkout redirects back here on success, which is the only
+    // moment the browser learns about it, so this is where it has to fire. No value is
+    // passed: the per-conversion value lives in the Ads UI so it can be retuned without
+    // a deploy. Guarded against double-counting inside lib/ads.ts, because a reloaded
+    // success URL would otherwise report twice.
+    trackAdConversion("subscribed");
     void qc.invalidateQueries({ queryKey: ["subscription"] });
     params.delete("subscribed");
     const qs = params.toString();

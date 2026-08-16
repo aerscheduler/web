@@ -12,6 +12,7 @@ import {
   trackFilters,
   trackPageview,
 } from "./lib/analytics";
+import { startAds } from "./lib/ads";
 import { initTheme } from "./lib/theme";
 import "./styles.css";
 
@@ -22,6 +23,9 @@ captureAttribution();
 // Starts PostHog when consent already exists, or when US geo implies it. The banner
 // uses the same helper so it does not flash for US visitors.
 bootstrapAnalyticsConsent();
+// Same consent, different question: gtag reports which ad click paid for this visit.
+// No-ops until VITE_GOOGLE_ADS_ID is set. See lib/ads.ts.
+startAds();
 
 const router = createRouter({
   routeTree,

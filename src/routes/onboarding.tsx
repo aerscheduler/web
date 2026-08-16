@@ -36,6 +36,7 @@ import {
   type SetupIntent,
 } from "@/lib/onboarding-intent";
 import { track } from "@/lib/analytics";
+import { trackAdConversion } from "@/lib/ads";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -724,6 +725,10 @@ function AircraftStep({
         channel: attributionChannel(),
         campaign: attributionSource() ?? null,
       });
+      // Reported to the ad platforms as `activated`, the same reasoning as the comment
+      // above: a signup that never adds an aircraft is not worth bidding for. Secondary
+      // in the Ads account, so it is observed rather than optimised toward.
+      trackAdConversion("activated");
       toast.success(`${tail.trim().toUpperCase()} is on the schedule.`);
       onCreated(res.id, locId, tail.trim().toUpperCase());
     } catch (e) {

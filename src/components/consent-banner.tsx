@@ -1,5 +1,6 @@
 import * as React from "react";
 import { bootstrapAnalyticsConsent, setConsent } from "@/lib/analytics";
+import { startAds, stopAds } from "@/lib/ads";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -35,6 +36,8 @@ export function ConsentBanner() {
     // setConsent starts or stops PostHog immediately, so accepting takes effect on this
     // page rather than the next one.
     setConsent(state);
+    if (state === "granted") startAds();
+    else stopAds();
     setVisible(false);
   }
 

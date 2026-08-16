@@ -11,6 +11,7 @@ import { GoogleButton, AppleButton, OrDivider } from "@/components/google-button
 import { LegalNotice } from "@/components/legal-notice";
 import { BrandPanel } from "./login";
 import { track } from "@/lib/analytics";
+import { trackAdConversion } from "@/lib/ads";
 import { attributionChannel } from "@/lib/attribution";
 
 export const Route = createFileRoute("/signup")({
@@ -36,6 +37,9 @@ function SignupPage() {
       // they clicked the CTA; this is the other half, and the gap between the two is the
       // drop-off on this form.
       track("signup_completed", { method: "password", channel: attributionChannel() });
+      // A PRIMARY conversion in Google Ads. Until this fired, smart bidding had nothing
+      // to optimise toward on this side of the domain hop. See lib/ads.ts.
+      trackAdConversion("signup_completed");
       await navigate({ to: "/onboarding" });
     } catch (err) {
       setError(

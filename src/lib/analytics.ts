@@ -51,9 +51,24 @@ function readCookie(name: string): string | undefined {
   return match ? decodeURIComponent(match[1]) : undefined;
 }
 
+/**
+ * True when the browser is sending Global Privacy Control, a legally recognised opt-out
+ * request under the CPRA and the Colorado and Connecticut acts. Mirrors
+ * website/src/lib/consent.ts: the two surfaces share the `aer_consent` cookie, so they
+ * have to read an absent cookie the same way or a visitor gets a different answer on
+ * either side of the same domain.
+ */
+export function hasGlobalPrivacyControl(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
+}
+
 export function readConsent(): ConsentState {
   const raw = readCookie(CONSENT_COOKIE);
-  return raw === "granted" || raw === "denied" ? raw : "unset";
+  if (raw === "granted" || raw === "denied") return raw;
+  // No stored decision: a GPC signal is one, and it is a "no".
+  if (hasGlobalPrivacyControl()) return "denied";
+  return "unset";
 }
 
 export function hasConsent(): boolean {

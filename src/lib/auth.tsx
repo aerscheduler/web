@@ -12,6 +12,7 @@ import { apiRaw, beaconDemoExit, getToken, isTokenExpired, setToken } from "./ap
 import { identify, resetIdentity } from "./analytics";
 import { signInWithGoogle } from "./google";
 import { signInWithApple } from "./apple";
+import { TERMS_VERSION } from "./legal";
 import {
   clearDevStash,
   decodeImpersonatedBy,
@@ -256,7 +257,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (name: string, email: string, password: string) => {
       const env = await apiRaw<AuthEnvelope>("/users", {
         method: "POST",
-        body: { name, email, password },
+        // The version of the Terms the signup form displayed. The server records it
+        // against the row, so we can prove what this account actually accepted
+        // rather than inferring it from createdAt.
+        body: { name, email, password, termsVersion: TERMS_VERSION },
       });
       apply(env);
     },
@@ -271,6 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accessToken: profile.accessToken,
         name: profile.name,
         profileImage: profile.profileImage,
+        termsVersion: TERMS_VERSION,
       },
     });
     apply(env);
@@ -280,7 +285,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const profile = await signInWithApple();
     const env = await apiRaw<AuthEnvelope>("/auth/apple", {
       method: "POST",
-      body: { authCode: profile.authCode, name: profile.name, web: true },
+      body: {
+        authCode: profile.authCode,
+        name: profile.name,
+        web: true,
+        termsVersion: TERMS_VERSION,
+      },
     });
     apply(env);
   }, [apply]);

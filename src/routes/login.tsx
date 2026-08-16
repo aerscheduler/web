@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogoLockup, LogoMark } from "@/components/logo";
 import { GoogleButton, AppleButton, OrDivider } from "@/components/google-button";
+import { LegalNotice } from "@/components/legal-notice";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -128,6 +129,10 @@ function LoginPage() {
               {busy ? "Signing in…" : "Sign in"}
             </Button>
           </form>
+
+          {/* Sign-in, not just sign-up: the Google and Apple buttons above CREATE an
+              account when the address is new, so this page is an acceptance point too. */}
+          <LegalNotice action="continuing" />
 
           <p className="mt-5 text-center text-sm text-muted-foreground">
             New to AerScheduler?{" "}

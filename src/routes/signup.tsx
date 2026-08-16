@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LogoLockup } from "@/components/logo";
 import { GoogleButton, AppleButton, OrDivider } from "@/components/google-button";
+import { LegalNotice } from "@/components/legal-notice";
 import { BrandPanel } from "./login";
 import { track } from "@/lib/analytics";
 import { attributionChannel } from "@/lib/attribution";
@@ -112,6 +113,8 @@ function SignupPage() {
               {busy ? "Creating account…" : "Create account"}
             </Button>
           </form>
+
+          <LegalNotice />
 
           <p className="mt-5 text-center text-sm text-muted-foreground">
             Already have an account?{" "}

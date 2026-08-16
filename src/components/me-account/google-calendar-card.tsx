@@ -13,7 +13,16 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { DocsHint } from "@/components/docs-hint";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   useGoogleCalendarStatus,
+  useGoogleCalendarList,
+  useSelectGoogleCalendar,
   useConnectGoogleCalendar,
   useDisconnectGoogleCalendar,
   useCalendarFeed,
@@ -21,6 +30,7 @@ import {
   useRotateCalendarFeed,
 } from "@/features/queries";
 import { requestGoogleCalendarCode } from "@/lib/google";
+import { ApiError } from "@/lib/api";
 
 /**
  * Personal calendar connections. Google pushes events into the member's primary
@@ -35,7 +45,14 @@ export function GoogleCalendarCard() {
   const ensureFeed = useEnsureCalendarFeed();
   const rotateFeed = useRotateCalendarFeed();
   const [connecting, setConnecting] = React.useState(false);
-  const connected = status.data === true;
+  const connected = status.data?.connected === true;
+  const calendars = useGoogleCalendarList(connected);
+  const selectCalendar = useSelectGoogleCalendar();
+  const calendarId = status.data?.calendarId ?? "primary";
+  // A connection made before the calendar-list scope existed cannot list calendars.
+  // That is a reconnect prompt, not an error.
+  const needsReconnectForList =
+    calendars.error instanceof ApiError && calendars.error.status === 403;
   const feedUrl = feed.data?.httpsUrl ?? ensureFeed.data?.httpsUrl ?? null;
   const webcalUrl = feed.data?.webcalUrl ?? ensureFeed.data?.webcalUrl ?? null;
 
@@ -61,6 +78,23 @@ export function GoogleCalendarCard() {
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Couldn't disconnect Google Calendar"
+      );
+    }
+  }
+
+  async function onSelectCalendar(nextId: string) {
+    if (nextId === calendarId) return;
+    const summary = calendars.data?.find((c) => c.id === nextId)?.summary ?? null;
+    try {
+      await selectCalendar.mutateAsync({ calendarId: nextId, calendarSummary: summary });
+      toast.success(
+        summary
+          ? `Reservations now sync to ${summary}`
+          : "Calendar updated"
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Couldn't change your calendar"
       );
     }
   }
@@ -122,7 +156,62 @@ export function GoogleCalendarCard() {
             </CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
+        <CardContent className="space-y-4">
+          {connected && (
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Sync to this calendar</div>
+              {needsReconnectForList ? (
+                <p className="text-sm text-muted-foreground">
+                  Reconnect below to choose a calendar. Your connection was made before
+                  AerScheduler could read your calendar list, so flights are going to your
+                  default calendar for now.
+                </p>
+              ) : calendars.isLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="size-4 animate-spin" />
+                  Loading your calendars
+                </div>
+              ) : calendars.error ? (
+                <p className="text-sm text-muted-foreground">
+                  Couldn&apos;t load your calendars. Flights are going to your default
+                  calendar.
+                </p>
+              ) : (
+                <>
+                  <Select
+                    value={calendarId}
+                    onValueChange={(next) => void onSelectCalendar(next)}
+                    disabled={selectCalendar.isPending}
+                  >
+                    <SelectTrigger className="sm:max-w-sm">
+                      <SelectValue
+                        placeholder={status.data?.calendarSummary ?? "Default calendar"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(calendars.data ?? []).map((cal) => (
+                        <SelectItem key={cal.id} value={cal.id}>
+                          {cal.summary}
+                          {cal.primary ? " (default)" : ""}
+                        </SelectItem>
+                      ))}
+                      {/* Keep the stored value selectable even if Google no longer
+                          lists it, so the trigger never renders blank. */}
+                      {calendarId === "primary" &&
+                      !(calendars.data ?? []).some((c) => c.id === "primary") ? (
+                        <SelectItem value="primary">Default calendar</SelectItem>
+                      ) : null}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Changing this moves your upcoming flights off the old calendar and
+                    onto the new one.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
           <Button
             variant={connected ? "outline" : "default"}
             size="sm"
@@ -143,6 +232,7 @@ export function GoogleCalendarCard() {
               Disconnect
             </Button>
           )}
+          </div>
         </CardContent>
       </Card>
 

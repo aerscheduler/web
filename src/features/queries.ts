@@ -3124,19 +3124,67 @@ export function useCreateMaintenanceReminderTemplate() {
   });
 }
 
+export type GoogleCalendarStatus = {
+  connected: boolean;
+  /** Google's id for the calendar events are written to; "primary" is the default. */
+  calendarId: string;
+  calendarSummary: string | null;
+};
+
 export function useGoogleCalendarStatus(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["integration", "googleCalendar"],
-    queryFn: async () => {
+    queryFn: async (): Promise<GoogleCalendarStatus> => {
       try {
-        await api("/integrations/googleCalendar");
-        return true;
+        // apiRaw, not api: the calendar selection rides beside the `data` flag and
+        // the unwrapping helper would throw it away.
+        const body = await apiRaw<{ calendarId?: string; calendarSummary?: string | null }>(
+          "/integrations/googleCalendar"
+        );
+        return {
+          connected: true,
+          calendarId: body?.calendarId || "primary",
+          calendarSummary: body?.calendarSummary ?? null,
+        };
       } catch (e) {
-        if (e instanceof ApiError && e.status === 404) return false;
+        if (e instanceof ApiError && e.status === 404) {
+          return { connected: false, calendarId: "primary", calendarSummary: null };
+        }
         throw e;
       }
     },
     ...opts,
+  });
+}
+
+export type GoogleCalendarOption = {
+  id: string;
+  summary: string;
+  primary: boolean;
+  backgroundColor: string | null;
+};
+
+/**
+ * The member's writable Google calendars. Only fetched once connected, and a 403
+ * means the connection predates the calendar-list scope, so the card asks for a
+ * reconnect rather than showing an error.
+ */
+export function useGoogleCalendarList(enabled: boolean) {
+  return useQuery({
+    queryKey: ["integration", "googleCalendar", "calendars"],
+    queryFn: () => api<GoogleCalendarOption[]>("/integrations/googleCalendar/calendars"),
+    enabled,
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSelectGoogleCalendar() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { calendarId: string; calendarSummary?: string | null }) =>
+      api("/integrations/googleCalendar/calendar", { method: "PUT", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["integration", "googleCalendar"] }),
   });
 }
 

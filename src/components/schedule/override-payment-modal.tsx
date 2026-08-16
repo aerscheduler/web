@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatMoney } from "@/lib/utils";
-import { confirmationCount, reviewerCount } from "./close-out";
+import { confirmationCount, reviewerCount, hasInstruction } from "./close-out";
 
 /**
  * Price one booking by hand.
@@ -88,11 +88,7 @@ export function OverridePaymentModal({
   // billing an aircraft for. Neither has a resource rate to replace.
   const hasResourceRate = r?.resource != null && !isRoom && (plane != null || simulator != null);
 
-  // The instruction line exists on the terms payment.ts prices it: an instructor with
-  // somebody to instruct. An instructor flying alone is renting, not teaching.
-  const hasInstruction =
-    (r?.personnel?.instructors?.length ?? 0) > 0 &&
-    ((r?.personnel?.students?.length ?? 0) > 0 || r?.type === "guest");
+  const instruction = r != null && hasInstruction(r);
 
   const billByHobbs = plane?.cost?.billByHobbsTime ?? simulator?.cost?.billByHobbsTime ?? true;
   const rateUnit = billByHobbs ? "per Hobbs hour" : "per tach hour";
@@ -133,12 +129,12 @@ export function OverridePaymentModal({
   };
 
   const resourceErr = rateError(resourceCents, hasResourceRate);
-  const instructorErr = rateError(instructorCents, hasInstruction);
+  const instructorErr = rateError(instructorCents, instruction);
 
   // The endpoint refuses a body with nothing in it ("No overrides provided"), so an empty
   // sheet is caught here rather than as a toast after a round trip.
   const nothingEntered =
-    (!hasResourceRate || resourceCents == null) && (!hasInstruction || instructorCents == null);
+    (!hasResourceRate || resourceCents == null) && (!instruction || instructorCents == null);
   const emptyErr = nothingEntered ? "Enter at least one rate to override." : null;
 
   const confirmed = r ? confirmationCount(r) : 0;
@@ -163,7 +159,7 @@ export function OverridePaymentModal({
     // left on it would otherwise have that figure rewritten on every save.
     const body: ReservationPaymentOverridesInput = {
       ...(hasResourceRate ? { resourceRateOverride: resourceCents ?? null } : {}),
-      ...(hasInstruction ? { instructorRateOverride: instructorCents ?? null } : {}),
+      ...(instruction ? { instructorRateOverride: instructorCents ?? null } : {}),
     };
 
     try {
@@ -210,7 +206,7 @@ export function OverridePaymentModal({
           />
         )}
 
-        {hasInstruction && (
+        {instruction && (
           <RateField
             id="override-instructor-rate"
             label="Instruction rate"

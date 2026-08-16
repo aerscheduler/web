@@ -125,9 +125,35 @@ export function usesBriefingNotMeters(r: Reservation): boolean {
   return r.resource.type?.room != null;
 }
 
+/**
+ * Is there a billable INSTRUCTION line on this booking?
+ *
+ * The server's rule, verbatim (`payment.ts`, `isStudentWithInstructorReservation` /
+ * `isGuestWithInstructorReservation`): an instructor AND a student, or a guest flight with
+ * an instructor. An instructor flying alone is renting, not teaching.
+ *
+ * Lives here rather than in the two components that had a copy each, because the ramp
+ * checks below need it too: without it the console asked for a briefing figure on a booking
+ * that has no instruction to bill, and no figure would ever arrive.
+ */
+export function hasInstruction(r: Reservation): boolean {
+  if ((r.personnel?.instructors?.length ?? 0) === 0) return false;
+  return (r.personnel?.students?.length ?? 0) > 0 || r.type === "guest";
+}
+
+/**
+ * A briefing-only booking is "ramped out" once the briefing is recorded, OR immediately
+ * when there is no instruction to record.
+ *
+ * The second half was missing, and it is the disagreement a customer would have hit: a
+ * ground lesson in a room with students and NO instructor has no instruction line, so no
+ * briefing figure is ever coming. The console waited for one forever while the phone moved
+ * straight to the sign-offs. The server settles it: `reviewIsComplete` counts sign-offs and
+ * never looks at `briefing`, so the phone was right.
+ */
 export function isRampedOut(r: Reservation): boolean {
   const rev = r.review;
-  if (usesBriefingNotMeters(r)) return rev?.briefing != null;
+  if (usesBriefingNotMeters(r)) return !hasInstruction(r) || rev?.briefing != null;
   return rev?.hobbsTimeOut != null || rev?.tachTimeOut != null;
 }
 
@@ -135,7 +161,7 @@ export function isRampedIn(r: Reservation): boolean {
   const rev = r.review;
   //One briefing figure covers the whole lesson, there is no out-and-back to tell apart, so
   //recording it satisfies both steps and the flow moves straight to the sign-offs.
-  if (usesBriefingNotMeters(r)) return rev?.briefing != null;
+  if (usesBriefingNotMeters(r)) return !hasInstruction(r) || rev?.briefing != null;
   return rev?.hobbsTimeIn != null || rev?.tachTimeIn != null;
 }
 

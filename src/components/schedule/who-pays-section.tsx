@@ -3,7 +3,7 @@ import { Loader2, Save, SplitSquareHorizontal, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useSetReservationPayers } from "@/features/queries";
 import { PILOT_ROLES, type PilotRole, type Reservation, type ReservationPayerInput } from "@/types/api";
-import { usesBriefingNotMeters } from "./close-out";
+import { usesBriefingNotMeters, hasInstruction } from "./close-out";
 import { CloseOutCard } from "./close-out-card";
 import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
@@ -234,11 +234,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   // What this booking can be measured with. A ground lesson has no meters and no pilot in
   // command; a classroom has no rate at all, so instruction is the only thing to divide.
   const hasMeters = !usesBriefingNotMeters(r);
-  // The instruction line exists on the same terms payment.ts prices it: an instructor with
-  // somebody to instruct. An instructor flying alone is renting, not teaching.
-  const hasInstruction =
-    (r.personnel?.instructors?.length ?? 0) > 0 &&
-    ((r.personnel?.students?.length ?? 0) > 0 || r.type === "guest");
+  const billsInstruction = hasInstruction(r);
   // Pilot roles are a property of a flight. Nobody is second in command of a simulator or a
   // briefing room, and offering the field there invites a record that isn't true.
   const hasRoles = r.resource?.type?.plane != null;
@@ -376,7 +372,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
         cursor += legs[i];
         patch.hobbsIn = tenthsToHours(cursor);
       }
-      if (hasInstruction && instruction) {
+      if (billsInstruction && instruction) {
         patch.instructionHours = tenthsToHours(instruction[i]);
       }
       next[party.key] = patch;
@@ -389,7 +385,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   const submit = () => {
     const payers: ReservationPayerInput[] = parties.map((party) => {
       const d = drafts[party.key];
-      const instructionTenthsForPayer = hasInstruction ? hoursToTenths(d.instructionHours) : null;
+      const instructionTenthsForPayer = billsInstruction ? hoursToTenths(d.instructionHours) : null;
       return {
         ...(party.orgUserId != null ? { orgUserId: party.orgUserId } : { guestId: party.guestId }),
         // Never send a figure for something this booking can't have. A stale Hobbs reading
@@ -423,7 +419,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
   // Nothing on this booking costs anything to divide, a classroom with no instructor on it
   // has neither a resource rate nor an instruction line. Asking for shares of nothing is
   // worse than asking nothing at all.
-  if (!hasMeters && !hasInstruction) return null;
+  if (!hasMeters && !billsInstruction) return null;
 
   //WHAT THE CARD SAYS WHILE IT IS SHUT.
   //
@@ -547,7 +543,7 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
                       </div>
                     </>
                   )}
-                  {hasInstruction && (
+                  {billsInstruction && (
                     <div className="space-y-1">
                       <Label className="whitespace-nowrap text-xs text-muted-foreground">Instruction (hrs)</Label>
                       <Input

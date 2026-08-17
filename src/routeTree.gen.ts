@@ -16,6 +16,7 @@ import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as PaymentMethodSavedRouteImport } from './routes/payment-method-saved'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as VerifyEmailRouteImport } from './routes/verify-email'
@@ -89,6 +90,11 @@ const LoginRoute = LoginRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentMethodSavedRoute = PaymentMethodSavedRouteImport.update({
+  id: '/payment-method-saved',
+  path: '/payment-method-saved',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -306,6 +312,7 @@ export interface FileRoutesByFullPath {
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/payment-method-saved': typeof PaymentMethodSavedRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
@@ -354,6 +361,7 @@ export interface FileRoutesByTo {
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/payment-method-saved': typeof PaymentMethodSavedRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
@@ -404,6 +412,7 @@ export interface FileRoutesById {
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/payment-method-saved': typeof PaymentMethodSavedRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/verify-email': typeof VerifyEmailRoute
@@ -454,6 +463,7 @@ export interface FileRouteTypes {
     | '/join'
     | '/login'
     | '/onboarding'
+    | '/payment-method-saved'
     | '/reset-password'
     | '/signup'
     | '/verify-email'
@@ -502,6 +512,7 @@ export interface FileRouteTypes {
     | '/join'
     | '/login'
     | '/onboarding'
+    | '/payment-method-saved'
     | '/reset-password'
     | '/signup'
     | '/verify-email'
@@ -551,6 +562,7 @@ export interface FileRouteTypes {
     | '/join'
     | '/login'
     | '/onboarding'
+    | '/payment-method-saved'
     | '/reset-password'
     | '/signup'
     | '/verify-email'
@@ -601,6 +613,7 @@ export interface RootRouteChildren {
   JoinRoute: typeof JoinRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
+  PaymentMethodSavedRoute: typeof PaymentMethodSavedRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
@@ -656,6 +669,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment-method-saved': {
+      id: '/payment-method-saved'
+      path: '/payment-method-saved'
+      fullPath: '/payment-method-saved'
+      preLoaderRoute: typeof PaymentMethodSavedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reset-password': {
@@ -1032,6 +1052,7 @@ const rootRouteChildren: RootRouteChildren = {
   JoinRoute: JoinRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
+  PaymentMethodSavedRoute: PaymentMethodSavedRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,
   VerifyEmailRoute: VerifyEmailRoute,

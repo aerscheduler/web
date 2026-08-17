@@ -11,7 +11,7 @@
  * Section 20 of the Terms promises 30 days' notice before a material change takes
  * effect, so bumping this is not on its own enough. Send the notice too.
  */
-export const TERMS_VERSION = "2026-08-15";
+export const TERMS_VERSION = "2026-08-17";
 
 export const TERMS_URL = "https://www.aerscheduler.com/terms-and-conditions";
 export const PRIVACY_URL = "https://www.aerscheduler.com/privacy";

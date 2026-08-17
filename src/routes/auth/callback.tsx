@@ -37,6 +37,10 @@ function exchangeOnce(code: string): Promise<string | null> {
     method: "POST",
     // raw() stringifies for us; a pre-stringified body would be double-encoded.
     body: { code },
+    // The code in the URL is only half of the handoff. The other half is an
+    // HttpOnly cookie the API set on the callback, and without this the browser
+    // will not send it cross-origin, so every exchange would fail.
+    withCredentials: true,
   })
     .then((body) => body?.auth?.accessToken ?? null)
     // Expired, already spent, or unknown. All the same to us, and to the person

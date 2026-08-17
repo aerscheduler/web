@@ -87,6 +87,16 @@ export interface ApiOptions {
   body?: unknown;
   query?: Record<string, QueryValue>;
   signal?: AbortSignal;
+  /**
+   * Send cookies with this request.
+   *
+   * Off by default, and per-call rather than global on purpose. The console talks
+   * to api.aerscheduler.com cross-origin, so turning credentials on everywhere
+   * would change what the browser demands of CORS for every endpoint at once.
+   * Exactly one call needs it: the OAuth handoff exchange, whose verifier cookie
+   * is the half of the handoff that deliberately does not travel in the URL.
+   */
+  withCredentials?: boolean;
 }
 
 /**
@@ -263,6 +273,7 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
     headers,
     body: bodyInit,
     signal: opts.signal,
+    ...(opts.withCredentials ? { credentials: "include" as const } : {}),
   });
 
   if (res.status === 204) return { status: 204, body: undefined };

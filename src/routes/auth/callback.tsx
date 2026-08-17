@@ -7,8 +7,7 @@ import { LogoLockup } from "@/components/logo";
 
 export const Route = createFileRoute("/auth/callback")({
   component: AuthCallbackPage,
-  validateSearch: (search: Record<string, unknown>): { token?: string; code?: string } => ({
-    token: typeof search.token === "string" ? search.token : undefined,
+  validateSearch: (search: Record<string, unknown>): { code?: string } => ({
     code: typeof search.code === "string" ? search.code : undefined,
   }),
 });
@@ -55,11 +54,19 @@ function exchangeOnce(code: string): Promise<string | null> {
  * /auth/oauth/exchange for the real session token. The token itself never travels
  * in a URL, so it never reaches browser history, a Referer header, or a proxy log.
  *
- * `?token=` is still accepted, deliberately. This page and the API deploy
- * separately, so for the window between the two there are old redirects in flight
- * carrying a token and new ones carrying a code, and refusing either would strand
- * whoever was mid-sign-in. Remove the token branch once the API has been sending
- * codes for longer than a token's usefulness.
+ * `?token=` is NO LONGER accepted, and that is a security fix rather than tidying.
+ * The branch existed for the deploy window while the API still sent tokens, but
+ * while it stood, ANY link of the form /auth/callback?token=<jwt> wrote that token
+ * into storage and signed the browser in. An attacker could sign in with their own
+ * account, copy their JWT, and send a victim a link that silently put the victim
+ * inside the ATTACKER's org: every booking the victim made and every certificate
+ * they uploaded landing somewhere the attacker could read. That is exactly the
+ * login CSRF the state-cookie binding was added to stop, reachable without
+ * touching the OAuth flow at all. It also outranked an existing session, so it
+ * hijacked people who were already signed in.
+ *
+ * Anything still arriving with ?token= now falls through to "missing sign-in
+ * token", which is correct: the API has not sent one since this shipped.
  */
 function AuthCallbackPage() {
   const search = Route.useSearch();
@@ -76,7 +83,6 @@ function AuthCallbackPage() {
       // parameter before the second mount could read it.
       const params = new URLSearchParams(window.location.search);
       const code = search.code || params.get("code");
-      const legacyToken = search.token || params.get("token");
 
       let jwt: string | null = null;
 
@@ -88,9 +94,10 @@ function AuthCallbackPage() {
           return;
         }
       } else {
-        // Legacy path, and the already-signed-in case (a refresh of this page
-        // after the code was spent, which is single use and now gone).
-        jwt = legacyToken || getToken();
+        // No code: the only legitimate way to be here is a refresh after the code
+        // was already spent, in which case the session is already stored. A token
+        // in the URL is deliberately ignored.
+        jwt = getToken();
       }
 
       if (!jwt) {
@@ -116,7 +123,7 @@ function AuthCallbackPage() {
     return () => {
       cancelled = true;
     };
-  }, [search.token, search.code, rehydrate, navigate]);
+  }, [search.code, rehydrate, navigate]);
 
   return (
     <main className="grid min-h-dvh place-items-center bg-background px-6">

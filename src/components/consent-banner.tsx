@@ -1,6 +1,6 @@
 import * as React from "react";
 import { bootstrapAnalyticsConsent, setConsent } from "@/lib/analytics";
-import { startAds, stopAds } from "@/lib/ads";
+import { startAds, stopAds, syncGoogleConsent } from "@/lib/ads";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -36,8 +36,14 @@ export function ConsentBanner() {
     // setConsent starts or stops PostHog immediately, so accepting takes effect on this
     // page rather than the next one.
     setConsent(state);
-    if (state === "granted") startAds();
-    else stopAds();
+    // Google is told either way: granted lifts it out of cookieless mode, denied puts it
+    // back. stopAds() already calls syncGoogleConsent(), so only the grant path needs it.
+    if (state === "granted") {
+      syncGoogleConsent();
+      startAds();
+    } else {
+      stopAds();
+    }
     setVisible(false);
   }
 

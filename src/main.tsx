@@ -12,7 +12,7 @@ import {
   trackFilters,
   trackPageview,
 } from "./lib/analytics";
-import { startAds } from "./lib/ads";
+import { startAds, startConsentMode } from "./lib/ads";
 import { initTheme } from "./lib/theme";
 import "./styles.css";
 
@@ -25,6 +25,10 @@ captureAttribution();
 bootstrapAnalyticsConsent();
 // Same consent, different question: gtag reports which ad click paid for this visit.
 // No-ops until VITE_GOOGLE_ADS_ID is set. See lib/ads.ts.
+// Unconditional: installs the Google tag under Consent Mode v2 denied defaults so an
+// unconsented signup is still reported as a cookieless ping. startAds() is the gated
+// half (Meta only).
+startConsentMode();
 startAds();
 
 const router = createRouter({

@@ -30,9 +30,15 @@
  *
  * ## Consent
  *
- * Same `aer_consent` cookie as PostHog, same rule: nothing is downloaded until consent
- * exists, so declining means no Google code ever runs rather than "runs and stays
- * quiet". `startAds()` is called from the same places as `startAnalytics()`.
+ * Meta follows the `aer_consent` cookie strictly: nothing is downloaded until consent
+ * exists, so declining means no Meta code ever runs.
+ *
+ * **Google runs Consent Mode v2 instead**, and its tag loads immediately with all four
+ * signals denied. Denied means no cookies and no identifiers, but a conversion still
+ * leaves as a cookieless ping Google can model from. The old behaviour, gating the tag
+ * itself, meant that a school which ignored the banner and signed up reported nothing
+ * at all: three days of paid traffic, 25+ clicks, zero conversions in the Ads account,
+ * and smart bidding left with no success signal to optimise against.
  *
  * Every function here degrades to a no-op when the ids are unset, so the console works
  * unchanged on a laptop, in preview builds, and for anyone who declined the banner.
@@ -89,28 +95,60 @@ declare global {
 /* eslint-enable @typescript-eslint/no-explicit-any */
 
 let started = false;
+let googleLoaded = false;
 
-/** Load the consented ad tags. Idempotent, so it is safe to call on every mount. */
+/**
+ * The four Consent Mode v2 signals. `ad_user_data` and `ad_personalization` are the two
+ * v2 added; leaving them out is the usual way a migration silently keeps v1 behaviour.
+ */
+const DENIED = {
+  ad_storage: "denied",
+  ad_user_data: "denied",
+  ad_personalization: "denied",
+  analytics_storage: "denied",
+} as const;
+
+const GRANTED = {
+  ad_storage: "granted",
+  ad_user_data: "granted",
+  ad_personalization: "granted",
+  analytics_storage: "granted",
+} as const;
+
+/**
+ * Load Meta, if consented. Idempotent, so it is safe to call on every mount.
+ *
+ * Google is no longer here: `startConsentMode()` loads it unconditionally under denied
+ * defaults, which is what lets an unconsented signup still be reported.
+ */
 export function startAds(): void {
   if (started || typeof window === "undefined" || !hasConsent()) return;
   started = true;
-  loadGoogle();
   loadMeta();
 }
 
 /**
- * Forget that anything was loaded.
+ * Stop sending to the consent-gated platforms, and tell Google the answer changed.
  *
- * Note this cannot unring the bell: once gtag is in the page it stays there until the
- * next navigation. It exists so that a decline mid-session stops us *sending* anything
- * further, and so a later grant re-runs the loaders cleanly.
+ * This cannot unring the bell for Meta: once its script is in the page it stays until
+ * the next navigation, so this stops us *calling* it. Google is different, because
+ * pushing a denied update genuinely does downgrade it to cookieless for the rest of the
+ * visit.
  */
 export function stopAds(): void {
   started = false;
+  syncGoogleConsent();
 }
 
-function loadGoogle(): void {
-  if (!GOOGLE_ADS_ID || window.gtag) return;
+/**
+ * Install the Google tag with everything denied. Not gated on consent, deliberately.
+ *
+ * Order matters: dataLayer, then the consent default, then the script. A default pushed
+ * after the tag initialises is ignored and the visitor falls back to platform defaults.
+ */
+export function startConsentMode(): void {
+  if (googleLoaded || typeof window === "undefined" || !GOOGLE_ADS_ID || window.gtag) return;
+  googleLoaded = true;
 
   window.dataLayer = window.dataLayer || [];
   // Must be a real `arguments`-forwarding function, not an arrow taking a rest
@@ -120,6 +158,13 @@ function loadGoogle(): void {
     window.dataLayer!.push(arguments);
   }
   window.gtag = gtag as unknown as (...args: unknown[]) => void;
+
+  window.gtag("consent", "default", {
+    ...(hasConsent() ? GRANTED : DENIED),
+    // A returning visitor who already accepted should not be modelled for half a
+    // second, hence reading consent above rather than always starting denied.
+    wait_for_update: 500,
+  });
 
   const script = document.createElement("script");
   script.async = true;
@@ -131,6 +176,12 @@ function loadGoogle(): void {
   // Without it a conversion fired here is unattributed, which is the whole point of
   // this module.
   window.gtag("config", GOOGLE_ADS_ID, { conversion_linker: true });
+}
+
+/** Push the current answer to Google. Safe to call repeatedly, and in both directions. */
+export function syncGoogleConsent(): void {
+  if (typeof window === "undefined" || !window.gtag) return;
+  window.gtag("consent", "update", hasConsent() ? { ...GRANTED } : { ...DENIED });
 }
 
 function loadMeta(): void {
@@ -195,13 +246,16 @@ export function trackAdConversion(
   name: AdConversion,
   opts?: { value?: number; currency?: string; transactionId?: string }
 ): void {
-  if (typeof window === "undefined" || !hasConsent()) return;
-  // Late consent, or a hard reload straight onto the Stripe success redirect: the tags
-  // may not be up yet.
+  if (typeof window === "undefined") return;
+  // A hard reload straight onto the Stripe success redirect can land here before either
+  // loader has run, so make sure the Google tag exists before firing at it.
+  startConsentMode();
   startAds();
   if (alreadyFired(name)) return;
 
   try {
+    // Fired whether or not the banner was accepted. Under denied consent this is a
+    // cookieless ping: no cookie, no identifier, still a signal Google can model from.
     const label = GOOGLE_LABELS[name];
     if (window.gtag && GOOGLE_ADS_ID && label) {
       window.gtag("event", "conversion", {
@@ -213,7 +267,8 @@ export function trackAdConversion(
       });
     }
 
-    if (window.fbq && META_PIXEL_ID) {
+    // Meta has no consent-mode equivalent, so it stays fully gated.
+    if (hasConsent() && window.fbq && META_PIXEL_ID) {
       window.fbq(
         "track",
         META_EVENTS[name],

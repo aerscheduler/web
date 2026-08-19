@@ -72,7 +72,7 @@
   --brand-surface-2: #1a3763;
 
   /* reservation / dispatch-lane hues, calmer, to sit on white cards */
-  --res-dual: #2c4589; /* deeper indigo, separates from solo azure */
+  --res-dual: #b5397e; /* rose. was #2c4589, an indigo too close to solo's azure to tell apart on a dense board, especially once past bookings are dimmed. Mirrored in app lib/constants/style.dart calendarColorDual — see res-colors.test.ts */
   --res-solo: #1967d2;
   --res-ground: #5b6472;
   --res-sim: #9a6a45;
@@ -147,7 +147,7 @@
   --brand-surface: #0b1626;
   --brand-surface-2: #16305a;
 
-  --res-dual: #5a86d0;
+  --res-dual: #d4709f; /* dark-mode rose, see the light value above */
   --res-solo: #4a8fe7;
   --res-ground: #7f8aa0;
   --res-sim: #c08a63;

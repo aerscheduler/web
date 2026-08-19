@@ -234,9 +234,26 @@ export function closeOutStep(r: Reservation): CloseOutStep {
 // ── Per-reservation action capabilities (mirror the Flutter model getters) ────
 // Flutter gates each reservation action with three actor concepts: STAFF
 // (admin/dispatcher, +technician for cancel), the PERSONNEL assigned to *this*
-// reservation, and the CREATOR. The API strips FK_* scalars (so we can't see
-// `createdBy` on the web), where Flutter also allows the creator we stay
-// strictly more-restrictive, which only ever hides actions, never leaks them.
+// reservation, and the CREATOR.
+//
+// The creator branch used to be dropped here on the grounds that the response strip hid
+// `createdBy`. That was wrong: the strip removes FK_* SCALARS, and `createdBy` is a nested
+// RELATION the server selects on every reservation read, so it survives (see the type in
+// types/api.ts). Dropping it was not merely conservative either, it silently removed the
+// only route a TECHNICIAN has to their own work: a maintenance booking carries no personnel
+// by design and a technician is not staff, so `canRamp` was false for the very person who
+// books the job. The server has always allowed it (`orgUserCanRampOut` checks the creator
+// first), so the console was hiding a button for an action the API grants.
+
+/**
+ * Did `orgUserId` book this reservation?
+ *
+ * `createdBy` is a nested relation, not an `FK_*` scalar, so it survives the response strip.
+ */
+export function isReservationCreator(r: Reservation, orgUserId: number | null): boolean {
+  if (orgUserId == null) return false;
+  return r.createdBy?.id === orgUserId;
+}
 
 /** Is `orgUserId` listed as an INSTRUCTOR on this reservation specifically? */
 export function isReservationInstructor(r: Reservation, orgUserId: number | null): boolean {
@@ -247,9 +264,8 @@ export function isReservationInstructor(r: Reservation, orgUserId: number | null
 /**
  * Who may CANCEL a reservation, mirrors Flutter's `canCancel` getter: the flight
  * hasn't been ramped out, isn't already cancelled, AND the viewer is staff
- * (owner/admin/dispatcher), a technician, or the instructor assigned to it.
- * Students/renters can't cancel someone else's flight (Flutter also allows the
- * creator, but that field isn't exposed to the web, see note above).
+ * (owner/admin/dispatcher), a technician, the instructor assigned to it, or whoever
+ * booked it. Students/renters can't cancel someone else's flight.
  */
 export function canCancelReservation(
   r: Reservation,
@@ -258,12 +274,21 @@ export function canCancelReservation(
 ): boolean {
   if (r.cancelledAt) return false;
   if (isRampedOut(r)) return false;
-  return isStaff(roles) || isTechnician(roles) || isReservationInstructor(r, orgUserId);
+  return (
+    isStaff(roles) ||
+    isTechnician(roles) ||
+    isReservationInstructor(r, orgUserId) ||
+    isReservationCreator(r, orgUserId)
+  );
 }
 
 /**
- * Who may RAMP OUT / RAMP IN a reservation, mirrors Flutter's `!viewOnly`:
- * staff or any pilot assigned to the flight. (Creator branch omitted, as above.)
+ * Who may RAMP OUT / RAMP IN a reservation. Mirrors the server's `orgUserCanRampOut` /
+ * `orgUserCanRampIn`: whoever booked it, anyone assigned to it, or staff.
+ *
+ * The creator is what makes MAINTENANCE work. That booking type never carries personnel, so
+ * without it a technician could book an aircraft off the line and then had no way to ramp it
+ * out or back in from the console.
  */
 export function canRampReservation(
   r: Reservation,
@@ -271,15 +296,16 @@ export function canRampReservation(
   orgUserId: number | null
 ): boolean {
   if (r.cancelledAt) return false;
-  return isStaff(roles) || isReservationPersonnel(r, orgUserId);
+  return (
+    isStaff(roles) || isReservationPersonnel(r, orgUserId) || isReservationCreator(r, orgUserId)
+  );
 }
 
 /**
  * Who may EDIT / reschedule a reservation, mirrors Flutter's `canEdit`: not
  * cancelled, not yet departed, not already past, and the viewer is staff or a
- * pilot on it. The server's `PATCH /reservations/:id` allows creator ∪ personnel
- * ∪ admin ∪ dispatcher; as elsewhere we can't see the creator, so we stay
- * strictly more-restrictive.
+ * pilot on it, or whoever booked it. This is the server's own rule for
+ * `PATCH /reservations/:id`: creator ∪ personnel ∪ admin ∪ dispatcher.
  *
  * Once the aircraft has ramped out, editing stops. Flutter keeps the END time
  * editable in that state; the web's availability-driven time picker can't offer
@@ -298,7 +324,9 @@ export function canEditReservation(
   if (r.cancelledAt) return false;
   if (isRampedOut(r)) return false;
   if (new Date(r.end).getTime() < now.getTime()) return false;
-  return isStaff(roles) || isReservationPersonnel(r, orgUserId);
+  return (
+    isStaff(roles) || isReservationPersonnel(r, orgUserId) || isReservationCreator(r, orgUserId)
+  );
 }
 
 // ── Money and meters after the fact ──────────────────────────────────────────

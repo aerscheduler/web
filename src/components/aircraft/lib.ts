@@ -31,6 +31,30 @@ export function planeTitle(p: Plane): string {
   return [p.year, p.make, p.model].filter(Boolean).join(" ") || "Aircraft";
 }
 
+/**
+ * FUEL IS STORED IN HUNDREDTHS OF A UNIT, the same way money is stored in cents.
+ *
+ * Nothing in the schema says so and this console originally assumed plain gallons, which
+ * is how a 42-gallon Cessna 172 came to render as "4200 gallons" on the aircraft page.
+ * Production settles it (checked 2026-08-18): 158 planes across 111 orgs hold the x100
+ * scale against 45 that hold plain units, the x100 side includes every aircraft belonging
+ * to the paying customer, and the Flutter app has read and written that scale since long
+ * before this console existed (`decimalToInt` / `formattedFuelCapacity`).
+ *
+ * So the console converts at the edges, and the 45 plain-unit rows, which this console
+ * itself wrote, are a data problem to be backfilled rather than a second convention to
+ * support. They will read as a fraction of a gallon until that happens.
+ */
+export function fuelToDisplay(stored: number | null | undefined): number | null {
+  if (stored == null) return null;
+  return stored / 100;
+}
+
+/** Inverse of `fuelToDisplay`. Truncates, matching the app's `decimalToInt`. */
+export function fuelToStored(display: number): number {
+  return Math.trunc(display * 100);
+}
+
 export type PlaneTemplate = {
   value: string;
   label: string;

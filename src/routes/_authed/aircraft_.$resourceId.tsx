@@ -20,7 +20,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
 import { formatDate, formatMoney, initials } from "@/lib/utils";
-import { planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
+import { fuelToDisplay, planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
 import { AircraftFormModal } from "@/components/aircraft/aircraft-form";
 import { GroundModal } from "@/components/aircraft/ground-modal";
 import { ApproveRentersSheet } from "@/components/aircraft/approve-renters-sheet";
@@ -275,7 +275,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
               )}
               {plane?.fuelCapacity != null && (
                 <MetaItem icon={Fuel}>
-                  {plane.fuelCapacity} {plane.fuelMeasurement ?? "gallons"}
+                  {fuelToDisplay(plane.fuelCapacity)} {plane.fuelMeasurement ?? "gallons"}
                 </MetaItem>
               )}
             </>

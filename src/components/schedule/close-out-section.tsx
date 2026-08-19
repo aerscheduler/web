@@ -434,13 +434,18 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
             <div className="flex items-start gap-2 text-sm text-muted-foreground">
               <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
               <span>
-                {canInvoice
-                  ? ledgerMode
-                    ? "Review complete, and this flight has no ledger charge yet. Post one when you're ready."
-                    : "Review complete, and this flight has no invoice against it. Raise one when you're ready."
-                  : ledgerMode
-                    ? "Review complete. The ledger charge will appear here once it’s posted."
-                    : "Review complete. The invoice will appear here once it’s generated."}
+                {/* Maintenance is never billed (pricing refuses the type outright), so
+                    promising an invoice or a ledger charge that is never coming is simply
+                    wrong. It reads as a bill still in flight on a booking that has none. */}
+                {r.type === "maintenance"
+                  ? "Maintenance complete. This booking isn't billed."
+                  : canInvoice
+                    ? ledgerMode
+                      ? "Review complete, and this flight has no ledger charge yet. Post one when you're ready."
+                      : "Review complete, and this flight has no invoice against it. Raise one when you're ready."
+                    : ledgerMode
+                      ? "Review complete. The ledger charge will appear here once it’s posted."
+                      : "Review complete. The invoice will appear here once it’s generated."}
               </span>
             </div>
             {/* The bill normally mints itself the moment the last pilot signs off. When

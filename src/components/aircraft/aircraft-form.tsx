@@ -4,7 +4,7 @@ import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { useCreatePlane, useUpdateResource } from "@/features/queries";
 import type { CreatePlaneResourceInput, Location, Resource } from "@/types/api";
-import { PLANE_TEMPLATES } from "@/components/aircraft/lib";
+import { PLANE_TEMPLATES, fuelToDisplay, fuelToStored } from "@/components/aircraft/lib";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { MoneyInput } from "@/components/money-input";
@@ -52,6 +52,23 @@ const REQUIRED_FIELDS = [
   { key: "locationId", id: "" },
 ] as const;
 
+/**
+ * Upper-case the REGISTRATION only, not the whole field.
+ *
+ * This was `value.toUpperCase()`, which is right for "n12345" and wrong for every aircraft
+ * that carries a nickname, because schools put it in this field: our own customer's fleet is
+ * "N1906V (Lucy)", "N46132 (Ethel)", "N7226S (Bluey)". Editing anything on that aircraft
+ * silently rewrote the name to "(LUCY)" the moment the tail box was touched.
+ *
+ * The registration is the first whitespace-delimited token; everything after it is left
+ * exactly as typed.
+ */
+function upperRegistration(value: string): string {
+  const at = value.indexOf(" ");
+  if (at === -1) return value.toUpperCase();
+  return value.slice(0, at).toUpperCase() + value.slice(at);
+}
+
 function emptyState(): FormState {
   return {
     tailNumber: "",
@@ -85,7 +102,8 @@ function stateFromResource(r: Resource): FormState {
     categoryClass: p?.categoryClass ?? "",
     hobbs: p ? (p.hobbsTime / 10).toFixed(1) : "",
     tach: p ? (p.tachTime / 10).toFixed(1) : "",
-    fuelCapacity: p?.fuelCapacity != null ? String(p.fuelCapacity) : "",
+    //Stored in hundredths, shown in whole units. See fuelToDisplay.
+    fuelCapacity: p?.fuelCapacity != null ? String(fuelToDisplay(p.fuelCapacity)) : "",
     fuelMeasurement: p?.fuelMeasurement ?? "gallons",
     rateCents: (basis === "wet" ? cost?.wetRate : cost?.dryRate) ?? 0,
     rateBasis: basis,
@@ -164,7 +182,13 @@ export function AircraftFormModal({
     tailNumber: tail.length === 0 ? "Enter a tail number." : "",
     make: form.make.trim().length === 0 ? "Enter the make." : "",
     model: form.model.trim().length === 0 ? "Enter the model." : "",
-    year: form.year.trim().length !== 4 ? "Enter a 4-digit year." : "",
+    //Optional. The column is nullable and plenty of real aircraft have no year on file
+    //(a customer with three of them could not save those records at all), so this only
+    //objects to a year that was actually typed and is not four digits.
+    year:
+      form.year.trim().length === 0 || form.year.trim().length === 4
+        ? ""
+        : "Enter a 4-digit year.",
     categoryClass:
       form.categoryClass.trim().length === 0 ? "Enter the category & class." : "",
     fuelCapacity: form.fuelCapacity.trim().length === 0 ? "Enter the fuel capacity." : "",
@@ -205,7 +229,7 @@ export function AircraftFormModal({
               categoryClass: form.categoryClass.trim(),
               hobbsTime,
               tachTime,
-              fuelCapacity: Number(form.fuelCapacity) || 0,
+              fuelCapacity: fuelToStored(Number(form.fuelCapacity) || 0),
               fuelMeasurement: form.fuelMeasurement,
               ...flyingDayPayload(form.flyingDayKey),
               cost: {
@@ -239,7 +263,7 @@ export function AircraftFormModal({
           categoryClass: form.categoryClass.trim(),
           hobbsTime,
           tachTime,
-          fuelCapacity: Number(form.fuelCapacity) || 0,
+          fuelCapacity: fuelToStored(Number(form.fuelCapacity) || 0),
           fuelMeasurement: form.fuelMeasurement,
           ...flyingDayPayload(form.flyingDayKey),
           cost,
@@ -268,7 +292,17 @@ export function AircraftFormModal({
           : "Add a tail to your fleet so it can be scheduled and billed."
       }
     >
-      <form data-doc-shot="aircraft-rate-fields" onSubmit={handleSubmit} className="space-y-4">
+      {/* autoComplete off for the whole form. None of these are personal details the
+          browser could usefully know, and on the one field that is legitimately blank
+          Chrome was proposing a year out of its saved addresses ("2004"). A wrong year
+          silently saved onto an aircraft is worse than an empty one, and now that the
+          field is optional there is nothing forcing the user to look at it. */}
+      <form
+        data-doc-shot="aircraft-rate-fields"
+        onSubmit={handleSubmit}
+        className="space-y-4"
+        autoComplete="off"
+      >
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="ac-tail">Tail number</Label>
@@ -277,7 +311,7 @@ export function AircraftFormModal({
               autoFocus
               placeholder="N12345"
               value={form.tailNumber}
-              onChange={(e) => set("tailNumber", e.target.value.toUpperCase())}
+              onChange={(e) => set("tailNumber", upperRegistration(e.target.value))}
               className="font-mono"
               aria-invalid={showErrors && !!errors.tailNumber}
             />
@@ -334,6 +368,9 @@ export function AircraftFormModal({
             <Input
               id="ac-year"
               inputMode="numeric"
+              //Chrome ignores autoComplete="off" on a form for fields it thinks it knows;
+              //a value it does not recognise gets it to leave this one alone.
+              autoComplete="chrome-off"
               placeholder="2004"
               value={form.year}
               onChange={(e) => set("year", e.target.value.replace(/[^0-9]/g, "").slice(0, 4))}

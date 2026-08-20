@@ -176,6 +176,11 @@ function PermissionsBody({
         </Card>
       )}
 
+      <p className="px-1 text-xs text-muted-foreground">
+        Permissions marked <span className="font-medium">comes with the role</span> cannot be
+        given to one person yet. Change their roles for those.
+      </p>
+
       {domains.map(({ domain, label, options }) => (
         <Card key={domain} className="p-4" data-doc-shot={`person-permissions-${domain}`}>
           <div className="mb-3 flex items-center gap-2">
@@ -215,6 +220,12 @@ function PermissionsBody({
                     // Fixed on, not an unticked box: this cannot be removed here, and
                     // offering a control that refuses to move is worse than not offering one.
                     <Switch checked disabled aria-label={`${option.label}, from their role`} />
+                  ) : !option.enforced ? (
+                    // The server does not consult the Grant table for this one yet, so
+                    // issuing it would hand somebody a capability every route behind it
+                    // still refuses. Offered as read-only until enforcement lands, rather
+                    // than as a switch that produces a 403 for whoever was given it.
+                    <Switch checked={on} disabled aria-label={`${option.label}, comes with the role`} />
                   ) : (
                     <Switch
                       checked={on}

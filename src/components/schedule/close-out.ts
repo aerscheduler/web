@@ -381,7 +381,15 @@ export function canOverridePricesInOrg(
   roles: Role[],
   preferences: OrganizationPreferences | null | undefined
 ): boolean {
-  if (isStaff(roles)) return true;
+  // ADMIN, not staff. `isStaff` includes dispatchers, and POST
+  // /reservations/:id/paymentOverrides admits an admin, or an instructor when the school
+  // has turned the preference on, and nobody else. The desk was shown "Override payment"
+  // on the close-out modal, retyped the aircraft or instruction rate, hit Save and got
+  // "You are not authorized to make this request" with the corrected pricing discarded.
+  //
+  // The same clause was live in the app's reservation model and is fixed there too. Two
+  // surfaces, one wrong rule, which is what a shared vocabulary is meant to stop.
+  if (isAdmin(roles)) return true;
   return preferences?.instructorsCanOverrideReservationPrices === true && isInstructor(roles);
 }
 

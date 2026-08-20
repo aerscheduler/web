@@ -539,6 +539,8 @@ export interface GrantOption {
   domain: string;
   domainLabel: string;
   courseScoped: boolean;
+  /** Whether the server honours this one yet. See ENFORCED_GRANTS in the server's grants.ts. */
+  enforced: boolean;
   /** Roles that already confer it. A box ticked for one of these would change nothing. */
   impliedBy: Role[];
 }

@@ -479,6 +479,69 @@ export interface RolesUpdate {
   dispatcher: boolean;
 }
 
+/**
+ * A capability a member may hold, resolved by the server.
+ *
+ * Mirrors `GRANTS` in server/src/utils/grants.ts, which is the source of truth. A role
+ * says what somebody IS to the school and is not reducible to permissions; a grant is the
+ * other half, pure authority. The console never derives these itself: it asks
+ * `GET /me/permissions` and renders the answer, because the last time it re-derived a
+ * server rule a chief instructor with `configureTraining` was redirected to /me.
+ */
+export type GrantName =
+  | "assignInstructors"
+  | "assignRoles"
+  | "auditor"
+  | "cancelAnyBooking"
+  | "checkInstructor"
+  | "configureCompliance"
+  | "configureTraining"
+  | "createInvoice"
+  | "editMemberContacts"
+  | "groundMembers"
+  | "groundResource"
+  | "manageAnyBooking"
+  | "manageApiKeys"
+  | "manageBillingSetup"
+  | "manageCheckouts"
+  | "manageEnrollment"
+  | "manageFleet"
+  | "manageInvoices"
+  | "manageMaintenance"
+  | "manageMemberDocs"
+  | "manageMemberLedger"
+  | "manageMembers"
+  | "manageMemberships"
+  | "manageOrgSettings"
+  | "manageStandbyOffers"
+  | "manageSubscription"
+  | "overrideBookingLocks"
+  | "overrideBookingRules"
+  | "postAnnouncements"
+  | "renewCurrencies"
+  | "sendReportsOutside"
+  | "setFlightPricing"
+  | "uploadMemberDocs"
+  | "viewAuditLog"
+  | "viewFleetReports"
+  | "viewInvoices"
+  | "viewMaintenance"
+  | "viewMemberRecords"
+  | "viewOperationsReports"
+  | "viewPeopleReports"
+  | "viewRevenueReports";
+
+/** The payload of `GET /me/permissions`. */
+export interface SessionPermissions {
+  roles: Role[];
+  /** The union the console should check. Sorted, so two responses compare equal. */
+  granted: GrantName[];
+  /** Which role conferred each grant, so the UI can say why. */
+  source: Record<string, Role[]>;
+  /** Explicit grant rows. Empty until the server starts reading them. */
+  explicit: GrantName[];
+}
+
 /** Derive the list of active roles on a membership row. */
 export function rolesOf(ou: OrganizationUser): Role[] {
   const out: Role[] = [];

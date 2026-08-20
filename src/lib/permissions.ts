@@ -1,6 +1,6 @@
 import { redirect } from "@tanstack/react-router";
-import type { ReservationType, Role } from "@/types/api";
-import { hasActiveOrg, rolesFromSession } from "./auth";
+import type { GrantName, ReservationType, Role } from "@/types/api";
+import { grantsFromSession, hasActiveOrg, rolesFromSession } from "./auth";
 
 /**
  * Single source of truth for who can see/do what, mirroring the SERVER's real
@@ -78,16 +78,69 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   "/settings": isAdmin,
 };
 
-/** Can these roles reach `path`? Unlisted paths (e.g. /me/*, /notifications) are open. */
-export function canAccess(path: string, roles: Role[]): boolean {
-  const exact = ROUTE_ACCESS[path];
-  if (exact) return exact(roles);
-  // Nested pages inherit the nearest registered parent (e.g. /settings/integrations/…).
-  const parent = Object.keys(ROUTE_ACCESS)
+/**
+ * The same rules again, asked of the caller's GRANTS instead of their roles.
+ *
+ * Only the routes where a grant expression is exactly equivalent appear here, and
+ * `permissions.test.ts` proves that equivalence against every role combination that
+ * exists in production. Anything absent falls through to the role rule above, which stays
+ * the authority for it.
+ *
+ * TWO ROUTES ARE DELIBERATELY ABSENT, and they are absent for opposite reasons.
+ *
+ * `/training` is an IDENTITY question, not an authority one. It admits staff or
+ * instructors, and no grant identifies an instructor: instructing is something a person
+ * IS, which is why `BASELINE_GRANTS.instructor` is a single lock-window override. A
+ * dispatcher can also reach the page today while holding no training grant at all.
+ * Rewriting this as a grant check would narrow it, and narrowing is the one thing this
+ * migration must not do.
+ *
+ * The `anyMember` routes are absent because there is nothing to express: everybody
+ * already passes, and a grant rule could only take that away.
+ */
+const ROUTE_GRANTS: Record<string, (g: Set<GrantName>) => boolean> = {
+  "/dashboard": (g) => g.has("viewOperationsReports"),
+  "/facilities": (g) => g.has("manageFleet"),
+  "/billing": (g) => g.has("viewInvoices"),
+  "/reports": (g) =>
+    g.has("viewOperationsReports") ||
+    g.has("viewFleetReports") ||
+    g.has("viewPeopleReports") ||
+    g.has("viewRevenueReports"),
+  "/operations/cancellations": (g) => g.has("viewOperationsReports"),
+  "/compliance": (g) => g.has("viewMemberRecords"),
+  "/maintenance": (g) => g.has("viewMaintenance"),
+  "/audit-logs": (g) => g.has("viewAuditLog"),
+  "/settings": (g) => g.has("manageOrgSettings"),
+};
+
+/** Nested pages inherit the nearest registered parent (e.g. /settings/integrations/…). */
+function routeKey(path: string): string | undefined {
+  if (ROUTE_ACCESS[path]) return path;
+  return Object.keys(ROUTE_ACCESS)
     .filter((k) => path.startsWith(`${k}/`))
     .sort((a, b) => b.length - a.length)[0];
-  if (parent) return ROUTE_ACCESS[parent]!(roles);
-  return true;
+}
+
+/**
+ * Can this caller reach `path`? Unlisted paths (e.g. /me/*, /notifications) are open.
+ *
+ * Grants first, roles as the fallback. The fallback is not belt-and-braces: a session
+ * saved before permissions shipped has none, and the fetch can fail, and in both cases
+ * denying every guarded page would be far worse than answering from roles. It costs
+ * nothing to keep while the two provably agree, and it is what gets deleted once the
+ * server starts resolving explicit grant rows that roles cannot predict.
+ */
+export function canAccess(
+  path: string,
+  roles: Role[],
+  grants: Set<GrantName> | null = grantsFromSession()
+): boolean {
+  const key = routeKey(path);
+  if (!key) return true;
+  const byGrant = ROUTE_GRANTS[key];
+  if (byGrant && grants) return byGrant(grants);
+  return ROUTE_ACCESS[key]!(roles);
 }
 
 /**

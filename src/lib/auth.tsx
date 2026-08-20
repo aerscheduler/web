@@ -31,7 +31,15 @@ import {
   setDemoToken,
   type DemoMeta,
 } from "./demo";
-import { rolesOf, type Organization, type OrganizationUser, type Role, type User } from "@/types/api";
+import {
+  rolesOf,
+  type GrantName,
+  type Organization,
+  type OrganizationUser,
+  type Role,
+  type SessionPermissions,
+  type User,
+} from "@/types/api";
 
 interface AuthEnvelope {
   auth: { accessToken: string };
@@ -46,6 +54,16 @@ interface SessionState {
   user: User | null;
   organization: Organization | null;
   organizations: Organization[];
+  /**
+   * What this member may do, resolved by the server.
+   *
+   * Stored beside the session rather than fetched per guard because `guardRoute` runs in
+   * TanStack's `beforeLoad`, synchronously, before React renders. Optional on purpose: a
+   * session saved before this shipped has no field, and the fetch below can fail. Both
+   * cases fall back to the role rules, which today give the identical answer, and
+   * `permissions.test.ts` asserts that for every role combination in production.
+   */
+  permissions?: SessionPermissions | null;
 }
 
 const SESSION_KEY = "aer.session";
@@ -85,6 +103,37 @@ export function isAuthenticated(): boolean {
 
 /** The caller's roles in the active org, read synchronously from the stored
  * session, used by router guards before React renders. */
+/**
+ * The caller's resolved grants, or null when we do not know them yet.
+ *
+ * Null is meaningful and must not be flattened to "holds nothing": a member whose session
+ * predates this field, or whose permissions fetch failed, would then be locked out of
+ * every guarded page. Callers fall back to the role rules instead.
+ */
+export function grantsFromSession(): Set<GrantName> | null {
+  const granted = loadSession().permissions?.granted;
+  return granted ? new Set(granted) : null;
+}
+
+/**
+ * Re-read the caller's permissions and merge them into the stored session.
+ *
+ * Deliberately NOT awaited by `apply()`: sign-in should not wait on a second round trip,
+ * and the role fallback covers the gap until this lands. A failure leaves the previous
+ * answer in place rather than blanking it, so a flaky network cannot sign somebody out of
+ * their own pages.
+ */
+export async function refreshPermissions(): Promise<SessionPermissions | null> {
+  try {
+    const res = await apiRaw<{ data: SessionPermissions }>("/me/permissions");
+    const next = { ...loadSession(), permissions: res.data };
+    saveSession(next);
+    return res.data;
+  } catch {
+    return null;
+  }
+}
+
 export function rolesFromSession(): Role[] {
   const s = loadSession();
   const ous = s.user?.orgUsers ?? [];
@@ -225,6 +274,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getToken() ? loadSession() : { user: null, organization: null, organizations: [] }
   );
 
+  /**
+   * Re-resolve permissions when the app boots on a session that already existed.
+   *
+   * `apply()` only runs when a session is ESTABLISHED, so without this a stored session
+   * would keep whatever grants it was given at sign-in, for as long as the person stays
+   * signed in. Somebody granted an authority this morning would not see it until they
+   * signed out and back in, which is exactly the "why can't I see it, I was told I could"
+   * support call this whole change is meant to prevent.
+   *
+   * This is the floor, not the mechanism: it closes the gap on reload, and a live
+   * invalidation over the realtime channel is what closes it while a tab stays open.
+   */
+  useEffect(() => {
+    if (!getToken() || isTokenExpired()) return;
+    void refreshPermissions().then((permissions) => {
+      if (permissions) setSession((prev) => ({ ...prev, permissions }));
+    });
+  }, []);
+
   const apply = useCallback((env: AuthEnvelope) => {
     // Whatever was on screen belongs to the session that just ended, most of
     // all the "you've been signed out" toast, which is actively wrong now.
@@ -240,6 +308,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     saveSession(next);
     setSession(next);
+
+    // Fire and forget. The roles in `next` already answer every guard correctly today, so
+    // there is no window where a page is wrongly denied; this replaces that answer with
+    // the server's own the moment it arrives.
+    void refreshPermissions().then((permissions) => {
+      if (permissions) setSession((prev) => ({ ...prev, permissions }));
+    });
   }, []);
 
   const login = useCallback(

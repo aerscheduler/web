@@ -3,7 +3,6 @@ import { KeyRound, Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import type { GrantOption, MemberPermissions } from "@/types/api";
 import {
-  useCourses,
   useGrantPermission,
   useMemberPermissions,
   usePermissionCatalog,
@@ -72,9 +71,6 @@ function PermissionsBody({
   catalog: GrantOption[];
   permissions: MemberPermissions;
 }) {
-  const courses = useCourses();
-  const courseName = (id: number | null) =>
-    id == null ? null : (courses.data?.find((c) => c.id === id)?.name ?? null);
   const grant = useGrantPermission(orgUserId);
   const revoke = useRevokePermission(orgUserId);
   const [confirming, setConfirming] = useState<GrantOption | null>(null);
@@ -170,7 +166,9 @@ function PermissionsBody({
                     instructor" with no course tells an administrator nothing about what
                     this person may actually sign. */}
                 <span className="text-xs text-muted-foreground">
-                  {courseName(held.courseId) ?? `Course #${held.courseId}`}
+                  {/* The server sends the name with the row, so neither client has to
+                      fetch the course list to answer "which course". */}
+                  {held.courseName ?? `Course #${held.courseId}`}
                 </span>
               </li>
             ))}

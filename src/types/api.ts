@@ -552,7 +552,7 @@ export interface GrantRow {
 
 /** `GET /me/permissions/members/:orgUserId`, an administrator looking at somebody. */
 export interface MemberPermissions extends SessionPermissions {
-  scoped: { grant: GrantName; courseId: number | null }[];
+  scoped: { grant: GrantName; courseId: number | null; courseName: string | null }[];
   rows: GrantRow[];
 }
 

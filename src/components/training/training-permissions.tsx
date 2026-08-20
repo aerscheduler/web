@@ -149,10 +149,20 @@ function GrantDialog({ option, onClose }: { option: TrainingGrantOption | null; 
     onClose();
   }
 
-  //Only staff can hold a training grant. Offering the whole roster would put every student
-  //in a picker whose entire purpose is delegating staff work.
-  const candidates = (people.data ?? []).filter((p) =>
-    rolesOf(p).some((r) => ["admin", "owner", "instructor", "dispatcher"].includes(r))
+  //Who may be given this grant.
+  //
+  //The staff filter is right for the three grants that delegate staff work, and wrong for
+  //`auditor`, which exists to hand an FAA inspector read-only access to every training
+  //record. An inspector is not staff and should not have to be made one: giving somebody a
+  //staff role to work around this picker grants far more than the read-only grant it was
+  //standing in for, which is the opposite of what the grant is for.
+  //
+  //The server takes any member of the org for any grant, so the narrowing was ours alone.
+  const staffOnly = option?.grant !== "auditor";
+  const candidates = (people.data ?? []).filter(
+    (p) =>
+      !staffOnly ||
+      rolesOf(p).some((r) => ["admin", "owner", "instructor", "dispatcher"].includes(r))
   );
 
   return (

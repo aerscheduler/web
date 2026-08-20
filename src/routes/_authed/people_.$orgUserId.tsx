@@ -228,6 +228,15 @@ function PersonBody({
     void routeNavigate({ search: (prev) => ({ ...prev, tab: next }), replace: true });
   };
   const moneyPane = active === "billing" || active === "ledger" || active === "invoices";
+  /**
+   * Panes that own their own scroll container instead of scrolling with the page.
+   *
+   * Anything with a search or filter row at the top has to be one, or the control scrolls
+   * away from the list it filters. Same reason the money panes are: `panelClass` on
+   * Facilities is this exact shape, a non-scrolling flex child for the controls and a
+   * `min-h-0 flex-1 overflow-y-auto` child for the rows.
+   */
+  const scrollingPane = moneyPane || active === "permissions";
 
   const name = memberName(ou);
   useDetailTitle(name);
@@ -316,7 +325,7 @@ function PersonBody({
           }
           className={cn(
             "min-h-0 min-w-0 flex-1",
-            moneyPane
+            scrollingPane
               ? "flex flex-col gap-4 overflow-hidden"
               : "space-y-4 overflow-y-auto"
           )}

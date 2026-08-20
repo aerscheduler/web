@@ -37,10 +37,14 @@ import {
  *   GIVEN      a real switch. Yours to turn on and off.
  *   FROM ROLE  a switch locked on, with the role named. It cannot be removed here because
  *              nothing here can take away what a role confers; remove the role instead.
- *   NOT YET    no switch at all, just muted text. A dead control looks like a locked one,
- *              and this state is not "locked", it is "not offered": the server does not
- *              consult grants for it yet, so giving it to one person would hand them a
- *              capability every route behind it still refuses.
+ *   NOT YET    no switch, and a badge naming the roles that DO carry it. A dead control
+ *              looks like a locked one, and this state is not "locked", it is "not
+ *              offered": the server does not consult grants for it yet, so giving it to
+ *              one person would hand them a capability every route behind it refuses.
+ *              Naming the roles answers the question the reader actually has, which is
+ *              "then how does somebody get this", and "Comes with the role" did not:
+ *              it named no role, and on a person whose own roles do not carry it, it
+ *              read as a statement about them that was not true.
  */
 export function PersonPermissions({ orgUserId }: { orgUserId: number }) {
   const catalog = usePermissionCatalog();
@@ -173,7 +177,9 @@ function PermissionsBody({
   const needsConfirming = (o: GrantOption) => o.domain === "financial" || o.grant === "assignRoles";
 
   return (
-    <div className="flex flex-col gap-4">
+    // Controls fixed, rows scrolling beneath: the shape `panelClass` uses on Facilities.
+    // A search box that scrolls away from the list it filters is worse than none.
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
       {/* A callout, not a card. Roles are context for the list below, not a peer section
           of it, and giving them the same surface said they were another thing to edit. */}
       <div className="rounded-md border-l-2 border-l-muted-foreground/30 bg-muted/40 px-4 py-3">
@@ -208,6 +214,7 @@ function PermissionsBody({
         onFilterChange={setFilters}
       />
 
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
       {domains.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
           Nothing matches that.
@@ -259,9 +266,19 @@ function PermissionsBody({
                     {state === "fromRole" ? (
                       <Switch checked disabled aria-label={`${option.label}, from their role`} />
                     ) : state === "notYet" ? (
-                      <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">
-                        Comes with the role
-                      </span>
+                      <div className="flex shrink-0 flex-wrap justify-end gap-1 pt-0.5">
+                        {option.impliedBy.length === 0 ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            Not yet available
+                          </Badge>
+                        ) : (
+                          option.impliedBy.map((r) => (
+                            <Badge key={r} variant="outline" className="text-[10px] capitalize">
+                              {r}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
                     ) : (
                       <Switch
                         checked={held.has(option.grant)}
@@ -280,6 +297,7 @@ function PermissionsBody({
           </Card>
         ))
       )}
+      </div>
 
       <Dialog open={confirming != null} onOpenChange={(o) => !o && setConfirming(null)}>
         <DialogContent>

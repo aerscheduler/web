@@ -8,6 +8,7 @@ import {
   usePermissionCatalog,
   useRevokePermission,
 } from "@/features/queries";
+import { ListSearchBar, type FacetDef, type ListFilterValues } from "@/components/list-filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,20 +26,21 @@ import {
  * What this person may do, and the one place to change it.
  *
  * It lives on the PERSON rather than scattered through the product because that is the
- * question somebody actually asks: "what can Sarah do here", most often on the day she
- * leaves. An answer spread across six settings screens is not an answer.
+ * question somebody actually asks, most often on the day they leave. An answer spread
+ * across six settings screens is not an answer.
  *
- * TWO KINDS OF THING ARE ON SCREEN AND THEY BEHAVE DIFFERENTLY.
+ * EVERY ROW IS IN ONE OF THREE STATES, and they have to LOOK different, not merely read
+ * differently. An earlier version gave two of them the same disabled switch with almost
+ * the same words beside it ("from instructor" against "comes with the role"), which reads
+ * as one state with inconsistent copy:
  *
- * Roles are shown but not edited here. A role says what somebody IS to the school and
- * carries data with it: the instructor row anchors their students and their ratings, the
- * renter row decides which seat they may take on a booking. Changing that is a different
- * decision, made in the Roles editor, and mixing the two would suggest you could tick
- * "instructor" to grant a capability.
- *
- * Grants are what this screen is for. Every one is ADDITIVE: nothing here can take away
- * something a role already confers, which is why a capability that comes with the role is
- * shown fixed on rather than as an unticked box somebody would try to use to remove it.
+ *   GIVEN      a real switch. Yours to turn on and off.
+ *   FROM ROLE  a switch locked on, with the role named. It cannot be removed here because
+ *              nothing here can take away what a role confers; remove the role instead.
+ *   NOT YET    no switch at all, just muted text. A dead control looks like a locked one,
+ *              and this state is not "locked", it is "not offered": the server does not
+ *              consult grants for it yet, so giving it to one person would hand them a
+ *              capability every route behind it still refuses.
  */
 export function PersonPermissions({ orgUserId }: { orgUserId: number }) {
   const catalog = usePermissionCatalog();
@@ -54,11 +56,7 @@ export function PersonPermissions({ orgUserId }: { orgUserId: number }) {
   if (!catalog.data || !permissions.data) return null;
 
   return (
-    <PermissionsBody
-      orgUserId={orgUserId}
-      catalog={catalog.data}
-      permissions={permissions.data}
-    />
+    <PermissionsBody orgUserId={orgUserId} catalog={catalog.data} permissions={permissions.data} />
   );
 }
 
@@ -75,18 +73,69 @@ function PermissionsBody({
   const revoke = useRevokePermission(orgUserId);
   const [confirming, setConfirming] = useState<GrantOption | null>(null);
   const [pending, setPending] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<ListFilterValues>({});
 
   const held = new Set(permissions.granted);
-  const rowByGrant = new Map(permissions.rows.filter((r) => r.courseId == null).map((r) => [r.grant, r]));
-
-  /** Which roles this person holds that confer a given grant. Empty means it was given. */
+  const rowByGrant = new Map(
+    permissions.rows.filter((r) => r.courseId == null).map((r) => [r.grant, r])
+  );
+  /** Course-scoped rows, keyed by grant, so they show against the grant they scope. */
+  const scopedFor = (g: string) => permissions.scoped.filter((s) => s.grant === g);
   const impliedFor = (option: GrantOption) =>
     option.impliedBy.filter((r) => permissions.roles.includes(r));
+
+  /** The row's state, decided once so the badge and the control cannot disagree. */
+  function stateOf(option: GrantOption): "given" | "fromRole" | "notYet" {
+    if (impliedFor(option).length > 0) return "fromRole";
+    if (!option.enforced) return "notYet";
+    return "given";
+  }
+
+  const facets: FacetDef[] = useMemo(() => {
+    const domains: Array<{ value: string; label: string }> = [];
+    for (const o of catalog) {
+      if (!domains.some((d) => d.value === o.domain)) {
+        domains.push({ value: o.domain, label: o.domainLabel });
+      }
+    }
+    return [
+      { kind: "select", key: "domain", label: "Group", options: domains, multiple: true },
+      { kind: "boolean", key: "held", label: "Holds it", trueLabel: "Held", falseLabel: "Not held" },
+      {
+        kind: "boolean",
+        key: "assignable",
+        label: "Can be given",
+        trueLabel: "Can be given",
+        falseLabel: "Comes with the role",
+      },
+    ];
+  }, [catalog]);
+
+  const visible = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const wantDomains = Array.isArray(filters.domain) ? filters.domain : [];
+    return catalog.filter((o) => {
+      if (wantDomains.length && !wantDomains.includes(o.domain)) return false;
+      if (filters.held === true && !held.has(o.grant)) return false;
+      if (filters.held === false && held.has(o.grant)) return false;
+      // "Can be given" is the honest question a reader has: which of these is a switch?
+      if (filters.assignable === true && stateOf(o) !== "given") return false;
+      if (filters.assignable === false && stateOf(o) === "given") return false;
+      if (!q) return true;
+      return (
+        o.label.toLowerCase().includes(q) ||
+        o.description.toLowerCase().includes(q) ||
+        o.grant.toLowerCase().includes(q) ||
+        o.domainLabel.toLowerCase().includes(q)
+      );
+    });
+  }, [catalog, search, filters, permissions]);
 
   const domains = useMemo(() => {
     const order: string[] = [];
     const byDomain = new Map<string, { label: string; options: GrantOption[] }>();
-    for (const option of catalog) {
+    for (const option of visible) {
       if (!byDomain.has(option.domain)) {
         byDomain.set(option.domain, { label: option.domainLabel, options: [] });
         order.push(option.domain);
@@ -94,7 +143,7 @@ function PermissionsBody({
       byDomain.get(option.domain)!.options.push(option);
     }
     return order.map((d) => ({ domain: d, ...byDomain.get(d)! }));
-  }, [catalog]);
+  }, [visible]);
 
   async function toggle(option: GrantOption, next: boolean) {
     setPending(option.grant);
@@ -116,140 +165,125 @@ function PermissionsBody({
   }
 
   /**
-   * Anything that lets somebody reach money, or hand out authority, gets a confirmation.
-   * Not because the action is hard to reverse, it is one click back, but because the
-   * consequence is invisible from this screen: nothing here shows you that ticking
-   * "See revenue reports" is what tells a part-time bookkeeper what every CFI earns.
+   * Anything reaching money, or handing out authority, confirms first. Not because it is
+   * hard to reverse, it is one click back, but because the consequence is invisible from
+   * this screen: nothing here shows that "See revenue reports" tells a part-time
+   * bookkeeper what every CFI on staff earns.
    */
-  const needsConfirming = (option: GrantOption) =>
-    option.domain === "financial" || option.grant === "assignRoles";
+  const needsConfirming = (o: GrantOption) => o.domain === "financial" || o.grant === "assignRoles";
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="p-4">
-        <div className="mb-1 flex items-center gap-2">
-          <ShieldCheck className="size-4 text-muted-foreground" />
-          <h2 className="text-sm font-medium">Roles</h2>
-        </div>
-        <p className="mb-3 text-xs text-muted-foreground">
-          What this person is to the school. Roles carry their own data, a student roster, a
-          rating, which seat they take on a booking, so they are changed in the Roles editor
-          rather than here.
-        </p>
-        <div className="flex flex-wrap gap-1.5">
+      {/* A callout, not a card. Roles are context for the list below, not a peer section
+          of it, and giving them the same surface said they were another thing to edit. */}
+      <div className="rounded-md border-l-2 border-l-muted-foreground/30 bg-muted/40 px-4 py-3">
+        <div className="mb-1.5 flex flex-wrap items-center gap-2">
+          <ShieldCheck className="size-3.5 text-muted-foreground" />
+          <span className="text-xs font-medium">Roles</span>
           {permissions.roles.length === 0 ? (
-            <span className="text-xs text-muted-foreground">No roles yet.</span>
+            <span className="text-xs text-muted-foreground">None yet</span>
           ) : (
             permissions.roles.map((r) => (
-              <Badge key={r} variant="secondary" className="capitalize">
+              <Badge key={r} variant="secondary" className="text-[10px] capitalize">
                 {r}
               </Badge>
             ))
           )}
         </div>
-      </Card>
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          What this person <em>is</em> to the school. Roles carry their own data, a student
+          roster, a rating, which seat they take on a booking, so they are changed in the Roles
+          editor. The permissions below are what they may <em>do</em>, and only ever add to what
+          a role already gives.
+        </p>
+      </div>
 
-      {permissions.scoped.length > 0 && (
-        <Card className="p-4">
-          <h2 className="mb-1 text-sm font-medium">Held for one course only</h2>
-          <p className="mb-3 text-xs text-muted-foreground">
-            A check-instructor designation applies to the course it names and no other,
-            which is what Part 141 §141.37 asks for. Set these in Training.
-          </p>
-          <ul className="flex flex-col gap-1.5">
-            {permissions.scoped.map((held) => (
-              <li key={`${held.grant}-${held.courseId}`} className="flex items-center gap-2">
-                <Badge variant="outline">
-                  {catalog.find((o) => o.grant === held.grant)?.label ?? held.grant}
-                </Badge>
-                {/* Naming the course is the whole point of a scoped designation: "check
-                    instructor" with no course tells an administrator nothing about what
-                    this person may actually sign. */}
-                <span className="text-xs text-muted-foreground">
-                  {/* The server sends the name with the row, so neither client has to
-                      fetch the course list to answer "which course". */}
-                  {held.courseName ?? `Course #${held.courseId}`}
-                </span>
-              </li>
-            ))}
-          </ul>
+      <ListSearchBar
+        value={search}
+        onChange={setSearch}
+        placeholder="Search permissions…"
+        aria-label="Search permissions"
+        facets={facets}
+        filterValues={filters}
+        onFilterChange={setFilters}
+      />
+
+      {domains.length === 0 ? (
+        <Card className="p-8 text-center text-sm text-muted-foreground">
+          Nothing matches that.
         </Card>
-      )}
-
-      <p className="px-1 text-xs text-muted-foreground">
-        Permissions marked <span className="font-medium">comes with the role</span> cannot be
-        given to one person yet. Change their roles for those.
-      </p>
-
-      {domains.map(({ domain, label, options }) => (
-        <Card key={domain} className="p-4" data-doc-shot={`person-permissions-${domain}`}>
-          <div className="mb-3 flex items-center gap-2">
-            <KeyRound className="size-4 text-muted-foreground" />
-            <h2 className="text-sm font-medium">{label}</h2>
-          </div>
-          <ul className="flex flex-col divide-y">
-            {options.map((option) => {
-              const implied = impliedFor(option);
-              const on = held.has(option.grant);
-              const busy = pending === option.grant;
-              return (
-                <li key={option.grant} className="flex items-start gap-4 py-3 first:pt-0 last:pb-0">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium">{option.label}</span>
-                      {implied.length > 0 && (
-                        <Badge variant="secondary" className="text-[10px] capitalize">
-                          from {implied.join(", ")}
-                        </Badge>
-                      )}
-                      {option.courseScoped && (
-                        <Badge variant="outline" className="text-[10px]">
-                          per course
-                        </Badge>
+      ) : (
+        domains.map(({ domain, label, options }) => (
+          <Card key={domain} className="p-4" data-doc-shot={`person-permissions-${domain}`}>
+            <div className="mb-3 flex items-center gap-2">
+              <KeyRound className="size-4 text-muted-foreground" />
+              <h2 className="text-sm font-medium">{label}</h2>
+            </div>
+            <ul className="flex flex-col divide-y">
+              {options.map((option) => {
+                const state = stateOf(option);
+                const implied = impliedFor(option);
+                const scoped = scopedFor(option.grant);
+                const busy = pending === option.grant;
+                return (
+                  <li
+                    key={option.grant}
+                    className="flex items-start gap-4 py-3 first:pt-0 last:pb-0"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-medium">{option.label}</span>
+                        {state === "fromRole" && (
+                          <Badge variant="secondary" className="text-[10px] capitalize">
+                            from {implied.join(", ")}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                        {option.description}
+                      </p>
+                      {/* The course-scoped designation belongs against the grant it scopes,
+                          not in a section of its own. A card headed "Held for one course
+                          only" made one grant look like a separate kind of thing. */}
+                      {scoped.length > 0 && (
+                        <p className="mt-1.5 text-xs">
+                          <span className="text-muted-foreground">For one course only: </span>
+                          {scoped
+                            .map((s) => s.courseName ?? `Course #${s.courseId}`)
+                            .join(", ")}
+                          <span className="text-muted-foreground"> · set in Training</span>
+                        </p>
                       )}
                     </div>
-                    <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-                      {option.description}
-                    </p>
-                  </div>
-                  {option.courseScoped ? (
-                    <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">
-                      Set in Training
-                    </span>
-                  ) : implied.length > 0 ? (
-                    // Fixed on, not an unticked box: this cannot be removed here, and
-                    // offering a control that refuses to move is worse than not offering one.
-                    <Switch checked disabled aria-label={`${option.label}, from their role`} />
-                  ) : !option.enforced ? (
-                    // The server does not consult the Grant table for this one yet, so
-                    // issuing it would hand somebody a capability every route behind it
-                    // still refuses. Offered as read-only until enforcement lands, rather
-                    // than as a switch that produces a 403 for whoever was given it.
-                    <Switch checked={on} disabled aria-label={`${option.label}, comes with the role`} />
-                  ) : (
-                    <Switch
-                      checked={on}
-                      disabled={busy}
-                      aria-label={option.label}
-                      onCheckedChange={(next) => {
-                        if (next && needsConfirming(option)) setConfirming(option);
-                        else void toggle(option, next);
-                      }}
-                    />
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
-      ))}
+
+                    {state === "fromRole" ? (
+                      <Switch checked disabled aria-label={`${option.label}, from their role`} />
+                    ) : state === "notYet" ? (
+                      <span className="shrink-0 pt-0.5 text-xs text-muted-foreground">
+                        Comes with the role
+                      </span>
+                    ) : (
+                      <Switch
+                        checked={held.has(option.grant)}
+                        disabled={busy}
+                        aria-label={option.label}
+                        onCheckedChange={(next) => {
+                          if (next && needsConfirming(option)) setConfirming(option);
+                          else void toggle(option, next);
+                        }}
+                      />
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+        ))
+      )}
 
       <Dialog open={confirming != null} onOpenChange={(o) => !o && setConfirming(null)}>
         <DialogContent>
           <DialogHeader>
-            {/* The permission's own name is the title. Folding it into a sentence read as
-                "Give see invoices and balances?", which is the copy you get from
-                concatenating a label rather than writing one. */}
             <DialogTitle>{confirming?.label}</DialogTitle>
             <DialogDescription>{confirming?.description}</DialogDescription>
           </DialogHeader>

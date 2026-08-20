@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { KeyRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { GrantOption, MemberPermissions } from "@/types/api";
 import {
@@ -180,30 +180,6 @@ function PermissionsBody({
     // Controls fixed, rows scrolling beneath: the shape `panelClass` uses on Facilities.
     // A search box that scrolls away from the list it filters is worse than none.
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      {/* A callout, not a card. Roles are context for the list below, not a peer section
-          of it, and giving them the same surface said they were another thing to edit. */}
-      <div className="rounded-md border-l-2 border-l-muted-foreground/30 bg-muted/40 px-4 py-3">
-        <div className="mb-1.5 flex flex-wrap items-center gap-2">
-          <ShieldCheck className="size-3.5 text-muted-foreground" />
-          <span className="text-xs font-medium">Roles</span>
-          {permissions.roles.length === 0 ? (
-            <span className="text-xs text-muted-foreground">None yet</span>
-          ) : (
-            permissions.roles.map((r) => (
-              <Badge key={r} variant="secondary" className="text-[10px] capitalize">
-                {r}
-              </Badge>
-            ))
-          )}
-        </div>
-        <p className="text-xs leading-relaxed text-muted-foreground">
-          What this person <em>is</em> to the school. Roles carry their own data, a student
-          roster, a rating, which seat they take on a booking, so they are changed in the Roles
-          editor. The permissions below are what they may <em>do</em>, and only ever add to what
-          a role already gives.
-        </p>
-      </div>
-
       <ListSearchBar
         value={search}
         onChange={setSearch}

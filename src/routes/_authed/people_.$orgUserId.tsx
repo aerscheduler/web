@@ -135,10 +135,20 @@ function PersonPage() {
             <Skeleton className="h-4 w-64" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
-          ))}
+        {/* The real page is a rail beside one pane. This used to be a full-width row of
+            four 96px tiles, which is a layout no tab on this page has ever rendered: it
+            promised a stat grid that never arrived and ignored the rail entirely, so the
+            content jumped sideways the moment the load finished. Mirror what is coming. */}
+        <div className={RAIL_ROW}>
+          <div className="hidden w-60 shrink-0 flex-col gap-2 lg:flex">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 rounded-md" />
+            ))}
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-4">
+            <Skeleton className="h-40 rounded-xl" />
+            <Skeleton className="h-64 rounded-xl" />
+          </div>
         </div>
       </PageFrame>
     );

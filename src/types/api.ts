@@ -531,6 +531,31 @@ export type GrantName =
   | "viewPeopleReports"
   | "viewRevenueReports";
 
+/** One entry in the school's permission vocabulary, from `GET /me/permissions/catalog`. */
+export interface GrantOption {
+  grant: GrantName;
+  label: string;
+  description: string;
+  domain: string;
+  domainLabel: string;
+  courseScoped: boolean;
+  /** Roles that already confer it. A box ticked for one of these would change nothing. */
+  impliedBy: Role[];
+}
+
+/** A grant issued to one member, as a row that can be revoked. */
+export interface GrantRow {
+  id: number;
+  grant: GrantName;
+  courseId: number | null;
+}
+
+/** `GET /me/permissions/members/:orgUserId`, an administrator looking at somebody. */
+export interface MemberPermissions extends SessionPermissions {
+  scoped: { grant: GrantName; courseId: number | null }[];
+  rows: GrantRow[];
+}
+
 /** The payload of `GET /me/permissions`. */
 export interface SessionPermissions {
   roles: Role[];
@@ -538,8 +563,10 @@ export interface SessionPermissions {
   granted: GrantName[];
   /** Which role conferred each grant, so the UI can say why. */
   source: Record<string, Role[]>;
-  /** Explicit grant rows. Empty until the server starts reading them. */
+  /** Grants issued to this person over and above their roles. */
   explicit: GrantName[];
+  /** Held for one course only. Today that is the check-instructor designation. */
+  scoped?: { grant: GrantName; courseId: number | null }[];
 }
 
 /** Derive the list of active roles on a membership row. */

@@ -117,6 +117,9 @@ import type {
   SplitRulesDescription,
   ReservationPayerInput,
   TrainingGrant,
+  GrantOption,
+  GrantRow,
+  MemberPermissions,
   TrainingGrantOption,
   MyTrainingGrants,
 } from "@/types/api";
@@ -3973,6 +3976,55 @@ export function useCreateEndorsement() {
 //---------------------------------------------------------------------------------
 // Training grants
 //---------------------------------------------------------------------------------
+
+/**
+ * The school's permission vocabulary: names, labels, descriptions, and which roles already
+ * confer each one.
+ *
+ * Served rather than hardcoded, for the same reason the training catalog is: the
+ * description is the sentence an administrator reads while deciding whether to let
+ * somebody void an invoice, and a copy of it in the client would drift from the rule the
+ * server actually enforces.
+ */
+export function usePermissionCatalog(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["permissions", "catalog"],
+    queryFn: () => api<GrantOption[]>("/me/permissions/catalog"),
+    // A constant in the server's source. Refetching on window focus is pure noise.
+    staleTime: Infinity,
+    ...opts,
+  });
+}
+
+/** What one member may do, roles and issued grants resolved together. Admin only. */
+export function useMemberPermissions(orgUserId: number | undefined, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["permissions", "member", orgUserId],
+    queryFn: () => api<MemberPermissions>(`/me/permissions/members/${orgUserId}`),
+    enabled: orgUserId != null,
+    ...opts,
+  });
+}
+
+export function useGrantPermission(orgUserId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { grant: string; courseId?: number | null }) =>
+      api<GrantRow>(`/me/permissions/members/${orgUserId}`, { method: "POST", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["permissions"] }),
+  });
+}
+
+export function useRevokePermission(orgUserId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (grantId: number) =>
+      api<{ id: number }>(`/me/permissions/members/${orgUserId}/${grantId}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["permissions"] }),
+  });
+}
 
 export function useTrainingGrantCatalog(opts?: QueryOpts) {
   return useQuery({

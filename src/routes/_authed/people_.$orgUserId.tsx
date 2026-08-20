@@ -4,6 +4,7 @@ import {
   CalendarClock,
   FileCheck2,
   GraduationCap,
+  KeyRound,
   Hash,
   Mail,
   Phone,
@@ -16,6 +17,7 @@ import { useMember, useOrgLedgerSettings } from "@/features/queries";
 import { PersonApprovedAircraft } from "@/components/people/detail/person-approved-aircraft";
 import { useAuth } from "@/lib/auth";
 import { personViewAccess, type PersonViewAccess } from "@/lib/permissions";
+import { PersonPermissions } from "@/components/people/detail/person-permissions";
 import { cn, formatDate, initials } from "@/lib/utils";
 import { formatPhone } from "@/lib/phone";
 import { ErrorState } from "@/components/states";
@@ -177,6 +179,11 @@ function sectionsFor(access: PersonViewAccess, ledgerOn: boolean): RailSection[]
       : []),
     ...(access.currencies || access.documents || access.approvedAircraft
       ? [{ value: "compliance", label: "Compliance", icon: FileCheck2 }]
+      : []),
+    // Last, and on its own: it is the only pane that changes what somebody can DO, rather
+    // than reporting what they have done.
+    ...(access.permissions
+      ? [{ value: "permissions", label: "Permissions", icon: KeyRound }]
       : []),
   ];
   return [
@@ -431,6 +438,10 @@ function PersonBody({
                 )}
               </>
             )}
+
+          {active === "permissions" && access.permissions && ou.id != null && (
+            <PersonPermissions orgUserId={ou.id} />
+          )}
         </div>
       </div>
 

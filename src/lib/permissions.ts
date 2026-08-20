@@ -240,7 +240,14 @@ export interface PersonViewAccess {
   /** Their membership plan and dues. Server: admin: `/memberships/*` is isOrgAdmin, and
    *  what a member pays is exactly what org-wide billing was made admin-only to protect.
    *  Deliberately NOT self: a member reads their own at `/memberships/me`, on their profile. */
-  membership: boolean;
+  membership: boolean;  /**
+   * Who may see and change what this person is allowed to do.
+   *
+   * Admin only, matching `GET /me/permissions/members/:orgUserId`. Not self-serve either:
+   * the answer names every authority in the school, and a member asking about themselves
+   * has `/me/permissions`, which needs no gate.
+   */
+  permissions: boolean;
 }
 
 /**
@@ -262,6 +269,7 @@ export function personViewAccess(roles: Role[], isSelf: boolean): PersonViewAcce
     manage: canManageMembers(roles),
     ground: canGroundMembers(roles),
     membership: admin,
+    permissions: admin,
   };
 }
 

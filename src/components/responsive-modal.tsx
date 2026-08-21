@@ -46,23 +46,29 @@ export function ResponsiveModal({
   footer,
   size = "md",
   className,
+  dataDocShot,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  title: string;
-  description?: string;
-  children: React.ReactNode;
+  //ReactNode rather than string: several dialogs put a <strong> or a computed fragment
+  //in their title or description, and both underlying primitives take children anyway.
+  title: React.ReactNode;
+  description?: React.ReactNode;
+  //Optional: a confirm dialog is legitimately title + description + actions with no body.
+  children?: React.ReactNode;
   /** Sticky action row under the scrollable body. Omit when actions live in `children`. */
   footer?: React.ReactNode;
   size?: ResponsiveModalSize;
   className?: string;
+  /** Lands on the dialog surface for the docs screenshot pipeline. */
+  dataDocShot?: string;
 }) {
   const isMobile = useIsMobile();
 
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className={cn("max-h-[90vh]", className)}>
+        <DrawerContent className={cn("max-h-[90vh]", className)} data-doc-shot={dataDocShot}>
           <DrawerHeader className="shrink-0 text-left">
             <DrawerTitle>{title}</DrawerTitle>
             {description && <DrawerDescription>{description}</DrawerDescription>}
@@ -86,6 +92,7 @@ export function ResponsiveModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        data-doc-shot={dataDocShot}
         className={cn(
           // Override the stock grid + padding so regions can stick independently.
           "flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0",

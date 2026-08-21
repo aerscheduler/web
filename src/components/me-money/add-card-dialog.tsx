@@ -8,13 +8,7 @@ import { ApiError } from "@/lib/api";
 import { useCreateSetupIntent } from "@/features/queries";
 import { getStripeForAccount } from "@/lib/stripe";
 import { stripeAppearance, useIsDark } from "@/components/billing/stripe-appearance";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 
 function errMessage(e: unknown): string {
@@ -67,26 +61,17 @@ export function AddCardDialog({
   const appearance = React.useMemo(() => stripeAppearance(dark), [dark]);
 
   return (
-    <Dialog
+    <ResponsiveModal
       open={open}
       onOpenChange={(o) => {
         if (busy) return;
         onOpenChange(o);
       }}
+      title="Add a card"
+      description="Save a card for faster checkout and to enable autopay."
     >
-      <DialogContent
-        showCloseButton={!busy}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onInteractOutside={(e) => {
-          if (busy) e.preventDefault();
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle>Add a card</DialogTitle>
-          <DialogDescription>
-            Save a card for faster checkout and to enable autopay.
-          </DialogDescription>
-        </DialogHeader>
+
+        
 
         {!data && !error && (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
@@ -109,8 +94,7 @@ export function AddCardDialog({
             <AddCardForm onBusyChange={setBusy} onDone={() => onOpenChange(false)} />
           </Elements>
         )}
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }
 

@@ -8,14 +8,7 @@ import {
   usePostLedgerRefund,
 } from "@/features/queries";
 import { formatMoney, formatDate } from "@/lib/utils";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,15 +61,41 @@ export function LedgerAddCreditDialog({
   }, [open]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-doc-shot="ledger-add-credit-dialog">
-        <DialogHeader>
-          <DialogTitle>Add credit</DialogTitle>
-          <DialogDescription>
-            Record cash, check, or other money received at the desk. This credits the account ledger
-            only. It does not move money through Stripe.
-          </DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal
+      open={open} onOpenChange={onOpenChange}
+      title="Add credit"
+      description={<>Record cash, check, or other money received at the desk. This credits the account ledger
+            only. It does not move money through Stripe.</>}
+      footer={<><Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={post.isPending}
+            onClick={async () => {
+              const cents = parseDollarsToCents(dollars);
+              if (cents == null || cents <= 0) {
+                toast.error("Enter a positive amount.");
+                return;
+              }
+              if (!memo.trim()) {
+                toast.error("A memo is required.");
+                return;
+              }
+              try {
+                await post.mutateAsync({ amountCents: cents, type, memo: memo.trim() });
+                toast.success(`Credited ${formatMoney(cents)}.`);
+                onOpenChange(false);
+              } catch (e) {
+                toast.error(errMessage(e));
+              }
+            }}
+          >
+            {post.isPending ? <Loader2 className="size-4 animate-spin" /> : "Post credit"}
+          </Button></>}
+      data-doc-shot="ledger-add-credit-dialog"
+    >
+
+        
         <div className="space-y-3">
           <div className="space-y-2">
             <Label>Method</Label>
@@ -112,36 +131,7 @@ export function LedgerAddCreditDialog({
             />
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={post.isPending}
-            onClick={async () => {
-              const cents = parseDollarsToCents(dollars);
-              if (cents == null || cents <= 0) {
-                toast.error("Enter a positive amount.");
-                return;
-              }
-              if (!memo.trim()) {
-                toast.error("A memo is required.");
-                return;
-              }
-              try {
-                await post.mutateAsync({ amountCents: cents, type, memo: memo.trim() });
-                toast.success(`Credited ${formatMoney(cents)}.`);
-                onOpenChange(false);
-              } catch (e) {
-                toast.error(errMessage(e));
-              }
-            }}
-          >
-            {post.isPending ? <Loader2 className="size-4 animate-spin" /> : "Post credit"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }
 
@@ -168,39 +158,12 @@ export function LedgerAdjustmentDialog({
   }, [open]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-doc-shot="ledger-adjustment-dialog">
-        <DialogHeader>
-          <DialogTitle>Adjustment</DialogTitle>
-          <DialogDescription>
-            Correct the balance with a signed amount. Use Refund when money is leaving the school.
-            Adjustments are for true corrections, not payouts.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="adj-amount">Amount (USD, signed)</Label>
-            <Input
-              id="adj-amount"
-              inputMode="decimal"
-              value={dollars}
-              onChange={(e) => setDollars(e.target.value)}
-              placeholder="10.00 or -10.00"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="adj-memo">Memo</Label>
-            <Textarea
-              id="adj-memo"
-              value={memo}
-              onChange={(e) => setMemo(e.target.value)}
-              placeholder="Why this correction…"
-              rows={2}
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+    <ResponsiveModal
+      open={open} onOpenChange={onOpenChange}
+      title="Adjustment"
+      description={<>Correct the balance with a signed amount. Use Refund when money is leaving the school.
+            Adjustments are for true corrections, not payouts.</>}
+      footer={<><Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
@@ -229,10 +192,34 @@ export function LedgerAdjustmentDialog({
             }}
           >
             {post.isPending ? <Loader2 className="size-4 animate-spin" /> : "Post adjustment"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </Button></>}
+      data-doc-shot="ledger-adjustment-dialog"
+    >
+
+        
+        <div className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="adj-amount">Amount (USD, signed)</Label>
+            <Input
+              id="adj-amount"
+              inputMode="decimal"
+              value={dollars}
+              onChange={(e) => setDollars(e.target.value)}
+              placeholder="10.00 or -10.00"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="adj-memo">Memo</Label>
+            <Textarea
+              id="adj-memo"
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              placeholder="Why this correction…"
+              rows={2}
+            />
+          </div>
+        </div>
+    </ResponsiveModal>
   );
 }
 
@@ -312,15 +299,52 @@ export function LedgerRefundDialog({
     submitted && method === "stripe" && !topupId ? "Choose a card charge." : null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="overflow-hidden sm:max-w-md" data-doc-shot="ledger-refund-dialog">
-        <DialogHeader>
-          <DialogTitle className="inline-flex items-center gap-1.5">
-            Refund
-            <DocsHint topic="ledger-refund" />
-          </DialogTitle>
-          <DialogDescription>Pay them back from this balance, down to $0.00.</DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal
+      open={open} onOpenChange={onOpenChange}
+      title={<>Refund
+            <DocsHint topic="ledger-refund" /></>}
+      description="Pay them back from this balance, down to $0.00."
+      size="sm"
+      footer={<><Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={refund.isPending || refundableQ.isPending || balance <= 0}
+            onClick={async () => {
+              setSubmitted(true);
+              const nextCents = parseDollarsToCents(dollars);
+              if (nextCents == null || nextCents <= 0) return;
+              if (nextCents > maxCents) return;
+              if (!memo.trim()) return;
+              if (method === "stripe" && !topupId) return;
+              try {
+                await refund.mutateAsync({
+                  amountCents: nextCents,
+                  method,
+                  memo: memo.trim(),
+                  topupEntryId: method === "stripe" ? Number(topupId) : undefined,
+                  // Keyed to this dialog session AND the exact amount/charge, so a retry
+                  // after a lost response reuses Stripe's first refund instead of issuing
+                  // a second one, while an edited amount correctly gets a fresh key.
+                  idempotencyKey: `ledger_refund_${orgUserId}_${attemptId}_${nextCents}_${topupId || "none"}`,
+                });
+                toast.success(
+                  method === "stripe"
+                    ? `Refunded ${formatMoney(nextCents)} to card.`
+                    : `Recorded ${formatMoney(nextCents)} check/cash refund.`
+                );
+                onOpenChange(false);
+              } catch (e) {
+                toast.error(errMessage(e));
+              }
+            }}
+          >
+            {refund.isPending ? <Loader2 className="size-4 animate-spin" /> : "Confirm refund"}
+          </Button></>}
+      data-doc-shot="ledger-refund-dialog"
+    >
+
+        
 
         {refundableQ.isPending ? (
           <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
@@ -435,46 +459,6 @@ export function LedgerRefundDialog({
             </div>
           </div>
         )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            disabled={refund.isPending || refundableQ.isPending || balance <= 0}
-            onClick={async () => {
-              setSubmitted(true);
-              const nextCents = parseDollarsToCents(dollars);
-              if (nextCents == null || nextCents <= 0) return;
-              if (nextCents > maxCents) return;
-              if (!memo.trim()) return;
-              if (method === "stripe" && !topupId) return;
-              try {
-                await refund.mutateAsync({
-                  amountCents: nextCents,
-                  method,
-                  memo: memo.trim(),
-                  topupEntryId: method === "stripe" ? Number(topupId) : undefined,
-                  // Keyed to this dialog session AND the exact amount/charge, so a retry
-                  // after a lost response reuses Stripe's first refund instead of issuing
-                  // a second one, while an edited amount correctly gets a fresh key.
-                  idempotencyKey: `ledger_refund_${orgUserId}_${attemptId}_${nextCents}_${topupId || "none"}`,
-                });
-                toast.success(
-                  method === "stripe"
-                    ? `Refunded ${formatMoney(nextCents)} to card.`
-                    : `Recorded ${formatMoney(nextCents)} check/cash refund.`
-                );
-                onOpenChange(false);
-              } catch (e) {
-                toast.error(errMessage(e));
-              }
-            }}
-          >
-            {refund.isPending ? <Loader2 className="size-4 animate-spin" /> : "Confirm refund"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }

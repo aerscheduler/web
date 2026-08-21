@@ -1,15 +1,8 @@
 import * as React from "react";
 import { format } from "date-fns";
 import type { MonthlyMode, RecurrenceFrequency, RecurrenceInput } from "@/types/api";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { DocsHint } from "@/components/docs-hint";
 import { Label } from "@/components/ui/label";
@@ -612,15 +605,22 @@ function CustomRecurrenceDialog({
     untilEstimate > maxUpcomingBookings;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-doc-shot="me-book-repeat" className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Custom repeat</DialogTitle>
-          <DialogDescription>
-            Every date has to be free, if one clashes, nothing is booked and you&apos;ll be told
-            which.
-          </DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal
+      open={open} onOpenChange={onOpenChange}
+      title="Custom repeat"
+      description={<>Every date has to be free, if one clashes, nothing is booked and you&apos;ll be told
+            which.</>}
+      size="sm"
+      footer={<><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="button" disabled={untilOverCap} onClick={() => onSave(draft)}>
+            Done
+          </Button></>}
+      data-doc-shot="me-book-repeat"
+    >
+
+        
 
         <div className="space-y-4">
           <div className="space-y-2">
@@ -779,16 +779,6 @@ function CustomRecurrenceDialog({
             {summarise(draft, start)}
           </p>
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="button" disabled={untilOverCap} onClick={() => onSave(draft)}>
-            Done
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }

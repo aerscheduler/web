@@ -18,14 +18,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Loader2 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -262,12 +255,21 @@ export function TileBuilder({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg" data-doc-shot={DOC_SHOT[mode]}>
-        <DialogHeader>
-          <DialogTitle>{HEADING[mode]}</DialogTitle>
-          {note && <DialogDescription>{note}</DialogDescription>}
-        </DialogHeader>
+    <ResponsiveModal
+      dataDocShot={DOC_SHOT[mode]}
+      open={open} onOpenChange={onOpenChange}
+      title={HEADING[mode]}
+      description={note}
+      footer={<><Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            Cancel
+          </Button>
+          <Button onClick={save} disabled={!reportId || metrics.length === 0 || saving}>
+            {saving && <Loader2 className="size-4 animate-spin" />}
+            {SUBMIT[mode]}
+          </Button></>}
+    >
+
+        
 
         <ScrollArea className="max-h-[60vh] pr-3">
           <div className="space-y-4">
@@ -444,17 +446,6 @@ export function TileBuilder({
         {/* Outside the scroll area on purpose: inside it, a validation message
             sat below the fold and a rejected save read as a dead button. */}
         {error && <p className="pt-1 text-sm text-destructive">{error}</p>}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={save} disabled={!reportId || metrics.length === 0 || saving}>
-            {saving && <Loader2 className="size-4 animate-spin" />}
-            {SUBMIT[mode]}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }

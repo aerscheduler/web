@@ -10,19 +10,12 @@ import { useAuth } from "@/lib/auth";
 import { formatDate } from "@/lib/utils";
 import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 const GROUP_LABEL: Record<EndorsementTemplate["group"], string> = {
   presolo: "Before solo",
@@ -216,20 +209,35 @@ function SignDialog({
   const blanks = (text.match(/\{[^}]+\}/g) ?? []).length;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        data-doc-shot="endorsements-card-sign"
-        className="max-h-[85vh] overflow-y-auto sm:max-w-2xl"
-      >
-        <DialogHeader>
-          <DialogTitle>{replacing ? "Renew endorsement" : "Sign an endorsement"}</DialogTitle>
-          <DialogDescription>
-            {/* Said here because it is the one thing about this screen that is not obvious:
+    <ResponsiveModal
+      open={open} onOpenChange={onOpenChange}
+      title={replacing ? "Renew endorsement" : "Sign an endorsement"}
+      description={<>{/* Said here because it is the one thing about this screen that is not obvious:
                 what you save is what stands, forever, even after the AC is revised. */}
             The text you save is stored exactly as written and never regenerated, it has to keep
-            saying what you signed today.
-          </DialogDescription>
-        </DialogHeader>
+            saying what you signed today.</>}
+      size="xl"
+      footer={code ? (<><Button
+              disabled={create.isPending || text.trim().length < 10}
+              onClick={async () => {
+                await create.mutateAsync({
+                  orgUserId,
+                  templateCode: code,
+                  title: title.trim() || chosen?.title || "Endorsement",
+                  renderedText: text.trim(),
+                  enrollmentId: enrollmentId ?? null,
+                  signerCertificateNumber: cert.trim() || null,
+                  supersedesId: replacing?.id ?? null,
+                });
+                onOpenChange(false);
+              }}
+            >
+              <FileSignature className="size-4" /> Sign
+            </Button></>) : null}
+      data-doc-shot="endorsements-card-sign"
+    >
+
+        
 
         {!code ? (
           <div className="space-y-3">
@@ -316,28 +324,6 @@ function SignDialog({
 
         {create.error ? <p className="text-sm text-destructive">{(create.error as Error).message}</p> : null}
 
-        {code ? (
-          <DialogFooter>
-            <Button
-              disabled={create.isPending || text.trim().length < 10}
-              onClick={async () => {
-                await create.mutateAsync({
-                  orgUserId,
-                  templateCode: code,
-                  title: title.trim() || chosen?.title || "Endorsement",
-                  renderedText: text.trim(),
-                  enrollmentId: enrollmentId ?? null,
-                  signerCertificateNumber: cert.trim() || null,
-                  supersedesId: replacing?.id ?? null,
-                });
-                onOpenChange(false);
-              }}
-            >
-              <FileSignature className="size-4" /> Sign
-            </Button>
-          </DialogFooter>
-        ) : null}
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }

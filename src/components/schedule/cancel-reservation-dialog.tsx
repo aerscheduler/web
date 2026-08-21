@@ -4,15 +4,8 @@ import { useCancellationCategories } from "@/features/queries";
 import type { CancelScope, Reservation } from "@/types/api";
 import { describeSeries } from "@/types/api";
 import { formatFeeCents, memberCancelLockInfo } from "@/lib/booking-policy";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { DocsHint } from "@/components/docs-hint";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -105,15 +98,27 @@ export function CancelReservationDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-doc-shot="cancel-reservation-dialog" className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Cancel this reservation?</DialogTitle>
-          <DialogDescription>
-            “{reservation.title}” will come off the board. Recording why is what makes the
-            cancellation report worth reading.
-          </DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal
+      open={open} onOpenChange={onOpenChange}
+      title="Cancel this reservation?"
+      description={<>“{reservation.title}” will come off the board. Recording why is what makes the
+            cancellation report worth reading.</>}
+      footer={<><Button variant="outline" onClick={() => onOpenChange(false)} disabled={isBusy}>
+            Keep it
+          </Button>
+          {!blockedWithoutFee && (
+            <Button variant="destructive" onClick={submit} disabled={isBusy}>
+              {isBusy
+                ? "Cancelling…"
+                : feeRequired
+                  ? `Cancel and pay ${formatFeeCents(lock.feeCents!)}`
+                  : "Cancel reservation"}
+            </Button>
+          )}</>}
+      data-doc-shot="cancel-reservation-dialog"
+    >
+
+        
 
         {blockedWithoutFee && (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
@@ -236,22 +241,6 @@ export function CancelReservationDialog({
             </div>
           )}
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isBusy}>
-            Keep it
-          </Button>
-          {!blockedWithoutFee && (
-            <Button variant="destructive" onClick={submit} disabled={isBusy}>
-              {isBusy
-                ? "Cancelling…"
-                : feeRequired
-                  ? `Cancel and pay ${formatFeeCents(lock.feeCents!)}`
-                  : "Cancel reservation"}
-            </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }

@@ -5,18 +5,10 @@ import { holdsTrainingGrant } from "@/lib/training";
 import { useMyTrainingGrants } from "@/features/queries";
 import type { Standing } from "@/types/api";
 import { DocsHint } from "@/components/docs-hint";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -125,26 +117,29 @@ export function AddCreditDialog({
   const chosenSource = SOURCES.find((s) => s.value === source);
 
   return (
-    <Dialog
+    <>
+      <Button onClick={() => setOpen(true)} size="sm" variant="outline">
+          Add credit
+        </Button>
+      <ResponsiveModal
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
         if (!o) reset();
       }}
+      title="Credit training from elsewhere"
+      description={<>Goes onto the ledger as its own entry, alongside the lessons. Nothing is
+            overwritten, and any ceiling this course sets is applied on top.</>}
+      footer={<><Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={!requirement || post.isPending}>
+            {post.isPending ? "Posting…" : "Post credit"}
+          </Button></>}
+      data-doc-shot="add-credit-dialog"
     >
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
-          Add credit
-        </Button>
-      </DialogTrigger>
-      <DialogContent data-doc-shot="add-credit-dialog">
-        <DialogHeader>
-          <DialogTitle>Credit training from elsewhere</DialogTitle>
-          <DialogDescription>
-            Goes onto the ledger as its own entry, alongside the lessons. Nothing is
-            overwritten, and any ceiling this course sets is applied on top.
-          </DialogDescription>
-        </DialogHeader>
+
+        
 
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -230,16 +225,7 @@ export function AddCreditDialog({
             />
           </div>
         </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={!requirement || post.isPending}>
-            {post.isPending ? "Posting…" : "Post credit"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
+    </>
   );
 }

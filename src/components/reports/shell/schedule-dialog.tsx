@@ -18,14 +18,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Plus, Send, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -236,18 +229,46 @@ export function ScheduleDialog({
   const locked = !!existing && !existing.isMine;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg" data-doc-shot="report-schedule-dialog">
-        <DialogHeader>
-          <DialogTitle>{existing ? "Edit schedule" : "Schedule this report"}</DialogTitle>
-          <DialogDescription>
-            &ldquo;{view.name}&rdquo; will be emailed as a CSV.{" "}
+    <ResponsiveModal
+      open={open} onOpenChange={onOpenChange}
+      title={existing ? "Edit schedule" : "Schedule this report"}
+      description={<>&ldquo;{view.name}&rdquo; will be emailed as a CSV.{" "}
             {/* The zone is stated, not converted: the schedule belongs to the
                 school, and silently rendering it in the reader's clock is how a
                 7am report looks like it is set for 6am. */}
-            Times are {zoneLabel ? `${zoneLabel} ` : ""}at your school.
-          </DialogDescription>
-        </DialogHeader>
+            Times are {zoneLabel ? `${zoneLabel} ` : ""}at your school.</>}
+      footer={<><div className="flex gap-2">
+            {existing && !locked && (
+              <>
+                <Button variant="ghost" size="sm" onClick={destroy} className="text-destructive">
+                  <Trash2 className="size-3.5" /> Stop
+                </Button>
+                <Button variant="ghost" size="sm" onClick={test} disabled={sendNow.isPending}>
+                  {sendNow.isPending ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Send className="size-3.5" />
+                  )}
+                  Send now
+                </Button>
+              </>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              {locked ? "Close" : "Cancel"}
+            </Button>
+            {!locked && (
+              <Button onClick={save} disabled={pending}>
+                {pending && <Loader2 className="size-4 animate-spin" />}
+                {existing ? "Save changes" : "Schedule it"}
+              </Button>
+            )}
+          </div></>}
+      data-doc-shot="report-schedule-dialog"
+    >
+
+        
 
         {locked && (
           <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
@@ -496,38 +517,6 @@ export function ScheduleDialog({
         </ScrollArea>
 
         {error && <p className="pt-1 text-sm text-destructive">{error}</p>}
-
-        <DialogFooter className="gap-2 sm:justify-between">
-          <div className="flex gap-2">
-            {existing && !locked && (
-              <>
-                <Button variant="ghost" size="sm" onClick={destroy} className="text-destructive">
-                  <Trash2 className="size-3.5" /> Stop
-                </Button>
-                <Button variant="ghost" size="sm" onClick={test} disabled={sendNow.isPending}>
-                  {sendNow.isPending ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Send className="size-3.5" />
-                  )}
-                  Send now
-                </Button>
-              </>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              {locked ? "Close" : "Cancel"}
-            </Button>
-            {!locked && (
-              <Button onClick={save} disabled={pending}>
-                {pending && <Loader2 className="size-4 animate-spin" />}
-                {existing ? "Save changes" : "Schedule it"}
-              </Button>
-            )}
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }

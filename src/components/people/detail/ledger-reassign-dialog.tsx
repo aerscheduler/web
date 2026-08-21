@@ -2,14 +2,7 @@ import { useMemo, useState } from "react";
 import { useOrgUsers, useReassignLedgerFlightCharge } from "@/features/queries";
 import { formatMoney } from "@/lib/utils";
 import type { LedgerEntry } from "@/types/api";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -82,7 +75,7 @@ export function LedgerReassignDialog({
   }
 
   return (
-    <Dialog
+    <ResponsiveModal
       open={open}
       onOpenChange={(next) => {
         onOpenChange(next);
@@ -91,20 +84,25 @@ export function LedgerReassignDialog({
           setFilter("");
         }
       }}
-    >
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="inline-flex items-center gap-1.5">
-            Reassign flight charge
-            <DocsHint topic="reassign-flight-charge" />
-          </DialogTitle>
-          <DialogDescription>
-            Moves{" "}
+      title={<>Reassign flight charge
+            <DocsHint topic="reassign-flight-charge" /></>}
+      description={<>Moves{" "}
             {entry ? formatMoney(Math.abs(entry.amountCents)) : "this charge"} to
             another member. The original entry is reversed; a new charge is posted
-            (never edited).
-          </DialogDescription>
-        </DialogHeader>
+            (never edited).</>}
+      footer={<><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            disabled={!toOrgUserId || reassign.isPending || !entry}
+            onClick={() => void onSubmit()}
+          >
+            {reassign.isPending ? "Reassigning…" : "Reassign"}
+          </Button></>}
+    >
+
+        
 
         <div className="space-y-3">
           <div className="space-y-1.5">
@@ -133,20 +131,6 @@ export function LedgerReassignDialog({
             </Select>
           </div>
         </div>
-
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={!toOrgUserId || reassign.isPending || !entry}
-            onClick={() => void onSubmit()}
-          >
-            {reassign.isPending ? "Reassigning…" : "Reassign"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }

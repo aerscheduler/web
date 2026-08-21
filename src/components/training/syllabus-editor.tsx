@@ -24,6 +24,7 @@ import {
 import { LESSON_KIND_LABEL, PART_LABEL, deciHours } from "@/lib/training";
 import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,14 +36,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/states";
 
 /**
@@ -288,14 +281,30 @@ function StageDialog({
   }
 
   return (
-    <Dialog open={!!state} onOpenChange={(o) => !o && (setSeeded(null), onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{stage ? "Edit stage" : "Add stage"}</DialogTitle>
-          <DialogDescription>
-            A stage is a block of lessons, presolo, cross-country, test preparation.
-          </DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal
+      open={!!state} onOpenChange={(o) => !o && (setSeeded(null), onClose())}
+      title={stage ? "Edit stage" : "Add stage"}
+      description="A stage is a block of lessons, presolo, cross-country, test preparation."
+      footer={<><Button
+            disabled={!name.trim() || save.isPending}
+            onClick={async () => {
+              await save.mutateAsync({
+                versionId,
+                stageId: stage?.id,
+                name: name.trim(),
+                objective: objective.trim() || null,
+                position: stage?.position ?? nextPosition,
+                requiresStageCheck: check,
+              });
+              setSeeded(null);
+              onClose();
+            }}
+          >
+            {stage ? "Save" : "Add stage"}
+          </Button></>}
+    >
+
+        
 
         <div className="space-y-3">
           <div className="space-y-1">
@@ -313,28 +322,7 @@ function StageDialog({
         </div>
 
         {save.error ? <p className="text-sm text-destructive">{(save.error as Error).message}</p> : null}
-
-        <DialogFooter>
-          <Button
-            disabled={!name.trim() || save.isPending}
-            onClick={async () => {
-              await save.mutateAsync({
-                versionId,
-                stageId: stage?.id,
-                name: name.trim(),
-                objective: objective.trim() || null,
-                position: stage?.position ?? nextPosition,
-                requiresStageCheck: check,
-              });
-              setSeeded(null);
-              onClose();
-            }}
-          >
-            {stage ? "Save" : "Add stage"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }
 
@@ -394,12 +382,39 @@ function LessonDialog({
   };
 
   return (
-    <Dialog open={!!state} onOpenChange={(o) => !o && (setSeeded(null), onClose())}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{lesson ? "Edit lesson" : "Add lesson"}</DialogTitle>
-          <DialogDescription>{stage?.name}</DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal
+      open={!!state} onOpenChange={(o) => !o && (setSeeded(null), onClose())}
+      title={lesson ? "Edit lesson" : "Add lesson"}
+      description={stage?.name}
+      size="xl"
+      footer={<><Button
+            disabled={!name.trim() || save.isPending || !state}
+            onClick={async () => {
+              await save.mutateAsync({
+                versionId: version.id,
+                lessonId: lesson?.id,
+                stageId: state!.stageId,
+                name: name.trim(),
+                position: lesson?.position ?? (stage?.lessons.length ?? 0) + 1,
+                kind,
+                objectives: objectives.trim() || null,
+                completionStandards: standards.trim() || null,
+                minFlightDeciHours: toDeci(flight),
+                minGroundDeciHours: toDeci(ground),
+                requiresSignoff: signoff,
+                requiresNotes: notes,
+                isStageCheck: stage?.requiresStageCheck ? stageCheck : false,
+                credits,
+              });
+              setSeeded(null);
+              onClose();
+            }}
+          >
+            {lesson ? "Save lesson" : "Add lesson"}
+          </Button></>}
+    >
+
+        
 
         <div className="space-y-3">
           <div className="space-y-1">
@@ -511,36 +526,7 @@ function LessonDialog({
         </div>
 
         {save.error ? <p className="text-sm text-destructive">{(save.error as Error).message}</p> : null}
-
-        <DialogFooter>
-          <Button
-            disabled={!name.trim() || save.isPending || !state}
-            onClick={async () => {
-              await save.mutateAsync({
-                versionId: version.id,
-                lessonId: lesson?.id,
-                stageId: state!.stageId,
-                name: name.trim(),
-                position: lesson?.position ?? (stage?.lessons.length ?? 0) + 1,
-                kind,
-                objectives: objectives.trim() || null,
-                completionStandards: standards.trim() || null,
-                minFlightDeciHours: toDeci(flight),
-                minGroundDeciHours: toDeci(ground),
-                requiresSignoff: signoff,
-                requiresNotes: notes,
-                isStageCheck: stage?.requiresStageCheck ? stageCheck : false,
-                credits,
-              });
-              setSeeded(null);
-              onClose();
-            }}
-          >
-            {lesson ? "Save lesson" : "Add lesson"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }
 
@@ -567,15 +553,38 @@ function TasksDialog({
   }
 
   return (
-    <Dialog open={!!lesson} onOpenChange={(o) => !o && (setSeeded(null), onClose())}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Tasks, {lesson?.name}</DialogTitle>
-          <DialogDescription>
-            What gets graded individually. An ACS code ties the task to the practical test, which is
-            what makes "which ACS areas is this student weak in?" answerable later.
-          </DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal
+      open={!!lesson} onOpenChange={(o) => !o && (setSeeded(null), onClose())}
+      title={<>Tasks, {lesson?.name}</>}
+      description={<>What gets graded individually. An ACS code ties the task to the practical test, which is
+            what makes "which ACS areas is this student weak in?" answerable later.</>}
+      size="xl"
+      footer={<><Button
+            disabled={save.isPending || !lesson}
+            onClick={async () => {
+              await save.mutateAsync({
+                versionId,
+                lessonId: lesson!.id,
+                //Blank rows are the natural result of adding one row too many; dropping them
+                //quietly is kinder than refusing the save over an empty box.
+                tasks: rows
+                  .filter((r) => r.name.trim())
+                  .map((r, i) => ({
+                    name: r.name.trim(),
+                    position: i + 1,
+                    acsCode: r.acsCode.trim() || null,
+                    standard: r.standard.trim() || null,
+                  })),
+              });
+              setSeeded(null);
+              onClose();
+            }}
+          >
+            Save tasks
+          </Button></>}
+    >
+
+        
 
         <div className="space-y-2">
           {rows.map((row, i) => (
@@ -616,34 +625,7 @@ function TasksDialog({
         </div>
 
         {save.error ? <p className="text-sm text-destructive">{(save.error as Error).message}</p> : null}
-
-        <DialogFooter>
-          <Button
-            disabled={save.isPending || !lesson}
-            onClick={async () => {
-              await save.mutateAsync({
-                versionId,
-                lessonId: lesson!.id,
-                //Blank rows are the natural result of adding one row too many; dropping them
-                //quietly is kinder than refusing the save over an empty box.
-                tasks: rows
-                  .filter((r) => r.name.trim())
-                  .map((r, i) => ({
-                    name: r.name.trim(),
-                    position: i + 1,
-                    acsCode: r.acsCode.trim() || null,
-                    standard: r.standard.trim() || null,
-                  })),
-              });
-              setSeeded(null);
-              onClose();
-            }}
-          >
-            Save tasks
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }
 
@@ -847,14 +829,39 @@ function RequirementDialog({
   };
 
   return (
-    <Dialog open={!!state} onOpenChange={(o) => !o && (setSeeded(null), onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{req ? "Edit requirement" : "Add requirement"}</DialogTitle>
-          <DialogDescription>
-            Something the student has to build up: 40 hours total, 3 hours night, 10 towered landings.
-          </DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal
+      open={!!state} onOpenChange={(o) => !o && (setSeeded(null), onClose())}
+      title={req ? "Edit requirement" : "Add requirement"}
+      description="Something the student has to build up: 40 hours total, 3 hours night, 10 towered landings."
+      footer={<><Button
+            disabled={!code.trim() || !label.trim() || save.isPending}
+            onClick={async () => {
+              const n = Number(amount);
+              await save.mutateAsync({
+                versionId,
+                requirementId: req?.id,
+                code: code.trim(),
+                label: label.trim(),
+                minDeciHours: measure === "hours" && amount.trim() ? Math.round(n * 10) : null,
+                minCount: measure === "count" && amount.trim() ? Math.round(n) : null,
+                source,
+                maxSimulatorBps: measure === "hours" ? pct(simCap) : null,
+                maxTransferBps: measure === "hours" ? pct(transferCap) : null,
+                //Sent unconditionally. The server writes this field whether or not it
+                //arrives, so leaving it out of the body does not mean "leave it alone".
+                //it means "clear it". Editing a requirement's label used to silently
+                //delete its recency window, and nothing said the value had ever existed.
+                recencyCalendarMonths: whole(recency),
+              });
+              setSeeded(null);
+              onClose();
+            }}
+          >
+            {req ? "Save" : "Add requirement"}
+          </Button></>}
+    >
+
+        
 
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
@@ -945,36 +952,6 @@ function RequirementDialog({
         </div>
 
         {save.error ? <p className="text-sm text-destructive">{(save.error as Error).message}</p> : null}
-
-        <DialogFooter>
-          <Button
-            disabled={!code.trim() || !label.trim() || save.isPending}
-            onClick={async () => {
-              const n = Number(amount);
-              await save.mutateAsync({
-                versionId,
-                requirementId: req?.id,
-                code: code.trim(),
-                label: label.trim(),
-                minDeciHours: measure === "hours" && amount.trim() ? Math.round(n * 10) : null,
-                minCount: measure === "count" && amount.trim() ? Math.round(n) : null,
-                source,
-                maxSimulatorBps: measure === "hours" ? pct(simCap) : null,
-                maxTransferBps: measure === "hours" ? pct(transferCap) : null,
-                //Sent unconditionally. The server writes this field whether or not it
-                //arrives, so leaving it out of the body does not mean "leave it alone".
-                //it means "clear it". Editing a requirement's label used to silently
-                //delete its recency window, and nothing said the value had ever existed.
-                recencyCalendarMonths: whole(recency),
-              });
-              setSeeded(null);
-              onClose();
-            }}
-          >
-            {req ? "Save" : "Add requirement"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }

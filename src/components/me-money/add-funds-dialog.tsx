@@ -15,13 +15,7 @@ import {
 import { getStripeForAccount } from "@/lib/stripe";
 import { stripeAppearance, useIsDark } from "@/components/billing/stripe-appearance";
 import { useConfirm } from "@/components/confirm-dialog";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -253,27 +247,18 @@ export function AddFundsDialog({
         : "Pay";
 
   return (
-    <Dialog
+    <ResponsiveModal
       open={open}
       onOpenChange={(o) => {
         if (busy) return;
         onOpenChange(o);
       }}
+      title="Add funds"
+      description="Put money on your account. It stays as credit until flights or fees draw it down."
+      data-doc-shot="add-funds-dialog"
     >
-      <DialogContent
-        data-doc-shot="add-funds-dialog"
-        showCloseButton={!busy}
-        onOpenAutoFocus={(e) => e.preventDefault()}
-        onInteractOutside={(e) => {
-          if (busy) e.preventDefault();
-        }}
-      >
-        <DialogHeader>
-          <DialogTitle>Add funds</DialogTitle>
-          <DialogDescription>
-            Put money on your account. It stays as credit until flights or fees draw it down.
-          </DialogDescription>
-        </DialogHeader>
+
+        
 
         {step === "amount" && (
           <div className="space-y-4">
@@ -446,8 +431,7 @@ export function AddFundsDialog({
             />
           </Elements>
         )}
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }
 

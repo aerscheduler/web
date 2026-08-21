@@ -58,6 +58,7 @@ import { EnrollmentFeeCard } from "@/components/training/enrollment-fee-card";
 import { PaceBadge } from "@/components/training/pace-badge";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,15 +66,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -512,19 +504,32 @@ function GradeDialog({
   const error = (save.error ?? sign.error) as Error | null;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-7 px-2">
+    <>
+      <Button onClick={() => setOpen(true)} size="sm" variant="ghost" className="h-7 px-2">
           <PenLine className="size-3.5" /> {existing ? "Continue" : "Grade"}
         </Button>
-      </DialogTrigger>
-      <DialogContent data-doc-shot="grade-lesson-dialog">
-        <DialogHeader>
-          <DialogTitle>{lesson.name}</DialogTitle>
-          <DialogDescription>
-            {lesson.completionStandards ?? "Record what happened and sign it."}
-          </DialogDescription>
-        </DialogHeader>
+      <ResponsiveModal
+      open={open} onOpenChange={setOpen}
+      title={lesson.name}
+      description={lesson.completionStandards ?? "Record what happened and sign it."}
+      footer={<><Button variant="outline" disabled={busy} onClick={() => submit(false)}>
+            Save draft
+          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                disabled={busy || (needsNotes && !notes.trim())}
+                onClick={() => submit(true)}
+              >
+                <FileSignature className="size-4" /> Save and sign
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Signing locks this record. Corrections are added alongside it.</TooltipContent>
+          </Tooltip></>}
+      data-doc-shot="grade-lesson-dialog"
+    >
+
+        
 
         <div className="space-y-3">
           <div className="space-y-1">
@@ -638,25 +643,8 @@ function GradeDialog({
           </p>
         ) : null}
         {error ? <p className="text-sm text-destructive">{error.message}</p> : null}
-
-        <DialogFooter>
-          <Button variant="outline" disabled={busy} onClick={() => submit(false)}>
-            Save draft
-          </Button>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                disabled={busy || (needsNotes && !notes.trim())}
-                onClick={() => submit(true)}
-              >
-                <FileSignature className="size-4" /> Save and sign
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Signing locks this record. Corrections are added alongside it.</TooltipContent>
-          </Tooltip>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
+    </>
   );
 }
 
@@ -666,23 +654,30 @@ function AmendDialog({ recordId }: { recordId: number }) {
   const amend = useAmendLessonRecord();
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs">
+    <>
+      <Button onClick={() => setOpen(true)} size="sm" variant="ghost" className="h-6 px-2 text-xs">
           <RotateCcw className="size-3" /> Amend
         </Button>
-      </DialogTrigger>
-      <DialogContent data-doc-shot="amend-record-dialog">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-1.5">
-            Amend this record
-            <DocsHint topic="amend-signed-lesson" />
-          </DialogTitle>
-          <DialogDescription>
-            A signed record is never edited. This adds a correction beside it and takes back the hours the
-            original credited, both stay on the record. The correction has to be signed before it counts.
-          </DialogDescription>
-        </DialogHeader>
+      <ResponsiveModal
+      open={open} onOpenChange={setOpen}
+      title={<>Amend this record
+            <DocsHint topic="amend-signed-lesson" /></>}
+      description={<>A signed record is never edited. This adds a correction beside it and takes back the hours the
+            original credited, both stay on the record. The correction has to be signed before it counts.</>}
+      footer={<><Button
+            disabled={reason.trim().length < 3 || amend.isPending}
+            onClick={async () => {
+              await amend.mutateAsync({ recordId, reason: reason.trim() });
+              setOpen(false);
+              setReason("");
+            }}
+          >
+            Amend
+          </Button></>}
+      data-doc-shot="amend-record-dialog"
+    >
+
+        
 
         <div className="space-y-1">
           <Label htmlFor="amend-reason">Why</Label>
@@ -696,21 +691,8 @@ function AmendDialog({ recordId }: { recordId: number }) {
         </div>
 
         {amend.error ? <p className="text-sm text-destructive">{(amend.error as Error).message}</p> : null}
-
-        <DialogFooter>
-          <Button
-            disabled={reason.trim().length < 3 || amend.isPending}
-            onClick={async () => {
-              await amend.mutateAsync({ recordId, reason: reason.trim() });
-              setOpen(false);
-              setReason("");
-            }}
-          >
-            Amend
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
+    </>
   );
 }
 
@@ -805,21 +787,32 @@ function ReverseCreditDialog({
   const reverse = useReverseRequirementCredit();
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs">
+    <>
+      <Button onClick={() => setOpen(true)} size="sm" variant="ghost" className="h-6 px-2 text-xs">
           <RotateCcw className="size-3" /> Reverse
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Reverse this credit</DialogTitle>
-          <DialogDescription>
-            Takes back {amount} against {label}. Nothing is deleted: the reversal is written
+      <ResponsiveModal
+      open={open} onOpenChange={setOpen}
+      title="Reverse this credit"
+      description={<>Takes back {amount} against {label}. Nothing is deleted: the reversal is written
             beside the original and both stay on the record, because a student's hours have
-            to stay answerable a year later.
-          </DialogDescription>
-        </DialogHeader>
+            to stay answerable a year later.</>}
+      footer={<><Button variant="outline" onClick={() => setOpen(false)}>
+            Keep it
+          </Button>
+          <Button
+            disabled={reason.trim().length < 3 || reverse.isPending}
+            onClick={async () => {
+              await reverse.mutateAsync({ creditId, reason: reason.trim() });
+              setOpen(false);
+              setReason("");
+            }}
+          >
+            Reverse
+          </Button></>}
+    >
+
+        
 
         <div className="space-y-1">
           <Label htmlFor="reverse-reason">Why</Label>
@@ -835,24 +828,8 @@ function ReverseCreditDialog({
         {reverse.error ? (
           <p className="text-sm text-destructive">{(reverse.error as Error).message}</p>
         ) : null}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            Keep it
-          </Button>
-          <Button
-            disabled={reason.trim().length < 3 || reverse.isPending}
-            onClick={async () => {
-              await reverse.mutateAsync({ creditId, reason: reason.trim() });
-              setOpen(false);
-              setReason("");
-            }}
-          >
-            Reverse
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
+    </>
   );
 }
 
@@ -867,24 +844,35 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
   const is141 = progress.enrollment.courseVersion.course.regulatoryPart === "part141";
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button disabled={blocked} variant={blocked ? "outline" : "default"}>
+    <>
+      <Button onClick={() => setOpen(true)} disabled={blocked} variant={blocked ? "outline" : "default"}>
           <GraduationCap className="size-4" /> Graduate
         </Button>
-      </DialogTrigger>
-      <DialogContent data-doc-shot="graduate-dialog">
-        <DialogHeader>
-          <DialogTitle>Graduate this student</DialogTitle>
-          <DialogDescription>
-            {/* "Issues" promised a document. Nothing is generated, the number below is
+      <ResponsiveModal
+      open={open} onOpenChange={setOpen}
+      title="Graduate this student"
+      description={<>{/* "Issues" promised a document. Nothing is generated, the number below is
                 typed in and stored against the record, which is what a school needs for the
                 audit trail and is not the same as producing the certificate. */}
             {is141
               ? "Records the §141.95 graduation certificate number against this student and closes the enrollment. Their record stays exactly as it is."
-              : "Closes the enrollment. Their record stays exactly as it is."}
-          </DialogDescription>
-        </DialogHeader>
+              : "Closes the enrollment. Their record stays exactly as it is."}</>}
+      footer={<><Button
+            disabled={graduate.isPending}
+            onClick={async () => {
+              await graduate.mutateAsync({
+                enrollmentId: progress.enrollment.id,
+                graduationCertificateNumber: certificate.trim() || undefined,
+              });
+              setOpen(false);
+            }}
+          >
+            Graduate
+          </Button></>}
+      data-doc-shot="graduate-dialog"
+    >
+
+        
 
         {is141 ? (
           <div className="space-y-1">
@@ -900,23 +888,8 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
         {graduate.error ? (
           <p className="text-sm text-destructive">{(graduate.error as Error).message}</p>
         ) : null}
-
-        <DialogFooter>
-          <Button
-            disabled={graduate.isPending}
-            onClick={async () => {
-              await graduate.mutateAsync({
-                enrollmentId: progress.enrollment.id,
-                graduationCertificateNumber: certificate.trim() || undefined,
-              });
-              setOpen(false);
-            }}
-          >
-            Graduate
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
+    </>
   );
 }
 
@@ -958,18 +931,24 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
 
       <GraduateButton progress={progress} />
 
-      <Dialog open={!!ending} onOpenChange={(o) => !o && setEnding(null)}>
-        <Button variant="outline" onClick={() => setEnding("terminated")}>
-          End enrollment
-        </Button>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>End this enrollment</DialogTitle>
-            <DialogDescription>
-              Their record stays exactly as it is: §141.101 keeps it either way. This only records
-              that they stopped, and why.
-            </DialogDescription>
-          </DialogHeader>
+      <ResponsiveModal
+      open={!!ending} onOpenChange={(o) => !o && setEnding(null)}
+      title="End this enrollment"
+      description={<>Their record stays exactly as it is: §141.101 keeps it either way. This only records
+              that they stopped, and why.</>}
+      footer={<><Button
+              disabled={end.isPending || !ending}
+              onClick={async () => {
+                await end.mutateAsync({ enrollmentId: e.id, status: ending!, reason: reason.trim() || undefined });
+                setEnding(null);
+                setReason("");
+              }}
+            >
+              Record it
+            </Button></>}
+    >
+
+          
 
           <div className="space-y-3">
             <div className="flex gap-2">
@@ -1003,21 +982,7 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
           </div>
 
           {end.error ? <p className="text-sm text-destructive">{(end.error as Error).message}</p> : null}
-
-          <DialogFooter>
-            <Button
-              disabled={end.isPending || !ending}
-              onClick={async () => {
-                await end.mutateAsync({ enrollmentId: e.id, status: ending!, reason: reason.trim() || undefined });
-                setEnding(null);
-                setReason("");
-              }}
-            >
-              Record it
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+    </ResponsiveModal>
     </div>
   );
 }

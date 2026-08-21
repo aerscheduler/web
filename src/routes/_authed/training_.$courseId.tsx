@@ -37,6 +37,7 @@ import { CourseFeeEditor } from "@/components/training/course-fee-editor";
 import { CourseSettings } from "@/components/training/course-settings";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,15 +47,6 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -448,23 +440,37 @@ function PublishDialog({ version }: { version: CourseVersion }) {
   const lessons = version.stages.reduce((n, s) => n + s.lessons.length, 0);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
+    <>
+      <Button onClick={() => setOpen(true)}>
           <Lock className="size-4" /> Publish
         </Button>
-      </DialogTrigger>
-      <DialogContent data-doc-shot="syllabus-publish-dialog">
-        <DialogHeader>
-          <DialogTitle>Publish {version.label}?</DialogTitle>
-          <DialogDescription>
-            {/* Said plainly, because it is the one irreversible act in this module and the
+      <ResponsiveModal
+      open={open} onOpenChange={setOpen}
+      title={<>Publish {version.label}?</>}
+      description={<>{/* Said plainly, because it is the one irreversible act in this module and the
                 consequence is invisible until somebody tries to fix a typo. */}
             Publishing locks this version permanently. Its {lessons} lessons, tasks and requirements can
             never be changed again, students will be enrolled against exactly these. To revise it later you
-            make a new version from this one, and anyone already enrolled finishes on the old.
-          </DialogDescription>
-        </DialogHeader>
+            make a new version from this one, and anyone already enrolled finishes on the old.</>}
+      footer={<><Button variant="outline" onClick={() => setOpen(false)}>
+            Keep editing
+          </Button>
+          <Button
+            disabled={publish.isPending}
+            onClick={async () => {
+              await publish.mutateAsync({
+                versionId: version.id,
+                approvalReference: reference.trim() || undefined,
+              });
+              setOpen(false);
+            }}
+          >
+            Publish and lock
+          </Button></>}
+      data-doc-shot="syllabus-publish-dialog"
+    >
+
+        
 
         {is141 ? (
           <div className="space-y-1">
@@ -481,26 +487,8 @@ function PublishDialog({ version }: { version: CourseVersion }) {
         {publish.error ? (
           <p className="text-sm text-destructive">{(publish.error as Error).message}</p>
         ) : null}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            Keep editing
-          </Button>
-          <Button
-            disabled={publish.isPending}
-            onClick={async () => {
-              await publish.mutateAsync({
-                versionId: version.id,
-                approvalReference: reference.trim() || undefined,
-              });
-              setOpen(false);
-            }}
-          >
-            Publish and lock
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
+    </>
   );
 }
 
@@ -510,20 +498,28 @@ function NewVersionDialog({ courseId, fromVersionId }: { courseId: number; fromV
   const create = useCreateCourseVersion();
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">
+    <>
+      <Button onClick={() => setOpen(true)} variant="outline">
           <Copy className="size-4" /> New version
         </Button>
-      </DialogTrigger>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Revise this syllabus</DialogTitle>
-          <DialogDescription>
-            Copies every stage, lesson, task and requirement into a new editable draft. The published version
-            and everyone enrolled on it are untouched.
-          </DialogDescription>
-        </DialogHeader>
+      <ResponsiveModal
+      open={open} onOpenChange={setOpen}
+      title="Revise this syllabus"
+      description={<>Copies every stage, lesson, task and requirement into a new editable draft. The published version
+            and everyone enrolled on it are untouched.</>}
+      footer={<><Button
+            disabled={!label.trim() || create.isPending}
+            onClick={async () => {
+              await create.mutateAsync({ courseId, label: label.trim(), copyFromVersionId: fromVersionId });
+              setOpen(false);
+              setLabel("");
+            }}
+          >
+            Create draft
+          </Button></>}
+    >
+
+        
 
         <div className="space-y-1">
           <Label htmlFor="version-label">Version name</Label>
@@ -536,21 +532,8 @@ function NewVersionDialog({ courseId, fromVersionId }: { courseId: number; fromV
         </div>
 
         {create.error ? <p className="text-sm text-destructive">{(create.error as Error).message}</p> : null}
-
-        <DialogFooter>
-          <Button
-            disabled={!label.trim() || create.isPending}
-            onClick={async () => {
-              await create.mutateAsync({ courseId, label: label.trim(), copyFromVersionId: fromVersionId });
-              setOpen(false);
-              setLabel("");
-            }}
-          >
-            Create draft
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
+    </>
   );
 }
 
@@ -572,20 +555,29 @@ function EnrollDialog({ versionId, courseName }: { versionId: number; courseName
     });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">
+    <>
+      <Button onClick={() => setOpen(true)} variant="outline">
           <UserPlus className="size-4" /> Enroll a student
         </Button>
-      </DialogTrigger>
-      <DialogContent data-doc-shot="training-enroll-dialog">
-        <DialogHeader>
-          <DialogTitle>Enroll on {courseName}</DialogTitle>
-          <DialogDescription>
-            The student is pinned to this version of the syllabus. Revising the course later will not change
-            what they are being trained against.
-          </DialogDescription>
-        </DialogHeader>
+      <ResponsiveModal
+      open={open} onOpenChange={setOpen}
+      title={<>Enroll on {courseName}</>}
+      description={<>The student is pinned to this version of the syllabus. Revising the course later will not change
+            what they are being trained against.</>}
+      footer={<><Button
+            disabled={!orgUserId || enroll.isPending}
+            onClick={async () => {
+              await enroll.mutateAsync({ versionId, orgUserId: Number(orgUserId) });
+              setOpen(false);
+              setOrgUserId("");
+            }}
+          >
+            Enroll
+          </Button></>}
+      data-doc-shot="training-enroll-dialog"
+    >
+
+        
 
         <div className="space-y-1">
           <Label>Student</Label>
@@ -605,21 +597,8 @@ function EnrollDialog({ versionId, courseName }: { versionId: number; courseName
         </div>
 
         {enroll.error ? <p className="text-sm text-destructive">{(enroll.error as Error).message}</p> : null}
-
-        <DialogFooter>
-          <Button
-            disabled={!orgUserId || enroll.isPending}
-            onClick={async () => {
-              await enroll.mutateAsync({ versionId, orgUserId: Number(orgUserId) });
-              setOpen(false);
-              setOrgUserId("");
-            }}
-          >
-            Enroll
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
+    </>
   );
 }
 

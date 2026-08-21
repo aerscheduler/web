@@ -23,18 +23,10 @@ import { StatCard, StatGrid } from "@/components/stat-card";
 import { EmptyState, ErrorState, CardGridSkeleton } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authed/training")({
   beforeLoad: guardRoute("/training"),
@@ -291,19 +283,18 @@ function TemplateDialog({ primary }: { primary: boolean }) {
   const navigate = Route.useNavigate();
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant={primary ? "default" : "outline"}>
+    <>
+      <Button onClick={() => setOpen(true)} variant={primary ? "default" : "outline"}>
           <Sparkles className="size-4" /> Start from a template
         </Button>
-      </DialogTrigger>
-      <DialogContent data-doc-shot="training-template-picker">
-        <DialogHeader>
-          <DialogTitle>Start from a template</DialogTitle>
-          <DialogDescription>
-            A complete syllabus you can edit. It arrives as a draft, nothing is published until you say so.
-          </DialogDescription>
-        </DialogHeader>
+      <ResponsiveModal
+      open={open} onOpenChange={setOpen}
+      title="Start from a template"
+      description="A complete syllabus you can edit. It arrives as a draft, nothing is published until you say so."
+      data-doc-shot="training-template-picker"
+    >
+
+        
 
         <div className="space-y-2">
           {templates.isLoading ? <p className="text-sm text-muted-foreground">Loading…</p> : null}
@@ -337,8 +328,8 @@ function TemplateDialog({ primary }: { primary: boolean }) {
           Templates are Part 61. An approved Part 141 course has to be approved for your school by your
           FSDO, build it from this one and file it.
         </p>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
+    </>
   );
 }
 
@@ -350,17 +341,29 @@ function BlankCourseDialog() {
   const navigate = Route.useNavigate();
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button variant="outline">
+    <>
+      <Button onClick={() => setOpen(true)} variant="outline">
           <PlusCircle className="size-4" /> New course
         </Button>
-      </DialogTrigger>
-      <DialogContent data-doc-shot="training-new-course-dialog">
-        <DialogHeader>
-          <DialogTitle>New course</DialogTitle>
-          <DialogDescription>An empty syllabus you build yourself.</DialogDescription>
-        </DialogHeader>
+      <ResponsiveModal
+      open={open} onOpenChange={setOpen}
+      title="New course"
+      description="An empty syllabus you build yourself."
+      footer={<><Button
+            disabled={!name.trim() || create.isPending}
+            onClick={async () => {
+              const made = await create.mutateAsync({ name: name.trim(), regulatoryPart: part });
+              setOpen(false);
+              setName("");
+              void navigate({ to: "/training/$courseId", params: { courseId: String(made.id) } });
+            }}
+          >
+            Create course
+          </Button></>}
+      data-doc-shot="training-new-course-dialog"
+    >
+
+        
 
         <div className="space-y-3">
           <div className="space-y-1">
@@ -404,22 +407,8 @@ function BlankCourseDialog() {
         </div>
 
         {create.error ? <p className="text-sm text-destructive">{(create.error as Error).message}</p> : null}
-
-        <DialogFooter>
-          <Button
-            disabled={!name.trim() || create.isPending}
-            onClick={async () => {
-              const made = await create.mutateAsync({ name: name.trim(), regulatoryPart: part });
-              setOpen(false);
-              setName("");
-              void navigate({ to: "/training/$courseId", params: { courseId: String(made.id) } });
-            }}
-          >
-            Create course
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
+    </>
   );
 }
 

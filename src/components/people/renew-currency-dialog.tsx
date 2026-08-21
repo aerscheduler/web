@@ -5,15 +5,8 @@ import type { Currency, Role } from "@/types/api";
 import { useRenewCurrency } from "@/features/queries";
 import { ApiError } from "@/lib/api";
 import { DatePickerField } from "@/components/date-picker";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 
 function todayYmd() {
@@ -67,34 +60,17 @@ export function RenewCurrencyDialog({
   const name = currency?.currencyType?.name ?? "Currency";
 
   return (
-    <Dialog
+    <ResponsiveModal
       open={open}
       onOpenChange={(next) => {
         if (next) setStartedYmd(todayYmd());
         onOpenChange(next);
       }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            {needsReview
+      title={title}
+      description={<>{needsReview
               ? `Record the first sign-off for ${name}. Booking treats a currency without a signer as not current.`
-              : `Reset the clock on ${name} from the start date you choose.`}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="grid gap-2 py-1">
-          <Label htmlFor="currency-started">Start date</Label>
-          <DatePickerField
-            id="currency-started"
-            value={startedYmd}
-            onChange={setStartedYmd}
-          />
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+              : `Reset the clock on ${name} from the start date you choose.`}</>}
+      footer={<><Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
@@ -116,9 +92,19 @@ export function RenewCurrencyDialog({
             }}
           >
             {renew.isPending ? "Saving…" : needsReview ? "Sign off" : "Renew"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </Button></>}
+    >
+
+        
+
+        <div className="grid gap-2 py-1">
+          <Label htmlFor="currency-started">Start date</Label>
+          <DatePickerField
+            id="currency-started"
+            value={startedYmd}
+            onChange={setStartedYmd}
+          />
+        </div>
+    </ResponsiveModal>
   );
 }

@@ -10,6 +10,7 @@ import {
   useTrainingGrants,
 } from "@/features/queries";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -20,14 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 /**
  * Who may do what in training, beyond the ordinary roles.
@@ -166,12 +159,26 @@ function GrantDialog({ option, onClose }: { option: TrainingGrantOption | null; 
   );
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (o ? undefined : close())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{option?.label}</DialogTitle>
-          <DialogDescription>{option?.description}</DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal
+      open={open} onOpenChange={(o) => (o ? undefined : close())}
+      title={option?.label}
+      description={option?.description}
+      footer={<><Button
+            disabled={!orgUserId || create.isPending}
+            onClick={async () => {
+              await create.mutateAsync({
+                orgUserId: Number(orgUserId),
+                grant: option!.grant,
+                courseId: option?.courseScoped && courseId !== "all" ? Number(courseId) : null,
+              });
+              close();
+            }}
+          >
+            Grant
+          </Button></>}
+    >
+
+        
 
         <div className="space-y-3">
           <div className="space-y-1">
@@ -222,23 +229,6 @@ function GrantDialog({ option, onClose }: { option: TrainingGrantOption | null; 
         {create.error ? (
           <p className="text-sm text-destructive">{(create.error as Error).message}</p>
         ) : null}
-
-        <DialogFooter>
-          <Button
-            disabled={!orgUserId || create.isPending}
-            onClick={async () => {
-              await create.mutateAsync({
-                orgUserId: Number(orgUserId),
-                grant: option!.grant,
-                courseId: option?.courseScoped && courseId !== "all" ? Number(courseId) : null,
-              });
-              close();
-            }}
-          >
-            Grant
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </ResponsiveModal>
   );
 }

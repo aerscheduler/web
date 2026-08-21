@@ -53,6 +53,10 @@ export function PayInvoiceDialog({
   const appearance = React.useMemo(() => stripeAppearance(dark), [dark]);
 
   return (
+    //Deliberately a raw Dialog, not ResponsiveModal. Stripe's iframe manages its own
+    //focus and this must not dismiss mid-charge, which needs `showCloseButton`,
+    //`onOpenAutoFocus` and `onInteractOutside` on the content. ResponsiveModal does not
+    //expose those, and losing them here would risk a payment rather than a layout.
     <Dialog
       open={open}
       onOpenChange={(o) => {

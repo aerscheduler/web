@@ -10,17 +10,10 @@ import {
 } from "@/features/queries";
 import { ListSearchBar, type FacetDef, type ListFilterValues } from "@/components/list-filters";
 import { Badge } from "@/components/ui/badge";
+import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
 /**
  * What this person may do, and the one place to change it.
@@ -275,14 +268,11 @@ function PermissionsBody({
       )}
       </div>
 
-      <Dialog open={confirming != null} onOpenChange={(o) => !o && setConfirming(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{confirming?.label}</DialogTitle>
-            <DialogDescription>{confirming?.description}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirming(null)}>
+      <ResponsiveModal
+      open={confirming != null} onOpenChange={(o) => !o && setConfirming(null)}
+      title={confirming?.label}
+      description={confirming?.description}
+      footer={<><Button variant="ghost" onClick={() => setConfirming(null)}>
               Cancel
             </Button>
             <Button
@@ -293,10 +283,10 @@ function PermissionsBody({
               }}
             >
               Give it
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </Button></>}
+    >
+
+    </ResponsiveModal>
     </div>
   );
 }

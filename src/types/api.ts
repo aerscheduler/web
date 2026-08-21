@@ -1,3 +1,4 @@
+import type { AircraftCategory, AircraftClass } from "@/components/aircraft/vocabulary";
 // Types mirrored from the server Prisma schema (see _local/insights/api-contract.md).
 // All DateTime columns arrive as ISO strings; all money fields are integer cents.
 //
@@ -772,7 +773,17 @@ export interface Plane {
   grounded: boolean;
   groundedReason: string | null;
   year: string | null;
+  /** @deprecated Derived from `category` + `aircraftClass`. Going away with the alias. */
   categoryClass: string;
+  category: AircraftCategory;
+  aircraftClass: AircraftClass | null;
+  engineType: string | null;
+  fuelType: string | null;
+  gearType: string | null;
+  /** Occupants the airframe holds. Null means nobody has said. */
+  seats: number | null;
+  /** `none` means flights on it are not invoiced automatically. */
+  meterMode: "hobbs_and_tach" | "hobbs_only" | "tach_only" | "none";
   fuelCapacity?: number | null;
   fuelMeasurement?: "gallons" | "liters" | null;
   /** Override school flying day. Both null = inherit. Equal ends = 24h for this plane. */
@@ -1209,7 +1220,15 @@ export interface CreatePlaneResourceInput {
       model?: string;
       /** REQUIRED by the server, must be exactly 4 digits, e.g. "2018". */
       year: string;
-      categoryClass: string;
+      /** @deprecated The server derives this from `category` + `aircraftClass`. */
+      categoryClass?: string;
+      category: AircraftCategory;
+      aircraftClass: AircraftClass | null;
+      engineType?: string | null;
+      fuelType?: string | null;
+      gearType?: string | null;
+      seats?: number | null;
+      meterMode?: string;
       tachTime: number;
       hobbsTime: number;
       /** REQUIRED by the server, non-negative. */

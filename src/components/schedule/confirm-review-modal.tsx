@@ -51,12 +51,28 @@ export function ConfirmReviewModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={confirmReview.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-confirm-review-modal" disabled={!valid || confirmReview.isPending}>
+              {confirmReview.isPending ? "Confirming…" : "Confirm review"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="Confirm review"
       description="Enter your confirmation PIN to sign off this flight."
     >
-      <form
+      <form id="modal-confirm-review-modal"
         data-doc-shot="confirm-review-pin-modal"
         className="space-y-4"
         onSubmit={(e) => {
@@ -101,19 +117,6 @@ export function ConfirmReviewModal({
           </span>
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={confirmReview.isPending}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={!valid || confirmReview.isPending}>
-            {confirmReview.isPending ? "Confirming…" : "Confirm review"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

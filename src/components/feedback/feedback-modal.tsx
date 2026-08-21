@@ -51,6 +51,16 @@ export function FeedbackModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={submitFeedback.isPending}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void submit()} disabled={submitFeedback.isPending}>
+              {submitFeedback.isPending ? "Sending…" : "Send"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={handleOpenChange}
       title="Send feedback"
@@ -69,14 +79,6 @@ export function FeedbackModal({
             maxLength={MAX_MESSAGE_LENGTH}
             disabled={submitFeedback.isPending}
           />
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => handleOpenChange(false)} disabled={submitFeedback.isPending}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={() => void submit()} disabled={submitFeedback.isPending}>
-            {submitFeedback.isPending ? "Sending…" : "Send"}
-          </Button>
         </div>
       </div>
     </ResponsiveModal>

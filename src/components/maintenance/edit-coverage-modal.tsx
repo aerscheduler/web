@@ -233,13 +233,24 @@ export function EditCoverageModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-edit-coverage-modal" disabled={busy}>
+              {busy ? "Saving…" : "Save coverage"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       size="lg"
       title="Which aircraft this covers"
       description={template?.name ?? "Attach or detach tails, and set where a new one starts."}
     >
-      <form onSubmit={submit} className="space-y-4">
+      <form id="modal-edit-coverage-modal" onSubmit={submit} className="space-y-4">
         {template && (
           <p className="text-[13px] text-muted-foreground">{intervalLabel(template)}</p>
         )}
@@ -370,14 +381,6 @@ export function EditCoverageModal({
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={busy}>
-            {busy ? "Saving…" : "Save coverage"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

@@ -64,6 +64,16 @@ export function EditRolesModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={mut.isPending}>
+              {mut.isPending ? "Saving…" : "Save roles"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="Edit roles"
@@ -105,14 +115,6 @@ export function EditRolesModal({
               </label>
             );
           })}
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={mut.isPending}>
-            {mut.isPending ? "Saving…" : "Save roles"}
-          </Button>
         </div>
       </div>
     </ResponsiveModal>

@@ -389,6 +389,18 @@ export const DOCS_TOPICS = {
       "Offers currently open after a cancel, desk send, or AerScheduler AI. They also appear as dashed pending offers on the day and week boards. Instructor confirms appear first on duals. Withdraw frees the window and stops the chain so the desk can book by hand.",
     href: "scheduling/standby-and-slot-offers",
   },
+  "aircraft-category-class": {
+    title: "Category and class",
+    summary:
+      "What the aircraft is, in the same words a certificate uses. Pick the category first and the class narrows to the ones that belong to it. A glider or a powered lift has no class rating, so that field switches off.",
+    href: "getting-started/aircraft-categories-and-meters",
+  },
+  "aircraft-meters": {
+    title: "Meters",
+    summary:
+      "Which meters this aircraft has. Hours for billing come from the difference between two readings, so an aircraft set to None is not invoiced automatically and you raise those invoices by hand. Booking, ramp-out and ramp-in all work normally.",
+    href: "getting-started/aircraft-categories-and-meters#meters",
+  },
   "flying-day-hours": {
     title: "Flying day",
     summary:

@@ -177,12 +177,28 @@ export function OverridePaymentModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={save.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-override-payment-modal" disabled={save.isPending}>
+              {save.isPending ? "Saving…" : "Save rates"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="Override payment"
       description="Bill this one booking at a rate of your own, in place of the school's rate card."
     >
-      <form
+      <form id="modal-override-payment-modal"
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
@@ -252,19 +268,6 @@ export function OverridePaymentModal({
           </span>
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={save.isPending}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={save.isPending}>
-            {save.isPending ? "Saving…" : "Save rates"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

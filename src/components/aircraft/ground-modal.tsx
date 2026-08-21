@@ -46,6 +46,21 @@ export function GroundModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleGround}
+              disabled={update.isPending}
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
+            >
+              {update.isPending ? "Grounding…" : "Ground aircraft"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title={`Ground ${tail}`}
@@ -65,19 +80,6 @@ export function GroundModal({
           <p className="text-xs text-muted-foreground">
             Shown to dispatchers and instructors wherever this tail appears.
           </p>
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleGround}
-            disabled={update.isPending}
-            className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
-          >
-            {update.isPending ? "Grounding…" : "Ground aircraft"}
-          </Button>
         </div>
       </div>
     </ResponsiveModal>

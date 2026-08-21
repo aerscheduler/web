@@ -72,6 +72,23 @@ export function AdminAssignPairDialog({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={assign.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={submit}
+              disabled={assign.isPending || !instructorRoleId || !studentRoleId}
+            >
+              {assign.isPending ? "Saving…" : "Assign"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={(next) => {
         if (!next) reset();
@@ -104,21 +121,6 @@ export function AdminAssignPairDialog({
             emptyText="No students in this school yet."
             disabled={assign.isPending}
           />
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={assign.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={submit}
-            disabled={assign.isPending || !instructorRoleId || !studentRoleId}
-          >
-            {assign.isPending ? "Saving…" : "Assign"}
-          </Button>
         </div>
       </div>
     </ResponsiveModal>

@@ -76,6 +76,19 @@ export function LogSquawkModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={submit}
+              disabled={!title.trim() || !description.trim() || create.isPending}
+            >
+              {create.isPending ? "Logging…" : "Log squawk"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={(o) => {
         if (!o) reset();
@@ -139,17 +152,6 @@ export function LogSquawkModal({
           <Switch id="squawk-grounding" checked={grounding} onCheckedChange={setGrounding} />
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={submit}
-            disabled={!title.trim() || !description.trim() || create.isPending}
-          >
-            {create.isPending ? "Logging…" : "Log squawk"}
-          </Button>
-        </div>
       </div>
     </ResponsiveModal>
   );

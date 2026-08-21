@@ -166,6 +166,16 @@ export function CreateInvoiceDialog({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={create.isPending}>
+              {create.isPending ? "Creating…" : "Create invoice"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="New invoice"
@@ -406,14 +416,6 @@ export function CreateInvoiceDialog({
           <span className="text-lg font-semibold tnum">{formatMoney(total)}</span>
         </div>
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={create.isPending}>
-            {create.isPending ? "Creating…" : "Create invoice"}
-          </Button>
-        </div>
       </div>
     </ResponsiveModal>
   );

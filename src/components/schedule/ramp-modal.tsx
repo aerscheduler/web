@@ -313,7 +313,17 @@ export function RampModal({
       : "Record the ending Hobbs and tach readings to close out the flight.";
 
   return (
-    <ResponsiveModal open={open} onOpenChange={onOpenChange} title={title} description={description}>
+    <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void submit()} disabled={busy}>
+              {busy ? "Saving…" : title}
+            </Button>
+        </div>
+      } open={open} onOpenChange={onOpenChange} title={title} description={description}>
       <div
         data-doc-shot={
           noMeters
@@ -457,14 +467,6 @@ export function RampModal({
           </p>
         )}
 
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={() => void submit()} disabled={busy}>
-            {busy ? "Saving…" : title}
-          </Button>
-        </div>
       </div>
     </ResponsiveModal>
   );

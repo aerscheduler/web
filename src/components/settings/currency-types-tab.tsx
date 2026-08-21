@@ -667,13 +667,25 @@ function CurrencyTypeFormModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-currency-types-tab" disabled={pending}>
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              {confirming ? "Save anyway" : isEdit ? "Save changes" : "Create rule"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-[90vh] overflow-y-auto sm:max-w-xl"
+      className="sm:max-w-xl"
       title={isEdit ? `Edit ${type?.name}` : "Add currency rule"}
       description="A rule stops the people it covers from booking the aircraft it covers until they're signed off."
     >
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form id="modal-currency-types-tab" onSubmit={handleSubmit} className="space-y-6">
         {/* ── Basics ── */}
         <Section title="Basics">
           <div className="space-y-1.5">
@@ -968,15 +980,6 @@ function CurrencyTypeFormModal({
           </div>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            {confirming ? "Save anyway" : isEdit ? "Save changes" : "Create rule"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );
@@ -1091,7 +1094,7 @@ function ScopePicker({
       </div>
       <p className="text-xs text-muted-foreground">{hint}</p>
 
-      <div className="max-h-52 overflow-y-auto rounded-lg border border-border">
+      <div className="rounded-lg border border-border">
         {loading ? (
           <div className="space-y-2 p-3">
             {Array.from({ length: 3 }).map((_, i) => (

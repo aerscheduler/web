@@ -283,6 +283,38 @@ export function useUsers(opts?: QueryOpts) {
   });
 }
 
+/** One row of the public aircraft registry, as returned by the tail-number lookup. */
+export type RegistryMatch = {
+  tailNumber: string;
+  make: string;
+  model: string;
+  year: number | null;
+  category: string | null;
+  aircraftClass: string | null;
+  engineType: string | null;
+  gearType: string | null;
+  seats: number | null;
+  /** @deprecated Derived from the pair above. */
+  categoryClass: string | null;
+};
+
+/**
+ * Tail-number lookup for the add-aircraft form. Held for a while because the registry
+ * changes weekly at most, and a person correcting a typo re-runs the same few queries.
+ *
+ * An empty result is a normal answer, not an error: our copy covers US registrations
+ * only, and the form works the same either way.
+ */
+export function useRegistryLookup(q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["resources", "registry", q],
+    queryFn: () => api<RegistryMatch[]>("/resources/registry", { query: { q } }),
+    enabled: enabled && q.length >= 2,
+    staleTime: 60 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function usePlanes(filter?: ResourceListFilter, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["resources", "planes", filter ?? {}],

@@ -4,7 +4,20 @@ import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { useCreatePlane, useUpdateResource } from "@/features/queries";
 import type { CreatePlaneResourceInput, Location, Resource } from "@/types/api";
-import { PLANE_TEMPLATES, fuelToDisplay, fuelToStored } from "@/components/aircraft/lib";
+import { fuelToDisplay, fuelToStored } from "@/components/aircraft/lib";
+import { TailNumberField } from "@/components/aircraft/tail-number-field";
+import type { RegistryMatch } from "@/features/queries";
+import {
+  AIRCRAFT_CATEGORIES,
+  CLASSES_BY_CATEGORY,
+  ENGINE_TYPES,
+  FUEL_TYPES,
+  GEAR_TYPES,
+  METER_MODES,
+  label as vocabLabel,
+  type AircraftCategory,
+  type AircraftClass,
+} from "@/components/aircraft/vocabulary";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { MoneyInput } from "@/components/money-input";
@@ -24,11 +37,16 @@ import {
 
 type FormState = {
   tailNumber: string;
-  template: string;
   make: string;
   model: string;
   year: string;
-  categoryClass: string;
+  category: AircraftCategory;
+  aircraftClass: string;
+  engineType: string;
+  fuelType: string;
+  gearType: string;
+  seats: string;
+  meterMode: string;
   hobbs: string;
   tach: string;
   fuelCapacity: string;
@@ -47,8 +65,7 @@ const REQUIRED_FIELDS = [
   { key: "make", id: "ac-make" },
   { key: "model", id: "ac-model" },
   { key: "year", id: "ac-year" },
-  { key: "categoryClass", id: "ac-cat" },
-  { key: "fuelCapacity", id: "ac-fuel" },
+  { key: "category", id: "ac-cat" },
   { key: "locationId", id: "" },
 ] as const;
 
@@ -72,11 +89,16 @@ function upperRegistration(value: string): string {
 function emptyState(): FormState {
   return {
     tailNumber: "",
-    template: "",
     make: "",
     model: "",
     year: "",
-    categoryClass: "",
+    category: "airplane",
+    aircraftClass: "",
+    engineType: "",
+    fuelType: "",
+    gearType: "",
+    seats: "",
+    meterMode: "hobbs_and_tach",
     hobbs: "",
     tach: "",
     fuelCapacity: "",
@@ -95,11 +117,16 @@ function stateFromResource(r: Resource): FormState {
   const basis: "wet" | "dry" = cost?.dryRate != null && cost.wetRate == null ? "dry" : "wet";
   return {
     tailNumber: p?.tailNumber ?? "",
-    template: "OTHER",
     make: p?.make ?? "",
     model: p?.model ?? "",
     year: p?.year ?? "",
-    categoryClass: p?.categoryClass ?? "",
+    category: (p?.category ?? "airplane") as AircraftCategory,
+    aircraftClass: p?.aircraftClass ?? "",
+    engineType: p?.engineType ?? "",
+    fuelType: p?.fuelType ?? "",
+    gearType: p?.gearType ?? "",
+    seats: p?.seats != null ? String(p.seats) : "",
+    meterMode: p?.meterMode ?? "hobbs_and_tach",
     hobbs: p ? (p.hobbsTime / 10).toFixed(1) : "",
     tach: p ? (p.tachTime / 10).toFixed(1) : "",
     //Stored in hundredths, shown in whole units. See fuelToDisplay.
@@ -154,20 +181,49 @@ export function AircraftFormModal({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
-  function applyTemplate(value: string) {
-    const t = PLANE_TEMPLATES.find((x) => x.value === value);
-    if (!t) return;
-    setForm((f) => ({
+  /**
+   * Fill in what the registry knows, and only that.
+   *
+   * Rate and fuel capacity are deliberately NOT filled: they are the school's numbers,
+   * not the airframe's, and a plausible-looking wrong hourly rate is worse than an
+   * empty one. Anything prefilled here stays editable, since the registry is a lookup
+   * of record, not an authority on this particular aircraft.
+   */
+  function applyRegistryMatch(match: RegistryMatch) {
+    setForm((f) => {
+      const next = {
       ...f,
-      template: value,
-      make: t.value === "OTHER" ? f.make : t.make,
-      model: t.value === "OTHER" ? f.model : t.model,
-      categoryClass: t.value === "OTHER" ? f.categoryClass : t.categoryClass,
-      fuelCapacity: t.value === "OTHER" ? f.fuelCapacity : String(t.fuelCapacity),
-      rateBasis: "wet",
-      rateCents: t.value === "OTHER" ? f.rateCents : t.wetRate,
-    }));
-    setRateKey((k) => k + 1);
+      tailNumber: match.tailNumber,
+      make: match.make || f.make,
+      model: match.model || f.model,
+      year: match.year ? String(match.year) : f.year,
+      //Everything the public registry actually knows. Fuel grade and tricycle-vs-tailwheel
+      //are not in the federal file, so those stay for the person. `?? f.x` keeps anything
+      //already typed rather than blanking it on a second lookup.
+      category: (match.category as AircraftCategory) ?? f.category,
+      //Keeping the old class blindly is how looking up a glider right after a helicopter
+      //left "Glider + Helicopter" on the form, which the database would refuse on save.
+      //Take the registry's class when it has one, otherwise keep the existing class only
+      //if it still belongs to the incoming category.
+      aircraftClass:
+        match.aircraftClass ??
+        ((CLASSES_BY_CATEGORY[(match.category as AircraftCategory) ?? f.category] ?? []).includes(
+          f.aircraftClass as never
+        )
+          ? f.aircraftClass
+          : ""),
+      engineType: match.engineType ?? f.engineType,
+      gearType: match.gearType ?? f.gearType,
+      seats: match.seats != null ? String(match.seats) : f.seats,
+      //A glider or a balloon has no meters, and that decides whether it is invoiced at
+      //all, so it is worth getting right by default rather than leaving on Hobbs.
+      meterMode:
+        match.category === "glider" || match.category === "lighter_than_air"
+          ? "none"
+          : f.meterMode,
+      };
+      return next;
+    });
   }
 
   const locationOptions: ComboOption[] = locations.map((l) => ({
@@ -189,9 +245,15 @@ export function AircraftFormModal({
       form.year.trim().length === 0 || form.year.trim().length === 4
         ? ""
         : "Enter a 4-digit year.",
-    categoryClass:
-      form.categoryClass.trim().length === 0 ? "Enter the category & class." : "",
-    fuelCapacity: form.fuelCapacity.trim().length === 0 ? "Enter the fuel capacity." : "",
+    category: form.category ? "" : "Choose a category.",
+    aircraftClass:
+      CLASSES_BY_CATEGORY[form.category]?.length && !form.aircraftClass
+        ? "Choose a class."
+        : "",
+    //Optional. Fuel capacity has nothing to do with whether an aircraft can be put on
+    //a schedule, and an instructor adding a club's aircraft often does not know it.
+    //Requiring it turned "add the plane you fly" into a research task.
+    fuelCapacity: "",
     locationId: !noLocations && !form.locationId ? "Select a home base." : "",
   };
   const firstInvalid = REQUIRED_FIELDS.find((f) => errors[f.key]);
@@ -226,7 +288,13 @@ export function AircraftFormModal({
               make: form.make.trim() || null,
               model: form.model.trim() || null,
               year: form.year.trim(),
-              categoryClass: form.categoryClass.trim(),
+              category: form.category,
+              aircraftClass: (form.aircraftClass || null) as AircraftClass | null,
+              engineType: form.engineType || null,
+              fuelType: form.fuelType || null,
+              gearType: form.gearType || null,
+              seats: form.seats ? Number(form.seats) : null,
+              meterMode: form.meterMode,
               hobbsTime,
               tachTime,
               fuelCapacity: fuelToStored(Number(form.fuelCapacity) || 0),
@@ -260,7 +328,13 @@ export function AircraftFormModal({
           make: form.make.trim() || undefined,
           model: form.model.trim() || undefined,
           year: form.year.trim(),
-          categoryClass: form.categoryClass.trim(),
+          category: form.category,
+          aircraftClass: (form.aircraftClass || null) as AircraftClass | null,
+          engineType: form.engineType || null,
+          fuelType: form.fuelType || null,
+          gearType: form.gearType || null,
+          seats: form.seats ? Number(form.seats) : null,
+          meterMode: form.meterMode,
           hobbsTime,
           tachTime,
           fuelCapacity: fuelToStored(Number(form.fuelCapacity) || 0),
@@ -282,9 +356,20 @@ export function AircraftFormModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-aircraft-form" disabled={pending}>
+              {pending ? "Saving…" : isEdit ? "Save changes" : "Add aircraft"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+      className="sm:max-w-lg"
       title={isEdit ? `Edit ${resource?.type?.plane?.tailNumber ?? "aircraft"}` : "Add aircraft"}
       description={
         isEdit
@@ -297,42 +382,27 @@ export function AircraftFormModal({
           Chrome was proposing a year out of its saved addresses ("2004"). A wrong year
           silently saved onto an aircraft is worse than an empty one, and now that the
           field is optional there is nothing forcing the user to look at it. */}
-      <form
+      <form id="modal-aircraft-form"
         data-doc-shot="aircraft-rate-fields"
         onSubmit={handleSubmit}
         className="space-y-4"
         autoComplete="off"
       >
-        <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1.5">
           <div className="space-y-1.5">
             <Label htmlFor="ac-tail">Tail number</Label>
-            <Input
+            <TailNumberField
               id="ac-tail"
               autoFocus
-              placeholder="N12345"
+              placeholder="Tail number"
               value={form.tailNumber}
-              onChange={(e) => set("tailNumber", upperRegistration(e.target.value))}
-              className="font-mono"
-              aria-invalid={showErrors && !!errors.tailNumber}
+              onChange={(v) => set("tailNumber", upperRegistration(v))}
+              onPick={applyRegistryMatch}
+              invalid={showErrors && !!errors.tailNumber}
             />
             {showErrors && errors.tailNumber && (
               <p className="text-xs text-destructive">{errors.tailNumber}</p>
             )}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ac-template">Type template</Label>
-            <Select value={form.template || undefined} onValueChange={applyTemplate}>
-              <SelectTrigger id="ac-template" className="w-full">
-                <SelectValue placeholder="Choose a model" />
-              </SelectTrigger>
-              <SelectContent>
-                {PLANE_TEMPLATES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
         </div>
 
@@ -364,7 +434,7 @@ export function AircraftFormModal({
             )}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="ac-year">Year</Label>
+            <Label htmlFor="ac-year">Year (optional)</Label>
             <Input
               id="ac-year"
               inputMode="numeric"
@@ -382,22 +452,166 @@ export function AircraftFormModal({
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <Label htmlFor="ac-cat">Category &amp; class</Label>
-          <Select value={form.categoryClass || undefined} onValueChange={(v) => set("categoryClass", v)}>
-            <SelectTrigger id="ac-cat" className="w-full" aria-invalid={showErrors && !!errors.categoryClass}>
-              <SelectValue placeholder="Select category & class" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="single-engine land">single-engine land</SelectItem>
-              <SelectItem value="multi-engine land">multi-engine land</SelectItem>
-              <SelectItem value="single-engine sea">single-engine sea</SelectItem>
-              <SelectItem value="multi-engine sea">multi-engine sea</SelectItem>
-            </SelectContent>
-          </Select>
-          {showErrors && errors.categoryClass && (
-            <p className="text-xs text-destructive">{errors.categoryClass}</p>
-          )}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="ac-cat">Category</Label>
+              <DocsHint topic="aircraft-category-class" />
+            </div>
+            <Select
+              value={form.category}
+              onValueChange={(v) => {
+                //Drop the class only when it does not belong to the new category.
+                //"helicopter" is not a class of airplane and the database refuses that
+                //pair, but clearing UNCONDITIONALLY also wiped the class the tail lookup
+                //had just filled in, because this fires on a programmatic change too.
+                setForm((f) => {
+                  const next = v as AircraftCategory;
+                  const allowed: string[] = CLASSES_BY_CATEGORY[next] ?? [];
+                  return {
+                    ...f,
+                    category: next,
+                    aircraftClass: allowed.includes(f.aircraftClass) ? f.aircraftClass : "",
+                  };
+                });
+              }}
+            >
+              <SelectTrigger id="ac-cat" className="w-full" aria-invalid={showErrors && !!errors.category}>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                {AIRCRAFT_CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {vocabLabel(c)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Always rendered, disabled when the category has no class rating (a glider,
+              a powered lift). Conditional rendering was worse in two ways: the layout
+              jumped as you changed category, and a Select that MOUNTS in the same commit
+              that sets its value came up empty, so a helicopter looked up by tail arrived
+              with its class silently blank. */}
+          <div className="space-y-1.5">
+            <Label htmlFor="ac-class">Class</Label>
+            <Select
+              value={form.aircraftClass || undefined}
+              //Ignore anything that is not a real class of the current category. When the
+              //category changes, the previously selected item unmounts and Radix emits a
+              //RESET through this handler, which was silently wiping the class the tail
+              //lookup had just filled in: state said "" while the pick said "helicopter".
+              //Only a genuine user choice gets through.
+              onValueChange={(v) => {
+                if (v && (CLASSES_BY_CATEGORY[form.category] ?? []).includes(v as never)) {
+                  set("aircraftClass", v);
+                }
+              }}
+              disabled={!CLASSES_BY_CATEGORY[form.category]?.length}
+            >
+              <SelectTrigger id="ac-class" className="w-full" aria-invalid={showErrors && !!errors.aircraftClass}>
+                {/* The label is rendered here rather than left to Radix to resolve.
+                    When the tail lookup sets the value and swaps the item list in the
+                    SAME commit (airplane's classes out, rotorcraft's in), Radix cannot
+                    match the new value to an item and falls back to the placeholder, so
+                    a looked-up helicopter showed "Select class" while the form state
+                    said `helicopter`. Passing children removes the lookup entirely. */}
+                <SelectValue
+                  placeholder={
+                    CLASSES_BY_CATEGORY[form.category]?.length
+                      ? "Select class"
+                      : "Not applicable"
+                  }
+                >
+                  {form.aircraftClass ? vocabLabel(form.aircraftClass) : undefined}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {(CLASSES_BY_CATEGORY[form.category] ?? []).map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {vocabLabel(c)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {showErrors && errors.aircraftClass && (
+              <p className="text-xs text-destructive">{errors.aircraftClass}</p>
+            )}
+          </div>
+        </div>
+
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="ac-engine">Engine (optional)</Label>
+            <Select value={form.engineType || undefined} onValueChange={(v) => set("engineType", v)}>
+              <SelectTrigger id="ac-engine" className="w-full">
+                <SelectValue placeholder="Engine" />
+              </SelectTrigger>
+              <SelectContent>
+                {ENGINE_TYPES.map((c) => (
+                  <SelectItem key={c} value={c}>{vocabLabel(c)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ac-fuel-type">Fuel (optional)</Label>
+            <Select value={form.fuelType || undefined} onValueChange={(v) => set("fuelType", v)}>
+              <SelectTrigger id="ac-fuel-type" className="w-full">
+                <SelectValue placeholder="Fuel" />
+              </SelectTrigger>
+              <SelectContent>
+                {FUEL_TYPES.map((c) => (
+                  <SelectItem key={c} value={c}>{vocabLabel(c)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ac-gear">Gear (optional)</Label>
+            <Select value={form.gearType || undefined} onValueChange={(v) => set("gearType", v)}>
+              <SelectTrigger id="ac-gear" className="w-full">
+                <SelectValue placeholder="Gear" />
+              </SelectTrigger>
+              <SelectContent>
+                {GEAR_TYPES.map((c) => (
+                  <SelectItem key={c} value={c}>{vocabLabel(c)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="ac-seats">Seats (optional)</Label>
+            <Input
+              id="ac-seats"
+              inputMode="numeric"
+              placeholder="4"
+              value={form.seats}
+              onChange={(e) => set("seats", e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
+              className="tnum"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="ac-meters">Meters</Label>
+              <DocsHint topic="aircraft-meters" />
+            </div>
+            <Select value={form.meterMode} onValueChange={(v) => set("meterMode", v)}>
+              <SelectTrigger id="ac-meters" className="w-full">
+                <SelectValue placeholder="Meters" />
+              </SelectTrigger>
+              <SelectContent>
+                {METER_MODES.map((c) => (
+                  <SelectItem key={c} value={c}>{vocabLabel(c)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
@@ -427,7 +641,7 @@ export function AircraftFormModal({
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="ac-fuel">Fuel capacity</Label>
+            <Label htmlFor="ac-fuel">Fuel capacity (optional)</Label>
             <Input
               id="ac-fuel"
               inputMode="decimal"
@@ -574,14 +788,6 @@ export function AircraftFormModal({
 
         {!isEdit && <PerPlanePricingNote className="pt-1" />}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending ? "Saving…" : isEdit ? "Save changes" : "Add aircraft"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

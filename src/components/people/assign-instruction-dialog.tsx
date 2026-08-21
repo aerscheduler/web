@@ -164,6 +164,16 @@ export function AssignInstructionDialog({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={busy || !picked}>
+              {busy ? "Saving…" : copy.confirm}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={(next) => {
         if (!next) setPicked("");
@@ -184,14 +194,6 @@ export function AssignInstructionDialog({
             emptyText={copy.empty}
             disabled={busy}
           />
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={busy || !picked}>
-            {busy ? "Saving…" : copy.confirm}
-          </Button>
         </div>
       </div>
     </ResponsiveModal>

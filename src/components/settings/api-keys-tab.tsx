@@ -271,12 +271,23 @@ function CreateKeyModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-api-keys-tab" disabled={create.isPending}>
+              {create.isPending ? "Creating…" : "Create key"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="Create an API key"
       description="The key is shown once, when you create it. Store it somewhere safe before closing."
     >
-      <form onSubmit={submit} className="space-y-5">
+      <form id="modal-api-keys-tab" onSubmit={submit} className="space-y-5">
         <div className="space-y-1.5">
           <Label htmlFor="ak-name">Name</Label>
           <Input
@@ -322,14 +333,6 @@ function CreateKeyModal({
           </p>
         )}
 
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={create.isPending}>
-            {create.isPending ? "Creating…" : "Create key"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

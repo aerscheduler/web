@@ -595,6 +595,10 @@ export function ResourceGroupForm({
   group = null,
   submitLabel,
   cancelLabel = "Cancel",
+  formId = "resource-group-form",
+  //A modal supplies its own pinned footer and submits via `form={formId}`. Anywhere
+  //else (the maintenance onboarding flow) the form still needs its own buttons.
+  hideActions = false,
   onCancel,
   onSaved,
 }: {
@@ -603,6 +607,9 @@ export function ResourceGroupForm({
   group?: ResourceGroup | null;
   submitLabel?: string;
   cancelLabel?: string;
+  /** So a pinned modal footer can submit this form from outside it. */
+  formId?: string;
+  hideActions?: boolean;
   onCancel: () => void;
   /** Fired after a successful save, with the group that was created or updated. */
   onSaved: (group: ResourceGroup) => void;
@@ -684,7 +691,7 @@ export function ResourceGroupForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form id={formId} onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-1.5">
         <Label htmlFor="rg-name">Name</Label>
         <Input
@@ -735,15 +742,17 @@ export function ResourceGroupForm({
         onToggle={(key, value) => set(key, value)}
       />
 
-      <div className="flex justify-end gap-2 pt-1">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          {cancelLabel}
-        </Button>
-        <Button type="submit" disabled={pending}>
-          {pending && <Loader2 className="size-4 animate-spin" />}
-          {submitLabel ?? (isEdit ? "Save changes" : "Create group")}
-        </Button>
-      </div>
+      {!hideActions && (
+        <div className="flex justify-end gap-2 pt-1">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            {cancelLabel}
+          </Button>
+          <Button type="submit" disabled={pending}>
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            {submitLabel ?? (isEdit ? "Save changes" : "Create group")}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }
@@ -760,14 +769,25 @@ function ResourceGroupFormModal({
 }) {
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" form="resource-group-form">
+            {group ? "Save changes" : "Create group"}
+          </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+      className="sm:max-w-lg"
       title={group ? `Edit ${group.name}` : "Add aircraft group"}
       description="Currency rules apply to the aircraft in a group, pick them here, or let the group fill itself."
     >
       <ResourceGroupForm
         open={open}
+        hideActions
         group={group}
         onCancel={() => onOpenChange(false)}
         onSaved={() => onOpenChange(false)}
@@ -902,13 +922,24 @@ function OrgUserGroupFormModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button type="submit" form="org-user-group-form" disabled={pending}>
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            {isEdit ? "Save changes" : "Create group"}
+          </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+      className="sm:max-w-lg"
       title={isEdit ? `Edit ${group?.name}` : "Add people group"}
       description="Currency rules apply to the members in a group, pick them here, or let the group fill itself."
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="org-user-group-form" onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="oug-name">Name</Label>
           <Input
@@ -959,15 +990,6 @@ function OrgUserGroupFormModal({
           onToggle={(key, value) => set(key, value)}
         />
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            {isEdit ? "Save changes" : "Create group"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );
@@ -1030,7 +1052,7 @@ function MemberPicker({
         </div>
       )}
 
-      <div className="max-h-52 overflow-y-auto rounded-lg border border-border">
+      <div className="rounded-lg border border-border">
         {loading ? (
           <div className="space-y-2 p-3">
             {Array.from({ length: 3 }).map((_, i) => (

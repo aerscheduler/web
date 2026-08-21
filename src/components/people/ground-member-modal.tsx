@@ -102,6 +102,21 @@ export function GroundMemberModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleGround}
+              disabled={mut.isPending}
+              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
+            >
+              {mut.isPending ? "Grounding…" : "Ground member"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title={`Ground ${name}`}
@@ -180,19 +195,6 @@ export function GroundMemberModal({
           your own notes.
         </p>
 
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            onClick={handleGround}
-            disabled={mut.isPending}
-            className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
-          >
-            {mut.isPending ? "Grounding…" : "Ground member"}
-          </Button>
-        </div>
       </div>
     </ResponsiveModal>
   );

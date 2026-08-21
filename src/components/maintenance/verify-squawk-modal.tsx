@@ -62,12 +62,23 @@ export function VerifySquawkModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-verify-squawk-modal" disabled={verify.isPending}>
+              {verify.isPending ? "Verifying…" : "Verify squawk"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="Verify squawk"
       description="Record that the fault is real and has been seen."
     >
-      <form onSubmit={submit} className="space-y-4">
+      <form id="modal-verify-squawk-modal" onSubmit={submit} className="space-y-4">
         {squawk && (
           <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
             <p className="font-medium">{squawk.title || "Untitled squawk"}</p>
@@ -92,14 +103,6 @@ export function VerifySquawkModal({
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={verify.isPending}>
-            {verify.isPending ? "Verifying…" : "Verify squawk"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

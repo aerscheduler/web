@@ -40,6 +40,14 @@ import { trackAdConversion } from "@/lib/ads";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TailNumberField } from "@/components/aircraft/tail-number-field";
+import {
+  AIRCRAFT_CATEGORIES,
+  CLASSES_BY_CATEGORY,
+  label as vocabLabel,
+  type AircraftCategory,
+  type AircraftClass,
+} from "@/components/aircraft/vocabulary";
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/money-input";
 import { LogoMark } from "@/components/logo";
@@ -60,19 +68,6 @@ export const Route = createFileRoute("/onboarding")({
 type Persona = "student" | "instructor" | "school";
 type OrgType = "flight_school" | "flying_club" | "rental" | "solo_instructor";
 
-/** Aircraft templates → prefill make/model/categoryClass + suggested wet rate (cents) + fuel (gal). */
-const AIRCRAFT_TEMPLATES: Record<
-  string,
-  { make: string; model: string; categoryClass: string; rate: number; fuel: number } | null
-> = {
-  "Cessna 172": { make: "Cessna", model: "172", categoryClass: "single-engine land", rate: 16500, fuel: 56 },
-  "Cessna 152": { make: "Cessna", model: "152", categoryClass: "single-engine land", rate: 13500, fuel: 26 },
-  "Piper PA-28": { make: "Piper", model: "PA-28", categoryClass: "single-engine land", rate: 15500, fuel: 50 },
-  "Diamond DA40": { make: "Diamond", model: "DA40", categoryClass: "single-engine land", rate: 19500, fuel: 40 },
-  "Cirrus SR20": { make: "Cirrus", model: "SR20", categoryClass: "single-engine land", rate: 22500, fuel: 56 },
-  Other: null,
-};
-
 const EMPTY_ADDRESS = {
   streetAddress1: "",
   streetAddress2: "",
@@ -84,12 +79,6 @@ const EMPTY_ADDRESS = {
 
 // The server accepts these exact category/class strings; a free-text box lets typos
 // through and 400s, so "Other" uses a dropdown of these.
-const CATEGORY_CLASSES = [
-  "single-engine land",
-  "multi-engine land",
-  "single-engine sea",
-  "multi-engine sea",
-] as const;
 
 function apiErr(e: unknown): string {
   if (e instanceof ApiError) return e.message;
@@ -667,24 +656,30 @@ function AircraftStep({
   const createPlane = useCreatePlane();
   const createLocation = useCreateLocation();
 
-  const [template, setTemplate] = React.useState("Cessna 172");
   const [tail, setTail] = React.useState("");
   const [year, setYear] = React.useState(String(new Date().getFullYear()));
   const [hobbs, setHobbs] = React.useState("0");
   const [tach, setTach] = React.useState("0");
   const [rate, setRate] = React.useState(16500);
-  // "Other" isn't in the template list, so make/model/category are entered by hand.
   const [make, setMake] = React.useState("");
   const [model, setModel] = React.useState("");
-  const [categoryClass, setCategoryClass] = React.useState<string>("single-engine land");
+  //The wizard asks for category and class the same way the Aircraft page does, so a
+  //helicopter school can finish setup. CATEGORY_CLASSES was a four-value list that could
+  //not describe one. See components/aircraft/vocabulary.ts.
+  const [category, setCategory] = React.useState<AircraftCategory>("airplane");
+  const [aircraftClass, setAircraftClass] = React.useState<string>("single_engine_land");
   const [busy, setBusy] = React.useState(false);
   const [showErrors, setShowErrors] = React.useState(false);
+  //Reported with the activation event so we can see whether the registry lookup is
+  //actually carrying people through this step or whether they still type it all out.
+  const [prefilledFromRegistry, setPrefilledFromRegistry] = React.useState(false);
 
-  const isOther = template === "Other";
   const tailErr = tail.trim() ? "" : "Enter a tail number.";
-  const yearErr = year.trim().length === 4 ? "" : "Enter a 4-digit year.";
-  const makeErr = isOther && !make.trim() ? "Enter the make." : "";
-  const modelErr = isOther && !model.trim() ? "Enter the model." : "";
+  //Optional here, exactly as on the Aircraft page: a year nobody knows must not stop
+  //someone getting a tail onto the board.
+  const yearErr = year.trim().length === 0 || year.trim().length === 4 ? "" : "Enter a 4-digit year.";
+  const makeErr = make.trim() ? "" : "Enter the make.";
+  const modelErr = model.trim() ? "" : "Enter the model.";
 
   async function submit() {
     const firstInvalid = tailErr ? "ac-tail" : yearErr ? "ac-year" : makeErr ? "ac-make" : modelErr ? "ac-model" : "";
@@ -700,19 +695,19 @@ function AircraftStep({
         const loc = await createLocation.mutateAsync({ name: fallbackLocationName });
         locId = loc.id;
       }
-      const tpl = AIRCRAFT_TEMPLATES[template];
       const res = await createPlane.mutateAsync({
         location: { id: locId },
         type: {
           plane: {
             tailNumber: tail.trim().toUpperCase(),
-            make: isOther ? make.trim() : tpl?.make,
-            model: isOther ? model.trim() : tpl?.model,
+            make: make.trim(),
+            model: model.trim(),
             year: year.trim(),
-            categoryClass: isOther ? categoryClass : tpl?.categoryClass ?? "single-engine land",
+            category: category,
+            aircraftClass: (aircraftClass || null) as AircraftClass | null,
             tachTime: Math.round((Number(tach) || 0) * 10),
             hobbsTime: Math.round((Number(hobbs) || 0) * 10),
-            fuelCapacity: tpl?.fuel ?? 50,
+            fuelCapacity: 0,
             fuelMeasurement: "gallons",
             cost: { wetRate: rate, billByHobbsTime: true },
           },
@@ -721,7 +716,7 @@ function AircraftStep({
       // Activation. A school with no aircraft never books anything and never pays, so
       // this, not the signup, is the event a campaign should be judged on.
       track("first_aircraft_added", {
-        template,
+        prefilled: prefilledFromRegistry,
         channel: attributionChannel(),
         campaign: attributionSource() ?? null,
       });
@@ -740,75 +735,89 @@ function AircraftStep({
 
   return (
     <Step title={title} sub={sub}>
-      <Field id="ac-template" label="Type">
-        <select
-          id="ac-template"
-          value={template}
-          onChange={(e) => {
-            setTemplate(e.target.value);
-            const t = AIRCRAFT_TEMPLATES[e.target.value];
-            if (t) setRate(t.rate);
+      <Field id="ac-tail" label="Tail number" error={showErrors ? tailErr : ""}>
+        <TailNumberField
+          id="ac-tail"
+          value={tail}
+          onChange={setTail}
+          onPick={(m) => {
+            setTail(m.tailNumber);
+            if (m.make) setMake(m.make);
+            if (m.model) setModel(m.model);
+            if (m.year) setYear(String(m.year));
+            //Straight from the registry now, so a helicopter arrives as a rotorcraft
+            //rather than leaving the pickers for the person to work out.
+            if (m.category) setCategory(m.category as AircraftCategory);
+            if (m.aircraftClass) setAircraftClass(m.aircraftClass);
+            setPrefilledFromRegistry(true);
           }}
-          className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
-        >
-          {Object.keys(AIRCRAFT_TEMPLATES).map((k) => (
-            <option key={k} value={k}>
-              {k}
-            </option>
-          ))}
-        </select>
+          invalid={showErrors && !!tailErr}
+        />
       </Field>
 
-      {isOther && (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <Field id="ac-make" label="Make" error={showErrors ? makeErr : ""}>
-              <Input
-                id="ac-make"
-                value={make}
-                onChange={(e) => setMake(e.target.value)}
-                placeholder="e.g. Cessna"
-                aria-invalid={showErrors && !!makeErr}
-              />
-            </Field>
-            <Field id="ac-model" label="Model" error={showErrors ? modelErr : ""}>
-              <Input
-                id="ac-model"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="e.g. 172"
-                aria-invalid={showErrors && !!modelErr}
-              />
-            </Field>
-          </div>
-          <Field id="ac-cat" label="Category &amp; class">
+      <div className="grid grid-cols-2 gap-3">
+        <Field id="ac-make" label="Make" error={showErrors ? makeErr : ""}>
+          <Input
+            id="ac-make"
+            value={make}
+            onChange={(e) => setMake(e.target.value)}
+            placeholder="e.g. Cessna"
+            aria-invalid={showErrors && !!makeErr}
+          />
+        </Field>
+        <Field id="ac-model" label="Model" error={showErrors ? modelErr : ""}>
+          <Input
+            id="ac-model"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            placeholder="e.g. 172"
+            aria-invalid={showErrors && !!modelErr}
+          />
+        </Field>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field id="ac-cat" label="Category">
+          <select
+            id="ac-cat"
+            value={category}
+            onChange={(e) => {
+              //Drop the class only if it does not belong to the new category, so a
+              //programmatic change from the tail lookup does not wipe what it just set.
+              const next = e.target.value as AircraftCategory;
+              const allowed: string[] = CLASSES_BY_CATEGORY[next] ?? [];
+              setCategory(next);
+              if (!allowed.includes(aircraftClass)) setAircraftClass("");
+            }}
+            className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
+          >
+            {AIRCRAFT_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {vocabLabel(c)}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {CLASSES_BY_CATEGORY[category]?.length > 0 && (
+          <Field id="ac-class" label="Class">
             <select
-              id="ac-cat"
-              value={categoryClass}
-              onChange={(e) => setCategoryClass(e.target.value)}
+              id="ac-class"
+              value={aircraftClass}
+              onChange={(e) => setAircraftClass(e.target.value)}
               className="flex h-8 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
             >
-              {CATEGORY_CLASSES.map((c) => (
+              <option value="">Select class</option>
+              {CLASSES_BY_CATEGORY[category].map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {vocabLabel(c)}
                 </option>
               ))}
             </select>
           </Field>
-        </>
-      )}
+        )}
+      </div>
 
-      <Field id="ac-tail" label="Tail number" error={showErrors ? tailErr : ""}>
-        <Input
-          id="ac-tail"
-          value={tail}
-          onChange={(e) => setTail(e.target.value.toUpperCase())}
-          placeholder="N734X"
-          aria-invalid={showErrors && !!tailErr}
-        />
-      </Field>
       <div className="grid grid-cols-3 gap-3">
-        <Field id="ac-year" label="Year" error={showErrors ? yearErr : ""}>
+        <Field id="ac-year" label="Year (optional)" error={showErrors ? yearErr : ""}>
           <Input
             id="ac-year"
             inputMode="numeric"

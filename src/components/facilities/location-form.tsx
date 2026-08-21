@@ -228,6 +228,18 @@ export function LocationFormModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-location-form" disabled={pending}>
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              {isEdit ? "Save changes" : "Add location"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title={isEdit ? `Edit ${location?.name ?? "location"}` : "Add location"}
@@ -237,7 +249,7 @@ export function LocationFormModal({
           : "The airport or site your aircraft, simulators and rooms are based at."
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="modal-location-form" onSubmit={handleSubmit} className="space-y-4">
         {isEdit && detailQ.isPending && (
           <p className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" /> Loading this location…
@@ -374,15 +386,6 @@ export function LocationFormModal({
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            {isEdit ? "Save changes" : "Add location"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

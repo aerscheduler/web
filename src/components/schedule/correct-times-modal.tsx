@@ -231,12 +231,28 @@ export function CorrectTimesModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={correct.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-correct-times-modal" disabled={correct.isPending}>
+              {correct.isPending ? "Saving…" : "Save corrections"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="Correct recorded times"
       description="Fix a reading that was entered wrong. This is what the flight is billed on."
     >
-      <form
+      <form id="modal-correct-times-modal"
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
@@ -332,19 +348,6 @@ export function CorrectTimesModal({
           </span>
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={correct.isPending}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={correct.isPending}>
-            {correct.isPending ? "Saving…" : "Save corrections"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

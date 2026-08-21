@@ -202,6 +202,16 @@ export function AddInspectionsModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={!canSubmit}>
+              {busy ? "Adding…" : "Add"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={(o) => {
         if (!o) reset();
@@ -473,14 +483,6 @@ export function AddInspectionsModal({
           </div>
         )}
 
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={!canSubmit}>
-            {busy ? "Adding…" : "Add"}
-          </Button>
-        </div>
       </div>
     </ResponsiveModal>
   );

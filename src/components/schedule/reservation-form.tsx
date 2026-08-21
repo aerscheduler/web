@@ -1118,7 +1118,7 @@ export function ReservationForm({
   ) : null;
 
   const body = (
-      <form onSubmit={submit} data-doc-shot="reservation-form-dispatch" className="space-y-4">
+      <form id="modal-reservation-form" onSubmit={submit} data-doc-shot="reservation-form-dispatch" className="space-y-4">
         {/* Dispatch names its bookings; a member's is generated from the aircraft
             and the type, see autoTitle. */}
         {!isSelf && (
@@ -1475,26 +1475,6 @@ export function ReservationForm({
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() =>
-              isSelf && asPage ? void navigate({ to: "/me/schedule" }) : closeModal(false)
-            }
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={create.isPending || update.isPending}>
-            {isEditing
-              ? update.isPending
-                ? "Saving…"
-                : "Save changes"
-              : create.isPending
-                ? "Booking…"
-                : "Book reservation"}
-          </Button>
-        </div>
       </form>
   );
 
@@ -1521,6 +1501,29 @@ export function ReservationForm({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                isSelf && asPage ? void navigate({ to: "/me/schedule" }) : closeModal(false)
+              }
+            >
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-reservation-form" disabled={create.isPending || update.isPending}>
+              {isEditing
+                ? update.isPending
+                  ? "Saving…"
+                  : "Save changes"
+                : create.isPending
+                  ? "Booking…"
+                  : "Book reservation"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={closeModal}
       size="xl"

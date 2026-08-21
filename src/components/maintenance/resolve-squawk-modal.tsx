@@ -86,12 +86,23 @@ export function ResolveSquawkModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-resolve-squawk-modal" disabled={resolve.isPending}>
+              {resolve.isPending ? "Resolving…" : "Resolve squawk"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="Resolve squawk"
       description="Sign off the write-up and record what was done."
     >
-      <form data-doc-shot="resolve-squawk-modal" onSubmit={submit} className="space-y-4">
+      <form id="modal-resolve-squawk-modal" data-doc-shot="resolve-squawk-modal" onSubmit={submit} className="space-y-4">
         {squawk && (
           <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
             <p className="font-medium">{squawk.title || "Untitled squawk"}</p>
@@ -138,14 +149,6 @@ export function ResolveSquawkModal({
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={resolve.isPending}>
-            {resolve.isPending ? "Resolving…" : "Resolve squawk"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

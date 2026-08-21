@@ -83,12 +83,28 @@ export function ConfirmGuestReviewModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={reviewGuest.isPending}
+            >
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-confirm-guest-review-modal" disabled={!emailValid || reviewGuest.isPending}>
+              {reviewGuest.isPending ? "Closing out…" : "Close out & bill"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="Close out guest flight"
       description="Review the flight and bill the guest. Confirm their details so the invoice reaches them."
     >
-      <form
+      <form id="modal-confirm-guest-review-modal"
         data-doc-shot="guest-close-out-modal"
         className="space-y-4"
         onSubmit={(e) => {
@@ -137,19 +153,6 @@ export function ConfirmGuestReviewModal({
           <span>The guest gets an emailed invoice with a secure link to pay by card.</span>
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={reviewGuest.isPending}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={!emailValid || reviewGuest.isPending}>
-            {reviewGuest.isPending ? "Closing out…" : "Close out & bill"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

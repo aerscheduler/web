@@ -140,6 +140,17 @@ export function DocumentUploadModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-document-upload-modal" disabled={upload.isPending}>
+              {upload.isPending ? "Uploading…" : "Upload"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="Upload document"
@@ -149,7 +160,7 @@ export function DocumentUploadModal({
           : "Add a medical, certificate, or other required document."
       }
     >
-      <form data-doc-shot="me-documents-upload" onSubmit={submit} className="space-y-4">
+      <form id="modal-document-upload-modal" data-doc-shot="me-documents-upload" onSubmit={submit} className="space-y-4">
         {/* Pinned target: no choice to make, but be explicit about whose record this lands on. */}
         {isForSomeoneElse && !canPickMember && targetName && (
           <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
@@ -257,14 +268,6 @@ export function DocumentUploadModal({
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={upload.isPending}>
-            {upload.isPending ? "Uploading…" : "Upload"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

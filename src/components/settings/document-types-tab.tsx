@@ -304,9 +304,21 @@ function DocumentTypeFormModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-document-types-tab" disabled={pending}>
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              {isEdit ? "Save changes" : "Add type"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
-      className="max-h-[90vh] overflow-y-auto sm:max-w-lg"
+      className="sm:max-w-lg"
       title={isEdit ? `Edit ${type?.name}` : "Add document type"}
       description={
         isEdit
@@ -314,7 +326,7 @@ function DocumentTypeFormModal({
           : "Define a category members can file documents under."
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form id="modal-document-types-tab" onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="dt-name">Name</Label>
           <Input
@@ -425,15 +437,6 @@ function DocumentTypeFormModal({
           />
         </div>
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending && <Loader2 className="size-4 animate-spin" />}
-            {isEdit ? "Save changes" : "Add type"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

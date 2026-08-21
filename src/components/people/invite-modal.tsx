@@ -98,6 +98,20 @@ export function InviteModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => handleOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={submitting || emails.length === 0}>
+              {submitting
+                ? "Sending…"
+                : emails.length > 1
+                  ? `Send ${emails.length} invites`
+                  : "Send invite"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={handleOpenChange}
       title="Invite people"
@@ -188,18 +202,6 @@ export function InviteModal({
           </p>
         </div>
 
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => handleOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={submitting || emails.length === 0}>
-            {submitting
-              ? "Sending…"
-              : emails.length > 1
-                ? `Send ${emails.length} invites`
-                : "Send invite"}
-          </Button>
-        </div>
       </div>
     </ResponsiveModal>
   );

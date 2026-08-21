@@ -20,8 +20,9 @@ import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
+import { AIRCRAFT_CATEGORIES, label as vocabLabel } from "@/components/aircraft/vocabulary";
 import { usePersistedState } from "@/hooks/use-persisted-state";
-import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
+import { useListQueryState, asFacetInts, asFacetStrings, validateListSearch } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { Card } from "@/components/ui/card";
@@ -61,10 +62,15 @@ function AircraftPage() {
   const locations = locationsQ.data ?? [];
   const locationIds = asFacetInts(facets.locationId);
 
+  const categories = asFacetStrings(facets.category);
+
   const fleetFilter = {
     q: debouncedQ,
     grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
     locationId: locationIds,
+    //Comma-separated, matching how locationId travels. A school flying helicopters and
+    //airplanes wants to look at one kind at a time.
+    category: categories?.length ? categories.join(",") : undefined,
   };
   const paging = usePaging({ resetKey: fleetFilter });
   const q = usePlanesPage(fleetFilter, paging);
@@ -73,6 +79,7 @@ function AircraftPage() {
   const filtersActive =
     !!debouncedQ ||
     facets.grounded !== undefined ||
+    (categories?.length ?? 0) > 0 ||
     (locationIds?.length ?? 0) > 0;
 
   const facetDefs = React.useMemo<FacetDef[]>(
@@ -83,6 +90,14 @@ function AircraftPage() {
         label: "Status",
         trueLabel: "Grounded",
         falseLabel: "Available",
+      },
+      {
+        kind: "select",
+        key: "category",
+        label: "Category",
+        allLabel: "All categories",
+        multiple: true,
+        options: AIRCRAFT_CATEGORIES.map((c) => ({ value: c, label: vocabLabel(c) })),
       },
       {
         kind: "select",

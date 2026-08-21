@@ -78,6 +78,16 @@ export function ResolveReminderModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submit} disabled={!hoursValid || resolve.isPending}>
+              {resolve.isPending ? "Signing off…" : "Sign off"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title="Sign off"
@@ -131,14 +141,6 @@ export function ResolveReminderModal({
           </p>
         )}
 
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button onClick={submit} disabled={!hoursValid || resolve.isPending}>
-            {resolve.isPending ? "Signing off…" : "Sign off"}
-          </Button>
-        </div>
       </div>
     </ResponsiveModal>
   );

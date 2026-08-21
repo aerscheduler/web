@@ -97,6 +97,24 @@ export function AnnouncementFormDialog({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
+              Cancel
+            </Button>
+            <Button onClick={() => void submit()} disabled={busy}>
+              {busy ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Saving…
+                </>
+              ) : editing ? (
+                "Save changes"
+              ) : (
+                "Post announcement"
+              )}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title={editing ? "Edit announcement" : "New announcement"}
@@ -196,22 +214,6 @@ export function AnnouncementFormDialog({
           </p>
         </div>
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
-            Cancel
-          </Button>
-          <Button onClick={() => void submit()} disabled={busy}>
-            {busy ? (
-              <>
-                <Loader2 className="size-4 animate-spin" /> Saving…
-              </>
-            ) : editing ? (
-              "Save changes"
-            ) : (
-              "Post announcement"
-            )}
-          </Button>
-        </div>
       </div>
     </ResponsiveModal>
   );

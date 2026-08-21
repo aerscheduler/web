@@ -145,6 +145,25 @@ function AddRatingModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                reset();
+                onOpenChange(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-rates-tab" disabled={create.isPending}>
+              {create.isPending && <Loader2 className="size-4 animate-spin" />}
+              Add rating
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={(o) => {
         if (!o) reset();
@@ -153,7 +172,7 @@ function AddRatingModal({
       title="Add rating"
       description="Create an instruction type and its default hourly rate."
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form id="modal-rates-tab" onSubmit={handleSubmit} className="space-y-5">
         <Field label="Name" htmlFor="rating-name">
           <Input
             id="rating-name"
@@ -175,22 +194,6 @@ function AddRatingModal({
         >
           <MoneyInput id="rating-rate" cents={rateCents} onCentsChange={setRateCents} />
         </Field>
-        <div className="flex justify-end gap-2 pt-1">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              reset();
-              onOpenChange(false);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={create.isPending}>
-            {create.isPending && <Loader2 className="size-4 animate-spin" />}
-            Add rating
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

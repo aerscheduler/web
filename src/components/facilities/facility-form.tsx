@@ -117,6 +117,17 @@ export function FacilityFormModal({
 
   return (
     <ResponsiveModal
+      footer={
+        <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit"
+                form="modal-facility-form" disabled={pending}>
+              {pending ? "Adding…" : kind === "simulator" ? "Add simulator" : "Add room"}
+            </Button>
+        </div>
+      }
       open={open}
       onOpenChange={onOpenChange}
       title={kind === "simulator" ? "Add simulator" : "Add room"}
@@ -126,7 +137,7 @@ export function FacilityFormModal({
           : "A ground-school room can be booked for ground lessons."
       }
     >
-      <form onSubmit={submit} className="space-y-4">
+      <form id="modal-facility-form" onSubmit={submit} className="space-y-4">
         {kind === "simulator" ? (
           <>
             <div className="space-y-1.5">
@@ -247,14 +258,6 @@ export function FacilityFormModal({
           </p>
         )}
 
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={pending}>
-            {pending ? "Adding…" : kind === "simulator" ? "Add simulator" : "Add room"}
-          </Button>
-        </div>
       </form>
     </ResponsiveModal>
   );

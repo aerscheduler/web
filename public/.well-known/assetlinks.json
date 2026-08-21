@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.aerscheduler.aerscheduler",
+      "sha256_cert_fingerprints": [
+        "3B:02:18:12:D6:41:14:AF:F5:6B:0F:B3:37:B9:1A:D9:71:96:1A:EE:8C:BB:38:89:0B:67:29:9C:71:31:F4:E9"
+      ]
+    }
+  }
+]

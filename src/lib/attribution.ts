@@ -176,13 +176,22 @@ export function attributionPayload(): Record<string, string> | undefined {
 }
 
 /**
- * The channel this org came from: "paid-search", ", paid-social", ", organic", ", referral",
- * "direct", ", email". The campaign says which ad; this says which budget.
+ * Real Google click IDs are long mixed alphanumeric strings. Short numeric values
+ * like `1230859287` showed up overnight on 16 Aug and were counted as paid-search.
+ */
+function looksLikeGoogleClickId(value: string | undefined): boolean {
+  if (!value) return false;
+  return value.length >= 20 && /[A-Za-z]/.test(value) && /\d/.test(value);
+}
+
+/**
+ * The channel this org came from: "paid-search", "paid-social", "organic", "referral",
+ * "direct", "email". The campaign says which ad; this says which budget.
  */
 export function attributionChannel(): string {
   const a = readAttribution();
   if (!a) return "direct";
-  if (a.gclid) return "paid-search";
+  if (looksLikeGoogleClickId(a.gclid)) return "paid-search";
   if (a.fbclid) return "paid-social";
 
   const medium = a.utm_medium?.toLowerCase();

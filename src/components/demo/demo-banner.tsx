@@ -84,7 +84,7 @@ export function DemoBanner() {
         <span className="text-muted-foreground"> &middot; {current}</span>
         <span className="hidden text-muted-foreground lg:inline">
           {" "}
-          &mdash; you&rsquo;re {user?.name ?? "a demo user"} at a made-up flight school. Change
+          You&rsquo;re {user?.name ?? "a demo user"} at a made-up flight school. Change
           anything you like.
         </span>
       </p>

@@ -178,7 +178,7 @@ export function BrandPanel() {
         </h2>
         <p className="mt-4 text-[15px] leading-relaxed text-white/65">
           Schedule aircraft, manage instructors and renters, and keep billing
-          square &mdash; all from one place built for the front desk.
+          square, all from one place built for the front desk.
         </p>
         <dl className="mt-10 grid grid-cols-3 gap-6 border-t border-white/10 pt-6">
           {[

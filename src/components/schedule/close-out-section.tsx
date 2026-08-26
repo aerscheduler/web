@@ -42,6 +42,7 @@ import {
   hasLiveInvoice,
   liveLedgerStakes,
   closeOutStep,
+  readsMeters,
   usesBriefingNotMeters,
   confirmationCount,
   hasConfirmedReview,
@@ -255,7 +256,11 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
         {step === "rampIn" && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Ramped out, record the ending readings when the aircraft is back.
+              {/* A glider has no ending readings, so telling the desk to record some sends
+                  them looking for a box the ramp sheet deliberately does not have. */}
+              {readsMeters(r)
+                ? "Ramped out, record the ending readings when the aircraft is back."
+                : "Ramped out. Ramp in when the aircraft is back."}
             </p>
             {canRamp && (
               <Button className="w-full" onClick={() => setRampMode("in")}>

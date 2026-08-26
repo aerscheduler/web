@@ -1,5 +1,5 @@
 import type { Reservation } from "@/types/api";
-import { usesBriefingNotMeters } from "./close-out";
+import { readsMeters } from "./close-out";
 import { useTimeZone } from "@/lib/use-timezone";
 
 /**
@@ -20,7 +20,10 @@ export function CloseOutReadings({ r }: { r: Reservation }) {
   const rev = r.review;
   if (!rev) return null;
 
-  const noMeters = usesBriefingNotMeters(r);
+  //Which figures this booking can have AT ALL. Keyed on whether the resource carries
+  //meters rather than on whether anything departs, because a glider departs and still has
+  //no reading: its record is the pair of times below, and nothing else.
+  const showMeters = readsMeters(r);
   const hrs = (v: number | null | undefined) => (v == null ? null : (v / 10).toFixed(1));
 
   const flown =
@@ -30,7 +33,7 @@ export function CloseOutReadings({ r }: { r: Reservation }) {
 
   //Only the figures this booking can have. A classroom has one, an aeroplane has up to five.
   const cells: { label: string; value: string }[] = [];
-  if (!noMeters) {
+  if (showMeters) {
     if (hrs(rev.hobbsTimeOut)) cells.push({ label: "Hobbs out", value: hrs(rev.hobbsTimeOut)! });
     if (hrs(rev.hobbsTimeIn)) cells.push({ label: "Hobbs in", value: hrs(rev.hobbsTimeIn)! });
     if (hrs(rev.tachTimeOut)) cells.push({ label: "Tach out", value: hrs(rev.tachTimeOut)! });
@@ -39,30 +42,38 @@ export function CloseOutReadings({ r }: { r: Reservation }) {
   }
   if (hrs(rev.briefing)) cells.push({ label: "Instruction", value: hrs(rev.briefing)! });
 
-  if (cells.length === 0) return null;
-
   //When it left and when it came back, as opposed to what the meters read. Null on anything
   //ramped before those columns shipped, so the line simply does not appear.
   const outAt = rev.rampedOutAt ? tz.time(rev.rampedOutAt) : null;
   const inAt = rev.rampedInAt ? tz.time(rev.rampedInAt) : null;
+
+  //The times ALONE are a complete record for a glider, which is the whole reason this
+  //check moved below them. It used to return early on an empty cell list, so the one
+  //booking whose only figures are these two rendered nothing at all: a flight that had
+  //demonstrably flown showed no evidence of it anywhere on the sheet.
+  if (cells.length === 0 && !outAt && !inAt) return null;
 
   return (
     <div
       data-doc-shot="close-out-readings"
       className="rounded-lg border border-border bg-muted/40 p-3"
     >
-      <dl className="flex flex-wrap gap-x-5 gap-y-2">
-        {cells.map((c) => (
-          <div key={c.label} className="min-w-14">
-            <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {c.label}
-            </dt>
-            <dd className="tnum mt-0.5 text-sm font-medium">{c.value}</dd>
-          </div>
-        ))}
-      </dl>
+      {cells.length > 0 && (
+        <dl className="flex flex-wrap gap-x-5 gap-y-2">
+          {cells.map((c) => (
+            <div key={c.label} className="min-w-14">
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {c.label}
+              </dt>
+              <dd className="tnum mt-0.5 text-sm font-medium">{c.value}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
       {(outAt || inAt) && (
-        <p className="mt-2 text-xs text-muted-foreground">
+        //No top margin when the times are the only thing in the box, otherwise a glider's
+        //card carries the gap where a readings row would have been.
+        <p className={`${cells.length > 0 ? "mt-2 " : ""}text-xs text-muted-foreground`}>
           {outAt && <>Out {outAt}</>}
           {outAt && inAt && <> · </>}
           {inAt && <>Back {inAt}</>}

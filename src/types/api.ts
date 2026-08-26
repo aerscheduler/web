@@ -1539,12 +1539,19 @@ export function describeSeries(
 }
 
 /**
- * Ramp-out readings, `hobbsTimeOut` and `tachTimeOut` are both required by the server
- * (decimal-hour meter readings, sent verbatim). `comments[0]` is appended to the review.
+ * Ramp-out readings (decimal-hour meter values, sent verbatim). `comments[0]` is appended
+ * to the review.
+ *
+ * EVERY FIELD IS OPTIONAL, for the same reason as `RampInInput` below: the server hands
+ * each one straight to Prisma, where `undefined` means "leave it alone", and stamps
+ * `rampedOutAt` regardless. Typing the meters as required was a client-side invention,
+ * and it is the one that stopped a glider ramping out at all: an airframe with
+ * `meterMode: "none"` has no reading to send, so the only way past this type was to
+ * invent a 0.0 and write a fiction into the audit trail.
  */
 export interface RampOutInput {
-  hobbsTimeOut: number;
-  tachTimeOut: number;
+  hobbsTimeOut?: number;
+  tachTimeOut?: number;
   comments?: string[];
 }
 

@@ -14,6 +14,7 @@ import {
   FUEL_TYPES,
   GEAR_TYPES,
   METER_MODES,
+  meterModeForCategory,
   label as vocabLabel,
   type AircraftCategory,
   type AircraftClass,
@@ -216,11 +217,13 @@ export function AircraftFormModal({
       gearType: match.gearType ?? f.gearType,
       seats: match.seats != null ? String(match.seats) : f.seats,
       //A glider or a balloon has no meters, and that decides whether it is invoiced at
-      //all, so it is worth getting right by default rather than leaving on Hobbs.
-      meterMode:
-        match.category === "glider" || match.category === "lighter_than_air"
-          ? "none"
-          : f.meterMode,
+      //all, so it is worth getting right by default rather than leaving on Hobbs. Shares
+      //`meterModeForCategory` with the category dropdown below, which is what stopped the
+      //looked-up glider and the typed-in glider being saved differently.
+      meterMode: meterModeForCategory(
+        (match.category as AircraftCategory) ?? f.category,
+        f.meterMode
+      ),
       };
       return next;
     });
@@ -234,6 +237,20 @@ export function AircraftFormModal({
 
   const tail = form.tailNumber.trim();
   // Per-field validity, derived every render so inline messages clear as you type.
+  /**
+   * NO METERS MEANS NO NUMBERS TO ASK FOR AND NO RATE TO PROMISE.
+   *
+   * The form used to go on asking for a current Hobbs, a current tach, an hourly rate and
+   * which meter to bill it on, all of them for an aircraft the pricing engine excludes
+   * from invoicing entirely. The saved glider's fleet card then read "0.0 Hobbs, 0.0 tach,
+   * $45.00 wet/Hobbs", which is three facts that are not true about it, and the rate in
+   * particular is a promise the product does not keep: nothing ever charges it.
+   *
+   * The stored values are left alone rather than cleared, so switching the category back
+   * restores a rate somebody typed months ago instead of losing it.
+   */
+  const meterless = form.meterMode === "none";
+
   const errors: Record<string, string> = {
     tailNumber: tail.length === 0 ? "Enter a tail number." : "",
     make: form.make.trim().length === 0 ? "Enter the make." : "",
@@ -472,6 +489,19 @@ export function AircraftFormModal({
                     ...f,
                     category: next,
                     aircraftClass: allowed.includes(f.aircraftClass) ? f.aircraftClass : "",
+                    //METERS FOLLOW THE CATEGORY, and this is the branch that actually
+                    //matters. The tail-number lookup already did this, so a glider found
+                    //in the registry came out right, but a glider TYPED IN did not, and
+                    //typing it in is the ordinary case: the registry is US-only, and a
+                    //club with a European sailplane or a trailer full of them fills this
+                    //form by hand every time. They then saved an airframe claiming a Hobbs
+                    //and a tach, which is the whole "asked for a reading that does not
+                    //exist" problem, one screen upstream of where it gets reported.
+                    //
+                    //Symmetrical on the way back: choosing a powered category restores the
+                    //default rather than leaving "none" behind on an aeroplane that has
+                    //meters, which would silently stop invoicing it.
+                    meterMode: meterModeForCategory(next, f.meterMode),
                   };
                 });
               }}
@@ -614,6 +644,15 @@ export function AircraftFormModal({
           </div>
         </div>
 
+        {meterless && (
+          <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+            This aircraft has no meters, so its flights are not invoiced automatically. It
+            books, dispatches and closes out exactly like any other tail, and the times it
+            went out and came back are recorded. Raise the charges yourself from Billing.
+          </p>
+        )}
+
+        {!meterless && (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="ac-hobbs">Current Hobbs</Label>
@@ -638,6 +677,7 @@ export function AircraftFormModal({
             />
           </div>
         </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
@@ -672,6 +712,7 @@ export function AircraftFormModal({
           </div>
         </div>
 
+        {!meterless && (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="ac-rate">Rate (per hour)</Label>
@@ -701,7 +742,9 @@ export function AircraftFormModal({
             </Select>
           </div>
         </div>
+        )}
 
+        {!meterless && (
         <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
           <div>
             <Label htmlFor="ac-bill" className="cursor-pointer">
@@ -717,6 +760,7 @@ export function AircraftFormModal({
             onCheckedChange={(v) => set("billByHobbs", v)}
           />
         </div>
+        )}
 
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5">

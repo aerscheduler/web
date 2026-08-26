@@ -126,6 +126,37 @@ export function usesBriefingNotMeters(r: Reservation): boolean {
 }
 
 /**
+ * Does this booking's resource have meters to read?
+ *
+ * DELIBERATELY NOT THE SAME QUESTION as `usesBriefingNotMeters`, and the difference is the
+ * whole point. That helper asks whether anything DEPARTS: a ground lesson, a classroom and
+ * a booking with no resource never leave, so they have no out-and-back at all and are
+ * measured by instruction time instead.
+ *
+ * A GLIDER DEPARTS. It has no Hobbs and no tach (`meterMode: "none"`, which is also a
+ * balloon), so there is no reading to collect, but it still ramps out, is away, and comes
+ * back, and the desk still needs to know which. Folding it into the helper above would have
+ * been the quick fix and it would have deleted the dispatch state for the one operation
+ * that most depends on it, along with the `rampedOutAt`/`rampedInAt` timestamps, which are
+ * the only record of how long a glider was actually up.
+ *
+ * So: no meters, still ramps. The close-out below keys its readings on this and its STEPS
+ * on the timestamps.
+ *
+ * A simulator answers true. It meters its own time, which is why the squawk gate elsewhere
+ * keys on `plane != null` rather than on this.
+ */
+export function readsMeters(r: Reservation): boolean {
+  if (usesBriefingNotMeters(r)) return false;
+  const plane = r.resource?.type?.plane;
+  //Anything we cannot see the kind of is assumed to have meters, which is the behaviour
+  //every booking had before this existed. A list payload that omits `meterMode` therefore
+  //degrades to asking for readings rather than silently skipping them.
+  if (plane) return plane.meterMode !== "none";
+  return true;
+}
+
+/**
  * Is there a billable INSTRUCTION line on this booking?
  *
  * The server's rule, verbatim (`payment.ts`, `isStudentWithInstructorReservation` /
@@ -176,6 +207,11 @@ export function billsOnHobbs(r: Reservation): boolean {
 export function isRampedOut(r: Reservation): boolean {
   const rev = r.review;
   if (usesBriefingNotMeters(r)) return !hasInstruction(r) || rev?.briefing != null;
+  //A METERLESS AIRCRAFT IS TRACKED BY THE CLOCK, NOT BY A READING. `rampedOutAt` is
+  //stamped unconditionally by the server on every ramp-out, so it is the one fact that is
+  //always true of a glider that has left, and it is the same fact for every other aircraft
+  //too. Only the READING is missing here, never the event.
+  if (!readsMeters(r)) return rev?.rampedOutAt != null;
   return rev?.hobbsTimeOut != null || rev?.tachTimeOut != null;
 }
 
@@ -184,6 +220,7 @@ export function isRampedIn(r: Reservation): boolean {
   //One briefing figure covers the whole lesson, there is no out-and-back to tell apart, so
   //recording it satisfies both steps and the flow moves straight to the sign-offs.
   if (usesBriefingNotMeters(r)) return !hasInstruction(r) || rev?.briefing != null;
+  if (!readsMeters(r)) return rev?.rampedInAt != null;
   return rev?.hobbsTimeIn != null || rev?.tachTimeIn != null;
 }
 

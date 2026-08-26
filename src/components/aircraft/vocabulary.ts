@@ -54,6 +54,28 @@ export const FUEL_TYPES = ["avgas_100ll", "mogas", "jet_a", "diesel", "electric"
 export const GEAR_TYPES = ["tricycle", "tailwheel", "skids", "floats", "amphibious", "skis"] as const;
 export const METER_MODES = ["hobbs_and_tach", "hobbs_only", "tach_only", "none"] as const;
 
+/**
+ * Which meters a category implies, given what is currently selected.
+ *
+ * A GLIDER AND A BALLOON HAVE NO ENGINE, so they have no Hobbs and no tach, and
+ * `meterMode: "none"` is what excludes them from automatic invoicing. Everything else runs
+ * something and is assumed to meter it.
+ *
+ * Takes the current value and not just the category, so it can be symmetrical without
+ * being destructive. Moving TO a meterless category always sets "none", because the old
+ * value cannot be true any more. Moving AWAY from one only clears "none": a school that
+ * deliberately set "tach only" on a Cub keeps it when they correct the category, and an
+ * aeroplane never silently keeps the setting that stops it being billed.
+ *
+ * Shared by the aircraft form and the onboarding wizard so the two cannot disagree about
+ * what a glider is, which is exactly how the wizard came to create one with meters.
+ */
+export function meterModeForCategory(category: AircraftCategory, current: string): string {
+  const meterless = category === "glider" || category === "lighter_than_air";
+  if (meterless) return "none";
+  return current === "none" ? "hobbs_and_tach" : current;
+}
+
 /** Display text. Anything not listed falls back to the label with underscores removed. */
 const LABELS: Record<string, string> = {
   airplane: "Airplane",

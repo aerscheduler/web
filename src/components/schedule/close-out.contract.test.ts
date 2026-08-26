@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Reservation } from "@/types/api";
-import { billsOnHobbs, hasInstruction, isRampedIn, isRampedOut, usesBriefingNotMeters } from "./close-out";
+import { billsOnHobbs, hasInstruction, isRampedIn, isRampedOut, readsMeters, usesBriefingNotMeters } from "./close-out";
 
 /**
  * THE CLOSE-OUT CONTRACT, console side.
@@ -26,10 +26,23 @@ function booking(over: {
   briefing?: number | null;
   hobbsOut?: number | null;
   hobbsIn?: number | null;
+  /** `none` is a glider or a balloon: it flies, and it has nothing to read. */
+  meterMode?: string;
+  rampedOutAt?: string | null;
+  rampedInAt?: string | null;
 }): Reservation {
   const resource =
     over.resource === "plane"
-      ? { id: 1, type: { plane: { id: 1, tailNumber: "N172TS" } } }
+      ? {
+          id: 1,
+          type: {
+            plane: {
+              id: 1,
+              tailNumber: "N172TS",
+              meterMode: over.meterMode ?? "hobbs_and_tach",
+            },
+          },
+        }
       : over.resource === "room"
         ? { id: 2, type: { room: { id: 2, roomNumber: "101" } } }
         : null;
@@ -47,6 +60,8 @@ function booking(over: {
       briefing: over.briefing ?? null,
       hobbsTimeOut: over.hobbsOut ?? null,
       hobbsTimeIn: over.hobbsIn ?? null,
+      rampedOutAt: over.rampedOutAt ?? null,
+      rampedInAt: over.rampedInAt ?? null,
     },
   } as unknown as Reservation;
 }
@@ -86,6 +101,68 @@ describe("usesBriefingNotMeters: nothing to read", () => {
     expect(usesBriefingNotMeters(booking({ type: "dual", resource: "plane", instructors: 1, students: 1 }))).toBe(
       false,
     );
+  });
+});
+
+describe("a glider flies without meters", () => {
+  /**
+   * THE DISTINCTION THIS WHOLE GROUP EXISTS TO HOLD.
+   *
+   * A glider is not a classroom. It leaves the ground, it is away, and it comes back, so
+   * it keeps every dispatch step; what it does not have is a Hobbs or a tach. Folding it
+   * into `usesBriefingNotMeters` would have been one line and would have deleted the
+   * ramp-out state, the "in flight" badge and the two timestamps that are the only record
+   * of how long it was actually up.
+   */
+  const glider = (over: Parameters<typeof booking>[0] = {}) =>
+    booking({ type: "solo", resource: "plane", students: 1, meterMode: "none", ...over });
+
+  it("still departs, so it is not a briefing-only booking", () => {
+    expect(usesBriefingNotMeters(glider())).toBe(false);
+  });
+
+  it("has no meters to read", () => {
+    expect(readsMeters(glider())).toBe(false);
+  });
+
+  it("an ordinary aeroplane still reads meters", () => {
+    expect(readsMeters(booking({ type: "solo", resource: "plane", students: 1 }))).toBe(true);
+  });
+
+  it("a classroom reads no meters either, by the other route", () => {
+    expect(readsMeters(booking({ type: "ground", resource: "room", students: 1 }))).toBe(false);
+  });
+
+  it("is not ramped out until it actually leaves", () => {
+    expect(isRampedOut(glider())).toBe(false);
+  });
+
+  it("is ramped out on the TIMESTAMP, with no reading anywhere", () => {
+    const out = glider({ rampedOutAt: "2026-08-26T19:00:00.000Z" });
+    expect(isRampedOut(out)).toBe(true);
+    expect(isRampedIn(out)).toBe(false);
+  });
+
+  it("is ramped in on its timestamp, and never needs a Hobbs", () => {
+    const back = glider({
+      rampedOutAt: "2026-08-26T19:00:00.000Z",
+      rampedInAt: "2026-08-26T19:42:00.000Z",
+    });
+    expect(isRampedIn(back)).toBe(true);
+  });
+
+  it("a glider DUAL is measured the same way, instruction time is extra detail", () => {
+    const dual = glider({ type: "dual", instructors: 1, students: 1, briefing: 7 });
+    expect(hasInstruction(dual)).toBe(true);
+    // No timestamps yet: instruction time alone must not make it look departed, which is
+    // what would happen if a glider were treated as briefing-only.
+    expect(isRampedOut(dual)).toBe(false);
+  });
+
+  it("a metered aeroplane is unaffected: readings still decide", () => {
+    const flown = booking({ type: "solo", resource: "plane", students: 1, hobbsOut: 1000, hobbsIn: 1012 });
+    expect(isRampedOut(flown)).toBe(true);
+    expect(isRampedIn(flown)).toBe(true);
   });
 });
 

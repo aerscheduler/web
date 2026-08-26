@@ -47,6 +47,7 @@ import { TailNumberField } from "@/components/aircraft/tail-number-field";
 import {
   AIRCRAFT_CATEGORIES,
   CLASSES_BY_CATEGORY,
+  meterModeForCategory,
   label as vocabLabel,
   type AircraftCategory,
   type AircraftClass,
@@ -750,6 +751,14 @@ function AircraftStep({
             aircraftClass: (aircraftClass || null) as AircraftClass | null,
             tachTime: Math.round((Number(tach) || 0) * 10),
             hobbsTime: Math.round((Number(hobbs) || 0) * 10),
+            //THE WIZARD HAS TO SEND THIS OR IT CREATES A GLIDER WITH METERS.
+            //
+            //The column defaults to `hobbs_and_tach`, so leaving it off was not neutral:
+            //a soaring club's very first aircraft, added on the one screen they cannot
+            //skip, came out claiming a Hobbs and a tach. There is no Meters control here
+            //on purpose (three steps is the point of this flow), so it is derived from the
+            //category with the same helper the Aircraft page uses.
+            meterMode: meterModeForCategory(category, "hobbs_and_tach"),
             fuelCapacity: 0,
             fuelMeasurement: "gallons",
             cost: { wetRate: rate, billByHobbsTime: true },

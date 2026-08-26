@@ -6,7 +6,7 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useConfirm } from "@/components/confirm-dialog";
 import { meterAnomalyMessages } from "@/lib/meter-anomaly";
-import { usesBriefingNotMeters } from "@/components/schedule/close-out";
+import { readsMeters, usesBriefingNotMeters } from "@/components/schedule/close-out";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { Button } from "@/components/ui/button";
@@ -143,22 +143,31 @@ export function RampModal({
   //reservation TYPE and not only on the resource.
   const noMeters = reservation != null && usesBriefingNotMeters(reservation);
 
+  //THE THIRD CASE. An aircraft with `meterMode: "none"` (a glider, a balloon) genuinely
+  //departs and genuinely comes back, so this modal still opens for both steps and still
+  //records the times, but there is no Hobbs and no tach to type. Distinct from `noMeters`
+  //above, which is a booking where nothing moves at all and instruction time stands in for
+  //the whole lesson. Here the ramp itself is the record.
+  const meterless = reservation != null && !noMeters && !readsMeters(reservation);
+
   // Per-field validity, derived every render so inline messages clear as you type.
   const backwardsMsg = "Ending readings can't be lower than the recorded out readings.";
-  const hobbsErr = noMeters
-    ? null
-    : hobbsNum == null
-      ? "Enter the Hobbs reading"
-      : hobbsBackwards
-        ? backwardsMsg
-        : null;
-  const tachErr = noMeters
-    ? null
-    : tachNum == null
-      ? "Enter the tach reading"
-      : tachBackwards
-        ? backwardsMsg
-        : null;
+  const hobbsErr =
+    noMeters || meterless
+      ? null
+      : hobbsNum == null
+        ? "Enter the Hobbs reading"
+        : hobbsBackwards
+          ? backwardsMsg
+          : null;
+  const tachErr =
+    noMeters || meterless
+      ? null
+      : tachNum == null
+        ? "Enter the tach reading"
+        : tachBackwards
+          ? backwardsMsg
+          : null;
   const briefingErr = noMeters
     ? briefingNum == null
       ? "Enter the instruction time"
@@ -270,6 +279,40 @@ export function RampModal({
       return;
     }
 
+    // A METERLESS AIRCRAFT RAMPS NORMALLY, IT JUST CARRIES NO READINGS.
+    //
+    // Both calls go out with no meter fields at all rather than with zeroes. The server
+    // hands each field straight to Prisma, where `undefined` means "leave it alone", so the
+    // review keeps null Hobbs and null tach and the only thing written is the timestamp the
+    // ramp stamps by itself. Writing 0.0 instead, which is what the desk was doing by hand,
+    // put a fictional reading in the audit trail and made every report count the flight as
+    // zero hours rather than as unmeasured.
+    if (meterless) {
+      try {
+        if (mode === "out") {
+          await rampOut.mutateAsync({});
+          toast.success("Aircraft ramped out");
+          onOpenChange(false);
+          return;
+        }
+        // Same order as a metered ramp-in: move the home base first, then record.
+        if (showLocationPicker && locationId) {
+          await updateLocation.mutateAsync(Number(locationId));
+        }
+        const done = await submitRampIn(
+          briefingNum != null ? { briefing: toDeci(briefingNum) } : {}
+        );
+        if (done) {
+          toast.success("Aircraft ramped in");
+          onOpenChange(false);
+        }
+      } catch (e) {
+        const verb = mode === "out" ? "ramp out" : "ramp in";
+        toast.error(e instanceof ApiError ? e.message : `Couldn't ${verb} the flight`);
+      }
+      return;
+    }
+
     if (hobbsNum == null || tachNum == null) return;
 
     if (mode === "out") {
@@ -308,9 +351,16 @@ export function RampModal({
   const title = noMeters ? "Review times" : mode === "out" ? "Ramp out" : "Ramp in";
   const description = noMeters
     ? "Record the instruction time to close out this lesson. There are no meter readings to take."
-    : mode === "out"
-      ? "Record the starting Hobbs and tach readings before the flight departs."
-      : "Record the ending Hobbs and tach readings to close out the flight.";
+    : meterless
+      ? //It still ramps, so the wording is still about departing and returning. What it
+        //cannot do is produce a reading, and saying so here is what stops the desk hunting
+        //for a Hobbs box that is deliberately absent.
+        mode === "out"
+        ? "This aircraft has no meters, so there are no readings to take. Ramping out records the time it departed."
+        : "This aircraft has no meters, so there are no readings to take. Ramping in records the time it came back."
+      : mode === "out"
+        ? "Record the starting Hobbs and tach readings before the flight departs."
+        : "Record the ending Hobbs and tach readings to close out the flight.";
 
   return (
     <ResponsiveModal
@@ -352,8 +402,10 @@ export function RampModal({
         )}
 
         {/* No aircraft, no meters to read, showing two boxes nobody can fill in is what made
-            the ground close-out look broken rather than merely blocked. */}
-        {!noMeters && (
+            the ground close-out look broken rather than merely blocked. `meterless` is the
+            same reasoning one step over: the aeroplane is real and it is flying, but a
+            glider has no Hobbs, and asking for one is what made the desk type a zero. */}
+        {!noMeters && !meterless && (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="ramp-hobbs">{mode === "out" ? "Hobbs out" : "Hobbs in"}</Label>

@@ -3,7 +3,7 @@ import { Loader2, Save, SplitSquareHorizontal, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useSetReservationPayers } from "@/features/queries";
 import { PILOT_ROLES, type PilotRole, type Reservation, type ReservationPayerInput } from "@/types/api";
-import { billsOnHobbs, usesBriefingNotMeters, hasInstruction } from "./close-out";
+import { billsOnHobbs, readsMeters, hasInstruction } from "./close-out";
 import { CloseOutCard } from "./close-out-card";
 import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
@@ -43,8 +43,10 @@ import { ApiError } from "@/lib/api";
  * A ground lesson has no aircraft, so it has no Hobbs reading, nobody is pilot in command
  * of a classroom, and the one figure that does divide is instruction time, which was the
  * single field this panel never offered. It asked for the three that cannot exist and
- * omitted the one that does. `usesBriefingNotMeters` is the same helper the ramp modal
- * keys on, so the two screens agree about what a booking is measured with.
+ * omitted the one that does. `readsMeters` is the same helper the ramp modal keys on, so
+ * the two screens agree about what a booking is measured with. It answers false for a
+ * glider as well as for a classroom: one departs and one does not, but neither produces a
+ * reading, and a per-pilot leg on a meter that does not exist is a field nobody can fill.
  *
  * ─────────────────────────────────────────────────────────────────────────────────────
  * WHY THIS IS STILL NOT GATED ON THE ORG'S RULE
@@ -235,7 +237,9 @@ export function WhoPaysSection({ r }: { r: Reservation }) {
 
   // What this booking can be measured with. A ground lesson has no meters and no pilot in
   // command; a classroom has no rate at all, so instruction is the only thing to divide.
-  const hasMeters = !usesBriefingNotMeters(r);
+  //A glider has no meters either, so there are no per-pilot legs to collect on one. It is
+  //not covered by `usesBriefingNotMeters`, which asks whether anything departs.
+  const hasMeters = readsMeters(r);
   const billsInstruction = hasInstruction(r);
   // Pilot roles are a property of a flight. Nobody is second in command of a simulator or a
   // briefing room, and offering the field there invites a record that isn't true.

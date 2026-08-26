@@ -38,6 +38,8 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
 
   const status = planeStatus(p);
   const rate = planeRate(p);
+  //Nothing meters this airframe, so nothing charges it by the hour. See the footer below.
+  const meterless = p.meterMode === "none";
 
   return (
     <Card className="flex flex-col overflow-hidden pt-0">
@@ -138,31 +140,40 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
 
         {/* -mx-4 + px-4 so the divider spans the full card width (breaks out of the p-4 content padding). */}
         <div className="-mx-4 mt-auto flex items-end justify-between gap-4 border-t border-border px-4 pt-4">
-          <div className="flex gap-4 text-xs text-muted-foreground">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-1">
-                  <span className="tnum font-medium text-foreground">
-                    {(p.hobbsTime / 10).toFixed(1)}
+          {/* THE CARD HAS TO SAY THE SAME THING THE FORM DOES.
+              A glider stores zeroes in the two meter columns because they are non-null
+              Ints, so this row rendered "0.0 Hobbs 0.0 tach $0.00 wet/Hobbs": three facts
+              that are not true about the aircraft, on the screen a school scans to see its
+              fleet. What is true is that it has no meters and is billed by hand. */}
+          {meterless ? (
+            <div className="text-xs text-muted-foreground">No meters, invoiced by hand</div>
+          ) : (
+            <div className="flex gap-4 text-xs text-muted-foreground">
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="tnum font-medium text-foreground">
+                      {(p.hobbsTime / 10).toFixed(1)}
+                    </span>
+                    Hobbs
                   </span>
-                  Hobbs
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>Hobbs meter time</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-1">
-                  <span className="tnum font-medium text-foreground">
-                    {(p.tachTime / 10).toFixed(1)}
+                </TooltipTrigger>
+                <TooltipContent>Hobbs meter time</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="tnum font-medium text-foreground">
+                      {(p.tachTime / 10).toFixed(1)}
+                    </span>
+                    tach
                   </span>
-                  tach
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>Tachometer time</TooltipContent>
-            </Tooltip>
-          </div>
-          {rate && (
+                </TooltipTrigger>
+                <TooltipContent>Tachometer time</TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+          {rate && !meterless && (
             <div className="text-right text-sm">
               <span className="tnum font-semibold">{formatMoney(rate.cents)}</span>
               <span className="text-xs text-muted-foreground">

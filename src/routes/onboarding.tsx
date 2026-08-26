@@ -1,4 +1,5 @@
 import * as React from "react";
+
 import { createFileRoute, redirect, useNavigate, Link } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -13,6 +14,8 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { isAuthenticated, needsEmailVerification, useAuth } from "@/lib/auth";
+import { AirportField, countryName, subdivisionOf } from "@/components/facilities/airport-field";
+import type { AirportMatch } from "@/types/api";
 import {
   useConnectStripe,
   useCreateLocation,
@@ -305,6 +308,10 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
     solo ? (who ? `${who}'s Flight Instruction` : "My Flight Instruction") : ""
   );
   const [airport, setAirport] = React.useState("");
+  //Set only by choosing a row from the lookup. Everything derived from it (the address,
+  //and the time zone every booking here will be read in) is absent for a typed-out field,
+  //which is exactly what onboarding has always sent.
+  const [airportPick, setAirportPick] = React.useState<AirportMatch | null>(null);
   const [locationId, setLocationId] = React.useState<number | null>(null);
   const [intent, setIntent] = React.useState<SetupIntent | null>(() => inferredIntent(attribution) ?? "scheduling");
   const [heardFrom, setHeardFrom] = React.useState<string | null>(null);
@@ -344,7 +351,22 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
         name: orgName.trim(),
         organizationType: subtype,
         details: { email: user?.email ?? "", phone: "", address: { ...EMPTY_ADDRESS } },
-        location: { name: airport.trim() || orgName.trim(), address: { ...EMPTY_ADDRESS } },
+        //A picked airport carries its city, state, country and zone. Typed by hand it is a
+        //bare name against an empty address, exactly as before. The zone is the one that
+        //matters: without it every booking at this school renders in whatever zone the
+        //reader's device is in, rather than the field's.
+        location: {
+          name: airport.trim() || orgName.trim(),
+          address: airportPick
+            ? {
+                ...EMPTY_ADDRESS,
+                city: airportPick.municipality ?? "",
+                state: subdivisionOf(airportPick),
+                country: countryName(airportPick.isoCountry),
+              }
+            : { ...EMPTY_ADDRESS },
+          timeZone: airportPick?.timeZone ?? null,
+        },
         // Intent (or inferred campaign) orders the dashboard checklist.
         source,
         // Campaign tuple for spend reporting, plus optional human "how did you hear".
@@ -437,11 +459,27 @@ function OperationFlow({ persona, onBack }: { persona: Exclude<Persona, "student
               aria-invalid={showErrors && !orgName.trim()}
             />
           </Field>
-          <Field id="op-airport" label="Home airport" hint="Identifier, e.g. KAPA">
-            <Input
+          <Field
+            id="op-airport"
+            label="Home airport"
+            hint="Search by identifier or name, e.g. KAPA or Centennial"
+          >
+            <AirportField
               id="op-airport"
               value={airport}
-              onChange={(e) => setAirport(e.target.value.toUpperCase())}
+              //Typed by hand it stays uppercase, which is how identifiers are written and
+              //what this field has always done. A picked row arrives already formatted as
+              //"KAPA Centennial Airport", so leave that alone.
+              onChange={(v) => {
+                setAirportPick(null);
+                setAirport(v.toUpperCase());
+              }}
+              onPick={(m) => {
+                setAirportPick(m);
+                setAirport(`${m.ident} ${m.name}`);
+              }}
+              //VarChar(60) on the server, which does not truncate.
+              maxLength={60}
               placeholder="KAPA"
             />
           </Field>
@@ -692,6 +730,11 @@ function AircraftStep({
     try {
       let locId = locationId;
       if (!locId) {
+        //A name and nothing else. This used to 400 every time it ran: the server fed the
+        //missing address straight to the geocoder, which threw, which read as "Address
+        //does not seem to be valid." It went unnoticed because the branch only fires when
+        //the org somehow has no location yet. The server now creates a location without
+        //an address, which is the whole point of the field being optional.
         const loc = await createLocation.mutateAsync({ name: fallbackLocationName });
         locId = loc.id;
       }

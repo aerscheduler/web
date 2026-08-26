@@ -861,6 +861,12 @@ export interface UpdateLocationInput {
   name: string;
   address: Partial<UserAddress>;
   timeZone?: string | null;
+  /**
+   * The airport's published position, when one was picked from the lookup. Omit to leave
+   * whatever is stored alone; the server only overwrites what it is actually sent. The
+   * server no longer geocodes, so this is the only way a location gets coordinates.
+   */
+  coordinates?: { lat: number; lng: number } | null;
 }
 
 export interface Invoice {
@@ -1209,6 +1215,36 @@ export interface CreateLocationInput {
   name: string;
   address?: Partial<UserAddress>;
   showInDirectory?: boolean;
+  /** The IANA zone. Honoured on create since August 2026; it used to need a follow-up PATCH. */
+  timeZone?: string | null;
+  /** The airport's published position, when one was picked from the lookup. */
+  coordinates?: { lat: number; lng: number } | null;
+}
+
+/**
+ * One airport from the public lookup behind the add-location form.
+ *
+ * Mirrors `AirportMatch` in the server's services/airportLookup.ts. Sourced from
+ * OurAirports, so it is worldwide, and `municipality` is genuinely often absent.
+ */
+export interface AirportMatch {
+  /** ICAO code where there is one ("KBOI"), otherwise the local code ("00A"). */
+  ident: string;
+  name: string;
+  /** large_airport | medium_airport | small_airport | heliport | seaplane_base | balloonport */
+  type: string;
+  latitude: number;
+  longitude: number;
+  /** IANA zone derived from the coordinates at import time. */
+  timeZone: string | null;
+  municipality: string | null;
+  /** ISO 3166-2, e.g. "US-ID". */
+  isoRegion: string;
+  /** ISO 3166-1 alpha-2, e.g. "US". */
+  isoCountry: string;
+  icaoCode: string | null;
+  iataCode: string | null;
+  localCode: string | null;
 }
 
 export interface CreatePlaneResourceInput {

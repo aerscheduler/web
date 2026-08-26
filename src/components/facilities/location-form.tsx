@@ -6,11 +6,12 @@ import {
   useLocation,
   useUpdateLocation,
 } from "@/features/queries";
-import type { Location } from "@/types/api";
+import type { AirportMatch, Location } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { COMMON_TIME_ZONES, allTimeZones, describeZone } from "@/lib/timezone";
 import { ResponsiveModal } from "@/components/responsive-modal";
+import { AirportField, countryName, subdivisionOf } from "@/components/facilities/airport-field";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -42,17 +43,29 @@ type FormState = {
   zipCode: string;
   country: string;
   timeZone: string;
+  /**
+   * Set only by picking an airport from the lookup, never by typing. The server stopped
+   * geocoding in August 2026, so this is now the only way a location gets a position, and
+   * a hand-typed site simply has none, exactly as every onboarded org already did.
+   */
+  coordinates: { lat: number; lng: number } | null;
 };
 
-/** Required fields, in focus order, mapped to their input ids for error focus. */
-const REQUIRED_FIELDS = [
-  { key: "name", id: "loc-name" },
-  { key: "streetAddress1", id: "loc-street1" },
-  { key: "city", id: "loc-city" },
-  { key: "state", id: "loc-state" },
-  { key: "zipCode", id: "loc-zip" },
-  { key: "country", id: "loc-country" },
-] as const;
+/**
+ * Required fields, in focus order, mapped to their input ids for error focus.
+ *
+ * ONLY THE NAME. The street, city, state, ZIP and country used to be required here, and
+ * that was never a real requirement: the server has no validation on this endpoint at all,
+ * and the only thing that ever rejected a location was Google's geocoder failing to
+ * resolve the address. That gate was measured in August 2026 and it caught almost
+ * nothing (a made-up ZIP sailed through; so did a made-up street), so it was removed
+ * along with the geocoder.
+ *
+ * Which leaves no reason to make someone hunt down a street address for a field they have
+ * already identified by name. The address boxes stay, because a school with a hangar suite
+ * wants to record it, but they are optional and stored exactly as entered.
+ */
+const REQUIRED_FIELDS = [{ key: "name", id: "loc-name" }] as const;
 
 function emptyState(): FormState {
   return {
@@ -62,10 +75,11 @@ function emptyState(): FormState {
     city: "",
     state: "",
     zipCode: "",
-    // Every school on the platform today is US-based and the geocoder wants something
-    // here, so this is a default rather than a blank the user has to guess at.
+    // Most schools on the platform today are US-based, so this is a sensible default
+    // rather than a blank to guess at. Picking an airport overwrites it.
     country: "United States",
     timeZone: INHERIT_ZONE,
+    coordinates: null,
   };
 }
 
@@ -80,6 +94,9 @@ function stateFromLocation(l: Location): FormState {
     zipCode: a?.zipCode ?? "",
     country: a?.country ?? "United States",
     timeZone: l.timeZone ?? INHERIT_ZONE,
+    //Editing does not re-pick an airport, and omitting coordinates on save leaves the
+    //stored pair alone. Seeding this from the row would risk writing back a stale one.
+    coordinates: null,
   };
 }
 
@@ -93,14 +110,22 @@ function errMessage(e: unknown, fallback: string) {
  *
  * Two things here are not obvious from the form:
  *
- * 1. **The address is verified, not stored verbatim.** The server geocodes it through
- *    Google on every write and refuses one it cannot resolve, answering "Address does not
- *    seem to be valid." A typo in the street therefore fails the save, which is why the
- *    server's message is shown as-is rather than replaced with something friendlier.
- * 2. **Create ignores `timeZone`.** `LocationService.create` never reads it, only
- *    `update` does, so a new location with a zone is a POST followed by a PATCH. If the
- *    PATCH is the half that fails, the location still exists, and saying so is better
- *    than a red toast over a location that is sitting in the list.
+ * 1. **Picking an airport fills in four other fields.** The name box is a lookup over the
+ *    public airport database, and choosing a row sets the city, state, country, position
+ *    and TIME ZONE at once. The zone is the valuable one: it is the wall clock every
+ *    booking at this field is pinned to, and the alternative was finding the right name in
+ *    a 400-entry combobox, which is a thing people get wrong and never notice.
+ *
+ *    Typing still wins. Nothing is filled unless a row is chosen, nothing is validated
+ *    against the lookup, and a private strip that is not in it saves exactly the same.
+ *
+ * 2. **Nothing here is verified any more, and nothing ever really was.** This used to
+ *    geocode the address through Google on every write and refuse what it could not
+ *    resolve. Measured in August 2026, that gate accepted a made-up ZIP (Google ignores it
+ *    and returns the real one, which we discarded) and a made-up street (it resolves to a
+ *    nearby road, flagged `partial_match`, which nothing checked), and the coordinates it
+ *    produced were read only by the Directory, pulled from both clients in July 2026. So
+ *    the geocoder went, the address is stored as entered, and only the name is required.
  */
 export function LocationFormModal({
   open,
@@ -153,17 +178,43 @@ export function LocationFormModal({
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
+  /**
+   * Fill in what the lookup knows, and only that.
+   *
+   * The rule is the same one the add-aircraft form settled on: overwrite a field the
+   * lookup has an answer for, leave the rest alone. A wrong prefill is worse than an empty
+   * one, because nobody re-reads a field that already looks filled in.
+   *
+   * So the street address is untouched. OurAirports has no street or ZIP, and inventing
+   * one from the airport's name would be exactly that wrong prefill. The person adds a
+   * hangar number if they want one.
+   *
+   * The zone is marked as touched, which stops the late-arriving detail fetch from
+   * reaching in and overwriting the zone we just derived from the airport's coordinates.
+   */
+  function onPickAirport(match: AirportMatch) {
+    zoneTouched.current = true;
+    setForm((f) => ({
+      ...f,
+      city: match.municipality ?? f.city,
+      //"US-ID" -> "ID". Empty for the countries that do not code subdivisions this way,
+      //in which case the existing value stands rather than being blanked.
+      state: subdivisionOf(match) || f.state,
+      country: countryName(match.isoCountry) || f.country,
+      //A zone we could not resolve at import time leaves the field on whatever it was,
+      //which for a new location is "same as the school". That is the old behaviour, and
+      //it is a fine answer, not a failure.
+      timeZone: match.timeZone ?? f.timeZone,
+      coordinates: { lat: match.latitude, lng: match.longitude },
+    }));
+  }
+
   const orgZone = organization?.timeZone ?? null;
   const zones = React.useMemo(() => zoneOptions(orgZone), [orgZone]);
 
   // Per-field validity, derived every render so inline messages clear as you type.
   const errors: Record<string, string> = {
     name: form.name.trim().length === 0 ? "Name the airport or site." : "",
-    streetAddress1: form.streetAddress1.trim().length === 0 ? "Enter the street address." : "",
-    city: form.city.trim().length === 0 ? "Enter the city." : "",
-    state: form.state.trim().length === 0 ? "Enter the state." : "",
-    zipCode: form.zipCode.trim().length === 0 ? "Enter the ZIP code." : "",
-    country: form.country.trim().length === 0 ? "Enter the country." : "",
   };
   const firstInvalid = REQUIRED_FIELDS.find((f) => errors[f.key]);
 
@@ -189,31 +240,23 @@ export function LocationFormModal({
       country: form.country.trim(),
     };
     const timeZone = form.timeZone === INHERIT_ZONE ? null : form.timeZone;
+    // Omitted rather than sent as null when nothing was picked, so an edit that only
+    // renames a field leaves whatever position is stored alone.
+    const coordinates = form.coordinates ?? undefined;
 
     setBusy(true);
     setError(null);
     try {
       if (isEdit && location) {
-        await update.mutateAsync({ id: location.id, name, address, timeZone });
+        await update.mutateAsync({ id: location.id, name, address, timeZone, coordinates });
         toast.success(`${name} saved.`);
       } else {
-        const created = await create.mutateAsync({ name, address });
-        let zoneSaved = true;
-        if (timeZone) {
-          try {
-            await update.mutateAsync({ id: created.id, name, address, timeZone });
-          } catch {
-            // The location exists. That is a success with a caveat, not a failure.
-            zoneSaved = false;
-          }
-        }
-        if (zoneSaved) {
-          toast.success(`${name} added.`);
-        } else {
-          toast.warning(
-            `${name} was added, but its time zone did not save. Open it and set the zone.`
-          );
-        }
+        // One request. This used to be a POST followed by a PATCH, because create ignored
+        // `timeZone` and only update read it, which meant a new location could half-save:
+        // the row created, the zone lost. The server honours the zone on create now, so
+        // the failure mode and the warning toast it needed are both gone.
+        const created = await create.mutateAsync({ name, address, timeZone, coordinates });
+        toast.success(`${name} added.`);
         onCreated?.(created);
       }
       onOpenChange(false);
@@ -258,37 +301,30 @@ export function LocationFormModal({
 
         <div className="space-y-1.5">
           <Label htmlFor="loc-name">Airport or site name</Label>
-          <Input
+          <AirportField
             id="loc-name"
             autoFocus
+            //The column is VarChar(60) and the server does not truncate, so the box has to.
             maxLength={60}
-            placeholder="e.g. KBOI Boise Air Terminal"
+            placeholder="Search by identifier or name, e.g. KBOI or Boise"
             value={form.name}
-            onChange={(e) => set("name", e.target.value)}
-            aria-invalid={showErrors && !!errors.name}
+            onChange={(v) => set("name", v)}
+            onPick={onPickAirport}
+            invalid={showErrors && !!errors.name}
           />
-          {showErrors && errors.name ? (
+          {showErrors && errors.name && (
             <p className="text-xs text-destructive">{errors.name}</p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Members pick this by name when booking, so an identifier they say out loud
-              works best.
-            </p>
           )}
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="loc-street1">Street address</Label>
+          <Label htmlFor="loc-street1">Street address (optional)</Label>
           <Input
             id="loc-street1"
             placeholder="3201 W Airport Way"
             value={form.streetAddress1}
             onChange={(e) => set("streetAddress1", e.target.value)}
-            aria-invalid={showErrors && !!errors.streetAddress1}
           />
-          {showErrors && errors.streetAddress1 && (
-            <p className="text-xs text-destructive">{errors.streetAddress1}</p>
-          )}
         </div>
 
         <div className="space-y-1.5">
@@ -309,11 +345,7 @@ export function LocationFormModal({
               placeholder="Boise"
               value={form.city}
               onChange={(e) => set("city", e.target.value)}
-              aria-invalid={showErrors && !!errors.city}
-            />
-            {showErrors && errors.city && (
-              <p className="text-xs text-destructive">{errors.city}</p>
-            )}
+              />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="loc-state">State</Label>
@@ -322,11 +354,7 @@ export function LocationFormModal({
               placeholder="ID"
               value={form.state}
               onChange={(e) => set("state", e.target.value)}
-              aria-invalid={showErrors && !!errors.state}
-            />
-            {showErrors && errors.state && (
-              <p className="text-xs text-destructive">{errors.state}</p>
-            )}
+              />
           </div>
         </div>
 
@@ -339,11 +367,7 @@ export function LocationFormModal({
               placeholder="83705"
               value={form.zipCode}
               onChange={(e) => set("zipCode", e.target.value)}
-              aria-invalid={showErrors && !!errors.zipCode}
-            />
-            {showErrors && errors.zipCode && (
-              <p className="text-xs text-destructive">{errors.zipCode}</p>
-            )}
+              />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="loc-country">Country</Label>
@@ -352,11 +376,7 @@ export function LocationFormModal({
               placeholder="United States"
               value={form.country}
               onChange={(e) => set("country", e.target.value)}
-              aria-invalid={showErrors && !!errors.country}
-            />
-            {showErrors && errors.country && (
-              <p className="text-xs text-destructive">{errors.country}</p>
-            )}
+              />
           </div>
         </div>
 

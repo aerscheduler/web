@@ -41,6 +41,7 @@ import type {
   AvailabilityInput,
   AvailabilityWindow,
   CreateInvoiceInput,
+  AirportMatch,
   CreateLocationInput,
   UpdateLocationInput,
   ConfirmReviewInput,
@@ -309,6 +310,25 @@ export function useRegistryLookup(q: string, enabled: boolean) {
   return useQuery({
     queryKey: ["resources", "registry", q],
     queryFn: () => api<RegistryMatch[]>("/resources/registry", { query: { q } }),
+    enabled: enabled && q.length >= 2,
+    staleTime: 60 * 60 * 1000,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/**
+ * Airport lookup for the add-location form. Held for a while for the same reasons as the
+ * tail-number lookup: the source refreshes weekly at most, and a person correcting a typo
+ * re-runs the same few queries.
+ *
+ * An empty result is a normal answer, not an error. Unlike the aircraft registry this
+ * copy is worldwide, but a private strip with no published identifier is still a thing
+ * people type, and the form works the same either way.
+ */
+export function useAirportLookup(q: string, enabled: boolean) {
+  return useQuery({
+    queryKey: ["locations", "airports", q],
+    queryFn: () => api<AirportMatch[]>("/locations/airports", { query: { q } }),
     enabled: enabled && q.length >= 2,
     staleTime: 60 * 60 * 1000,
     placeholderData: (prev) => prev,
@@ -1315,8 +1335,9 @@ export function useCreateLocation() {
 }
 
 /**
- * Edit an airport or site (admin). Re-geocodes the address, so the whole address goes on
- * every save. `timeZone: null` clears the zone back to the organization's.
+ * Edit an airport or site (admin). The whole address goes on every save, since the server
+ * writes what it is sent. `timeZone: null` clears the zone back to the organization's, and
+ * omitting `coordinates` leaves the stored position alone.
  */
 export function useUpdateLocation() {
   const qc = useQueryClient();

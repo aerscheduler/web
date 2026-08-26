@@ -2,6 +2,7 @@ import * as React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { API_URL } from "./env";
 import { api, getToken, isTokenExpired, tokenExpiresAt } from "./api";
+import { track } from "./analytics";
 
 //---------------------------------------------------------------------------------
 // Realtime bridge for TanStack Query.
@@ -41,15 +42,39 @@ type Options = {
 
 /** Serialize ticket mints across concurrent hook mounts / reconnect storms. */
 let ticketInFlight: Promise<TicketResponse> | null = null;
+let lastTicketAt = 0;
+
+/**
+ * Hard floor between two ticket mints, whoever asks.
+ *
+ * `ticketInFlight` already collapses *concurrent* callers, but it does nothing
+ * about callers that arrive back to back: two hook instances mounting one after
+ * the other each minted their own ticket, which showed up in production as
+ * consecutive mints in the same second. This is the backstop that holds no
+ * matter which code path asks or how many components mount.
+ */
+const MIN_TICKET_INTERVAL_MS = 1_000;
 
 async function mintTicket(): Promise<TicketResponse> {
   if (!ticketInFlight) {
-    ticketInFlight = api<TicketResponse>("/realtime/ticket", { method: "POST" }).finally(() => {
-      ticketInFlight = null;
-    });
+    const wait = Math.max(0, lastTicketAt + MIN_TICKET_INTERVAL_MS - Date.now());
+    const gate = wait > 0 ? new Promise((r) => window.setTimeout(r, wait)) : Promise.resolve();
+    ticketInFlight = gate
+      .then(() => api<TicketResponse>("/realtime/ticket", { method: "POST" }))
+      .finally(() => {
+        lastTicketAt = Date.now();
+        ticketInFlight = null;
+      });
   }
   return ticketInFlight;
 }
+
+/**
+ * How long a socket must stay authenticated before the backoff is allowed to
+ * reset. See the note where this is used: resetting on `hello` is what let a
+ * flapping connection mint 1,849 tickets in a single day.
+ */
+const STABLE_CONNECTION_MS = 30_000;
 
 /**
  * Build a WebSocket URL that matches how the console talks to the API.
@@ -138,6 +163,7 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
     let pingTimer: number | undefined;
     let reconnectTimer: number | undefined;
     let expiryTimer: number | undefined;
+    let stableTimer: number | undefined;
     let attempt = 0;
     let authed = false;
 
@@ -145,9 +171,11 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
       if (pingTimer != null) window.clearInterval(pingTimer);
       if (reconnectTimer != null) window.clearTimeout(reconnectTimer);
       if (expiryTimer != null) window.clearTimeout(expiryTimer);
+      if (stableTimer != null) window.clearTimeout(stableTimer);
       pingTimer = undefined;
       reconnectTimer = undefined;
       expiryTimer = undefined;
+      stableTimer = undefined;
     };
 
     const disconnect = () => {
@@ -167,10 +195,25 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
       setConnected(false);
       authed = false;
       if (reconnectTimer != null) window.clearTimeout(reconnectTimer);
-      const base = immediate ? 0 : Math.min(30_000, 1_000 * 2 ** attempt);
+
+      // A hidden tab has no UI to keep fresh, so reconnecting one buys nothing
+      // and costs an authenticated POST every cycle. This is the difference
+      // between a handful of tickets per session and the 1,849 a single tab
+      // left open on a front desk actually produced in one day. `onVisibility`
+      // reconnects the instant the tab comes back, so nothing is lost.
+      if (document.visibilityState === "hidden") return;
+
+      // Cap at a minute rather than 30s. Ten consecutive failures means the
+      // socket is not coming back on its own, and React Query keeps refetching
+      // on its own schedule regardless, so the screen is never actually stale.
+      const base = immediate ? 0 : Math.min(60_000, 1_000 * 2 ** attempt);
       // Jitter so many tabs do not stampede the ticket endpoint together.
       const delay = base + Math.floor(Math.random() * 1_000);
       attempt += 1;
+      // Only report a connection that is genuinely struggling. Firing on every
+      // reconnect would recreate, in analytics, the exact volume problem this
+      // is here to measure.
+      if (attempt === 3) track("realtime_unstable", { attempt });
       reconnectTimer = window.setTimeout(() => {
         void connect();
       }, delay);
@@ -241,9 +284,20 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
           if (msg?.v !== 1 || typeof msg.type !== "string") return;
 
           if (msg.type === "hello") {
-            attempt = 0;
             authed = true;
             setConnected(true);
+            // Deliberately NOT `attempt = 0` here. Reaching `hello` proves the
+            // ticket was valid, not that the connection is usable: every one of
+            // the 4,922 tickets minted in production returned 200, and the
+            // sockets still died. Resetting on `hello` meant a socket that
+            // authenticated and dropped two seconds later restarted the backoff
+            // from zero on every cycle, so the exponential backoff below never
+            // got past its first step. Only a connection that has HELD for
+            // `STABLE_CONNECTION_MS` counts as a success worth forgiving.
+            if (stableTimer != null) window.clearTimeout(stableTimer);
+            stableTimer = window.setTimeout(() => {
+              attempt = 0;
+            }, STABLE_CONNECTION_MS);
             const list = channelsKey.split(",").filter(Boolean);
             if (list.length && ws?.readyState === WebSocket.OPEN) {
               ws.send(JSON.stringify({ v: 1, type: "subscribe", channels: list }));

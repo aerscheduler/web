@@ -37,6 +37,23 @@ const POSTHOG_KEY =
   import.meta.env.VITE_POSTHOG_KEY ?? "phc_mT7orBRFhBnm56BRyhGgtSKjiQvRBZwCoMRSSSbBCDyt";
 const POSTHOG_HOST = import.meta.env.VITE_POSTHOG_HOST ?? "https://us.i.posthog.com";
 
+/**
+ * Whether this build should report to PostHog at all.
+ *
+ * The console shipped analytics from the dev server as well as production, and
+ * a dev machine looks exactly like a customer once the events land: over one
+ * 30-day window `localhost` accounted for 1,918 of 7,178 console pageviews and
+ * 6,760 of 11,673 realtime tickets. Any chart built without a host filter was
+ * therefore wrong by more than a factor of two, and nothing in the UI hinted at
+ * it. Local runs stay silent unless deliberately opted in with
+ * `VITE_POSTHOG_DEV=1`, which is still tagged `environment: "development"` so
+ * even that traffic can be excluded in one click.
+ */
+const IS_DEV = import.meta.env.DEV;
+const DEV_OPT_IN = import.meta.env.VITE_POSTHOG_DEV === "1";
+const ANALYTICS_ENABLED = !IS_DEV || DEV_OPT_IN;
+const ENVIRONMENT = IS_DEV ? "development" : "production";
+
 export const CONSENT_COOKIE = "aer_consent";
 const CONSENT_DAYS = 365;
 
@@ -147,6 +164,7 @@ let pending: Array<(client: PostHog) => void> = [];
 /** Load PostHog, if consented. Idempotent. */
 export function startAnalytics(): void {
   if (started || typeof window === "undefined" || !hasConsent() || !POSTHOG_KEY) return;
+  if (!ANALYTICS_ENABLED) return;
   started = true;
 
   void import("posthog-js")
@@ -165,11 +183,17 @@ export function startAnalytics(): void {
         // This is a console people run their business in. Recording keystrokes in it
         // would capture student names, rates and addresses, so every input is masked.
         session_recording: { maskAllInputs: true },
+        // Crash reporting. Off by default in posthog-js, which is why the project
+        // had not recorded one `$exception` in 90 days on any surface. A console
+        // that throws on load looks identical to a console nobody opened, and
+        // until this was on there was no way to tell those apart.
+        capture_exceptions: true,
       });
 
       const attribution = readAttribution();
       posthog.register({
         surface: "console",
+        environment: ENVIRONMENT,
         campaign: attribution?.utm_campaign ?? attribution?.src ?? null,
         channel: attributionChannel(),
       });

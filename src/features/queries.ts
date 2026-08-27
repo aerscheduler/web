@@ -2406,6 +2406,8 @@ export function useRequestStudent() {
       api(`/students/requests`, { method: "POST", body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["instructionRequests"] });
+      // The People panel reads the paged copies under a different key.
+      void qc.invalidateQueries({ queryKey: ["pairRequests"] });
     },
   });
 }
@@ -2418,6 +2420,8 @@ export function useRequestInstructor() {
       api(`/instructors/requests`, { method: "POST", body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["instructionRequests"] });
+      // The People panel reads the paged copies under a different key.
+      void qc.invalidateQueries({ queryKey: ["pairRequests"] });
     },
   });
 }
@@ -2455,6 +2459,8 @@ export function useRespondStudentPairRequest() {
       api(`/students/requests/${id}/${action}`, { method: "POST" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["instructionRequests"] });
+      // The People panel reads the paged copies under a different key.
+      void qc.invalidateQueries({ queryKey: ["pairRequests"] });
       void qc.invalidateQueries({ queryKey: ["instructionPartners"] });
     },
   });
@@ -2467,6 +2473,8 @@ export function useRespondInstructorPairRequest() {
       api(`/instructors/requests/${id}/${action}`, { method: "POST" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["instructionRequests"] });
+      // The People panel reads the paged copies under a different key.
+      void qc.invalidateQueries({ queryKey: ["pairRequests"] });
       void qc.invalidateQueries({ queryKey: ["instructionPartners"] });
     },
   });

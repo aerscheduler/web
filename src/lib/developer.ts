@@ -13,7 +13,6 @@
 export const DEVELOPER_EMAILS = [
   "tonyramirezlecca@gmail.com",
   "dev@aerscheduler.com",
-  "quinton@aerscheduler.com",
 ] as const;
 
 export function isDeveloperEmail(email: string | null | undefined): boolean {

@@ -9,7 +9,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
 
 type ConfirmOptions = {
   title: string;
@@ -59,12 +58,13 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             <AlertDialogCancel onClick={() => close(false)}>
               {state?.cancelLabel ?? "Cancel"}
             </AlertDialogCancel>
+            {/* `variant`, not a className. AlertDialogAction renders a Button with
+                `asChild`, so Radix concatenates the Button's own `bg-primary` with whatever
+                class arrives here and Tailwind's stylesheet order decides the winner: a
+                destructive confirm rendered in primary blue and looked like any other. */}
             <AlertDialogAction
               onClick={() => close(true)}
-              className={cn(
-                state?.destructive &&
-                  "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
-              )}
+              variant={state?.destructive ? "destructive" : "default"}
             >
               {state?.confirmLabel ?? "Confirm"}
             </AlertDialogAction>

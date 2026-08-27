@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { useUpdateResource } from "@/features/queries";
+import { useSetResourceGrounding } from "@/features/queries";
 import type { Resource } from "@/types/api";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,7 @@ export function GroundModal({
   onOpenChange: (open: boolean) => void;
   resource: Resource | null;
 }) {
-  const update = useUpdateResource(resource?.id ?? 0);
+  const update = useSetResourceGrounding(resource?.id ?? 0);
   const [reason, setReason] = React.useState("");
 
   React.useEffect(() => {
@@ -32,7 +32,7 @@ export function GroundModal({
   function handleGround() {
     if (!resource) return;
     update.mutate(
-      { type: { plane: { grounded: true, groundedReason: reason.trim() || null } } },
+      { grounded: true, reason: reason.trim() },
       {
         onSuccess: () => {
           toast.success(`${tail} grounded`);
@@ -54,7 +54,11 @@ export function GroundModal({
             <Button
               type="button"
               onClick={handleGround}
-              disabled={update.isPending}
+              // The reason is required by the server, and it is required for a reason: it
+              // is shown wherever the aircraft appears, and a reason a PERSON typed is
+              // never cleared automatically the way the system's own holds are. Better to
+              // say so here than to send an empty one and read back a 400.
+              disabled={update.isPending || reason.trim().length === 0}
               className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
             >
               {update.isPending ? "Grounding…" : "Ground aircraft"}

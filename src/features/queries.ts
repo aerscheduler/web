@@ -1153,6 +1153,22 @@ export function useUpdateResource(id: number) {
   });
 }
 
+/**
+ * Ground an aircraft, or return it to service.
+ *
+ * Its own endpoint, not `useUpdateResource`. The generic resource PATCH is admin-only, so
+ * routing grounding through it is what made this a 403 for a technician, and why the
+ * console simply hid the control from the one role built around maintenance.
+ */
+export function useSetResourceGrounding(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { grounded: boolean; reason?: string }) =>
+      api<Resource>(`/resources/${id}/grounding`, { method: "PATCH", body: input }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["resources"] }),
+  });
+}
+
 export function useApproveResource() {
   const qc = useQueryClient();
   return useMutation({

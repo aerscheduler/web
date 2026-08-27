@@ -11,7 +11,13 @@
 // because no grant expression is equivalent, and that has to stay true.
 
 import { describe, expect, it } from "vitest";
-import { canAccess, isStaff } from "./permissions";
+import {
+  canAccess,
+  canGroundResources,
+  canManageResources,
+  isStaff,
+  resourceViewAccess,
+} from "./permissions";
 import type { GrantName, Role } from "@/types/api";
 
 // Mirrors BASELINE_GRANTS in server/src/utils/grants.ts. Duplicated here only so the
@@ -140,5 +146,41 @@ describe("routes deliberately left on roles", () => {
     for (const path of ["/schedule", "/people", "/aircraft", "/training/enrollments"]) {
       expect(canAccess(path, ["student"], grantsFor(["student"]))).toBe(true);
     }
+  });
+});
+
+// Grounding is deliberately WIDER than managing an aircraft, the same way grounding a
+// member is wider than managing the roster. It used to be folded into `manage: admin`, so
+// the console hid the control from a technician and a mechanic who had just signed off the
+// last overdue inspection had to find an owner to make the aeroplane bookable again.
+describe("grounding an aircraft is not the same permission as managing one", () => {
+  it("lets a technician ground and return to service", () => {
+    expect(canGroundResources(["technician"])).toBe(true);
+    expect(resourceViewAccess(["technician"]).ground).toBe(true);
+  });
+
+  it("still keeps editing and approving away from a technician", () => {
+    expect(canManageResources(["technician"])).toBe(false);
+    expect(resourceViewAccess(["technician"]).manage).toBe(false);
+  });
+
+  it("leaves admins with both", () => {
+    for (const role of ["owner", "admin"] as Role[]) {
+      expect(canGroundResources([role])).toBe(true);
+      expect(canManageResources([role])).toBe(true);
+    }
+  });
+
+  it("gives it to nobody else, including a dispatcher who runs the board", () => {
+    for (const role of ["dispatcher", "instructor", "student", "renter"] as Role[]) {
+      expect(canGroundResources([role])).toBe(false);
+      expect(resourceViewAccess([role]).ground).toBe(false);
+    }
+  });
+
+  it("holds for the multi-role members who actually exist", () => {
+    // An instructor who is also the shop's technician gets it; one who is not, does not.
+    expect(canGroundResources(["instructor", "technician"])).toBe(true);
+    expect(canGroundResources(["instructor", "dispatcher"])).toBe(false);
   });
 });

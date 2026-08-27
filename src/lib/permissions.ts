@@ -180,8 +180,18 @@ export const canManageMembers = isAdmin;
  * removal are records management, and stay where they are.
  */
 export const canGroundMembers = isStaff;
-/** Create/edit/ground/approve aircraft & facilities. Server: admin. */
+/** Create/edit/approve aircraft & facilities. Server: admin. */
 export const canManageResources = isAdmin;
+/**
+ * Take an aircraft off the line, or put it back.
+ *
+ * Deliberately WIDER than `canManageResources`, the same way `canGroundMembers` is wider
+ * than `canManageMembers` on the roster. A technician signs the work off; refusing them the
+ * release meant the one role built around maintenance had to find an admin to finish a job,
+ * and the console simply hid the button rather than explaining why. Server:
+ * `PATCH /resources/:id/grounding`, admin or technician.
+ */
+export const canGroundResources = (r: Role[]) => isAdmin(r) || isTechnician(r);
 /** Create/void/mark-paid invoices; view the billing console. Server: admin. */
 export const canManageBilling = isAdmin;
 /** Billing settings + Stripe connect. Server: owner. */
@@ -284,8 +294,10 @@ export interface ResourceViewAccess {
   resolveSquawks: boolean;
   /** Who is checked out on it. Derived from the roster, so staff only. */
   approvedPilots: boolean;
-  /** Edit, ground, approve members. Server: admin. */
+  /** Edit and approve members. Server: admin. */
   manage: boolean;
+  /** Ground the aircraft or return it to service. Server: admin or technician. */
+  ground: boolean;
   /** File a squawk against this aircraft. Server: any member. */
   reportSquawk: boolean;
 }
@@ -306,6 +318,7 @@ export function resourceViewAccess(roles: Role[]): ResourceViewAccess {
     resolveSquawks: canResolveSquawk(roles),
     approvedPilots: isStaff(roles),
     manage: admin,
+    ground: canGroundResources(roles),
     reportSquawk: true,
   };
 }
@@ -398,6 +411,8 @@ const SELF_BOOKABLE: Role[] = ["instructor", "student", "renter", "technician"];
  * aircraft off the line for maintenance.
  */
 export const canSelfBook = (r: Role[]) => r.some((role) => SELF_BOOKABLE.includes(role));
+
+
 
 /**
  * Types offered on the SELF-serve page, derived only from the roles that seat

@@ -15,7 +15,14 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Resource } from "@/types/api";
-import { useLocations, useCheckoutRosterCount, useResource, useResourceApprovedPilots } from "@/features/queries";
+import {
+  useLocations,
+  useCheckoutRosterCount,
+  useMaintenanceReminders,
+  useResource,
+  useResourceApprovedPilots,
+  useSquawks,
+} from "@/features/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
@@ -206,14 +213,34 @@ function ResourceBody({ resource }: { resource: Resource }) {
   const status = plane ? planeStatus(plane) : null;
   const rate = plane ? planeRate(plane) : null;
 
+  // The dedicated grounding route, not the generic resource PATCH. That one is admin-only,
+  // which is why a technician never saw this control: the server would have refused it.
   const unground = useMutation({
     mutationFn: () =>
-      api<Resource>(`/resources/${resource.id}`, {
+      api<Resource>(`/resources/${resource.id}/grounding`, {
         method: "PATCH",
-        body: { type: { plane: { grounded: false, groundedReason: null } } },
+        body: { grounded: false },
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["resources"] }),
   });
+
+  /**
+   * Whether anything is actually still holding this aircraft down.
+   *
+   * A grounding reason is a sentence somebody typed months ago, and it goes stale: the tail
+   * that started this work said "Annual inspection overdue" while the annual was 225 days
+   * out and every inspection on it read current. Saying so on the banner is the difference
+   * between a mechanic trusting the release button and going to find an owner.
+   */
+  const holdsQ = useSquawks({ resourceId: resource.id, resolved: false }, { enabled: !!plane?.grounded });
+  const dueQ = useMaintenanceReminders({ resourceId: resource.id, resolved: false }, { enabled: !!plane?.grounded });
+
+  const openGroundingSquawks = (holdsQ.data ?? []).filter((sq) => sq.grounding);
+  const overdueInspections = (dueQ.data ?? []).filter((r) => r.due?.status === "overdue");
+  // Only once both answers are in. Reporting "nothing outstanding" off an empty cache would
+  // invite a mechanic to release an aircraft that is still overdue.
+  const holdsKnown = !holdsQ.isLoading && !dueQ.isLoading;
+  const nothingOutstanding = holdsKnown && openGroundingSquawks.length === 0 && overdueInspections.length === 0;
 
   // A non-plane resource (a sim or a room) can still be linked here; show what
   // there is rather than a broken page built entirely around a tail number.
@@ -226,10 +253,25 @@ function ResourceBody({ resource }: { resource: Resource }) {
       setGrounding(true);
       return;
     }
+    // Naming what is still open is the point of this dialog. Returning a tail to service
+    // over the top of an overdue inspection is a decision somebody is allowed to make, and
+    // it should not be one they make without being told what they are overriding.
+    const outstanding = [
+      overdueInspections.length
+        ? `${overdueInspections.length} inspection${overdueInspections.length === 1 ? " is" : "s are"} overdue`
+        : null,
+      openGroundingSquawks.length
+        ? `${openGroundingSquawks.length} grounding squawk${openGroundingSquawks.length === 1 ? " is" : "s are"} open`
+        : null,
+    ].filter(Boolean);
+
     const ok = await confirm({
       title: `Return ${plane.tailNumber} to service?`,
-      description: "This aircraft will be schedulable again.",
+      description: outstanding.length
+        ? `${outstanding.join(" and ")} on this aircraft. It will be schedulable again anyway.`
+        : "Nothing is outstanding on this aircraft. It will be schedulable again.",
       confirmLabel: "Return to service",
+      destructive: outstanding.length > 0,
     });
     if (!ok) return;
     unground.mutate(undefined, {
@@ -281,29 +323,32 @@ function ResourceBody({ resource }: { resource: Resource }) {
             </>
           }
           actions={
-            access.manage ? (
+            access.manage || access.ground ? (
               <>
-                <Button variant="outline" onClick={() => setEditing(true)}>
-                  <Pencil className="size-4" /> Edit
-                </Button>
-                <Button variant="outline" onClick={() => setApproving(true)}>
-                  <UserCheck className="size-4" /> Approve members
-                </Button>
-                <Button
-                  variant={plane?.grounded ? "outline" : "destructive"}
-                  onClick={() => void toggleGround()}
-                  disabled={!plane || unground.isPending}
-                >
-                  {plane?.grounded ? (
-                    <>
-                      <Undo2 className="size-4" /> Return to service
-                    </>
-                  ) : (
-                    <>
-                      <Ban className="size-4" /> Ground
-                    </>
-                  )}
-                </Button>
+                {access.manage && (
+                  <>
+                    <Button variant="outline" onClick={() => setEditing(true)}>
+                      <Pencil className="size-4" /> Edit
+                    </Button>
+                    <Button variant="outline" onClick={() => setApproving(true)}>
+                      <UserCheck className="size-4" /> Approve members
+                    </Button>
+                  </>
+                )}
+                {/* Only the Ground direction lives up here. Returning to service belongs on
+                    the banner instead, beside the reason it is grounded FOR and beside
+                    whether anything is still outstanding, which is the thing somebody needs
+                    to read before pressing it. Two buttons doing the same job on one screen
+                    is just noise. */}
+                {access.ground && !plane?.grounded && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => void toggleGround()}
+                    disabled={!plane}
+                  >
+                    <Ban className="size-4" /> Ground
+                  </Button>
+                )}
               </>
             ) : undefined
           }
@@ -312,10 +357,42 @@ function ResourceBody({ resource }: { resource: Resource }) {
         {plane?.grounded && (
           <div
             data-doc-shot="aircraft-grounded-banner"
-            className="rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-destructive"
+            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-[color-mix(in_oklch,var(--destructive)_30%,transparent)] bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] px-3.5 py-2.5 text-[13px] text-destructive"
           >
-            <span className="font-medium">Grounded:</span>{" "}
-            {plane.groundedReason?.trim() || "No reason recorded."}
+            <div className="min-w-0">
+              <span className="font-medium">Grounded:</span>{" "}
+              {plane.groundedReason?.trim() || "No reason recorded."}
+              {/* The whole point of the banner for a mechanic: is there anything left to do?
+                  Without this the reason is the only thing on screen, and a stale one reads
+                  exactly like a live one. */}
+              <span className="mt-0.5 block text-[12px] opacity-80">
+                {!holdsKnown
+                  ? "Checking what is still outstanding\u2026"
+                  : nothingOutstanding
+                  ? "Nothing outstanding on this aircraft. Every inspection is current and no grounding squawk is open."
+                  : [
+                      overdueInspections.length
+                        ? `${overdueInspections.length} inspection${overdueInspections.length === 1 ? "" : "s"} overdue`
+                        : null,
+                      openGroundingSquawks.length
+                        ? `${openGroundingSquawks.length} grounding squawk${openGroundingSquawks.length === 1 ? "" : "s"} open`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" and ") + " on this aircraft."}
+              </span>
+            </div>
+            {access.ground && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="shrink-0"
+                onClick={() => void toggleGround()}
+                disabled={unground.isPending}
+              >
+                <Undo2 className="size-4" /> Return to service
+              </Button>
+            )}
           </div>
         )}
       </TableView.Header>
@@ -409,6 +486,10 @@ function ResourceBody({ resource }: { resource: Resource }) {
         </div>
       </div>
 
+      {access.ground && (
+        <GroundModal open={grounding} onOpenChange={setGrounding} resource={resource} />
+      )}
+
       {access.manage && (
         <>
           <AircraftFormModal
@@ -416,11 +497,6 @@ function ResourceBody({ resource }: { resource: Resource }) {
             onOpenChange={setEditing}
             resource={resource}
             locations={locationsQ.data ?? []}
-          />
-          <GroundModal
-            open={grounding}
-            onOpenChange={setGrounding}
-            resource={resource}
           />
           <ApproveRentersSheet
             open={approving}

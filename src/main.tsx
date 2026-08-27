@@ -12,6 +12,7 @@ import {
   trackFilters,
   trackPageview,
 } from "./lib/analytics";
+import { onNavigation, startInteractionTracking } from "./lib/interaction-tracking";
 import { startAds, startConsentMode } from "./lib/ads";
 import { initTheme } from "./lib/theme";
 import "./styles.css";
@@ -30,6 +31,10 @@ bootstrapAnalyticsConsent();
 // half (Meta only).
 startConsentMode();
 startAds();
+// Delegated click and field instrumentation. Safe to wire before consent exists: it
+// routes through `track()`, which drops everything until PostHog is consented AND
+// loaded. See lib/interaction-tracking.ts for why this is not per-component.
+startInteractionTracking();
 
 const router = createRouter({
   routeTree,
@@ -43,6 +48,9 @@ const router = createRouter({
 // how the dispatch board and every filtered table move.
 router.subscribe("onResolved", ({ toLocation }) => {
   const search = toLocation.search as Record<string, unknown> | undefined;
+  // Before the pageview: leaving a screen closes any half-filled form on it as an
+  // abandonment, and that belongs to the screen being left, not the one arriving.
+  onNavigation();
   trackPageview(toLocation.pathname, search);
   trackFilters(toLocation.pathname, search);
   startDwell(toLocation.pathname);

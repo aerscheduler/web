@@ -30,6 +30,7 @@
 
 import type { PostHog } from "posthog-js";
 import { attributionChannel, readAttribution } from "./attribution";
+import { isDemoTab } from "./demo";
 import { getVisitorCountry, isConsentImpliedRegion } from "./geo";
 
 /** Public, write-only ingest key, meant to ship in the client bundle. */
@@ -194,6 +195,14 @@ export function startAnalytics(): void {
       posthog.register({
         surface: "console",
         environment: ENVIRONMENT,
+        // The public demo is a sandbox anyone on the internet can drive, inside the
+        // real production console, so its clicks land in the same charts as a paying
+        // school's unless they are marked. This is the same failure the `localhost`
+        // traffic had, and it is about to matter more: `ui_click` and `field_focus`
+        // are high-volume, so an afternoon of strangers poking at DEMO0001 would read
+        // as product engagement. Registered as a super property so AUTOCAPTURE,
+        // `$rageclick` and `$exception` carry it too, not just the events below.
+        is_demo: isDemoTab(),
         campaign: attribution?.utm_campaign ?? attribution?.src ?? null,
         channel: attributionChannel(),
       });
@@ -246,16 +255,76 @@ function stopAnalytics(): void {
   started = false;
 }
 
+// ---------------------------------------------------------------- paths
+
+const ID_SEGMENT = /^\d+$/;
+
+/**
+ * Collapse record ids, so one row means one screen rather than one aircraft.
+ *
+ * The console's own `$pageview.path` does NOT do this, and it costs it: over 30 days
+ * `/aircraft/6`, `/aircraft/264`, `/aircraft/996`, `/aircraft/1817` and hundreds more
+ * each sat on their own row, so the aircraft detail page, which is one of the most
+ * visited screens in the product, never appeared in a top-ten list at all. Mobile
+ * already collapses (`AnalyticsService.normalizePath`), so this is also what lets one
+ * chart put phone and console side by side.
+ */
+export function normalizePath(pathname: string): string {
+  const collapsed = pathname
+    .split("?")[0]
+    .split("#")[0]
+    .split("/")
+    .map((segment) => (ID_SEGMENT.test(segment) ? ":id" : segment))
+    .join("/");
+  if (collapsed.length > 1 && collapsed.endsWith("/")) return collapsed.slice(0, -1);
+  return collapsed || "/";
+}
+
 // ---------------------------------------------------------------- events
 
 type Props = Record<string, unknown>;
 
+/**
+ * Last `is_demo` value pushed to PostHog as a super property.
+ *
+ * A tab can become a demo tab after PostHog has already started (the demo is entered
+ * from inside the running console), so the value registered at init goes stale. Every
+ * event re-checks it, which is one `sessionStorage` read, and re-registers only on a
+ * change so autocapture stays correctly tagged from that point on.
+ */
+let registeredDemo: boolean | null = null;
+
 export function track(event: string, props?: Props): void {
-  withClient((client) => client.capture(event, props));
+  const demo = isDemoTab();
+  withClient((client) => {
+    if (demo !== registeredDemo) {
+      registeredDemo = demo;
+      client.register({ is_demo: demo });
+    }
+    client.capture(event, { is_demo: demo, ...props });
+  });
 }
 
+/**
+ * Report a screen.
+ *
+ * `path` collapses record ids to `:id`. It did not, and that quietly broke every
+ * top-screens chart in the project: over one 30-day window `/aircraft/6`,
+ * `/aircraft/264`, `/aircraft/996` and hundreds of siblings each held their own row,
+ * so the aircraft detail page, one of the busiest screens in the console, never
+ * appeared in a ranking at all. Mobile has always collapsed, so this is also what
+ * lets a single chart compare the phone against the console.
+ *
+ * The uncollapsed value is kept as `path_exact` for the rare case of chasing one
+ * specific record, and `$current_url` has always carried it anyway.
+ */
 export function trackPageview(path: string, search?: Record<string, unknown>): void {
-  track("$pageview", { $current_url: window.location.href, path, ...describeFilters(search) });
+  track("$pageview", {
+    $current_url: window.location.href,
+    path: normalizePath(path),
+    path_exact: path,
+    ...describeFilters(search),
+  });
 }
 
 // ---------------------------------------------------------------- filters

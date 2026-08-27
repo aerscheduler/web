@@ -22,7 +22,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { Role } from "@/types/api";
-import { canAccess, canSelfBook, isInstructor, isStaff } from "@/lib/permissions";
+import { canAccess, canSelfBook, isAdmin, isInstructor, isStaff } from "@/lib/permissions";
 import { settingsSectionsFor } from "@/lib/settings-sections";
 import { TRAINING_TABS } from "@/lib/training-sections";
 import { MAINTENANCE_SECTIONS } from "@/lib/maintenance-sections";
@@ -270,7 +270,10 @@ function nestedCommandPages(roles: Role[], slotOffersOn: boolean, enterprise: bo
   const out: CommandPage[] = [];
 
   if (canAccess("/settings", roles)) {
-    out.push(...settingsPages(enterprise));
+    // Admin-only panes (Plan) drop out for a member who reaches Settings on the
+    // `manageOrgSettings` grant. The palette offering a destination that silently
+    // redirects to Organization would read as a bug.
+    out.push(...settingsPages(enterprise, isAdmin(roles)));
   }
 
   if (canAccess("/training", roles)) {
@@ -385,8 +388,8 @@ function nestedCommandPages(roles: Role[], slotOffersOn: boolean, enterprise: bo
 }
 
 /** Each Settings section as its own destination. See `CommandPage.search`. */
-function settingsPages(enterprise: boolean): CommandPage[] {
-  return settingsSectionsFor(enterprise).flatMap((section) =>
+function settingsPages(enterprise: boolean, admin: boolean): CommandPage[] {
+  return settingsSectionsFor(enterprise, admin).flatMap((section) =>
     section.tabs.map((tab) => ({
       to: "/settings",
       label: tab.label,

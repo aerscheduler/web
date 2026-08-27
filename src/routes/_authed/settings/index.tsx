@@ -1,8 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { guardRoute } from "@/lib/permissions";
-import { settingsSectionsFor, settingsTabOrDefault } from "@/lib/settings-sections";
+import { canSeeSettingsTab, settingsSectionsFor, settingsTabOrDefault } from "@/lib/settings-sections";
 import { orgCan } from "@/lib/entitlements";
 import { useAuth } from "@/lib/auth";
+import { isAdmin } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
@@ -52,8 +53,8 @@ export const Route = createFileRoute("/_authed/settings/")({
  * onboarding deep links and bookmarks keep working. The section list itself lives in
  * `lib/settings-sections.ts`, because the command palette offers these as destinations.
  */
-const sectionsFor = (enterprise: boolean): RailSection[] =>
-  settingsSectionsFor(enterprise).map((section) => ({
+const sectionsFor = (enterprise: boolean, admin: boolean): RailSection[] =>
+  settingsSectionsFor(enterprise, admin).map((section) => ({
     label: section.label,
     items: section.tabs,
   }));
@@ -61,10 +62,16 @@ const sectionsFor = (enterprise: boolean): RailSection[] =>
 function SettingsPage() {
   const navigate = Route.useNavigate();
   const search = Route.useSearch();
-  const active = settingsTabOrDefault(search.tab);
-  const { organization } = useAuth();
+  const { organization, roles } = useAuth();
   const enterprise = orgCan(organization, "api");
-  const sections = sectionsFor(enterprise);
+  const admin = isAdmin(roles);
+  const sections = sectionsFor(enterprise, admin);
+  // A section this member cannot see falls back to the default rather than rendering.
+  // `?tab=` is a plain query string, so hiding the rail entry is not on its own a gate:
+  // /settings?tab=plan typed by hand has to land on Organization, not on the school's
+  // billing terms.
+  const requested = settingsTabOrDefault(search.tab);
+  const active = canSeeSettingsTab(requested, enterprise, admin) ? requested : "organization";
 
   const pick = (tab: string) => {
     void navigate({ search: (prev) => ({ ...prev, tab }), replace: true });

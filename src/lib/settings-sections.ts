@@ -39,6 +39,16 @@ export type SettingsTab = {
    * out of the command palette. Filter with `settingsSectionsFor`.
    */
   enterpriseOnly?: boolean;
+  /**
+   * Only shown to an admin or owner, whatever grants the member holds.
+   *
+   * Settings as a whole is reachable on the `manageOrgSettings` grant, deliberately, so
+   * a school can let an office manager edit its details without making them an admin.
+   * That is the right default for most of these panes and the wrong one for what
+   * AerScheduler charges the school: the plan page names their rate, what we comp, and
+   * how much of it. Same line the paywall draws.
+   */
+  adminOnly?: boolean;
 };
 
 export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
@@ -59,7 +69,13 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
   {
     label: "Billing",
     tabs: [
-      { value: "plan", label: "Plan", icon: BadgeDollarSign, keywords: ["subscription", "price", "per aircraft"] },
+      {
+        value: "plan",
+        label: "Plan",
+        icon: BadgeDollarSign,
+        keywords: ["subscription", "price", "per aircraft"],
+        adminOnly: true,
+      },
       { value: "billing", label: "Billing", icon: CreditCard, keywords: ["stripe", "connect", "payouts", "fees", "ledger", "invoice"] },
       {
         value: "memberships",
@@ -93,16 +109,24 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
 ];
 
 /**
- * The sections this school actually gets, with empty groups dropped.
+ * The sections this member actually gets, with empty groups dropped.
  *
- * Anything reading SETTINGS_SECTIONS directly shows Enterprise-only screens to
- * everyone, so the rail and the command palette both come through here.
+ * Anything reading SETTINGS_SECTIONS directly shows Enterprise-only and admin-only
+ * screens to everyone, so the rail and the command palette both come through here.
+ * The route renders through the same filter, so `?tab=plan` typed by hand is not a way
+ * in either.
  */
-export const settingsSectionsFor = (enterprise: boolean) =>
+export const settingsSectionsFor = (enterprise: boolean, admin = true) =>
   SETTINGS_SECTIONS.map((section) => ({
     ...section,
-    tabs: section.tabs.filter((tab) => enterprise || !tab.enterpriseOnly),
+    tabs: section.tabs.filter(
+      (tab) => (enterprise || !tab.enterpriseOnly) && (admin || !tab.adminOnly)
+    ),
   })).filter((section) => section.tabs.length > 0);
+
+/** Whether this member may open one section, by `?tab=` value. */
+export const canSeeSettingsTab = (tab: string, enterprise: boolean, admin: boolean): boolean =>
+  settingsSectionsFor(enterprise, admin).some((s) => s.tabs.some((t) => t.value === tab));
 
 export const SETTINGS_TABS: SettingsTab[] = SETTINGS_SECTIONS.flatMap((s) => s.tabs);
 

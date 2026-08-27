@@ -25,15 +25,14 @@ import {
   useUpdateOrganizationTimeZone,
 } from "@/features/queries";
 import {
-  COMMON_TIME_ZONES,
   DEVICE_TIME_ZONE,
-  allTimeZones,
   describeZone,
+  timeZoneOptions,
   zoneAbbreviation,
   zonesAgreeAt,
 } from "@/lib/timezone";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Combobox, type ComboOption } from "@/components/combobox";
+import { Combobox } from "@/components/combobox";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -43,23 +42,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-/** Common zones first, then everything else: 400+ names is correct and unusable unsorted. */
-function zoneOptions(): ComboOption[] {
-  const common = COMMON_TIME_ZONES.map((z) => ({ value: z.value, label: z.label }));
-  const seen = new Set(common.map((c) => c.value));
-
-  const rest = allTimeZones()
-    .filter((z) => !seen.has(z))
-    .map((z) => ({ value: z, label: z.replace(/_/g, " ") }));
-
-  return [...common, ...rest];
-}
-
 /** The school's primary zone. Admin-only: it changes what time a lesson is for everyone. */
 export function OrganizationTimeZoneCard() {
   const { organization, rehydrate } = useAuth();
   const update = useUpdateOrganizationTimeZone();
-  const options = React.useMemo(zoneOptions, []);
+  const options = React.useMemo(() => timeZoneOptions(), []);
 
   const current = organization?.timeZone ?? "";
 
@@ -117,7 +104,7 @@ export function MyTimeZoneCard() {
   const prefs = useTimeZonePreferences();
   const update = useUpdateTimeZonePreferences();
   const { organization } = useAuth();
-  const options = React.useMemo(zoneOptions, []);
+  const options = React.useMemo(() => timeZoneOptions(), []);
 
   const mode = prefs.data?.timeZoneMode ?? "auto";
   const scheduleMode = prefs.data?.scheduleTimeZoneMode ?? "location";

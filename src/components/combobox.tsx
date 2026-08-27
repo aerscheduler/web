@@ -12,7 +12,42 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-export type ComboOption = { value: string; label: string; hint?: string };
+export type ComboOption = {
+  value: string;
+  label: string;
+  hint?: string;
+  /**
+   * Heading to file this option under. Options with no group render first and unheaded, so
+   * an ungrouped list behaves exactly as it did before groups existed.
+   */
+  group?: string;
+  /** Extra search terms, matched but never shown. Where airport identifiers live. */
+  keywords?: string[];
+};
+
+/**
+ * Options in render order, split into their headed groups.
+ *
+ * Stable by first appearance rather than sorted, the caller's order is the meaningful one:
+ * a picker that leads with the eight zones people actually choose must not have them
+ * alphabetised away from the top.
+ */
+function groupOptions(options: ComboOption[]): { heading?: string; items: ComboOption[] }[] {
+  const groups: { heading?: string; items: ComboOption[] }[] = [];
+  const byHeading = new Map<string | undefined, ComboOption[]>();
+
+  for (const option of options) {
+    let items = byHeading.get(option.group);
+    if (!items) {
+      items = [];
+      byHeading.set(option.group, items);
+      groups.push({ heading: option.group, items });
+    }
+    items.push(option);
+  }
+
+  return groups;
+}
 
 /**
  * Searchable MULTI-select (Popover + Command). The checkbox sibling of {@link Combobox}.
@@ -89,7 +124,8 @@ export function MultiCombobox({
               {options.map((o) => (
                 <CommandItem
                   key={o.value}
-                  value={`${o.label} ${o.hint ?? ""}`}
+                  value={`${o.value} ${o.label} ${o.hint ?? ""}`}
+                  keywords={o.keywords}
                   // Stays open: picking several is the whole point of a multi-select.
                   onSelect={() => toggle(o.value)}
                 >
@@ -141,6 +177,7 @@ export function Combobox({
 }) {
   const [open, setOpen] = React.useState(false);
   const selected = options.find((o) => o.value === value);
+  const groups = React.useMemo(() => groupOptions(options), [options]);
 
   return (
     // `modal` so Dialog's RemoveScroll treats this portaled list as a scroll shard;
@@ -166,26 +203,32 @@ export function Combobox({
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {options.map((o) => (
-                <CommandItem
-                  key={o.value}
-                  value={`${o.label} ${o.hint ?? ""}`}
-                  onSelect={() => {
-                    onChange(o.value);
-                    setOpen(false);
-                  }}
-                >
-                  <Check
-                    className={cn("size-4", o.value === value ? "opacity-100" : "opacity-0")}
-                  />
-                  <span className="truncate">{o.label}</span>
-                  {o.hint && (
-                    <span className="ml-auto truncate text-xs text-muted-foreground">{o.hint}</span>
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {groups.map((group, i) => (
+              <CommandGroup key={group.heading ?? `ungrouped-${i}`} heading={group.heading}>
+                {group.items.map((o) => (
+                  <CommandItem
+                    key={o.value}
+                    // Distinct per item: cmdk keys on this, and two cities can share a label.
+                    value={`${o.value} ${o.label} ${o.hint ?? ""}`}
+                    keywords={o.keywords}
+                    onSelect={() => {
+                      onChange(o.value);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn("size-4", o.value === value ? "opacity-100" : "opacity-0")}
+                    />
+                    <span className="truncate">{o.label}</span>
+                    {o.hint && (
+                      <span className="ml-auto truncate text-xs text-muted-foreground">
+                        {o.hint}
+                      </span>
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

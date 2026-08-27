@@ -9,7 +9,7 @@ import {
 import type { AirportMatch, Location } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { COMMON_TIME_ZONES, allTimeZones, describeZone } from "@/lib/timezone";
+import { describeZone, timeZoneOptions } from "@/lib/timezone";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { AirportField, countryName, subdivisionOf } from "@/components/facilities/airport-field";
 import { Combobox, type ComboOption } from "@/components/combobox";
@@ -20,18 +20,14 @@ import { Label } from "@/components/ui/label";
 /** Falling back to the org's zone is a real choice, so it is an option and not an absence. */
 const INHERIT_ZONE = "";
 
-/** Common zones first, then everything else. 400+ names is correct and unusable unsorted. */
+/** The shared picker list, with the inherit row led in front of it. */
 function zoneOptions(orgZone: string | null): ComboOption[] {
-  const inherit: ComboOption = {
-    value: INHERIT_ZONE,
-    label: orgZone ? `Same as the school (${describeZone(orgZone)})` : "Same as the school",
-  };
-  const common = COMMON_TIME_ZONES.map((z) => ({ value: z.value, label: z.label }));
-  const seen = new Set(common.map((c) => c.value));
-  const rest = allTimeZones()
-    .filter((z) => !seen.has(z))
-    .map((z) => ({ value: z, label: z.replace(/_/g, " ") }));
-  return [inherit, ...common, ...rest];
+  return timeZoneOptions([
+    {
+      value: INHERIT_ZONE,
+      label: orgZone ? `Same as the school (${describeZone(orgZone)})` : "Same as the school",
+    },
+  ]);
 }
 
 type FormState = {

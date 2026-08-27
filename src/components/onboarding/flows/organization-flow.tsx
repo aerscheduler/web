@@ -16,31 +16,19 @@ import { toast } from "sonner";
 import { useUpdateOrganization, useUpdateOrgLogo, useUpdateOrganizationTimeZone } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
-import { COMMON_TIME_ZONES, allTimeZones } from "@/lib/timezone";
+import { timeZoneOptions } from "@/lib/timezone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Combobox, type ComboOption } from "@/components/combobox";
+import { Combobox } from "@/components/combobox";
 import { FlowClose, FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
-
-/** Same ordering as the settings card: the handful people actually pick, then the rest. */
-function zoneOptions(): ComboOption[] {
-  const common = COMMON_TIME_ZONES.map((z) => ({ value: z.value, label: z.label }));
-  const seen = new Set(common.map((c) => c.value));
-  return [
-    ...common,
-    ...allTimeZones()
-      .filter((z) => !seen.has(z))
-      .map((z) => ({ value: z, label: z.replace(/_/g, " ") })),
-  ];
-}
 
 export function OrganizationFlow({ onClose }: FlowProps) {
   const { organization, rehydrate } = useAuth();
   const update = useUpdateOrganization();
   const uploadLogo = useUpdateOrgLogo();
   const updateZone = useUpdateOrganizationTimeZone();
-  const options = React.useMemo(zoneOptions, []);
+  const options = React.useMemo(() => timeZoneOptions(), []);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const [done, setDone] = React.useState(false);

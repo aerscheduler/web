@@ -390,16 +390,55 @@ export function formatTimeRangeInZone(
  * `Intl.supportedValuesOf("timeZone")` returns 400+ names, correct, and unusable as a
  * dropdown. US aviation zones lead because that is the entire customer base today; the full
  * list is still appended so nobody is locked out.
+ *
+ * `keywords` is what a pilot would actually type. Nobody at Boise thinks "America/Boise",
+ * they think KBOI, so the identifiers of the fields under each zone are searchable even
+ * though they are not shown: the label stays short and the search still finds it.
  */
-export const COMMON_TIME_ZONES: { value: string; label: string }[] = [
-  { value: "America/New_York", label: "Eastern. New York" },
-  { value: "America/Chicago", label: "Central. Chicago" },
-  { value: "America/Denver", label: "Mountain. Denver" },
-  { value: "America/Boise", label: "Mountain. Boise" },
-  { value: "America/Phoenix", label: "Arizona. Phoenix (no DST)" },
-  { value: "America/Los_Angeles", label: "Pacific. Los Angeles" },
-  { value: "America/Anchorage", label: "Alaska. Anchorage" },
-  { value: "Pacific/Honolulu", label: "Hawaii. Honolulu (no DST)" },
+export const COMMON_TIME_ZONES: { value: string; label: string; keywords?: string[] }[] = [
+  {
+    value: "UTC",
+    label: "UTC (Zulu)",
+    keywords: ["zulu", "z", "utc", "gmt", "coordinated universal time"],
+  },
+  {
+    value: "America/New_York",
+    label: "Eastern (New York)",
+    keywords: ["eastern", "est", "edt", "kjfk", "klga", "kbos", "kdca", "kiad", "kclt", "kmco", "kmia", "katl"],
+  },
+  {
+    value: "America/Chicago",
+    label: "Central (Chicago)",
+    keywords: ["central", "cst", "cdt", "kord", "kmdw", "kdfw", "kdal", "kiah", "kmsp", "kmci", "kstl"],
+  },
+  {
+    value: "America/Denver",
+    label: "Mountain (Denver)",
+    //Southern Idaho's fields search here on purpose: `America/Boise` is the same Mountain
+    //rules with the same DST dates, so a second row for it only ever read as a mistake.
+    //(The Idaho panhandle is genuinely Pacific, and finds Los Angeles below.)
+    keywords: ["mountain", "mst", "mdt", "idaho", "kden", "kapa", "kbjc", "kslc", "kabq", "kbil", "kboi", "ktwf", "ksun", "kida", "kpih"],
+  },
+  {
+    value: "America/Phoenix",
+    label: "Arizona (Phoenix, no DST)",
+    keywords: ["arizona", "mst", "no dst", "kphx", "kdvt", "ksdl", "ktus", "kffz", "kiwa", "kprc"],
+  },
+  {
+    value: "America/Los_Angeles",
+    label: "Pacific (Los Angeles)",
+    keywords: ["pacific", "pst", "pdt", "klax", "kvny", "ksmo", "ksfo", "koak", "ksan", "kpdx", "kbfi", "ksea"],
+  },
+  {
+    value: "America/Anchorage",
+    label: "Alaska (Anchorage)",
+    keywords: ["alaska", "akst", "akdt", "panc", "palh", "pamr", "pafa", "pajn"],
+  },
+  {
+    value: "Pacific/Honolulu",
+    label: "Hawaii (Honolulu, no DST)",
+    keywords: ["hawaii", "hst", "no dst", "phnl", "phog", "phto", "phko"],
+  },
 ];
 
 /** Every zone this browser knows, for the "somewhere else" case. */
@@ -415,13 +454,72 @@ export function allTimeZones(): string[] {
   }
 }
 
-/** `Mountain: Boise (MDT)` for a settings row, so the choice is unambiguous. */
+/** The shape the console's `Combobox` consumes. Declared structurally so `lib/` keeps out of `components/`. */
+type ZoneOption = { value: string; label: string; group?: string; keywords?: string[] };
+
+/** Heading over the curated block, so the long tail below it reads as a different list. */
+const COMMON_GROUP = "Common";
+
+/**
+ * Region heading for a raw IANA name.
+ *
+ * The tail used to run straight on from the curated block with no break, so
+ * "Hawaii (Honolulu)" was followed by "Africa Abidjan" in the same style and the list
+ * looked like it had glitched. Grouping by the part before the slash is the cheapest
+ * honest divider: it is exactly how the tz database itself is organised.
+ */
+function zoneRegion(zone: string): string {
+  const region = zone.split("/")[0];
+  if (!region || region === zone) return "Other";
+  //`Etc/GMT+7` and friends are offsets with no DST rules. Real, but never the right pick.
+  if (region === "Etc") return "Fixed offsets";
+  return region.replace(/_/g, " ");
+}
+
+/**
+ * The picker's options: the handful people actually pick, then everything else by region.
+ *
+ * Lives here rather than in each card because this list was copy-pasted into three
+ * components, which is how the settings card, the location form and onboarding drifted
+ * into offering subtly different lists of the same thing.
+ *
+ * `lead` is prepended ungrouped, for the callers that offer a "same as the school" row.
+ */
+export function timeZoneOptions(lead?: ZoneOption[]): ZoneOption[] {
+  const common: ZoneOption[] = COMMON_TIME_ZONES.map((z) => ({
+    value: z.value,
+    label: z.label,
+    group: COMMON_GROUP,
+    //The raw name is searchable too: someone pasting `America/Los_Angeles` should land on it.
+    keywords: [...(z.keywords ?? []), z.value, z.value.replace(/[_/]/g, " ")],
+  }));
+
+  const seen = new Set(common.map((c) => c.value));
+
+  const rest: ZoneOption[] = allTimeZones()
+    .filter((z) => !seen.has(z))
+    .map((z) => ({
+      value: z,
+      //The city is the part anyone reads; the region is already the heading above it.
+      label: (z.split("/").slice(1).join(" / ") || z).replace(/_/g, " "),
+      group: zoneRegion(z),
+      keywords: [z, z.replace(/[_/]/g, " ")],
+    }))
+    .sort((a, b) => a.group!.localeCompare(b.group!) || a.label.localeCompare(b.label));
+
+  return [...(lead ?? []), ...common, ...rest];
+}
+
+/** `Mountain (Boise) (MDT)` for a settings row, so the choice is unambiguous. */
 export function describeZone(zone: string, at: Date = new Date()): string {
   const known = COMMON_TIME_ZONES.find((z) => z.value === zone);
   const abbr = zoneAbbreviation(at, zone);
   const base = known?.label ?? zone.replace(/_/g, " ");
 
-  return abbr ? `${base} (${abbr})` : base;
+  //UTC's abbreviation IS its name, and "UTC (Zulu) (UTC)" reads like a bug.
+  if (!abbr || base.includes(abbr)) return base;
+
+  return `${base} (${abbr})`;
 }
 
 /**

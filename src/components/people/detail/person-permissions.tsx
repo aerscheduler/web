@@ -38,6 +38,12 @@ import { Switch } from "@/components/ui/switch";
  *              "then how does somebody get this", and "Comes with the role" did not:
  *              it named no role, and on a person whose own roles do not carry it, it
  *              read as a statement about them that was not true.
+ *
+ * AND NOT YET IS HIDDEN BY DEFAULT, because on most people it is nearly the whole
+ * catalog. A renter's record opened onto forty-odd Owner and Admin rows, and readers
+ * took that list for what the renter can do, which is the exact confusion this screen
+ * exists to end. The default now shows only what applies to this person; the rest is
+ * behind one toggle at the foot of the list, and a search still reaches it.
  */
 export function PersonPermissions({ orgUserId }: { orgUserId: number }) {
   const catalog = usePermissionCatalog();
@@ -72,6 +78,14 @@ function PermissionsBody({
   const [pending, setPending] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<ListFilterValues>({});
+  /**
+   * Off by default, and that is the point. A renter holds nothing and can be given
+   * almost nothing, so the unfiltered catalog rendered their record as forty-odd Admin
+   * and Owner rows. People read that as a list of what the renter CAN do. What applies
+   * to this person comes first; the rest stays one click away for the administrator
+   * asking "then how does somebody get this".
+   */
+  const [showOthers, setShowOthers] = useState(false);
 
   const held = new Set(permissions.granted);
   const rowByGrant = new Map(
@@ -113,6 +127,10 @@ function PermissionsBody({
     const q = search.trim().toLowerCase();
     const wantDomains = Array.isArray(filters.domain) ? filters.domain : [];
     return catalog.filter((o) => {
+      // Rows that neither apply to this person nor can be given to them are hidden
+      // unless asked for. A search reaches them regardless: somebody typing the name of
+      // a permission is asking about that permission, not about this filter.
+      if (!showOthers && !q && stateOf(o) === "notYet") return false;
       if (wantDomains.length && !wantDomains.includes(o.domain)) return false;
       if (filters.held === true && !held.has(o.grant)) return false;
       if (filters.held === false && held.has(o.grant)) return false;
@@ -127,7 +145,13 @@ function PermissionsBody({
         o.domainLabel.toLowerCase().includes(q)
       );
     });
-  }, [catalog, search, filters, permissions]);
+  }, [catalog, search, filters, permissions, showOthers]);
+
+  /** How many the default view is holding back, so the toggle can say so plainly. */
+  const hiddenCount = useMemo(
+    () => catalog.filter((o) => stateOf(o) === "notYet").length,
+    [catalog, permissions]
+  );
 
   const domains = useMemo(() => {
     const order: string[] = [];
@@ -186,7 +210,9 @@ function PermissionsBody({
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
       {domains.length === 0 ? (
         <Card className="p-8 text-center text-sm text-muted-foreground">
-          Nothing matches that.
+          {search.trim() || Object.keys(filters).length > 0
+            ? "Nothing matches that."
+            : "Nothing here applies to this person. Their roles carry no permissions that can be changed from this screen."}
         </Card>
       ) : (
         domains.map(({ domain, label, options }) => (
@@ -265,6 +291,27 @@ function PermissionsBody({
             </ul>
           </Card>
         ))
+      )}
+
+      {/* Kept BELOW the list rather than beside the search box: it is the answer to a
+          question the reader only has after reading their own rows, and putting it on
+          top would restore the wall of other people's permissions as the first thing
+          seen. */}
+      {hiddenCount > 0 && !search.trim() && (
+        <div className="pb-1 text-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs text-muted-foreground"
+            onClick={() => setShowOthers((v) => !v)}
+          >
+            {showOthers
+              ? "Hide permissions that come with other roles"
+              : hiddenCount === 1
+                ? "Show 1 more that comes with another role"
+                : `Show ${hiddenCount} more that come with other roles`}
+          </Button>
+        </div>
       )}
       </div>
 

@@ -1,13 +1,14 @@
 import * as React from "react";
-import { PlaneTakeoff, Check, ExternalLink, Info, Loader2 } from "lucide-react";
+import { PlaneTakeoff, Check, ExternalLink, Gift, Info, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
-import { useBilling, usePlanes, useSubscription, useSubscriptionCheckout } from "@/features/queries";
+import { usePlanes, useSubscription, useSubscriptionCheckout } from "@/features/queries";
 import {
-  PRICE_PER_AIRCRAFT_CENTS,
   TRIAL_DAYS,
   formatMonthly,
+  formatUnitPrice,
+  isOffPlan,
   subscriptionStatus,
   type SubState,
   type SubStatus,
@@ -16,12 +17,24 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-/** Read a preview override from the URL (?sub=trial|grace|expired|active) so we
- *  can see each billing state without waiting 14 days. Harmless in prod. */
+/** Read a preview override from the URL (?sub=trial|grace|courtesy|expired|active|
+ *  legacy|free) so we can see each billing state without waiting 14 days or editing a
+ *  school's terms. Harmless in prod: it changes what this browser renders, never what
+ *  anyone is charged. */
+const PREVIEW_STATES: readonly SubState[] = [
+  "trial",
+  "grace",
+  "courtesy",
+  "expired",
+  "active",
+  "legacy",
+  "free",
+];
+
 function overrideState(): SubState | null {
   if (typeof window === "undefined") return null;
   const v = new URLSearchParams(window.location.search).get("sub");
-  return v === "trial" || v === "grace" || v === "expired" || v === "active" || v === "exempt" ? v : null;
+  return PREVIEW_STATES.includes(v as SubState) ? (v as SubState) : null;
 }
 
 /**
@@ -30,47 +43,22 @@ function overrideState(): SubState | null {
  * without a reload.
  */
 export function useSubStatus(): SubStatus | null {
-  const { organization, isDemo } = useAuth();
+  const { organization } = useAuth();
+  // Only a fallback so a page can show a fleet size before the status lands; the
+  // server reports the count its invoice is actually built from.
   const planes = usePlanes(undefined, { enabled: !!organization });
-  // Whether the org bills through Stripe Connect, existing Connect users are
-  // grandfathered off the per-aircraft model.
-  const billing = useBilling({ enabled: !!organization });
-  // Real subscription status from Stripe (the source of truth).
+  // The verdict: model, state, blocked, and what they owe. The server computes all of
+  // it from the school's billing terms. Demo orgs come back as `free` from there, so
+  // there is no longer a special case for them here.
   const sub = useSubscription({ enabled: !!organization });
 
   return React.useMemo(() => {
     if (!organization) return null;
-
-    // The demo sandbox is never billed and never paywalled. Without this a
-    // prospect who came to look at the product is met by "AerScheduler is moving
-    // to $20/mo, add a card" inside a fake school, and every button in that
-    // banner leads to a route the demo blocks. Whatever we want to say about
-    // pricing belongs on the pricing page, not in the middle of the demo.
-    if (isDemo) {
-      return {
-        state: "exempt" as const,
-        isExisting: false,
-        freeUntil: new Date(8.64e15),
-        daysLeft: Number.POSITIVE_INFINITY,
-        planeCount: planes.data?.length ?? 0,
-        monthlyCents: 0,
-        subscribed: true,
-        blocked: false,
-      };
-    }
-
-    const s = sub.data;
-    const serverSubscribed = Boolean(
-      s?.hasSubscription && (s.status === "trialing" || s.status === "active")
-    );
-    const base = subscriptionStatus(organization, planes.data?.length ?? 0, {
-      connectEnabled: Boolean(billing.data?.stripeEnabled),
-      subscribed: serverSubscribed,
-      grantedUntil: s?.grantedUntil,
-    });
+    const base = subscriptionStatus(sub.data, planes.data?.length ?? 0);
+    if (!base) return null;
     const ov = overrideState();
     return ov ? { ...base, state: ov, blocked: ov === "expired" } : base;
-  }, [organization, isDemo, planes.data, billing.data, sub.data]);
+  }, [organization, planes.data, sub.data]);
 }
 
 /**
@@ -107,12 +95,20 @@ export function SubscribeButton({
   );
 }
 
-/** One-line reminder of the per-aircraft price, for the add-aircraft surfaces.
- *  Hidden entirely for grandfathered (exempt) orgs, they're on the legacy plan and
- *  shouldn't be shown per-aircraft pricing at all. */
+/** One-line reminder of what the NEXT aircraft costs, for the add-aircraft surfaces.
+ *
+ *  Hidden for schools not on the per-aircraft plan: a grandfathered school should not
+ *  learn about a price change here, and a sponsored one has no per-tail price to quote.
+ *
+ *  With an allowance, "what does another aircraft cost" genuinely varies: a school with
+ *  3 comped tails and 2 in use adds its next one for free. Saying "$20/mo per aircraft"
+ *  flatly would be wrong for exactly the schools we went out of our way to sponsor. */
 export function PerPlanePricingNote({ className }: { className?: string }) {
   const status = useSubStatus();
-  if (status?.state === "exempt") return null;
+  if (!status || isOffPlan(status)) return null;
+
+  const allowanceLeft = Math.max(0, status.freeUnits - status.planeCount);
+  const price = formatUnitPrice(status.unitPriceCents);
 
   return (
     <p className={cn("flex items-center gap-1.5 text-xs text-muted-foreground", className)}>
@@ -125,14 +121,22 @@ export function PerPlanePricingNote({ className }: { className?: string }) {
         <TooltipContent className="max-w-[16rem]">
           Only aircraft count toward your bill, billed monthly and prorated when you add or remove a tail.
           Simulators and ground-school rooms are always free.
+          {status.freeUnits > 0 ? ` Your first ${status.freeUnits} aircraft are on us.` : ""}
         </TooltipContent>
       </Tooltip>
-      <span>
-        <span className="font-medium text-foreground">
-          ${PRICE_PER_AIRCRAFT_CENTS / 100}/mo per aircraft
-        </span>{" "}
-        after your trial. Simulators &amp; rooms are free.
-      </span>
+      {allowanceLeft > 0 ? (
+        <span>
+          <span className="font-medium text-foreground">
+            Your next {allowanceLeft === 1 ? "aircraft is" : `${allowanceLeft} aircraft are`} free
+          </span>{" "}
+          on us, then {price}/mo each. Simulators &amp; rooms are free.
+        </span>
+      ) : (
+        <span>
+          <span className="font-medium text-foreground">{price}/mo per aircraft</span>{" "}
+          after your trial. Simulators &amp; rooms are free.
+        </span>
+      )}
     </p>
   );
 }
@@ -143,7 +147,29 @@ export function PerPlanePricingNote({ className }: { className?: string }) {
  * them add a card now (optional during the trial).
  */
 export function PlanCard({ status }: { status: SubStatus }) {
-  const perPlane = PRICE_PER_AIRCRAFT_CENTS / 100;
+  const price = formatUnitPrice(status.unitPriceCents);
+
+  // A sponsored school gets told so plainly rather than being walked through a trial
+  // countdown toward a bill that will never arrive.
+  if (status.state === "free") {
+    return (
+      <div className="rounded-xl border bg-card p-4">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-success/10 text-success">
+            <Gift className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="font-medium">Your plan</div>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              AerScheduler is <span className="font-medium text-foreground">free for your school</span>. No card, no
+              trial countdown, nothing to set up.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border bg-card p-4">
       <div className="flex items-start gap-3">
@@ -155,23 +181,18 @@ export function PlanCard({ status }: { status: SubStatus }) {
           <p className="mt-0.5 text-sm text-muted-foreground">
             You're on a <span className="font-medium text-foreground">{TRIAL_DAYS}-day free trial</span>
             {status.daysLeft > 0 ? `: ${status.daysLeft} day${status.daysLeft === 1 ? "" : "s"} left` : ""}. After
-            that it's <span className="font-medium text-foreground">${perPlane}/mo per aircraft</span> (sims &amp;
+            that it's <span className="font-medium text-foreground">{price}/mo per aircraft</span> (sims &amp;
             rooms free).
           </p>
 
           {status.planeCount === 0 ? (
             <div className="mt-3 rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
               No aircraft yet, you'll be billed{" "}
-              <span className="font-medium text-foreground">${perPlane}/mo per aircraft</span> once you add your
+              <span className="font-medium text-foreground">{price}/mo per aircraft</span> once you add your
               fleet. Simulators &amp; rooms are free.
             </div>
           ) : (
-            <div className="mt-3 flex items-center justify-between rounded-lg border bg-muted/30 p-3 text-sm">
-              <span className="text-muted-foreground">
-                {status.planeCount} aircraft × ${perPlane}/mo
-              </span>
-              <span className="font-medium tabular-nums">{formatMonthly(status.monthlyCents)}</span>
-            </div>
+            <PriceBreakdown status={status} />
           )}
 
           {status.subscribed ? (
@@ -186,5 +207,55 @@ export function PlanCard({ status }: { status: SubStatus }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * The arithmetic behind a school's monthly total, shown line by line.
+ *
+ * Every comped tail and every discount gets its own row. A sponsored school that just
+ * sees "$160/mo" against a fleet of eleven has no way to tell a discount from a billing
+ * bug, and the support ticket that follows costs more than the row does.
+ */
+export function PriceBreakdown({ status, className }: { status: SubStatus; className?: string }) {
+  const price = formatUnitPrice(status.unitPriceCents);
+  const grossCents = status.billableCount * status.unitPriceCents;
+
+  return (
+    <dl className={cn("mt-3 space-y-1.5 rounded-lg border bg-muted/30 p-3 text-sm", className)}>
+      <div className="flex items-center justify-between">
+        <dt className="text-muted-foreground">
+          {status.planeCount} aircraft × {price}
+        </dt>
+        <dd className="tabular-nums text-muted-foreground">
+          {formatMonthly(status.planeCount * status.unitPriceCents)}
+        </dd>
+      </div>
+
+      {status.freeUnits > 0 && (
+        <div className="flex items-center justify-between text-success">
+          <dt>
+            {Math.min(status.freeUnits, status.planeCount)} sponsored by AerScheduler
+          </dt>
+          <dd className="tabular-nums">
+            -{formatMonthly(Math.min(status.freeUnits, status.planeCount) * status.unitPriceCents)}
+          </dd>
+        </div>
+      )}
+
+      {status.discountPercent > 0 && (
+        <div className="flex items-center justify-between text-success">
+          <dt>{status.discountPercent}% discount</dt>
+          <dd className="tabular-nums">
+            -{formatMonthly(Math.round(grossCents * (status.discountPercent / 100)))}
+          </dd>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between border-t pt-1.5 font-medium">
+        <dt>Monthly total</dt>
+        <dd className="tabular-nums">{formatMonthly(status.monthlyCents)}</dd>
+      </div>
+    </dl>
   );
 }

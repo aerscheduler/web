@@ -1831,6 +1831,100 @@ export function useSubscriptionCheckout() {
   });
 }
 
+// ---------------------------------------------------------------- billing terms (internal)
+//
+// The developer-only view of what a school pays us. Everything here is behind
+// `isDeveloper()` server-side; the console gates the route as well, but only for
+// tidiness. See server services/billing-terms.ts.
+
+export type BillingTerms = {
+  id: number;
+  model: string;
+  unitPriceCents: number | null;
+  freeUnits: number;
+  discountPercent: number;
+  discountEndsAt: string | null;
+  feeRateBasis: number | null;
+  freeUntil: string | null;
+  freeUntilReason: string | null;
+  notes: string | null;
+  updatedAt: string;
+  FK_organizationId: number;
+};
+
+export type PricedTerms = {
+  model: string;
+  state: string;
+  blocked: boolean;
+  unitCount: number;
+  billableUnits: number;
+  freeUnits: number;
+  discountPercent: number;
+  unitPriceCents: number;
+  monthlyCents: number;
+  freeUntil: string | null;
+  freeUntilReason: string | null;
+  daysLeft: number;
+  feeRateBasis: number;
+  unitLabel: string;
+};
+
+export type BillingTermsChange = {
+  id: number;
+  createdAt: string;
+  changedBy: string;
+  reason: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown>;
+};
+
+export type BillingTermsRow = BillingTerms & {
+  organization: { id: number; name: string; code: string; isDemo: boolean };
+};
+
+/** Every school not on plain standard pricing, plus what we are giving away. */
+export function useBillingTermsOverview(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["developer", "billing-terms"],
+    queryFn: () =>
+      api<{ rows: BillingTermsRow[]; comped: { orgs: number; units: number; cents: number } }>(
+        "/developer/billing-terms"
+      ),
+    ...opts,
+  });
+}
+
+/** One school: its terms, what they currently price to, and the change history. */
+export function useOrgBillingTerms(orgId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["developer", "billing-terms", orgId],
+    queryFn: () =>
+      api<{
+        orgId: number;
+        organization: { id: number; name: string; code: string; createdAt: string; isDemo: boolean; plan: string };
+        terms: BillingTerms | null;
+        priced: PricedTerms;
+        changes: BillingTermsChange[];
+      }>(`/developer/billing-terms/${orgId}`),
+    enabled: orgId != null,
+    ...opts,
+  });
+}
+
+/** Change a school's terms. `reason` is required by the server, not just by the form. */
+export function useSetBillingTerms(orgId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api<BillingTerms>(`/developer/billing-terms/${orgId}`, { method: "PATCH", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["developer", "billing-terms"] });
+      // The signed-in developer may be looking at this very school's plan page.
+      void qc.invalidateQueries({ queryKey: ["subscription"] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------- member self-pay (Stripe)
 
 /**

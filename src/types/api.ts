@@ -201,20 +201,52 @@ export interface OrganizationDetails {
   email: string | null;
 }
 
-/** Per-aircraft platform subscription status (GET /subscription). Stripe-backed. */
+/** What a school is on and what they owe (GET /subscription).
+ *
+ *  The SERVER decides all of this now, from organization_billing_terms plus Stripe. The
+ *  console renders the verdict and does not recompute it: this file used to carry a copy
+ *  of the pricing rules keyed on a PRICING_LAUNCH_DATE constant that also existed in the
+ *  server and in the Flutter app, and the three drifted. See lib/subscription.ts. */
 export interface SubscriptionStatus {
+  // ── What Stripe says ──────────────────────────────────────────────────────
   hasSubscription: boolean;
   status?: string; // trialing | active | past_due | canceled | unpaid | incomplete…
   quantity?: number;
   trialEnd?: string | null;
   currentPeriodEnd?: string | null;
   cancelAtPeriodEnd?: boolean;
-  /** TEMPORARY. Set only on a server-side courtesy extension: the org is unblocked but
-   *  has no subscription and must still subscribe by this date (YYYY-MM-DD). Drives the
-   *  countdown banner. See server SUBSCRIPTION_GRANTS and
-   *  docs/subscription-grants.reference.md. */
+
+  // ── What their terms say (the verdict) ────────────────────────────────────
+  /** per_aircraft | legacy_fee | free. */
+  model?: string;
+  /** trial | grace | courtesy | active | legacy | free | expired. */
+  state?: SubState;
+  /** Whether to stop them using the console. Rendered, never recomputed. */
+  blocked?: boolean;
+  /** Aircraft they have. */
+  unitCount?: number;
+  /** Aircraft actually charged for, after their allowance. */
+  billableUnits?: number;
+  /** Aircraft comped. */
+  freeUnits?: number;
+  discountPercent?: number;
+  unitPriceCents?: number;
+  /** What they owe per month, after allowance and discount. */
+  monthlyCents?: number;
+  /** ISO instant the free window closes, if one is open. */
+  freeUntil?: string | null;
+  freeUntilReason?: "trial" | "grace" | "courtesy" | null;
+  daysLeft?: number;
+  /** What a unit is called under this model ("aircraft"), for copy. */
+  unitLabel?: string;
+
+  /** DEPRECATED, kept so a console older than the server keeps its banner through a
+   *  rollout. `freeUntilReason: "courtesy"` is the replacement. */
   grantedUntil?: string;
 }
+
+/** The billing states the server can report. */
+export type SubState = "trial" | "grace" | "courtesy" | "active" | "legacy" | "free" | "expired";
 
 export interface OrganizationPreferences {
   id: number;

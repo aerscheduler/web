@@ -6,19 +6,23 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
 import { trackAdConversion } from "@/lib/ads";
-import { formatMonthly, PRICE_PER_AIRCRAFT_CENTS, type SubStatus } from "@/lib/subscription";
+import { formatFreeUntil, formatMonthly, formatUnitPrice, isOffPlan, type SubStatus } from "@/lib/subscription";
 import { AppShell } from "@/components/app-shell";
 import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
 import { DemoBanner } from "@/components/demo/demo-banner";
 import { LogoMark } from "@/components/logo";
-import { SubscribeButton, useSubStatus } from "@/components/subscription/plan";
+import { PriceBreakdown, SubscribeButton, useSubStatus } from "@/components/subscription/plan";
 
 /**
- * UI-only subscription gate. Wraps the whole authed app:
- *  - trial/grace (not blocked) → app + a reminder banner (admins only)
- *  - expired + admin → full-screen Paywall (subscribe to continue)
- *  - expired + member → "access paused, ask your admin" screen
- * No server enforcement yet, this is the front-end experience we iterate on.
+ * The subscription gate. Wraps the whole authed app:
+ *  - not blocked → app, plus a reminder banner while a free window is running down
+ *  - blocked + admin → full-screen Paywall (subscribe to continue)
+ *  - blocked + member → "access paused, ask your admin" screen
+ *
+ * `blocked` comes from the SERVER, computed from the school's billing terms. This
+ * component used to derive it here from the org's creation date against a launch-date
+ * constant that also lived in the server and the Flutter app; the three drifted, and
+ * only a hardcoded map of org ids could unblock an installed phone.
  */
 export function SubscriptionGate() {
   const { organization, roles } = useAuth();
@@ -67,7 +71,7 @@ export function SubscriptionGate() {
 
   return (
     <AppShell>
-      {isAdmin(roles) && status.state !== "active" && status.state !== "exempt" && (
+      {isAdmin(roles) && status.state !== "active" && !isOffPlan(status) && (
         <SubscriptionBanner status={status} />
       )}
       <Outlet />
@@ -75,12 +79,67 @@ export function SubscriptionGate() {
   );
 }
 
-function shortDate(d: Date): string {
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+/** A free window always has a date when one is open, but `freeUntil` is nullable for
+ *  the states that have no window at all, so this stays total rather than asserting.
+ *  Formatted in UTC, see formatFreeUntil: this is a calendar date, not an instant. */
+const shortDate = (d: Date | null): string => formatFreeUntil(d);
+
+/** What the countdown says, which depends on WHY the free window exists.
+ *
+ *  These three read very differently to a school and the distinction is load-bearing:
+ *  when courtesy extensions were reported as ordinary trials the banner disappeared
+ *  entirely and two schools came within days of a silent lockout. */
+function bannerCopy(status: SubStatus): { headline: string; detail: string; cta: string } {
+  const price = formatUnitPrice(status.unitPriceCents);
+  const days = `${status.daysLeft} day${status.daysLeft === 1 ? "" : "s"}`;
+
+  // What they will owe once the window closes, using their REAL terms. A sponsored
+  // school quoted the list total here would be told to expect a bill they will never
+  // get, which is a strange way to thank them.
+  const thenOwes =
+    status.planeCount === 0
+      ? `Then ${price}/mo per aircraft. Add your fleet to see your total.`
+      : status.monthlyCents === 0
+        ? "Your fleet is fully sponsored, so there will be nothing to pay."
+        : `Then ${formatMonthly(status.monthlyCents)}${
+            status.sponsored ? ` for ${status.billableCount} of ${status.planeCount} aircraft` : ""
+          }.`;
+
+  // A window that has already closed has no countdown to report. This happens for a
+  // school with no aircraft yet: nothing to bill, so they are not blocked, but calling
+  // it "0 days left in your free trial" reads as a countdown that stopped working.
+  if (!status.freeUntil) {
+    return {
+      headline: "Your free trial has ended.",
+      detail: thenOwes,
+      cta: "Subscribe",
+    };
+  }
+
+  switch (status.freeUntilReason) {
+    case "courtesy":
+      return {
+        headline: "We've extended your free access.",
+        detail: `Free through ${shortDate(status.freeUntil)} (${days}). ${thenOwes}`,
+        cta: "Add a card",
+      };
+    case "grace":
+      return {
+        headline: `AerScheduler is moving to ${price}/mo per aircraft.`,
+        detail: `Billing starts ${shortDate(status.freeUntil)} (${days}). Sims & rooms stay free.`,
+        cta: "Add a card",
+      };
+    default:
+      return {
+        headline: `${days} left in your free trial.`,
+        detail: thenOwes,
+        cta: "Subscribe",
+      };
+  }
 }
 
 function SubscriptionBanner({ status }: { status: SubStatus }) {
-  const isGrace = status.state === "grace";
+  const { headline, detail, cta } = bannerCopy(status);
   return (
     <div
       className="mb-5 flex flex-col gap-2 rounded-lg border border-primary/25 bg-primary/5 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
@@ -89,39 +148,20 @@ function SubscriptionBanner({ status }: { status: SubStatus }) {
       <div className="flex items-start gap-2.5">
         <Clock className="mt-0.5 size-4 shrink-0 text-primary" />
         <div>
-          {isGrace ? (
-            <>
-              <span className="font-medium">AerScheduler is moving to ${PRICE_PER_AIRCRAFT_CENTS / 100}/mo per aircraft.</span>{" "}
-              <span className="text-muted-foreground">
-                {/* A granted org is on an extension we gave them by hand, so say so.
-                    "Billing starts" alone would read as a date they already knew about,
-                    and these are the schools that never got the first notice. */}
-                {status.granted ? "We've extended your free access to " : "Billing starts "}
-                {shortDate(status.freeUntil)} ({status.daysLeft} day{status.daysLeft === 1 ? "" : "s"}). Sims &amp; rooms stay free.
-              </span>
-            </>
-          ) : (
-            <>
-              <span className="font-medium">
-                {status.daysLeft} day{status.daysLeft === 1 ? "" : "s"} left in your free trial.
-              </span>{" "}
-              <span className="text-muted-foreground">
-                {status.planeCount === 0
-                  ? `Then $${PRICE_PER_AIRCRAFT_CENTS / 100}/mo per aircraft. Add your fleet to see your total.`
-                  : `Then ${status.planeCount} aircraft × $${PRICE_PER_AIRCRAFT_CENTS / 100} = ${formatMonthly(status.monthlyCents)}.`}
-              </span>
-            </>
-          )}
+          <span className="font-medium">{headline}</span>{" "}
+          <span className="text-muted-foreground">{detail}</span>
         </div>
       </div>
-      <SubscribeButton size="sm" label={isGrace ? "Add a card" : "Subscribe"} />
+      {/* Nothing to sell a school that owes nothing. Offering "Subscribe" to a fully
+          sponsored fleet leads to a checkout the server correctly refuses. */}
+      {status.monthlyCents > 0 && <SubscribeButton size="sm" label={cta} />}
     </div>
   );
 }
 
 function Paywall({ status }: { status: SubStatus }) {
   const { organization, logout } = useAuth();
-  const perPlane = PRICE_PER_AIRCRAFT_CENTS / 100;
+  const price = formatUnitPrice(status.unitPriceCents);
   const hasPlanes = status.planeCount > 0;
 
   return (
@@ -138,23 +178,20 @@ function Paywall({ status }: { status: SubStatus }) {
           Subscribe to keep {organization?.name ?? "your operation"} running on AerScheduler.
         </p>
 
-        <div className="mt-5 rounded-lg border bg-muted/30 p-4 text-left text-sm">
-          {hasPlanes ? (
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">
-                {status.planeCount} aircraft × ${perPlane}
-              </span>
-              <span className="tabular-nums font-medium">{formatMonthly(status.monthlyCents)}</span>
-            </div>
-          ) : (
+        {hasPlanes ? (
+          // The full arithmetic, not just a total. A school with comped tails needs to
+          // see why the number is what it is before being asked to pay it.
+          <PriceBreakdown status={status} className="mt-5 text-left" />
+        ) : (
+          <div className="mt-5 rounded-lg border bg-muted/30 p-4 text-left text-sm">
             <p className="text-muted-foreground">
-              ${perPlane}/mo per aircraft. Add aircraft anytime and your bill adjusts automatically.
+              {price}/mo per aircraft. Add aircraft anytime and your bill adjusts automatically.
             </p>
-          )}
-          <p className="mt-2 text-xs text-muted-foreground">
-            14-day free trial, no card to start. Simulators and rooms are free. Cancel anytime.
-          </p>
-        </div>
+          </div>
+        )}
+        <p className="mt-2 text-xs text-muted-foreground">
+          No card to start. Simulators and rooms are free. Cancel anytime.
+        </p>
 
         <SubscribeButton
           className="mt-5 w-full"

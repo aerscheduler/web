@@ -1,141 +1,130 @@
-import type { Organization } from "@/types/api";
+import type { SubscriptionStatus, SubState } from "@/types/api";
 
 /**
- * Per-aircraft subscription model. UI-ENFORCED FOR NOW.
+ * How the console reads a school's billing.
  *
- * Pricing: $20/mo per aircraft. Simulators and ground-school rooms are FREE.
- * New orgs get a 14-day free trial from signup. Existing orgs (created before
- * launch) are NOT charged immediately, they get a 14-day grace window measured
- * from launch (the "$20/aircraft starts in 2 weeks" notice), so no current
- * customer is locked out the moment this ships.
+ * THIS FILE NO LONGER DECIDES ANYTHING. It used to: it carried its own copy of the
+ * pricing rules, deriving trial-vs-grace-vs-expired from `org.createdAt` against a
+ * PRICING_LAUNCH_DATE constant, plus an exempt-codes set, plus a grandfathering rule
+ * keyed on Stripe Connect. The server had one copy of that logic and the Flutter app had
+ * a third, compiled into the binary. They drifted, and the drift was expensive: moving
+ * the launch constant to give two schools more runway also silently re-cohorted anyone
+ * who had signed up in between onto the legacy Connect fee.
  *
- * Everything here is derived on the client from `org.createdAt` (real, server-
- * backed) plus a local "subscribed" flag. When we're happy with the UX we replace
- * `isLocallySubscribed` with the server's real subscription status (the
- * SubscriptionSettings.active field, exposed on the org) and add server-side
- * enforcement. Until then this is the single source of truth for gating.
+ * The server now returns a verdict (`state`, `blocked`, `monthlyCents`) computed from
+ * organization_billing_terms. Everything below is presentation: naming the state,
+ * formatting money, and choosing words. If you find yourself adding a date comparison
+ * here, it belongs in the server's billing-terms service instead.
  */
 
-/** $20.00/mo per aircraft, in cents. */
+/** List price per aircraft per month, in cents. Display fallback only, for copy written
+ *  before the server has answered; a school's real price comes back on the status. */
 export const PRICE_PER_AIRCRAFT_CENTS = 2000;
 export const TRIAL_DAYS = 14;
 
-/**
- * Go-live date for per-aircraft pricing. Orgs created before this are treated as
- * existing customers (grace window from launch, not a signup trial). Set this to
- * the actual ship date before deploying.
- *
- * Reset to 2026-08-16 on 2026-08-15: this banner is admin-only, so schools whose admins
- * are light users got no warning at all and were 4 days from lockout. Restarting the 14
- * days puts the deadline at 2026-08-30. Previous 2026-08-05, before that 2026-07-25.
- * MUST match the server constant and the mobile app's _launchDate.
- */
-export const PRICING_LAUNCH_DATE = new Date("2026-08-16T00:00:00Z");
-
-/**
- * Org join-codes that never see the per-aircraft paywall or reminder banner.
- * `test` is Demo School: the App Store review account (test@test.com) lives there
- * and must never be blocked mid-review.
- */
-export const SUBSCRIPTION_EXEMPT_ORG_CODES = new Set(["test"]);
-
-/**
- * Stripe hosted subscription link ($20/mo per aircraft, 14-day trial, adjustable
- * quantity). Set VITE_SUBSCRIBE_URL to the Stripe Payment Link once it exists
- * (no code change / redeploy of source needed). Empty → the subscribe CTA renders
- * in a "not configured yet" state instead of linking nowhere.
- */
-export const SUBSCRIBE_URL: string = import.meta.env.VITE_SUBSCRIBE_URL ?? "";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-export type SubState = "trial" | "grace" | "active" | "expired" | "exempt";
+export type { SubState };
 
 export type SubStatus = {
   state: SubState;
-  /** Created before launch → existing customer on a grace window. */
-  isExisting: boolean;
-  /** When free access ends (trial or grace). */
-  freeUntil: Date;
+  /** What they pay on: per_aircraft | legacy_fee | free. */
+  model: string;
+  /** When free access ends, if a window is open. */
+  freeUntil: Date | null;
+  /** Why that window exists, so the banner can use the right words. */
+  freeUntilReason: "trial" | "grace" | "courtesy" | null;
   /** Whole days until freeUntil (0 once past). */
   daysLeft: number;
+  /** Aircraft they have. */
   planeCount: number;
-  /** planeCount × $20, in cents. */
+  /** Aircraft actually charged for, after the allowance. */
+  billableCount: number;
+  /** Aircraft comped. */
+  freeUnits: number;
+  discountPercent: number;
+  unitPriceCents: number;
+  /** What they owe per month, after allowance and discount. */
   monthlyCents: number;
+  /** A real Stripe subscription is in place. */
   subscribed: boolean;
-  /** UI gate: is the org currently blocked from using the app? */
+  /** Stop them using the console. Straight from the server. */
   blocked: boolean;
-  /** TEMPORARY. True when the free window comes from a server-side courtesy grant
-   *  rather than the launch-date maths, so the banner can say so. */
-  granted?: boolean;
+  /** Anything is being given away or discounted. */
+  sponsored: boolean;
 };
 
-export function subscriptionStatus(
-  org: Organization,
-  planeCount: number,
-  opts: { connectEnabled?: boolean; subscribed?: boolean; grantedUntil?: string } = {}
-): SubStatus {
-  const created = new Date(org.createdAt);
-  const isExisting = created.getTime() < PRICING_LAUNCH_DATE.getTime();
-  // Existing customers already billing through Stripe Connect are grandfathered on
-  // their legacy plan (0.5% fee), they never see the per-aircraft model. New orgs
-  // pay per aircraft even if they later use Connect for their own rental billing.
-  // App Store review / internal orgs are hard-exempt by join code regardless.
-  const exemptByCode = SUBSCRIPTION_EXEMPT_ORG_CODES.has(org.code);
-  const exempt = exemptByCode || (isExisting && (opts.connectEnabled ?? false));
-  // The launch date is a calendar date we print back to the reader, so the grace window
-  // has to run from LOCAL midnight on that day. Adding 14 days to the UTC instant put the
-  // deadline at 00:00Z, which renders as the previous day everywhere west of Greenwich:
-  // prod showed "Billing starts Aug 29" for an Aug 30 deadline. A new org's base is a real
-  // signup timestamp, so it is left alone.
-  const launchLocal = new Date(
-    PRICING_LAUNCH_DATE.getUTCFullYear(),
-    PRICING_LAUNCH_DATE.getUTCMonth(),
-    PRICING_LAUNCH_DATE.getUTCDate()
-  );
-  const base = isExisting ? launchLocal : created;
-  // A courtesy grant REPLACES the computed deadline and is deliberately not treated as
-  // a subscription: the org keeps working, and keeps being told it has to subscribe.
-  // Without the override the server reports these orgs as `trialing`, which reads as
-  // "active" here and hides the banner entirely, exactly the silent lockout the grant
-  // was meant to prevent. See docs/subscription-grants.reference.md.
-  const granted = Boolean(opts.grantedUntil);
-  // LOCAL midnight, not UTC. The grant is a plain calendar date and the banner prints it
-  // back to the reader, so parsing it as UTC renders "Aug 29" for a 2026-08-30 grant to
-  // anyone west of Greenwich, which is every school we have.
-  const freeUntil = granted
-    ? new Date(`${opts.grantedUntil}T00:00:00`)
-    : new Date(base.getTime() + TRIAL_DAYS * DAY_MS);
-  const now = Date.now();
-  // "Subscribed" is now the server's truth (a trialing/active Stripe subscription).
-  const subscribed = granted ? false : (opts.subscribed ?? false);
-  const withinFree = now < freeUntil.getTime();
-  const daysLeft = Math.max(0, Math.ceil((freeUntil.getTime() - now) / DAY_MS));
+/**
+ * Adapt the server's answer into what the components render.
+ *
+ * `planeCount` is passed in as a fallback only: the server reports `unitCount`, and the
+ * local plane query is used just so the page can show a number before the subscription
+ * request lands. When the two disagree the server wins, because it is the one whose
+ * count the invoice is built from.
+ */
+export function subscriptionStatus(sub: SubscriptionStatus | undefined, planeCount: number): SubStatus | null {
+  if (!sub) return null;
 
-  let state: SubState;
-  if (exempt) state = "exempt";
-  else if (subscribed) state = "active";
-  else if (withinFree) state = isExisting ? "grace" : "trial";
-  else state = "expired";
+  const state: SubState = sub.state ?? "trial";
+  const freeUntil = sub.freeUntil ? new Date(sub.freeUntil) : null;
+  const units = sub.unitCount ?? planeCount;
+  const billableCount = sub.billableUnits ?? units;
+  const freeUnits = sub.freeUnits ?? 0;
+  const discountPercent = sub.discountPercent ?? 0;
 
   return {
     state,
-    isExisting,
+    model: sub.model ?? "per_aircraft",
     freeUntil,
-    daysLeft,
-    planeCount,
-    monthlyCents: planeCount * PRICE_PER_AIRCRAFT_CENTS,
-    subscribed,
-    // Don't paywall an org with no aircraft (it owes $0 and has nothing to bill).
-    // otherwise a 0-plane org whose trial lapsed is stuck with no way to add a plane.
-    // They add aircraft freely; once they have one and the trial is over, the paywall applies.
-    blocked: state === "expired" && planeCount > 0,
-    granted,
+    // A console newer than its server gets `grantedUntil` and no reason; treat that the
+    // way the old code did, as a courtesy extension, so the banner does not silently
+    // become an ordinary trial notice mid-rollout.
+    freeUntilReason: sub.freeUntilReason ?? (sub.grantedUntil ? "courtesy" : null),
+    daysLeft: sub.daysLeft ?? 0,
+    planeCount: units,
+    billableCount,
+    freeUnits,
+    discountPercent,
+    unitPriceCents: sub.unitPriceCents ?? PRICE_PER_AIRCRAFT_CENTS,
+    monthlyCents: sub.monthlyCents ?? billableCount * PRICE_PER_AIRCRAFT_CENTS,
+    subscribed: state === "active",
+    blocked: sub.blocked ?? false,
+    sponsored: freeUnits > 0 || discountPercent > 0 || state === "free",
   };
+}
+
+/** States where the school is not on the per-aircraft plan at all, so per-aircraft
+ *  pricing must not be shown to them. A grandfathered school should not learn about a
+ *  price change from their settings page, and a sponsored one has no price to see. */
+export function isOffPlan(status: SubStatus): boolean {
+  return status.state === "legacy" || status.state === "free";
+}
+
+/**
+ * A free-until instant as the CALENDAR DATE it was set to.
+ *
+ * `freeUntil` is a timestamp, but it is written by somebody picking a date, and the
+ * server anchors it to the end of that day UTC. Formatting it in the reader's local zone
+ * would print the following day for anyone east of Greenwich and, before the server
+ * anchored it, printed the PREVIOUS day for everyone in the Americas. Reading it back in
+ * UTC returns exactly the date that was entered, everywhere.
+ */
+export function formatFreeUntil(d: Date | null, opts: { year?: boolean } = {}): string {
+  if (!d) return "soon";
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(opts.year ? { year: "numeric" } : {}),
+    timeZone: "UTC",
+  });
 }
 
 /** "$40/mo", "$0/mo", dollars from cents, no trailing .00 clutter. */
 export function formatMonthly(cents: number): string {
   const dollars = cents / 100;
   return `$${Number.isInteger(dollars) ? dollars : dollars.toFixed(2)}/mo`;
+}
+
+/** "$20", for per-unit copy. */
+export function formatUnitPrice(cents: number): string {
+  const dollars = cents / 100;
+  return `$${Number.isInteger(dollars) ? dollars : dollars.toFixed(2)}`;
 }

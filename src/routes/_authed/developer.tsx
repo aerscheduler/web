@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { KeyRound, ShieldAlert, UserCheck } from "lucide-react";
+import { BadgeDollarSign, KeyRound, ShieldAlert, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { isDeveloperSync, postLoginPath, useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BillingTermsTab } from "@/components/developer/billing-terms-tab";
 
 /**
  * Developer tools. Gated to the allowlisted developer accounts, but only for
@@ -36,11 +37,19 @@ function DeveloperPage() {
               <UserCheck className="size-4" />
               Log in as
             </TabsTrigger>
+            <TabsTrigger value="billing" className="gap-1.5">
+              <BadgeDollarSign className="size-4" />
+              Billing terms
+            </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent value="login-as">
           <LoginAsTab />
+        </TabsContent>
+
+        <TabsContent value="billing">
+          <BillingTermsTab />
         </TabsContent>
       </Tabs>
     </div>

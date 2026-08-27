@@ -12,6 +12,7 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { isStaff } from "@/lib/permissions";
 import { orgSlotOffersEnabled } from "@/lib/slot-offers-enabled";
+import { isOnReservation } from "@/components/schedule/reservation-shared";
 import type { Reservation } from "@/types/api";
 import type { StandbyInterest } from "@/types/slot-offers";
 import { SlotOfferNotificationWarning } from "./notification-warning";
@@ -21,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function ReservationStandby({ reservation }: { reservation: Reservation }) {
-  const { roles, organization } = useAuth();
+  const { roles, organization, orgUserId } = useAuth();
   const desk = isStaff(roles);
   const slotOffersOn = orgSlotOffersEnabled(organization);
   const mineQuery = useMyStandbyInterest();
@@ -53,8 +54,14 @@ export function ReservationStandby({ reservation }: { reservation: Reservation }
       notificationPreferences?.pushEnabled &&
       notificationPreferences.pushNotificationPreferences?.slotOffers
     );
+  // You cannot queue for a seat you are already in. Without this the renter who
+  // booked the flight was invited to "Stand by for this booking", their own.
+  const onBooking = isOnReservation(reservation, orgUserId);
   const standbyOpen =
     !reservation.cancelledAt && new Date(reservation.end).getTime() > Date.now();
+  // A pre-existing interest still gets its withdraw affordance (the desk can add
+  // someone to the booking after they joined standby); only the invitation goes.
+  const showStandbyCard = standbyOpen && (!!myInterest || !onBooking);
 
   const join = async () => {
     try {
@@ -102,11 +109,11 @@ export function ReservationStandby({ reservation }: { reservation: Reservation }
   return (
     <div className="space-y-3">
       {(myInterest?.notificationDelivery?.anyChannelEnabled === false ||
-        (standbyOpen && !myInterest && notificationsOff)) && (
+        (showStandbyCard && !myInterest && notificationsOff)) && (
         <SlotOfferNotificationWarning />
       )}
 
-      {standbyOpen && (
+      {showStandbyCard && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-sm">

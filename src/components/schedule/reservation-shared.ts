@@ -370,3 +370,27 @@ export function reservationToInput(
 
   return input;
 }
+
+/**
+ * Everyone crewed on a booking: instructors, students and renters, in one list.
+ * Guests are excluded, they have no account and so no standby, notifications or
+ * "my bookings" of their own.
+ */
+export function reservationParticipantIds(reservation: Reservation): number[] {
+  const p = reservation.personnel;
+  return [...(p?.instructors ?? []), ...(p?.students ?? []), ...(p?.renters ?? [])]
+    .map((ou) => ou?.id)
+    .filter((id): id is number => typeof id === "number");
+}
+
+/**
+ * Is this member on the booking? Used to keep own-booking affordances (standby,
+ * "want this time?") off a reservation the viewer is already flying.
+ */
+export function isOnReservation(
+  reservation: Reservation,
+  orgUserId: number | null | undefined
+): boolean {
+  if (orgUserId == null) return false;
+  return reservationParticipantIds(reservation).includes(orgUserId);
+}

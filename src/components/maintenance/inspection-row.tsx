@@ -13,7 +13,7 @@
 
 import { AlertTriangle } from "lucide-react";
 import type { MaintenanceReminder } from "@/types/api";
-import { dueAmount, dueBadge, dueDetail, duePercent, dueTone } from "@/lib/maintenance";
+import { alsoLabel, dueAmount, dueBadge, dueDetail, duePercent, dueTone } from "@/lib/maintenance";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
@@ -47,6 +47,9 @@ export function InspectionRow({
   const badge = dueBadge(due);
   const percent = duePercent(due);
   const name = due?.name ?? reminder.template?.name ?? "Inspection";
+  // On a combined interval, the clock that is NOT the one binding. The headline figure is
+  // whichever comes first; this is the one that could overtake it.
+  const also = alsoLabel(due);
 
   const body = (
     <>
@@ -81,7 +84,10 @@ export function InspectionRow({
             style={{ width: `${percent}%` }}
           />
         </div>
-        <span className="shrink-0 text-[11px] text-muted-foreground">{dueDetail(due)}</span>
+        <span className="shrink-0 text-[11px] text-muted-foreground">
+          {dueDetail(due)}
+          {also && <span className="text-muted-foreground/70"> {also}.</span>}
+        </span>
       </div>
     </>
   );

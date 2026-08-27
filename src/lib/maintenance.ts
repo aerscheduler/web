@@ -85,6 +85,31 @@ export function dueDetail(due: MaintenanceDue | undefined): string {
   return `Due ${on}.`;
 }
 
+/**
+ * The clock that is NOT the one binding, on a combined interval.
+ *
+ * Empty string on everything else, so a caller can render it unconditionally. Kept to one
+ * short clause: the binding side is the answer, this is the reason the answer might change
+ * before it arrives.
+ */
+export function alsoLabel(due: MaintenanceDue | undefined): string {
+  const also = due?.also;
+  if (!also || due?.status === "resolved") return "";
+
+  if (also.kind === "hours") {
+    if (also.dueAtHours == null) return "";
+    const meter = also.basis === "hobbs" ? "Hobbs" : "tach";
+    if (also.hoursRemaining == null) return `also due at ${fromDeciHours(also.dueAtHours)} ${meter}`;
+    if (also.hoursRemaining <= 0) return `also ${fromDeciHours(Math.abs(also.hoursRemaining))} hrs over on ${meter}`;
+    return `also ${fromDeciHours(also.hoursRemaining)} hrs on ${meter}`;
+  }
+
+  if (!also.dueAt || also.daysRemaining == null) return "";
+  const on = format(new Date(also.dueAt), "MMM d");
+  if (also.daysRemaining < 0) return `also ${Math.abs(also.daysRemaining)} days over, ${on}`;
+  return `also ${also.daysRemaining} ${also.daysRemaining === 1 ? "day" : "days"}, ${on}`;
+}
+
 /** Short badge text. Empty string means "don't badge this one", an ok item needs none. */
 export function dueBadge(due: MaintenanceDue | undefined): string {
   if (due?.status === "overdue") return "Overdue";
@@ -103,6 +128,25 @@ export function duePercent(due: MaintenanceDue | undefined): number {
   return Math.max(0, Math.min(100, Math.round(due.progress * 100)));
 }
 
+/** "100.0 hours tach", the meter half of an interval. */
+function hoursPhrase(deci: number, hourBasedOn?: string | null): string {
+  return `${fromDeciHours(deci)} hours ${hourBasedOn === "hobbs" ? "Hobbs" : "tach"}`;
+}
+
+/**
+ * "12 months", or "30 days" where months would misstate the rule.
+ *
+ * Two months is the floor, and the VOR check is why: it is 30 days by regulation, not one
+ * calendar month, and rounding it to "1 month" states a different rule than §91.171 sets.
+ * Anything shorter keeps its own unit.
+ */
+function daysPhrase(days: number): string {
+  const months = days / 30.44;
+  const rounded = Math.round(months);
+  const clean = rounded >= 2 && Math.abs(months - rounded) < 0.2;
+  return clean ? `${rounded} months` : `${days} days`;
+}
+
 /** What a template's interval says, in words, for the templates list. */
 export function intervalLabel(t: {
   remindDays?: number | null;
@@ -110,30 +154,24 @@ export function intervalLabel(t: {
   remindDate?: string | null;
   hourBasedOn?: string | null;
 }): string {
-  if (t.remindHours) {
-    return `Every ${fromDeciHours(t.remindHours)} hours ${t.hourBasedOn === "hobbs" ? "Hobbs" : "tach"}`;
+  // Both clocks: say so explicitly. "Every 100.0 hours tach" on a template that is also
+  // counting an annual is a true statement that leaves out the half more likely to bite.
+  if (t.remindHours && t.remindDays) {
+    return `Every ${hoursPhrase(t.remindHours, t.hourBasedOn)} or ${daysPhrase(t.remindDays)}, whichever comes first`;
   }
-  if (t.remindDays) {
-    // Say "12 months" rather than "365 days" where it lands on a round figure, that is how
-    // the reg is written and how a mechanic says it out loud.
-    //
-    // Two months is the floor, and the VOR check is why: it is 30 days by regulation, not
-    // one calendar month, and rounding it to "1 month" states a different rule than the one
-    // §91.171 sets. Anything shorter keeps its own unit.
-    const months = t.remindDays / 30.44;
-    const rounded = Math.round(months);
-    const clean = rounded >= 2 && Math.abs(months - rounded) < 0.2;
-    if (clean) return `Every ${rounded} months`;
-    return `Every ${t.remindDays} days`;
-  }
+  if (t.remindHours) return `Every ${hoursPhrase(t.remindHours, t.hourBasedOn)}`;
+  if (t.remindDays) return `Every ${daysPhrase(t.remindDays)}`;
   if (t.remindDate) return `Once, ${format(new Date(t.remindDate), "MMM d, yyyy")}`;
   return "No interval set";
 }
 
-/** The warning lead time, in words. */
+/** The warning lead time, in words. Both leads on a combined interval, they differ. */
 export function warningLabel(t: { remindDaysBefore?: number | null; remindHoursBefore?: number | null }): string {
-  if (t.remindHoursBefore) return `Warns ${fromDeciHours(t.remindHoursBefore)} hours out`;
-  if (t.remindDaysBefore) return `Warns ${t.remindDaysBefore} ${t.remindDaysBefore === 1 ? "day" : "days"} out`;
+  const days = t.remindDaysBefore ? `${t.remindDaysBefore} ${t.remindDaysBefore === 1 ? "day" : "days"}` : null;
+  const hours = t.remindHoursBefore ? `${fromDeciHours(t.remindHoursBefore)} hours` : null;
+  if (hours && days) return `Warns ${hours} or ${days} out`;
+  if (hours) return `Warns ${hours} out`;
+  if (days) return `Warns ${days} out`;
   return "No advance warning";
 }
 

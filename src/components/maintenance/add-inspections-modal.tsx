@@ -62,9 +62,13 @@ export function AddInspectionsModal({
 
   // Custom / one-off fields.
   const [name, setName] = React.useState("");
-  const [basis, setBasis] = React.useState<"days" | "hours">("days");
+  const [basis, setBasis] = React.useState<"days" | "hours" | "both">("days");
   const [every, setEvery] = React.useState("100");
   const [warn, setWarn] = React.useState("10");
+  // The calendar half of a combined interval. Separate state because "both" needs two
+  // figures on screen at once and reusing `every` would make one overwrite the other.
+  const [everyDays, setEveryDays] = React.useState("365");
+  const [warnDays, setWarnDays] = React.useState("30");
   const [meter, setMeter] = React.useState<"tach" | "hobbs">("tach");
   const [date, setDate] = React.useState("");
   const [grounds, setGrounds] = React.useState(false);
@@ -95,6 +99,8 @@ export function AddInspectionsModal({
     setBasis("days");
     setEvery("100");
     setWarn("10");
+    setEveryDays("365");
+    setWarnDays("30");
     setMeter("tach");
     setDate("");
     setGrounds(false);
@@ -119,7 +125,8 @@ export function AddInspectionsModal({
   }
 
   const customValid =
-    name.trim().length > 0 && (mode === "oneOff" ? date !== "" : Number(every) > 0);
+    name.trim().length > 0 &&
+    (mode === "oneOff" ? date !== "" : Number(every) > 0 && (basis !== "both" || Number(everyDays) > 0));
   const canSubmit =
     targets.length > 0 && (mode === "standard" ? chosen.length > 0 : customValid) && !busy;
 
@@ -140,27 +147,23 @@ export function AddInspectionsModal({
       };
     }
 
-    if (basis === "hours") {
-      // Typed in HOURS, stored in tenths, the meter's unit, not the form's.
-      return {
-        name: trimmed,
-        repeat: true,
-        ground: grounds,
-        remindHours: Math.round(Number(every) * 10),
-        remindHoursBefore: Math.max(1, Math.round((Number(warn) || 1) * 10)),
-        hourBasedOn: meter,
-        templateResources,
-      };
-    }
-
-    return {
-      name: trimmed,
-      repeat: true,
-      ground: grounds,
-      remindDays: Math.round(Number(every)),
-      remindDaysBefore: Math.max(1, Math.round(Number(warn) || 1)),
-      templateResources,
+    // Typed in HOURS, stored in tenths, the meter's unit, not the form's.
+    const hours = {
+      remindHours: Math.round(Number(every) * 10),
+      remindHoursBefore: Math.max(1, Math.round((Number(warn) || 1) * 10)),
+      hourBasedOn: meter,
     };
+    // On "both" the calendar figures come from their own pair of inputs; on "days" the
+    // shared `every` / `warn` are the calendar ones.
+    const days =
+      basis === "both"
+        ? { remindDays: Math.round(Number(everyDays)), remindDaysBefore: Math.max(1, Math.round(Number(warnDays) || 1)) }
+        : { remindDays: Math.round(Number(every)), remindDaysBefore: Math.max(1, Math.round(Number(warn) || 1)) };
+
+    if (basis === "hours") return { name: trimmed, repeat: true, ground: grounds, ...hours, templateResources };
+    // Whichever comes first: the server keeps both clocks and grounds on the earlier one.
+    if (basis === "both") return { name: trimmed, repeat: true, ground: grounds, ...hours, ...days, templateResources };
+    return { name: trimmed, repeat: true, ground: grounds, ...days, templateResources };
   }
 
   async function submit() {
@@ -272,35 +275,35 @@ export function AddInspectionsModal({
 
             {mode === "recurring" ? (
               <>
-                <div className="grid gap-1.5 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    onClick={() => setBasis("days")}
-                    aria-pressed={basis === "days"}
-                    className={cn(
-                      "rounded-lg border px-3 py-2 text-left text-[13px] transition-colors",
-                      basis === "days" ? "border-primary bg-primary/5" : "hover:bg-accent/50"
-                    )}
-                  >
-                    On the calendar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setBasis("hours")}
-                    aria-pressed={basis === "hours"}
-                    className={cn(
-                      "rounded-lg border px-3 py-2 text-left text-[13px] transition-colors",
-                      basis === "hours" ? "border-primary bg-primary/5" : "hover:bg-accent/50"
-                    )}
-                  >
-                    On the meter
-                  </button>
+                {/* Three ways an interval is written. "Whichever comes first" is how most
+                    recurring ADs read, and how an oil change usually reads too. */}
+                <div className="grid gap-1.5 sm:grid-cols-3">
+                  {(
+                    [
+                      { value: "days", label: "On the calendar" },
+                      { value: "hours", label: "On the meter" },
+                      { value: "both", label: "Whichever comes first" },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setBasis(option.value)}
+                      aria-pressed={basis === option.value}
+                      className={cn(
+                        "rounded-lg border px-3 py-2 text-left text-[13px] transition-colors",
+                        basis === option.value ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="insp-every" className="text-xs">
-                      Every ({basis === "hours" ? "hours" : "days"})
+                      Every ({basis === "days" ? "days" : "hours"})
                     </Label>
                     <Input
                       id="insp-every"
@@ -312,7 +315,7 @@ export function AddInspectionsModal({
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="insp-warn" className="text-xs">
-                      Warn me ({basis === "hours" ? "hours" : "days"} out)
+                      Warn me ({basis === "days" ? "days" : "hours"} out)
                     </Label>
                     <Input
                       id="insp-warn"
@@ -324,7 +327,36 @@ export function AddInspectionsModal({
                   </div>
                 </div>
 
-                {basis === "hours" && (
+                {basis === "both" && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="insp-every-days" className="text-xs">
+                        or every (days)
+                      </Label>
+                      <Input
+                        id="insp-every-days"
+                        inputMode="decimal"
+                        value={everyDays}
+                        onChange={(e) => setEveryDays(e.target.value.replace(/[^0-9.]/g, ""))}
+                        className="tnum"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="insp-warn-days" className="text-xs">
+                        Warn me (days out)
+                      </Label>
+                      <Input
+                        id="insp-warn-days"
+                        inputMode="decimal"
+                        value={warnDays}
+                        onChange={(e) => setWarnDays(e.target.value.replace(/[^0-9.]/g, ""))}
+                        className="tnum"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {basis !== "days" && (
                   <div className="grid gap-1.5 sm:grid-cols-2">
                     {(["tach", "hobbs"] as const).map((m) => (
                       <button
@@ -450,7 +482,7 @@ export function AddInspectionsModal({
               </p>
             ) : (
               <>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5" data-testid="add-inspections-tails">
                   {fleet.map((p) => {
                     const on = tails.includes(p.id);
                     return (

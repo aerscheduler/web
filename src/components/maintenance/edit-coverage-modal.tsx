@@ -45,11 +45,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 
-/** What the interval is counted in, which decides which start field is meaningful. */
-type Basis = "hours" | "days" | "date";
+/**
+ * What the interval is counted in, which decides which start field is meaningful.
+ *
+ * "both" is a combined interval, and it needs BOTH: a meter reading to start the hour clock
+ * and a date to start the calendar one. Collecting only one leaves the other clock with
+ * nothing to count from, and it silently never comes due.
+ */
+type Basis = "hours" | "days" | "both" | "date";
 
 const basisOf = (t: MaintenanceReminderTemplate): Basis =>
-  t.remindHours ? "hours" : t.remindDays ? "days" : "date";
+  t.remindHours && t.remindDays ? "both" : t.remindHours ? "hours" : t.remindDays ? "days" : "date";
 
 type StartDraft = { date: string; hours: string };
 
@@ -143,12 +149,18 @@ export function EditCoverageModal({
       (r) => r.resolvedAt == null && r.resource?.id === resourceId
     );
     if (!reminder) return null;
-    if (basis === "hours") {
-      return reminder.startHours == null
+    const meter =
+      reminder.startHours == null
         ? null
-        : `from ${fromDeciHours(reminder.startHours)} ${template?.hourBasedOn === "hobbs" ? "Hobbs" : "tach"}`;
+        : `${fromDeciHours(reminder.startHours)} ${template?.hourBasedOn === "hobbs" ? "Hobbs" : "tach"}`;
+    const when = reminder.startedAt ? formatDate(reminder.startedAt) : null;
+
+    if (basis === "both") {
+      const parts = [meter, when].filter(Boolean);
+      return parts.length ? `from ${parts.join(", ")}` : null;
     }
-    return reminder.startedAt ? `from ${formatDate(reminder.startedAt)}` : null;
+    if (basis === "hours") return meter ? `from ${meter}` : null;
+    return when ? `from ${when}` : null;
   }
 
   const errors = React.useMemo(() => {
@@ -306,7 +318,7 @@ export function EditCoverageModal({
                   <p className="mt-0.5 text-[11px] text-muted-foreground">
                     Per aircraft, for the {added.length === 1 ? "tail" : "tails"} you just
                     added. Leave blank and the countdown starts today at{" "}
-                    {basis === "hours" ? "that aircraft's current meter" : "today's date"},
+                    {basis === "days" ? "today's date" : basis === "hours" ? "that aircraft's current meter" : "today's date and that aircraft's current meter"},
                     which is right if the work was just done and wrong on a tail already
                     partway through its interval.
                   </p>
@@ -315,30 +327,34 @@ export function EditCoverageModal({
                 {added.map((id) => (
                   <div key={id} className="space-y-1.5">
                     <Label
-                      htmlFor={basis === "hours" ? `coverage-hours-${id}` : `coverage-date-${id}`}
+                      htmlFor={basis === "days" ? `coverage-date-${id}` : `coverage-hours-${id}`}
                       className="font-mono text-[11px] text-muted-foreground"
                     >
                       {nameOf(id)}
                     </Label>
-                    {basis === "hours" ? (
-                      <Input
-                        id={`coverage-hours-${id}`}
-                        inputMode="decimal"
-                        value={starts[id]?.hours ?? ""}
-                        onChange={(e) => setStart(id, { hours: e.target.value.replace(/[^0-9.]/g, "") })}
-                        className="tnum"
-                        placeholder={meterPlaceholder(fleet, id, template)}
-                        aria-invalid={errors[id] ? true : undefined}
-                      />
-                    ) : (
-                      <DatePickerField
-                        id={`coverage-date-${id}`}
-                        value={starts[id]?.date ?? ""}
-                        onChange={(v) => setStart(id, { date: v })}
-                        max={format(new Date(), "yyyy-MM-dd")}
-                        placeholder="Starts today"
-                      />
-                    )}
+                    {/* A combined interval gets both boxes: one clock each. */}
+                    <div className={cn(basis === "both" && "grid gap-1.5 sm:grid-cols-2")}>
+                      {basis !== "days" && (
+                        <Input
+                          id={`coverage-hours-${id}`}
+                          inputMode="decimal"
+                          value={starts[id]?.hours ?? ""}
+                          onChange={(e) => setStart(id, { hours: e.target.value.replace(/[^0-9.]/g, "") })}
+                          className="tnum"
+                          placeholder={meterPlaceholder(fleet, id, template)}
+                          aria-invalid={errors[id] ? true : undefined}
+                        />
+                      )}
+                      {basis !== "hours" && (
+                        <DatePickerField
+                          id={`coverage-date-${id}`}
+                          value={starts[id]?.date ?? ""}
+                          onChange={(v) => setStart(id, { date: v })}
+                          max={format(new Date(), "yyyy-MM-dd")}
+                          placeholder="Starts today"
+                        />
+                      )}
+                    </div>
                     {errors[id] && <p className="text-xs text-destructive">{errors[id]}</p>}
                   </div>
                 ))}

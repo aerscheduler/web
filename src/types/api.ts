@@ -1131,6 +1131,26 @@ export interface MaintenanceDue {
   progress: number | null;
   /** Ascending is most-urgent-first, comparable across all three kinds. */
   urgency: number;
+  /** Whether the template counts an hour clock AND a calendar clock. */
+  combined: boolean;
+  /**
+   * On a combined interval, the clock that did NOT come first. The fields above always
+   * describe the one that did, so a surface that ignores this still shows the binding side.
+   */
+  also: MaintenanceDueSide | null;
+}
+
+/** One clock of a combined interval. Same figures, for the side that is not binding. */
+export interface MaintenanceDueSide {
+  kind: "hours" | "days";
+  status: "overdue" | "dueSoon" | "ok" | "resolved";
+  dueAt: string | null;
+  daysRemaining: number | null;
+  basis: "tach" | "hobbs" | null;
+  dueAtHours: number | null;
+  hoursRemaining: number | null;
+  currentHours: number | null;
+  progress: number | null;
 }
 
 export interface MaintenanceReminder {

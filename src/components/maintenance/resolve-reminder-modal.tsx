@@ -34,7 +34,17 @@ export function ResolveReminderModal({
 }) {
   const resolve = useResolveMaintenanceReminder();
   const due = reminder?.due;
-  const hourBased = due?.kind === "hours";
+  /**
+   * The hour clock, wherever it is.
+   *
+   * On a combined interval ("100 hours or 12 months, whichever comes first") the CALENDAR
+   * can be the side that came due, which makes `due.kind` "days" while the template is
+   * still counting a meter. Asking only when `kind === "hours"` would sign that inspection
+   * off with no reading, and the next interval's hour clock would start from nothing and
+   * never count. Look for the meter on either side.
+   */
+  const hourSide = due?.kind === "hours" ? due : due?.also?.kind === "hours" ? due.also : null;
+  const hourBased = hourSide != null || Boolean(reminder?.template?.remindHours);
 
   const [completedAt, setCompletedAt] = React.useState(format(new Date(), "yyyy-MM-dd"));
   const [hours, setHours] = React.useState("");
@@ -46,15 +56,15 @@ export function ResolveReminderModal({
   React.useEffect(() => {
     if (!open || !reminder) return;
     setCompletedAt(format(new Date(), "yyyy-MM-dd"));
-    setHours(due?.currentHours != null ? fromDeciHours(due.currentHours) : "");
+    setHours(hourSide?.currentHours != null ? fromDeciHours(hourSide.currentHours) : "");
     setNotes("");
-  }, [open, reminder?.id, due?.currentHours]);
+  }, [open, reminder?.id, hourSide?.currentHours]);
 
   if (!reminder) return null;
 
   const name = due?.name ?? reminder.template?.name ?? "this inspection";
   // "Tach", not "tach", it opens a label, and the Hobbs case reads capitalised either way.
-  const meter = due?.basis === "hobbs" ? "Hobbs" : "Tach";
+  const meter = hourSide?.basis === "hobbs" ? "Hobbs" : "Tach";
   const parsedHours = Number(hours);
   const hoursValid = !hourBased || (hours !== "" && Number.isFinite(parsedHours) && parsedHours >= 0);
 

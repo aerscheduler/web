@@ -4,6 +4,8 @@ import { canSeeSettingsTab, settingsSectionsFor, settingsTabOrDefault } from "@/
 import { orgCan } from "@/lib/entitlements";
 import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
+import { NARROW_PAGE } from "@/lib/page-width";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
@@ -78,7 +80,7 @@ function SettingsPage() {
   };
 
   return (
-    <TableView className="gap-5">
+    <TableView className={cn("gap-5", NARROW_PAGE)}>
       <TableView.Header>
         <PageHeader
           title="Settings"

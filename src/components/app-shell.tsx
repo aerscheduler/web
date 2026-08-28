@@ -34,8 +34,7 @@ import { LogoMark } from "@/components/logo";
 import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
 import { DemoBanner } from "@/components/demo/demo-banner";
 import { FeedbackModal } from "@/components/feedback/feedback-modal";
-import { cn, initials } from "@/lib/utils";
-import { WideModeProvider, useWideMode } from "@/lib/wide-mode";
+import { initials } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
@@ -78,7 +77,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <ConfirmProvider>
-      <WideModeProvider>
       <CommandMenuProvider>
         <QuickCreateProvider>
          <DetailPanelProvider>
@@ -140,10 +138,16 @@ export function AppShell({ children }: { children: ReactNode }) {
                   moving the padding out to `main` either: a scroll container's end
                   padding is not re-applied after descendant overflow. */}
               <main className="min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto">
-                <PageContainer>{children}</PageContainer>
+                {/* 1680px is 1920 minus the nav rail, so the commonest big monitor is
+                    filled edge to edge and anything past it keeps a margin rather than
+                    stretching a header across a desk. It was 1280, which left a third of
+                    a 1920 screen empty and gave a two-pane layout no room to be one. */}
+                <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[1680px] flex-col px-4 py-5 md:px-10 md:py-8 md:[&:has([data-fill-page])]:h-full md:[&:has([data-fill-page])]:pb-0">
+                  {children}
+                </div>
               </main>
               </div>
-              {/* Deliberately OUTSIDE the max-w-[1280px] wrapper: on a wide monitor
+              {/* Deliberately OUTSIDE the max-w-[1680px] wrapper: on a wide monitor
                   the panel spends the empty gutter, so the list barely narrows.
                   Zero-width until a page docks a record into it. */}
               <DetailPanelOutlet />
@@ -153,45 +157,10 @@ export function AppShell({ children }: { children: ReactNode }) {
          </DetailPanelProvider>
         </QuickCreateProvider>
       </CommandMenuProvider>
-      </WideModeProvider>
     </ConfirmProvider>
   );
 }
 
-/**
- * The column every page renders into.
- *
- * Its own component so it can read the wide preference from the provider mounted just
- * above it in `AppShell`; a hook called in `AppShell`'s own body could not see a context
- * that `AppShell` renders.
- */
-function PageContainer({ children }: { children: ReactNode }) {
-  const { wide } = useWideMode();
-  return (
-    <div
-      className={cn(
-        "mx-auto flex min-h-full w-full min-w-0 max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 md:[&:has([data-fill-page])]:h-full md:[&:has([data-fill-page])]:pb-0",
-        // Growing and shrinking is a change of shape, and a shape that teleports reads as
-        // a glitch: the eye has to re-find the list and the record rather than watch them
-        // move. Short enough not to be in the way of somebody who toggles and keeps
-        // working, and off entirely for anyone who asked for less motion.
-        "transition-[max-width] duration-300 ease-out motion-reduce:transition-none",
-        // Wide mode, and only on a page that asked for it by rendering the toggle. `:has()`
-        // keeps this a pure CSS answer, so a page paints at its final width immediately
-        // rather than flashing narrow while an effect registers. `lg:` because the cap only
-        // binds on a window wider than it; below that this would change nothing.
-        //
-        // A BIGGER cap, not none: uncapped on an ultrawide put a title at one end of a
-        // 3000px row and its buttons at the other. Keep in step with `WIDE_MAX_PX`, which
-        // a Tailwind arbitrary value cannot read.
-        // See lib/wide-mode.tsx for why the preference is global and the opt-in per page.
-        wide && "lg:[&:has([data-wide-ok])]:max-w-[1680px]"
-      )}
-    >
-      {children}
-    </div>
-  );
-}
 
 function AppSidebar() {
   return (
@@ -419,7 +388,7 @@ function Topbar() {
     <header className="sticky top-0 z-50 shrink-0 bg-background">
       {/* Inner row shares the content's max-width + gutters so the search aligns
           with the page's left edge and the icons with its right edge. */}
-      <div className="mx-auto flex h-12 w-full max-w-[1280px] items-center gap-2 px-4 md:px-10">
+      <div className="mx-auto flex h-12 w-full max-w-[1680px] items-center gap-2 px-4 md:px-10">
         <Button
           variant="ghost"
           size="icon-sm"

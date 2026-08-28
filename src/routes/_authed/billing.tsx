@@ -797,7 +797,6 @@ function BillingPage() {
     <TableView className={ledgerOn ? "gap-5" : undefined}>
       <TableView.Header>
         <PageHeader
-          wide
           title={
             <span className="inline-flex items-center gap-1.5">
               Billing

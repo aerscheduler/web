@@ -228,7 +228,6 @@ function ReportsPage() {
     <TableView className="gap-5">
       <TableView.Header>
         <PageHeader
-          wide
           title="Reports"
           subtitle="Build it how you want it, save it, and export it."
         />

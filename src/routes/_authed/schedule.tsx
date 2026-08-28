@@ -444,7 +444,6 @@ function SchedulePage() {
     <TableView>
       <TableView.Header>
         <PageHeader
-          wide
           title="The Ramp"
           subtitle="Dispatch board for aircraft, instructors and students at a glance."
           actions={

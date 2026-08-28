@@ -430,7 +430,6 @@ function AuditLogsPage() {
     <TableView>
       <TableView.Header>
         <PageHeader
-          wide
           title="Audit Logs"
           subtitle={
             q.data ? `${total.toLocaleString()} event${total === 1 ? "" : "s"}` : "Who changed what, and when."

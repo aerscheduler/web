@@ -10,7 +10,7 @@ import {
 import { useOrgUserPreferences } from "@/features/queries";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { isStaff } from "@/lib/permissions";
+import { canStandBy, isStaff } from "@/lib/permissions";
 import { orgSlotOffersEnabled } from "@/lib/slot-offers-enabled";
 import { isOnReservation } from "@/components/schedule/reservation-shared";
 import type { Reservation } from "@/types/api";
@@ -59,9 +59,14 @@ export function ReservationStandby({ reservation }: { reservation: Reservation }
   const onBooking = isOnReservation(reservation, orgUserId);
   const standbyOpen =
     !reservation.cancelledAt && new Date(reservation.end).getTime() > Date.now();
+  // Standby ends with you seated on the flight, so only the roles that can be
+  // seated are invited, the same way self-booking is withheld. An owner or admin
+  // with no pilot role was being offered a slot they could never take.
+  const seatable = canStandBy(roles);
   // A pre-existing interest still gets its withdraw affordance (the desk can add
-  // someone to the booking after they joined standby); only the invitation goes.
-  const showStandbyCard = standbyOpen && (!!myInterest || !onBooking);
+  // someone to the booking after they joined standby, and a role can be removed
+  // after the fact); only the invitation goes.
+  const showStandbyCard = standbyOpen && (!!myInterest || (seatable && !onBooking));
 
   const join = async () => {
     try {

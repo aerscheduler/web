@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { BadgeDollarSign, KeyRound, ShieldAlert, UserCheck } from "lucide-react";
+import { Building2, KeyRound, ShieldAlert, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { isDeveloperSync, postLoginPath, useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
@@ -10,8 +10,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BillingTermsTab } from "@/components/developer/billing-terms-tab";
+import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
+import { TableView } from "@/components/table-view";
+import { OrganizationsTable } from "@/components/developer/organizations-table";
 
 /**
  * Developer tools. Gated to the allowlisted developer accounts, but only for
@@ -22,37 +23,60 @@ export const Route = createFileRoute("/_authed/developer")({
   beforeLoad: () => {
     if (!isDeveloperSync()) throw redirect({ to: "/me" });
   },
+  validateSearch: (s: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof s.tab === "string" ? s.tab : undefined,
+  }),
   component: DeveloperPage,
 });
 
+/**
+ * A rail, not tabs, for the reason section-rail.tsx gives: these sections are separate
+ * screens rather than filtered views of one list, and the page is going to keep growing
+ * sections. Two tabs were already the wrong shape, "log in as somebody" and "every
+ * school we have" have nothing to do with each other.
+ *
+ * The active section lives in `?tab=`, matching Settings and Reports, so a link to a
+ * particular tool survives being pasted to somebody else.
+ */
+const SECTIONS: RailSection[] = [
+  {
+    label: "Support",
+    items: [{ value: "login-as", label: "Log in as", icon: UserCheck }],
+  },
+  {
+    label: "Customers",
+    items: [{ value: "organizations", label: "Organizations", icon: Building2 }],
+  },
+];
+
+const DEFAULT_TAB = "login-as";
+
 function DeveloperPage() {
+  const navigate = Route.useNavigate();
+  const search = Route.useSearch();
+
+  const known = SECTIONS.flatMap((s) => s.items).map((i) => i.value);
+  const active = search.tab && known.includes(search.tab) ? search.tab : DEFAULT_TAB;
+
+  const pick = (tab: string) => {
+    void navigate({ search: (prev) => ({ ...prev, tab }), replace: true });
+  };
+
   return (
-    <div>
-      <PageHeader title="Developer" subtitle="Internal support tools. Not visible to customers." />
+    <TableView className="gap-5">
+      <TableView.Header>
+        <PageHeader title="Developer" subtitle="Internal support tools. Not visible to customers." />
+      </TableView.Header>
 
-      <Tabs defaultValue="login-as" className="gap-4">
-        <div className="-mx-1 overflow-x-auto px-1 pb-1">
-          <TabsList className="w-full justify-start sm:w-fit">
-            <TabsTrigger value="login-as" className="gap-1.5">
-              <UserCheck className="size-4" />
-              Log in as
-            </TabsTrigger>
-            <TabsTrigger value="billing" className="gap-1.5">
-              <BadgeDollarSign className="size-4" />
-              Billing terms
-            </TabsTrigger>
-          </TabsList>
+      <div className={RAIL_ROW}>
+        <SectionRail label="Developer" sections={SECTIONS} value={active} onChange={pick} />
+
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
+          {active === "login-as" && <LoginAsTab />}
+          {active === "organizations" && <OrganizationsTable />}
         </div>
-
-        <TabsContent value="login-as">
-          <LoginAsTab />
-        </TabsContent>
-
-        <TabsContent value="billing">
-          <BillingTermsTab />
-        </TabsContent>
-      </Tabs>
-    </div>
+      </div>
+    </TableView>
   );
 }
 

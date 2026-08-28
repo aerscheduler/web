@@ -412,7 +412,17 @@ const SELF_BOOKABLE: Role[] = ["instructor", "student", "renter", "technician"];
  */
 export const canSelfBook = (r: Role[]) => r.some((role) => SELF_BOOKABLE.includes(role));
 
+/**
+ * Roles that can actually be SEATED on a flight, and so the only ones for whom
+ * standby means anything: an offer ends with you on the booking as an
+ * instructor, student or renter. Technicians are in SELF_BOOKABLE because their
+ * booking is maintenance, which carries no people and is never offered, so they
+ * are not here.
+ */
+const SEATABLE: Role[] = ["instructor", "student", "renter"];
 
+/** Can join standby for a slot, i.e. can be seated if the offer is taken. */
+export const canStandBy = (r: Role[]) => r.some((role) => SEATABLE.includes(role));
 
 /**
  * Types offered on the SELF-serve page, derived only from the roles that seat

@@ -49,6 +49,7 @@ export type NotificationHref = string;
 /** Flutter location → console destination, for links with no trailing id. */
 const EXACT: Record<string, NotificationHref | undefined> = {
   "/personnel": "/people",
+  "/resources": "/aircraft",
   "/reservations": "/schedule",
   //Announcements live under Operations in the console. Open to any member, same as the
   //notice itself.
@@ -75,6 +76,8 @@ const EXACT: Record<string, NotificationHref | undefined> = {
  */
 const WITH_ID: Record<string, ((id: number) => NotificationHref) | undefined> = {
   "/personnel": (id) => `/people/${id}`,
+  //The app calls the fleet "resources", the console calls it "aircraft".
+  "/resources": (id) => `/aircraft/${id}`,
   //`sendSquawkCreated` emits `/squawks/:id`. It was unlisted here for as long as the
   //console had no per-squawk page. It has one now, at the same path the app uses.
   "/squawks": (id) => `/maintenance/squawks/${id}`,

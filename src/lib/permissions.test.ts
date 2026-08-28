@@ -15,8 +15,11 @@ import {
   canAccess,
   canGroundResources,
   canManageResources,
+  canSelfBook,
   isStaff,
+  reservationTypesForRoles,
   resourceViewAccess,
+  selfBookableTypes,
 } from "./permissions";
 import type { GrantName, Role } from "@/types/api";
 
@@ -146,6 +149,42 @@ describe("routes deliberately left on roles", () => {
     for (const path of ["/schedule", "/people", "/aircraft", "/training/enrollments"]) {
       expect(canAccess(path, ["student"], grantsFor(["student"]))).toBe(true);
     }
+  });
+});
+
+// ── /me/book: who the self-serve page is for ─────────────────────────────────
+// Reported from the live demo: signed in as Owner + Admin, /me/book said the
+// account had no role that could book. The page is deliberately NOT for staff:
+// SELF_BOOKABLE names the roles that put a person IN A SEAT, and everything
+// downstream, billing, currency, approved aircraft, training, keys off the seated
+// person, not off who had the authority to make the booking. An owner who flies
+// carries a pilot role; an owner who only runs the school books from the board.
+//
+// The server disagrees and always has (RESERVATION_TYPES_BY_ROLE gives staff every
+// type, MAY_SEAT_OTHERS lets them seat themselves), so this boundary lives in the
+// console alone. These pin it down so a later change to either side is deliberate.
+describe("self-serve booking", () => {
+  it("keeps /me/book to the roles that seat a person on a flight", () => {
+    expect(canSelfBook(["owner", "admin"])).toBe(false);
+    expect(selfBookableTypes(["owner", "admin"])).toEqual([]);
+    expect(canSelfBook(["dispatcher"])).toBe(false);
+  });
+
+  it("books an admin+instructor as an instructor, not as staff", () => {
+    // Precedence: the pilot role wins, so the admin grant keeps belonging to the
+    // dispatch board rather than widening what the self-serve page offers.
+    expect(selfBookableTypes(["admin", "instructor"])).toEqual(
+      reservationTypesForRoles(["instructor"])
+    );
+  });
+
+  it("leaves a technician's maintenance-only booking alone", () => {
+    expect(selfBookableTypes(["technician"])).toEqual(["maintenance"]);
+  });
+
+  it("gives a member with no role at all nothing to book", () => {
+    expect(canSelfBook([])).toBe(false);
+    expect(selfBookableTypes([])).toEqual([]);
   });
 });
 

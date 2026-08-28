@@ -41,7 +41,7 @@ import { NextLessonHint } from "@/components/training/next-lesson-hint";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { EmptyState, ErrorState } from "@/components/states";
 import { DocsHint } from "@/components/docs-hint";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1483,6 +1483,41 @@ export function ReservationForm({
   //Wider than the default dialog: this form carries two person pickers, a smart time
   //range and the repeat control, and the narrower column was making rows of controls
   //overflow rather than wrap. /me/book is a page, so it gets a card instead.
+  //-------------------------------------------------------------------------------
+  // Cancel + submit, shared by BOTH shells.
+  //
+  // These used to live inline in the modal's `footer` prop, and the page branch
+  // below returned before ever reaching it, so /me/book rendered a complete
+  // reservation form ending at Notes with NO WAY TO SUBMIT IT. Self-serve booking
+  // was dead on every role, in production, and the form looked perfectly normal,
+  // which is why it read as "the owner can't book" rather than as a missing button.
+  // The Cancel branch here still says `isSelf && asPage`, which is what it was
+  // written for; it just never had a page to run in.
+  //
+  // Submitting is by `form=` id rather than by nesting, so this works from a card
+  // footer and a dialog footer alike.
+  //-------------------------------------------------------------------------------
+  const actions = (
+    <div className="flex justify-end gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={() => (isSelf && asPage ? void navigate({ to: "/me/schedule" }) : closeModal(false))}
+      >
+        Cancel
+      </Button>
+      <Button type="submit" form="modal-reservation-form" disabled={create.isPending || update.isPending}>
+        {isEditing
+          ? update.isPending
+            ? "Saving…"
+            : "Save changes"
+          : create.isPending
+            ? "Booking…"
+            : "Book reservation"}
+      </Button>
+    </div>
+  );
+
   if (asPage) {
     return (
       <Card data-doc-shot="me-book-solo">
@@ -1495,35 +1530,16 @@ export function ReservationForm({
           </CardHeader>
         )}
         <CardContent className={cn(selfGate && "p-0")}>{content}</CardContent>
+        {/* A gate state is an answer, not a form, "Book reservation" under "You're
+            not checked out on any aircraft" would submit nothing. */}
+        {!selfGate && <CardFooter className="justify-end">{actions}</CardFooter>}
       </Card>
     );
   }
 
   return (
     <ResponsiveModal
-      footer={
-        <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() =>
-                isSelf && asPage ? void navigate({ to: "/me/schedule" }) : closeModal(false)
-              }
-            >
-              Cancel
-            </Button>
-            <Button type="submit"
-                form="modal-reservation-form" disabled={create.isPending || update.isPending}>
-              {isEditing
-                ? update.isPending
-                  ? "Saving…"
-                  : "Save changes"
-                : create.isPending
-                  ? "Booking…"
-                  : "Book reservation"}
-            </Button>
-        </div>
-      }
+      footer={actions}
       open={open}
       onOpenChange={closeModal}
       size="xl"

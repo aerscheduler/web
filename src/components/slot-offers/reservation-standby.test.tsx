@@ -15,8 +15,9 @@ import { ReservationStandby } from "./reservation-standby";
 
 const VIEWER = 42;
 
+let roles: string[] = ["renter"];
 vi.mock("@/lib/auth", () => ({
-  useAuth: () => ({ roles: ["renter"], organization: {}, orgUserId: VIEWER }),
+  useAuth: () => ({ roles, organization: {}, orgUserId: VIEWER }),
 }));
 vi.mock("@/lib/slot-offers-enabled", () => ({ orgSlotOffersEnabled: () => true }));
 vi.mock("@/features/queries", () => ({
@@ -75,5 +76,19 @@ describe("ReservationStandby", () => {
       expect(within(view.container).queryByText(/Stand by for this booking/i)).toBeNull();
       view.unmount();
     }
+  });
+
+  // Taking an offer seats you as a student or renter, so a member who holds only
+  // desk roles is being invited into a queue they can never leave with a booking.
+  it("does not offer standby to a member who cannot be seated", () => {
+    roles = ["owner", "admin"];
+    const view = render(
+      <ReservationStandby
+        reservation={booking({ id: 1, renters: [{ id: 99 }] } as Reservation["personnel"])}
+      />
+    );
+    expect(within(view.container).queryByText(/Stand by for this booking/i)).toBeNull();
+    view.unmount();
+    roles = ["renter"];
   });
 });

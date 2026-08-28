@@ -59,7 +59,6 @@ export function GroundModal({
               // never cleared automatically the way the system's own holds are. Better to
               // say so here than to send an empty one and read back a 400.
               disabled={update.isPending || reason.trim().length === 0}
-              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
             >
               {update.isPending ? "Grounding…" : "Ground aircraft"}
             </Button>

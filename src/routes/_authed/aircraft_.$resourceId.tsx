@@ -326,13 +326,15 @@ function ResourceBody({ resource }: { resource: Resource }) {
                     the banner instead, beside the reason it is grounded FOR and beside
                     whether anything is still outstanding, which is the thing somebody needs
                     to read before pressing it. Two buttons doing the same job on one screen
-                    is just noise. */}
+                    is just noise.
+
+                    Outline, not destructive. Grounding a tail is routine maintenance work
+                    and it is reversible from the banner two lines below; nothing is lost
+                    and nothing is deleted. Red belongs on the step that overrides an open
+                    hold, which is where the confirm still puts it. A red button somebody
+                    presses every week is a red button they stop reading. */}
                 {access.ground && !plane?.grounded && (
-                  <Button
-                    variant="destructive"
-                    onClick={() => void toggleGround()}
-                    disabled={!plane}
-                  >
+                  <Button variant="outline" onClick={() => void toggleGround()} disabled={!plane}>
                     <Ban className="size-4" /> Ground
                   </Button>
                 )}

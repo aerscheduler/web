@@ -15,6 +15,7 @@ import {
 import { onNavigation, startInteractionTracking } from "./lib/interaction-tracking";
 import { startAds, startConsentMode } from "./lib/ads";
 import { initTheme } from "./lib/theme";
+import { silenceAbortedViewTransitions } from "./lib/view-transitions";
 import "./styles.css";
 
 initTheme();
@@ -35,6 +36,10 @@ startAds();
 // routes through `track()`, which drops everything until PostHog is consented AND
 // loaded. See lib/interaction-tracking.ts for why this is not per-component.
 startInteractionTracking();
+
+// See lib/view-transitions.ts: the router drops the ViewTransition it starts, so a
+// skipped one rejects into nowhere and lands in PostHog as a crash.
+silenceAbortedViewTransitions();
 
 const router = createRouter({
   routeTree,

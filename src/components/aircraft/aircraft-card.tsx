@@ -21,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth";
-import { canManageResources } from "@/lib/permissions";
+import { canGroundResources, canManageResources } from "@/lib/permissions";
 import { formatMoney } from "@/lib/utils";
 
 export type AircraftActions = {
@@ -102,27 +102,34 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
             </Tooltip>
             <DropdownMenuContent align="end">
               {canManageResources(roles) && (
-                <>
-                  <DropdownMenuItem onSelect={() => actions.onEdit(r)}>
-                    <Pencil className="size-4" /> Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => actions.onToggleGround(r)}>
-                    {p.grounded ? (
-                      <>
-                        <PlaneTakeoff className="size-4" /> Return to service
-                      </>
-                    ) : (
-                      <>
-                        <TowerControl className="size-4" /> Ground aircraft
-                      </>
-                    )}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => actions.onApprove(r)}>
-                    <ShieldCheck className="size-4" /> Approve members
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
+                <DropdownMenuItem onSelect={() => actions.onEdit(r)}>
+                  <Pencil className="size-4" /> Edit
+                </DropdownMenuItem>
               )}
+              {/* Its own gate, WIDER than the rest of this menu. A technician may take a
+                  tail off the line and put it back but may not edit or approve it, and the
+                  aircraft record has said so since the grounding route landed. This menu had
+                  not caught up, so the one role built around maintenance could release an
+                  aeroplane from the record page and not from the fleet it sits in. */}
+              {canGroundResources(roles) && (
+                <DropdownMenuItem onSelect={() => actions.onToggleGround(r)}>
+                  {p.grounded ? (
+                    <>
+                      <PlaneTakeoff className="size-4" /> Return to service
+                    </>
+                  ) : (
+                    <>
+                      <TowerControl className="size-4" /> Ground aircraft
+                    </>
+                  )}
+                </DropdownMenuItem>
+              )}
+              {canManageResources(roles) && (
+                <DropdownMenuItem onSelect={() => actions.onApprove(r)}>
+                  <ShieldCheck className="size-4" /> Approve members
+                </DropdownMenuItem>
+              )}
+              {(canManageResources(roles) || canGroundResources(roles)) && <DropdownMenuSeparator />}
               <DropdownMenuItem onSelect={() => actions.onDetails(r)}>
                 <PlaneIcon className="size-4" /> View details
               </DropdownMenuItem>

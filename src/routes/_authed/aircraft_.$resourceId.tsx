@@ -26,6 +26,7 @@ import {
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
+import { outstandingHolds, outstandingSentence, returnToServiceDescription } from "@/lib/outstanding-holds";
 import { formatDate, formatMoney, initials } from "@/lib/utils";
 import { fuelToDisplay, planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
 import { AircraftFormModal } from "@/components/aircraft/aircraft-form";
@@ -235,12 +236,11 @@ function ResourceBody({ resource }: { resource: Resource }) {
   const holdsQ = useSquawks({ resourceId: resource.id, resolved: false }, { enabled: !!plane?.grounded });
   const dueQ = useMaintenanceReminders({ resourceId: resource.id, resolved: false }, { enabled: !!plane?.grounded });
 
-  const openGroundingSquawks = (holdsQ.data ?? []).filter((sq) => sq.grounding);
-  const overdueInspections = (dueQ.data ?? []).filter((r) => r.due?.status === "overdue");
+  const outstanding = outstandingHolds({ reminders: dueQ.data, squawks: holdsQ.data });
   // Only once both answers are in. Reporting "nothing outstanding" off an empty cache would
   // invite a mechanic to release an aircraft that is still overdue.
   const holdsKnown = !holdsQ.isLoading && !dueQ.isLoading;
-  const nothingOutstanding = holdsKnown && openGroundingSquawks.length === 0 && overdueInspections.length === 0;
+  const nothingOutstanding = holdsKnown && outstanding.length === 0;
 
   // A non-plane resource (a sim or a room) can still be linked here; show what
   // there is rather than a broken page built entirely around a tail number.
@@ -253,23 +253,10 @@ function ResourceBody({ resource }: { resource: Resource }) {
       setGrounding(true);
       return;
     }
-    // Naming what is still open is the point of this dialog. Returning a tail to service
-    // over the top of an overdue inspection is a decision somebody is allowed to make, and
-    // it should not be one they make without being told what they are overriding.
-    const outstanding = [
-      overdueInspections.length
-        ? `${overdueInspections.length} inspection${overdueInspections.length === 1 ? " is" : "s are"} overdue`
-        : null,
-      openGroundingSquawks.length
-        ? `${openGroundingSquawks.length} grounding squawk${openGroundingSquawks.length === 1 ? " is" : "s are"} open`
-        : null,
-    ].filter(Boolean);
-
+    // Naming what is still open is the point of this dialog, see `outstandingHolds`.
     const ok = await confirm({
       title: `Return ${plane.tailNumber} to service?`,
-      description: outstanding.length
-        ? `${outstanding.join(" and ")} on this aircraft. It will be schedulable again anyway.`
-        : "Nothing is outstanding on this aircraft. It will be schedulable again.",
+      description: returnToServiceDescription(outstanding),
       confirmLabel: "Return to service",
       destructive: outstanding.length > 0,
     });
@@ -370,16 +357,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
                   ? "Checking what is still outstanding\u2026"
                   : nothingOutstanding
                   ? "Nothing outstanding on this aircraft. Every inspection is current and no grounding squawk is open."
-                  : [
-                      overdueInspections.length
-                        ? `${overdueInspections.length} inspection${overdueInspections.length === 1 ? "" : "s"} overdue`
-                        : null,
-                      openGroundingSquawks.length
-                        ? `${openGroundingSquawks.length} grounding squawk${openGroundingSquawks.length === 1 ? "" : "s"} open`
-                        : null,
-                    ]
-                      .filter(Boolean)
-                      .join(" and ") + " on this aircraft."}
+                  : outstandingSentence(outstanding)}
               </span>
             </div>
             {access.ground && (

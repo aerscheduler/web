@@ -1,8 +1,9 @@
 import { useMemo } from "react";
-import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api, apiList, apiRaw, ApiError, raw, type PaginationMeta } from "@/lib/api";
 import { track } from "@/lib/analytics";
 import type { Paged, PagingState } from "@/lib/paging";
+import { outstandingHolds } from "@/lib/outstanding-holds";
 import {
   coordinateKey,
   fetchNearestObservation,
@@ -3267,6 +3268,30 @@ export function useMaintenanceReminders(filter?: ReminderListFilter, opts?: Quer
     queryFn: () => api<MaintenanceReminder[]>("/maintenance/reminders", { query: filter }),
     ...opts,
   });
+}
+
+/**
+ * What is holding ONE aircraft down, fetched on demand rather than subscribed to.
+ *
+ * The aircraft record can hold the two queries open because it is looking at a single tail.
+ * The fleet list cannot: it would mean two extra requests per grounded row, for an answer
+ * nobody needs until they actually reach for "Return to service". Same query keys as the
+ * hooks above, so whichever surface asks first warms the cache for the other.
+ */
+export async function fetchResourceHolds(qc: QueryClient, resourceId: number): Promise<string[]> {
+  const squawkFilter: SquawkListFilter = { resourceId, resolved: false };
+  const reminderFilter: ReminderListFilter = { resourceId, resolved: false };
+  const [squawks, reminders] = await Promise.all([
+    qc.fetchQuery({
+      queryKey: ["squawks", squawkFilter],
+      queryFn: () => api<Squawk[]>("/maintenance/squawks", { query: squawkFilter }),
+    }),
+    qc.fetchQuery({
+      queryKey: ["reminders", reminderFilter],
+      queryFn: () => api<MaintenanceReminder[]>("/maintenance/reminders", { query: reminderFilter }),
+    }),
+  ]);
+  return outstandingHolds({ reminders, squawks });
 }
 
 /** The rules behind the reminders, one template spanning many aircraft. */

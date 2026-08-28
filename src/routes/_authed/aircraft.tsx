@@ -3,13 +3,14 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { PlaneTakeoff, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { pageRows, usePlanesPage, useLocations } from "@/features/queries";
+import { fetchResourceHolds, pageRows, usePlanesPage, useLocations } from "@/features/queries";
 import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { canManageResources } from "@/lib/permissions";
+import { returnToServiceDescription } from "@/lib/outstanding-holds";
 import type { Resource } from "@/types/api";
 import { AircraftCard, type AircraftActions } from "@/components/aircraft/aircraft-card";
 import { AircraftListRow } from "@/components/aircraft/aircraft-list-row";
@@ -111,13 +112,14 @@ function AircraftPage() {
     [locations]
   );
 
-  // Ungrounding is a one-shot patch against an arbitrary id (the shared hook is fixed-id).
+  // A one-shot patch against an arbitrary id, since the shared hook is fixed-id. The
+  // dedicated grounding route, NOT the generic resource PATCH this used to call: that one is
+  // admin-only, so a technician could ground a tail from this menu and then get a 403 trying
+  // to release it, and it writes `grounded` straight to the row, which never reaches
+  // `ResourceService.unground` and so never told anyone holding a booking the tail was back.
   const unground = useMutation({
     mutationFn: (id: number) =>
-      api<Resource>(`/resources/${id}`, {
-        method: "PATCH",
-        body: { type: { plane: { grounded: false, groundedReason: null } } },
-      }),
+      api<Resource>(`/resources/${id}/grounding`, { method: "PATCH", body: { grounded: false } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["resources"] }),
   });
 
@@ -130,10 +132,19 @@ function AircraftPage() {
       const p = r.type?.plane;
       if (!p) return;
       if (p.grounded) {
+        // The same question the aircraft record asks before a release. Fetched here rather
+        // than subscribed to, so it costs two requests for the one tail somebody reached for
+        // instead of two for every grounded row on the page.
+        const outstanding = await fetchResourceHolds(qc, r.id).catch(() => null);
         const ok = await confirm({
           title: `Return ${p.tailNumber} to service?`,
-          description: "This aircraft will be schedulable again.",
+          // A check that failed must not read as an all-clear: say nothing about what is
+          // open rather than claiming nothing is.
+          description: outstanding
+            ? returnToServiceDescription(outstanding)
+            : "This aircraft will be schedulable again.",
           confirmLabel: "Return to service",
+          destructive: !!outstanding?.length,
         });
         if (!ok) return;
         unground.mutate(r.id, {

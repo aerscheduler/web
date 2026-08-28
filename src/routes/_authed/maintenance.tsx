@@ -168,7 +168,7 @@ function MaintenancePage() {
 
           {view === "aircraft" && (
             <TableView.Body>
-              <FleetStatus q={q} resourceId={resourceIds} />
+              <FleetStatus q={q} resourceId={resourceIds} canManage={canManage} />
             </TableView.Body>
           )}
           {view === "templates" && (

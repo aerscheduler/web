@@ -182,6 +182,47 @@ export function warningLabel(t: { remindDaysBefore?: number | null; remindHoursB
  * so this trusts the order it arrived in rather than re-deriving it and risking a
  * different answer than the list on the next page.
  */
+/**
+ * How the whole fleet stands, in the numbers a shop manager scans for.
+ *
+ * The by-aircraft grid answers "what does THIS tail owe" well and "how are we doing" not at
+ * all: on a fleet of eleven you read eleven cards to learn that two need attention. These
+ * are the counts that belong above the grid.
+ *
+ * Counted in TAILS, not items, and the four states are mutually exclusive worst-first so
+ * they add up to the fleet. `grounded` sits outside that: an aircraft is off the line for
+ * reasons that have nothing to do with an inspection (an open squawk, a prop strike), and
+ * folding it into the same run of numbers would double-count it or hide it.
+ */
+export function fleetTotals(
+  entries: { grounded: boolean; summary: ReturnType<typeof fleetSummary> }[]
+) {
+  let grounded = 0;
+  let overdue = 0;
+  let dueSoon = 0;
+  let current = 0;
+  let untracked = 0;
+
+  for (const { grounded: isGrounded, summary } of entries) {
+    if (isGrounded) grounded += 1;
+    if (summary.total === 0) untracked += 1;
+    else if (summary.overdue > 0) overdue += 1;
+    else if (summary.dueSoon > 0) dueSoon += 1;
+    else current += 1;
+  }
+
+  return {
+    tails: entries.length,
+    grounded,
+    overdue,
+    dueSoon,
+    current,
+    untracked,
+    /** Nothing needs a human today. Untracked is NOT fine, so it does not count as clear. */
+    allClear: overdue === 0 && dueSoon === 0 && untracked === 0 && grounded === 0,
+  };
+}
+
 export function fleetSummary(reminders: MaintenanceReminder[]) {
   const live = reminders.filter((r) => r.resolvedAt == null);
   const overdue = live.filter((r) => r.due?.status === "overdue");

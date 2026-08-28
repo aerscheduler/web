@@ -12,17 +12,26 @@
  * the rest read as a wall of green you can skip past.
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronRight, PlaneTakeoff, Wrench } from "lucide-react";
+import { ChevronRight, PlaneTakeoff, Plus, Wrench } from "lucide-react";
 import type { MaintenanceReminder, Resource } from "@/types/api";
 import { resourceLabel } from "@/types/api";
 import { useMaintenanceReminders, usePlanes } from "@/features/queries";
-import { dueAmount, dueDetail, dueTone, fleetSummary, fromDeciHours } from "@/lib/maintenance";
+import {
+  dueAmount,
+  dueDetail,
+  dueTone,
+  fleetSummary,
+  fleetTotals,
+  fromDeciHours,
+} from "@/lib/maintenance";
 import { cn } from "@/lib/utils";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
 
 const ACCENT: Record<string, string> = {
   danger: "bg-destructive",
@@ -31,7 +40,19 @@ const ACCENT: Record<string, string> = {
   muted: "bg-border",
 };
 
-export function FleetStatus({ q: search, resourceId }: { q?: string; resourceId?: number[] }) {
+export function FleetStatus({
+  q: search,
+  resourceId,
+  canManage = false,
+}: {
+  q?: string;
+  resourceId?: number[];
+  /** May set inspections up. Same gate as the page's own "Add inspections" button. */
+  canManage?: boolean;
+}) {
+  // The tail whose empty card was clicked. The modal takes a `fixedResource`, so opening it
+  // from a card answers "which aircraft" before it is asked.
+  const [addingFor, setAddingFor] = useState<Resource | null>(null);
   const planesQ = usePlanes();
   // Unresolved only: a signed-off item is history, and counting it here would leave a card
   // reading "3 tracked" forever while the shop closed all three out.
@@ -74,6 +95,17 @@ export function FleetStatus({ q: search, resourceId }: { q?: string; resourceId?
       });
   }, [planesQ.data, remindersQ.data, search, resourceId]);
 
+  const totals = useMemo(
+    () =>
+      fleetTotals(
+        cards.map(({ plane, summary }) => ({
+          grounded: plane.type?.plane?.grounded ?? false,
+          summary,
+        }))
+      ),
+    [cards]
+  );
+
   if (planesQ.isLoading || remindersQ.isLoading) return <CardGridSkeleton count={6} />;
 
   if (planesQ.error || remindersQ.error) {
@@ -107,28 +139,122 @@ export function FleetStatus({ q: search, resourceId }: { q?: string; resourceId?
   }
 
   return (
-    // Sized by a MINIMUM CARD WIDTH rather than a column count. Fixed breakpoints assumed
-    // the full page width, and once the nav rail took ~15rem of it three columns squeezed
-    // every card until the inspection name and its "was due" line both ellipsed, which
-    // removes exactly the two facts the card exists to show. `auto-fill` drops to fewer
-    // columns instead of shrinking past what the content needs.
-    <div
-      data-doc-shot="maintenance-by-aircraft"
-      className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(20rem,1fr))]"
-    >
-      {cards.map(({ plane, summary }) => (
-        <AircraftCard key={plane.id} plane={plane} summary={summary} />
-      ))}
+    <div className="flex min-h-0 flex-col gap-3">
+      <FleetSummaryLine totals={totals} />
+
+      {/* Sized by a MINIMUM CARD WIDTH rather than a column count. Fixed breakpoints assumed
+          the full page width, and once the nav rail took ~15rem of it three columns squeezed
+          every card until the inspection name and its "was due" line both ellipsed, which
+          removes exactly the two facts the card exists to show. `auto-fill` drops to fewer
+          columns instead of shrinking past what the content needs. */}
+      <div
+        data-doc-shot="maintenance-by-aircraft"
+        className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(20rem,1fr))]"
+      >
+        {cards.map(({ plane, summary }) => (
+          <AircraftCard
+            key={plane.id}
+            plane={plane}
+            summary={summary}
+            onTrack={canManage ? () => setAddingFor(plane) : undefined}
+          />
+        ))}
+      </div>
+
+      {canManage && (
+        <AddInspectionsModal
+          open={!!addingFor}
+          onOpenChange={(o) => !o && setAddingFor(null)}
+          fixedResource={addingFor}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * How the fleet stands, above the grid that details it.
+ *
+ * Only the states that are actually present are drawn. A line reading "0 overdue, 0 due
+ * soon" every day is a line people stop reading, and then it is not there on the day it
+ * says 3.
+ */
+function FleetSummaryLine({ totals }: { totals: ReturnType<typeof fleetTotals> }) {
+  const tails = `${totals.tails} ${totals.tails === 1 ? "tail" : "tails"}`;
+
+  if (totals.allClear) {
+    return (
+      <p
+        data-doc-shot="maintenance-fleet-summary"
+        className="text-xs text-muted-foreground"
+      >
+        <span className="font-medium text-foreground">{tails}</span>, everything current.
+      </p>
+    );
+  }
+
+  const parts: { key: string; label: string; className: string }[] = [];
+  if (totals.grounded) {
+    parts.push({
+      key: "grounded",
+      label: `${totals.grounded} grounded`,
+      className: "text-destructive",
+    });
+  }
+  if (totals.overdue) {
+    parts.push({
+      key: "overdue",
+      label: `${totals.overdue} overdue`,
+      className: "text-destructive",
+    });
+  }
+  if (totals.dueSoon) {
+    parts.push({
+      key: "dueSoon",
+      label: `${totals.dueSoon} due soon`,
+      className: "text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]",
+    });
+  }
+  if (totals.current) {
+    parts.push({ key: "current", label: `${totals.current} current`, className: "" });
+  }
+  // Deliberately last and deliberately named. Seven untracked tails is the single biggest
+  // number on a fleet nobody has set up yet, and it reads as "fine" everywhere else.
+  if (totals.untracked) {
+    parts.push({
+      key: "untracked",
+      label: `${totals.untracked} not tracked`,
+      className: "",
+    });
+  }
+
+  return (
+    <p
+      data-doc-shot="maintenance-fleet-summary"
+      className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground"
+    >
+      <span className="font-medium text-foreground">{tails}</span>
+      {parts.map((part) => (
+        <span key={part.key} className="flex items-center gap-1.5">
+          <span aria-hidden className="text-muted-foreground/40">
+            ·
+          </span>
+          <span className={cn("tabular-nums", part.className)}>{part.label}</span>
+        </span>
+      ))}
+    </p>
   );
 }
 
 function AircraftCard({
   plane,
   summary,
+  onTrack,
 }: {
   plane: Resource;
   summary: ReturnType<typeof fleetSummary>;
+  /** Set this tail's inspections up. Absent when the viewer may not. */
+  onTrack?: () => void;
 }) {
   const meta = plane.type?.plane;
   const grounded = meta?.grounded ?? false;
@@ -136,16 +262,23 @@ function AircraftCard({
   const tone = grounded ? "danger" : summary.total === 0 ? "muted" : summary.tone;
 
   return (
-    <Link
-      to="/aircraft/$resourceId"
-      params={{ resourceId: String(plane.id) }}
-      className="group relative flex overflow-hidden rounded-xl border border-border bg-card transition-colors hover:bg-accent/30"
-    >
+    <div className="group relative flex overflow-hidden rounded-xl border border-border bg-card transition-colors hover:bg-accent/30 focus-within:ring-2 focus-within:ring-ring">
       {/* The status rail carries the whole verdict at a glance, so a wall of these reads as
           a colour scan before a single word is read. */}
       <span className={cn("w-1 shrink-0", ACCENT[tone])} aria-hidden />
 
-      <div className="min-w-0 flex-1 p-3.5">
+      {/* The whole card opens the aircraft, but the card also carries its own button now,
+          and a button inside an anchor is invalid HTML that swallows the keyboard. So the
+          anchor is a full-card overlay, the content ignores pointer events, and anything
+          genuinely clickable lifts itself back above it. */}
+      <Link
+        to="/aircraft/$resourceId"
+        params={{ resourceId: String(plane.id) }}
+        className="absolute inset-0 z-0 rounded-xl"
+        aria-label={`${resourceLabel(plane).name}, maintenance detail`}
+      />
+
+      <div className="pointer-events-none min-w-0 flex-1 p-3.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
@@ -171,7 +304,22 @@ function AircraftCard({
           {summary.overdue > 0 && <Badge variant="danger">{summary.overdue} overdue</Badge>}
           {summary.dueSoon > 0 && <Badge variant="warning">{summary.dueSoon} due soon</Badge>}
           {summary.total === 0 ? (
-            <span className="text-xs text-muted-foreground">Nothing tracked yet</span>
+            // Was a grey sentence and a dead end. It is the commonest state on a fleet
+            // nobody has set up yet (seven of eleven tails on the school this was built
+            // against), and it named the problem while offering no way out of it. The
+            // AVIATES set is two taps from here, so put it here.
+            onTrack ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="pointer-events-auto relative z-10 h-7 px-2 text-xs"
+                onClick={onTrack}
+              >
+                <Plus className="size-3.5" /> Track inspections
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground">Nothing tracked yet</span>
+            )
           ) : (
             summary.overdue === 0 &&
             summary.dueSoon === 0 && <Badge variant="success">All current</Badge>
@@ -208,6 +356,6 @@ function AircraftCard({
           </div>
         )}
       </div>
-    </Link>
+    </div>
   );
 }

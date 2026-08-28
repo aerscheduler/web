@@ -25,6 +25,7 @@ import {
   fleetSummary,
   fleetTotals,
   fromDeciHours,
+  tailBucket,
 } from "@/lib/maintenance";
 import { cn } from "@/lib/utils";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
@@ -43,10 +44,16 @@ const ACCENT: Record<string, string> = {
 export function FleetStatus({
   q: search,
   resourceId,
+  fleetStatus,
+  grounded,
   canManage = false,
 }: {
   q?: string;
   resourceId?: number[];
+  /** Tail states to keep, from `tailBucket`. Empty or absent means all of them. */
+  fleetStatus?: string[];
+  /** Off the line, on it, or (undefined) either. Its own axis, see `tailBucket`. */
+  grounded?: boolean;
   /** May set inspections up. Same gate as the page's own "Add inspections" button. */
   canManage?: boolean;
 }) {
@@ -81,6 +88,16 @@ export function FleetStatus({
         return [name, plane?.make, plane?.model].some((v) => v?.toLowerCase().includes(needle));
       })
       .map((plane) => ({ plane, summary: fleetSummary(byResource.get(plane.id) ?? []) }))
+      // Filtered BEFORE the summary is derived, on purpose: the line above the grid counts
+      // what is on screen, so filtering to "overdue" says "2 tails, 2 overdue" rather than
+      // restating the whole fleet over a grid showing two cards.
+      .filter(({ plane, summary }) => {
+        if (grounded !== undefined && (plane.type?.plane?.grounded ?? false) !== grounded) {
+          return false;
+        }
+        if (fleetStatus?.length && !fleetStatus.includes(tailBucket(summary))) return false;
+        return true;
+      })
       .sort((a, b) => {
         // Grounded first regardless of what's due, an aircraft that isn't flying is the
         // top of anyone's list, and its reminders may all be green precisely because a
@@ -93,7 +110,7 @@ export function FleetStatus({
         if (urgencyA !== urgencyB) return urgencyA - urgencyB;
         return resourceLabel(a.plane).name.localeCompare(resourceLabel(b.plane).name);
       });
-  }, [planesQ.data, remindersQ.data, search, resourceId]);
+  }, [planesQ.data, remindersQ.data, search, resourceId, fleetStatus, grounded]);
 
   const totals = useMemo(
     () =>
@@ -122,16 +139,27 @@ export function FleetStatus({
     );
   }
 
+  // A filter that hides everything must not read as an empty fleet, or somebody filters to
+  // "Overdue", sees "No aircraft yet", and concludes the school has no aeroplanes.
+  const filtered = !!search || !!fleetStatus?.length || grounded !== undefined || !!resourceId?.length;
+  // The state-specific line is only TRUE when the state is the only thing narrowing the
+  // grid. Grounded plus Not tracked would otherwise claim nothing in the fleet is
+  // untracked, on a fleet where seven tails are, because none of the grounded ones are.
+  const onlyStatusNarrows =
+    !!fleetStatus?.length && !search && grounded === undefined && !resourceId?.length;
+
   if (cards.length === 0) {
     return (
       <Card className="min-h-0 flex-1 p-0">
         <EmptyState
           icon={PlaneTakeoff}
-          title={search ? "No matches" : "No aircraft yet"}
+          title={filtered ? "No matches" : "No aircraft yet"}
           body={
-            search
-              ? "Nothing in the fleet matches that."
-              : "Add a tail and its inspections will have something to hang off."
+            onlyStatusNarrows
+              ? "No aircraft in the fleet is in that state right now."
+              : filtered
+                ? "No aircraft matches those filters."
+                : "Add a tail and its inspections will have something to hang off."
           }
         />
       </Card>

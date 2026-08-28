@@ -194,6 +194,22 @@ export function warningLabel(t: { remindDaysBefore?: number | null; remindHoursB
  * reasons that have nothing to do with an inspection (an open squawk, a prop strike), and
  * folding it into the same run of numbers would double-count it or hide it.
  */
+export type TailBucket = "overdue" | "dueSoon" | "current" | "untracked";
+
+/**
+ * Which single state a tail is in, worst first.
+ *
+ * One definition, used by both the summary line and the Status filter beside it, so a
+ * fleet that reads "2 overdue" cannot filter to a different two. Grounded is deliberately
+ * NOT a bucket here: it is a separate axis, and it has its own filter.
+ */
+export function tailBucket(summary: ReturnType<typeof fleetSummary>): TailBucket {
+  if (summary.total === 0) return "untracked";
+  if (summary.overdue > 0) return "overdue";
+  if (summary.dueSoon > 0) return "dueSoon";
+  return "current";
+}
+
 export function fleetTotals(
   entries: { grounded: boolean; summary: ReturnType<typeof fleetSummary> }[]
 ) {
@@ -205,10 +221,19 @@ export function fleetTotals(
 
   for (const { grounded: isGrounded, summary } of entries) {
     if (isGrounded) grounded += 1;
-    if (summary.total === 0) untracked += 1;
-    else if (summary.overdue > 0) overdue += 1;
-    else if (summary.dueSoon > 0) dueSoon += 1;
-    else current += 1;
+    switch (tailBucket(summary)) {
+      case "untracked":
+        untracked += 1;
+        break;
+      case "overdue":
+        overdue += 1;
+        break;
+      case "dueSoon":
+        dueSoon += 1;
+        break;
+      default:
+        current += 1;
+    }
   }
 
   return {

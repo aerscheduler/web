@@ -40,7 +40,7 @@ import { VerifySquawkModal } from "@/components/maintenance/verify-squawk-modal"
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-const FACET_KEYS = ["view", "resourceId", "status"] as const;
+const FACET_KEYS = ["view", "resourceId", "status", "fleetStatus", "grounded"] as const;
 
 export const Route = createFileRoute("/_authed/maintenance")({
   beforeLoad: guardRoute("/maintenance"),
@@ -102,6 +102,36 @@ function MaintenancePage() {
           value: String(r.id),
           label: resourceLabel(r).name,
         })),
+      });
+    }
+
+    // The by-aircraft board filters on the TAIL's state, which is a different question
+    // from a single inspection's band below: a tail is overdue when any one of its
+    // inspections is. Its own key so that switching boards cannot carry `notTracked` into
+    // the inspection list, where the server has never heard of it.
+    if (view === "aircraft") {
+      defs.push({
+        kind: "select",
+        key: "fleetStatus",
+        label: "Status",
+        allLabel: "Any status",
+        multiple: true,
+        options: [
+          { value: "overdue", label: "Overdue" },
+          { value: "dueSoon", label: "Due soon" },
+          { value: "current", label: "Current" },
+          { value: "untracked", label: "Not tracked" },
+        ],
+      });
+      // Separate control rather than a fifth status, because it is a separate axis: an
+      // aircraft is off the line for reasons that have nothing to do with an inspection,
+      // and folding it in would make "Grounded and Current" mean nothing coherent.
+      defs.push({
+        kind: "boolean",
+        key: "grounded",
+        label: "Line status",
+        trueLabel: "Grounded",
+        falseLabel: "On the line",
       });
     }
 
@@ -168,7 +198,13 @@ function MaintenancePage() {
 
           {view === "aircraft" && (
             <TableView.Body>
-              <FleetStatus q={q} resourceId={resourceIds} canManage={canManage} />
+              <FleetStatus
+                q={q}
+                resourceId={resourceIds}
+                fleetStatus={asFacetStrings(facets.fleetStatus)}
+                grounded={typeof facets.grounded === "boolean" ? facets.grounded : undefined}
+                canManage={canManage}
+              />
             </TableView.Body>
           )}
           {view === "templates" && (

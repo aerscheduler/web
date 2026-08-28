@@ -72,7 +72,14 @@ export type DateRangeFacet = {
 
 export type FacetDef = BooleanFacet | SelectFacet | DateRangeFacet;
 
-export type ListFilterValue = string | boolean | string[] | undefined;
+/**
+ * `number` is here for RECORD IDS, not for facet controls, which are all strings.
+ *
+ * The router JSON-encodes search values, so the string "2251" has to go into the URL as
+ * `open=%222251%22` to come back a string rather than a number. That is what every shared
+ * link to an open record would look like. A number round-trips as `open=2251`.
+ */
+export type ListFilterValue = string | number | boolean | string[] | undefined;
 
 export type ListFilterValues = {
   /** ISO start/end when a dateRange facet is present. */

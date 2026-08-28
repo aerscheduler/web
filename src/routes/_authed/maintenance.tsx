@@ -1,9 +1,8 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CheckCircle2, ClipboardList, PlaneTakeoff, Plus, Wrench } from "lucide-react";
+import { PlaneTakeoff, Plus, Wrench } from "lucide-react";
 import {
   pageRows,
-  useSquawksPage,
   useMaintenanceRemindersPage,
   usePlanes,
   type MaintenanceDueStatus,
@@ -11,7 +10,7 @@ import {
 import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";
 import { cn } from "@/lib/utils";
-import { resourceLabel, type MaintenanceReminder, type Squawk } from "@/types/api";
+import { resourceLabel, type MaintenanceReminder } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { canResolveSquawk, guardRoute } from "@/lib/permissions";
 import { MAINTENANCE_RAIL, MAINTENANCE_VIEWS } from "@/lib/maintenance-sections";
@@ -27,20 +26,18 @@ import {
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { DocsLink } from "@/components/docs-hint";
 import { RAIL_ROW, SectionRail } from "@/components/section-rail";
-import { SquawkCard } from "@/components/maintenance/squawk-card";
-import { SquawkDetailSheet } from "@/components/maintenance/squawk-detail-sheet";
 import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
 import { FleetStatus } from "@/components/maintenance/fleet-status";
+import { SquawkInbox } from "@/components/maintenance/squawk-inbox";
 import { InspectionRow } from "@/components/maintenance/inspection-row";
 import { InspectionTemplates } from "@/components/maintenance/inspection-templates";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
 import { ResolveReminderModal } from "@/components/maintenance/resolve-reminder-modal";
-import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
-import { VerifySquawkModal } from "@/components/maintenance/verify-squawk-modal";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-const FACET_KEYS = ["view", "resourceId", "status", "fleetStatus", "grounded"] as const;
+const FACET_KEYS = ["view", "resourceId", "status", "fleetStatus", "grounded", "open"] as const;
+const TRANSIENT_FACET_KEYS = ["open"];
 
 export const Route = createFileRoute("/_authed/maintenance")({
   beforeLoad: guardRoute("/maintenance"),
@@ -71,6 +68,9 @@ function MaintenancePage() {
     navigate: navigate as Parameters<typeof useListQueryState>[0]["navigate"],
     facetKeys: [...FACET_KEYS],
     defaults: { view: "aircraft" },
+    // Which squawk was open is not part of "where I left off": restoring it a week later
+    // reopens a record somebody finished with, on a queue that has moved on since.
+    transientKeys: TRANSIENT_FACET_KEYS,
   });
   const { roles } = useAuth();
   const canManage = canResolveSquawk(roles);
@@ -84,6 +84,14 @@ function MaintenancePage() {
   const statuses = asFacetStrings(facets.status);
 
   const showsSquawks = view === "open" || view === "resolved";
+  // Which record the inbox has open. In the URL rather than in state: a notification links
+  // straight to one, and closing it has to be an ordinary Back.
+  // A number, not a string: it goes into the URL bare (`open=2251`) rather than JSON
+  // quoted, which is what anyone pasting a link to a squawk into Slack gets.
+  const openId = Number.isFinite(Number(facets.open)) && facets.open !== undefined
+    ? Number(facets.open)
+    : null;
+  const setOpenId = (id: number | null) => setFacets({ ...facets, open: id ?? undefined });
 
   const facetDefs = React.useMemo<FacetDef[]>(() => {
     const defs: FacetDef[] = [];
@@ -154,6 +162,18 @@ function MaintenancePage() {
     return defs;
   }, [planesQ.data, view]);
 
+  const searchBar = (
+    <ListSearchBar
+      value={search}
+      onChange={setSearch}
+      placeholder={showsSquawks ? "Search squawks…" : "Search aircraft or inspections…"}
+      aria-label="Search maintenance"
+      facets={facetDefs}
+      filterValues={facets}
+      onFilterChange={setFacets}
+    />
+  );
+
   return (
     <TableView className="gap-5">
       <TableView.Header>
@@ -186,15 +206,10 @@ function MaintenancePage() {
         {/* The search and filters belong to the section, not to the page: what
             they search changes with it, and Set up has nothing to filter by tail. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-          <ListSearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder={showsSquawks ? "Search squawks…" : "Search aircraft or inspections…"}
-            aria-label="Search maintenance"
-            facets={facetDefs}
-            filterValues={facets}
-            onFilterChange={setFacets}
-          />
+          {/* On an inbox it belongs over the LIST, not over both panes: it searches the
+              queue on the left, and a bar stretched across the open record implies it
+              searches inside that too. So the squawk boards take it as their toolbar. */}
+          {!showsSquawks && searchBar}
 
           {view === "aircraft" && (
             <TableView.Body>
@@ -212,10 +227,21 @@ function MaintenancePage() {
               <InspectionTemplates q={q} canManage={canManage} onAdd={() => setAddOpen(true)} />
             </TableView.Body>
           )}
-          {view === "open" && (
-            <OpenSquawks onLog={() => setSquawkOpen(true)} q={q} resourceId={resourceIds} />
+          {showsSquawks && (
+            <SquawkInbox
+              // Remounts between the two boards, which is what we want: Open and Resolved
+              // are different queues, and carrying a scroll position or a stale open record
+              // across them would be a bug rather than a convenience.
+              key={view}
+              resolved={view === "resolved"}
+              q={q}
+              resourceId={resourceIds}
+              openId={openId}
+              onOpenId={setOpenId}
+              toolbar={searchBar}
+              onLog={view === "open" ? () => setSquawkOpen(true) : undefined}
+            />
           )}
-          {view === "resolved" && <ResolvedSquawks q={q} resourceId={resourceIds} />}
           {view === "reminders" && (
             <Reminders
               q={q}
@@ -264,194 +290,6 @@ function hasResourceFilter(resourceId?: number | number[]) {
   return Array.isArray(resourceId) ? resourceId.length > 0 : resourceId != null;
 }
 
-function OpenSquawks({
-  onLog,
-  q: searchQ,
-  resourceId,
-}: {
-  onLog: () => void;
-  q?: string;
-  resourceId?: number | number[];
-}) {
-  const { roles } = useAuth();
-  const canResolve = canResolveSquawk(roles);
-  const filter = { resolved: false, q: searchQ, resourceId };
-  const paging = usePaging({ resetKey: filter, defaultSort: { key: "createdAt", dir: "desc" } });
-  const q = useSquawksPage(filter, paging);
-  const [resolving, setResolving] = React.useState<Squawk | null>(null);
-  const [verifying, setVerifying] = React.useState<Squawk | null>(null);
-  const [viewing, setViewing] = React.useState<Squawk | null>(null);
-  const { rows: squawks, total } = pageRows(q);
-  const empty = total === 0 && !searchQ && !hasResourceFilter(resourceId);
-  const noMatch = total === 0 && !empty;
-
-  const step = (delta: -1 | 1) => {
-    if (!viewing || squawks.length === 0) return;
-    const i = squawks.findIndex((s) => s.id === viewing.id);
-    if (i === -1) return;
-    const next = squawks[Math.min(squawks.length - 1, Math.max(0, i + delta))];
-    if (next) setViewing(next);
-  };
-
-  return (
-    <Frame isLoading={q.isLoading} error={q.error} onRetry={() => q.refetch()}>
-      {empty ? (
-        <Card className="min-h-0 flex-1 p-0">
-          <EmptyState
-            icon={CheckCircle2}
-            title="No open squawks, the fleet's clean."
-            body="Anything a pilot reports shows up here until a technician signs it off."
-            action={
-              <Button onClick={onLog}>
-                <Plus className="size-4" /> Log a squawk
-              </Button>
-            }
-          />
-        </Card>
-      ) : noMatch ? (
-        <Card className="min-h-0 flex-1 p-0">
-          <EmptyState icon={ClipboardList} title="No matches" body="Nothing matches that search." />
-        </Card>
-      ) : (
-        <>
-          <TableView.Body>
-            <div
-              data-doc-shot="maintenance-squawks-open"
-              className={cn("space-y-2.5", q.isFetching && "opacity-60")}
-            >
-              {squawks.map((s) => (
-                <SquawkCard
-                  key={s.id}
-                  squawk={s}
-                  onOpen={setViewing}
-                  // Omitted for a dispatcher, who can read this board but whom
-                  // the server won't let close a squawk. SquawkCard hides the
-                  // button when there's no handler.
-                  onResolve={canResolve ? setResolving : undefined}
-                  resolving={resolving?.id === s.id}
-                  selected={viewing?.id === s.id}
-                />
-              ))}
-            </div>
-          </TableView.Body>
-          <TablePagination paging={paging} total={total} returned={squawks.length} loading={q.isFetching} />
-        </>
-      )}
-
-      <SquawkDetailSheet
-        squawk={viewing}
-        open={viewing != null}
-        onOpenChange={(o) => !o && setViewing(null)}
-        onResolve={
-          canResolve
-            ? (s) => {
-                setViewing(null);
-                setResolving(s);
-              }
-            : undefined
-        }
-        //Verifying is a judgement about a fault you have just read, so it is offered from
-        //the write-up rather than as a second button on every row of the board. Same
-        //placement the phone uses, and the same viewers as resolve.
-        onVerify={
-          canResolve
-            ? (s) => {
-                setViewing(null);
-                setVerifying(s);
-              }
-            : undefined
-        }
-        onStep={step}
-      />
-
-      <ResolveSquawkModal
-        squawk={resolving}
-        open={resolving != null}
-        onOpenChange={(o) => !o && setResolving(null)}
-      />
-
-      <VerifySquawkModal
-        squawk={verifying}
-        open={verifying != null}
-        onOpenChange={(o) => !o && setVerifying(null)}
-      />
-    </Frame>
-  );
-}
-
-function ResolvedSquawks({
-  q: searchQ,
-  resourceId,
-}: {
-  q?: string;
-  resourceId?: number | number[];
-}) {
-  const filter = { resolved: true, q: searchQ, resourceId };
-  const paging = usePaging({ resetKey: filter, defaultSort: { key: "resolvedAt", dir: "desc" } });
-  const q = useSquawksPage(filter, paging);
-  const { rows: squawks, total } = pageRows(q);
-  const [viewing, setViewing] = React.useState<Squawk | null>(null);
-  const empty = total === 0 && !searchQ && !hasResourceFilter(resourceId);
-  const noMatch = total === 0 && !empty;
-
-  const step = (delta: -1 | 1) => {
-    if (!viewing || squawks.length === 0) return;
-    const i = squawks.findIndex((s) => s.id === viewing.id);
-    if (i === -1) return;
-    const next = squawks[Math.min(squawks.length - 1, Math.max(0, i + delta))];
-    if (next) setViewing(next);
-  };
-
-  return (
-    <Frame isLoading={q.isLoading} error={q.error} onRetry={() => q.refetch()}>
-      {empty ? (
-        <Card className="min-h-0 flex-1 p-0">
-          <EmptyState
-            icon={ClipboardList}
-            title="Nothing resolved yet"
-            body="Squawks you sign off will be archived here for the record."
-          />
-        </Card>
-      ) : noMatch ? (
-        <Card className="min-h-0 flex-1 p-0">
-          <EmptyState icon={ClipboardList} title="No matches" body="Nothing matches that search." />
-        </Card>
-      ) : (
-        <>
-          <TableView.Body>
-            <div className={cn("space-y-2.5", q.isFetching && "opacity-60")}>
-              {squawks.map((s) => (
-                <SquawkCard
-                  key={s.id}
-                  squawk={s}
-                  onOpen={setViewing}
-                  selected={viewing?.id === s.id}
-                />
-              ))}
-            </div>
-          </TableView.Body>
-          <TablePagination paging={paging} total={total} returned={squawks.length} loading={q.isFetching} />
-        </>
-      )}
-
-      <SquawkDetailSheet
-        squawk={viewing}
-        open={viewing != null}
-        onOpenChange={(o) => !o && setViewing(null)}
-        onStep={step}
-      />
-    </Frame>
-  );
-}
-
-/**
- * Every live inspection in the school, worst first.
- *
- * `resolved: false` is baked in rather than offered as a filter: this view is a work
- * queue, and a signed-off item belongs to the aircraft's history, not to the queue. The
- * server sorts by urgency, so the page order is the same order the aircraft cards and the
- * per-tail panel use.
- */
 function Reminders({
   q: searchQ,
   resourceId,

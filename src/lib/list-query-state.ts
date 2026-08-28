@@ -89,7 +89,9 @@ export function parseListSearch(
         out[k] = v;
       }
     } else if (typeof v === "number" && Number.isFinite(v)) {
-      out[k] = String(v);
+      // Kept as a number. A record id put here by an inbox has to serialize back as a
+      // bare `open=2251`, and String()ing it would send it round as `open="2251"`.
+      out[k] = v;
     }
   }
   return out;
@@ -99,8 +101,8 @@ export function parseListSearch(
 export function serializeListSearch(
   state: ListQueryState,
   defaults: ListFilterValues = {}
-): Record<string, string | boolean | undefined> {
-  const out: Record<string, string | boolean | undefined> = {};
+): Record<string, string | number | boolean | undefined> {
+  const out: Record<string, string | number | boolean | undefined> = {};
   const q = typeof state.q === "string" ? state.q.trim() : "";
   if (q) out.q = q;
 
@@ -111,6 +113,8 @@ export function serializeListSearch(
     if (typeof v === "boolean") out[k] = v;
     else if (Array.isArray(v)) out[k] = v.map(String).join(",");
     else if (typeof v === "string") out[k] = v;
+    // A record id from an inbox. Bare in the URL, see `ListFilterValue`.
+    else if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
   }
   return out;
 }
@@ -164,12 +168,16 @@ function writeStored(storageKey: string, state: ListQueryState) {
  *
  * The text field updates immediately; `q` is written to the URL after debounce.
  */
+/** Stable identity so `transientKeys` does not re-fire the persist effect every render. */
+const EMPTY_KEYS: string[] = [];
+
 export function useListQueryState({
   storageKey,
   search,
   navigate,
   facetKeys,
   defaults = {},
+  transientKeys = EMPTY_KEYS,
 }: {
   storageKey: string;
   /** Current route search (from `Route.useSearch()`). */
@@ -178,6 +186,15 @@ export function useListQueryState({
   facetKeys: string[];
   /** Required facet defaults (e.g. maintenance `view: "open"`). */
   defaults?: ListFilterValues;
+  /**
+   * Facet keys that belong in the URL but NOT in the remembered session.
+   *
+   * For the record an inbox has open. Which filters somebody was using is worth restoring
+   * a week later; which squawk they had open is not, and restoring it means the page
+   * reopens a record they finished with, on a queue that has moved on. Still fully in the
+   * URL, so a link and the Back button work exactly as before.
+   */
+  transientKeys?: string[];
 }) {
   const urlQ = typeof search.q === "string" ? search.q : "";
   const [input, setInput] = useState(urlQ);
@@ -226,15 +243,22 @@ export function useListQueryState({
       const v = search[k];
       if (isEmptyValue(v)) continue;
       if (Array.isArray(v)) next[k] = v.map(String);
-      else if (typeof v === "boolean" || typeof v === "string") next[k] = v;
+      // `number` alongside the rest, for the record id an inbox keeps here. Dropping it
+      // silently was the whole bug: the id reached the URL and never came back out, so a
+      // shared link and a refresh both landed on a list with nothing open.
+      else if (typeof v === "boolean" || typeof v === "string" || typeof v === "number") {
+        next[k] = v;
+      }
     }
     return next;
   }, [search, facetKeys, defaults]);
 
-  // Persist whenever URL-backed state changes.
+  // Persist whenever URL-backed state changes, minus anything marked transient.
   useEffect(() => {
-    writeStored(storageKey, { q: urlQ || undefined, ...facets });
-  }, [storageKey, urlQ, facets]);
+    const keep: ListFilterValues = { ...facets };
+    for (const k of transientKeys) delete keep[k];
+    writeStored(storageKey, { q: urlQ || undefined, ...keep });
+  }, [storageKey, urlQ, facets, transientKeys]);
 
   function setFacets(next: ListFilterValues | ((prev: ListFilterValues) => ListFilterValues)) {
     const resolved = typeof next === "function" ? next(facets) : next;

@@ -178,6 +178,7 @@ function MaintenancePage() {
     <TableView className="gap-5">
       <TableView.Header>
         <PageHeader
+          wide
           title="Maintenance"
           subtitle="What each aircraft owes, and what's been squawked."
           actions={

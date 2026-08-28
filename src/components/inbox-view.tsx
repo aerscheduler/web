@@ -86,7 +86,10 @@ export type InboxViewProps<T> = {
   loading?: boolean;
   error?: unknown;
   onRetry?: () => void;
-  /** Skeleton for the list while loading. */
+  /**
+   * Loading placeholder for the list. Defaults to rows of the right shape, which is almost
+   * always what you want; override only for a queue whose rows look nothing like these.
+   */
   listSkeleton?: React.ReactNode;
   /** Width of the list column from md up. Wider suits a queue with long titles. */
   listWidth?: string;
@@ -252,9 +255,9 @@ export function InboxView<T>({
       >
         {toolbar && <div className="shrink-0">{toolbar}</div>}
 
-        {loading && listSkeleton ? (
+        {loading ? (
           <div className={cn(FILL_BODY_MIN, "min-h-0 md:flex-1 md:overflow-y-auto")}>
-            {listSkeleton}
+            {listSkeleton ?? <InboxListSkeleton />}
           </div>
         ) : (
           <ul
@@ -340,6 +343,31 @@ export function InboxView<T>({
           <div className="hidden min-h-0 flex-1 md:flex">{placeholder}</div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Rows, not cards.
+ *
+ * The first cut borrowed `CardGridSkeleton`, which lays out a responsive GRID: in a 384px
+ * column that collapses to one narrow card per row and the loading state looked nothing
+ * like the list it was standing in for. A skeleton whose shape lies about what is coming is
+ * worse than no skeleton.
+ */
+export function InboxListSkeleton({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="space-y-1.5" aria-hidden>
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} className="rounded-lg border border-border bg-card px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="h-3.5 w-2/3 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-12 shrink-0 animate-pulse rounded-full bg-muted" />
+          </div>
+          <div className="mt-2 h-3 w-1/3 animate-pulse rounded bg-muted" />
+          <div className="mt-1.5 h-3 w-5/6 animate-pulse rounded bg-muted" />
+        </div>
+      ))}
     </div>
   );
 }

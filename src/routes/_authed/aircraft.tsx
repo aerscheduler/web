@@ -169,6 +169,7 @@ function AircraftPage() {
     <TableView>
       <TableView.Header>
         <PageHeader
+          wide
           title="Aircraft"
           subtitle={
             q.data

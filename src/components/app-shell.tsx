@@ -34,7 +34,8 @@ import { LogoMark } from "@/components/logo";
 import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
 import { DemoBanner } from "@/components/demo/demo-banner";
 import { FeedbackModal } from "@/components/feedback/feedback-modal";
-import { initials } from "@/lib/utils";
+import { cn, initials } from "@/lib/utils";
+import { WideModeProvider, useWideMode } from "@/lib/wide-mode";
 import {
   Sidebar,
   SidebarContent,
@@ -77,6 +78,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <ConfirmProvider>
+      <WideModeProvider>
       <CommandMenuProvider>
         <QuickCreateProvider>
          <DetailPanelProvider>
@@ -138,9 +140,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   moving the padding out to `main` either: a scroll container's end
                   padding is not re-applied after descendant overflow. */}
               <main className="min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto">
-                <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 md:[&:has([data-fill-page])]:h-full md:[&:has([data-fill-page])]:pb-0">
-                  {children}
-                </div>
+                <PageContainer>{children}</PageContainer>
               </main>
               </div>
               {/* Deliberately OUTSIDE the max-w-[1280px] wrapper: on a wide monitor
@@ -153,7 +153,34 @@ export function AppShell({ children }: { children: ReactNode }) {
          </DetailPanelProvider>
         </QuickCreateProvider>
       </CommandMenuProvider>
+      </WideModeProvider>
     </ConfirmProvider>
+  );
+}
+
+/**
+ * The column every page renders into.
+ *
+ * Its own component so it can read the wide preference from the provider mounted just
+ * above it in `AppShell`; a hook called in `AppShell`'s own body could not see a context
+ * that `AppShell` renders.
+ */
+function PageContainer({ children }: { children: ReactNode }) {
+  const { wide } = useWideMode();
+  return (
+    <div
+      className={cn(
+        "mx-auto flex min-h-full w-full min-w-0 max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 md:[&:has([data-fill-page])]:h-full md:[&:has([data-fill-page])]:pb-0",
+        // Wide mode, and only on a page that asked for it by rendering the toggle. `:has()`
+        // keeps this a pure CSS answer, so a page paints at its final width immediately
+        // rather than flashing narrow while an effect registers. `lg:` because the cap only
+        // binds on a window wider than it; below that this would change nothing.
+        // See lib/wide-mode.tsx for why the preference is global and the opt-in per page.
+        wide && "lg:[&:has([data-wide-ok])]:max-w-none"
+      )}
+    >
+      {children}
+    </div>
   );
 }
 

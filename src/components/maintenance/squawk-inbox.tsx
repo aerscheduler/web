@@ -8,7 +8,7 @@ import { canResolveSquawk } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { InboxView, InboxPlaceholder } from "@/components/inbox-view";
 import { TablePagination } from "@/components/table-pagination";
-import { CardGridSkeleton, EmptyState } from "@/components/states";
+import { EmptyState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
@@ -98,7 +98,6 @@ export function SquawkInbox({
           />
         }
         loading={listQ.isLoading}
-        listSkeleton={<CardGridSkeleton count={4} />}
         error={listQ.error}
         onRetry={() => listQ.refetch()}
         docShot={resolved ? "maintenance-squawks-resolved" : "maintenance-squawks-open"}

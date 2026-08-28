@@ -439,6 +439,7 @@ function PeoplePage() {
     <TableView>
       <TableView.Header>
         <PageHeader
+          wide
           title="People"
           subtitle={
             showingGuests

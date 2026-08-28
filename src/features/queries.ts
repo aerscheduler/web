@@ -1840,6 +1840,17 @@ export function useSubscription(opts?: QueryOpts) {
 }
 
 /** Start Stripe Checkout for the per-aircraft subscription → returns `{ url }`. */
+/** Open Stripe's billing portal, where a card is added or replaced.
+ *
+ *  The endpoint existed for months and nothing called it, which is why a school whose
+ *  payment failed had no way to fix it from the console. */
+export function useBillingPortal() {
+  return useMutation({
+    mutationFn: (body: { returnUrl?: string } = {}) =>
+      api<{ url: string }>("/subscription/portal", { method: "POST", body }),
+  });
+}
+
 export function useSubscriptionCheckout() {
   return useMutation({
     mutationFn: (body: { successUrl?: string; cancelUrl?: string } = {}) =>
@@ -1922,6 +1933,80 @@ export function useOrgBillingTerms(orgId: number | null, opts?: QueryOpts) {
         priced: PricedTerms;
         changes: BillingTermsChange[];
       }>(`/developer/billing-terms/${orgId}`),
+    enabled: orgId != null,
+    ...opts,
+  });
+}
+
+export type OrgDirectoryRow = {
+  id: number;
+  name: string;
+  code: string;
+  createdAt: string;
+  isDemo: boolean;
+  plan: string;
+  memberCount: number;
+  aircraftCount: number;
+  lastActiveAt: string | null;
+  priced: PricedTerms;
+};
+
+export type OrgMemberRow = {
+  orgUserId: number;
+  userId: number;
+  name: string;
+  email: string;
+  emailVerifiedAt: string | null;
+  lastActiveAt: string | null;
+  archivedAt: string | null;
+  roles: string[];
+};
+
+/**
+ * The organization directory, paged and searched ON THE SERVER.
+ *
+ * `q` is part of the query key rather than a client-side filter for the reason
+ * lib/paging.ts spells out: narrowing the twenty-five rows this page happens to be
+ * holding and labelling it "the schools matching Chicago" is wrong in a way nobody
+ * looking at the screen can detect.
+ */
+export function useDeveloperOrganizations(
+  params: { q?: string; kind?: string; model?: string; blockedOnly?: boolean; limit: number; offset: number },
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["developer", "organizations", params],
+    queryFn: () =>
+      api<{ rows: OrgDirectoryRow[]; total: number; hasMore: boolean }>(
+        `/developer/organizations/search?${new URLSearchParams({
+          ...(params.q ? { q: params.q } : {}),
+          ...(params.kind && params.kind !== "all" ? { kind: params.kind } : {}),
+          ...(params.model && params.model !== "all" ? { model: params.model } : {}),
+          ...(params.blockedOnly ? { blockedOnly: "true" } : {}),
+          limit: String(params.limit),
+          offset: String(params.offset),
+        }).toString()}`
+      ),
+    ...opts,
+  });
+}
+
+/** One school's people, for the organization detail page. */
+export function useDeveloperOrgMembers(
+  orgId: number | null,
+  params: { q?: string; limit: number; offset: number },
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["developer", "organizations", orgId, "members", params],
+    queryFn: () =>
+      api<{ rows: OrgMemberRow[]; total: number; hasMore: boolean }>(
+        `/developer/organizations/${orgId}/members?${new URLSearchParams({
+          ...(params.q ? { q: params.q } : {}),
+          limit: String(params.limit),
+          offset: String(params.offset),
+        }).toString()}`
+      ),
     enabled: orgId != null,
     ...opts,
   });

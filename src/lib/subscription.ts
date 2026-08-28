@@ -46,6 +46,17 @@ export type SubStatus = {
   monthlyCents: number;
   /** A real Stripe subscription is in place. */
   subscribed: boolean;
+  /**
+   * Stripe has a subscription for them that it cannot collect on: `past_due` or
+   * `unpaid`.
+   *
+   * Kept separate from `subscribed` because the two used to collapse into "not
+   * subscribed", and the school that has ALREADY been through checkout then gets
+   * offered checkout again. Pressing it starts a SECOND subscription beside the
+   * unpaid one. What they need is the billing portal, so the console has to be able
+   * to tell the two apart.
+   */
+  paymentProblem: boolean;
   /** Stop them using the console. Straight from the server. */
   blocked: boolean;
   /** Anything is being given away or discounted. */
@@ -86,6 +97,7 @@ export function subscriptionStatus(sub: SubscriptionStatus | undefined, planeCou
     unitPriceCents: sub.unitPriceCents ?? PRICE_PER_AIRCRAFT_CENTS,
     monthlyCents: sub.monthlyCents ?? billableCount * PRICE_PER_AIRCRAFT_CENTS,
     subscribed: state === "active",
+    paymentProblem: Boolean(sub.hasSubscription && (sub.status === "past_due" || sub.status === "unpaid")),
     blocked: sub.blocked ?? false,
     sponsored: freeUnits > 0 || discountPercent > 0 || state === "free",
   };

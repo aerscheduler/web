@@ -1,7 +1,7 @@
 import { BadgeDollarSign, Check, Gift } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { TRIAL_DAYS, formatFreeUntil, formatUnitPrice, type SubStatus } from "@/lib/subscription";
-import { PriceBreakdown, SubscribeButton, useSubStatus } from "@/components/subscription/plan";
+import { ManageBillingButton, PriceBreakdown, SubscribeButton, useSubStatus } from "@/components/subscription/plan";
 import {
   Card,
   CardContent,
@@ -190,6 +190,16 @@ export function PlanTab() {
           <span className="flex items-center gap-1.5 text-sm text-success">
             <Check className="size-4" /> Subscription active
           </span>
+        ) : status.paymentProblem ? (
+          // They HAVE a subscription; Stripe just cannot collect on it. Checkout is the
+          // wrong door here, it would open a second subscription beside the unpaid one.
+          <div className="flex flex-col items-end gap-2">
+            <p className="text-sm text-destructive">
+              We could not take payment for this subscription, so access is at risk. Adding a payment
+              method fixes it.
+            </p>
+            <ManageBillingButton />
+          </div>
         ) : status.monthlyCents === 0 ? (
           // Nothing to sell. A fully sponsored fleet has no checkout to start, and the
           // server refuses one, so offering the button would be a dead end.

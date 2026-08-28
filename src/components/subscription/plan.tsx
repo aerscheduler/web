@@ -3,7 +3,7 @@ import { PlaneTakeoff, Check, ExternalLink, Gift, Info, Loader2 } from "lucide-r
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
-import { usePlanes, useSubscription, useSubscriptionCheckout } from "@/features/queries";
+import { useBillingPortal, usePlanes, useSubscription, useSubscriptionCheckout } from "@/features/queries";
 import {
   TRIAL_DAYS,
   formatMonthly,
@@ -90,6 +90,43 @@ export function SubscribeButton({
   return (
     <Button onClick={go} className={className} size={size} disabled={checkout.isPending}>
       {checkout.isPending ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
+      {label}
+    </Button>
+  );
+}
+
+/**
+ * Send an admin to Stripe's billing portal to add or replace a card.
+ *
+ * This is the button for a school whose payment failed. Offering them checkout instead
+ * would create a second subscription against the same customer, which Stripe allows and
+ * nothing here used to prevent, so they would be billed twice and our own status endpoint
+ * would show the healthy one and hide the unpaid one.
+ */
+export function ManageBillingButton({
+  label = "Update payment method",
+  className,
+  size,
+}: {
+  label?: string;
+  className?: string;
+  size?: "sm" | "default" | "lg";
+}) {
+  const portal = useBillingPortal();
+
+  async function go() {
+    try {
+      const { url } = await portal.mutateAsync({});
+      if (url) window.location.assign(url);
+      else toast.error("Couldn't open the billing portal, please try again.");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Couldn't open the billing portal");
+    }
+  }
+
+  return (
+    <Button onClick={go} className={className} size={size} disabled={portal.isPending}>
+      {portal.isPending ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
       {label}
     </Button>
   );

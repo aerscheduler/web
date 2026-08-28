@@ -183,7 +183,11 @@ function MaintenancePage() {
           subtitle="What each aircraft owes, and what's been squawked."
           actions={
             <>
-              {canManage && (
+              {/* Each board gets the verb that belongs to it. "Add inspections" on the
+                  squawk queue was an action for a different screen sitting directly above
+                  that screen's own buttons, which is most of why the two rows read as a
+                  pile rather than a hierarchy. */}
+              {canManage && !showsSquawks && (
                 <Button variant="outline" onClick={() => setAddOpen(true)}>
                   <Wrench className="size-4" /> Add inspections
                 </Button>

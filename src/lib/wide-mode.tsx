@@ -1,5 +1,4 @@
 import * as React from "react";
-import { usePersistedState } from "@/hooks/use-persisted-state";
 
 /**
  * "Wide" is one preference about YOUR MONITOR, honoured by the screens that can use it.
@@ -24,10 +23,33 @@ import { usePersistedState } from "@/hooks/use-persisted-state";
  * Same line the inbox draws for `transientKeys`, the record it has open is shareable state,
  * how wide you like your screen is not.
  *
- * Note "wide" means UNCAPPED, not a bigger number. A table genuinely uses 3000px on an
- * ultrawide; a paragraph never should, so components that need a reading measure set their
- * own (see `max-w-prose` on the squawk write-up). One bigger cap cannot serve both.
+ * Wide is a BIGGER CAP, not no cap. Uncapped on an ultrawide gave a header whose title sat
+ * at one end of a 3000px row and whose buttons sat at the other, with a metre of nothing
+ * between them: technically using the space, unreadable in practice. `WIDE_MAX_PX` fills a
+ * 1920 monitor exactly once the nav rail is taken off it, and holds the line past that.
+ * Components that need a tighter reading measure still set their own (`max-w-prose` on the
+ * squawk write-up).
  */
+
+/**
+ * 1920 minus the 240px nav rail. A very common monitor is then filled edge to edge with no
+ * gutter, and anything bigger keeps a margin rather than stretching a header across a
+ * desk. Mirrored in `app-shell.tsx` as a Tailwind arbitrary value, which cannot read a
+ * constant, so the two have to be changed together.
+ */
+export const WIDE_MAX_PX = 1680;
+
+/**
+ * The width at which wide is the better DEFAULT for somebody who has never chosen.
+ *
+ * The 1280 cap only starts wasting space once the window minus the nav rail exceeds it, so
+ * roughly 1520px. A little above that is where the gain is worth defaulting to.
+ *
+ * This is a default, never an override. The moment somebody toggles, their answer is
+ * stored and this stops being consulted; a preference that quietly re-decides itself when
+ * you dock a laptop is worse than one that is simply wrong once.
+ */
+const WIDE_BY_DEFAULT_PX = 1600;
 
 type WideMode = {
   wide: boolean;
@@ -39,10 +61,43 @@ const WideModeContext = React.createContext<WideMode | null>(null);
 
 const STORAGE_KEY = "aer.wide";
 
-export function WideModeProvider({ children }: { children: React.ReactNode }) {
-  const [wide, setWide] = usePersistedState<boolean>(STORAGE_KEY, false);
+/** A stored choice wins. Absent, guess from the screen this browser is actually on. */
+function readStoredOrGuess(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw != null) return JSON.parse(raw) as boolean;
+  } catch {
+    // Unreadable storage, fall through to the guess.
+  }
+  return window.innerWidth >= WIDE_BY_DEFAULT_PX;
+}
 
-  const toggle = React.useCallback(() => setWide((w) => !w), [setWide]);
+export function WideModeProvider({ children }: { children: React.ReactNode }) {
+  // Not `usePersistedState`: that writes the default on mount, which would freeze whatever
+  // this browser guessed on first load and stop the guess ever improving. Nothing is
+  // written until somebody actually chooses, so "never chosen" stays distinguishable from
+  // "chose narrow".
+  const [wide, setWideState] = React.useState<boolean>(readStoredOrGuess);
+
+  const setWide = React.useCallback((next: boolean) => {
+    setWideState(next);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      // Quota or private mode. The preference still applies for this session.
+    }
+  }, []);
+
+  const toggle = React.useCallback(() => setWideState((w) => {
+    const next = !w;
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch {
+      /* see above */
+    }
+    return next;
+  }), []);
 
   // A power-user toggle deserves a key. Meta/Ctrl + backslash, which nothing in the browser
   // or the console claims, and which is close enough to the window-management keys that it
@@ -60,10 +115,7 @@ export function WideModeProvider({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("keydown", onKey);
   }, [toggle]);
 
-  const value = React.useMemo(
-    () => ({ wide, setWide: (next: boolean) => setWide(next), toggle }),
-    [wide, setWide, toggle]
-  );
+  const value = React.useMemo(() => ({ wide, setWide, toggle }), [wide, setWide, toggle]);
 
   return <WideModeContext.Provider value={value}>{children}</WideModeContext.Provider>;
 }

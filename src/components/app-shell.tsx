@@ -171,12 +171,21 @@ function PageContainer({ children }: { children: ReactNode }) {
     <div
       className={cn(
         "mx-auto flex min-h-full w-full min-w-0 max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 md:[&:has([data-fill-page])]:h-full md:[&:has([data-fill-page])]:pb-0",
+        // Growing and shrinking is a change of shape, and a shape that teleports reads as
+        // a glitch: the eye has to re-find the list and the record rather than watch them
+        // move. Short enough not to be in the way of somebody who toggles and keeps
+        // working, and off entirely for anyone who asked for less motion.
+        "transition-[max-width] duration-300 ease-out motion-reduce:transition-none",
         // Wide mode, and only on a page that asked for it by rendering the toggle. `:has()`
         // keeps this a pure CSS answer, so a page paints at its final width immediately
         // rather than flashing narrow while an effect registers. `lg:` because the cap only
         // binds on a window wider than it; below that this would change nothing.
+        //
+        // A BIGGER cap, not none: uncapped on an ultrawide put a title at one end of a
+        // 3000px row and its buttons at the other. Keep in step with `WIDE_MAX_PX`, which
+        // a Tailwind arbitrary value cannot read.
         // See lib/wide-mode.tsx for why the preference is global and the opt-in per page.
-        wide && "lg:[&:has([data-wide-ok])]:max-w-none"
+        wide && "lg:[&:has([data-wide-ok])]:max-w-[1680px]"
       )}
     >
       {children}

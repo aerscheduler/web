@@ -107,7 +107,13 @@ export function SquawkRecord({
 
   return (
     <article data-doc-shot="squawk-record" className={cn("min-w-0 space-y-5", className)}>
-      <header className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
+      {/* Actions BELOW the title and left-aligned, not opposite it.
+          Right-aligned they landed directly under the page's own buttons, two identical
+          title-left / buttons-right rows stacked, and at a glance you could not tell which
+          set acted on the record and which on the screen. Under the title they read as
+          this squawk's own toolbar, which is what they are, and the eye finds them where it
+          has just finished reading the tail number. */}
+      <header className="space-y-3 border-b border-border pb-4">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-lg font-semibold tracking-tight">
@@ -120,15 +126,15 @@ export function SquawkRecord({
           )}
         </div>
         {(showVerify || (isOpen && onResolve)) && (
-          <div className="flex shrink-0 gap-2">
-            {showVerify && (
-              <Button variant="outline" onClick={() => onVerify(squawk)}>
-                <ClipboardCheck className="size-4" /> Verify
+          <div className="flex flex-wrap gap-2">
+            {isOpen && onResolve && (
+              <Button size="sm" onClick={() => onResolve(squawk)}>
+                <Check className="size-4" /> Resolve squawk
               </Button>
             )}
-            {isOpen && onResolve && (
-              <Button onClick={() => onResolve(squawk)}>
-                <Check className="size-4" /> Resolve squawk
+            {showVerify && (
+              <Button size="sm" variant="outline" onClick={() => onVerify(squawk)}>
+                <ClipboardCheck className="size-4" /> Verify
               </Button>
             )}
           </div>

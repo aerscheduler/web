@@ -2,7 +2,12 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { FileCheck2, Paperclip } from "lucide-react";
 import type { MaintenanceComplianceRecord } from "@/types/api";
 import { resourceLabel } from "@/types/api";
-import { pageRows, useComplianceRecordsPage, type ComplianceListFilter } from "@/features/queries";
+import {
+  pageRows,
+  useComplianceRecord,
+  useComplianceRecordsPage,
+  type ComplianceListFilter,
+} from "@/features/queries";
 import { usePaging } from "@/lib/paging";
 import { formatDate } from "@/lib/utils";
 import { fromDeciHours, SOURCE_TYPE_LABELS, sourceBadge } from "@/lib/maintenance";
@@ -43,7 +48,16 @@ export function ComplianceLog({
   const listQ = useComplianceRecordsPage(filter, paging);
   const { rows, total } = pageRows(listQ);
 
-  const openRecord = rows.find((r) => r.id === openId) ?? null;
+  //The row if it is on this page, otherwise fetched.
+  //
+  //A report row and a notification both link straight to a record id, and the log opens on
+  //page one filtered by nothing. Anything older than fifty sign-offs, or hidden by the
+  //search box the reader happens to have typed, is simply not in `rows`, and the panel
+  //opened empty with no error and no hint that the record exists. The single-record
+  //endpoint was already built for this; it just was not called.
+  const onPage = rows.find((r) => r.id === openId) ?? null;
+  const fetched = useComplianceRecord(openId != null && !onPage ? openId : null);
+  const openRecord = onPage ?? fetched.data ?? null;
   const filtering = !!q || !!resourceId?.length;
 
   if (listQ.isLoading) {
@@ -108,6 +122,7 @@ export function ComplianceLog({
 
       <ComplianceRecordSheet
         record={openRecord}
+        loading={openId != null && !openRecord && fetched.isLoading}
         open={openId != null}
         onOpenChange={(o) => !o && onOpenId(null)}
       />

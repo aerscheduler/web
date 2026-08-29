@@ -17,12 +17,19 @@ import { toast } from "sonner";
 import { useResolveMaintenanceReminder } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import type { MaintenanceReminder } from "@/types/api";
-import { fromDeciHours, sourceLabel } from "@/lib/maintenance";
+import { MECHANIC_CERTIFICATE_TYPES, fromDeciHours, sourceLabel } from "@/lib/maintenance";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { DatePickerField } from "@/components/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 
@@ -216,9 +223,16 @@ export function ResolveReminderModal({
                 Keep a compliance record
               </Label>
               <p className="text-xs text-muted-foreground">
-                {sourceRef
+                {/* "Required under 91.417" is true of an Airworthiness Directive and of
+                    nothing else here. It fired for any source carrying a reference, so a
+                    Service Bulletin, which is the manufacturer's advice and not law, told
+                    a mechanic the FAA required this record. Wrong, and wrong in the
+                    direction that erodes trust in every other claim on the page. */}
+                {reminder.template?.sourceType === "ad"
                   ? `Required for ${sourceLabel(reminder.template ?? {}) ?? "this rule"} under 14 CFR 91.417.`
-                  : "What was done, and who certified it. Kept for the life of the aircraft."}
+                  : sourceRef
+                    ? `Recommended for ${sourceLabel(reminder.template ?? {}) ?? "this rule"}. Kept for the life of the aircraft.`
+                    : "What was done, and who certified it. Kept for the life of the aircraft."}
               </p>
             </div>
             <Switch id="resolve-record" checked={recording} onCheckedChange={setRecording} />
@@ -276,7 +290,7 @@ export function ResolveReminderModal({
                 </div>
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-4">
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="resolve-mechanic">Certified by</Label>
                   <Input
@@ -284,6 +298,9 @@ export function ResolveReminderModal({
                     value={mechanicName}
                     onChange={(e) => setMechanicName(e.target.value)}
                     placeholder="The mechanic who signed it"
+                    /* The column's own limit. Without it a pasted value reached Postgres,
+                       raised a 22001, and came back as a generic failure. */
+                    maxLength={120}
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -298,10 +315,39 @@ export function ResolveReminderModal({
                     onChange={(e) => setCertNumber(e.target.value)}
                     autoCapitalize="characters"
                     autoCorrect="off"
+                    maxLength={32}
                   />
                 </div>
+                {/* THE TYPE, which this form seeded and submitted without ever showing.
+                    "3421887" alone does not say whether the signer held an Inspection
+                    Authorization, which is the whole question on an annual — and because
+                    the value came from the signed-in user's profile, changing "Certified
+                    by" to an outside IA still stamped the record with the console
+                    operator's own rating. The phone has always had this picker. */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="resolve-cert-type">Type</Label>
+                  <Select
+                    value={certType || "none"}
+                    onValueChange={(v) => setCertType(v === "none" ? "" : v)}
+                  >
+                    <SelectTrigger id="resolve-cert-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not set</SelectItem>
+                      {MECHANIC_CERTIFICATE_TYPES.map((t) => (
+                        <SelectItem key={t} value={t}>
+                          {t}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              {!certNumber.trim() && (
+              {/* Only when the PROFILE is genuinely empty. This used to fire whenever the
+                  box was empty, so clearing it to type somebody else's number told a
+                  mechanic who had saved theirs that they had never saved it. */}
+              {!membership?.mechanicCertificateNumber?.trim() && (
                 <p className="text-xs text-muted-foreground">
                   No certificate on your profile yet. Add it under Profile and it fills in
                   here every time.

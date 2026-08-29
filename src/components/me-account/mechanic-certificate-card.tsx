@@ -2,6 +2,7 @@ import * as React from "react";
 import { Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
+import { MECHANIC_CERTIFICATE_TYPES } from "@/lib/maintenance";
 import { useUpdateMechanicCertificate } from "@/features/queries";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,11 +16,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const TYPES = [
-  { value: "A&P", label: "A&P (Airframe and Powerplant)" },
-  { value: "IA", label: "IA (Inspection Authorization)" },
-  { value: "Repair station", label: "Repair station" },
-];
+//Labels here only; the VALUES come from the shared list, because they are written
+//verbatim onto a permanent record and two copies have already drifted.
+const TYPE_LABELS: Record<string, string> = {
+  "A&P": "A&P (Airframe and Powerplant)",
+  IA: "IA (Inspection Authorization)",
+  "Repair station": "Repair station",
+};
 
 /**
  * Your FAA certificate, stated once.
@@ -106,9 +109,9 @@ export function MechanicCertificateCard() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Not set</SelectItem>
-                {TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label}
+                {MECHANIC_CERTIFICATE_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {TYPE_LABELS[t] ?? t}
                   </SelectItem>
                 ))}
               </SelectContent>

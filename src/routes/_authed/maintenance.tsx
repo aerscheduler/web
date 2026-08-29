@@ -211,7 +211,11 @@ function MaintenancePage() {
           label="Maintenance"
           sections={MAINTENANCE_RAIL}
           value={view}
-          onChange={(v) => setFacets({ ...facets, view: v })}
+          //`open` is dropped on the way out. It names a record in the view that set it,
+          //and the same number is a different record, or no record, in the next one:
+          //switching from a squawk to the compliance log carried the squawk's id across
+          //and the log reported a compliance record that had never existed.
+          onChange={(v) => setFacets({ ...facets, view: v, open: undefined })}
         />
 
         {/* The search and filters belong to the section, not to the page: what

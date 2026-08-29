@@ -275,6 +275,150 @@ test.describe("Airworthiness Directives", () => {
     expect(stored.revision).toBe("5");
   });
 
+  /**
+   * Correcting a superseded AD from the console, which had no answer at all until now: the
+   * document number and revision could be set when the inspection was created and never
+   * afterwards, so an AD moving to a new revision meant deleting the inspection and losing
+   * every sign-off hanging off it.
+   */
+  test("a superseded revision can be corrected from the console", async ({ page, request }) => {
+    const { base, headers } = await ownerHeaders(request);
+    const plane = await firstPlane(request, base, headers);
+    const name = `${PREFIX}EDIT-${Date.now()}`;
+    const ref = `E2E-EDIT-${Date.now()}`;
+
+    const created = await request.post(`${base}/maintenance/reminders/templates`, {
+      headers,
+      data: {
+        name,
+        repeat: true,
+        ground: false,
+        remindDays: 365,
+        remindDaysBefore: 30,
+        sourceType: "ad",
+        sourceRef: ref,
+        revision: "2",
+        templateResources: [{ id: plane.id, startDate: new Date().toISOString() }],
+      },
+    });
+    expect(created.ok()).toBeTruthy();
+    const templateId = (await created.json()).data.id;
+
+    await page.goto("/maintenance?view=templates");
+    await dismissCookieBanner(page);
+
+    //Addressed by its aria-label rather than by walking the row: the label is unique per
+    //inspection, and scoping to a div that "has text" lands on the innermost one, which
+    //does not contain the buttons.
+    await page.getByRole("button", { name: `Edit ${name}` }).click();
+
+    // Opens carrying what is stored, rather than an empty form that would blank the rest.
+    await expect(page.getByLabel("Document number")).toHaveValue(ref);
+    await expect(page.getByLabel("Revision")).toHaveValue("2");
+
+    await page.getByLabel("Revision").fill("3");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByText("Inspection updated.")).toBeVisible();
+
+    const templates = await request.get(`${base}/maintenance/reminders/templates`, { headers });
+    const stored = ((await templates.json()).data ?? []).find((t: { id: number }) => t.id === templateId);
+    expect(stored.revision).toBe("3");
+    // The rest of the template survived an edit that only meant to touch the revision.
+    expect(stored.sourceRef).toBe(ref);
+    expect(stored.name).toBe(name);
+  });
+
+  /**
+   * The console refuses to turn an inspection into an AD without giving it a number, and so
+   * does the server: a PATCH naming only the type used to slip past and leave a template
+   * claiming to be an Airworthiness Directive that identified nothing.
+   */
+  test("an inspection cannot become an AD without a number", async ({ request }) => {
+    const { base, headers } = await ownerHeaders(request);
+    const plane = await firstPlane(request, base, headers);
+    const name = `${PREFIX}NOREF-${Date.now()}`;
+
+    const created = await request.post(`${base}/maintenance/reminders/templates`, {
+      headers,
+      data: {
+        name,
+        repeat: true,
+        ground: false,
+        remindDays: 365,
+        remindDaysBefore: 30,
+        templateResources: [{ id: plane.id, startDate: new Date().toISOString() }],
+      },
+    });
+    expect(created.ok()).toBeTruthy();
+    const templateId = (await created.json()).data.id;
+
+    const patched = await request.patch(`${base}/maintenance/reminders/templates/${templateId}`, {
+      headers,
+      data: { sourceType: "ad" },
+    });
+    const body = await patched.json();
+    expect(patched.status()).toBe(400);
+    expect(body.message, "a shop reminder became an AD with no number").toMatch(/needs its number/i);
+
+    const templates = await request.get(`${base}/maintenance/reminders/templates`, { headers });
+    const stored = ((await templates.json()).data ?? []).find((t: { id: number }) => t.id === templateId);
+    expect(stored.sourceType ?? null).toBeNull();
+  });
+
+  /**
+   * Signing off is one commit, not two. A retry must not add a second permanent record for
+   * one piece of work: the record cannot be deleted afterwards to tidy up.
+   */
+  test("a repeated sign-off is refused rather than duplicated", async ({ request }) => {
+    const { base, headers } = await ownerHeaders(request);
+    const plane = await firstPlane(request, base, headers);
+    const name = `${PREFIX}ONCE-${Date.now()}`;
+    const ref = `E2E-ONCE-${Date.now()}`;
+
+    await request.post(`${base}/maintenance/reminders/templates`, {
+      headers,
+      data: {
+        name,
+        repeat: true,
+        ground: false,
+        remindDays: 365,
+        remindDaysBefore: 30,
+        sourceType: "ad",
+        sourceRef: ref,
+        revision: "1",
+        templateResources: [{ id: plane.id, startDate: new Date().toISOString() }],
+      },
+    });
+
+    const reminders = await request.get(`${base}/maintenance/reminders?resolved=false`, { headers });
+    const reminder = ((await reminders.json()).data ?? []).find(
+      (r: { template?: { name?: string } }) => r.template?.name === name,
+    );
+    expect(reminder).toBeTruthy();
+
+    const payload = {
+      completedAt: new Date().toISOString(),
+      methodOfCompliance: "Signed once.",
+      mechanicName: "Dale Whitfield",
+    };
+
+    const first = await request.post(`${base}/maintenance/reminders/${reminder.id}`, {
+      headers,
+      data: payload,
+    });
+    expect(first.ok(), await first.text()).toBeTruthy();
+
+    const second = await request.post(`${base}/maintenance/reminders/${reminder.id}`, {
+      headers,
+      data: payload,
+    });
+    expect(second.status()).toBe(400);
+    expect((await second.json()).message).toMatch(/already been signed off/i);
+
+    const records = await request.get(`${base}/maintenance/compliance?q=${ref}`, { headers });
+    expect((await records.json()).data ?? [], "the retry wrote a second permanent record").toHaveLength(1);
+  });
+
   test("an ordinary inspection signs off with no record, as it always did", async ({ request }) => {
     const { base, headers } = await ownerHeaders(request);
     const plane = await firstPlane(request, base, headers);

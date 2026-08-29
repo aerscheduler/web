@@ -15,7 +15,16 @@
 
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { CalendarClock, ChevronDown, Gauge, PlaneTakeoff, Plus, Trash2, Wrench } from "lucide-react";
+import {
+  CalendarClock,
+  ChevronDown,
+  Gauge,
+  Pencil,
+  PlaneTakeoff,
+  Plus,
+  Trash2,
+  Wrench,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { MaintenanceReminderTemplate } from "@/types/api";
 import { resourceLabel } from "@/types/api";
@@ -24,6 +33,7 @@ import { SOURCE_TYPE_LABELS, sourceBadge, sourceLabel, intervalLabel, warningLab
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
 import { EditCoverageModal } from "@/components/maintenance/edit-coverage-modal";
+import { EditInspectionModal } from "@/components/maintenance/edit-inspection-modal";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -127,6 +137,7 @@ function TemplateRow({
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [editingDetails, setEditingDetails] = useState(false);
   const confirm = useConfirm();
   const del = useDeleteMaintenanceReminderTemplate();
 
@@ -233,6 +244,17 @@ function TemplateRow({
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => setEditingDetails(true)}
+              aria-label={`Edit ${template.name ?? "this inspection"}`}
+              title="Name, notes and where it comes from"
+            >
+              <Pencil className="size-3.5" />
+            </Button>
+          )}
+          {canManage && (
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={remove}
               disabled={del.isPending}
               aria-label={`Delete ${template.name ?? "inspection"}`}
@@ -276,6 +298,13 @@ function TemplateRow({
 
       {canManage && (
         <EditCoverageModal template={template} open={editing} onOpenChange={setEditing} />
+      )}
+      {canManage && (
+        <EditInspectionModal
+          template={template}
+          open={editingDetails}
+          onOpenChange={setEditingDetails}
+        />
       )}
     </div>
   );

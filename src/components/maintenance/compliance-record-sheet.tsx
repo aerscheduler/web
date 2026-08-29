@@ -27,10 +27,13 @@ const STAMP = "MMM d, yyyy 'at' h:mm a";
  */
 export function ComplianceRecordSheet({
   record,
+  loading = false,
   open,
   onOpenChange,
 }: {
   record: MaintenanceComplianceRecord | null;
+  /** A deep link to a record that is not on the current page has to fetch it first. */
+  loading?: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -57,6 +60,18 @@ export function ComplianceRecordSheet({
         ) : undefined
       }
     >
+      {!record && loading && (
+        <div className="space-y-3 p-1">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-4 animate-pulse rounded bg-muted" />
+          ))}
+        </div>
+      )}
+      {!record && !loading && (
+        <p className="p-1 text-sm text-muted-foreground">
+          That record could not be loaded. It may belong to another school.
+        </p>
+      )}
       {record && (
         <div data-doc-shot="compliance-record-panel" className="space-y-5 pt-4">
           {/* What was actually done. First, because it is the sentence an inspector reads

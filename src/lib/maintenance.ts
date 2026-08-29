@@ -296,3 +296,14 @@ export function fleetSummary(reminders: MaintenanceReminder[]) {
     tone: overdue.length ? ("danger" as const) : dueSoon.length ? ("warning" as const) : ("success" as const),
   };
 }
+
+/**
+ * The FAA certificate ratings a mechanic can be recorded under.
+ *
+ * ONE LIST, because the value is snapshotted onto a permanent compliance record verbatim
+ * and the report groups by it. Two copies drifted once already, into "Repair Station" on
+ * the phone and "Repair station" here, which split one mechanic's history into two buckets
+ * on the document handed to an inspector. Mirrors `_certTypes` in the Flutter sign-off
+ * sheet; change both together.
+ */
+export const MECHANIC_CERTIFICATE_TYPES = ["A&P", "IA", "Repair station"] as const;

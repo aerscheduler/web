@@ -256,7 +256,7 @@ export function DocumentUploadModal({
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             aria-invalid={showErrors && !!errors.file}
           />
-          <p className="text-xs text-muted-foreground">PDF or image, up to 5 MB.</p>
+          <p className="text-xs text-muted-foreground">PDF or image, up to 25 MB.</p>
           {showErrors && errors.file && (
             <p className="text-xs text-destructive">{errors.file}</p>
           )}

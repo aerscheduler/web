@@ -419,6 +419,62 @@ test.describe("Airworthiness Directives", () => {
     expect((await records.json()).data ?? [], "the retry wrote a second permanent record").toHaveLength(1);
   });
 
+  /**
+   * Both clients print "Required for <AD> under 14 CFR 91.417" next to a switch the user can
+   * turn off, and the server used to accept the sign-off anyway with no record and no trace.
+   * One of those two things had to change, and it should not be the sentence.
+   */
+  test("an AD cannot be signed off without its compliance record", async ({ request }) => {
+    const { base, headers } = await ownerHeaders(request);
+    const plane = await firstPlane(request, base, headers);
+    const name = `${PREFIX}GATE-${Date.now()}`;
+    const ref = `E2E-GATE-${Date.now()}`;
+
+    await request.post(`${base}/maintenance/reminders/templates`, {
+      headers,
+      data: {
+        name,
+        repeat: true,
+        ground: false,
+        remindDays: 365,
+        remindDaysBefore: 30,
+        sourceType: "ad",
+        sourceRef: ref,
+        revision: "1",
+        templateResources: [{ id: plane.id, startDate: new Date().toISOString() }],
+      },
+    });
+
+    const reminders = await request.get(`${base}/maintenance/reminders?resolved=false`, { headers });
+    const reminder = ((await reminders.json()).data ?? []).find(
+      (r: { template?: { name?: string } }) => r.template?.name === name,
+    );
+    expect(reminder).toBeTruthy();
+
+    // The deliberate skip: sign it off with the record switched off.
+    const bare = await request.post(`${base}/maintenance/reminders/${reminder.id}`, {
+      headers,
+      data: { completedAt: new Date().toISOString() },
+    });
+    expect(bare.status()).toBe(400);
+    expect((await bare.json()).message).toMatch(/method of compliance/i);
+
+    // A method but nobody's name is still not a record.
+    const unsigned = await request.post(`${base}/maintenance/reminders/${reminder.id}`, {
+      headers,
+      data: { completedAt: new Date().toISOString(), methodOfCompliance: "Did the thing." },
+    });
+    expect(unsigned.status()).toBe(400);
+    expect((await unsigned.json()).message).toMatch(/certified the work/i);
+
+    // Still open, because neither attempt was allowed to half-happen.
+    const after = await request.get(`${base}/maintenance/reminders?resolved=false`, { headers });
+    expect(
+      ((await after.json()).data ?? []).some((r: { id: number }) => r.id === reminder.id),
+      "a refused sign-off resolved the inspection anyway",
+    ).toBe(true);
+  });
+
   test("an ordinary inspection signs off with no record, as it always did", async ({ request }) => {
     const { base, headers } = await ownerHeaders(request);
     const plane = await firstPlane(request, base, headers);

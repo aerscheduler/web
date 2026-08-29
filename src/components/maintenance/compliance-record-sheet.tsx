@@ -99,7 +99,7 @@ export function ComplianceRecordSheet({
           </SheetDetailField>
 
           {(record.tachAtCompliance != null || record.hobbsAtCompliance != null) && (
-            <SheetDetailField icon={Gauge} label="Time in service at compliance">
+            <SheetDetailField icon={Gauge} label="Meter readings at compliance">
               <span className="tabular-nums">
                 {record.tachAtCompliance != null && `${fromDeciHours(record.tachAtCompliance)} tach`}
                 {record.tachAtCompliance != null && record.hobbsAtCompliance != null && " · "}

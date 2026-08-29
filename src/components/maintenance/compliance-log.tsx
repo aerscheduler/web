@@ -90,6 +90,14 @@ export function ComplianceLog({
 
   return (
     <>
+      {/* SAID HERE, not in a footnote. The industry phrase "AD tracking" means a catalogue
+          that answers "which ADs apply to this serial number", and we do not have one. A
+          school that believes this log IS their AD status is the one failure in this feature
+          that could actually hurt somebody. */}
+      <p className="px-0.5 pb-2 text-xs text-muted-foreground">
+        Every inspection signed off here, newest first. This records the ADs you enter; it does
+        not tell you which ADs apply to your aircraft.
+      </p>
       <DataTable
         fill
         columns={COLUMNS}

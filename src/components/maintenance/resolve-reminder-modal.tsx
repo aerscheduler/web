@@ -92,7 +92,8 @@ export function ResolveReminderModal({
     setMethod("");
     //Prefilled from the aircraft so the normal case is confirming a number rather than
     //reading it off a panel and typing it. Both meters, whatever this rule counted:
-    //91.417 wants time in service, not whichever clock the schedule happened to use.
+    //Not because a regulation asks for both here, but so the record still reads correctly
+    //to somebody working off the other clock. Neither is time in service per 14 CFR 1.1.
     const plane = reminder.resource?.type?.plane;
     setTach(plane?.tachTime != null ? fromDeciHours(plane.tachTime) : "");
     setHobbs(plane?.hobbsTime != null ? fromDeciHours(plane.hobbsTime) : "");
@@ -246,7 +247,8 @@ export function ResolveReminderModal({
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-[var(--warning)]" />
                 <span>
                   Once signed, this record can&rsquo;t be edited or removed. A correction is a
-                  new record.
+                  new record. This is a tracking record and does not replace the logbook entry
+                  required by 14 CFR 43.9 and 43.11.
                 </span>
               </p>
 

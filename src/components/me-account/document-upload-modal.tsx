@@ -1,4 +1,5 @@
 import * as React from "react";
+import { UploadError } from "@/lib/upload";
 import { toast } from "sonner";
 import { useDocumentTypes, useMembers, useUploadDocument } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
@@ -132,7 +133,10 @@ export function DocumentUploadModal({
       toast.success(isForSomeoneElse ? "Document uploaded for member" : "Document uploaded");
       onOpenChange(false);
     } catch (err) {
-      const msg = err instanceof ApiError ? err.message : "Couldn't upload the document";
+      const msg =
+        err instanceof ApiError || err instanceof UploadError
+          ? err.message
+          : "Couldn't upload the document";
       setError(msg);
       toast.error(msg);
     }

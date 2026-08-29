@@ -11,6 +11,7 @@
  */
 
 import * as React from "react";
+import { UploadError } from "@/lib/upload";
 import { Building2, ImagePlus, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useUpdateOrganization, useUpdateOrgLogo, useUpdateOrganizationTimeZone } from "@/features/queries";
@@ -50,7 +51,11 @@ export function OrganizationFlow({ onClose }: FlowProps) {
       await rehydrate();
       toast.success("Logo updated");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Couldn't upload the logo");
+      toast.error(
+        err instanceof ApiError || err instanceof UploadError
+          ? err.message
+          : "Couldn't upload the logo"
+      );
     }
   }
 

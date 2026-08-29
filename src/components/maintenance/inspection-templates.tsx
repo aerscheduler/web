@@ -45,13 +45,23 @@ const GROUPS: { key: GroupKey; title: string; blurb: string; icon: typeof Gauge 
   { key: "hours", title: "On the meter", blurb: "Counted in flying hours.", icon: Gauge },
   { key: "both", title: "Whichever comes first", blurb: "Counted on the meter and the calendar.", icon: Gauge },
   { key: "days", title: "On the calendar", blurb: "Recurring every so many days.", icon: CalendarClock },
-  { key: "date", title: "One-off", blurb: "A single date that doesn't come back.", icon: Wrench },
+  { key: "date", title: "One-off", blurb: "A single deadline that doesn't come back.", icon: Wrench },
 ];
 
 // Combined first: a template counting both clocks is neither a meter one nor a calendar
 // one, and filing it under "On the meter" hides the half more likely to come due.
+// A one-off meter deadline files under "One-off" with the dated ones: what makes it that
+// group is that it happens once, not which clock it counts.
 const groupOf = (t: MaintenanceReminderTemplate): GroupKey =>
-  t.remindHours && t.remindDays ? "both" : t.remindHours ? "hours" : t.remindDays ? "days" : "date";
+  t.remindAtHours != null
+    ? "date"
+    : t.remindHours && t.remindDays
+      ? "both"
+      : t.remindHours
+        ? "hours"
+        : t.remindDays
+          ? "days"
+          : "date";
 
 export function InspectionTemplates({
   q: search,

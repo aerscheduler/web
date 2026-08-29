@@ -18,6 +18,20 @@ export interface PresignedPost {
   maxBytes?: number;
 }
 
+/**
+ * An upload failure whose message is meant for the person, not the log.
+ *
+ * TYPED so the catch sites can tell it apart. They match on `ApiError` and replace anything
+ * else with "Couldn't upload the document", which threw away the one message a member can
+ * actually act on: that their file is 31.2 MB and the limit is 25.
+ */
+export class UploadError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UploadError";
+  }
+}
+
 /** `52428800` as `50 MB`, for a message somebody can act on. */
 function mb(bytes: number): string {
   return `${Math.round(bytes / (1024 * 1024))} MB`;
@@ -28,7 +42,7 @@ export async function uploadToPresignedPost(presigned: PresignedPost, file: File
   // content-length-range violation with a 400 and an XML body, so without this the reader
   // gets "Upload failed (400)" for the one failure they could actually do something about.
   if (typeof presigned.maxBytes === "number" && file.size > presigned.maxBytes) {
-    throw new Error(
+    throw new UploadError(
       `That file is ${(file.size / (1024 * 1024)).toFixed(1)} MB. The limit is ${mb(presigned.maxBytes)}.`
     );
   }
@@ -41,7 +55,7 @@ export async function uploadToPresignedPost(presigned: PresignedPost, file: File
     // S3 uses 400 with an EntityTooLarge body for an over-size POST, not 413.
     const body = await res.text().catch(() => "");
     if (body.includes("EntityTooLarge")) {
-      throw new Error(
+      throw new UploadError(
         presigned.maxBytes ? `That file is too large. The limit is ${mb(presigned.maxBytes)}.` : "That file is too large."
       );
     }

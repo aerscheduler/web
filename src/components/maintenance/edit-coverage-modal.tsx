@@ -52,10 +52,21 @@ import { Skeleton } from "@/components/ui/skeleton";
  * and a date to start the calendar one. Collecting only one leaves the other clock with
  * nothing to count from, and it silently never comes due.
  */
-type Basis = "hours" | "days" | "both" | "date";
+type Basis = "hours" | "days" | "both" | "date" | "atHours";
 
+// A one-off meter deadline is measured on the METER but starts from nothing: the due point
+// is absolute, so attaching a tail collects neither a start date nor a start hour. Treating
+// it as "date" asked for a start date that the server then ignores.
 const basisOf = (t: MaintenanceReminderTemplate): Basis =>
-  t.remindHours && t.remindDays ? "both" : t.remindHours ? "hours" : t.remindDays ? "days" : "date";
+  t.remindAtHours != null
+    ? "atHours"
+    : t.remindHours && t.remindDays
+      ? "both"
+      : t.remindHours
+        ? "hours"
+        : t.remindDays
+          ? "days"
+          : "date";
 
 type StartDraft = { date: string; hours: string };
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { UploadError } from "@/lib/upload";
 import {
   Building2,
   Check,
@@ -191,7 +192,11 @@ function LogoCard({ organization }: { organization: Organization }) {
       toast.success("Logo updated");
       await rehydrate();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Couldn't upload the logo");
+      toast.error(
+        err instanceof ApiError || err instanceof UploadError
+          ? err.message
+          : "Couldn't upload the logo"
+      );
     }
   }
 

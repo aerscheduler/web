@@ -152,8 +152,17 @@ export function intervalLabel(t: {
   remindDays?: number | null;
   remindHours?: number | null;
   remindDate?: string | null;
+  remindAtHours?: number | null;
   hourBasedOn?: string | null;
 }): string {
+  // A one-off METER deadline, checked first because it is exclusive with everything below.
+  // Without this it fell through to "No interval set", which is the same string a genuinely
+  // half-configured template shows: the correctly-set AD that WILL ground the aircraft read
+  // exactly like the broken one that will never fire, and the reading it comes due at, the
+  // only number that matters, appeared nowhere on the page.
+  if (t.remindAtHours != null) {
+    return `Once, at ${hoursPhrase(t.remindAtHours, t.hourBasedOn)}`;
+  }
   // Both clocks: say so explicitly. "Every 100.0 hours tach" on a template that is also
   // counting an annual is a true statement that leaves out the half more likely to bite.
   if (t.remindHours && t.remindDays) {

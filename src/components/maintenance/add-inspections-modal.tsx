@@ -126,6 +126,11 @@ export function AddInspectionsModal({
     setDate("");
     setGrounds(false);
     setSource(EMPTY_SOURCE);
+    //Both of these, or the next one-off opens on "At an hour reading" holding the PREVIOUS
+    //aircraft's absolute meter reading. An absolute reading carried to a different tail is
+    //not merely stale, it is a deadline for an aeroplane that never had that number.
+    setOnceOn("date");
+    setAtHours("");
     setLastDone("");
     setLastDoneHours("");
   }

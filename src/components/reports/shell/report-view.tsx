@@ -14,13 +14,24 @@
 
 import { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
-import { Download, Loader2 } from "lucide-react";
+import { ChevronDown, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
 import { DocsHint } from "@/components/docs-hint";
-import { downloadReport, useReportRun, useReportTimeZone } from "@/features/reports";
+import {
+  downloadReport,
+  useReportRun,
+  useReportTimeZone,
+  type ReportExportFormat,
+} from "@/features/reports";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { rangeToIso, resolveRange } from "@/lib/report-format";
 import { reportDocShot } from "@/lib/docs-shots";
 import type {
@@ -190,11 +201,11 @@ export function ReportView({
     setPage(1);
   };
 
-  const exportCsv = async () => {
+  const runExport = async (format: ReportExportFormat) => {
     if (!request) return;
     setExporting(true);
     try {
-      await downloadReport(request);
+      await downloadReport(request, format);
     } catch (err: any) {
       toast.error(err?.message ?? "Could not export the report");
     } finally {
@@ -301,16 +312,37 @@ export function ReportView({
             />
             <DocsHint topic="saved-view-dates" />
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={exportCsv}
-              disabled={exporting || !request || totalRows === 0}
-            >
-              {exporting ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              Export
-            </Button>
+            {/* Two formats, one button. CSV is for a spreadsheet; PDF is for the copy
+                somebody hands to an IA, a buyer's mechanic or an inspector, where a column
+                order that depends on the reader's Excel locale is not good enough. */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  disabled={exporting || !request || totalRows === 0}
+                >
+                  {exporting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Download className="size-4" />
+                  )}
+                  Export
+                  <ChevronDown className="size-3.5 opacity-60" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => void runExport("csv")}>
+                  CSV
+                  <span className="ml-auto pl-4 text-xs text-muted-foreground">Spreadsheet</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void runExport("pdf")}>
+                  PDF
+                  <span className="ml-auto pl-4 text-xs text-muted-foreground">To hand over</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

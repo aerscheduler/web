@@ -49,7 +49,7 @@ type Mode = "standard" | "recurring" | "oneOff";
 const MODES: { value: Mode; label: string; hint: string }[] = [
   { value: "standard", label: "Standard set", hint: "The AVIATES airworthiness inspections" },
   { value: "recurring", label: "Recurring", hint: "Repeats on hours or a set number of days" },
-  { value: "oneOff", label: "One-off", hint: "A single date that doesn't come back" },
+  { value: "oneOff", label: "One-off", hint: "A single deadline that doesn't come back" },
 ];
 
 export function AddInspectionsModal({
@@ -74,6 +74,12 @@ export function AddInspectionsModal({
   // Custom / one-off fields.
   const [name, setName] = React.useState("");
   const [basis, setBasis] = React.useState<"days" | "hours" | "both">("days");
+  //A one-off is due on a DATE or at a METER READING. An enormous share of Airworthiness
+  //Directives read "within the next 50 hours time in service", and until this existed the
+  //only way to track one was to declare it recurring, which rolled it forward forever after
+  //the single compliance it required.
+  const [onceOn, setOnceOn] = React.useState<"date" | "hours">("date");
+  const [atHours, setAtHours] = React.useState("");
   const [every, setEvery] = React.useState("100");
   const [warn, setWarn] = React.useState("10");
   // The calendar half of a combined interval. Separate state because "both" needs two
@@ -147,9 +153,33 @@ export function AddInspectionsModal({
   const customValid =
     name.trim().length > 0 &&
     !adNeedsRef &&
-    (mode === "oneOff" ? date !== "" : Number(every) > 0 && (basis !== "both" || Number(everyDays) > 0));
+    (mode === "oneOff"
+      ? onceOn === "date"
+        ? date !== ""
+        : Number(atHours) > 0
+      : Number(every) > 0 && (basis !== "both" || Number(everyDays) > 0));
   const canSubmit =
     targets.length > 0 && (mode === "standard" ? chosen.length > 0 : customValid) && !busy;
+
+  /** One control, rendered by both the recurring form and the one-off meter deadline. */
+  const meterPicker = (
+    <div className="grid gap-1.5 sm:grid-cols-2">
+      {(["tach", "hobbs"] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => setMeter(m)}
+          aria-pressed={meter === m}
+          className={cn(
+            "rounded-lg border px-3 py-2 text-left text-[13px] capitalize transition-colors",
+            meter === m ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+          )}
+        >
+          Count {m} time
+        </button>
+      ))}
+    </div>
+  );
 
   function buildCustom(): CreateReminderTemplateInput {
     const templateResources = resourcesPayload();
@@ -167,6 +197,20 @@ export function AddInspectionsModal({
     };
 
     if (mode === "oneOff") {
+      if (onceOn === "hours") {
+        return {
+          name: trimmed,
+          repeat: false,
+          ground: grounds,
+          // An ABSOLUTE reading, in tenths. Not an interval: the deadline is a point on the
+          // meter, so it does not move with whatever the aircraft read when this was set up.
+          remindAtHours: Math.round(Number(atHours) * 10),
+          remindHoursBefore: Math.max(1, Math.round((Number(warn) || 10) * 10)),
+          hourBasedOn: meter,
+          ...sourcePayload,
+          templateResources,
+        };
+      }
       return {
         name: trimmed,
         repeat: false,
@@ -389,50 +433,99 @@ export function AddInspectionsModal({
                   </div>
                 )}
 
-                {basis !== "days" && (
-                  <div className="grid gap-1.5 sm:grid-cols-2">
-                    {(["tach", "hobbs"] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setMeter(m)}
-                        aria-pressed={meter === m}
-                        className={cn(
-                          "rounded-lg border px-3 py-2 text-left text-[13px] capitalize transition-colors",
-                          meter === m ? "border-primary bg-primary/5" : "hover:bg-accent/50"
-                        )}
-                      >
-                        Count {m} time
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {basis !== "days" && meterPicker}
               </>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <Label htmlFor="insp-date" className="text-xs">
-                    Due on
-                  </Label>
-                  <DatePickerField
-                    id="insp-date"
-                    value={date}
-                    onChange={setDate}
-                    min={format(new Date(), "yyyy-MM-dd")}
-                  />
+              <div className="space-y-3">
+                {/* A one-off is due on a date OR at a meter reading. "Comply within the next
+                    50 hours" is how a large share of ADs are written, and it has no date. */}
+                <div className="flex gap-2">
+                  {(
+                    [
+                      { value: "date", label: "On a date" },
+                      { value: "hours", label: "At an hour reading" },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={onceOn === option.value}
+                      onClick={() => setOnceOn(option.value)}
+                      className={cn(
+                        "flex-1 rounded-lg border border-border px-3 py-2 text-xs transition-colors",
+                        onceOn === option.value ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="insp-warn-once" className="text-xs">
-                    Warn me (days out)
-                  </Label>
-                  <Input
-                    id="insp-warn-once"
-                    inputMode="numeric"
-                    value={warn}
-                    onChange={(e) => setWarn(e.target.value.replace(/[^0-9]/g, ""))}
-                    className="tnum"
-                  />
-                </div>
+
+                {onceOn === "date" ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="insp-date" className="text-xs">
+                        Due on
+                      </Label>
+                      <DatePickerField
+                        id="insp-date"
+                        value={date}
+                        onChange={setDate}
+                        min={format(new Date(), "yyyy-MM-dd")}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="insp-warn-once" className="text-xs">
+                        Warn me (days out)
+                      </Label>
+                      <Input
+                        id="insp-warn-once"
+                        inputMode="numeric"
+                        value={warn}
+                        onChange={(e) => setWarn(e.target.value.replace(/[^0-9]/g, ""))}
+                        className="tnum"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="insp-at-hours" className="text-xs">
+                        Due at ({meter})
+                      </Label>
+                      <Input
+                        id="insp-at-hours"
+                        data-testid="insp-at-hours"
+                        inputMode="decimal"
+                        value={atHours}
+                        onChange={(e) => setAtHours(e.target.value.replace(/[^0-9.]/g, ""))}
+                        placeholder="1250.0"
+                        className="tnum"
+                      />
+                      {/* The reading itself, not "50 hours from now". Said plainly because
+                          the recurring form above this one asks for an interval, and the two
+                          fields look identical. */}
+                      <p className="text-[11px] text-muted-foreground">
+                        The reading it comes due AT, not how many hours from now.
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="insp-warn-at-hours" className="text-xs">
+                        Warn me (hours out)
+                      </Label>
+                      <Input
+                        id="insp-warn-at-hours"
+                        inputMode="decimal"
+                        value={warn}
+                        onChange={(e) => setWarn(e.target.value.replace(/[^0-9.]/g, ""))}
+                        className="tnum"
+                      />
+                    </div>
+                    {/* Which clock, same control as the recurring form. Without it the
+                        reading above is measured against whatever `meter` happened to be. */}
+                    <div className="sm:col-span-2">{meterPicker}</div>
+                  </div>
+                )}
               </div>
             )}
 

@@ -84,7 +84,16 @@ export function useReportRun(request: ReportRunRequest | null) {
  * server builds it with the same serializer that will attach it to a scheduled
  * email, so the two can never drift.
  */
-export async function downloadReport(request: ReportRunRequest, format: "csv" = "csv"): Promise<void> {
+export type ReportExportFormat = "csv" | "pdf";
+
+/**
+ * CSV is for a spreadsheet. PDF is for the copy somebody hands over: an IA at an annual, a
+ * buyer's mechanic, an inspector. Same server, same values, different document.
+ */
+export async function downloadReport(
+  request: ReportRunRequest,
+  format: ReportExportFormat = "csv"
+): Promise<void> {
   const token = getToken();
   const res = await fetch(`${API_URL}/reports/export`, {
     method: "POST",

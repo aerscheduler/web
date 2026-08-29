@@ -1270,6 +1270,15 @@ export interface MaintenanceReminderTemplate {
   hourBasedOn: "tach" | "hobbs" | null;
   /** Set only on a one-off: a date that happens once and doesn't recur. */
   remindDate: string | null;
+  /**
+   * A one-off deadline on the METER, in TENTHS of an hour, as an ABSOLUTE reading.
+   * `12500` means "due at 1250.0 on whichever clock `hourBasedOn` names".
+   *
+   * The shape `remindDate` could not express: "comply within the next 50 hours time in
+   * service", which is how a large share of Airworthiness Directives are written.
+   * Exclusive with `remindHours`, because an interval repeats and a deadline does not.
+   */
+  remindAtHours: number | null;
   /** Where this rule comes from. Null means nobody said, which is most of them. */
   sourceType: MaintenanceSourceType | null;
   /** The document number: "2015-19-07". Required by the server when sourceType is "ad". */
@@ -1316,6 +1325,8 @@ export interface CreateReminderTemplateInput {
   hourBasedOn?: "tach" | "hobbs";
   /** A one-off deadline. The server forces `repeat: false` when this is set. */
   remindDate?: string;
+  /** Tenths of an hour, absolute. See `remindAtHours` on the read model. */
+  remindAtHours?: number;
   sourceType?: MaintenanceSourceType | null;
   sourceRef?: string | null;
   sourceUrl?: string | null;

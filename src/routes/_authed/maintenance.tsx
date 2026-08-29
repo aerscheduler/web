@@ -28,7 +28,7 @@ import { DocsLink } from "@/components/docs-hint";
 import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
 import { FleetStatus } from "@/components/maintenance/fleet-status";
-import { SquawkInbox } from "@/components/maintenance/squawk-inbox";
+import { SquawkTable } from "@/components/maintenance/squawk-table";
 import { InspectionRow } from "@/components/maintenance/inspection-row";
 import { InspectionTemplates } from "@/components/maintenance/inspection-templates";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
@@ -210,10 +210,7 @@ function MaintenancePage() {
         {/* The search and filters belong to the section, not to the page: what
             they search changes with it, and Set up has nothing to filter by tail. */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-          {/* On an inbox it belongs over the LIST, not over both panes: it searches the
-              queue on the left, and a bar stretched across the open record implies it
-              searches inside that too. So the squawk boards take it as their toolbar. */}
-          {!showsSquawks && searchBar}
+          {searchBar}
 
           {view === "aircraft" && (
             <TableView.Body>
@@ -232,17 +229,16 @@ function MaintenancePage() {
             </TableView.Body>
           )}
           {showsSquawks && (
-            <SquawkInbox
+            <SquawkTable
               // Remounts between the two boards, which is what we want: Open and Resolved
-              // are different queues, and carrying a scroll position or a stale open record
-              // across them would be a bug rather than a convenience.
+              // are different queues, and carrying a page or a stale open record across
+              // them would be a bug rather than a convenience.
               key={view}
               resolved={view === "resolved"}
               q={q}
               resourceId={resourceIds}
               openId={openId}
               onOpenId={setOpenId}
-              toolbar={searchBar}
               onLog={view === "open" ? () => setSquawkOpen(true) : undefined}
             />
           )}

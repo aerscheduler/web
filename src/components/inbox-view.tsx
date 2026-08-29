@@ -21,12 +21,18 @@ import { ErrorState } from "@/components/states";
  * screen on the machines dispatchers and technicians actually use. Moving down the list is
  * an arrow key.
  *
- * DELIBERATELY GENERIC. It knows nothing about squawks: it is the shape shared by every
- * queue this product has or is about to have, and each one differs only in what a row looks
- * like and what a record looks like. Squawks first, then reservations (which have exactly
- * this problem today, a full-page list plus a drawer), notifications, and the messaging
- * threads that come after. Anything that reaches for `SquawkCard` inside here has broken
- * the point of it.
+ * DELIBERATELY GENERIC. It knows nothing about any particular queue: it is the shape shared
+ * by every queue this product has or is about to have, and each one differs only in what a
+ * row looks like and what a record looks like. Anything that reaches for a squawk or a
+ * reservation inside here has broken the point of it.
+ *
+ * NO CONSUMER RIGHT NOW. It was built for the squawk queue, tried there, and that screen
+ * went back to a table with a docked panel because a queue you scan down columns reads
+ * better as rows than as a list of paragraphs. Kept because the layout itself was not the
+ * problem and the cases it was built for are still coming: reservations, notifications, and
+ * the messaging threads after them. If you are the one giving it its first real consumer,
+ * everything below has been driven by hand at 1920, 1280x560 and 375x812, including the
+ * keyboard map and the deep link.
  *
  * WHAT IT OWNS: the two-pane frame and its scrolling, the mobile single-pane switch and the
  * way back, selection, keyboard navigation, focus, and the row's own states (selected,

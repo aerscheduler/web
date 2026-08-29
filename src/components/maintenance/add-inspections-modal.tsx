@@ -22,8 +22,15 @@ import { format } from "date-fns";
 import { AlertTriangle, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useCreateMaintenanceReminderTemplate, useInspectionPresets, usePlanes } from "@/features/queries";
-import { resourceLabel, type CreateReminderTemplateInput, type InspectionPreset, type Resource } from "@/types/api";
+import {
+  resourceLabel,
+  type CreateReminderTemplateInput,
+  type InspectionPreset,
+  type MaintenanceSourceType,
+  type Resource,
+} from "@/types/api";
 import { cn } from "@/lib/utils";
+import { SOURCE_TYPE_LABELS } from "@/lib/maintenance";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { DatePickerField } from "@/components/date-picker";
 import { DocsHint } from "@/components/docs-hint";
@@ -32,6 +39,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Mode = "standard" | "recurring" | "oneOff";
 
@@ -72,6 +86,13 @@ export function AddInspectionsModal({
   const [meter, setMeter] = React.useState<"tach" | "hobbs">("tach");
   const [date, setDate] = React.useState("");
   const [grounds, setGrounds] = React.useState(false);
+  //Where the rule comes from. Null until somebody says, which is the honest default: most
+  //templates are a shop deciding when to change the oil, and flagging those as "other"
+  //would put a meaningless badge on every row.
+  const [sourceType, setSourceType] = React.useState<MaintenanceSourceType | "">("");
+  const [sourceRef, setSourceRef] = React.useState("");
+  const [sourceUrl, setSourceUrl] = React.useState("");
+  const [revision, setRevision] = React.useState("");
   // When the interval last came round. Blank means "starts now", which is right for a new
   // aircraft and wrong for every aircraft a school already operates, see `lastDone`.
   const [lastDone, setLastDone] = React.useState("");
@@ -104,6 +125,10 @@ export function AddInspectionsModal({
     setMeter("tach");
     setDate("");
     setGrounds(false);
+    setSourceType("");
+    setSourceRef("");
+    setSourceUrl("");
+    setRevision("");
     setLastDone("");
     setLastDoneHours("");
   }
@@ -124,8 +149,13 @@ export function AddInspectionsModal({
     }));
   }
 
+  //An Airworthiness Directive with no number cannot be found, filtered, or put on the
+  //report an inspector reads, and the server refuses it. Say so here rather than letting
+  //the request come back 400.
+  const adNeedsRef = sourceType === "ad" && !sourceRef.trim();
   const customValid =
     name.trim().length > 0 &&
+    !adNeedsRef &&
     (mode === "oneOff" ? date !== "" : Number(every) > 0 && (basis !== "both" || Number(everyDays) > 0));
   const canSubmit =
     targets.length > 0 && (mode === "standard" ? chosen.length > 0 : customValid) && !busy;
@@ -133,6 +163,14 @@ export function AddInspectionsModal({
   function buildCustom(): CreateReminderTemplateInput {
     const templateResources = resourcesPayload();
     const trimmed = name.trim().slice(0, 60);
+    //Sent as null rather than "" so clearing a field on an edit actually clears it, and so
+    //a template with no source stays genuinely sourceless rather than sourced to nothing.
+    const source = {
+      sourceType: sourceType || null,
+      sourceRef: sourceType ? sourceRef.trim() || null : null,
+      sourceUrl: sourceType ? sourceUrl.trim() || null : null,
+      revision: sourceType ? revision.trim() || null : null,
+    };
 
     if (mode === "oneOff") {
       return {
@@ -143,6 +181,7 @@ export function AddInspectionsModal({
         // The server requires a lead time on a dated reminder, and a one-off with no
         // warning is a reminder that arrives the day it's already too late to act on.
         remindDaysBefore: Math.max(1, Math.min(30, Number(warn) || 7)),
+        ...source,
         templateResources,
       };
     }
@@ -160,10 +199,10 @@ export function AddInspectionsModal({
         ? { remindDays: Math.round(Number(everyDays)), remindDaysBefore: Math.max(1, Math.round(Number(warnDays) || 1)) }
         : { remindDays: Math.round(Number(every)), remindDaysBefore: Math.max(1, Math.round(Number(warn) || 1)) };
 
-    if (basis === "hours") return { name: trimmed, repeat: true, ground: grounds, ...hours, templateResources };
+    if (basis === "hours") return { name: trimmed, repeat: true, ground: grounds, ...hours, ...source, templateResources };
     // Whichever comes first: the server keeps both clocks and grounds on the earlier one.
-    if (basis === "both") return { name: trimmed, repeat: true, ground: grounds, ...hours, ...days, templateResources };
-    return { name: trimmed, repeat: true, ground: grounds, ...days, templateResources };
+    if (basis === "both") return { name: trimmed, repeat: true, ground: grounds, ...hours, ...days, ...source, templateResources };
+    return { name: trimmed, repeat: true, ground: grounds, ...days, ...source, templateResources };
   }
 
   async function submit() {
@@ -415,6 +454,85 @@ export function AddInspectionsModal({
               </div>
               <Switch id="insp-grounds" checked={grounds} onCheckedChange={setGrounds} />
             </div>
+          </div>
+        )}
+
+        {/* WHERE THE RULE COMES FROM.
+            Not offered on the standard set: that mode is multi-select and its payloads are
+            the server's, so one AD number applied to seven ticked presets would be wrong by
+            construction. If an AVIATES preset ever needs a source it belongs in the preset. */}
+        {mode !== "standard" && (
+          <div data-doc-shot="add-inspections-source" className="space-y-3 rounded-lg border border-border p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="insp-source-type">Where this comes from</Label>
+              <p className="text-xs text-muted-foreground">
+                Optional. An Airworthiness Directive is binding under 14 CFR Part 39; a
+                Service Bulletin is the manufacturer&rsquo;s advice.
+              </p>
+            </div>
+
+            <Select
+              value={sourceType || "none"}
+              onValueChange={(v) => setSourceType(v === "none" ? "" : (v as MaintenanceSourceType))}
+            >
+              <SelectTrigger id="insp-source-type">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Not specified</SelectItem>
+                {(["ad", "sb", "manufacturer", "shop", "other"] as const).map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {SOURCE_TYPE_LABELS[t]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Revealed only once a source is chosen: otherwise every oil change grows
+                three empty boxes for a question nobody asked. */}
+            {sourceType && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="insp-source-ref">
+                    Document number{sourceType === "ad" && <span className="text-destructive"> *</span>}
+                  </Label>
+                  <Input
+                    id="insp-source-ref"
+                    value={sourceRef}
+                    onChange={(e) => setSourceRef(e.target.value)}
+                    placeholder="2015-19-07"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    maxLength={32}
+                  />
+                  {adNeedsRef && (
+                    <p className="text-xs text-destructive">
+                      An AD needs its number, or nothing can find it later.
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="insp-revision">Revision</Label>
+                  <Input
+                    id="insp-revision"
+                    value={revision}
+                    onChange={(e) => setRevision(e.target.value)}
+                    placeholder="2"
+                    maxLength={16}
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <Label htmlFor="insp-source-url">Link</Label>
+                  <Input
+                    id="insp-source-url"
+                    type="url"
+                    value={sourceUrl}
+                    onChange={(e) => setSourceUrl(e.target.value)}
+                    placeholder="https://drs.faa.gov/…"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         )}
 

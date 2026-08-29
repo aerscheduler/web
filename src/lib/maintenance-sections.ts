@@ -1,6 +1,7 @@
 import {
   ClipboardCheck,
   ClipboardList,
+  FileCheck2,
   ListChecks,
   PlaneTakeoff,
   SlidersHorizontal,
@@ -15,7 +16,7 @@ import type { RailSection } from "@/components/section-rail";
  * use it. Adding a view here puts it in the rail AND makes it findable.
  */
 export type MaintenanceView = {
-  value: "aircraft" | "reminders" | "templates" | "open" | "resolved";
+  value: "aircraft" | "reminders" | "templates" | "compliance" | "open" | "resolved";
   label: string;
   icon: LucideIcon;
   keywords?: string[];
@@ -42,6 +43,22 @@ export const MAINTENANCE_SECTIONS: { label: string; items: MaintenanceView[] }[]
         label: "Set up",
         icon: SlidersHorizontal,
         keywords: ["inspection templates", "rules", "intervals", "configure"],
+      },
+      {
+        value: "compliance",
+        label: "Compliance log",
+        icon: FileCheck2,
+        //"airworthiness" and "AD" here on purpose: a mechanic looking for this will type
+        //what the regulation is called, not what we named the screen.
+        keywords: [
+          "compliance records",
+          "airworthiness directive",
+          "AD",
+          "91.417",
+          "signed off",
+          "logbook",
+          "history",
+        ],
       },
     ],
   },

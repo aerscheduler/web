@@ -165,6 +165,39 @@ export function intervalLabel(t: {
   return "No interval set";
 }
 
+/**
+ * What kind of rule this is, said the way a mechanic would say it.
+ *
+ * `sourceBadge` is the two letters that fit on a list row. `sourceLabel` is the full
+ * identification for a record page. Both live here, beside `intervalLabel`, so the four
+ * surfaces that show a source cannot word it four different ways.
+ */
+export const SOURCE_TYPE_LABELS: Record<string, string> = {
+  ad: "Airworthiness Directive",
+  sb: "Service Bulletin",
+  manufacturer: "Manufacturer",
+  shop: "Shop",
+  other: "Other",
+};
+
+/** "AD" / "SB" for a row, null for the sources that need no flag. */
+export function sourceBadge(t: { sourceType?: string | null }): string | null {
+  if (t.sourceType === "ad") return "AD";
+  if (t.sourceType === "sb") return "SB";
+  return null;
+}
+
+/** "AD 2015-19-07 Rev 2", or just the number when the type is unremarkable. */
+export function sourceLabel(t: {
+  sourceType?: string | null;
+  sourceRef?: string | null;
+  revision?: string | null;
+}): string | null {
+  const badge = sourceBadge(t);
+  const parts = [badge, t.sourceRef, t.revision ? `Rev ${t.revision}` : null].filter(Boolean);
+  return parts.length ? parts.join(" ") : null;
+}
+
 /** The warning lead time, in words. Both leads on a combined interval, they differ. */
 export function warningLabel(t: { remindDaysBefore?: number | null; remindHoursBefore?: number | null }): string {
   const days = t.remindDaysBefore ? `${t.remindDaysBefore} ${t.remindDaysBefore === 1 ? "day" : "days"}` : null;

@@ -10,6 +10,7 @@ import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { Button } from "@/components/ui/button";
 import { ProfileCard } from "@/components/me-account/profile-card";
+import { MechanicCertificateCard } from "@/components/me-account/mechanic-certificate-card";
 import { MyMembershipCard } from "@/components/me-account/my-membership-card";
 import { ContactDetailsCard } from "@/components/me-account/contact-details-card";
 import { EmergencyContactsCard } from "@/components/me-account/emergency-contacts-card";
@@ -83,6 +84,12 @@ function ProfilePage() {
                   when they are not on a plan. */}
               <MyMembershipCard />
               <ContactDetailsCard />
+              {/* Only for the people who sign inspections off. On a student's profile it
+                  would be a question they cannot answer, sitting above their emergency
+                  contacts. */}
+              {(roles.includes("technician") || roles.includes("admin") || roles.includes("owner")) && (
+                <MechanicCertificateCard />
+              )}
               <EmergencyContactsCard userId={user?.id ?? null} />
               {/* Lives on the profile tab rather than its own: it's a personal preference, and
                   most people will set it once when they first travel and never look again. */}

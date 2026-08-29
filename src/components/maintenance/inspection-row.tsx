@@ -13,7 +13,7 @@
 
 import { AlertTriangle } from "lucide-react";
 import type { MaintenanceReminder } from "@/types/api";
-import { alsoLabel, dueAmount, dueBadge, dueDetail, duePercent, dueTone } from "@/lib/maintenance";
+import { alsoLabel, dueAmount, dueBadge, dueDetail, duePercent, dueTone, sourceBadge, sourceLabel } from "@/lib/maintenance";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
@@ -59,6 +59,18 @@ export function InspectionRow({
           {badge && (
             <Badge variant={tone === "danger" ? "danger" : "warning"} className="shrink-0">
               {badge}
+            </Badge>
+          )}
+          {/* Which rule this is, so a regulation is distinguishable from an oil change at a
+              glance. Two letters, because the row's right-hand column is the countdown a
+              mechanic actually scans and it must not be crowded. */}
+          {sourceBadge(reminder.template ?? {}) && (
+            <Badge
+              variant="outline"
+              className="shrink-0"
+              title={sourceLabel(reminder.template ?? {}) ?? undefined}
+            >
+              {sourceBadge(reminder.template ?? {})}
             </Badge>
           )}
           {/* Only worth saying on an item that is actually late, on a green row it is a

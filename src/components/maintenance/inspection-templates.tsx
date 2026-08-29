@@ -20,7 +20,7 @@ import { toast } from "sonner";
 import type { MaintenanceReminderTemplate } from "@/types/api";
 import { resourceLabel } from "@/types/api";
 import { useDeleteMaintenanceReminderTemplate, useMaintenanceReminderTemplates } from "@/features/queries";
-import { intervalLabel, warningLabel } from "@/lib/maintenance";
+import { SOURCE_TYPE_LABELS, sourceBadge, sourceLabel, intervalLabel, warningLabel } from "@/lib/maintenance";
 import { cn } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
 import { EditCoverageModal } from "@/components/maintenance/edit-coverage-modal";
@@ -168,9 +168,37 @@ function TemplateRow({
               </Badge>
             )}
             {!template.repeat && <Badge variant="warning">One-off</Badge>}
+            {/* `outline`, not danger or warning: those two are load-bearing here for
+                grounding and one-off, and a third colour would dilute both. What an AD
+                needs is to be identifiable, not alarming. */}
+            {sourceBadge(template) && (
+              <Badge variant="outline" title={SOURCE_TYPE_LABELS[template.sourceType ?? ""]}>
+                {sourceBadge(template)}
+              </Badge>
+            )}
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {intervalLabel(template)} · {warningLabel(template)}
+            {sourceLabel(template) && (
+              <>
+                {" · "}
+                {template.sourceUrl ? (
+                  <a
+                    href={template.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline-offset-2 hover:text-foreground hover:underline"
+                    //Somebody else's website, which will rot. Linked, never presented as
+                    //though we checked it.
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {sourceLabel(template)}
+                  </a>
+                ) : (
+                  sourceLabel(template)
+                )}
+              </>
+            )}
           </p>
           {template.notes && (
             <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{template.notes}</p>

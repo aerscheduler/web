@@ -485,6 +485,16 @@ export interface OrganizationUser {
    * filing decision, tells them nothing, and takes them out of every list.
    */
   archivedAt?: string | null;
+  /**
+   * The mechanic's FAA certificate, so signing an inspection off can prefill it.
+   *
+   * On the MEMBERSHIP rather than the person: somebody can be a mechanic at one school and
+   * a renter at another. Only ever a default; the compliance record snapshots what was
+   * actually signed, because an outside inspector has no membership here at all.
+   */
+  mechanicCertificateNumber?: string | null;
+  /** A&P, IA, or repair station. */
+  mechanicCertificateType?: string | null;
   profileImage: string | null;
   adminRole?: RoleRow | null;
   ownerRole?: RoleRow | null;
@@ -1193,10 +1203,54 @@ export interface MaintenanceReminder {
   /** DECI-hours the interval started at. */
   startHours: number | null;
   completedAt: string | null;
+  /** DECI-hours the work was signed off at. The next interval counts from here. */
+  completedHours: number | null;
   notes: string | null;
   due?: MaintenanceDue;
   template?: MaintenanceReminderTemplate;
   resource?: Resource;
+  resolvedBy?: OrganizationUser | null;
+}
+
+/**
+ * What kind of rule a reminder is.
+ *
+ * `ad` is an Airworthiness Directive, binding under 14 CFR Part 39. `sb` is a Service
+ * Bulletin, which the manufacturer advises and nobody is obliged to follow. The distinction
+ * matters enough to be a field rather than a naming convention: only one of them has to be
+ * on the report an inspector reads.
+ */
+export type MaintenanceSourceType = "ad" | "sb" | "manufacturer" | "shop" | "other";
+
+/**
+ * A signed-off inspection, kept for the life of the aircraft.
+ *
+ * APPEND-ONLY. There is no endpoint that edits or removes one, and there is deliberately no
+ * mutation hook in `features/queries.ts` for anything to call. The fields describing which
+ * rule was complied with are frozen at signature rather than read back through the template,
+ * so a superseded AD cannot rewrite what a mechanic signed.
+ */
+export interface MaintenanceComplianceRecord {
+  id: number;
+  createdAt: string;
+  sourceType: MaintenanceSourceType | null;
+  sourceRef: string | null;
+  revision: string | null;
+  templateName: string;
+  complianceDate: string;
+  /** DECI-hours, both of them, whatever clock the interval counted. */
+  tachAtCompliance: number | null;
+  hobbsAtCompliance: number | null;
+  nextDueAt: string | null;
+  nextDueAtHours: number | null;
+  mechanicName: string;
+  mechanicCertificateNumber: string | null;
+  mechanicCertificateType: string | null;
+  methodOfCompliance: string;
+  /** Object keys for attached evidence, a logbook photograph or a scanned 8130-3. */
+  fileUrls: string[];
+  resource?: Resource;
+  signedOffBy?: OrganizationUser | null;
 }
 
 /** The rule a reminder repeats on. One template spans many aircraft. */
@@ -1216,6 +1270,16 @@ export interface MaintenanceReminderTemplate {
   hourBasedOn: "tach" | "hobbs" | null;
   /** Set only on a one-off: a date that happens once and doesn't recur. */
   remindDate: string | null;
+  /** Where this rule comes from. Null means nobody said, which is most of them. */
+  sourceType: MaintenanceSourceType | null;
+  /** The document number: "2015-19-07". Required by the server when sourceType is "ad". */
+  sourceRef: string | null;
+  sourceUrl: string | null;
+  /**
+   * The revision in force NOW. What a given sign-off actually complied with is on the
+   * compliance record, because ADs get superseded and this field moves.
+   */
+  revision: string | null;
   resources?: Resource[];
   reminders?: MaintenanceReminder[];
 }
@@ -1252,6 +1316,10 @@ export interface CreateReminderTemplateInput {
   hourBasedOn?: "tach" | "hobbs";
   /** A one-off deadline. The server forces `repeat: false` when this is set. */
   remindDate?: string;
+  sourceType?: MaintenanceSourceType | null;
+  sourceRef?: string | null;
+  sourceUrl?: string | null;
+  revision?: string | null;
   templateResources?: { id: number; startDate?: string; startHour?: number }[];
 }
 

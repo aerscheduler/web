@@ -29,6 +29,7 @@ import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
 import { FleetStatus } from "@/components/maintenance/fleet-status";
 import { SquawkTable } from "@/components/maintenance/squawk-table";
+import { ComplianceLog } from "@/components/maintenance/compliance-log";
 import { InspectionRow } from "@/components/maintenance/inspection-row";
 import { InspectionTemplates } from "@/components/maintenance/inspection-templates";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
@@ -166,7 +167,13 @@ function MaintenancePage() {
     <ListSearchBar
       value={search}
       onChange={setSearch}
-      placeholder={showsSquawks ? "Search squawks…" : "Search aircraft or inspections…"}
+      placeholder={
+        showsSquawks
+          ? "Search squawks…"
+          : view === "compliance"
+            ? "Search records, AD numbers, mechanics…"
+            : "Search aircraft or inspections…"
+      }
       aria-label="Search maintenance"
       facets={facetDefs}
       filterValues={facets}
@@ -222,6 +229,9 @@ function MaintenancePage() {
                 canManage={canManage}
               />
             </TableView.Body>
+          )}
+          {view === "compliance" && (
+            <ComplianceLog q={q} resourceId={resourceIds} openId={openId} onOpenId={setOpenId} />
           )}
           {view === "templates" && (
             <TableView.Body>

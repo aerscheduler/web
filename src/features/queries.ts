@@ -82,6 +82,7 @@ import type {
   SetupIntentResponse,
   CreateReminderTemplateInput,
   InspectionPreset,
+  MaintenanceComplianceRecord,
   MaintenanceReminder,
   MaintenanceReminderTemplate,
   Organization,
@@ -231,6 +232,15 @@ export type SquawkListFilter = {
   q?: string;
   resolved?: boolean;
   resourceId?: number | number[];
+  startDate?: string;
+  endDate?: string;
+};
+
+export type ComplianceListFilter = {
+  q?: string;
+  resourceId?: number[];
+  reminderId?: number;
+  sourceType?: string;
   startDate?: string;
   endDate?: string;
 };
@@ -3295,6 +3305,62 @@ export async function fetchResourceHolds(qc: QueryClient, resourceId: number): P
 }
 
 /** The rules behind the reminders, one template spanning many aircraft. */
+/**
+ * The compliance log: every inspection this school has signed off.
+ *
+ * Paged server-side like every other collection. This one grows for the life of every
+ * aircraft rather than settling at one row per rule, so a client that renders "everything it
+ * was given" would be showing a truncated log confidently.
+ *
+ * There is deliberately NO create, update or delete hook here. A record is written by
+ * signing a reminder off, and it is append-only: if a mutation hook existed, that would be
+ * the bug.
+ */
+/**
+ * Your own mechanic certificate, stated once so sign-off can prefill it.
+ *
+ * Self-scoped: the endpoint takes no id and writes only the caller's membership, so this
+ * cannot be pointed at somebody else. An empty string clears one entered wrongly.
+ */
+export function useUpdateMechanicCertificate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { mechanicCertificateNumber: string; mechanicCertificateType: string }) =>
+      api<{ mechanicCertificateNumber: string | null; mechanicCertificateType: string | null }>(
+        "/users/mechanicCertificate",
+        { method: "PATCH", body }
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["people"] });
+    },
+  });
+}
+
+export function useComplianceRecordsPage(
+  filter: ComplianceListFilter | undefined,
+  paging: PagingState,
+  opts?: QueryOpts
+) {
+  return usePagedList<MaintenanceComplianceRecord>(
+    ["compliance-records"],
+    "/maintenance/compliance",
+    paging,
+    filter,
+    opts
+  );
+}
+
+/** One record, for a deep link from a report row. Keyed under the list prefix so list
+ *  invalidation reaches it without anyone remembering to add a key. */
+export function useComplianceRecord(id: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["compliance-records", id],
+    queryFn: () => api<MaintenanceComplianceRecord>(`/maintenance/compliance/${id}`),
+    enabled: id != null,
+    ...opts,
+  });
+}
+
 export function useMaintenanceReminderTemplates(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["reminder-templates"],
@@ -3367,16 +3433,39 @@ export function useDeleteMaintenanceReminderTemplate() {
  * DECI-hours and is what the NEXT interval counts from: send the meter reading the work
  * was actually done at, not today's, or the new interval starts short.
  */
+/**
+ * Sign a reminder off, and optionally write the permanent compliance record.
+ *
+ * The compliance half is optional TOGETHER: send `methodOfCompliance` and `mechanicName`
+ * and the server writes a 14 CFR 91.417 entry that can never be edited or removed; send
+ * neither and the reminder rolls forward exactly as it always has. An oil change should not
+ * have to name a certificate holder.
+ */
 export function useResolveMaintenanceReminder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: number; completedAt: string; completedHours?: number; notes?: string }) =>
-      api<MaintenanceReminder>(`/maintenance/reminders/${id}`, { method: "POST", body }),
+    mutationFn: ({ id, ...body }: {
+      id: number;
+      completedAt: string;
+      completedHours?: number;
+      notes?: string;
+      methodOfCompliance?: string;
+      mechanicName?: string;
+      mechanicCertificateNumber?: string;
+      mechanicCertificateType?: string;
+      /** DECI-hours, both of them. */
+      tachAtCompliance?: number;
+      hobbsAtCompliance?: number;
+      fileUrls?: string[];
+    }) => api<MaintenanceReminder>(`/maintenance/reminders/${id}`, { method: "POST", body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["reminders"] });
       void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
       void qc.invalidateQueries({ queryKey: ["resource"] });
       void qc.invalidateQueries({ queryKey: ["resources"] });
+      //The sign-off is the only thing that writes a record, so this is the only place the
+      //log can go stale.
+      void qc.invalidateQueries({ queryKey: ["compliance-records"] });
     },
   });
 }

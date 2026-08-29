@@ -12,16 +12,19 @@
 
 import * as React from "react";
 import { format } from "date-fns";
+import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useResolveMaintenanceReminder } from "@/features/queries";
+import { useAuth } from "@/lib/auth";
 import type { MaintenanceReminder } from "@/types/api";
-import { fromDeciHours } from "@/lib/maintenance";
+import { fromDeciHours, sourceLabel } from "@/lib/maintenance";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { DatePickerField } from "@/components/date-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 
 export function ResolveReminderModal({
   reminder,
@@ -33,6 +36,9 @@ export function ResolveReminderModal({
   onOpenChange: (open: boolean) => void;
 }) {
   const resolve = useResolveMaintenanceReminder();
+  const { user } = useAuth();
+  //The server scopes orgUsers to the active org, so the first entry is this membership.
+  const membership = user?.orgUsers?.[0];
   const due = reminder?.due;
   /**
    * The hour clock, wherever it is.
@@ -50,6 +56,24 @@ export function ResolveReminderModal({
   const [hours, setHours] = React.useState("");
   const [notes, setNotes] = React.useState("");
 
+  /**
+   * THE COMPLIANCE HALF. Filled in only for a rule that is a regulation.
+   *
+   * Signing an oil change off should not demand a certificate number, so this is offered
+   * rather than required: the server writes a permanent 14 CFR 91.417 record when a method
+   * and a mechanic arrive, and otherwise behaves exactly as it always has.
+   *
+   * Opened by default when the template says it is an Airworthiness Directive, because for
+   * those the record is the point of signing off at all.
+   */
+  const [tach, setTach] = React.useState("");
+  const [hobbs, setHobbs] = React.useState("");
+  const [method, setMethod] = React.useState("");
+  const [mechanicName, setMechanicName] = React.useState("");
+  const [certNumber, setCertNumber] = React.useState("");
+  const [certType, setCertType] = React.useState("");
+  const [recording, setRecording] = React.useState(false);
+
   // Re-seed each time a different reminder is opened, not once on mount: this modal is
   // reused across every row in the list, so mount-time state would carry one row's meter
   // reading onto the next one you open.
@@ -58,6 +82,19 @@ export function ResolveReminderModal({
     setCompletedAt(format(new Date(), "yyyy-MM-dd"));
     setHours(hourSide?.currentHours != null ? fromDeciHours(hourSide.currentHours) : "");
     setNotes("");
+    setMethod("");
+    //Prefilled from the aircraft so the normal case is confirming a number rather than
+    //reading it off a panel and typing it. Both meters, whatever this rule counted:
+    //91.417 wants time in service, not whichever clock the schedule happened to use.
+    const plane = reminder.resource?.type?.plane;
+    setTach(plane?.tachTime != null ? fromDeciHours(plane.tachTime) : "");
+    setHobbs(plane?.hobbsTime != null ? fromDeciHours(plane.hobbsTime) : "");
+    //Prefilled from the signer's own membership. Six exact characters typed at every
+    //signature is how a compliance log fills up with blanks and typos.
+    setMechanicName(user?.name ?? "");
+    setCertNumber(membership?.mechanicCertificateNumber ?? "");
+    setCertType(membership?.mechanicCertificateType ?? "");
+    setRecording(reminder.template?.sourceType === "ad");
   }, [open, reminder?.id, hourSide?.currentHours]);
 
   if (!reminder) return null;
@@ -67,6 +104,10 @@ export function ResolveReminderModal({
   const meter = hourSide?.basis === "hobbs" ? "Hobbs" : "Tach";
   const parsedHours = Number(hours);
   const hoursValid = !hourBased || (hours !== "" && Number.isFinite(parsedHours) && parsedHours >= 0);
+  //A record with a method and nobody's name attached is not a record, and the server
+  //refuses it. Say so here rather than after a round trip.
+  const complianceValid = !recording || (method.trim().length > 0 && mechanicName.trim().length > 0);
+  const sourceRef = reminder?.template?.sourceRef;
 
   async function submit() {
     if (!reminder) return;
@@ -78,6 +119,16 @@ export function ResolveReminderModal({
         completedAt: new Date(`${completedAt}T12:00:00`).toISOString(),
         completedHours: hourBased && hours !== "" ? Math.round(parsedHours * 10) : undefined,
         notes: notes.trim() || undefined,
+        ...(recording
+          ? {
+              methodOfCompliance: method.trim(),
+              mechanicName: mechanicName.trim(),
+              mechanicCertificateNumber: certNumber.trim() || undefined,
+              mechanicCertificateType: certType.trim() || undefined,
+              tachAtCompliance: tach !== "" ? Math.round(Number(tach) * 10) : undefined,
+              hobbsAtCompliance: hobbs !== "" ? Math.round(Number(hobbs) * 10) : undefined,
+            }
+          : {}),
       });
       toast.success("Signed off.");
       onOpenChange(false);
@@ -93,7 +144,7 @@ export function ResolveReminderModal({
             <Button variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={submit} disabled={!hoursValid || resolve.isPending}>
+            <Button onClick={submit} disabled={!hoursValid || !complianceValid || resolve.isPending}>
               {resolve.isPending ? "Signing off…" : "Sign off"}
             </Button>
         </div>
@@ -150,6 +201,119 @@ export function ResolveReminderModal({
             something else is still holding it.
           </p>
         )}
+
+        {/* THE PERMANENT RECORD.
+            Offered rather than required, because an oil change should not have to name a
+            certificate holder. Opened by default on an Airworthiness Directive, where the
+            record is the reason for signing off at all. */}
+        <div
+          data-doc-shot="sign-off-compliance"
+          className="space-y-3 rounded-lg border border-border p-3"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="resolve-record" className="cursor-pointer">
+                Keep a compliance record
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {sourceRef
+                  ? `Required for ${sourceLabel(reminder.template ?? {}) ?? "this rule"} under 14 CFR 91.417.`
+                  : "What was done, and who certified it. Kept for the life of the aircraft."}
+              </p>
+            </div>
+            <Switch id="resolve-record" checked={recording} onCheckedChange={setRecording} />
+          </div>
+
+          {recording && (
+            <div className="space-y-3 border-t border-border pt-3">
+              {/* Said before the button, not after. Everything else in this console is
+                  correctable, and this one thing is not. */}
+              <p className="flex gap-2 rounded-md border border-[color-mix(in_oklch,var(--warning)_30%,transparent)] bg-[color-mix(in_oklch,var(--warning)_8%,transparent)] px-3 py-2 text-xs">
+                <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-[var(--warning)]" />
+                <span>
+                  Once signed, this record can&rsquo;t be edited or removed. A correction is a
+                  new record.
+                </span>
+              </p>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="resolve-method">What was done</Label>
+                <Textarea
+                  id="resolve-method"
+                  value={method}
+                  onChange={(e) => setMethod(e.target.value)}
+                  rows={4}
+                  maxLength={2000}
+                  placeholder="Visual and dye-penetrant inspection of the forward spar carry-through per paragraph (g)(1). No cracking found."
+                />
+                <p className="text-xs text-muted-foreground">
+                  The method of compliance. This is the sentence an inspector reads.
+                </p>
+              </div>
+
+              {/* Both meters, whatever this rule counted. Prefilled from the aircraft, so
+                  the usual answer is a glance rather than a walk to the panel. */}
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="resolve-tach">Tach at compliance</Label>
+                  <Input
+                    id="resolve-tach"
+                    inputMode="decimal"
+                    className="tnum"
+                    value={tach}
+                    onChange={(e) => setTach(e.target.value.replace(/[^0-9.]/g, ""))}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="resolve-hobbs">Hobbs at compliance</Label>
+                  <Input
+                    id="resolve-hobbs"
+                    inputMode="decimal"
+                    className="tnum"
+                    value={hobbs}
+                    onChange={(e) => setHobbs(e.target.value.replace(/[^0-9.]/g, ""))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label htmlFor="resolve-mechanic">Certified by</Label>
+                  <Input
+                    id="resolve-mechanic"
+                    value={mechanicName}
+                    onChange={(e) => setMechanicName(e.target.value)}
+                    placeholder="The mechanic who signed it"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="resolve-cert">Certificate</Label>
+                  {/* No example placeholder. A greyed "3421887" in an empty box reads as a
+                      filled field at a glance, which is exactly how the first version of
+                      this shipped a record with no certificate on it while looking correct
+                      on screen. If it is empty it should look empty. */}
+                  <Input
+                    id="resolve-cert"
+                    value={certNumber}
+                    onChange={(e) => setCertNumber(e.target.value)}
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                  />
+                </div>
+              </div>
+              {!certNumber.trim() && (
+                <p className="text-xs text-muted-foreground">
+                  No certificate on your profile yet. Add it under Profile and it fills in
+                  here every time.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Stored as typed, not as a link to an account: an outside IA has no login here,
+                and the record has to outlast anyone leaving the school.
+              </p>
+            </div>
+          )}
+        </div>
 
       </div>
     </ResponsiveModal>

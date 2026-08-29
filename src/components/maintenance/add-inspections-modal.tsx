@@ -475,7 +475,7 @@ export function AddInspectionsModal({
               value={sourceType || "none"}
               onValueChange={(v) => setSourceType(v === "none" ? "" : (v as MaintenanceSourceType))}
             >
-              <SelectTrigger id="insp-source-type">
+              <SelectTrigger id="insp-source-type" data-testid="insp-source-type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

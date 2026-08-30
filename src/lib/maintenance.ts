@@ -140,16 +140,34 @@ function hoursPhrase(deci: number, hourBasedOn?: string | null): string {
  * calendar month, and rounding it to "1 month" states a different rule than §91.171 sets.
  * Anything shorter keeps its own unit.
  */
-function daysPhrase(days: number): string {
-  const months = days / 30.44;
-  const rounded = Math.round(months);
-  const clean = rounded >= 2 && Math.abs(months - rounded) < 0.2;
-  return clean ? `${rounded} months` : `${days} days`;
+/**
+ * A calendar interval, said as it is actually stored.
+ *
+ * THIS USED TO GUESS. A 365-day interval was rendered "12 months" because the number was
+ * close to twelve of something, which was the most misleading thing on the page: the school
+ * read "12 months", the engine counted 365 days, and a calendar month runs to the end of the
+ * month, so the aeroplane came off the line up to a month before it had to.
+ *
+ * Now a month interval is a real thing (`remindMonths`) and says "calendar months", and a day
+ * interval says days. Whole weeks read as weeks from two up, because 14 days IS a fortnight
+ * and nothing is lost saying so, but nothing is ever rounded into a unit it is not stored in.
+ */
+function calendarPhrase(t: { remindDays?: number | null; remindMonths?: number | null }): string {
+  if (t.remindMonths) {
+    return `${t.remindMonths} calendar ${t.remindMonths === 1 ? "month" : "months"}`;
+  }
+  const days = t.remindDays ?? 0;
+  if (days >= 14 && days % 7 === 0) {
+    const weeks = days / 7;
+    return `${weeks} ${weeks === 1 ? "week" : "weeks"}`;
+  }
+  return `${days} ${days === 1 ? "day" : "days"}`;
 }
 
 /** What a template's interval says, in words, for the templates list. */
 export function intervalLabel(t: {
   remindDays?: number | null;
+  remindMonths?: number | null;
   remindHours?: number | null;
   remindDate?: string | null;
   remindAtHours?: number | null;
@@ -165,11 +183,11 @@ export function intervalLabel(t: {
   }
   // Both clocks: say so explicitly. "Every 100.0 hours tach" on a template that is also
   // counting an annual is a true statement that leaves out the half more likely to bite.
-  if (t.remindHours && t.remindDays) {
-    return `Every ${hoursPhrase(t.remindHours, t.hourBasedOn)} or ${daysPhrase(t.remindDays)}, whichever comes first`;
+  if (t.remindHours && (t.remindDays || t.remindMonths)) {
+    return `Every ${hoursPhrase(t.remindHours, t.hourBasedOn)} or ${calendarPhrase(t)}, whichever comes first`;
   }
   if (t.remindHours) return `Every ${hoursPhrase(t.remindHours, t.hourBasedOn)}`;
-  if (t.remindDays) return `Every ${daysPhrase(t.remindDays)}`;
+  if (t.remindDays || t.remindMonths) return `Every ${calendarPhrase(t)}`;
   if (t.remindDate) return `Once, ${format(new Date(t.remindDate), "MMM d, yyyy")}`;
   return "No interval set";
 }

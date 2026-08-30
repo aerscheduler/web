@@ -32,6 +32,14 @@ import { cn } from "@/lib/utils";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { DatePickerField } from "@/components/date-picker";
 import { DocsHint } from "@/components/docs-hint";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { CALENDAR_UNITS, calendarPayload, type CalendarUnit } from "@/lib/maintenance-interval";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,12 +88,53 @@ export function AddInspectionsModal({
   //the single compliance it required.
   const [onceOn, setOnceOn] = React.useState<"date" | "hours">("date");
   const [atHours, setAtHours] = React.useState("");
-  const [every, setEvery] = React.useState("100");
-  const [warn, setWarn] = React.useState("10");
+  //The form opens on the calendar clock in months, so these open matching it. They were 100
+  //and 10, the meter clock's defaults, which rendered "Every 100 months".
+  const [every, setEvery] = React.useState("12");
+  const [warn, setWarn] = React.useState("30");
+
+  /**
+   * Whether a person has typed in these two boxes yet.
+   *
+   * The number is shared between the meter clock and the calendar clock, and the sensible
+   * default is different for each: 100 hours, 12 calendar months, 50 days. Without this the
+   * form opened on the calendar reading "Every 100 months", which is not an interval anyone
+   * has ever wanted and reads as a bug the moment you see it.
+   *
+   * Only untouched boxes are re-defaulted, so switching unit after typing 6 never discards it.
+   */
+  const everyTouched = React.useRef(false);
+  const warnTouched = React.useRef(false);
+
+  const DEFAULT_EVERY: Record<CalendarUnit | "hours", string> = {
+    hours: "100",
+    months: "12",
+    weeks: "4",
+    days: "50",
+  };
+  const DEFAULT_WARN: Record<CalendarUnit | "hours", string> = {
+    hours: "10",
+    months: "30",
+    weeks: "7",
+    days: "7",
+  };
+
+  /** Re-default the shared boxes for whichever clock and unit is now showing. */
+  const applyDefaults = (key: CalendarUnit | "hours") => {
+    if (!everyTouched.current) setEvery(DEFAULT_EVERY[key]);
+    if (!warnTouched.current) setWarn(DEFAULT_WARN[key]);
+  };
   // The calendar half of a combined interval. Separate state because "both" needs two
   // figures on screen at once and reusing `every` would make one overwrite the other.
-  const [everyDays, setEveryDays] = React.useState("365");
+  const [everyDays, setEveryDays] = React.useState("12");
   const [warnDays, setWarnDays] = React.useState("30");
+
+  //WHICH CALENDAR UNIT. Defaulting to months rather than days because almost every calendar
+  //inspection in aviation is written in calendar months (the annual, the transponder, the
+  //static system, the ELT), and a calendar month is not a number of days: it runs to the end
+  //of the month. Storing those as 365 days made them come due up to a month early.
+  const [everyUnit, setEveryUnit] = React.useState<CalendarUnit>("months");
+  const [everyDaysUnit, setEveryDaysUnit] = React.useState<CalendarUnit>("months");
   const [meter, setMeter] = React.useState<"tach" | "hobbs">("tach");
   const [date, setDate] = React.useState("");
   const [grounds, setGrounds] = React.useState(false);
@@ -118,9 +167,13 @@ export function AddInspectionsModal({
     setTails([]);
     setName("");
     setBasis("days");
-    setEvery("100");
-    setWarn("10");
-    setEveryDays("365");
+    setEveryUnit("months");
+    setEveryDaysUnit("months");
+    setEvery("12");
+    setWarn("30");
+    everyTouched.current = false;
+    warnTouched.current = false;
+    setEveryDays("12");
     setWarnDays("30");
     setMeter("tach");
     setDate("");
@@ -165,6 +218,36 @@ export function AddInspectionsModal({
       : Number(every) > 0 && (basis !== "both" || Number(everyDays) > 0));
   const canSubmit =
     targets.length > 0 && (mode === "standard" ? chosen.length > 0 : customValid) && !busy;
+
+  /** The days / weeks / months picker beside a calendar interval. */
+  const unitPicker = (id: string, value: CalendarUnit, onChange: (u: CalendarUnit) => void) => (
+    <Select value={value} onValueChange={(v) => onChange(v as CalendarUnit)}>
+      <SelectTrigger id={id} className="w-[7.5rem]">
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        {CALENDAR_UNITS.map((u) => (
+          <SelectItem key={u} value={u}>
+            {u}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+
+  /**
+   * The one thing somebody has to understand about picking months.
+   *
+   * A calendar month is not 30 days and it is not an anniversary. Said here rather than left
+   * for a mechanic to discover from a due date that looks a fortnight off.
+   */
+  const monthNote = (
+    <p className="text-xs text-muted-foreground">
+      A calendar month runs to the END of the month, which is what 14 CFR 91.409(a) and the
+      other calendar inspections mean. Signed any day in February, a 12 month interval is due
+      on the last day of February the following year.
+    </p>
+  );
 
   /** One control, rendered by both the recurring form and the one-off meter deadline. */
   const meterPicker = (
@@ -240,8 +323,8 @@ export function AddInspectionsModal({
     // shared `every` / `warn` are the calendar ones.
     const days =
       basis === "both"
-        ? { remindDays: Math.round(Number(everyDays)), remindDaysBefore: Math.max(1, Math.round(Number(warnDays) || 1)) }
-        : { remindDays: Math.round(Number(every)), remindDaysBefore: Math.max(1, Math.round(Number(warn) || 1)) };
+        ? calendarPayload(everyDaysUnit, Number(everyDays), Number(warnDays) || 1)
+        : calendarPayload(everyUnit, Number(every), Number(warn) || 1);
 
     if (basis === "hours") return { name: trimmed, repeat: true, ground: grounds, ...hours, ...sourcePayload, templateResources };
     // Whichever comes first: the server keeps both clocks and grounds on the earlier one.
@@ -371,7 +454,13 @@ export function AddInspectionsModal({
                     <button
                       key={option.value}
                       type="button"
-                      onClick={() => setBasis(option.value)}
+                      onClick={() => {
+                        setBasis(option.value);
+                        //The shared boxes now belong to a different clock: 100 hours, or 12
+                        //calendar months. "Whichever comes first" puts hours in the shared
+                        //pair and the calendar in its own, so it defaults like hours.
+                        applyDefaults(option.value === "days" ? everyUnit : "hours");
+                      }}
                       aria-pressed={basis === option.value}
                       className={cn(
                         "rounded-lg border px-3 py-2 text-left text-[13px] transition-colors",
@@ -386,15 +475,25 @@ export function AddInspectionsModal({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label htmlFor="insp-every" className="text-xs">
-                      Every ({basis === "days" ? "days" : "hours"})
+                      Every {basis === "days" ? "" : "(hours)"}
                     </Label>
-                    <Input
-                      id="insp-every"
-                      inputMode="decimal"
-                      value={every}
-                      onChange={(e) => setEvery(e.target.value.replace(/[^0-9.]/g, ""))}
-                      className="tnum"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="insp-every"
+                        inputMode="decimal"
+                        value={every}
+                        onChange={(e) => {
+                          everyTouched.current = true;
+                          setEvery(e.target.value.replace(/[^0-9.]/g, ""));
+                        }}
+                        className="tnum"
+                      />
+                      {basis === "days" &&
+                        unitPicker("insp-every-unit", everyUnit, (u) => {
+                          setEveryUnit(u);
+                          applyDefaults(u);
+                        })}
+                    </div>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="insp-warn" className="text-xs">
@@ -404,25 +503,33 @@ export function AddInspectionsModal({
                       id="insp-warn"
                       inputMode="decimal"
                       value={warn}
-                      onChange={(e) => setWarn(e.target.value.replace(/[^0-9.]/g, ""))}
+                      onChange={(e) => {
+                        warnTouched.current = true;
+                        setWarn(e.target.value.replace(/[^0-9.]/g, ""));
+                      }}
                       className="tnum"
                     />
                   </div>
                 </div>
 
+                {basis === "days" && everyUnit === "months" && monthNote}
+
                 {basis === "both" && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label htmlFor="insp-every-days" className="text-xs">
-                        or every (days)
+                        or every
                       </Label>
-                      <Input
-                        id="insp-every-days"
-                        inputMode="decimal"
-                        value={everyDays}
-                        onChange={(e) => setEveryDays(e.target.value.replace(/[^0-9.]/g, ""))}
-                        className="tnum"
-                      />
+                      <div className="flex gap-2">
+                        <Input
+                          id="insp-every-days"
+                          inputMode="decimal"
+                          value={everyDays}
+                          onChange={(e) => setEveryDays(e.target.value.replace(/[^0-9.]/g, ""))}
+                          className="tnum"
+                        />
+                        {unitPicker("insp-every-days-unit", everyDaysUnit, setEveryDaysUnit)}
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="insp-warn-days" className="text-xs">
@@ -438,6 +545,8 @@ export function AddInspectionsModal({
                     </div>
                   </div>
                 )}
+
+                {basis === "both" && everyDaysUnit === "months" && monthNote}
 
                 {basis !== "days" && meterPicker}
               </>

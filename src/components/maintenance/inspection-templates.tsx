@@ -52,16 +52,21 @@ const GROUPS: { key: GroupKey; title: string; blurb: string; icon: typeof Gauge 
 // one, and filing it under "On the meter" hides the half more likely to come due.
 // A one-off meter deadline files under "One-off" with the dated ones: what makes it that
 // group is that it happens once, not which clock it counts.
-const groupOf = (t: MaintenanceReminderTemplate): GroupKey =>
-  t.remindAtHours != null
+const groupOf = (t: MaintenanceReminderTemplate): GroupKey => {
+  //A month interval is a CALENDAR interval. It carries a derived `remindDays` beside it today,
+  //so reading only that would still land in the right group, but relying on the derived field
+  //is how a template quietly falls into "One-off" the day that stops being true.
+  const calendar = Boolean(t.remindDays || t.remindMonths);
+  return t.remindAtHours != null
     ? "date"
-    : t.remindHours && t.remindDays
+    : t.remindHours && calendar
       ? "both"
       : t.remindHours
         ? "hours"
-        : t.remindDays
+        : calendar
           ? "days"
           : "date";
+};
 
 export function InspectionTemplates({
   q: search,

@@ -1274,6 +1274,15 @@ export interface MaintenanceReminderTemplate {
   /** Ground the aircraft when this comes due. */
   ground: boolean;
   remindDays: number | null;
+  /**
+   * A calendar interval in MONTHS, which is what the regulations actually say.
+   *
+   * A calendar month runs to the END of the month: 14 CFR 91.409(a)'s "within the preceding 12
+   * calendar months" makes an annual signed on any day in February good through the end of
+   * February the following year. When this is set it is what the due date is computed from,
+   * and `remindDays` beside it is a derived approximation the server keeps for older clients.
+   */
+  remindMonths: number | null;
   remindDaysBefore: number | null;
   /** DECI-hours. */
   remindHours: number | null;
@@ -1332,6 +1341,8 @@ export interface CreateReminderTemplateInput {
   repeat: boolean;
   ground?: boolean;
   remindDays?: number;
+  /** Calendar months. Wins over `remindDays`, which the server derives from it. */
+  remindMonths?: number;
   remindDaysBefore?: number;
   /** DECI-hours. */
   remindHours?: number;

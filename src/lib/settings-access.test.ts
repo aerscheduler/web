@@ -64,10 +64,18 @@ describe("the enterprise filter still works alongside it", () => {
 });
 
 describe("the registry itself", () => {
-  it("marks exactly the panes that are somebody's commercial business", () => {
-    // A guard rail on the registry rather than the filter: if a new pane is added that
-    // shows what the school pays us, it should be added here consciously.
+  it("marks exactly the panes that are not an office manager's to change", () => {
+    // A guard rail on the registry rather than the filter: adding a pane here is a decision
+    // about who runs the school, so it should be made on purpose and not by a default.
+    //
+    //   plan         what the school pays us, which is the owner's commercial business.
+    //   ad-tracking  whether the school treats Airworthiness Directives as this product's
+    //                problem. It changes what every technician is asked to review and what
+    //                any AD document says on its face, so it is a decision about how the
+    //                school operates rather than a preference. A technician is deliberately
+    //                NOT granted it either; see the role journey in
+    //                e2e/operations/airworthiness-roles.spec.ts.
     const adminOnly = SETTINGS_TABS.filter((t) => t.adminOnly).map((t) => t.value);
-    expect(adminOnly).toEqual(["plan"]);
+    expect(adminOnly).toEqual(["ad-tracking", "plan"]);
   });
 });

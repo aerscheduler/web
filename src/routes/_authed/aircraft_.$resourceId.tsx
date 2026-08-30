@@ -423,6 +423,13 @@ function ResourceBody({ resource }: { resource: Resource }) {
                       {plane.cost?.billByHobbsTime ? "Hobbs time" : "Tach time"}
                     </KeyValue>
                     <KeyValue label="Category & class">{plane.categoryClass || "–"}</KeyValue>
+                    {/* An auditor reading this page is checking the aircraft against a list of
+                        Airworthiness Directives, and an AD names a serial range rather than a
+                        tail number. Shown even when blank, so its absence is visible rather
+                        than merely unrecorded. */}
+                    <KeyValue label="Serial number" mono>
+                      {plane.serialNumber || <span className="font-sans text-muted-foreground">Not recorded</span>}
+                    </KeyValue>
                   </>
                 )}
                 <KeyValue label="Home base">{resource.location?.name ?? "–"}</KeyValue>

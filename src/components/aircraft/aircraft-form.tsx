@@ -38,6 +38,7 @@ import {
 
 type FormState = {
   tailNumber: string;
+  serialNumber: string;
   make: string;
   model: string;
   year: string;
@@ -90,6 +91,7 @@ function upperRegistration(value: string): string {
 function emptyState(): FormState {
   return {
     tailNumber: "",
+    serialNumber: "",
     make: "",
     model: "",
     year: "",
@@ -118,6 +120,7 @@ function stateFromResource(r: Resource): FormState {
   const basis: "wet" | "dry" = cost?.dryRate != null && cost.wetRate == null ? "dry" : "wet";
   return {
     tailNumber: p?.tailNumber ?? "",
+    serialNumber: p?.serialNumber ?? "",
     make: p?.make ?? "",
     model: p?.model ?? "",
     year: p?.year ?? "",
@@ -302,6 +305,7 @@ export function AircraftFormModal({
           type: {
             plane: {
               tailNumber: tail,
+              serialNumber: form.serialNumber.trim(),
               make: form.make.trim() || null,
               model: form.model.trim() || null,
               year: form.year.trim(),
@@ -421,6 +425,31 @@ export function AircraftFormModal({
               <p className="text-xs text-destructive">{errors.tailNumber}</p>
             )}
           </div>
+        </div>
+
+        {/* NEXT TO THE TAIL NUMBER on purpose, because people confuse the two and the FAA does
+            not. A tail number can be changed by the owner in an afternoon; the serial number is
+            on the data plate and is how an Airworthiness Directive says which aeroplanes it
+            applies to. Optional: a school will not walk out to eleven aircraft before it can
+            add its first one. */}
+        <div className="space-y-1.5">
+          <Label htmlFor="ac-serial" className="inline-flex items-center gap-1.5">
+            Serial number
+            <DocsHint topic="aircraft-serial-number" />
+          </Label>
+          <Input
+            id="ac-serial"
+            placeholder="17271234"
+            value={form.serialNumber}
+            onChange={(e) => set("serialNumber", e.target.value)}
+            autoCorrect="off"
+            spellCheck={false}
+            maxLength={40}
+          />
+          <p className="text-xs text-muted-foreground">
+            From the data plate, not the registration. Optional, and it is what lets us tell
+            whether an Airworthiness Directive applies to this aeroplane.
+          </p>
         </div>
 
         <div className="grid grid-cols-3 gap-3">

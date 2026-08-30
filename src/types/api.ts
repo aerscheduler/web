@@ -807,6 +807,14 @@ export interface ResourceType {
 export interface Plane {
   id: number;
   tailNumber: string;
+  /**
+   * The manufacturer's serial number, from the data plate. Not the tail number.
+   *
+   * How an Airworthiness Directive says which aeroplanes it applies to: "Model PC-12/47E
+   * airplanes, manufacturer serial numbers 2001 through 2999". A tail number can be changed by
+   * the owner in an afternoon, which is why the FAA does not identify aircraft by it.
+   */
+  serialNumber: string | null;
   tachTime: number;
   hobbsTime: number;
   make: string;

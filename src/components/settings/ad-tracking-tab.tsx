@@ -100,7 +100,7 @@ export function AdTrackingTab() {
 
   return (
     <div className="space-y-5">
-      <Card>
+      <Card data-doc-shot="ad-tracking-modes">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-muted-foreground" />
@@ -180,7 +180,7 @@ export function AdTrackingTab() {
       {/* WHAT WE COULD ACTUALLY DO, per aeroplane. Shown for every mode, not only when the
           catalogue is on: a school deciding whether to turn it on needs to see this first, and
           a school with it on needs to know when a new aeroplane arrives without a serial. */}
-      <Card>
+      <Card data-doc-shot="ad-readiness-panel">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Plane className="size-4 text-muted-foreground" />

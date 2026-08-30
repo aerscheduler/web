@@ -35,7 +35,13 @@ export default defineConfig({
         storageState: ".auth/owner.json",
       },
       dependencies: ["setup"],
-      testIgnore: [/auth\.setup\.ts/, /intent-logic\.spec\.ts/],
+      //`e2e/capture/` is screenshot capture for the documentation, not tests. It writes files,
+      //it builds fixtures as it goes, and a failure there means a missing picture rather than a
+      //broken product, so it is out of the ordinary run and opted into deliberately:
+      //  CAPTURE=1 npx playwright test e2e/capture
+      testIgnore: process.env.CAPTURE
+        ? [/auth\.setup\.ts/, /intent-logic\.spec\.ts/]
+        : [/auth\.setup\.ts/, /intent-logic\.spec\.ts/, /e2e\/capture\//],
     },
   ],
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER

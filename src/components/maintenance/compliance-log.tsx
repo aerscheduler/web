@@ -90,7 +90,10 @@ export function ComplianceLog({
   }
 
   return (
-    <>
+    //`data-doc-shot` wraps the caption AND the table: the sentence above the table is the part
+    //of this screen that stops somebody mistaking the log for a complete AD status, so a crop
+    //that showed only the rows would leave out the most important thing on the page.
+    <div data-doc-shot="compliance-log">
       {/* SAID HERE, not in a footnote. The industry phrase "AD tracking" means a catalogue
           that answers "which ADs apply to this serial number", and we do not have one. A
           school that believes this log IS their AD status is the one failure in this feature
@@ -136,7 +139,7 @@ export function ComplianceLog({
         open={openId != null}
         onOpenChange={(o) => !o && onOpenId(null)}
       />
-    </>
+    </div>
   );
 }
 

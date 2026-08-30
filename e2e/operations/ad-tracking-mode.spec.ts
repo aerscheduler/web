@@ -157,6 +157,38 @@ test.describe("AD tracking mode", () => {
     expect((await moved.json()).data.externalSystem).toBeNull();
   });
 
+  /**
+   * The mode that promises something nothing does.
+   *
+   * "Watch for new ones" describes a catalogue that is not built. A school that chose it would
+   * believe it was being warned about newly published directives and stop watching for them
+   * itself. Refused at the API and not selectable in the console, and this test holds both
+   * halves shut: when the catalogue ships, both assertions have to be changed on purpose.
+   */
+  test("the catalogue cannot be turned on while there is nothing behind it", async ({
+    page,
+    request,
+  }) => {
+    const { base, headers } = await ownerHeaders(request);
+
+    const res = await request.patch(`${base}/organizations/adTracking`, {
+      headers,
+      data: { mode: "catalogue" },
+    });
+    expect(res.status()).toBe(400);
+    expect((await res.json()).message).toMatch(/cannot watch for newly published/i);
+
+    const after = await (await request.get(`${base}/organizations/adTracking`, { headers })).json();
+    expect(after.data.mode, "a refused mode must not be stored").toBe("off");
+
+    await page.goto("/settings?tab=ad-tracking");
+    await dismissCookieBanner(page);
+    const card = page.getByRole("button", { name: /Watch for new ones/ });
+    await expect(card).toBeVisible();
+    await expect(card, "the console must not offer a mode the server refuses").toBeDisabled();
+    await expect(page.getByText(/Not available yet/i)).toBeVisible();
+  });
+
   test("an unknown mode is refused rather than stored", async ({ request }) => {
     const { base, headers } = await ownerHeaders(request);
     const res = await request.patch(`${base}/organizations/adTracking`, {

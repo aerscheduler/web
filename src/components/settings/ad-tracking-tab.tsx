@@ -1,4 +1,5 @@
 import * as React from "react";
+import { DocsHint } from "@/components/docs-hint";
 import { Loader2, Plane, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
@@ -18,6 +19,16 @@ import type { AdTrackingMode } from "@/types/api";
  * the default, because plenty of schools use this product for oil changes and annuals and would
  * be actively harmed by a wall of candidate directives they did not ask for.
  */
+/**
+ * Modes with nothing behind them yet.
+ *
+ * "Watch for new ones" describes a catalogue that does not exist. A school that chose it would
+ * believe it was being warned about newly published directives, stop watching for them itself,
+ * and be wrong until somebody noticed. Shown but not selectable, so the plan is visible and the
+ * promise is not made. The server refuses it too; this card is not the only door.
+ */
+const NOT_YET: AdTrackingMode[] = ["catalogue"];
+
 const MODES: { value: AdTrackingMode; label: string; blurb: string; detail: string }[] = [
   {
     value: "off",
@@ -36,9 +47,9 @@ const MODES: { value: AdTrackingMode; label: string; blurb: string; detail: stri
   {
     value: "catalogue",
     label: "Watch for new ones",
-    blurb: "We read published ADs and propose the ones that mention your fleet.",
+    blurb: "Not available yet. Keep watching for new ADs the way you do now.",
     detail:
-      "Everything above, plus we watch newly published Airworthiness Directives and flag the ones naming your make, model or serial. Somebody at your school then decides, for each one, whether it applies. We never make that decision.",
+      "This is not built. When it is, it will read newly published Airworthiness Directives and flag the ones naming your make, model or serial, and somebody at your school will decide for each one whether it applies. Until then nothing here watches for new directives, so whatever you use today to find out about them, keep using it.",
   },
   {
     value: "external",
@@ -94,29 +105,44 @@ export function AdTrackingTab() {
           <CardTitle className="flex items-center gap-2">
             <ShieldCheck className="size-4 text-muted-foreground" />
             Airworthiness Directives
+            <DocsHint topic="ad-tracking-mode" />
           </CardTitle>
           <p className="text-sm text-muted-foreground">
             An Airworthiness Directive is binding under 14 CFR Part 39, and how much of that you
-            want us involved in is your call. Nothing here is on by default.
+            want us involved in is your call. Nothing here is on by default, and nothing here
+            tells you a directive exists: finding the ones that apply to your fleet is still
+            yours to do.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-2.5 sm:grid-cols-2">
-            {MODES.map((m) => (
-              <button
-                key={m.value}
-                type="button"
-                aria-pressed={mode === m.value}
-                onClick={() => setMode(m.value)}
-                className={cn(
-                  "rounded-lg border border-border p-3.5 text-left transition-colors",
-                  mode === m.value ? "border-primary bg-primary/5" : "hover:bg-accent/50"
-                )}
-              >
-                <p className="text-sm font-medium">{m.label}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{m.blurb}</p>
-              </button>
-            ))}
+            {MODES.map((m) => {
+              const unavailable = NOT_YET.includes(m.value);
+              return (
+                <button
+                  key={m.value}
+                  type="button"
+                  disabled={unavailable}
+                  aria-pressed={mode === m.value}
+                  onClick={() => setMode(m.value)}
+                  className={cn(
+                    "rounded-lg border border-border p-3.5 text-left transition-colors",
+                    unavailable && "cursor-not-allowed opacity-60",
+                    mode === m.value ? "border-primary bg-primary/5" : !unavailable && "hover:bg-accent/50"
+                  )}
+                >
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    {m.label}
+                    {unavailable && (
+                      <span className="rounded border border-border px-1.5 py-px text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
+                        Not yet
+                      </span>
+                    )}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">{m.blurb}</p>
+                </button>
+              );
+            })}
           </div>
 
           {chosen && (
@@ -159,6 +185,7 @@ export function AdTrackingTab() {
           <CardTitle className="flex items-center gap-2">
             <Plane className="size-4 text-muted-foreground" />
             What we could match
+            <DocsHint topic="ad-match-quality" />
           </CardTitle>
           <p className="text-sm text-muted-foreground">
             An AD names the aircraft it applies to by make, model and usually a serial number

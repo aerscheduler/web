@@ -482,6 +482,64 @@ export const DOCS_TOPICS = {
     linkLabel: "How inspection tracking works",
   },
 
+  /* ── Airworthiness Directives ─────────────────────────────────────────── */
+
+  "ad-tracking-mode": {
+    title: "How much we do about ADs",
+    summary:
+      "Nothing here is on by default. Choose whether AerScheduler ignores Airworthiness Directives, keeps the records for the ones you enter, or stays out of the way because you track them in ADlog or AVTRAK. Nothing here watches for newly published directives yet.",
+    href: "maintenance/choose-how-we-handle-airworthiness-directives",
+  },
+  "ad-match-quality": {
+    title: "What we could match",
+    summary:
+      "An AD names the aircraft it applies to by make, model and usually a serial number range. This is how well we could narrow one, for when matching exists. Nothing proposes directives today, so a serial number is worth adding rather than urgent.",
+    href: "maintenance/choose-how-we-handle-airworthiness-directives",
+    linkLabel: "What a serial number buys you",
+  },
+  "inspection-source": {
+    title: "Where this comes from",
+    summary:
+      "An Airworthiness Directive is binding under 14 CFR Part 39; a Service Bulletin is the manufacturer's advice. Saying which one this is puts a badge on the inspection and makes the sign-off keep a permanent compliance record.",
+    href: "maintenance/track-airworthiness-directives",
+  },
+  "ad-revision-date": {
+    title: "Revision date",
+    summary:
+      "The effective date of the AD version you complied with, which is the field 14 CFR 91.417(a)(2)(v) actually asks for. The amendment number beside it is the one a mechanic reads off the document.",
+    href: "maintenance/track-airworthiness-directives",
+  },
+  "compliance-record": {
+    title: "Keep a compliance record",
+    summary:
+      "A permanent entry saying what was done, the meter readings and who certified it. It cannot be edited or deleted by anyone once signed, including us, and a correction is a later record. It does not replace your 14 CFR 43.9 logbook entry.",
+    href: "maintenance/sign-off-an-inspection",
+  },
+  "compliance-meters": {
+    title: "Meter readings at compliance",
+    summary:
+      "Both meters are captured whatever the inspection counted, so the record still reads correctly to somebody working off the other clock. Neither is time in service as 14 CFR 1.1 defines it, which is wheels-off to touchdown.",
+    href: "maintenance/sign-off-an-inspection",
+  },
+  "one-off-at-hours": {
+    title: "Due at an hour reading",
+    summary:
+      "A deadline on the meter rather than the calendar, for an AD that says to comply within the next so many hours. Enter the reading it comes due AT, not how many hours from now, and it does not come back once signed off.",
+    href: "maintenance/track-airworthiness-directives",
+  },
+  "compliance-log-scope": {
+    title: "The compliance log",
+    summary:
+      "Every inspection signed off here, newest first. It records the ADs you entered; it does not tell you which ADs apply to your aircraft, so it is evidence of what was done rather than a complete AD status.",
+    href: "maintenance/track-airworthiness-directives",
+  },
+  "aircraft-serial-number": {
+    title: "Serial number",
+    summary:
+      "The manufacturer's serial number from the data plate, not the tail number. An AD's applicability is usually written against a serial number range, so without this we can only match by make and model.",
+    href: "maintenance/choose-how-we-handle-airworthiness-directives",
+  },
+
   /* ── Reports ──────────────────────────────────────────────────────────── */
 
   "report-date-basis": {

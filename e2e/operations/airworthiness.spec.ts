@@ -103,8 +103,8 @@ test.describe("Airworthiness Directives", () => {
     await expect(page.getByText("An AD needs its number, or nothing can find it later.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Add", exact: true })).toBeDisabled();
 
-    await page.getByLabel("Document number").fill("2015-19-07");
-    await page.getByLabel("Revision").fill("2");
+    await page.locator("#insp-source-ref").fill("2015-19-07");
+    await page.locator("#insp-revision").fill("2");
     await expect(page.getByText("An AD needs its number, or nothing can find it later.")).toBeHidden();
 
     // A tail is required too: an inspection tracked against no aircraft is not a thing, so
@@ -313,10 +313,10 @@ test.describe("Airworthiness Directives", () => {
     await page.getByRole("button", { name: `Edit ${name}` }).click();
 
     // Opens carrying what is stored, rather than an empty form that would blank the rest.
-    await expect(page.getByLabel("Document number")).toHaveValue(ref);
-    await expect(page.getByLabel("Revision")).toHaveValue("2");
+    await expect(page.locator("#edit-insp-source-ref")).toHaveValue(ref);
+    await expect(page.locator("#edit-insp-revision")).toHaveValue("2");
 
-    await page.getByLabel("Revision").fill("3");
+    await page.locator("#edit-insp-revision").fill("3");
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(page.getByText("Inspection updated.")).toBeVisible();
 

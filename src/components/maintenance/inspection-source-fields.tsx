@@ -1,4 +1,5 @@
 import { Input } from "@/components/ui/input";
+import { DocsHint } from "@/components/docs-hint";
 import { DatePickerField } from "@/components/date-picker";
 import { Label } from "@/components/ui/label";
 import {
@@ -64,7 +65,10 @@ export function InspectionSourceFields({
       className="space-y-3 rounded-lg border border-border p-3"
     >
       <div className="space-y-0.5">
-        <Label htmlFor={`${idPrefix}-source-type`}>Where this comes from</Label>
+        <Label htmlFor={`${idPrefix}-source-type`} className="inline-flex items-center gap-1.5">
+          Where this comes from
+          <DocsHint topic="inspection-source" />
+        </Label>
         <p className="text-xs text-muted-foreground">
           Optional. An Airworthiness Directive is binding under 14 CFR Part 39; a Service
           Bulletin is the manufacturer&rsquo;s advice.
@@ -132,7 +136,10 @@ export function InspectionSourceFields({
               placeholdered "2", so a school filling it in exactly as prompted did not have the
               thing the rule asks for. */}
           <div className="space-y-1">
-            <Label htmlFor={`${idPrefix}-revision-date`}>Revision date</Label>
+            <Label htmlFor={`${idPrefix}-revision-date`} className="inline-flex items-center gap-1.5">
+              Revision date
+              <DocsHint topic="ad-revision-date" />
+            </Label>
             <DatePickerField
               id={`${idPrefix}-revision-date`}
               value={value.revisionDate}

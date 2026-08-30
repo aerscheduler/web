@@ -496,8 +496,9 @@ export function AddInspectionsModal({
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label htmlFor="insp-at-hours" className="text-xs">
+                      <Label htmlFor="insp-at-hours" className="inline-flex items-center gap-1.5 text-xs">
                         Due at ({meter})
+                        <DocsHint topic="one-off-at-hours" />
                       </Label>
                       <Input
                         id="insp-at-hours"

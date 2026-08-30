@@ -1,4 +1,5 @@
 import type { ColumnDef } from "@tanstack/react-table";
+import { DocsHint } from "@/components/docs-hint";
 import { FileCheck2, Paperclip } from "lucide-react";
 import type { MaintenanceComplianceRecord } from "@/types/api";
 import { resourceLabel } from "@/types/api";
@@ -94,9 +95,10 @@ export function ComplianceLog({
           that answers "which ADs apply to this serial number", and we do not have one. A
           school that believes this log IS their AD status is the one failure in this feature
           that could actually hurt somebody. */}
-      <p className="px-0.5 pb-2 text-xs text-muted-foreground">
+      <p className="flex items-center gap-1.5 px-0.5 pb-2 text-xs text-muted-foreground">
         Every inspection signed off here, newest first. This records the ADs you enter; it does
         not tell you which ADs apply to your aircraft.
+        <DocsHint topic="compliance-log-scope" />
       </p>
       <DataTable
         fill

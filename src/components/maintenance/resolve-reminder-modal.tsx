@@ -11,6 +11,7 @@
  */
 
 import * as React from "react";
+import { DocsHint } from "@/components/docs-hint";
 import { format } from "date-fns";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
@@ -220,8 +221,9 @@ export function ResolveReminderModal({
         >
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-0.5">
-              <Label htmlFor="resolve-record" className="cursor-pointer">
+              <Label htmlFor="resolve-record" className="inline-flex cursor-pointer items-center gap-1.5">
                 Keep a compliance record
+                <DocsHint topic="compliance-record" />
               </Label>
               <p className="text-xs text-muted-foreground">
                 {/* "Required under 91.417" is true of an Airworthiness Directive and of
@@ -271,7 +273,10 @@ export function ResolveReminderModal({
                   the usual answer is a glance rather than a walk to the panel. */}
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <Label htmlFor="resolve-tach">Tach at compliance</Label>
+                  <Label htmlFor="resolve-tach" className="inline-flex items-center gap-1.5">
+                    Tach at compliance
+                    <DocsHint topic="compliance-meters" />
+                  </Label>
                   <Input
                     id="resolve-tach"
                     inputMode="decimal"

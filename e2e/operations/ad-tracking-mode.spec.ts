@@ -1,3 +1,4 @@
+import zlib from "node:zlib";
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { ACCOUNTS, TEST_PASSWORD, apiProxyTarget } from "../helpers/env";
 
@@ -230,5 +231,67 @@ test.describe("AD tracking mode", () => {
 
     await page.getByRole("button", { name: "Save" }).click();
     await expect(page.getByText("Saved.")).toBeVisible();
+  });
+});
+
+/**
+ * "Somewhere else" has to DO something, or it is the same choice as "Not here".
+ *
+ * The mode stored a system name and the settings card promised it would be "printed on the
+ * Airworthiness compliance report". Nothing printed it, so two of the four postures were
+ * identical in behaviour and the choice was theatre. The PDF is the copy handed to an IA or a
+ * buyer's mechanic, and the failure this prevents is somebody reading a list of sign-offs as a
+ * complete AD status.
+ */
+test.describe("Somewhere else names the system on the document", () => {
+  test.afterEach(async ({ request }) => {
+    const { base, headers } = await ownerHeaders(request);
+    await request.patch(`${base}/organizations/adTracking`, { headers, data: { mode: "off" } });
+  });
+
+  /** The PDF stores its text as hex-encoded runs, so a plain byte search never matches. */
+  function pdfText(bytes: Buffer): string {
+    let streams = Buffer.alloc(0);
+    for (const m of bytes.toString("latin1").matchAll(/stream\r?\n([\s\S]*?)endstream/g)) {
+      try {
+        streams = Buffer.concat([streams, zlib.inflateSync(Buffer.from(m[1], "latin1"))]);
+      } catch {
+        // Not every stream is Flate. Fonts are not, and they carry no report text.
+      }
+    }
+    return [...streams.toString("latin1").matchAll(/<([0-9A-Fa-f]+)>/g)]
+      .map((m) => Buffer.from(m[1], "hex").toString("latin1"))
+      .join("");
+  }
+
+  async function airworthinessPdf(request: APIRequestContext, base: string, headers: Record<string, string>) {
+    const res = await request.post(`${base}/reports/export`, {
+      headers,
+      data: {
+        reportId: "airworthiness",
+        startDate: "2026-01-01T00:00:00.000Z",
+        endDate: "2026-12-31T23:59:59.000Z",
+        format: "pdf",
+      },
+    });
+    expect(res.ok(), await res.text()).toBeTruthy();
+    return pdfText(Buffer.from(await res.body()));
+  }
+
+  test("the named system is printed, and only when that mode is chosen", async ({ request }) => {
+    const { base, headers } = await ownerHeaders(request);
+
+    await request.patch(`${base}/organizations/adTracking`, { headers, data: { mode: "off" } });
+    const off = await airworthinessPdf(request, base, headers);
+    expect(off, "the footnote should still be there").toContain("time in service");
+    expect(off, "nothing to name when the school tracks ADs nowhere").not.toContain("AVTRAK");
+
+    await request.patch(`${base}/organizations/adTracking`, {
+      headers,
+      data: { mode: "external", externalSystem: "AVTRAK" },
+    });
+    const external = await airworthinessPdf(request, base, headers);
+    expect(external).toContain("AVTRAK");
+    expect(external, "and say what that means, not just the name").toContain("authoritative list");
   });
 });

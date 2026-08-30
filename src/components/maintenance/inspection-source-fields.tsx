@@ -1,4 +1,5 @@
 import { Input } from "@/components/ui/input";
+import { DatePickerField } from "@/components/date-picker";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -14,6 +15,8 @@ export type InspectionSource = {
   sourceType: MaintenanceSourceType | "";
   sourceRef: string;
   revision: string;
+  /** ISO yyyy-mm-dd, or "". The date 14 CFR 91.417(a)(2)(v) actually asks for. */
+  revisionDate: string;
   sourceUrl: string;
 };
 
@@ -21,6 +24,7 @@ export const EMPTY_SOURCE: InspectionSource = {
   sourceType: "",
   sourceRef: "",
   revision: "",
+  revisionDate: "",
   sourceUrl: "",
 };
 
@@ -116,9 +120,29 @@ export function InspectionSourceFields({
               id={`${idPrefix}-revision`}
               value={value.revision}
               onChange={(e) => set("revision", e.target.value)}
-              placeholder="2"
+              placeholder="Amdt 39-23424"
               maxLength={16}
             />
+            <p className="text-[11px] text-muted-foreground">
+              The amendment number, if you have it.
+            </p>
+          </div>
+          {/* THE FIELD THE REGULATION NAMES. 14 CFR 91.417(a)(2)(v) asks for "the AD or safety
+              directive number and revision date". We shipped only a free-text revision box
+              placeholdered "2", so a school filling it in exactly as prompted did not have the
+              thing the rule asks for. */}
+          <div className="space-y-1">
+            <Label htmlFor={`${idPrefix}-revision-date`}>Revision date</Label>
+            <DatePickerField
+              id={`${idPrefix}-revision-date`}
+              value={value.revisionDate}
+              onChange={(v) => set("revisionDate", v)}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              {value.sourceType === "ad"
+                ? "The effective date of the version you complied with. This is the field 14 CFR 91.417 asks for."
+                : "The effective date of the version you complied with."}
+            </p>
           </div>
           <div className="space-y-1 sm:col-span-2">
             <Label htmlFor={`${idPrefix}-source-url`}>Link</Label>

@@ -57,6 +57,10 @@ export function EditInspectionModal({
       sourceType: (template.sourceType ?? "") as InspectionSource["sourceType"],
       sourceRef: template.sourceRef ?? "",
       revision: template.revision ?? "",
+      //Stored as a timestamp, edited as a plain yyyy-mm-dd: the effective date of an AD
+      //revision is a calendar day, and dragging a time zone into it invites the off-by-one
+      //this codebase has hit before.
+      revisionDate: template.revisionDate ? template.revisionDate.slice(0, 10) : "",
       sourceUrl: template.sourceUrl ?? "",
     });
   }, [open, template?.id]);
@@ -79,6 +83,7 @@ export function EditInspectionModal({
         //AD number it no longer claims to be.
         sourceRef: source.sourceType ? source.sourceRef.trim() || null : null,
         revision: source.sourceType ? source.revision.trim() || null : null,
+        revisionDate: source.sourceType ? source.revisionDate || null : null,
         sourceUrl: source.sourceType ? source.sourceUrl.trim() || null : null,
       });
       toast.success("Inspection updated.");

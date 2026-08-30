@@ -199,6 +199,7 @@ export function AddInspectionsModal({
       sourceRef: source.sourceType ? source.sourceRef.trim() || null : null,
       sourceUrl: source.sourceType ? source.sourceUrl.trim() || null : null,
       revision: source.sourceType ? source.revision.trim() || null : null,
+      revisionDate: source.sourceType ? source.revisionDate || null : null,
     };
 
     if (mode === "oneOff") {

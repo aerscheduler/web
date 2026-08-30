@@ -1236,6 +1236,9 @@ export interface MaintenanceComplianceRecord {
   sourceType: MaintenanceSourceType | null;
   sourceRef: string | null;
   revision: string | null;
+  /** The EFFECTIVE DATE of the revision complied with. 14 CFR 91.417(a)(2)(v) asks for this,
+   *  not the number beside it. ISO date string. */
+  revisionDate: string | null;
   templateName: string;
   complianceDate: string;
   /** DECI-hours, both of them, whatever clock the interval counted. */
@@ -1289,6 +1292,9 @@ export interface MaintenanceReminderTemplate {
    * compliance record, because ADs get superseded and this field moves.
    */
   revision: string | null;
+  /** The EFFECTIVE DATE of the revision complied with. 14 CFR 91.417(a)(2)(v) asks for this,
+   *  not the number beside it. ISO date string. */
+  revisionDate: string | null;
   resources?: Resource[];
   reminders?: MaintenanceReminder[];
 }
@@ -1331,6 +1337,8 @@ export interface CreateReminderTemplateInput {
   sourceRef?: string | null;
   sourceUrl?: string | null;
   revision?: string | null;
+  /** ISO date. The effective date of the revision. See `revisionDate` on the read model. */
+  revisionDate?: string | null;
   templateResources?: { id: number; startDate?: string; startHour?: number }[];
 }
 

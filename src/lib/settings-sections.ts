@@ -1,18 +1,4 @@
-import {
-  BadgeDollarSign,
-  Building2,
-  CreditCard,
-  KeyRound,
-  FileCog,
-  GraduationCap,
-  Layers,
-  Puzzle,
-  ShieldCheck,
-  SlidersHorizontal,
-  Split,
-  BadgeCheck,
-  type LucideIcon,
-} from "lucide-react";
+import { BadgeCheck, BadgeDollarSign, Building2, CreditCard, FileCog, GraduationCap, KeyRound, Layers, Puzzle, ShieldCheck, SlidersHorizontal, Split, type LucideIcon } from "lucide-react";
 
 /**
  * Every section of Settings, in the order the page's left rail shows them.
@@ -64,6 +50,15 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
       },
       { value: "groups", label: "Groups", icon: Layers, keywords: ["resource groups", "fleet groups"] },
       { value: "documents", label: "Document types", icon: FileCog, keywords: ["required documents", "licenses", "expiry"] },
+      {
+        value: "ad-tracking",
+        label: "Airworthiness Directives",
+        icon: ShieldCheck,
+        keywords: ["AD", "ADs", "airworthiness directive", "part 39", "adlog", "avtrak", "tdata", "serial number", "catalogue"],
+        //Admin-only: turning the catalogue on changes what every technician at the school is
+        //asked to review, which is not an office-manager decision.
+        adminOnly: true,
+      },
     ],
   },
   {

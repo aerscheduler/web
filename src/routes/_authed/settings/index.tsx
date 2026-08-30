@@ -11,6 +11,7 @@ import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { OrganizationTab } from "@/components/settings/organization-tab";
 import { BookingPreferencesTab } from "@/components/settings/booking-preferences-tab";
+import { AdTrackingTab } from "@/components/settings/ad-tracking-tab";
 import { PlanTab } from "@/components/settings/plan-tab";
 import { BillingTab } from "@/components/settings/billing-tab";
 import { RatesTab } from "@/components/settings/rates-tab";
@@ -94,6 +95,7 @@ function SettingsPage() {
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           {active === "organization" && <OrganizationTab />}
           {active === "booking-preferences" && <BookingPreferencesTab />}
+          {active === "ad-tracking" && <AdTrackingTab />}
           {active === "plan" && <PlanTab />}
           {active === "memberships" && <MembershipsTab />}
           {active === "billing" && <BillingTab />}

@@ -2838,3 +2838,25 @@ export type MyMembership = {
   agreementRequired: boolean;
   charges: MembershipCharge[];
 };
+
+/** Whether a school wants AerScheduler involved in Airworthiness Directives, and how far. */
+export type AdTrackingMode = "off" | "manual" | "catalogue" | "external";
+
+export type AircraftAdReadiness = {
+  resourceId: number;
+  tailNumber: string;
+  make: string | null;
+  model: string | null;
+  serialNumber: string | null;
+  /** How precisely a published AD could be matched to this aeroplane. */
+  quality: "serial" | "model" | "none";
+  /** What somebody could type in to improve it. */
+  missing: string[];
+};
+
+export type AdReadiness = {
+  mode: AdTrackingMode;
+  externalSystem: string | null;
+  aircraft: AircraftAdReadiness[];
+  counts: { total: number; serial: number; model: number; none: number };
+};

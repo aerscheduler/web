@@ -302,7 +302,14 @@ test.describe("Handing the records over", () => {
 
     await page.goto("/reports?report=airworthiness");
     await dismissCookieBanner(page);
-    await expect(page.getByRole("button", { name: /^Export/ })).toBeVisible({ timeout: 20_000 });
+
+    // WAIT FOR THE ROWS, not for the button. Export is rendered immediately and DISABLED
+    // while the report has no matching rows, so asserting only that it is visible races the
+    // report's own fetch: the click lands on a dead control, no download ever fires, and the
+    // test fails on a timeout that looks like a broken export. It passed alone and failed in
+    // a full run, which is exactly the shape of that race.
+    await expect(page.getByText(fixture.ref).first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("button", { name: /^Export/ })).toBeEnabled({ timeout: 20_000 });
 
     for (const format of ["CSV", "PDF"] as const) {
       const wait = page.waitForEvent("download", { timeout: 30_000 });

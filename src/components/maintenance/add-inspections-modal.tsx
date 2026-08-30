@@ -474,8 +474,9 @@ export function AddInspectionsModal({
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label htmlFor="insp-every" className="text-xs">
+                    <Label htmlFor="insp-every" className="inline-flex items-center gap-1.5 text-xs">
                       Every {basis === "days" ? "" : "(hours)"}
+                      {basis === "days" && <DocsHint topic="calendar-interval-unit" />}
                     </Label>
                     <div className="flex gap-2">
                       <Input
@@ -517,8 +518,9 @@ export function AddInspectionsModal({
                 {basis === "both" && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label htmlFor="insp-every-days" className="text-xs">
+                      <Label htmlFor="insp-every-days" className="inline-flex items-center gap-1.5 text-xs">
                         or every
+                        <DocsHint topic="calendar-interval-unit" />
                       </Label>
                       <div className="flex gap-2">
                         <Input

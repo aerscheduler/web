@@ -521,6 +521,13 @@ export const DOCS_TOPICS = {
       "Both meters are captured whatever the inspection counted, so the record still reads correctly to somebody working off the other clock. Neither is time in service as 14 CFR 1.1 defines it, which is wheels-off to touchdown.",
     href: "maintenance/sign-off-an-inspection",
   },
+  "calendar-interval-unit": {
+    title: "Days, weeks or calendar months",
+    summary:
+      "A calendar month runs to the END of the month, so 14 CFR 91.409(a)'s 12 calendar months makes an annual signed in February good through the end of February the following year. Setting it as 365 days brings it due up to a month early. Weeks are simply seven days each.",
+    href: "maintenance/add-your-own-inspection",
+    linkLabel: "Days, weeks, or calendar months",
+  },
   "one-off-at-hours": {
     title: "Due at an hour reading",
     summary:

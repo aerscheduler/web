@@ -28,6 +28,7 @@ export function ReservationMenu({
   onDuplicate,
   onCancel,
   className,
+  onOpenChange,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
@@ -37,6 +38,13 @@ export function ReservationMenu({
   onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
   className?: string;
+  /**
+   * Fires when the dropdown opens or closes. Surfaces that hide this menu until
+   * hover need it: the trigger's own `data-state` is unusable, because the
+   * tooltip wraps it with `asChild` and its state wins the merge, so a CSS
+   * `has-[[data-state=open]]` rule reads "closed" the whole time the menu is up.
+   */
+  onOpenChange?: (open: boolean) => void;
 }) {
   const { roles, orgUserId } = useAuth();
   const canCancel = canCancelReservation(r, roles, orgUserId);
@@ -50,7 +58,7 @@ export function ReservationMenu({
   if (!canCancel && !canEdit && !canDuplicate) return null;
 
   return (
-    <DropdownMenu>
+    <DropdownMenu onOpenChange={onOpenChange}>
       <Tooltip>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>

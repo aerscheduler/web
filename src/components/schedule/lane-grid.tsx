@@ -625,6 +625,9 @@ function LaneBlock({
 }) {
   //Per-reservation so a school with fields in two zones labels each block correctly.
   const tz = useTimeZone(r.location);
+  //The ⋯ menu is collapsed out of the layout until it is needed, so the block has to know
+  //when its dropdown is up, see the wrapper below for why the DOM can't tell us.
+  const [menuOpen, setMenuOpen] = React.useState(false);
   const names = personnelNames(r);
   //One name plus a count when a booking has a crew, see crewLabel.
   const shownName = crewLabel(names, marks.query);
@@ -722,13 +725,22 @@ function LaneBlock({
           //Collapsed to zero WIDTH, not just zero opacity: an invisible menu that still
           //reserves its 28px steals a quarter of the title on a short block, which then
           //reads as an ellipsis for no visible reason. It claims the space only while it
-          //is actually on screen, hovered, keyboard-focused, or with its menu open (which
-          //has to survive the pointer leaving to reach the dropdown).
+          //is actually on screen.
+          //
+          //`menuOpen` rather than a CSS `has-[[data-state=open]]`: the tooltip wraps the
+          //trigger with `asChild` and its own data-state wins the merge, so the attribute
+          //reads "closed" the whole time the dropdown is up, and the menu would collapse
+          //out from under the pointer on its way to the dropdown.
+          //
+          //focus-VISIBLE, not focus-within: closing the dropdown hands focus back to the
+          //trigger, and on a mouse close that would slide the menu back in and leave it
+          //there. focus-visible only matches when the last input was the keyboard, so
+          //tabbing still reveals it and clicking still tidies up after itself.
           className={cn(
             "w-0 -ml-1 shrink-0 overflow-hidden opacity-0 transition-[width,opacity]",
             "group-hover:ml-0 group-hover:w-7 group-hover:opacity-100",
-            "group-focus-within:ml-0 group-focus-within:w-7 group-focus-within:opacity-100",
-            "has-[[data-state=open]]:ml-0 has-[[data-state=open]]:w-7 has-[[data-state=open]]:opacity-100"
+            "group-has-[:focus-visible]:ml-0 group-has-[:focus-visible]:w-7 group-has-[:focus-visible]:opacity-100",
+            menuOpen && "ml-0 w-7 opacity-100"
           )}
           onClick={(e) => e.stopPropagation()}
         >
@@ -738,6 +750,7 @@ function LaneBlock({
             onEdit={onEdit}
             onDuplicate={onDuplicate}
             onCancel={onCancel}
+            onOpenChange={setMenuOpen}
           />
         </div>
       )}

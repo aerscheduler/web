@@ -719,7 +719,17 @@ function LaneBlock({
       {!floating && (
         <div
           data-drag-exempt
-          className="opacity-0 transition-opacity group-hover:opacity-100"
+          //Collapsed to zero WIDTH, not just zero opacity: an invisible menu that still
+          //reserves its 28px steals a quarter of the title on a short block, which then
+          //reads as an ellipsis for no visible reason. It claims the space only while it
+          //is actually on screen, hovered, keyboard-focused, or with its menu open (which
+          //has to survive the pointer leaving to reach the dropdown).
+          className={cn(
+            "w-0 -ml-1 shrink-0 overflow-hidden opacity-0 transition-[width,opacity]",
+            "group-hover:ml-0 group-hover:w-7 group-hover:opacity-100",
+            "group-focus-within:ml-0 group-focus-within:w-7 group-focus-within:opacity-100",
+            "has-[[data-state=open]]:ml-0 has-[[data-state=open]]:w-7 has-[[data-state=open]]:opacity-100"
+          )}
           onClick={(e) => e.stopPropagation()}
         >
           <ReservationMenu

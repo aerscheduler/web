@@ -123,7 +123,9 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     requiresAny: ["instructors", "students"],
     exclusive: [],
     // A classroom ground school. 12 is a room, not a limit anyone will hit.
-    maxPerSide: { instructors: 2, students: 12 },
+    // One instructor. Ground allowed two and nothing downstream could bill or attribute
+    // the second, see the server's PERSONNEL_LIMITS for the full reasoning.
+    maxPerSide: { instructors: 1, students: 12 },
   },
   sim: {
     resource: "Simulator",
@@ -132,7 +134,7 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     requiresAll: [],
     requiresAny: ["instructors", "students"],
     exclusive: [],
-    maxPerSide: { instructors: 2, students: 6 },
+    maxPerSide: { instructors: 1, students: 6 },
   },
   rental: {
     resource: "Aircraft",

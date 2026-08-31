@@ -14,6 +14,7 @@ import {
   useResources,
   useSquawks,
   useUpdateReservation,
+  useCandidateLessons,
 } from "@/features/queries";
 import {
   resourceLabel,
@@ -38,6 +39,7 @@ import {
   selfBookableTypes,
 } from "@/lib/permissions";
 import { NextLessonHint } from "@/components/training/next-lesson-hint";
+import { GraduationCap } from "lucide-react";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { EmptyState, ErrorState } from "@/components/states";
 import { DocsHint } from "@/components/docs-hint";
@@ -651,6 +653,28 @@ export function ReservationForm({
   // counterpart so it does not look required next to a filled seat.
   const typeExclusive = TYPE_REQUIREMENTS[type].exclusive.length > 0;
   const dispatchHasInstructor = !!instructorId;
+
+  /**
+   * The rate card the student's course already implies, when it implies exactly one.
+   *
+   * MIRRORS THE SERVER'S `ratingForBooking` and must keep mirroring it: the server is what
+   * actually sets the rating on create, and this only decides whether to show a picker. If
+   * the two ever disagree the form asks a question the server then overrules, or hides one
+   * it needed. The rule is the same in both places: one student, one enrolled course, and
+   * that course carries a rating.
+   *
+   * `extraStudentIds` is part of the count on purpose. Two students can be on two different
+   * courses, and billing both lessons at one of their rates is exactly the silent mispricing
+   * this is meant to prevent.
+   */
+  const soleStudentId =
+    extraStudentIds.filter(Boolean).length === 0 ? Number(effectiveStudentId) || null : null;
+  const candidates = useCandidateLessons(
+    { orgUserId: soleStudentId ?? undefined, type },
+    { enabled: soleStudentId != null }
+  );
+  const derivedRating =
+    candidates.data?.length === 1 ? (candidates.data[0].course.rating ?? null) : null;
   const dispatchHasStudent = !!studentId || extraStudentIds.some(Boolean);
   const showDispatchInstructor =
     !isSelf &&
@@ -1032,7 +1056,10 @@ export function ReservationForm({
       endAt: endAt!,
       resourceId: resourceId ? Number(resourceId) : null,
       locationId,
-      ratingId: ratingId ? Number(ratingId) : null,
+      //Null when the course answers it, so the server's own derivation runs. Sending the
+      //picker's last value here would let a rating chosen BEFORE the student was added
+      //survive as a hidden override of the course it now contradicts.
+      ratingId: derivedRating ? null : ratingId ? Number(ratingId) : null,
       personnel,
       notes,
     });
@@ -1413,17 +1440,35 @@ export function ReservationForm({
                 emptyText="No renters."
               />
             )}
-            <div className="space-y-1.5">
-              <Label>Rating (optional)</Label>
-              <Combobox
-                options={ratingOptions}
-                value={ratingId}
-                onChange={setRatingId}
-                placeholder="Select rating"
-                searchPlaceholder="Search ratings…"
-                emptyText="No ratings."
-              />
-            </div>
+            {/* THE RATE CARD, but only when the course has not already answered it.
+                A Course points at a rating for pricing, so a student on exactly one course
+                does not need anybody to choose one: the server derives it on create (see
+                `ratingForBooking`) and this says so rather than leaving a picker that could
+                contradict the lesson shown right above it. */}
+            {derivedRating ? (
+              <div className="space-y-1.5">
+                <Label>Rating</Label>
+                <p className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                  <GraduationCap className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 truncate">
+                    <span className="font-medium">{derivedRating.name}</span>
+                    <span className="text-muted-foreground">, from their course</span>
+                  </span>
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>Rating (optional)</Label>
+                <Combobox
+                  options={ratingOptions}
+                  value={ratingId}
+                  onChange={setRatingId}
+                  placeholder="Select rating"
+                  searchPlaceholder="Search ratings…"
+                  emptyText="No ratings."
+                />
+              </div>
+            )}
             {/* Solo: the other seat is hidden, not disabled. Say why, and how to get a dual. */}
             {!isSelf &&
               typeExclusive &&

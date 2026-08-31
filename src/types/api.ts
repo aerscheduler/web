@@ -2713,7 +2713,17 @@ export type CandidateLesson = Pick<
 
 export type CandidateEnrollment = {
   enrollmentId: number;
-  course: { id: number; name: string; regulatoryPart: RegulatoryPart };
+  course: {
+    id: number;
+    name: string;
+    regulatoryPart: RegulatoryPart;
+    /**
+     * The course's rate card, when it has one. A Course points AT an OrganizationRating for
+     * pricing, so where a student is on exactly one course the booking form does not need
+     * to ask which rating to bill at. See the server's `ratingForBooking`.
+     */
+    rating?: { id: number; name: string; defaultInstructorRate: number } | null;
+  };
   versionLabel: string;
   /**
    * The course's own marks, so the close-out grader offers what the course actually uses.

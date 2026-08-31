@@ -15,6 +15,8 @@ import { canResolveSquawk, guardRoute } from "@/lib/permissions";
 import { formatDate } from "@/lib/utils";
 import { resourceLabel, type OrganizationUser, type Squawk } from "@/types/api";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
+import { SquawkNotes } from "@/components/maintenance/squawk-notes";
+import { DocsHint } from "@/components/docs-hint";
 import { VerifySquawkModal } from "@/components/maintenance/verify-squawk-modal";
 import {
   CardEmpty,
@@ -228,17 +230,34 @@ function SquawkBody({ squawk }: { squawk: Squawk }) {
               )}
             </DetailCard>
 
-            <DetailCard
-              title="Work notes"
-              description="What was done to clear it, written when it was signed off."
-            >
-              {squawk.notes?.trim() ? (
+            {/* Only drawn where there is one. This is the single paragraph the resolve
+                form writes, and it is not the thread: leaving an empty card here made the
+                page look as though the squawk had somewhere to write progress, which was
+                exactly the gap the notes below fill. */}
+            {squawk.notes?.trim() && (
+              <DetailCard
+                title="Sign-off notes"
+                description="What was done to clear it, written when it was signed off."
+              >
                 <p className="whitespace-pre-wrap text-[13px]">{squawk.notes.trim()}</p>
-              ) : (
-                <CardEmpty>
-                  {squawk.resolvedAt ? "Signed off without notes." : "Nothing written yet."}
-                </CardEmpty>
-              )}
+              </DetailCard>
+            )}
+
+            <DetailCard
+              title={
+                <span className="inline-flex items-center gap-1">
+                  Notes
+                  <DocsHint topic="squawk-notes" />
+                </span>
+              }
+              description="Progress on the squawk. Anyone who can resolve it can add one."
+              docShot="squawk-notes"
+            >
+              <SquawkNotes
+                squawkId={squawk.id}
+                comments={squawk.comments}
+                canWrite={canManage}
+              />
             </DetailCard>
           </div>
 

@@ -119,6 +119,7 @@ import type {
   SmsStatus,
   SplitRulesDescription,
   Squawk,
+  SquawkComment,
   SubscriptionStatus,
   TimeZonePreferences,
   TrainingGrant,
@@ -3261,6 +3262,28 @@ export function useResolveSquawk() {
       void qc.invalidateQueries({ queryKey: ["squawks"] });
       // A resolved squawk changes the airworthiness hints on the booking forms.
       void qc.invalidateQueries({ queryKey: ["resources"] });
+    },
+  });
+}
+
+/**
+ * Add a note to a squawk.
+ *
+ * Append-only, matching the server: there is no edit and no delete, and a mistake is
+ * corrected by writing another note. Invalidating `["squawks"]` reaches the record page's
+ * `["squawks", id]` by prefix, so the thread redraws with the server's own copy rather than
+ * one this client assembled.
+ */
+export function useAddSquawkComment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: string }) =>
+      api<SquawkComment>(`/maintenance/squawks/${id}/comments`, {
+        method: "POST",
+        body: { body: body.trim() },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["squawks"] });
     },
   });
 }

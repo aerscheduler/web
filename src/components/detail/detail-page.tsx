@@ -115,6 +115,7 @@ export function DetailCard({
   action,
   className,
   bodyClassName,
+  docShot,
   children,
 }: {
   title: ReactNode;
@@ -122,10 +123,16 @@ export function DetailCard({
   action?: ReactNode;
   className?: string;
   bodyClassName?: string;
+  /**
+   * Documentation screenshot id, passed from the CALL SITE rather than set inside this
+   * component: every record page in the console is built from these cards, so an id
+   * hard-coded here would be answered by dozens of different subjects at once.
+   */
+  docShot?: string;
   children: ReactNode;
 }) {
   return (
-    <Card className={cn("flex flex-col", className)}>
+    <Card className={cn("flex flex-col", className)} data-doc-shot={docShot}>
       <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
         <div className="min-w-0">
           <CardTitle>{title}</CardTitle>

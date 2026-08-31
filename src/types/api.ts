@@ -1131,6 +1131,19 @@ export interface AppNotification {
  * `notes`, `resolvedBy` and `verifiedBy` are only populated by `GET /maintenance/squawks/:id`,
  * not by the list, so they are optional here.
  */
+/**
+ * One note on a squawk.
+ *
+ * `author` is null where the person who wrote it has since left the organization. The note
+ * stays: the account of what was done to an aircraft outlives anyone's membership.
+ */
+export interface SquawkComment {
+  id: number;
+  createdAt: string;
+  body: string;
+  author?: OrganizationUser | null;
+}
+
 export interface Squawk {
   id: number;
   createdAt: string;
@@ -1143,6 +1156,14 @@ export interface Squawk {
   grounding?: boolean;
   /** What was done to clear it, written at resolve time. */
   notes?: string | null;
+  /**
+   * The running thread, oldest first. Only on the single-squawk read, never on a list row.
+   *
+   * Separate from `notes` on purpose. `notes` is the one paragraph written at sign-off and
+   * overwritten by the next sign-off; a comment is an append-only account of the work,
+   * carrying who wrote it and when.
+   */
+  comments?: SquawkComment[];
   /** When the work was actually finished, as opposed to when it was signed off. */
   completedAt?: string | null;
   resource?: Resource;

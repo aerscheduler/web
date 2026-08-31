@@ -462,6 +462,12 @@ export const DOCS_TOPICS = {
       "This records the reporter's judgement that the aircraft should not fly, and it does not take the tail off the line. To stop it being booked, an admin has to ground the aircraft from its own page.",
     href: "maintenance/report-a-squawk",
   },
+  "squawk-notes": {
+    title: "Notes on a squawk",
+    summary:
+      "Record what is happening without closing the squawk: part ordered, waiting on a hangar slot, ran it again and it did not repeat. Nobody can edit or delete a note afterwards, so correct a mistake by adding another.",
+    href: "maintenance/add-a-note-to-a-squawk",
+  },
   "inspection-last-done": {
     title: "When was it last done?",
     summary:

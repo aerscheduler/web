@@ -6,12 +6,17 @@ import {
   Check,
   ClipboardCheck,
   FileText,
+  MessageSquare,
   PlaneTakeoff,
   User,
 } from "lucide-react";
 import type { Squawk } from "@/types/api";
 import { resourceLabel } from "@/types/api";
+import { useSquawk } from "@/features/queries";
+import { useAuth } from "@/lib/auth";
+import { canResolveSquawk } from "@/lib/permissions";
 import { formatDate } from "@/lib/utils";
+import { SquawkNotes } from "@/components/maintenance/squawk-notes";
 import { DetailPanel } from "@/components/detail-panel";
 import { SheetDetailField } from "@/components/sheet-detail-field";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +54,15 @@ export function SquawkDetailSheet({
   onStep?: (delta: -1 | 1) => void;
 }) {
   const s = squawk;
+  const { roles } = useAuth();
+
+  //The list row this panel is opened from carries no comments: the thread only comes back
+  //on the single-squawk read. Fetched here rather than widened onto the list, because a
+  //board of forty squawks does not need forty threads to draw one panel. Keyed
+  //["squawks", id], the same entry the record page uses, so opening the panel warms it.
+  const full = useSquawk(open && s ? s.id : null);
+  const comments = full.data?.comments;
+
   const aircraft = s?.resource ? resourceLabel(s.resource).name : null;
   const reported = formatDate(s?.reportedAt ?? s?.createdAt, STAMP, "");
   const resolved = formatDate(s?.resolvedAt, STAMP, "");
@@ -142,6 +156,16 @@ export function SquawkDetailSheet({
               <span className="tabular-nums">{resolved}</span>
             </SheetDetailField>
           )}
+
+          <SheetDetailField icon={MessageSquare} label="Notes">
+            <SquawkNotes
+              squawkId={s.id}
+              comments={comments}
+              canWrite={canResolveSquawk(roles)}
+              loading={full.isLoading}
+              compact
+            />
+          </SheetDetailField>
 
           {/* The panel is a peek at a row in a list. The record page is the thing you can
               bookmark, link a colleague to, and land on from a notification. */}

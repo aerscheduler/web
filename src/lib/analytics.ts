@@ -248,6 +248,7 @@ function stopAnalytics(): void {
     try {
       ph.opt_out_capturing();
       ph.reset();
+      registeredDemo = null; // see resetIdentity: reset() drops super properties
     } catch {
       /* nothing here is worth an error */
     }
@@ -294,13 +295,32 @@ type Props = Record<string, unknown>;
  */
 let registeredDemo: boolean | null = null;
 
+/**
+ * Bring the registered `is_demo` super property back in line with this tab.
+ *
+ * Called from `track` AND from `identify`, which is the part that was missing.
+ * `identify` reaches `client.identify()` directly, so before this it shipped
+ * `$identify` and `$groupidentify` with whatever was registered at init: entering
+ * the demo from a console that had already booted produced a `$identify` for the
+ * demo pool user carrying `is_demo: false`, which is to say the demo minted PEOPLE
+ * and GROUPS in PostHog indistinguishable from paying schools. Those two events are
+ * exactly the ones that must never be wrong, because they are what a person and an
+ * organization in PostHog are made of.
+ *
+ * The cache also has to be cleared whenever the client is reset, since `reset()`
+ * drops super properties from persistence. A stale `registeredDemo` would then agree
+ * with a cookie that no longer holds the value, and nothing would re-register it.
+ */
+function syncDemoFlag(client: PostHog, demo: boolean): void {
+  if (demo === registeredDemo) return;
+  registeredDemo = demo;
+  client.register({ is_demo: demo });
+}
+
 export function track(event: string, props?: Props): void {
   const demo = isDemoTab();
   withClient((client) => {
-    if (demo !== registeredDemo) {
-      registeredDemo = demo;
-      client.register({ is_demo: demo });
-    }
+    syncDemoFlag(client, demo);
     client.capture(event, { is_demo: demo, ...props });
   });
 }
@@ -453,7 +473,11 @@ export function identify(
   props?: Props,
   org?: { id: number | string; name?: string; createdAt?: string }
 ): void {
+  const demo = isDemoTab();
   withClient((client) => {
+    // Before the identify, not after: the `$identify` event is sent by this call and
+    // carries the super properties as they stand at that moment.
+    syncDemoFlag(client, demo);
     client.identify(String(userId), props);
     if (org) {
       const attribution = readAttribution();
@@ -468,5 +492,10 @@ export function identify(
 
 /** Forget the person on sign-out, so a shared computer doesn't merge two people. */
 export function resetIdentity(): void {
-  withClient((client) => client.reset());
+  withClient((client) => {
+    client.reset();
+    // `reset()` clears persistence, super properties included, so the cache of what
+    // is registered is now a lie. Dropping it makes the next event re-register.
+    registeredDemo = null;
+  });
 }

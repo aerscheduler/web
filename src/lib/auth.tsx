@@ -293,10 +293,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const apply = useCallback((env: AuthEnvelope) => {
+  // Declared above `apply` because a real sign-in has to be able to end the demo,
+  // see the `demo` branch in apply().
+  const [demo, setDemo] = useState<DemoMeta | null>(() => getDemoMeta());
+
+  const apply = useCallback((env: AuthEnvelope, opts?: { demo?: boolean }) => {
     // Whatever was on screen belongs to the session that just ended, most of
     // all the "you've been signed out" toast, which is actively wrong now.
     toast.dismiss();
+
+    // A REAL sign-in in this tab means this tab is no longer a demo tab, and this
+    // has to happen BEFORE setToken/saveSession, because both of them branch on
+    // `isDemoTab()`. Without it, signing up from the tab you tried the demo in
+    // wrote the new account's token and session into the DEMO sessionStorage keys:
+    // the tab stayed a demo tab forever, every event it sent carried
+    // `is_demo: true`, `logout()` took the demo branch, and, worst of it, the real
+    // session lived in per-tab storage, so closing the tab silently signed a
+    // brand-new customer out of the account they had just created. This is the
+    // path a visitor takes when the demo does its job, so it was the newest
+    // accounts that got the worst of it.
+    if (!opts?.demo && isDemoTab()) {
+      // Hand the sandbox back now rather than at lease expiry; the pool is small.
+      beaconDemoExit();
+      clearDemo();
+      setDemo(null);
+    }
+
     setToken(env.auth.accessToken);
     const orgs =
       env.data.organizations ??
@@ -513,10 +535,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // use (the server returns the identical envelope on purpose) so the demo needs
   // no parallel session handling. The only demo-specific part is WHERE the token
   // lands, and that is settled once, in getToken/setToken and loadSession/
-  // saveSession, by whether this tab is a demo tab.
+  // saveSession, by whether this tab is a demo tab. The one place that reads back
+  // the other way is apply()'s handoff branch, which is how a tab STOPS being a
+  // demo tab when a real account signs in.
   //-------------------------------------------------------------------------------
-
-  const [demo, setDemo] = useState<DemoMeta | null>(() => getDemoMeta());
 
   /** Apply a demo envelope. The token has to be stored BEFORE apply() runs. */
   const applyDemo = useCallback(
@@ -528,7 +550,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setDemoToken(env.auth.accessToken);
       setDemoMeta(env.demo);
       setDemo(env.demo);
-      apply(env);
+      apply(env, { demo: true });
     },
     [apply]
   );

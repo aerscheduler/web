@@ -262,14 +262,43 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
         if (cancelled) return;
 
         const wsUrl = buildRealtimeWsUrl(issued.path || "/realtime/ws");
-        ws = new WebSocket(wsUrl);
+        const socket = new WebSocket(wsUrl);
+        ws = socket;
         authed = false;
 
-        ws.onopen = () => {
-          ws?.send(JSON.stringify({ v: 1, type: "auth", ticket: issued.ticket }));
+        /**
+         * Is this socket still the one the effect is using?
+         *
+         * `connect()` awaits the ticket mint, and that await is wide: mints are floored
+         * a second apart, so a whole second can pass between deciding to connect and
+         * constructing the socket. A visibility change in that window schedules another
+         * connect, which runs the "drop any half-open socket" check above while `ws` is
+         * still null and then assigns over this one. Two sockets, and the handlers below
+         * used to act on whichever `ws` happened to be by the time they fired.
+         *
+         * That is how `onopen` came to send an auth ticket down a DIFFERENT socket that
+         * was still connecting: "Failed to execute 'send' on 'WebSocket': Still in
+         * CONNECTING state." Every handler is bound to its own socket now.
+         */
+        const isCurrent = () => ws === socket;
+
+        socket.onopen = () => {
+          if (!isCurrent()) {
+            // Superseded while the ticket was in flight. Nothing will ever read from
+            // it, and an unclosed socket holds a connection on the server.
+            try {
+              socket.close();
+            } catch {
+              /* ignore */
+            }
+            return;
+          }
+          if (socket.readyState !== WebSocket.OPEN) return;
+          socket.send(JSON.stringify({ v: 1, type: "auth", ticket: issued.ticket }));
         };
 
-        ws.onmessage = (ev) => {
+        socket.onmessage = (ev) => {
+          if (!isCurrent()) return;
           let msg: {
             v?: number;
             type?: string;
@@ -332,15 +361,18 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
           }
         };
 
-        ws.onclose = () => {
+        socket.onclose = () => {
+          // A superseded socket closing is not this connection dropping. Reconnecting
+          // on it would tear down the socket that replaced it and start the cycle over.
+          if (!isCurrent()) return;
           setConnected(false);
           clearTimers();
           if (!cancelled) scheduleReconnect();
         };
 
-        ws.onerror = () => {
+        socket.onerror = () => {
           try {
-            ws?.close();
+            socket.close();
           } catch {
             /* ignore */
           }

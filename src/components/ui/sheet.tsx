@@ -5,6 +5,7 @@ import { XIcon } from "lucide-react"
 import { Dialog as SheetPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { useModalId } from "@/components/ui/modal-stack"
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -54,6 +55,12 @@ function SheetContent({
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
 }) {
+  //REGISTERED like every other modal surface. It was missed on the first pass, and a Sheet
+  //is what every detail panel in the console is built from, so the two-overlay wall this
+  //mechanism exists to remove was still live on the reservation, invoice, squawk, audit and
+  //ledger panels , including the exact case its own header cites, voiding an invoice from
+  //inside the invoice detail sheet.
+  const { id: modalId, ref: modalRef } = useModalId(props.ref as never)
   return (
     <SheetPortal>
       <SheetOverlay />
@@ -72,6 +79,16 @@ function SheetContent({
           className
         )}
         {...props}
+        //`ref` AND `data-modal-id` GO AFTER THE SPREAD, and that ordering is the whole
+        //mechanism. Under React 19 `ref` is an ordinary prop, so with the spread last a
+        //caller's own `ref` silently replaced ours, the surface never registered, and
+        //nothing beneath it receded. `useModalId` composes the caller's ref back in, so
+        //putting ours last costs them nothing.
+        ref={modalRef}
+        data-modal-id={modalId}
+        //Which edge this sheet is pinned to, so the stack recedes it toward its own border
+        //instead of guessing from the class list. See SHEET_ORIGIN in modal-stack.ts.
+        data-modal-side={side}
       >
         {children}
         {showCloseButton && (

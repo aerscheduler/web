@@ -49,12 +49,17 @@ export function auditEvents(r: Reservation): TimelineEntry[] {
   const events: TimelineEntry[] = [];
   const rev = r.review;
 
-  events.push({
-    at: r.createdAt,
-    label: r.series ? "Booked (repeating)" : "Booked",
-    who: personName(r.createdBy),
-    detail: r.series?.label ?? null,
-  });
+  //An entry with no timestamp cannot be placed on a timeline, and pushing one anyway is
+  //what put an undefined `at` in front of the date formatters. `createdAt` is absent on the
+  //stub reservation the report view builds for keyboard stepping.
+  if (r.createdAt) {
+    events.push({
+      at: r.createdAt,
+      label: r.series ? "Booked (repeating)" : "Booked",
+      who: personName(r.createdBy),
+      detail: r.series?.label ?? null,
+    });
+  }
 
   if (rev?.rampedOutAt) {
     events.push({
@@ -135,10 +140,39 @@ export function auditEvents(r: Reservation): TimelineEntry[] {
  *   - A booking with no audit rows at all (every booking from before this shipped) falls
  *     back to the derived timeline entirely and looks exactly as it did.
  */
-const AUDITABLE_LABELS = new Set(["Booked", "Ramped out", "Ramped in", "Cancelled"]);
+//"Signed off" and "Closed out" belong here and were left out on the belief that sign-offs
+//"aren't instrumented yet". They have been: `confirmReview` has written
+//`reservation.reviewConfirmed` since the audit trail shipped, and `ACTION_LABEL` maps it to
+//the same string the derived entry uses, so one signature drew TWO lines.
+//
+//That used to be a fixed doubling nobody noticed. Reopening makes it accumulate: every
+//reopen-and-resign cycle adds another recorded confirmation that the derived list cannot
+//supersede, so a booking corrected twice showed six "Signed off" lines for one flight.
+const AUDITABLE_LABELS = new Set([
+  "Booked",
+  "Ramped out",
+  "Ramped in",
+  "Cancelled",
+  "Signed off",
+  "Closed out",
+]);
 
-/** How an action reads in the timeline when the server didn't write a summary. */
-const ACTION_LABEL: Record<string, string> = {
+/**
+ * How an action reads in the timeline when the server didn't write a summary.
+ *
+ * MUST COVER EVERY `reservation.*` ACTION THE SERVER CAN WRITE. The fallback below is
+ * `?? e.action`, which prints the raw dotted string, so a missing entry does not fail, it
+ * renders "reservation.metersCorrected by Test Owner from the console" into a customer's
+ * activity feed. That was live: the five actions added with the money-shaped expansion
+ * (`closedOut`, `metersEntered`, `metersCorrected`, `splitChanged`, `personnelChanged`)
+ * were registered in the Audit Logs page's own map and in none of them here, because the
+ * two maps are separate and nothing checks them against each other. Seen in the console
+ * while walking a meter correction through.
+ *
+ * The full list lives in `AuditAction` (server/src/services/audit.ts); the other copy is
+ * `web/src/routes/_authed/audit-logs.tsx`. Add to all three.
+ */
+export const ACTION_LABEL: Record<string, string> = {
   "reservation.created": "Booked",
   "reservation.rescheduled": "Rescheduled",
   "reservation.updated": "Edited",
@@ -147,6 +181,13 @@ const ACTION_LABEL: Record<string, string> = {
   "reservation.rampedIn": "Ramped in",
   "reservation.reviewConfirmed": "Signed off",
   "reservation.invoiced": "Invoiced",
+  "reservation.closedOut": "Closed out",
+  "reservation.metersEntered": "Meters entered",
+  "reservation.metersCorrected": "Meters corrected",
+  "reservation.ratesOverridden": "Rates overridden",
+  "reservation.splitChanged": "Cost split changed",
+  "reservation.personnelChanged": "Crew changed",
+  "reservation.closeOutReopened": "Close-out reopened",
 };
 
 /** "from the app" / ", from the console"only worth saying when we actually know. */
@@ -163,8 +204,43 @@ function sourceLabel(source: string | null): string | null {
   }
 }
 
+/**
+ * A readable title for an action nobody has mapped yet.
+ *
+ * "reservation.closeOutReopened" → "Close out reopened". Belt and braces behind
+ * ACTION_LABEL: the map above is the intended wording, and this is what stops the NEXT
+ * unmapped action rendering its own dotted identifier into a customer's activity feed, the
+ * way `metersCorrected` did. The Audit Logs page has always degraded this way; the
+ * timeline printed the raw string.
+ */
+export function humanizeAction(action: string): string {
+  const verb = action.split(".").pop() ?? action;
+  return verb
+    .replace(/([A-Z])/g, " $1")
+    .replace(/^./, (c) => c.toUpperCase())
+    .toLowerCase()
+    .replace(/^./, (c) => c.toUpperCase());
+}
+
+/**
+ * The part of a stored summary the label does not already say.
+ *
+ * Returns null when the summary adds nothing at all, and strips a leading `<label>: `
+ * when it merely prefixes what the title already shows.
+ */
+export function summaryDetail(summary: string | null | undefined, label: string): string | null {
+  if (!summary) return null;
+  if (summary === label) return null;
+  const prefix = `${label}: `;
+  if (summary.startsWith(prefix)) {
+    const rest = summary.slice(prefix.length).trim();
+    return rest.length > 0 ? rest : null;
+  }
+  return summary;
+}
+
 function toEntry(e: AuditEvent): TimelineEntry {
-  const label = ACTION_LABEL[e.action] ?? e.action;
+  const label = ACTION_LABEL[e.action] ?? humanizeAction(e.action);
   const destructive = e.action.endsWith(".cancelled") || e.action.endsWith(".voided");
   return {
     at: e.createdAt,
@@ -172,8 +248,11 @@ function toEntry(e: AuditEvent): TimelineEntry {
     //An automated event has no actor, and "by nobody" is worse than saying so plainly.
     who: e.actor ? (e.actor.user?.name ?? e.actor.user?.email ?? null) : "AerScheduler",
     //`summary` restates the label for the plain milestones ("Booked"); only show it when it
-    //carries something the label doesn't.
-    detail: e.summary && e.summary !== label ? e.summary : null,
+    //carries something the label doesn't, and drop the part it repeats. The server writes
+    //self-contained sentences because an API consumer reads them with no label beside them,
+    //so under one they came out as "Meters corrected / Meters corrected: Hobbs 2812.5 →
+    //2812.0".
+    detail: summaryDetail(e.summary, label),
     tone: destructive ? "destructive" : "default",
     via: sourceLabel(e.source),
   };
@@ -212,10 +291,28 @@ export function mergeTimeline(r: Reservation, recorded: AuditEvent[] | undefined
  * 3h ago" is the answer to a question someone is asking). Beyond a week it's noise, and for
  * anything in the future (a booking made for next Tuesday) it would read as nonsense.
  */
-function relative(iso: string): string | null {
-  const ms = Date.now() - new Date(iso).getTime();
+/**
+ * "10 minutes ago", or nothing.
+ *
+ * GUARDED AGAINST A MISSING OR UNPARSEABLE TIMESTAMP, because `formatDistanceToNowStrict`
+ * throws `RangeError: Invalid time value` rather than returning something harmless, and this
+ * renders inside a panel with no error boundary of its own, so the throw took out the WHOLE
+ * console with "Something went wrong!".
+ *
+ * Not hypothetical, and not reached through bad data. The report view builds a stub
+ * `{ id } as Reservation` for keyboard stepping, `auditEvents` pushes a "Booked" entry from
+ * `r.createdAt`, and on a stub that is `undefined`. `NaN` then fails both range comparisons
+ * below and fell straight through to the throw. Clicking any row of the flight log crashed
+ * the app.
+ */
+function relative(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const at = new Date(iso).getTime();
+  if (Number.isNaN(at)) return null;
+
+  const ms = Date.now() - at;
   if (ms < 60_000 || ms > 7 * 24 * 60 * 60 * 1000) return null;
-  return `${formatDistanceToNowStrict(new Date(iso))} ago`;
+  return `${formatDistanceToNowStrict(new Date(at))} ago`;
 }
 
 /**

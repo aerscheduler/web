@@ -261,8 +261,8 @@ export function OverridePaymentModal({
             ) : (
               <>
                 Changing what a flight costs clears any sign-offs already collected, so the
-                pilots confirm the new figure. Once everyone has signed off, the rates are
-                fixed and this is refused.
+                pilots confirm the new figure. Once the flight has been billed the rates are
+                fixed, and this is refused until the invoice is voided.
               </>
             )}
           </span>

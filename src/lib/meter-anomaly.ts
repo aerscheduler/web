@@ -31,3 +31,22 @@ export function meterAnomalyMessages(err: unknown): string[] | null {
 
   return messages.length > 0 ? messages : err.message ? [err.message] : [];
 }
+
+/**
+ * Is this the refusal that says saving the reading will ground the aircraft?
+ *
+ * Same 409-confirm shape as `METER_ANOMALY`, on purpose: the correction path already spoke
+ * it, so a second confirmable refusal costs no new plumbing.
+ *
+ * Only ever raised on a CORRECTION, never on ramp-in. A pilot typing the reading for the
+ * flight they just landed is reporting a fact, not making a decision, and asking them to
+ * approve one they cannot decline would be theatre. Changing a reading that already exists
+ * is a different act, done by somebody with authority over the fleet.
+ */
+export function maintenanceTriggerMessage(err: unknown): string | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const body = err.body;
+  if (!body || typeof body !== "object") return null;
+  if ((body as Record<string, unknown>).code !== "MAINTENANCE_TRIGGER") return null;
+  return err.message || "Saving this reading will ground the aircraft.";
+}

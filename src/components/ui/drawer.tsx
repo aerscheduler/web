@@ -2,6 +2,7 @@ import * as React from "react"
 import { Drawer as DrawerPrimitive } from "vaul"
 
 import { cn } from "@/lib/utils"
+import { useModalId } from "@/components/ui/modal-stack"
 
 function Drawer({
   ...props
@@ -46,13 +47,16 @@ function DrawerOverlay({
 function DrawerContent({
   className,
   children,
+  style,
   ...props
 }: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+  const { id: modalId, ref: modalRef } = useModalId(props.ref as never)
   return (
     <DrawerPortal data-slot="drawer-portal">
       <DrawerOverlay />
       <DrawerPrimitive.Content
         data-slot="drawer-content"
+        style={style}
         className={cn(
           "group/drawer-content fixed z-50 flex h-auto flex-col bg-background",
           "data-[vaul-drawer-direction=top]:inset-x-0 data-[vaul-drawer-direction=top]:top-0 data-[vaul-drawer-direction=top]:mb-24 data-[vaul-drawer-direction=top]:max-h-[80vh] data-[vaul-drawer-direction=top]:rounded-b-lg data-[vaul-drawer-direction=top]:border-b",
@@ -62,6 +66,13 @@ function DrawerContent({
           className
         )}
         {...props}
+        //`ref` AND `data-modal-id` GO AFTER THE SPREAD, and that ordering is the whole
+        //mechanism. Under React 19 `ref` is an ordinary prop, so with the spread last a
+        //caller's own `ref` silently replaced ours, the surface never registered, and
+        //nothing beneath it receded. `useModalId` composes the caller's ref back in, so
+        //putting ours last costs them nothing.
+        ref={modalRef}
+        data-modal-id={modalId}
       >
         <div className="mx-auto mt-4 hidden h-2 w-[100px] shrink-0 rounded-full bg-muted group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
         {children}

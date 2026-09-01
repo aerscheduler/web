@@ -28,6 +28,7 @@ import { LedgerEntryDetailSheet } from "@/components/people/detail/ledger-entry-
 import { LedgerReceiptSheet } from "@/components/people/detail/ledger-receipt-dialog";
 import { LedgerStatementSheet } from "@/components/people/detail/ledger-statement-sheet";
 import { LedgerReassignDialog } from "@/components/people/detail/ledger-reassign-dialog";
+import { LedgerReverseDialog } from "@/components/people/detail/ledger-reverse-dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn, formatMoney } from "@/lib/utils";
@@ -51,6 +52,13 @@ function fmtDate(iso: string | null | undefined, date: (instant: string) => stri
   return iso ? date(iso) : "–";
 }
 
+/**
+ * A live flight charge, which is the only thing either of the two admin actions applies to.
+ *
+ * Reassigning moves it to another member; reversing cancels it, which is what unlocks the
+ * flight behind it for correction. Both refuse a reversal and an already-reversed charge,
+ * so they share one test rather than drifting apart.
+ */
 function canReassignFlightCharge(entry: LedgerEntry): boolean {
   if (entry.type !== "flight_charge") return false;
   if (entry.reversesId != null) return false;
@@ -61,6 +69,7 @@ function canReassignFlightCharge(entry: LedgerEntry): boolean {
 function ledgerColumns(opts: {
   onReceipt: (entry: LedgerEntry) => void;
   onReassign?: (entry: LedgerEntry) => void;
+  onReverse?: (entry: LedgerEntry) => void;
   formatDay: (iso: string) => string;
 }): ColumnDef<LedgerEntry, unknown>[] {
   return [
@@ -134,7 +143,8 @@ function ledgerColumns(opts: {
         const entry = row.original;
         const receipt = LEDGER_RECEIPT_TYPES.has(entry.type);
         const reassign = opts.onReassign && canReassignFlightCharge(entry);
-        if (!receipt && !reassign) return null;
+        const reverse = opts.onReverse && canReassignFlightCharge(entry);
+        if (!receipt && !reassign && !reverse) return null;
         return (
           <div className="flex justify-end gap-1">
             {receipt && (
@@ -161,6 +171,18 @@ function ledgerColumns(opts: {
                 Reassign
               </Button>
             )}
+            {reverse && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  opts.onReverse!(entry);
+                }}
+              >
+                Reverse
+              </Button>
+            )}
           </div>
         );
       },
@@ -172,17 +194,20 @@ function LedgerCard({
   entry,
   onReceipt,
   onReassign,
+  onReverse,
   onOpen,
   formatDay,
 }: {
   entry: LedgerEntry;
   onReceipt: (entry: LedgerEntry) => void;
   onReassign?: (entry: LedgerEntry) => void;
+  onReverse?: (entry: LedgerEntry) => void;
   onOpen?: () => void;
   formatDay: (iso: string) => string;
 }) {
   const canReceipt = LEDGER_RECEIPT_TYPES.has(entry.type);
   const canReassign = onReassign != null && canReassignFlightCharge(entry);
+  const canReverse = onReverse != null && canReassignFlightCharge(entry);
   return (
     <Card className="cursor-pointer p-4" onClick={onOpen}>
       <div className="flex items-start justify-between gap-3">
@@ -192,7 +217,7 @@ function LedgerCard({
             {fmtDate(entry.createdAt, formatDay)} · {ledgerPostedByLabel(entry)}
             {entry.memo ? ` · ${entry.memo}` : ""}
           </div>
-          {(canReceipt || canReassign) && (
+          {(canReceipt || canReassign || canReverse) && (
             <div className="mt-2 flex flex-wrap gap-2">
               {canReceipt && (
                 <Button
@@ -216,6 +241,18 @@ function LedgerCard({
                   }}
                 >
                   Reassign
+                </Button>
+              )}
+              {canReverse && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReverse(entry);
+                  }}
+                >
+                  Reverse
                 </Button>
               )}
             </div>
@@ -266,6 +303,7 @@ export function MemberLedgerTable({
   const [receiptEntryId, setReceiptEntryId] = useState<number | null>(null);
   const [detailEntry, setDetailEntry] = useState<LedgerEntry | null>(null);
   const [reassignEntry, setReassignEntry] = useState<LedgerEntry | null>(null);
+  const [reverseEntry, setReverseEntry] = useState<LedgerEntry | null>(null);
 
   const typeFilter = asFacetStrings(facets.type);
   const startDate = typeof facets.startDate === "string" ? facets.startDate : undefined;
@@ -295,6 +333,7 @@ export function MemberLedgerTable({
           setReceiptEntryId(entry.id);
         },
         onReassign: canManage ? (entry) => setReassignEntry(entry) : undefined,
+        onReverse: canManage ? (entry) => setReverseEntry(entry) : undefined,
       }),
     [canManage, formatDay]
   );
@@ -346,6 +385,7 @@ export function MemberLedgerTable({
             setReceiptEntryId(e.id);
           }}
           onReassign={canManage ? (e) => setReassignEntry(e) : undefined}
+          onReverse={canManage ? (e) => setReverseEntry(e) : undefined}
         />
       )}
       onRowClick={(entry) => {
@@ -482,6 +522,14 @@ export function MemberLedgerTable({
             open={reassignEntry != null}
             onOpenChange={(next) => {
               if (!next) setReassignEntry(null);
+            }}
+          />
+          <LedgerReverseDialog
+            orgUserId={orgUserId}
+            entry={reverseEntry}
+            open={reverseEntry != null}
+            onOpenChange={(next) => {
+              if (!next) setReverseEntry(null);
             }}
           />
         </>

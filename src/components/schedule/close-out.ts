@@ -234,9 +234,16 @@ export function isRampedIn(r: Reservation): boolean {
  * stayed live and meter corrections unlocked after money had already moved.
  */
 export function liveLedgerStakes(r: Reservation) {
-  return (r.payers ?? []).filter(
-    (p) => !p.waived && p.ledgerEntry != null && !p.ledgerEntry.reversedBy
-  );
+  //WAIVED PAYERS COUNT, and this must stay identical to the server's
+  //`utils/reservationBilling.ts`. The flag says who SHOULD have paid; it does not un-debit
+  //an account that already was. `MemberCharges.reassignFlightCharge` repoints an existing
+  //stake at a new flight_charge and leaves `waived` untouched, so waiving a safety pilot at
+  //close-out and reassigning the charge onto them later produces exactly that pair.
+  //
+  //Excluding them here while the server counted them is the bug this whole change exists to
+  //remove: the console offered Correct times and Reopen on a booking the server would
+  //refuse with "already been charged to the account ledger".
+  return (r.payers ?? []).filter((p) => p.ledgerEntry != null && !p.ledgerEntry.reversedBy);
 }
 
 /**
@@ -434,41 +441,76 @@ export function canOverridePricesInOrg(
  * May this viewer override the price on THIS booking right now?
  *
  * Maintenance is excluded because pricing refuses it outright ("disabled"), and a
- * cancelled booking bills nobody. The rest is the server's own refusal, stated up front:
- * once every reviewer has confirmed, the endpoint answers "You can't override payment for
- * a reservation that has already been completed"and on a guest booking `completedByForGuest`
- * says the same thing. Offering the action there would be an invitation to a 400.
+ * cancelled booking bills nobody. The rest is the server's own refusal, stated up front.
+ *
+ * LIVE MONEY is that refusal now, on both sides. It used to be the sign-offs, which meant a
+ * rate typo spotted one tap too late could only be fixed by scrapping the booking, and on a
+ * GUEST flight at a school that invoices on paper it could never be fixed at all: nothing
+ * ever cleared `completedByForGuest`, and there was no invoice to void. Retyping a rate has
+ * always discarded every PIN and asked the crew to re-approve the new price, so the sign-offs
+ * were never what the lock was protecting.
  */
 export function canOverrideReservationPayment(
   r: Reservation,
   roles: Role[],
   preferences: OrganizationPreferences | null | undefined,
-  billing: { enabled?: boolean; stripeEnabled?: boolean } | null | undefined
+  billing: { enabled?: boolean; stripeEnabled?: boolean } | null | undefined,
+  orgUserId: number | null = null
 ): boolean {
   if (r.cancelledAt) return false;
   if (r.type === "maintenance") return false;
-  if (!billingIsLive(billing)) return false;
+  //LEDGER-ONLY SCHOOLS SET RATES TOO. `billingIsLive` requires Stripe, and this function's own
+  //docstring above talks about a school that invoices on paper being able to fix a rate,
+  //which this line made unreachable for exactly those schools.
+  if (!(billingIsLive(billing) || billing?.enabled === true)) return false;
   if (!canOverridePricesInOrg(roles, preferences)) return false;
-  if (isGuestReservation(r)) return !guestIsReviewed(r);
-  return !reviewIsComplete(r);
+  if (hasLiveBill(r)) return false;
+
+  //RETYPING A RATE CLEARS EVERY SIGN-OFF, so it owes the same rule as correcting a reading.
+  //The server applies `signOffErasureRefusal` to all three doors into that delete; both
+  //clients mirrored it on the correction door and neither did here. With
+  //`instructorsCanOverrideReservationPrices` on, an instructor with no connection to a flight
+  //was shown Override payment on a signed-off booking and answered 403 on save, which is the
+  //offered-then-refused symptom this file exists to prevent.
+  if (erasesAnotherSignOff(r, orgUserId)) return canReopenInOrg(r, roles, orgUserId);
+  return true;
 }
 
 /**
  * May this viewer correct the readings already recorded on THIS booking?
  *
- * Three server rules, in order:
+ * Two server rules, in order:
  *  1. The permission is the ramp permission. `updateReviewTimes` requires the caller to be
  *     able to ramp the flight both out and in, which is staff or somebody on it.
  *  2. There has to be something to correct. The service refuses to write a Hobbs figure
  *     onto a booking whose Hobbs pair is not already filled in, so this only opens once the
  *     aircraft is back. Before that, ramp in rather than correct.
- *  3. It is refused after the sign-offs are complete, and refused again once ANY invoice
- *     exists, because an invoice describes hours the booking would no longer claim.
+ *  3. LIVE money closes it, because an invoice describes hours the booking would no longer
+ *     claim to have flown. Void the invoice (or reverse the ledger charge) and it reopens.
+ *
+ * SIGN-OFFS NO LONGER CLOSE IT, and that is the change. They used to, on both surfaces and
+ * on the server, which made this unusable exactly where it was needed most: a SOLO booking
+ * has one reviewer, and that reviewer is the person typing the readings in, so the window
+ * shut on the same tap that opened it. A school reported the only move left, which was to
+ * abandon the booking and re-create it carrying the right hours. The correction has always
+ * deleted every sign-off as it writes and asked the crew to re-confirm; that was the
+ * mechanism, and it was simply out of reach.
  *
  * A booking with no meters (a ground lesson) is measured by its instruction time alone, so
  * `isRampedIn` covers it through `usesBriefingNotMeters` and its briefing figure is the one
- * correctable field. `reviewerCount` guards the corner where there is nobody to sign off at
- * all: the server reads that as already reviewed and refuses.
+ * correctable field. A booking with NOBODY to sign off (a maintenance slot) is correctable
+ * too, and by whoever can ramp it: the server asks about signatures that exist, not about a
+ * reviewer count of zero.
+ *
+ * 4. AND SOMEBODY ELSE'S SIGN-OFF NEEDS THE REOPEN PERMISSION, because clearing one is an
+ *    erasure rather than a correction. This is the one rule the button was missing, and the
+ *    symptom is the one `reservationBilling.ts` names: a button offered and then refused. A
+ *    dispatcher, or the student on a dual their instructor had signed, saw Correct times on
+ *    a signed-off flight and got a 403 on Save.
+ *
+ *    Not a blanket "is it signed off" test, which was the server's first attempt at this and
+ *    was wrong in both directions. Re-doing YOUR OWN signature is ordinary work: a renter
+ *    fixing the Hobbs on their own solo clears one PIN, their own.
  */
 export function canCorrectReviewTimes(
   r: Reservation,
@@ -477,10 +519,129 @@ export function canCorrectReviewTimes(
 ): boolean {
   if (r.cancelledAt) return false;
   if (!isRampedIn(r)) return false;
+  if (!hasCorrectableReadings(r)) return false;
   if (hasLiveBill(r)) return false;
-  if (reviewerCount(r) === 0) return false;
-  if (reviewIsComplete(r)) return false;
-  return canRampReservation(r, roles, orgUserId);
+  if (!canRampReservation(r, roles, orgUserId)) return false;
+  if (erasesAnotherSignOff(r, orgUserId)) return canReopenInOrg(r, roles, orgUserId);
+  return true;
+}
+
+/**
+ * Would correcting this booking clear a signature that is not the viewer's own?
+ *
+ * A correction deletes every sign-off as it writes. Whose they are is the whole question:
+ * re-entering your own PIN afterwards is the workflow, and clearing somebody else's without
+ * telling them is not. Mirrors `signOffErasureRefusal` on the server, field for field.
+ *
+ * A guest booking keeps its close-out in `completedByForGuest` rather than in confirmation
+ * rows, so that counts as the staff member's signature on it.
+ */
+export function erasesAnotherSignOff(r: Reservation, orgUserId: number | null): boolean {
+  const confirmations = r.review?.reviewConfirmations ?? [];
+  if (confirmations.some((c) => c.reviewedBy?.id !== orgUserId)) return true;
+
+  const guestCloseOutBy = isGuestReservation(r) ? (r.completedByForGuest?.id ?? null) : null;
+  return guestCloseOutBy != null && guestCloseOutBy !== orgUserId;
+}
+
+/**
+ * Does this booking hold any figure a correction could actually change?
+ *
+ * The server only lets you rewrite a value that is already there, so a booking with nothing
+ * recorded has nothing to correct. Without this the modal opens with NO INPUTS (it renders
+ * a field only for a value the booking already holds) and a live "Save corrections" that
+ * posts an empty body. Every server refusal is per-field, so an empty body passes them all
+ * and falls through to the unconditional sign-off delete: a reopen wearing a correction's
+ * clothes, announced as "Times corrected", and without the confirm dialog the actual Reopen
+ * button carries.
+ *
+ * Reachable on two ordinary bookings rather than on bad data, which is why `isRampedIn`
+ * alone was not enough. A GLIDER (`meterMode: "none"`) is ramped in on its `rampedInAt`
+ * timestamp with no readings at all. A GROUP GROUND with students and no instructor is
+ * ramped in on `!hasInstruction` with no briefing figure. Both hold nothing.
+ */
+export function hasCorrectableReadings(r: Reservation): boolean {
+  const rev = r.review;
+  if (rev?.hobbsTimeIn != null && rev?.hobbsTimeOut != null) return true;
+  if (rev?.tachTimeIn != null && rev?.tachTimeOut != null) return true;
+  return rev?.briefing != null;
+}
+
+/**
+ * May this viewer REOPEN a closed-out booking, taking the sign-offs back off it?
+ *
+ * Mirrors `POST /reservations/:id/reopen`: the ramp permission, nothing cancelled, nothing
+ * billed, and something to actually undo.
+ *
+ * WHY THIS IS A SEPARATE BUTTON rather than a side effect of correcting. A correction
+ * silently discarding four pilots' PINs is a consequence nobody reads about in a tooltip.
+ * It is also the only route to the case where the NUMBERS are right and the SIGN-OFF is
+ * not: the wrong person confirmed, or somebody confirmed without looking. There is nothing
+ * to correct there, so a correction cannot be the way through.
+ *
+ * "Something to undo" is `reviewed`: a guest booking that has been closed out, or a crewed
+ * booking every pilot has confirmed. Offering it at the `confirm` step would be offering to
+ * undo a signature that has not been given.
+ */
+export function canReopenCloseOut(
+  r: Reservation,
+  roles: Role[],
+  orgUserId: number | null
+): boolean {
+  if (r.cancelledAt) return false;
+  if (hasLiveBill(r)) return false;
+  if (!canReopenInOrg(r, roles, orgUserId)) return false;
+  if (isGuestReservation(r)) return guestIsReviewed(r);
+  //ANY signature is enough to have something to take back, not a complete set.
+  //
+  //Requiring `reviewIsComplete` hid this in the exact case the feature's own rationale
+  //names: on a two-pilot dual the student signs off by mistake at 1 of 2, and the wrong PIN
+  //could not be removed until the instructor ALSO signed off. The server has always
+  //accepted it (`reopenCloseOut` refuses only when there is nothing signed at all), so this
+  //was the client being narrower than the rule for no reason.
+  //
+  //A booking with nobody to sign off (maintenance) still holds no signature, and
+  //`confirmationCount` is 0 there, so it stays out.
+  return confirmationCount(r) > 0;
+}
+
+/**
+ * Who may take a signature back off a flight record.
+ *
+ * NARROWER THAN THE RAMP PERMISSION, which is what governs correcting a reading. That
+ * asymmetry is deliberate: fixing a Hobbs entry before anybody has signed is ordinary work
+ * and belongs to whoever is standing at the aeroplane, but a close-out PIN is a SIGNATURE,
+ * the same credential a training record is signed with. A student clearing their
+ * instructor's confirmation on a month-old flight is an erasure, not a correction.
+ *
+ * The school's STAFF, or the instructor on THIS booking. Mirrors the server's
+ * `orgUserCanReopenCloseOut` exactly.
+ *
+ * Dispatchers were left out at first, on the reasoning that they close flights out and do
+ * not sign them. Measured against production that was a regression rather than a principle:
+ * before the lock moved off completion the front desk could already fix a reading on a
+ * partly signed booking, 578 bookings sit in exactly that state, and 55% of all bookings
+ * carry two or more reviewers, so every one of them passes through a window where the desk
+ * used to be able to help. Owner's call, with those numbers in hand, and it extends to a
+ * fully signed flight rather than only to the window the desk already had: the front desk
+ * is who a school expects to fix a mistyped Hobbs, and sending them to find an admin is the
+ * dead end this whole feature exists to remove.
+ *
+ * What it costs, stated plainly: a dispatcher never signs a flight and can now clear a
+ * complete set of pilot signatures. The required reason and the audit line are what keep
+ * that accountable. A PILOT still cannot clear another pilot's PIN, which is the case the
+ * rule was written for.
+ *
+ * A named grant is the eventual home, so a school can nominate specific senior instructors
+ * rather than the whole role; this is the baseline it will fall back to.
+ */
+export function canReopenInOrg(
+  r: Reservation,
+  roles: Role[],
+  orgUserId: number | null
+): boolean {
+  if (isStaff(roles)) return true;
+  return isReservationInstructor(r, orgUserId);
 }
 
 /**
@@ -501,10 +662,79 @@ export function canCreateReservationInvoice(
 ): boolean {
   if (r.cancelledAt) return false;
   if (r.type === "maintenance") return false;
-  if (!billingIsLive(billing)) return false;
+  //LEDGER MODE COUNTS AS BILLING. `billingIsLive` requires Stripe, and `payment.ts` supports
+  //ledger-on / Stripe-off deliberately: the cheque-driven club is a target customer. At one
+  //of those schools every failed close-out showed "the ledger charge will appear here" with
+  //no button on any surface, for ever.
+  if (!(billingIsLive(billing) || billing?.enabled === true)) return false;
   if (!isAdmin(roles)) return false;
-  if (hasLiveBill(r)) return false;
-  if (isGuestReservation(r)) return false;
+  //PARTLY BILLED IS EXACTLY WHEN THE RETRY IS NEEDED. `hasLiveBill` is true the moment ONE
+  //share is raised, so a split fan-out that failed on invoice 2 of 3 hid the button on the
+  //booking whose pilot had not been billed, which is the case the endpoint exists for and
+  //what the comment above already claimed. The server refuses only on the anomaly it cannot
+  //see past (money on a WAIVED payer), so the client asks the same narrower question.
+  if (waivedPayerHoldsLiveMoney(r)) return false;
+  if (isFullyBilled(r)) return false;
+
+  //A GUEST BOOKING IS NOT EXEMPT FROM NEEDING A RETRY. This excluded them outright on the
+  //reasoning that `confirmReviewGuest` mints the invoice, so there is no gap to fill. There
+  //is: that door writes the close-out and then hands off to the same fan-out as everything
+  //else, and if the fan-out fails the door does not reopen (a second attempt is refused as
+  //already reviewed). The console then showed "the invoice will appear here once it's
+  //generated" for ever, on the highest-margin thing a school sells.
+  //
+  //It closes out by a FLAG rather than by PINs, so the reviewer-count test below is the wrong
+  //question for it: it has no reviewers by design and would fail that check for ever.
+  //
+  //EITHER DOOR, though. `PERSONNEL_LIMITS.guest` allows an instructor, and that CFI's PIN
+  //closes the flight out without ever setting the guest flag. Asking only for the flag made
+  //the console the odd one out: the server (`closeOutIsFinished`) and the phone
+  //(`completed`) both accept the instructor branch, so the button was hidden on a flight both
+  //of them would have billed.
+  if (isGuestReservation(r)) return guestIsReviewed(r) || reviewIsComplete(r);
+
   if (reviewerCount(r) === 0) return false;
   return reviewIsComplete(r);
+}
+
+/**
+ * Is every share of this flight billed, so there is nothing left to raise?
+ *
+ * READ FROM THE SERVER, NOT RE-DERIVED. This used to compute the answer from the payer rows
+ * ("is every payer holding money"), which is inside out: `ReservationPayer` rows are written
+ * only AFTER a bill succeeds, so a flight whose fan-out failed carries NO payer rows at all
+ * and "every payer holds money" is vacuously true of an empty list. The console therefore
+ * hid Create-invoice on every never-billed flight and on every partial fan-out, which are
+ * precisely the two cases the button exists for, while the new daily alert was telling
+ * schools to go and fix them.
+ *
+ * `coverage` is `ReservationService.invoiceCoverage` computed on the server and sent with the
+ * booking. It counts CREW, not payers, which is the only way to know a share is missing when
+ * nothing was written for it. Three surfaces asking one another's question by re-implementing
+ * it is what produced this bug twice; now there is one answer.
+ *
+ * Falls back to "not fully billed" when `coverage` is absent, so an older payload offers the
+ * button and lets the server refuse rather than hiding a remedy that may be needed.
+ */
+export function isFullyBilled(r: Reservation): boolean {
+  const coverage = r.coverage;
+  if (!coverage) return false;
+  return coverage.expected === 0 || coverage.complete === true;
+}
+
+/**
+ * Money sitting on a payer the booking is NOT waiting to bill.
+ *
+ * Mirrors `waivedPayerHoldsLiveMoney` on the server, field for field. This is the one state
+ * the retry must refuse, because `invoiceCoverage` cannot see it: `reassignFlightCharge` will
+ * move a charge onto a waived payer and leave `waived` set, and billing again then charges
+ * one flight to two people.
+ */
+export function waivedPayerHoldsLiveMoney(r: Reservation): boolean {
+  return (r.payers ?? []).some((p) => {
+    if (p?.waived !== true) return false;
+    const liveLedger = p.ledgerEntry != null && !p.ledgerEntry.reversedBy;
+    const liveInvoice = p.invoice != null && p.invoice.voidedAt == null;
+    return liveLedger || liveInvoice;
+  });
 }

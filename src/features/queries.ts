@@ -1061,18 +1061,102 @@ export function useConfirmReviewGuest(id: number) {
  * `POST /reservations/:id/updateReviewTimes`.
  *
  * Rewriting a meter reading rewrites what the flight costs, so the server drops every
- * sign-off collected so far and the pilots confirm again. It refuses outright once the
- * review is complete or an invoice exists.
+ * sign-off collected so far and the pilots confirm again.
+ *
+ * IT NO LONGER REFUSES ON COMPLETION, which is the whole point of the change: a solo
+ * booking has one reviewer, and that reviewer is the person typing the reading in, so the
+ * correction window used to shut on the same tap that opened it. LIVE MONEY is the lock now
+ * (`409 RESERVATION_BILLED`; void the invoice or reverse the ledger charge and it reopens),
+ * and clearing a sign-off that is not your own needs the school's staff (an admin or the
+ * front desk) or the booking's instructor
+ * (`403`). A body that merely echoes the stored figures writes nothing and comes back
+ * `noChanges`.
  */
 export function useCorrectReviewTimes(id: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CorrectReviewTimesInput) =>
-      api<Reservation>(`/reservations/${id}/updateReviewTimes`, { method: "POST", body: input }),
+    //`raw`, not `api`, because the actionable half of this response is the `meter` report
+    //that sits BESIDE `data`: whether the aircraft's own Hobbs followed the correction, and
+    //what it still reads if it did not. `api` unwraps to `data` and would drop it.
+    mutationFn: async (input: CorrectReviewTimesInput) => {
+      const { body } = await raw(`/reservations/${id}/updateReviewTimes`, { method: "POST", body: input });
+      const envelope = (body ?? {}) as {
+        data?: Reservation;
+        meter?: {
+          /** Did this correction touch a meter at all? False for a briefing-only fix. */
+          changed?: boolean;
+          followed?: boolean;
+          aircraftHobbs?: number | null;
+          aircraftTach?: number | null;
+          unlatched?: { reminderId: number; name: string }[];
+          /**
+           * Inspections this reading no longer earns but that were deliberately LEFT
+           * flagged, because their template also runs on a calendar clock. Somebody has to
+           * clear those by hand.
+           */
+          notUnlatched?: { reminderId: number; name: string }[];
+          /** The booking was corrected but the AIRCRAFT's meters could not be written. */
+          writeFailed?: string | null;
+        } | null;
+        /** A guest booking's close-out flag was cleared, so it needs closing out again. */
+        guestCloseOutCleared?: boolean;
+        /**
+         * The submitted figures already matched what was stored, so NOTHING was written and
+         * no sign-off was cleared. This sheet is prefilled, so an unedited Save is a full
+         * echo and lands here.
+         */
+        noChanges?: boolean;
+        /** A `measured` split's per-person legs still describe the old hours. */
+        splitLegsStale?: boolean;
+      };
+      //EVERY FIELD THE SERVER SENDS HAS TO SURVIVE THIS HOP. This function is the only
+      //reason `raw` is used instead of `api`, and it was still dropping fields on the floor:
+      //anything not named here simply never reaches the component, which is a silent,
+      //type-clean way to lose a warning. `noChanges` went missing exactly that way, and the
+      //console announced "Times corrected. The pilots will need to sign off again." on a
+      //call that wrote nothing and cleared nobody.
+      return {
+        reservation: envelope.data ?? null,
+        meter: envelope.meter ?? null,
+        //`unlatched` rides inside `meter` and is read from there by the modal.
+        guestCloseOutCleared: envelope.guestCloseOutCleared === true,
+        noChanges: envelope.noChanges === true,
+        splitLegsStale: envelope.splitLegsStale === true,
+      };
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["reservations"] });
       //The correction can move the aircraft's own Hobbs/tach when this is its latest flight.
       void qc.invalidateQueries({ queryKey: ["resources"] });
+      void qc.invalidateQueries({ queryKey: ["audit"] });
+      //A correction can un-latch an inspection reminder, so the maintenance surfaces move.
+      void qc.invalidateQueries({ queryKey: ["maintenance"] });
+    },
+  });
+}
+
+/**
+ * Reopen a closed-out booking so it can be corrected, via `POST /reservations/:id/reopen`.
+ *
+ * Takes the pilots' sign-offs back off the flight and nothing else: the readings, the crew
+ * and the booked times are all left where they are. That is what makes the correction
+ * endpoints reachable again on a booking everybody has already confirmed.
+ *
+ * Refused with 409 `RESERVATION_BILLED` while money still stands against the booking. The
+ * caller shows that message as-is, because it names the specific way out (void the invoice,
+ * or reverse the ledger charge) for the route the money actually took.
+ *
+ * `reason` is REQUIRED by the server and lands on the flight's audit record. It is the only
+ * account of why a signature was removed, and "somebody reopened it" answers none of the
+ * questions asked a year later.
+ */
+export function useReopenCloseOut(id: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (reason: string) =>
+      api<Reservation>(`/reservations/${id}/reopen`, { method: "POST", body: { reason } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
       void qc.invalidateQueries({ queryKey: ["audit"] });
     },
   });
@@ -2282,6 +2366,37 @@ export function useReassignLedgerFlightCharge(orgUserId: number | null) {
       void qc.invalidateQueries({ queryKey: ["orgUsers", orgUserId, "ledger"] });
       void qc.invalidateQueries({ queryKey: ["orgUsers", vars.toOrgUserId, "ledger"] });
       void qc.invalidateQueries({ queryKey: ["orgUsers", "billing"] });
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+    },
+  });
+}
+
+/**
+ * Reverse a flight charge, which is what unlocks the flight behind it (admin).
+ *
+ * THE LEDGER'S COUNTERPART TO VOIDING AN INVOICE. Correcting a recorded reading is refused
+ * while live money stands against the booking, and at a ledger school the charge posts by
+ * itself the moment the last pilot enters their PIN, so the booking locks on the same tap
+ * that finishes it. The product told schools to "reverse the ledger charge on the member's
+ * billing tab" and there was no such action anywhere, which meant the whole reopen feature
+ * did nothing for them: the only move left was still to abandon the booking and re-create
+ * it carrying the real hours, the exact bug it was built to fix.
+ *
+ * Invalidates `reservations` as well as the ledger, because a booking that was locked is
+ * now correctable and its buttons have to come back without a reload.
+ */
+export function useReverseLedgerFlightCharge(orgUserId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { entryId: number; memo?: string }) =>
+      api<{ entry: LedgerEntry; balanceCents: number }>(
+        `/orgUsers/${orgUserId}/ledger/entries/${body.entryId}/reverse`,
+        { method: "POST", body: { memo: body.memo } }
+      ),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["orgUsers", orgUserId, "ledger"] });
+      void qc.invalidateQueries({ queryKey: ["orgUsers", "billing"] });
+      void qc.invalidateQueries({ queryKey: ["orgUsers", orgUserId, "billing"] });
       void qc.invalidateQueries({ queryKey: ["reservations"] });
     },
   });

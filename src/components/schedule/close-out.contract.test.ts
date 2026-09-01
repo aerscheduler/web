@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { Reservation } from "@/types/api";
-import { billsOnHobbs, hasInstruction, isRampedIn, isRampedOut, readsMeters, usesBriefingNotMeters } from "./close-out";
+import {
+  billsOnHobbs,
+  hasInstruction,
+  hasLiveBill,
+  isFullyBilled,
+  isRampedIn,
+  isRampedOut,
+  readsMeters,
+  usesBriefingNotMeters,
+  waivedPayerHoldsLiveMoney,
+} from "./close-out";
 
 /**
  * THE CLOSE-OUT CONTRACT, console side.
@@ -262,5 +272,79 @@ describe("billsOnHobbs mirrors the resource's own setting", () => {
     // guess here changes which reading the desk is asked for.
     expect(billsOnHobbs(withCost("plane"))).toBe(true);
     expect(billsOnHobbs({ id: 1, type: "ground", resource: null, personnel: {}, review: {} } as unknown as Reservation)).toBe(true);
+  });
+});
+
+/**
+ * THE MONEY HALF OF THE CONTRACT. Mirrors `server/test/unit/closeOutContract.test.ts`.
+ *
+ * These are the shapes on which this file's rules and the server's drifted apart, twice, in
+ * the same direction. `isFullyBilled` used to be re-derived here from the payer rows, which
+ * only exist once a bill has SUCCEEDED, so a flight whose fan-out failed carried none and the
+ * console hid Create-invoice on exactly the flights that needed it. It now reads the server's
+ * own `coverage`, and these assertions are what stop it drifting back.
+ */
+const res = (over: Record<string, unknown>) => over as unknown as Reservation;
+const LIVE_INVOICE = { id: 5, voidedAt: null };
+const VOID_INVOICE = { id: 5, voidedAt: "2026-08-31T00:00:00.000Z" };
+
+describe("contract: is money standing against this booking", () => {
+  it("a live invoice counts", () => {
+    expect(hasLiveBill(res({ invoices: [LIVE_INVOICE] }))).toBe(true);
+  });
+
+  it("a voided invoice does not", () => {
+    expect(hasLiveBill(res({ invoices: [VOID_INVOICE] }))).toBe(false);
+  });
+
+  it("a live ledger charge counts", () => {
+    expect(hasLiveBill(res({ payers: [{ ledgerEntry: { reversedBy: null } }] }))).toBe(true);
+  });
+
+  it("a reversed ledger charge does not", () => {
+    expect(hasLiveBill(res({ payers: [{ ledgerEntry: { reversedBy: { id: 9 } } }] }))).toBe(false);
+  });
+
+  it("counts a waived payer's live charge", () => {
+    expect(hasLiveBill(res({ payers: [{ waived: true, ledgerEntry: { reversedBy: null } }] }))).toBe(true);
+  });
+});
+
+describe("contract: is anybody still owed a bill", () => {
+  //THE SHAPE THIS SURFACE GOT BACKWARDS: no payer rows at all.
+  it("a flight nobody has billed is not fully billed", () => {
+    expect(isFullyBilled(res({ coverage: { expected: 1, billed: 0, complete: false }, payers: [] }))).toBe(false);
+  });
+
+  it("a partial fan-out is not fully billed", () => {
+    expect(isFullyBilled(res({ coverage: { expected: 3, billed: 1, complete: false } }))).toBe(false);
+  });
+
+  it("every share billed is fully billed", () => {
+    expect(isFullyBilled(res({ coverage: { expected: 1, billed: 1, complete: true } }))).toBe(true);
+  });
+
+  it("an entirely waived crew expects nobody", () => {
+    expect(isFullyBilled(res({ coverage: { expected: 0, billed: 0, complete: false } }))).toBe(true);
+  });
+
+  //A payload with no coverage must not read as billed: hiding the remedy on missing data is
+  //how a real unbilled flight becomes invisible.
+  it("no coverage is not fully billed", () => {
+    expect(isFullyBilled(res({ payers: [] }))).toBe(false);
+  });
+});
+
+describe("contract: money on a payer nobody is waiting to bill", () => {
+  it("sees a waived payer holding a live charge", () => {
+    expect(waivedPayerHoldsLiveMoney(res({ payers: [{ waived: true, ledgerEntry: { reversedBy: null } }] }))).toBe(true);
+  });
+
+  it("sees a waived payer holding a live invoice", () => {
+    expect(waivedPayerHoldsLiveMoney(res({ payers: [{ waived: true, invoice: { voidedAt: null } }] }))).toBe(true);
+  });
+
+  it("ignores an unwaived payer holding live money", () => {
+    expect(waivedPayerHoldsLiveMoney(res({ payers: [{ waived: false, invoice: { voidedAt: null } }] }))).toBe(false);
   });
 });

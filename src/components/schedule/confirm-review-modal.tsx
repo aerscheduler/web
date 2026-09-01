@@ -112,8 +112,9 @@ export function ConfirmReviewModal({
         <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
           <ClipboardCheck className="mt-0.5 size-4 shrink-0" />
           <span>
-            Signing off can&rsquo;t be undone. Once every assigned pilot has signed off, the
-            invoice is generated automatically.
+            Your PIN is your signature on this flight record. Once every assigned pilot has
+            signed off, the invoice is generated automatically. It can be reopened before
+            then, by an admin or the instructor on the booking.
           </span>
         </div>
 

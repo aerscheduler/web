@@ -4,6 +4,7 @@ import {
   ClipboardCheck,
   Loader2,
   Lock,
+  RotateCcw,
   PlaneLanding,
   PlaneTakeoff,
   Receipt,
@@ -21,6 +22,7 @@ import {
   useBilling,
   useCreateReservationInvoice,
   useOrgLedgerSettings,
+  useReopenCloseOut,
   useReservationInvoice,
 } from "@/features/queries";
 import { useTimeZone } from "@/lib/use-timezone";
@@ -37,9 +39,10 @@ import {
   canOverrideReservationPayment,
   canReviewGuest,
   canRampReservation,
+  canReopenCloseOut,
   canViewReservationInvoice,
-  billingIsLive,
   hasLiveInvoice,
+  isGuestReservation,
   liveLedgerStakes,
   closeOutStep,
   readsMeters,
@@ -50,6 +53,7 @@ import {
   reviewerCount,
 } from "./close-out";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
+import { ReopenCloseOutDialog } from "./reopen-close-out-dialog";
 import { CloseOutCard } from "./close-out-card";
 import { CloseOutRail } from "./close-out-rail";
 import { CloseOutReadings } from "./close-out-readings";
@@ -77,6 +81,10 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   //Ledger mode: same endpoint posts a flight_charge, but the copy must not say "invoice".
   const ledgerQ = useOrgLedgerSettings();
   const ledgerMode = ledgerQ.data?.enabled === true;
+  //Whether THIS booking would post to the ledger, which is not the same as whether the
+  //school is in ledger mode: a guest has no member account, so a guest flight always bills
+  //through Stripe. Mirrors the app's `Reservation.expectsLedgerCharge`.
+  const expectsLedger = ledgerMode && r.type !== "guest";
 
   const [rampMode, setRampMode] = React.useState<"out" | "in" | null>(null);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -84,6 +92,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   const [correctOpen, setCorrectOpen] = React.useState(false);
   const [overrideOpen, setOverrideOpen] = React.useState(false);
   const [squawkOpen, setSquawkOpen] = React.useState(false);
+  const [reopenOpen, setReopenOpen] = React.useState(false);
 
   const invoiceQ = useReservationInvoice(r.id, {
     enabled:
@@ -117,18 +126,32 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
   // The three things the phone could do here and the console could not: retype a rate,
   // fix a reading, and bill a flight that closed out without an invoice. Each predicate
   // mirrors the server guard it will meet (see close-out.ts).
-  const canOverride = canOverrideReservationPayment(r, roles, organization?.preferences, billing);
+  const canOverride = canOverrideReservationPayment(r, roles, organization?.preferences, billing, orgUserId);
   const canCorrect = canCorrectReviewTimes(r, roles, orgUserId);
   const canInvoice = canCreateReservationInvoice(r, roles, billing);
-  // Somebody who could have overridden, on a booking that has moved past the point where
-  // the server allows it. Worth one sentence: otherwise the action simply vanishes and
-  // reads as a permissions problem.
+  const canReopen = canReopenCloseOut(r, roles, orgUserId);
+  // Somebody who could have adjusted this booking, on a booking the BILL has now closed.
+  // Worth one sentence: otherwise the action simply vanishes and reads as a permissions
+  // problem.
+  //
+  // Keyed on `invoiced` rather than `reviewed`, which is the change. Sign-offs no longer
+  // lock anything, so the old wording ("everyone has signed off, so the rates and readings
+  // are now fixed") was being shown on bookings that were in fact perfectly adjustable, and
+  // shown INSTEAD of the buttons that would have adjusted them.
+  //ANYBODY WHO COULD HAVE ADJUSTED THIS, not just anybody who could have RE-PRICED it.
+  //`canCorrectReviewTimes` is open to whoever can ramp the flight, which is a much wider
+  //set than the admins and preference-holding instructors who may retype a rate. Gating the
+  //explanation on the pricing rule meant a dispatcher, or a student on their own booking,
+  //watched "Correct times" disappear the moment the flight was billed with nothing saying
+  //why, which reads as a permissions problem rather than as a rule.
+  const couldHaveAdjusted =
+    canOverridePricesInOrg(roles, organization?.preferences) || canRampReservation(r, roles, orgUserId);
   const pricesLocked =
-    step === "reviewed" &&
+    step === "invoiced" &&
     !canOverride &&
-    billingIsLive(billing) &&
+    !canCorrect &&
     r.type !== "maintenance" &&
-    canOverridePricesInOrg(roles, organization?.preferences);
+    couldHaveAdjusted;
   // What has been typed by hand on this booking, in cents per hour. Only present on the
   // hydrated detail record (the board's list select omits the whole relation).
   const overrides = r.paymentOverrides ?? null;
@@ -137,6 +160,60 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
     (overrides.resourceRateOverride != null || overrides.instructorRateOverride != null);
 
   const createInvoice = useCreateReservationInvoice(r.id);
+  const reopen = useReopenCloseOut(r.id);
+
+  /**
+   * A WAY BACK, which this flow has never had.
+   *
+   * Every step of the close-out moves forward and shuts behind it, and the last two shut
+   * within a tap of each other on a single-pilot booking: the person typing the Hobbs in is
+   * the only person who has to sign it off. A school that spotted a mistake afterwards had
+   * one move left, which was to leave the wrong booking on the board and create a second one
+   * carrying the real hours.
+   *
+   * Rendered at BOTH the sign-off step and the reviewed step, because a signature is worth
+   * taking back the moment one exists. Keeping it in the `reviewed` branch alone hid it in
+   * the case the feature's own rationale names: on a two-pilot dual the student signs off by
+   * mistake at 1 of 2, and the wrong PIN could not be removed until the instructor also
+   * signed off.
+   *
+   * Quiet, and last. It is the rare action at either step.
+   */
+  const reopenAction = canReopen ? (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="w-full text-muted-foreground"
+      onClick={() => setReopenOpen(true)}
+      disabled={reopen.isPending}
+    >
+      {reopen.isPending ? (
+        <Loader2 className="size-4 animate-spin" />
+      ) : (
+        <RotateCcw className="size-4" />
+      )}
+      Reopen to make a correction
+    </Button>
+  ) : null;
+
+
+  /**
+   * Take the sign-offs back off a closed-out flight.
+   *
+   * Behind a confirm because it discards other people's signatures, and the dialog SAYS how
+   * many, so nobody clears three pilots' PINs thinking they are undoing their own.
+   */
+  async function reopenCloseOut(reason: string) {
+    try {
+      await reopen.mutateAsync(reason);
+      setReopenOpen(false);
+      toast.success("Close-out reopened. Correct what you need to, then confirm again.");
+    } catch (e) {
+      //The server's refusal names the specific way out (void the invoice, or reverse the
+      //ledger charge), so it is shown verbatim rather than flattened to a generic failure.
+      toast.error(e instanceof ApiError ? e.message : "Couldn't reopen this close-out");
+    }
+  }
 
   async function raiseInvoice() {
     try {
@@ -145,7 +222,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
       //a dispatcher unsure whether the rest of the class was charged at all.
       //Ledger mode posts flight_charges through the same endpoint — wording must match.
       toast.success(
-        ledgerMode
+        expectsLedger
           ? invoices.length === 1
             ? "Charged to account ledger"
             : `${invoices.length} ledger charges posted, one per person`
@@ -160,7 +237,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
       toast.error(
         e instanceof ApiError
           ? e.message
-          : ledgerMode
+          : expectsLedger
             ? "Couldn't post the ledger charge"
             : "Couldn't create the invoice"
       );
@@ -293,6 +370,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
                 Waiting for the assigned pilot(s) to confirm with their PIN.
               </p>
             )}
+            {reopenAction}
           </div>
         )}
 
@@ -415,18 +493,29 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
             )}
 
             {/* The one moment worth explaining rather than silently hiding a button: the
-                server refuses both actions once the last pilot has signed off, and a
+                server refuses both actions once money is standing against the booking, and a
                 dispatcher who watched the option disappear would otherwise reasonably
-                conclude their permissions had changed. */}
+                conclude their permissions had changed.
+
+                It names the way back, because there is one now. Voiding the invoice (or
+                reversing the ledger charge) reopens every adjustment on this card, which is
+                what the product's own error message has always claimed and could not
+                deliver. */}
             {pricesLocked && (
               <p className="flex items-start gap-2 text-sm text-muted-foreground">
                 <Lock className="mt-0.5 size-4 shrink-0" />
                 <span>
-                  Everyone has signed off, so this flight&rsquo;s rates and readings are now
-                  fixed.{" "}
-                  {ledgerMode
-                    ? "Any money fix has to be a ledger reassign or adjustment on the member\u2019s billing tab."
-                    : "Any adjustment has to be made on the invoice."}
+                  This flight has been billed, so its rates and readings are fixed while that
+                  bill stands.{" "}
+                  {/* HOW THIS BOOKING WAS BILLED, not what mode the school is in today.
+                      Keyed on `ledgerMode` it told a school that had switched to the ledger
+                      to "reverse the ledger charge" on a flight carrying a Stripe invoice
+                      and no ledger stake, which is an instruction with nothing to act on.
+                      A school can switch modes, and old bookings keep the bill they were
+                      given. Same reasoning as the server's `liveBillRefusal`. */}
+                  {hasLiveInvoice(r)
+                    ? "Void the invoice to reopen them, or adjust the money on the invoice instead."
+                    : "Reverse the ledger charge on the member\u2019s billing tab to reopen them, or adjust the money there instead."}
                 </span>
               </p>
             )}
@@ -442,15 +531,25 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
                 {/* Maintenance is never billed (pricing refuses the type outright), so
                     promising an invoice or a ledger charge that is never coming is simply
                     wrong. It reads as a bill still in flight on a booking that has none. */}
+                {/* A GUEST is always billed by Stripe, whatever mode the school is in:
+                    `shouldPostReservationToLedger` refuses the moment a guest is the payer.
+                    Reading `ledgerMode` alone promised a ledger-mode school that a charge
+                    would appear on a discovery flight where none can ever post. The app has
+                    carried this carve-out all along, in `expectsLedgerCharge`. */}
                 {r.type === "maintenance"
                   ? "Maintenance complete. This booking isn't billed."
                   : canInvoice
-                    ? ledgerMode
+                    ? expectsLedger
                       ? "Review complete, and this flight has no ledger charge yet. Post one when you're ready."
                       : "Review complete, and this flight has no invoice against it. Raise one when you're ready."
-                    : ledgerMode
-                      ? "Review complete. The ledger charge will appear here once it’s posted."
-                      : "Review complete. The invoice will appear here once it’s generated."}
+                    : expectsLedger
+                      ? //DO NOT PROMISE A BILL NOBODY IS GOING TO RAISE. This read "will appear
+                        //here once it's posted" whenever the button was hidden, which is
+                        //exactly when nothing is coming: the automatic fan-out has already run
+                        //and failed, and this viewer cannot retry it. A school watched that
+                        //sentence on a flown flight for as long as they cared to.
+                        "Review complete, and no ledger charge has been posted. An admin can raise one."
+                      : "Review complete, and no invoice has been raised against this flight. An admin can raise one."}
               </span>
             </div>
             {/* The bill normally mints itself the moment the last pilot signs off. When
@@ -461,8 +560,8 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
             {canInvoice && (
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 text-sm font-medium">
-                  {ledgerMode ? "Post to ledger" : "Create invoice"}
-                  {ledgerMode && <DocsHint topic="post-to-ledger" />}
+                  {expectsLedger ? "Post to ledger" : "Create invoice"}
+                  {expectsLedger && <DocsHint topic="post-to-ledger" />}
                 </div>
                 <Button
                   className="w-full"
@@ -472,17 +571,18 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
                   {createInvoice.isPending ? (
                     <>
                       <Loader2 className="size-4 animate-spin" />{" "}
-                      {ledgerMode ? "Posting charge…" : "Creating invoice…"}
+                      {expectsLedger ? "Posting charge…" : "Creating invoice…"}
                     </>
                   ) : (
                     <>
                       <Receipt className="size-4" />{" "}
-                      {ledgerMode ? "Post to ledger" : "Create invoice"}
+                      {expectsLedger ? "Post to ledger" : "Create invoice"}
                     </>
                   )}
                 </Button>
               </div>
             )}
+            {reopenAction}
           </div>
         )}
 
@@ -529,6 +629,14 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
           fixedResource={r.resource ?? null}
         />
       )}
+      <ReopenCloseOutDialog
+        open={reopenOpen}
+        onOpenChange={setReopenOpen}
+        onConfirm={(reason) => void reopenCloseOut(reason)}
+        signOffCount={done}
+        isGuest={isGuestReservation(r)}
+        isBusy={reopen.isPending}
+      />
       <OverridePaymentModal
         open={overrideOpen}
         onOpenChange={setOverrideOpen}

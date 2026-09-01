@@ -123,8 +123,10 @@ function actionLabel(action: string): string {
     "reservation.closedOut": "Closed out",
     "reservation.metersEntered": "Meters entered",
     "reservation.metersCorrected": "Meters corrected",
+  "reservation.ratesOverridden": "Rates overridden",
     "reservation.splitChanged": "Cost split changed",
     "reservation.personnelChanged": "Crew changed",
+    "reservation.closeOutReopened": "Close-out reopened",
 
     //Invoices
     "invoice.refunded": "Refunded",

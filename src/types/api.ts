@@ -692,6 +692,16 @@ export interface Reservation {
    */
   payers?: ReservationPayer[] | null;
   /**
+   * Is anybody still owed a bill for this flight? Computed by the server
+   * (`ReservationService.invoiceCoverage`) and sent with the booking.
+   *
+   * Do NOT re-derive this from `payers`. A payer row is written only once a bill has
+   * SUCCEEDED, so a flight whose fan-out failed has none, and any "every payer is billed"
+   * test is vacuously true on the empty list. That mistake hid the Create-invoice button on
+   * every unbilled flight, on two surfaces, twice.
+   */
+  coverage?: { expected: number; billed: number; complete: boolean } | null;
+  /**
    * Hand-typed prices for this one booking. Only on `GET /reservations/:id` (the board's
    * list select omits it), so read it off the hydrated detail record, never off a list row.
    */
@@ -1776,6 +1786,8 @@ export interface CorrectReviewTimesInput {
   briefing?: number;
   /** Re-submit after a 409 `METER_ANOMALY` once the desk confirms the reading is real. */
   confirmMeterAnomaly?: boolean;
+  /** Re-submit after a 409 `MAINTENANCE_TRIGGER` once they accept grounding the aircraft. */
+  confirmMaintenanceTrigger?: boolean;
 }
 
 /**
@@ -2381,6 +2393,15 @@ export type ReservationPayer = ReservationPayerInput & {
    * `reversedBy` means the stake is no longer billed.
    */
   ledgerEntry?: { id: number; reversedBy?: { id: number } | null } | null;
+  /**
+   * Nested Stripe invoice for this stake (retrieve/list).
+   *
+   * The RELATION, not `FK_invoiceId`, for two reasons: the FK is stripped at the response
+   * boundary, and `voidedAt` is the half that says whether the money still stands. Reading
+   * the FK alone made a voided invoice look live and a live one look absent, and the second
+   * of those let one flight be billed to two people.
+   */
+  invoice?: { id: number; voidedAt?: string | null } | null;
 };
 
 //---------------------------------------------------------------------------------

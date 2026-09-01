@@ -47,8 +47,26 @@ const SOURCES: Record<string, { label: string; icon: typeof Monitor }> = {
  * belongs here, in the one place a person reads it. Without this the panel showed
  * "Hobbs 92310 → 92500" beside a summary that said "9231.0 → 9250.0", the same event
  * disagreeing with itself by a factor of ten, two inches apart.
+ *
+ * ADD EVERY NEW HOUR KEY HERE. This set is matched by NAME against free-form JSON, so a
+ * writer that starts emitting a new key gets raw tenths and no error anywhere. That is not
+ * hypothetical: `recordReservationMeters` was widened to carry the ramp-OUT readings and the
+ * instruction time, because a correction to either changes the billed hours, and
+ * `hobbsOut`/`tachOut`/`briefing` reintroduced the exact contradiction described above on
+ * the day they shipped. `briefing` belongs here too: instruction time is stored in tenths of
+ * an hour like everything else, not in minutes.
  */
-const TENTHS_FIELDS = new Set(["hobbs", "tach", "hobbsTimeIn", "hobbsTimeOut", "tachTimeIn", "tachTimeOut"]);
+const TENTHS_FIELDS = new Set([
+  "hobbs",
+  "tach",
+  "hobbsOut",
+  "tachOut",
+  "briefing",
+  "hobbsTimeIn",
+  "hobbsTimeOut",
+  "tachTimeIn",
+  "tachTimeOut",
+]);
 
 /**
  * One changed value, rendered.

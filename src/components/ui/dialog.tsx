@@ -3,6 +3,7 @@ import { XIcon } from "lucide-react"
 import { Dialog as DialogPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { useModalId } from "@/components/ui/modal-stack"
 import { Button } from "@/components/ui/button"
 
 function Dialog({
@@ -49,20 +50,32 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  style,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
+  //`props.open` is not passed down by Radix; a mounted Content IS an open one, and it
+  //unmounts when the exit animation finishes. See the note in useModalDepth.
+  const { id: modalId, ref: modalRef } = useModalId(props.ref as never)
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
+        style={style}
         className={cn(
           "fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-card p-5 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg",
           className
         )}
         {...props}
+        //`ref` AND `data-modal-id` GO AFTER THE SPREAD, and that ordering is the whole
+        //mechanism. Under React 19 `ref` is an ordinary prop, so with the spread last a
+        //caller's own `ref` silently replaced ours, the surface never registered, and
+        //nothing beneath it receded. `useModalId` composes the caller's ref back in, so
+        //putting ours last costs them nothing.
+        ref={modalRef}
+        data-modal-id={modalId}
       >
         {children}
         {showCloseButton && (

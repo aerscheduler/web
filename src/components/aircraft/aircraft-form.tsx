@@ -155,11 +155,22 @@ export function AircraftFormModal({
   onOpenChange,
   resource,
   locations,
+  focus = "tailNumber",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   resource?: Resource | null;
   locations: Location[];
+  /**
+   * WHICH FIELD THE FORM OPENS ON.
+   *
+   * Default is the tail number, which is right when the form is opened to add an aircraft or
+   * to edit it in general. AD settings opens it for exactly one field, and landing on the tail
+   * number there meant scrolling past nine groups to reach the thing the row promised, with
+   * the registry lookup popping open over the form on the way. Naming the field instead of
+   * hard-coding a scroll keeps that decision with the caller.
+   */
+  focus?: "tailNumber" | "serialNumber";
 }) {
   const isEdit = !!resource;
   const navigate = useNavigate();
@@ -181,6 +192,29 @@ export function AircraftFormModal({
     setRateKey((k) => k + 1);
     setShowErrors(false);
   }, [open, resource]);
+
+  /**
+   * Put the caret on the field the caller asked for, instead of the first one in the form.
+   *
+   * This hangs off Radix's own open-autofocus event rather than a timer. A timer raced Radix,
+   * and lost exactly half the time: the first open of a freshly mounted dialog focused the
+   * serial number correctly, and the second open of the same one landed back on the tail
+   * number with the serial below the fold, because the reused content node focuses itself on a
+   * different tick. Preventing the default and choosing the element is the supported way.
+   */
+  const handleOpenAutoFocus = React.useCallback(
+    (event: Event) => {
+      if (focus !== "serialNumber") return;
+      const el = document.getElementById("ac-serial");
+      if (!(el instanceof HTMLInputElement)) return;
+      event.preventDefault();
+      el.focus({ preventScroll: true });
+      //`preventScroll` above, then centre it deliberately: focusing alone leaves the field
+      //at the very bottom edge of the scrolling body, which reads as "nothing happened".
+      el.scrollIntoView({ block: "center" });
+    },
+    [focus]
+  );
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -381,6 +415,7 @@ export function AircraftFormModal({
 
   return (
     <ResponsiveModal
+      onOpenAutoFocus={handleOpenAutoFocus}
       footer={
         <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
@@ -418,7 +453,7 @@ export function AircraftFormModal({
             <Label htmlFor="ac-tail">Tail number</Label>
             <TailNumberField
               id="ac-tail"
-              autoFocus
+              autoFocus={focus === "tailNumber"}
               placeholder="Tail number"
               value={form.tailNumber}
               onChange={(v) => set("tailNumber", upperRegistration(v))}
@@ -792,7 +827,7 @@ export function AircraftFormModal({
             maxLength={40}
           />
           <p className="text-xs text-muted-foreground">
-            From the data plate, not the registration. It is what lets us tell whether an
+            From the data plate, not the tail number. It is what lets us tell whether an
             Airworthiness Directive applies to this aeroplane.
           </p>
         </div>

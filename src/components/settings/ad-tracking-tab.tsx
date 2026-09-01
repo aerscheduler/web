@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { AdTrackingMode, AircraftAdReadiness } from "@/types/api";
+import type { AdTrackingMode, AircraftAdReadiness, Resource } from "@/types/api";
 
 /**
  * The four places a school actually sits on Airworthiness Directives.
@@ -89,6 +89,38 @@ export function AdTrackingTab() {
   const [editingId, setEditingId] = React.useState<number | null>(null);
   const editingQ = useResource(editingId);
   const locationsQ = useLocations();
+  /**
+   * THE RECORD THE OPEN FORM IS BOUND TO, FROZEN.
+   *
+   * Not `editingQ.data` directly. The form resets its fields whenever the `resource` object
+   * changes identity, and this query is live: grounding any aircraft invalidates `resources`,
+   * which prefix-matches this one, so a technician grounding a tail across the school would
+   * have wiped a half-typed serial number back to what was saved. A refetch of the SAME
+   * aircraft is therefore ignored while the form is open; picking a different row replaces it.
+   *
+   * It also outlives the close, so the modal can stay mounted and animate out instead of
+   * vanishing, which is how the other two call sites behave.
+   */
+  const [editing, setEditing] = React.useState<Resource | null>(null);
+
+  React.useEffect(() => {
+    const next = editingQ.data;
+    if (!next || next.id !== editingId) return;
+    setEditing((current) => (current?.id === next.id ? current : next));
+  }, [editingQ.data, editingId]);
+
+  /**
+   * A record that will not load leaves a row that looks untouched and does nothing.
+   *
+   * Worse, clicking it again set the same `editingId`, React bailed out, and no refetch was
+   * ever triggered, so the row stayed dead until a reload. Say what happened and let go of the
+   * id, which makes the next click a real state change and a real retry.
+   */
+  React.useEffect(() => {
+    if (!editingQ.isError) return;
+    toast.error("Couldn't open that aircraft. Try again.");
+    setEditingId(null);
+  }, [editingQ.isError]);
 
   React.useEffect(() => {
     if (!data) return;
@@ -266,7 +298,16 @@ export function AdTrackingTab() {
                 <button
                   key={a.resourceId}
                   type="button"
-                  onClick={() => setEditingId(a.resourceId)}
+                  //Drop the previous snapshot before asking for this one. It is what lets the
+                  //frozen record outlive a close (so the modal animates out) without a second
+                  //open on the same row showing what that row looked like before it was saved.
+                  onClick={() => {
+                    setEditing(null);
+                    setEditingId(a.resourceId);
+                  }}
+                  //The row reads out as a tail number and a verdict, neither of which says it
+                  //does anything. The pencil is decorative and cannot say it either.
+                  aria-label={`Edit ${a.tailNumber}`}
                   className="flex w-full items-center justify-between gap-4 px-3.5 py-2.5 text-left transition-colors hover:bg-accent/50"
                 >
                   {/* Spans rather than a div and two paragraphs: a button may only contain
@@ -301,9 +342,15 @@ export function AdTrackingTab() {
             )}
           </div>
 
-          {!!fleet.length && (
+          {!!matches.length && (
             <p className="text-xs text-muted-foreground">
-              Choose an aeroplane to edit it. The serial number is the last field on that form.
+              Choose an aeroplane to edit it. The serial number is near the bottom of that form,
+              under the rate.
+              {matches.length < fleet.length && (
+                //The three figures above are the whole fleet and do not follow the filter, so
+                //say which of the two numbers the list is showing.
+                <> Showing {matches.length} of {fleet.length}.</>
+              )}
             </p>
           )}
 
@@ -317,15 +364,21 @@ export function AdTrackingTab() {
 
       {/* Opened straight from a row above, so a school fixing four missing serial numbers
           never leaves this page. Editing an aircraft invalidates `ad-tracking`, so the counts
-          and the row's own tag are right again the moment it saves. */}
-      {editingQ.data && (
+          and the row's own tag are right again the moment it saves.
+
+          Mounted from the first pick onward and toggled by `open`, rather than mounted and
+          unmounted, so it animates out like every other modal in the console. `editing` is a
+          frozen snapshot; see its declaration for why it is not the query's own object. */}
+      {editing && (
         <AircraftFormModal
-          open
+          open={editing.id === editingId}
           onOpenChange={(open) => {
             if (!open) setEditingId(null);
           }}
-          resource={editingQ.data}
+          resource={editing}
           locations={locationsQ.data ?? []}
+          //The row promised one field. Land on it.
+          focus="serialNumber"
         />
       )}
     </div>

@@ -47,6 +47,7 @@ export function ResponsiveModal({
   size = "md",
   className,
   dataDocShot,
+  onOpenAutoFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,13 +63,27 @@ export function ResponsiveModal({
   className?: string;
   /** Lands on the dialog surface for the docs screenshot pipeline. */
   dataDocShot?: string;
+  /**
+   * Radix's "the dialog just opened, focus something" event, passed straight through.
+   *
+   * The reason to reach for it is that Radix focuses the first tabbable element itself, and
+   * anything a caller does on a timer is racing that: the race is won or lost depending on
+   * whether the content node is being created or reused, so it looks correct the first time a
+   * modal opens and wrong the second. `event.preventDefault()` here is the supported way to
+   * say "not that one, this one".
+   */
+  onOpenAutoFocus?: (event: Event) => void;
 }) {
   const isMobile = useIsMobile();
 
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className={cn("max-h-[90vh]", className)} data-doc-shot={dataDocShot}>
+        <DrawerContent
+          className={cn("max-h-[90vh]", className)}
+          data-doc-shot={dataDocShot}
+          onOpenAutoFocus={onOpenAutoFocus}
+        >
           <DrawerHeader className="shrink-0 text-left">
             <DrawerTitle>{title}</DrawerTitle>
             {description && <DrawerDescription>{description}</DrawerDescription>}
@@ -93,6 +108,7 @@ export function ResponsiveModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-doc-shot={dataDocShot}
+        onOpenAutoFocus={onOpenAutoFocus}
         className={cn(
           // Override the stock grid + padding so regions can stick independently.
           "flex max-h-[90vh] flex-col gap-0 overflow-hidden p-0",

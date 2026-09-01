@@ -16,14 +16,12 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, Plus, Send, Trash2, X } from "lucide-react";
+import { Loader2, Plus, Send, X } from "lucide-react";
 import { toast } from "sonner";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -32,6 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MultiCombobox, type ComboOption } from "@/components/combobox";
 import { useConfirm } from "@/components/confirm-dialog";
 import { useOrgUsers } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
@@ -114,31 +113,31 @@ export function ScheduleDialog({
   }, [open, existing]);
 
   /**
-   * Who is already selected, frozen at open.
+   * The roster as picker options: the name is the label, the address is the
+   * hint, so you can tell two Test Owners apart without leaving the list.
    *
-   * The list is sorted selected-first so a schedule with one recipient among
-   * thirty doesn't open showing "1 selected" and thirty unticked boxes. It is
-   * keyed on the selection AT OPEN rather than the live one on purpose, sorting
-   * as you tick would slide rows out from under the cursor mid-click.
+   * There is no selected-first sorting here on purpose. Who is picked is shown
+   * as chips under the picker rather than by position in it, which is both
+   * easier to read and stable, an earlier version re-sorted the list and slid
+   * rows out from under the cursor mid-click.
    */
-  const [pinnedTop, setPinnedTop] = useState<number[]>([]);
-  useEffect(() => {
-    if (open) setPinnedTop(existing?.recipientOrgUserIds ?? []);
-  }, [open, existing]);
+  const peopleOptions = useMemo<ComboOption[]>(
+    () =>
+      (members.data ?? [])
+        .filter((m) => m.user?.email)
+        .map((m) => ({
+          value: String(m.id),
+          label: m.user?.name ?? m.user?.email ?? "Unknown",
+          hint: m.user?.email ?? "",
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [members.data]
+  );
 
-  const people = useMemo(() => {
-    const all = (members.data ?? [])
-      .filter((m) => m.user?.email)
-      .map((m) => ({
-        id: m.id,
-        name: m.user?.name ?? m.user?.email ?? "Unknown",
-        email: m.user?.email ?? "",
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-
-    const top = new Set(pinnedTop);
-    return [...all.filter((p) => top.has(p.id)), ...all.filter((p) => !top.has(p.id))];
-  }, [members.data, pinnedTop]);
+  const chosenPeople = useMemo(
+    () => recipients.map((id) => peopleOptions.find((o) => o.value === String(id))).filter(Boolean),
+    [recipients, peopleOptions]
+  ) as ComboOption[];
 
   const addExternal = () => {
     const address = draftEmail.trim().toLowerCase();
@@ -151,11 +150,6 @@ export function ScheduleDialog({
     setDraftEmail("");
     setError(null);
   };
-
-  const toggle = (id: number) =>
-    setRecipients((current) =>
-      current.includes(id) ? current.filter((r) => r !== id) : [...current, id]
-    );
 
   const zoneLabel = zoneAbbreviation(new Date(), timeZone);
 
@@ -230,94 +224,79 @@ export function ScheduleDialog({
 
   return (
     <ResponsiveModal
-      open={open} onOpenChange={onOpenChange}
+      open={open}
+      onOpenChange={onOpenChange}
+      // Wide enough that the cadence, the time and the day sit on one row, so
+      // "every Monday at 7am" reads as one sentence rather than three stacked
+      // controls, and the roster gets a usable line length.
+      size="xl"
       title={existing ? "Edit schedule" : "Schedule this report"}
-      description={<>&ldquo;{view.name}&rdquo; will be emailed as a CSV.{" "}
-            {/* The zone is stated, not converted: the schedule belongs to the
-                school, and silently rendering it in the reader's clock is how a
-                7am report looks like it is set for 6am. */}
-            Times are {zoneLabel ? `${zoneLabel} ` : ""}at your school.</>}
-      footer={<><div className="flex gap-2">
-            {existing && !locked && (
-              <>
-                <Button variant="ghost" size="sm" onClick={destroy} className="text-destructive">
-                  <Trash2 className="size-3.5" /> Stop
-                </Button>
-                <Button variant="ghost" size="sm" onClick={test} disabled={sendNow.isPending}>
-                  {sendNow.isPending ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <Send className="size-3.5" />
-                  )}
-                  Send now
-                </Button>
-              </>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              {locked ? "Close" : "Cancel"}
+      description={
+        <>
+          &ldquo;{view.name}&rdquo; will be emailed as a CSV.{" "}
+          {/* The zone is stated, not converted: the schedule belongs to the
+              school, and silently rendering it in the reader's clock is how a
+              7am report looks like it is set for 6am. */}
+          Times are {zoneLabel ? `${zoneLabel} ` : ""}at your school.
+        </>
+      }
+      // One right-aligned pair, like every other form in the console. The
+      // lifecycle actions (send a copy, stop sending) belong to the schedule
+      // rather than to this form, so they live with it in the body.
+      footer={
+        // The error rides in the footer rather than at the end of the body: both
+        // things it can complain about (nobody picked, a half-typed address) are
+        // mid-form, and a message under the last section can sit off-screen.
+        <div className="flex items-center justify-end gap-3">
+          {error && <p className="flex-1 text-sm text-destructive">{error}</p>}
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            {locked ? "Close" : "Cancel"}
+          </Button>
+          {!locked && (
+            <Button onClick={save} disabled={pending}>
+              {pending && <Loader2 className="size-4 animate-spin" />}
+              {existing ? "Save changes" : "Schedule it"}
             </Button>
-            {!locked && (
-              <Button onClick={save} disabled={pending}>
-                {pending && <Loader2 className="size-4 animate-spin" />}
-                {existing ? "Save changes" : "Schedule it"}
-              </Button>
-            )}
-          </div></>}
-      data-doc-shot="report-schedule-dialog"
+          )}
+        </div>
+      }
+      dataDocShot="report-schedule-dialog"
     >
-
-        
-
+      <div className="space-y-6 pb-1">
         {locked && (
           <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
             Set up by {existing?.createdByName ?? "a colleague"}. Only they or an admin can change it.
           </p>
         )}
 
-        <ScrollArea className="max-h-[55vh] pr-3">
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>How often</Label>
-                <Select
-                  value={cadence}
-                  onValueChange={(v) => setCadence(v as Cadence)}
-                  disabled={locked}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CADENCES.map((c) => (
-                      <SelectItem key={c} value={c}>
-                        {CADENCE_LABEL[c]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>At</Label>
-                <Select
-                  value={String(hour)}
-                  onValueChange={(v) => setHour(Number(v))}
-                  disabled={locked}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {HOURS.map((h) => (
-                      <SelectItem key={h} value={String(h)}>
-                        {formatHour(h)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        <section className="space-y-3">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            When it sends
+          </h3>
+          <div
+            className={cn(
+              "grid gap-3",
+              cadence === "daily" ? "sm:grid-cols-2" : "sm:grid-cols-3"
+            )}
+          >
+            <div className="space-y-1.5">
+              <Label>How often</Label>
+              <Select
+                value={cadence}
+                onValueChange={(v) => setCadence(v as Cadence)}
+                disabled={locked}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CADENCES.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {CADENCE_LABEL[c]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {cadence === "weekly" && (
@@ -328,7 +307,7 @@ export function ScheduleDialog({
                   onValueChange={(v) => setWeekday(Number(v))}
                   disabled={locked}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -350,7 +329,7 @@ export function ScheduleDialog({
                   onValueChange={(v) => setDayOfMonth(Number(v))}
                   disabled={locked}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -361,145 +340,196 @@ export function ScheduleDialog({
                     ))}
                   </SelectContent>
                 </Select>
-                {/* Says why 29–31 aren't offered, rather than leaving it as an
-                    unexplained limit someone works around by picking the 28th
-                    and wondering. */}
-                <p className="text-xs text-muted-foreground">
-                  Stops at 28 so the report never skips February.
-                </p>
               </div>
             )}
-
-            <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
-              {describeCoverage(cadence)}, so each email picks up exactly where the
-              last one stopped.
-            </p>
 
             <div className="space-y-1.5">
-              <Label>
-                Send to
-                <span className="ml-1 font-normal text-muted-foreground">
-                  ({recipients.length} selected)
-                </span>
-              </Label>
-              <div className="max-h-52 space-y-0.5 overflow-y-auto rounded-md border border-border p-2">
-                {members.isLoading && (
-                  <p className="px-1 py-1.5 text-sm text-muted-foreground">Loading…</p>
-                )}
-                {!members.isLoading && people.length === 0 && (
-                  <p className="px-1 py-1.5 text-sm text-muted-foreground">
-                    Nobody at this school has an email address on file.
-                  </p>
-                )}
-                {people.map((person) => (
-                  <label
-                    key={person.id}
-                    className={cn(
-                      "flex items-start gap-2.5 rounded px-1.5 py-1",
-                      locked ? "opacity-60" : "cursor-pointer hover:bg-muted"
-                    )}
-                  >
-                    <Checkbox
-                      className="mt-0.5"
-                      disabled={locked}
-                      checked={recipients.includes(person.id)}
-                      onCheckedChange={() => toggle(person.id)}
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm leading-tight">{person.name}</span>
-                      <span className="block truncate text-xs text-muted-foreground">
-                        {person.email}
-                      </span>
-                    </span>
-                  </label>
-                ))}
-              </div>
-              {/* The runner drops anyone who has since lost access to the
-                  report. Saying so here stops it reading as a bug later. */}
-              <p className="text-xs text-muted-foreground">
-                Anyone who loses access to this report stops receiving it automatically.
-              </p>
+              <Label>At</Label>
+              <Select
+                value={String(hour)}
+                onValueChange={(v) => setHour(Number(v))}
+                disabled={locked}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {HOURS.map((h) => (
+                    <SelectItem key={h} value={String(h)}>
+                      {formatHour(h)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Says why 29-31 aren't offered, rather than leaving it as an
+              unexplained limit someone works around by picking the 28th and
+              wondering. */}
+          {cadence === "monthly" && (
+            <p className="text-xs text-muted-foreground">
+              The day list stops at 28 so the report never skips February.
+            </p>
+          )}
+
+          <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
+            {describeCoverage(cadence)}, so each email picks up exactly where the last
+            one stopped.
+          </p>
+        </section>
+
+        <section className="space-y-4">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              {/* No count here: the picker's own trigger says how many, and
+                  the chips under it say who. */}
+              <Label>Send to</Label>
+              {/* Clearing is the only bulk action offered: "everyone at the
+                  school" on a report that carries money out of it is a mistake
+                  worth having to make one name at a time. */}
+              {!locked && recipients.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground"
+                  onClick={() => setRecipients([])}
+                >
+                  Clear
+                </Button>
+              )}
             </div>
 
-            {isAdmin && (
-              <div className="space-y-1.5">
-                <Label htmlFor="external-email">Also send outside the school</Label>
-                {external.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {external.map((address) => (
-                      <span
-                        key={address}
-                        className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs"
-                      >
-                        {address}
-                        {!locked && (
-                          <button
-                            type="button"
-                            aria-label={`Remove ${address}`}
-                            className="text-muted-foreground hover:text-destructive"
-                            onClick={() => setExternal((c) => c.filter((e) => e !== address))}
-                          >
-                            <X className="size-3" />
-                          </button>
-                        )}
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <div className="flex gap-2">
-                  <Input
-                    id="external-email"
-                    type="email"
-                    value={draftEmail}
-                    disabled={locked}
-                    placeholder="accountant@example.com"
-                    onChange={(e) => setDraftEmail(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addExternal();
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={locked || !draftEmail.trim()}
-                    onClick={addExternal}
+            <MultiCombobox
+              options={peopleOptions}
+              values={recipients.map(String)}
+              onChange={(next) => setRecipients(next.map(Number))}
+              placeholder={members.isLoading ? "Loading…" : "Choose who gets it…"}
+              searchPlaceholder="Search by name or email"
+              emptyText="Nobody at this school has an email address on file."
+              disabled={locked || members.isLoading}
+              className="h-9 w-full max-w-none"
+            />
+
+            {/* Chips rather than a checked list: the picker says how many, this
+                says who, and it reads the same as the outside addresses below. */}
+            {chosenPeople.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {chosenPeople.map((person) => (
+                  <span
+                    key={person.value}
+                    className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs"
                   >
-                    <Plus className="size-4" /> Add
-                  </Button>
-                </div>
-                {/* Says the limit out loud. An outside address has no role to
-                    re-check, so the compensating rule is worth knowing before
-                    you rely on it. */}
-                <p className="text-xs text-muted-foreground">
-                  Outside addresses keep receiving this only while you still have
-                  access to the report. Owners and admins only.
-                </p>
+                    {person.label}
+                    {!locked && (
+                      <button
+                        type="button"
+                        aria-label={`Remove ${person.label}`}
+                        className="text-muted-foreground hover:text-foreground"
+                        onClick={() =>
+                          setRecipients((c) => c.filter((id) => String(id) !== person.value))
+                        }
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                  </span>
+                ))}
               </div>
             )}
 
-            {existing && (
-              <div className="space-y-2 rounded-md border border-border p-3">
-                <label className="flex items-center justify-between gap-3">
-                  <span>
-                    <span className="block text-sm font-medium">Active</span>
-                    <span className="block text-xs text-muted-foreground">
-                      Pause without losing the setup.
-                    </span>
-                  </span>
-                  <Switch
-                    checked={existing.isEnabled}
-                    disabled={locked || update.isPending}
-                    onCheckedChange={(isEnabled) =>
-                      update.mutateAsync({ id: existing.id, isEnabled }).catch((err: any) =>
-                        toast.error(err?.message ?? "Could not change that")
-                      )
-                    }
-                  />
-                </label>
+            {/* The runner drops anyone who has since lost access to the report.
+                Saying so here stops it reading as a bug later. */}
+            <p className="text-xs text-muted-foreground">
+              Anyone who loses access to this report stops receiving it automatically.
+            </p>
+          </div>
 
+          {isAdmin && (
+            <div className="space-y-2">
+              <Label htmlFor="external-email">Also send outside the school</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="external-email"
+                  type="email"
+                  value={draftEmail}
+                  disabled={locked}
+                  placeholder="accountant@example.com"
+                  onChange={(e) => setDraftEmail(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addExternal();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={locked || !draftEmail.trim()}
+                  onClick={addExternal}
+                >
+                  <Plus className="size-4" /> Add
+                </Button>
+              </div>
+              {external.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {external.map((address) => (
+                    <span
+                      key={address}
+                      className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-xs"
+                    >
+                      {address}
+                      {!locked && (
+                        <button
+                          type="button"
+                          aria-label={`Remove ${address}`}
+                          className="text-muted-foreground hover:text-foreground"
+                          onClick={() => setExternal((c) => c.filter((e) => e !== address))}
+                        >
+                          <X className="size-3" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {/* Says the limit out loud. An outside address has no role to
+                  re-check, so the compensating rule is worth knowing before
+                  you rely on it. */}
+              <p className="text-xs text-muted-foreground">
+                Outside addresses keep receiving this only while you still have access
+                to the report. Owners and admins only.
+              </p>
+            </div>
+          )}
+        </section>
+
+        {existing && (
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              This schedule
+            </h3>
+            <div className="divide-y divide-border rounded-md border border-border">
+              <label className="flex items-center justify-between gap-3 px-3 py-3">
+                <span>
+                  <span className="block text-sm font-medium">Active</span>
+                  <span className="block text-xs text-muted-foreground">
+                    Pause without losing the setup.
+                  </span>
+                </span>
+                <Switch
+                  checked={existing.isEnabled}
+                  disabled={locked || update.isPending}
+                  onCheckedChange={(isEnabled) =>
+                    update.mutateAsync({ id: existing.id, isEnabled }).catch((err: any) =>
+                      toast.error(err?.message ?? "Could not change that")
+                    )
+                  }
+                />
+              </label>
+
+              <div className="px-3 py-2.5">
                 {existing.lastError ? (
                   <p className="text-xs text-destructive">
                     Last send failed: {existing.lastError}
@@ -512,11 +542,36 @@ export function ScheduleDialog({
                   <p className="text-xs text-muted-foreground">Not sent yet.</p>
                 )}
               </div>
-            )}
-          </div>
-        </ScrollArea>
 
-        {error && <p className="pt-1 text-sm text-destructive">{error}</p>}
+              {/* Neither of these is the form's action: "Send now" ignores
+                  unsaved edits and "Stop sending" throws the schedule away, so
+                  they sit with the schedule they act on and out of the footer,
+                  where they read as ways to submit. */}
+              {!locked && (
+                <div className="flex flex-wrap gap-2 px-3 py-3">
+                  <Button variant="outline" size="sm" onClick={test} disabled={sendNow.isPending}>
+                    {sendNow.isPending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Send className="size-3.5" />
+                    )}
+                    Send me a copy now
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={destroy}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    Stop sending
+                  </Button>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+      </div>
     </ResponsiveModal>
   );
 }

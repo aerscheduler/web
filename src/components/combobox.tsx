@@ -115,7 +115,10 @@ export function MultiCombobox({
           <span className="truncate">{label}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-64 p-0">
+      {/* Matches the trigger, with a floor: a full-width form field gets a list wide
+          enough to read a name and an address, while the narrow filter-bar trigger
+          keeps the 16rem it has always had. */}
+      <PopoverContent align="start" className="w-(--radix-popover-trigger-width) min-w-64 p-0">
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>

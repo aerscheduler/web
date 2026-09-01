@@ -17,14 +17,12 @@ export function AgendaRow({
   r,
   onView,
   onEdit,
-  onDuplicate,
   onCancel,
   marks = NO_MARKS,
 }: {
   r: Reservation;
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
-  onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
   /** Block-filter marking. Defaults to "nothing filtered" for the member-facing lists. */
   marks?: BoardMarks;
@@ -74,7 +72,6 @@ export function AgendaRow({
           r={r}
           onView={onView}
           onEdit={onEdit}
-          onDuplicate={onDuplicate}
           onCancel={onCancel}
         />
         {/* One badge for the booking even when it has an invoice per payer. "Unbilled"

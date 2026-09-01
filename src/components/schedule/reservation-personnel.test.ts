@@ -83,6 +83,36 @@ describe("personnelProblemForType", () => {
     expect(problem?.side).toBe("students");
   });
 
+  describe("a shared flight needs two people, counted across both rosters", () => {
+    it("rejects one student", () => {
+      const problem = personnelProblemForType("shared", { students: people(1) });
+      expect(problem?.message).toContain("2 or more people");
+      // "another a student" is what SIDE_LABEL's article gives you if it is not stripped.
+      expect(problem?.message).toContain("Add another student or renter");
+      // Point at the roster they already started, so "add another" is where they look.
+      expect(problem?.side).toBe("students");
+    });
+
+    it("rejects one renter and points at renters", () => {
+      expect(personnelProblemForType("shared", { renters: people(1) })?.side).toBe("renters");
+    });
+
+    it("accepts one of each, because the minimum spans both sides", () => {
+      expect(
+        personnelProblemForType("shared", { students: people(1), renters: people(1) })
+      ).toBeNull();
+    });
+
+    it("accepts two on one side", () => {
+      expect(personnelProblemForType("shared", { students: people(2) })).toBeNull();
+    });
+
+    it("does not impose a minimum on types that have none", () => {
+      expect(personnelProblemForType("rental", { renters: people(1) })).toBeNull();
+      expect(personnelProblemForType("solo", { students: people(1) })).toBeNull();
+    });
+  });
+
   it("the message-only wrapper still agrees with the detailed form", () => {
     const personnel = { students: people(5) };
     expect(validatePersonnelForType("shared", personnel)).toBe(

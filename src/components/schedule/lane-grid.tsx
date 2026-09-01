@@ -101,7 +101,6 @@ export function LaneGrid({
   slotOfferHolds = [],
   onView,
   onEdit,
-  onDuplicate,
   onCancel,
   onCreate,
   onOfferHoldClick,
@@ -120,7 +119,6 @@ export function LaneGrid({
   flyingDayFrame?: FlyingDayFrame;
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
-  onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
   /** Omitted for roles that may not create. The lanes then aren't clickable. */
   onCreate?: (draft: ReservationDraft) => void;
@@ -499,7 +497,6 @@ export function LaneGrid({
                           r={r}
                           onView={onView}
                           onEdit={onEdit}
-                          onDuplicate={onDuplicate}
                           onCancel={onCancel}
                           marks={marks}
                           drag={drag}
@@ -668,7 +665,6 @@ function LaneBlock({
   r,
   onView,
   onEdit,
-  onDuplicate,
   onCancel,
   marks,
   drag,
@@ -678,7 +674,6 @@ function LaneBlock({
   r: Reservation;
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
-  onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
   marks: BoardMarks;
   drag?: ScheduleDrag;
@@ -810,7 +805,6 @@ function LaneBlock({
             r={r}
             onView={onView}
             onEdit={onEdit}
-            onDuplicate={onDuplicate}
             onCancel={onCancel}
             onOpenChange={setMenuOpen}
           />

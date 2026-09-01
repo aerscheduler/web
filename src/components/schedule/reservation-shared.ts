@@ -58,6 +58,12 @@ export interface TypeRequirement {
    * An omitted side means 1, which is what every side was before groups existed.
    */
   maxPerSide?: Partial<Record<PersonnelSide, number>>;
+  /**
+   * A minimum counted ACROSS several sides, for a type whose point is that more than one
+   * person is aboard. `requiresAny` only asks for one of them to be non-empty, which is a
+   * different question and cannot express "two people, on either roster".
+   */
+  minAcross?: { sides: PersonnelSide[]; count: number };
 }
 
 /** How many people this type will take on a side. Defaults to 1. */
@@ -103,6 +109,12 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
     requiresAny: ["students", "renters"],
     exclusive: [],
     maxPerSide: { students: 4, renters: 4 },
+    // The server has always refused a one-person shared flight ("it is a solo or a
+    // rental, and recording it as shared would put a flight in the wrong bucket for
+    // every report that reads type"), but this table did not, so the form let the
+    // booking through and the API answered with the opaque "Reservation type is not
+    // valid" that this whole table exists to prevent.
+    minAcross: { sides: ["students", "renters"], count: 2 },
   },
   dual: {
     resource: "Aircraft",
@@ -257,6 +269,20 @@ export function personnelProblemForType(
       // Any of them would do; point at the first, which is the one the form lists first.
       side: req.requiresAny[0] ?? null,
     };
+  }
+  if (req.minAcross) {
+    const { sides, count: needed } = req.minAcross;
+    const total = sides.reduce((n, side) => n + (personnel?.[side]?.length ?? 0), 0);
+    if (total < needed) {
+      // SIDE_LABEL carries its article ("a student"), which reads wrong after "another".
+      const names = sides.map((s) => SIDE_LABEL[s].replace(/^an? /, "")).join(" or ");
+      return {
+        message: `A ${type} flight is flown by ${needed} or more people. Add another ${names}, or book it as a solo or a rental.`,
+        // Point at the side they have already started filling, so "add another" lands on
+        // the picker they are looking at; otherwise the first one offered.
+        side: sides.find((side) => (personnel?.[side]?.length ?? 0) > 0) ?? sides[0] ?? null,
+      };
+    }
   }
   // Count limits, mirroring the server's personnelLimitError. Checked before the
   // exclusivity rule so "you've added 5 students" beats ", only one of a student or an

@@ -11,6 +11,7 @@ import {
   useMembers,
   useMyInstructionPartners,
   useRatings,
+  useReservation,
   useResources,
   useSquawks,
   useUpdateReservation,
@@ -410,7 +411,6 @@ export function ReservationForm({
   draft,
   onCreated,
   editing,
-  duplicating,
   variant = "dispatch",
   presentation,
   self,
@@ -428,16 +428,6 @@ export function ReservationForm({
    * `canOnlyEditEndTime`.
    */
   editing?: Reservation;
-  /**
-   * "Book another like this." Seeds every field from an existing reservation but
-   * still CREATES: `isEditing` stays false, so submit takes the create branch.
-   *
-   * The one thing deliberately not copied is the time: a duplicate seeded onto its
-   * source's own slot would collide with it every single time, so the picker opens
-   * empty and the dispatcher chooses when. The date defaults to the source's date,
-   * which is usually the right week to be looking at.
-   */
-  duplicating?: Reservation;
   /** Who this form is for. See the component doc. */
   variant?: "dispatch" | "self";
   /**
@@ -569,6 +559,35 @@ export function ReservationForm({
   const update = useUpdateReservation();
 
   const isEditing = editing != null;
+  /**
+   * The booking as the API knows it, not as the caller happened to have it.
+   *
+   * `startEdit` hands over whatever object the surface was holding, and the LIST payload
+   * carries no `review` at all, so reading the ramp state off `editing` reported "not
+   * ramped out" for every booking opened from a board block. Only GET /reservations/:id
+   * includes the meters.
+   */
+  const editingDetailQ = useReservation(editing?.id ?? null, {
+    enabled: open && editing != null,
+  });
+
+  /**
+   * Off the ramp: everything but the end time and the notes is frozen.
+   *
+   * This is the SERVER's rule, not a UI preference. `ReservationService.update` checks
+   * `oldReservation.review?.hobbsTimeOut` and, when it is set, writes only `end` and
+   * `notes`, then returns 200. So a dispatcher who changed the aircraft on a flight
+   * that was already out got a green "Reservation updated" and an unchanged board:
+   * worse than a silent failure, because it affirmatively said the change had landed.
+   * The condition is `hobbsTimeOut`, not `rampedOutAt`, so it matches the server on
+   * bookings ramped before those timestamp columns shipped.
+   */
+  const rampedOutLock =
+    isEditing &&
+    (editingDetailQ.data?.review?.hobbsTimeOut ?? editing?.review?.hobbsTimeOut) != null;
+  // Until the detail lands we do not know which it is, and guessing "not locked" is the
+  // guess that lets someone edit a field the server will drop.
+  const rampStateUnknown = isEditing && editingDetailQ.isLoading;
 
   const [title, setTitle] = React.useState("");
   const [type, setType] = React.useState<ReservationType>(initialType);
@@ -872,35 +891,6 @@ export function ReservationForm({
         setGuestEmail(guest?.email ?? "");
         setGuestPhone(guest?.phone ?? "");
         setNotes(editing.notes ?? "");
-      } else if (duplicating) {
-        // Same crew, same aircraft, same kind of flight, new time.
-        const source = new Date(duplicating.start);
-        const p = duplicating.personnel;
-        const guest = p?.guests?.[0];
-        setTitle(duplicating.title ?? "");
-        setType(duplicating.type);
-        setResourceId(duplicating.resource?.id != null ? String(duplicating.resource.id) : "");
-        setDate(
-          Number.isNaN(source.getTime())
-            ? format(draft.date, "yyyy-MM-dd")
-            : dateKeyInZone(source, tz.zone)
-        );
-        // Left for the dispatcher to pick, see the `duplicating` prop note.
-        setStartAt(null);
-        setEndAt(null);
-        setInstructorId(p?.instructors?.[0]?.id != null ? String(p.instructors[0].id) : "");
-        setStudentId(p?.students?.[0]?.id != null ? String(p.students[0].id) : "");
-        setRenterId(p?.renters?.[0]?.id != null ? String(p.renters[0].id) : "");
-        //Everyone beyond the first. Dropping them here would be silent: the form would
-        //look right, and submitting would DISCONNECT them, because update() replaces
-        //personnel wholesale.
-        setExtraStudentIds((p?.students ?? []).slice(1).map((x) => String(x.id)));
-        setExtraRenterIds((p?.renters ?? []).slice(1).map((x) => String(x.id)));
-        setRatingId("");
-        setGuestName(guest?.name ?? "");
-        setGuestEmail(guest?.email ?? "");
-        setGuestPhone(guest?.phone ?? "");
-        setNotes(duplicating.notes ?? "");
       } else {
         //A draft's "HH:mm" comes from clicking the grid, which is ruled in AIRPORT time.
         //so it has to be interpreted there too. `new Date("2026-07-28T09:00")` parses in the
@@ -935,7 +925,7 @@ export function ReservationForm({
       setRecurrence(defaultRecurrence(null, format(draft.date, "yyyy-MM-dd")));
     }
     wasOpen.current = open;
-  }, [open, draft, seedType, editing, duplicating]);
+  }, [open, draft, seedType, editing]);
 
   const openSquawksByResourceId = React.useMemo(
     () => groupSquawksByResource(squawksQ.data),
@@ -1207,6 +1197,17 @@ export function ReservationForm({
 
   const body = (
       <form id="modal-reservation-form" onSubmit={submit} data-doc-shot="reservation-form-dispatch" className="space-y-4">
+        {rampedOutLock && (
+          <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            This aircraft is off the ramp. Only the end time and notes can change until it
+            is back and closed out.
+          </p>
+        )}
+
+        {/* A `fieldset` rather than a `disabled` on each control: it disables every
+            descendant natively, including the ones added next year, so the lock cannot
+            be defeated by forgetting one. */}
+        <fieldset disabled={rampedOutLock} className="space-y-4 disabled:opacity-60">
         {/* Dispatch names its bookings; a member's is generated from the aircraft
             and the type, see autoTitle. */}
         {!isSelf && (
@@ -1336,7 +1337,10 @@ export function ReservationForm({
           </>
         )}
 
+        </fieldset>
+
         <SmartTimeRange
+          lockStart={rampedOutLock}
           invalidField={errorField}
           date={date}
           onDateChange={setDate}
@@ -1361,6 +1365,7 @@ export function ReservationForm({
           }
         />
 
+        <fieldset disabled={rampedOutLock} className="space-y-4 disabled:opacity-60">
         {isGuest ? (
           <div className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -1572,6 +1577,8 @@ export function ReservationForm({
           </div>
         )}
 
+        </fieldset>
+
         <div className="space-y-1.5">
           {/* Repeating bookings are a create-time choice; editing one occurrence of a
               series is just an ordinary edit. */}
@@ -1632,7 +1639,11 @@ export function ReservationForm({
       >
         Cancel
       </Button>
-      <Button type="submit" form="modal-reservation-form" disabled={create.isPending || update.isPending}>
+      <Button
+        type="submit"
+        form="modal-reservation-form"
+        disabled={create.isPending || update.isPending || rampStateUnknown}
+      >
         {isEditing
           ? update.isPending
             ? "Saving…"

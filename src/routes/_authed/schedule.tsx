@@ -368,8 +368,6 @@ function SchedulePage() {
   // Modal state.
   const [formOpen, setFormOpen] = React.useState(false);
   const [draft, setDraft] = React.useState<ReservationDraft>({ date: day });
-  // "Book another like this" seeds a CREATE from an existing reservation.
-  const [duplicating, setDuplicating] = React.useState<Reservation | null>(null);
   const [offersOpen, setOffersOpen] = React.useState(false);
   const [offerDetailId, setOfferDetailId] = React.useState<number | null>(null);
   const offerDetail = React.useMemo(
@@ -567,7 +565,6 @@ function SchedulePage() {
               flyingDayFrame={flyingDayFrame}
               onView={openReservationDetail}
               onEdit={startEdit}
-              onDuplicate={setDuplicating}
               onCancel={handleCancel}
               onCreate={onCreate}
               onOfferHoldClick={(hold) => {
@@ -581,7 +578,6 @@ function SchedulePage() {
               reservations={reservations}
               onView={openReservationDetail}
               onEdit={startEdit}
-              onDuplicate={setDuplicating}
               onCancel={handleCancel}
               {...marks}
             />
@@ -611,21 +607,6 @@ function SchedulePage() {
         />
       )}
 
-      {/* "Book another like this" is a CREATE, so it takes the same variant the empty-slot
-          click does. Left on dispatch it would be the one place a student got the other
-          form, a Title field and two full personnel pickers, from the same menu.
-          Editing above deliberately stays on dispatch: an update REPLACES personnel, and
-          the self shape would quietly reseat a booking somebody else is already on. */}
-      {duplicating && (
-        <ReservationForm
-          open
-          onOpenChange={(o) => !o && setDuplicating(null)}
-          draft={{ date: new Date(duplicating.start) }}
-          duplicating={duplicating}
-          presentation="modal"
-          {...selfProps}
-        />
-      )}
 
       {/* One callout for every board. It's a viewport overlay that follows the cursor, not
           something a lane owns, so it can't be clipped by the board or change its layout. */}

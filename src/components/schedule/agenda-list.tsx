@@ -21,7 +21,6 @@ export function AgendaList({
   reservations,
   onView,
   onEdit,
-  onDuplicate,
   onCancel,
   matchedIds,
   selectedId,
@@ -30,7 +29,6 @@ export function AgendaList({
   reservations: Reservation[];
   onView: (r: Reservation) => void;
   onEdit?: (r: Reservation) => void;
-  onDuplicate?: (r: Reservation) => void;
   onCancel: (r: Reservation) => void;
   /** Block-filter marking, non-matches dim, never disappear. See `board-filters.ts`. */
   matchedIds?: Set<number> | null;
@@ -71,7 +69,6 @@ export function AgendaList({
                 r={r}
                 onView={onView}
                 onEdit={onEdit}
-                onDuplicate={onDuplicate}
                 onCancel={onCancel}
                 marks={marks}
               />

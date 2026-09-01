@@ -30,7 +30,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { FilterBuilder } from "@/components/reports/shell/filter-builder";
 import { RANGE_LABELS } from "@/lib/report-format";
 import { firstProblem } from "@/lib/dashboard-schema";
@@ -294,19 +293,36 @@ export function TileBuilder({
       open={open} onOpenChange={onOpenChange}
       title={HEADING[mode]}
       description={note}
-      footer={<><Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+      footer={
+        // The console's footer shape: a flex row, actions right, the error
+        // riding alongside them. It used to be a bare fragment, so the two
+        // buttons rendered as inline siblings in a block, jammed against the
+        // left edge with no gap between them.
+        //
+        // The error belongs HERE rather than at the end of the body. It was
+        // outside the scroll area for exactly this reason, to keep a rejected
+        // save from reading as a dead button, but the body is what scrolls, so
+        // "outside the scroll area" still left it below the fold. The footer is
+        // the only part of this dialog that cannot scroll away.
+        <div className="flex items-center justify-end gap-2">
+          {error && <p className="flex-1 text-sm text-destructive">{error}</p>}
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
           <Button onClick={save} disabled={(isWidget ? !widget : !reportId || metrics.length === 0) || saving}>
             {saving && <Loader2 className="size-4 animate-spin" />}
             {SUBMIT[mode]}
-          </Button></>}
+          </Button>
+        </div>
+      }
     >
 
         
 
-        <ScrollArea className="max-h-[60vh] pr-3">
-          <div className="space-y-4">
+        {/* No scroll container here: ResponsiveModal's body already scrolls, and
+            nesting a second one was what ate the gap above the footer. This was
+            the only dialog in the console that did it. */}
+        <div className="space-y-4">
             {!isWidget && (
             <div className="space-y-1.5">
               <Label>Report</Label>
@@ -512,12 +528,7 @@ export function TileBuilder({
               />
             </div>
 
-          </div>
-        </ScrollArea>
-
-        {/* Outside the scroll area on purpose: inside it, a validation message
-            sat below the fold and a rejected save read as a dead button. */}
-        {error && <p className="pt-1 text-sm text-destructive">{error}</p>}
+        </div>
     </ResponsiveModal>
   );
 }

@@ -346,6 +346,10 @@ export function AircraftFormModal({
       type: {
         plane: {
           tailNumber: tail,
+          //Was dropped here while the edit path sent it, so a serial typed into the ADD form
+          //saved as blank and the aeroplane arrived in the AD readiness panel as "model only".
+          //Silent: the field kept what you typed until the modal closed.
+          serialNumber: form.serialNumber.trim() || undefined,
           make: form.make.trim() || undefined,
           model: form.model.trim() || undefined,
           year: form.year.trim(),
@@ -425,31 +429,6 @@ export function AircraftFormModal({
               <p className="text-xs text-destructive">{errors.tailNumber}</p>
             )}
           </div>
-        </div>
-
-        {/* NEXT TO THE TAIL NUMBER on purpose, because people confuse the two and the FAA does
-            not. A tail number can be changed by the owner in an afternoon; the serial number is
-            on the data plate and is how an Airworthiness Directive says which aeroplanes it
-            applies to. Optional: a school will not walk out to eleven aircraft before it can
-            add its first one. */}
-        <div className="space-y-1.5">
-          <Label htmlFor="ac-serial" className="inline-flex items-center gap-1.5">
-            Serial number
-            <DocsHint topic="aircraft-serial-number" />
-          </Label>
-          <Input
-            id="ac-serial"
-            placeholder="17271234"
-            value={form.serialNumber}
-            onChange={(e) => set("serialNumber", e.target.value)}
-            autoCorrect="off"
-            spellCheck={false}
-            maxLength={40}
-          />
-          <p className="text-xs text-muted-foreground">
-            From the data plate, not the registration. Optional, and it is what lets us tell
-            whether an Airworthiness Directive applies to this aeroplane.
-          </p>
         </div>
 
         <div className="grid grid-cols-3 gap-3">
@@ -790,6 +769,33 @@ export function AircraftFormModal({
           />
         </div>
         )}
+
+        {/* NEAR THE BOTTOM on purpose. This form is the one a school has to get through before
+            anything can be scheduled or billed, so the fields that decide those come first and
+            the airframe's paperwork comes after them. The serial number is not the tail number,
+            whatever the two look like side by side: a tail number can be changed by the owner in
+            an afternoon, while the serial is on the data plate and is how an Airworthiness
+            Directive says which aeroplanes it applies to. Optional, and labelled so, because a
+            school will not walk out to eleven aircraft before it can add its first one. */}
+        <div className="space-y-1.5">
+          <Label htmlFor="ac-serial" className="inline-flex items-center gap-1.5">
+            Serial number (optional)
+            <DocsHint topic="aircraft-serial-number" />
+          </Label>
+          <Input
+            id="ac-serial"
+            placeholder="17271234"
+            value={form.serialNumber}
+            onChange={(e) => set("serialNumber", e.target.value)}
+            autoCorrect="off"
+            spellCheck={false}
+            maxLength={40}
+          />
+          <p className="text-xs text-muted-foreground">
+            From the data plate, not the registration. It is what lets us tell whether an
+            Airworthiness Directive applies to this aeroplane.
+          </p>
+        </div>
 
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5">

@@ -1441,6 +1441,8 @@ export interface CreatePlaneResourceInput {
   type: {
     plane: {
       tailNumber: string;
+      /** From the data plate. Optional; the server stores null when it is absent. */
+      serialNumber?: string;
       make?: string;
       model?: string;
       /** REQUIRED by the server, must be exactly 4 digits, e.g. "2018". */

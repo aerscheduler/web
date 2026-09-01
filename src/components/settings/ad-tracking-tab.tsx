@@ -1,16 +1,21 @@
 import * as React from "react";
 import { DocsHint } from "@/components/docs-hint";
-import { Loader2, Plane, ShieldCheck } from "lucide-react";
+import { Loader2, Pencil, Plane, Search, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import { Link } from "@tanstack/react-router";
-import { useAdTracking, useSetAdTracking } from "@/features/queries";
+import {
+  useAdTracking,
+  useLocations,
+  useResource,
+  useSetAdTracking,
+} from "@/features/queries";
+import { AircraftFormModal } from "@/components/aircraft/aircraft-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { AdTrackingMode } from "@/types/api";
+import type { AdTrackingMode, AircraftAdReadiness } from "@/types/api";
 
 /**
  * The four places a school actually sits on Airworthiness Directives.
@@ -67,6 +72,23 @@ export function AdTrackingTab() {
   const data = q.data;
   const [mode, setMode] = React.useState<AdTrackingMode>("off");
   const [external, setExternal] = React.useState("");
+  //Fleet filter for the readiness list below. A school with fifty tails was being asked to
+  //find the four missing a serial number by eye.
+  const [fleetQuery, setFleetQuery] = React.useState("");
+  /**
+   * WHICH AEROPLANE THE EDIT FORM IS OPEN ON.
+   *
+   * The readiness list is where a school finds out a tail has no serial number, so it is also
+   * where the serial number should be typed. The row therefore opens the ordinary aircraft
+   * form rather than sending anybody off to the fleet page to find the same aeroplane again.
+   *
+   * The list rows carry only a resourceId, and the form needs the whole record to prefill, so
+   * the resource is fetched on click and the modal stays shut until it lands. Opening it early
+   * would show an EMPTY form in "Add aircraft" mode, which saves a second aeroplane.
+   */
+  const [editingId, setEditingId] = React.useState<number | null>(null);
+  const editingQ = useResource(editingId);
+  const locationsQ = useLocations();
 
   React.useEffect(() => {
     if (!data) return;
@@ -97,6 +119,11 @@ export function AdTrackingTab() {
 
   const counts = data?.counts;
   const chosen = MODES.find((m) => m.value === mode);
+
+  const fleet = data?.aircraft ?? [];
+  //Only worth the row of chrome once the list is long enough to hunt through.
+  const searchable = fleet.length > 6;
+  const matches = searchable ? fleet.filter((a) => matchesFleetQuery(a, fleetQuery)) : fleet;
 
   return (
     <div className="space-y-5">
@@ -191,6 +218,15 @@ export function AdTrackingTab() {
             An AD names the aircraft it applies to by make, model and usually a serial number
             range. This is how precisely we could match each of your aeroplanes.
           </p>
+          {/* THE QUESTION THIS PANEL KEPT PROVOKING: matched, and then what? Nothing, today.
+              Saying so here is better than letting an admin fill in eleven serial numbers and
+              go hunting for the screen that changed. */}
+          <p className="text-sm text-muted-foreground">
+            Matching is what <em>Watch for new ones</em> will do, and that is not built yet, so
+            nothing in the product proposes a directive to you today. A serial number recorded
+            now is worth having, and it also prints on the aircraft record for whoever is
+            reading an AD against your fleet by hand.
+          </p>
         </CardHeader>
         <CardContent className="space-y-4">
           {counts && counts.total > 0 && (
@@ -209,31 +245,67 @@ export function AdTrackingTab() {
             </p>
           ) : null}
 
+          {searchable && (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={fleetQuery}
+                onChange={(e) => setFleetQuery(e.target.value)}
+                placeholder="Search tail number, make, model or serial"
+                className="pl-9"
+                aria-label="Search this fleet"
+              />
+            </div>
+          )}
+
           <div className="divide-y divide-border rounded-lg border border-border">
-            {(data?.aircraft ?? []).map((a) => (
-              <div key={a.resourceId} className="flex items-center justify-between gap-4 px-3.5 py-2.5">
-                <div className="min-w-0">
-                  <Link
-                    to="/aircraft/$resourceId"
-                    params={{ resourceId: String(a.resourceId) }}
-                    className="font-mono text-sm hover:underline"
-                  >
-                    {a.tailNumber}
-                  </Link>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {[a.make, a.model].filter(Boolean).join(" ") || "No make or model recorded"}
-                    {a.serialNumber ? ` · s/n ${a.serialNumber}` : ""}
-                  </p>
-                </div>
-                <QualityTag quality={a.quality} missing={a.missing} />
-              </div>
-            ))}
-            {!data?.aircraft.length && (
+            {matches.map((a) => {
+              //The click already happened and the record is on its way. Only this row says so.
+              const opening = editingId === a.resourceId && editingQ.isLoading;
+              return (
+                <button
+                  key={a.resourceId}
+                  type="button"
+                  onClick={() => setEditingId(a.resourceId)}
+                  className="flex w-full items-center justify-between gap-4 px-3.5 py-2.5 text-left transition-colors hover:bg-accent/50"
+                >
+                  {/* Spans rather than a div and two paragraphs: a button may only contain
+                      phrasing content, and the row is the button. */}
+                  <span className="min-w-0">
+                    <span className="block font-mono text-sm">{a.tailNumber}</span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {[a.make, a.model].filter(Boolean).join(" ") || "No make or model recorded"}
+                      {a.serialNumber ? ` · s/n ${a.serialNumber}` : ""}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <QualityTag quality={a.quality} missing={a.missing} />
+                    {opening ? (
+                      <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <Pencil className="size-3.5 text-muted-foreground" />
+                    )}
+                  </span>
+                </button>
+              );
+            })}
+            {!fleet.length && (
               <p className="px-3.5 py-6 text-center text-sm text-muted-foreground">
                 No aircraft yet.
               </p>
             )}
+            {!!fleet.length && !matches.length && (
+              <p className="px-3.5 py-6 text-center text-sm text-muted-foreground">
+                No aircraft match "{fleetQuery.trim()}".
+              </p>
+            )}
           </div>
+
+          {!!fleet.length && (
+            <p className="text-xs text-muted-foreground">
+              Choose an aeroplane to edit it. The serial number is the last field on that form.
+            </p>
+          )}
 
           {/* The line that has to be here whatever mode is chosen. */}
           <p className="text-xs text-muted-foreground">
@@ -242,8 +314,31 @@ export function AdTrackingTab() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Opened straight from a row above, so a school fixing four missing serial numbers
+          never leaves this page. Editing an aircraft invalidates `ad-tracking`, so the counts
+          and the row's own tag are right again the moment it saves. */}
+      {editingQ.data && (
+        <AircraftFormModal
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditingId(null);
+          }}
+          resource={editingQ.data}
+          locations={locationsQ.data ?? []}
+        />
+      )}
     </div>
   );
+}
+
+/** Tail, make, model and serial. Everything the row shows is everything you can search. */
+function matchesFleetQuery(a: AircraftAdReadiness, query: string): boolean {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+  return [a.tailNumber, a.make, a.model, a.serialNumber]
+    .filter(Boolean)
+    .some((v) => String(v).toLowerCase().includes(needle));
 }
 
 function Stat({ n, label, tone }: { n: number; label: string; tone: "good" | "warn" | "bad" | "muted" }) {

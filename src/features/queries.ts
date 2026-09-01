@@ -1220,7 +1220,12 @@ export function useCreatePlane() {
   return useMutation({
     mutationFn: (input: CreatePlaneResourceInput) =>
       api<Resource>("/resources", { method: "POST", body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["resources"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+      //A new tail changes the AD readiness figures, and the settings panel is where a
+      //school goes to see them. Its own key, so this does not refetch the world.
+      void qc.invalidateQueries({ queryKey: ["ad-tracking"] });
+    },
   });
 }
 
@@ -1247,7 +1252,13 @@ export function useUpdateResource(id: number) {
   return useMutation({
     mutationFn: (input: Record<string, unknown>) =>
       api<Resource>(`/resources/${id}`, { method: "PATCH", body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["resources"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+      //Editing an aircraft is how a serial number gets recorded, which is the one thing
+      //that moves a tail from "model only" to "matched by serial" in AD settings. Without
+      //this the panel you just fixed the aeroplane from still said it was missing.
+      void qc.invalidateQueries({ queryKey: ["ad-tracking"] });
+    },
   });
 }
 

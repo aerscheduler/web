@@ -63,6 +63,7 @@ function usableDate(d: Date | null | undefined): d is Date {
 }
 
 export function SmartTimeRange({
+  invalidField,
   date,
   onDateChange,
   start,
@@ -76,6 +77,12 @@ export function SmartTimeRange({
   lockStart = false,
   allowMultiDay = false,
 }: {
+  /**
+   * Id of the control the parent's validation is complaining about, so it can be marked
+   * `aria-invalid`. That is what lib/form-focus.ts scrolls to and focuses on a failed
+   * submit, and what interaction-tracking counts. One of "smart-date" or "smart-start".
+   */
+  invalidField?: string | null;
   /** "yyyy-MM-dd" of the selected day. */
   date: string;
   onDateChange: (date: string) => void;
@@ -282,6 +289,7 @@ export function SmartTimeRange({
           <Label htmlFor="smart-date">{allowMultiDay ? "Out on" : "Date"}</Label>
           <DatePickerField
             id="smart-date"
+            invalid={invalidField === "smart-date"}
             value={date}
             min={minDate}
             max={maxDate}
@@ -300,7 +308,11 @@ export function SmartTimeRange({
             onValueChange={pickStart}
             disabled={disabled || lockStart || loading || starts.length === 0}
           >
-            <SelectTrigger id="smart-start" className="w-full">
+            <SelectTrigger
+              id="smart-start"
+              aria-invalid={invalidField === "smart-start"}
+              className="w-full"
+            >
               <SelectValue placeholder={loading ? "Checking…" : "Select"} />
             </SelectTrigger>
             <SelectContent data-doc-shot="me-book-start-times" className="max-h-64">
@@ -336,7 +348,11 @@ export function SmartTimeRange({
             onValueChange={pickEnd}
             disabled={disabled || loading || !start || ends.length === 0}
           >
-            <SelectTrigger id="smart-end" className="w-full">
+            <SelectTrigger
+              id="smart-end"
+              aria-invalid={invalidField === "smart-end"}
+              className="w-full"
+            >
               <SelectValue placeholder={start ? "Select" : "Pick a start"} />
             </SelectTrigger>
             <SelectContent className="max-h-64">

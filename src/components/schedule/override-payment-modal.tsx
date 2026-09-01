@@ -143,15 +143,9 @@ export function OverridePaymentModal({
   async function submit() {
     if (!r) return;
     if (resourceErr || instructorErr || emptyErr) {
+      // Marking the fields is the whole job: lib/form-focus.ts scrolls to and focuses the
+      // first `aria-invalid` control on any failed submit, so there is no focus code here.
       setShowErrors(true);
-      const firstInvalid = resourceErr
-        ? "override-resource-rate"
-        : instructorErr
-          ? "override-instructor-rate"
-          : hasResourceRate
-            ? "override-resource-rate"
-            : "override-instructor-rate";
-      document.getElementById(firstInvalid)?.focus();
       return;
     }
 
@@ -214,6 +208,10 @@ export function OverridePaymentModal({
             onChange={setResourceRate}
             autoFocus
             error={showErrors ? resourceErr : null}
+            // Not `|| emptyErr` unconditionally: an unparseable instruction rate sets
+            // instructorErr AND emptyErr at once, and marking the resource field too
+            // would hand focus to the box whose message is not the one shown.
+            invalid={showErrors && !!(resourceErr || (emptyErr && !instructorErr))}
             hint={
               publishedResourceRate != null
                 ? `Normally ${formatMoney(publishedResourceRate)} ${rateUnit}. Leave blank to use that.`
@@ -231,6 +229,7 @@ export function OverridePaymentModal({
             onChange={setInstructorRate}
             autoFocus={!hasResourceRate}
             error={showErrors ? instructorErr : null}
+            invalid={showErrors && !!(instructorErr || (emptyErr && !hasResourceRate))}
             hint={
               defaultInstructorRateCents
                 ? `Normally ${formatMoney(defaultInstructorRateCents)} per hour, or the rating's own rate. Leave blank to use that.`
@@ -282,6 +281,7 @@ function RateField({
   onChange,
   hint,
   error,
+  invalid,
   autoFocus,
 }: {
   id: string;
@@ -291,6 +291,13 @@ function RateField({
   onChange: (v: string) => void;
   hint: string;
   error: string | null;
+  /**
+   * Marks the control invalid when the message that blocks the submit lives somewhere
+   * else. "Enter at least one rate to override." is rendered under BOTH fields rather
+   * than in either, so without this neither box turned red, nothing scrolled to them,
+   * and `form_validation_failed` counted zero. Defaults to this field's own error.
+   */
+  invalid?: boolean;
   autoFocus?: boolean;
 }) {
   return (
@@ -307,7 +314,7 @@ function RateField({
           placeholder="0.00"
           value={value}
           onChange={(e) => onChange(sanitizeDecimal(e.target.value))}
-          aria-invalid={!!error}
+          aria-invalid={invalid ?? !!error}
           className="tnum pl-7 pr-28"
         />
         <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">

@@ -216,26 +216,47 @@ const SIDE_LABEL: Record<PersonnelSide, string> = {
  * Mirrors the server's `validateReservationType` so a submit that passes here
  * isn't rejected there for a reason we could have explained inline.
  */
-export function validatePersonnelForType(
+/**
+ * The same check, but it also names the side it is complaining about.
+ *
+ * The side is not decoration: the form marks that side's control `aria-invalid` so the
+ * global handler can scroll to it. Deriving the side from the message, or guessing it as
+ * "the first required side that is empty", gets it WRONG for every count-limit and
+ * exclusivity error, which is how a too-many-students message came to redden the empty
+ * Renter picker. Only this function knows which rule fired, so only it can say.
+ *
+ * `side` is null when the complaint is not about one control (an exclusivity error names
+ * two sides, and the fix is to remove somebody or change the type).
+ */
+export function personnelProblemForType(
   type: ReservationType,
   personnel: CreateReservationInput["personnel"] | undefined
-): string | null {
+): { message: string; side: PersonnelSide | null } | null {
   const req = TYPE_REQUIREMENTS[type];
   const has = (side: PersonnelSide) => (personnel?.[side]?.length ?? 0) > 0;
 
   for (const side of ["instructors", "students", "renters", "guests"] as PersonnelSide[]) {
     if (has(side) && !req.allows.includes(side)) {
-      return type === "maintenance"
-        ? "A maintenance booking can't have anyone assigned to it, it takes the aircraft off the line."
-        : `A ${type} reservation can't include ${SIDE_LABEL[side]}.`;
+      return {
+        message:
+          type === "maintenance"
+            ? "A maintenance booking can't have anyone assigned to it, it takes the aircraft off the line."
+            : `A ${type} reservation can't include ${SIDE_LABEL[side]}.`,
+        side,
+      };
     }
   }
   for (const side of req.requiresAll) {
-    if (!has(side)) return `Pick ${SIDE_LABEL[side]} for this ${type} reservation.`;
+    if (!has(side))
+      return { message: `Pick ${SIDE_LABEL[side]} for this ${type} reservation.`, side };
   }
   if (req.requiresAny.length > 0 && !req.requiresAny.some(has)) {
     const names = req.requiresAny.map((s) => SIDE_LABEL[s]).join(" or ");
-    return `Pick ${names} for this ${type} reservation.`;
+    return {
+      message: `Pick ${names} for this ${type} reservation.`,
+      // Any of them would do; point at the first, which is the one the form lists first.
+      side: req.requiresAny[0] ?? null,
+    };
   }
   // Count limits, mirroring the server's personnelLimitError. Checked before the
   // exclusivity rule so "you've added 5 students" beats ", only one of a student or an
@@ -244,20 +265,37 @@ export function validatePersonnelForType(
     const count = personnel?.[side]?.length ?? 0;
     const max = maxForSide(type, side);
     if (count > max && max > 0) {
-      return `A ${type} reservation can have at most ${max} ${SIDE_LABEL[side].replace(/^an? /, "")}${
-        max === 1 ? "" : "s"
-      }, you've added ${count}.`;
+      return {
+        message: `A ${type} reservation can have at most ${max} ${SIDE_LABEL[side].replace(/^an? /, "")}${
+          max === 1 ? "" : "s"
+        }, you've added ${count}.`,
+        // The side that is OVER, not one that happens to be empty.
+        side,
+      };
     }
   }
 
   if (req.exclusive.filter(has).length > 1) {
-    return type === "solo"
-      ? "A solo has one pilot. Book a dual if an instructor is flying with a student."
-      : `A ${type} reservation can only have one of ${req.exclusive
-          .map((s) => SIDE_LABEL[s])
-          .join(" or ")}.`;
+    return {
+      message:
+        type === "solo"
+          ? "A solo has one pilot. Book a dual if an instructor is flying with a student."
+          : `A ${type} reservation can only have one of ${req.exclusive
+              .map((s) => SIDE_LABEL[s])
+              .join(" or ")}.`,
+      // Names two sides, so there is no single control to point at.
+      side: null,
+    };
   }
   return null;
+}
+
+/** Message-only wrapper, for callers that do not care which side is at fault. */
+export function validatePersonnelForType(
+  type: ReservationType,
+  personnel: CreateReservationInput["personnel"] | undefined
+): string | null {
+  return personnelProblemForType(type, personnel)?.message ?? null;
 }
 
 /**

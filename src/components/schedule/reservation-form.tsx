@@ -76,7 +76,7 @@ import {
   maxForSide,
   resolveLocationId,
   resourceMatchesType,
-  validatePersonnelForType,
+  personnelProblemForType,
   validateTimeRange,
 } from "./reservation-shared";
 
@@ -160,10 +160,13 @@ function PeopleOnSide({
   takenOnSide,
   searchPlaceholder,
   emptyText,
+  invalid,
 }: {
   label: string;
   pluralLabel: string;
   side: "students" | "renters";
+  /** Marks the leading picker, the one a personnel error is always about. */
+  invalid?: boolean;
   type: ReservationType;
   roster: OrganizationUser[] | undefined;
   primaryId: string;
@@ -198,6 +201,8 @@ function PeopleOnSide({
       </div>
 
       <Combobox
+        id={`res-primary-${side}`}
+        invalid={invalid}
         options={memberOptions(roster, excludeFor(-1))}
         value={primaryId}
         onChange={(v) => {
@@ -598,6 +603,41 @@ export function ReservationForm({
   const [guestPhone, setGuestPhone] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  /**
+   * Which control the message above is about.
+   *
+   * This form carries one form-level error string rendered at the very bottom, and on a
+   * 642px form in a 503px dialog that message lands 98px BELOW THE FOLD while the field
+   * it names sits 23px from the top. Clicking Book reservation with an empty title
+   * therefore changed nothing the user could see, which is exactly how a school owner
+   * came to click Add aircraft eleven times on the aircraft form. Naming the field lets
+   * lib/form-focus.ts scroll to it and focus it, turns it red, and makes the failure
+   * visible to `form_validation_failed`. Set it in every branch that sets `error`.
+   */
+  const [errorField, setErrorField] = React.useState<string | null>(null);
+  /**
+   * Set the message and the control it belongs to together, so they cannot drift apart.
+   *
+   * NOTHING MAY FAIL SILENTLY. `error` renders as the last element of a scrolling dialog
+   * body while the button sits in a fixed footer, so on a full form it is below the fold
+   * and a failed submit looks like a dead button. Two guarantees close that:
+   *
+   * 1. The named control is verified to be ON SCREEN before it is stored. This form has a
+   *    self variant, a dispatch variant and eight types, and which pickers exist differs
+   *    across all of them, so naming an id that is not rendered would mark nothing and
+   *    scroll nowhere. A pointer we cannot honour is dropped rather than trusted.
+   * 2. With no control to point at, a toast carries the message instead. Those cases are
+   *    real: an exclusivity error ("a solo has one pilot") is about two sides rather than
+   *    one, and switching type with both seats filled unmounts both pickers, so there is
+   *    literally nothing left on screen to redden.
+   */
+  const fail = React.useCallback((message: string, field: string | null) => {
+    setError(message);
+    const control = field && document.getElementById(field) ? field : null;
+    setErrorField(control);
+    if (!control) toast.error(message);
+    return undefined;
+  }, []);
   //Repeat rule. Only ever sent on CREATE, editing one occurrence of a series is
   //an ordinary edit, and changing the rule itself isn't offered yet.
   const [recurrence, setRecurrence] = React.useState<RecurrenceState>(() =>
@@ -801,6 +841,7 @@ export function ReservationForm({
   React.useEffect(() => {
     if (open && !wasOpen.current) {
       setError(null);
+      setErrorField(null);
       setUnapprovedResource(null);
 
       if (editing) {
@@ -990,24 +1031,28 @@ export function ReservationForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setErrorField(null);
 
     //A member never sees a title field, naming the booking is dispatch's job, and
     //"N172TS · Dual" is what they would have typed anyway.
     const effectiveTitle = isSelf ? autoTitle(selectedResource, type) : title.trim();
-    if (!effectiveTitle) return setError("Give the reservation a title.");
-    if (!date) return setError("Pick a date.");
+    if (!effectiveTitle) return fail("Give the reservation a title.", "res-title");
+    if (!date) return fail("Pick a date.", "smart-date");
     const timeError = validateTimeRange(startAt, endAt);
-    if (timeError) return setError(timeError);
+    // One message covers both bounds, so name the one that is actually empty. Pointing
+    // at Start when End is the blank control sends the user to a field that is fine.
+    if (timeError)
+      return fail(timeError, !startAt ? "smart-start" : !endAt ? "smart-end" : "smart-start");
 
     const locationId = resolveLocationId(selectedResource, locationsQ.data);
 
     const personnel: NonNullable<CreateReservationInput["personnel"]> = {};
     if (isGuest) {
       // Guest flights bill an outside pilot: needs guest name + email + a plane, optional instructor.
-      if (!guestName.trim()) return setError("Enter the guest's name.");
+      if (!guestName.trim()) return fail("Enter the guest's name.", "guest-name");
       if (!/.+@.+\..+/.test(guestEmail.trim()))
-        return setError("Enter a valid email. The guest's invoice is sent there.");
-      if (!resourceId) return setError("Guest flights need an aircraft.");
+        return fail("Enter a valid email. The guest's invoice is sent there.", "guest-email");
+      if (!resourceId) return fail("Guest flights need an aircraft.", "res-resource");
       personnel.guests = [
         {
           name: guestName.trim(),
@@ -1038,13 +1083,28 @@ export function ReservationForm({
 
       // The server enforces per-type personnel + resource rules; validate here so
       // the happy path doesn't 400 with an opaque "Reservation type is not valid".
-      const personnelError = validatePersonnelForType(type, personnel);
-      if (personnelError) return setError(personnelError);
+      const personnelProblem = personnelProblemForType(type, personnel);
+      if (personnelProblem) {
+        // The validator names the side that broke the rule; the form knows which control
+        // shows it. The self variant has at most ONE personnel picker, and only for the
+        // types that offer a counterpart, so every other side has nothing to point at
+        // and `fail` falls back to a toast.
+        const { message, side } = personnelProblem;
+        const control = !side
+          ? null
+          : isSelf
+            ? counterpartSide === side
+              ? "res-counterpart"
+              : null
+            : `res-primary-${side}`;
+        return fail(message, control);
+      }
       if (req.resourceRequired && !selectedResource) {
-        return setError(
+        return fail(
           `${typeLabel(type)} reservations need ${
             req.resource === "Aircraft" ? "an aircraft" : `a ${req.resource.toLowerCase()}`
-          }.`
+          }.`,
+          "res-resource"
         );
       }
     }
@@ -1071,8 +1131,8 @@ export function ReservationForm({
         maxUpcomingBookings,
       });
       if (problem) {
-        setError(problem);
-        toast.error(problem);
+        // No single control owns a recurrence problem, so `fail` toasts it.
+        fail(problem, null);
         return;
       }
       if (rule) input.recurrence = rule;
@@ -1103,8 +1163,9 @@ export function ReservationForm({
         ? "Couldn't update the reservation"
         : "Couldn't book the reservation";
       const msg = err instanceof ApiError ? err.message : fallback;
-      setError(msg);
-      toast.error(msg);
+      // A server rejection (double booking, grounded aircraft, permission) names no
+      // field, so this goes out as a toast rather than a line below the fold.
+      fail(msg, null);
     }
   }
 
@@ -1153,6 +1214,7 @@ export function ReservationForm({
             <Label htmlFor="res-title">Title</Label>
             <Input
               id="res-title"
+              aria-invalid={errorField === "res-title"}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Pattern work in N12345"
@@ -1167,7 +1229,16 @@ export function ReservationForm({
               <Label htmlFor="res-type">Type</Label>
               <DocsHint topic="reservation-type" />
             </div>
-            <Select value={type} onValueChange={(v) => setType(v as ReservationType)}>
+            <Select
+              value={type}
+              onValueChange={(v) => {
+                // The rules just changed, so a field reddened under the old type is now
+                // making a claim that may no longer be true.
+                setError(null);
+                setErrorField(null);
+                setType(v as ReservationType);
+              }}
+            >
               <SelectTrigger id="res-type" className="w-full">
                 <SelectValue />
               </SelectTrigger>
@@ -1186,6 +1257,8 @@ export function ReservationForm({
           <div className="space-y-1.5">
             <Label>{TYPE_REQUIREMENTS[type].resource === "Aircraft" ? "Aircraft" : TYPE_REQUIREMENTS[type].resource}</Label>
             <Combobox
+              id="res-resource"
+              invalid={errorField === "res-resource"}
               options={resourceOptions}
               value={resourceId}
               onChange={(v) => {
@@ -1264,6 +1337,7 @@ export function ReservationForm({
         )}
 
         <SmartTimeRange
+          invalidField={errorField}
           date={date}
           onDateChange={setDate}
           start={startAt}
@@ -1294,6 +1368,7 @@ export function ReservationForm({
                 <Label htmlFor="guest-name">Guest name</Label>
                 <Input
                   id="guest-name"
+                  aria-invalid={errorField === "guest-name"}
                   value={guestName}
                   onChange={(e) => setGuestName(e.target.value)}
                   placeholder="Jane Aviator"
@@ -1304,6 +1379,7 @@ export function ReservationForm({
                 <Label htmlFor="guest-email">Guest email</Label>
                 <Input
                   id="guest-email"
+                  aria-invalid={errorField === "guest-email"}
                   type="email"
                   value={guestEmail}
                   onChange={(e) => setGuestEmail(e.target.value)}
@@ -1362,6 +1438,7 @@ export function ReservationForm({
                   </Label>
                   <Combobox
                     id="res-counterpart"
+                    invalid={errorField === "res-counterpart"}
                     options={
                       counterpartSide === "instructors"
                         ? partnerSortedOptions(instructorsQ.data)
@@ -1397,6 +1474,8 @@ export function ReservationForm({
                     " (optional)"}
                 </Label>
                 <Combobox
+                  id="res-primary-instructors"
+                  invalid={errorField === "res-primary-instructors"}
                   options={memberOptions(instructorsQ.data, assignedElsewhere("instructors"))}
                   value={instructorId}
                   onChange={setDispatchInstructorId}
@@ -1411,6 +1490,7 @@ export function ReservationForm({
                 label="Student"
                 pluralLabel="Students"
                 side="students"
+                invalid={errorField === "res-primary-students"}
                 type={type}
                 roster={studentsQ.data}
                 primaryId={studentId}
@@ -1428,6 +1508,7 @@ export function ReservationForm({
                 label="Renter"
                 pluralLabel="Renters"
                 side="renters"
+                invalid={errorField === "res-primary-renters"}
                 type={type}
                 roster={rentersQ.data}
                 primaryId={renterId}

@@ -50,10 +50,28 @@ import { rangeToIso, resolveRange } from "@/lib/report-format";
 export function Dashboard({
   onOpenReport,
   onDirtyChange,
+  title = "Overview",
+  variant = "pane",
 }: {
   onOpenReport: (reportId: string, filters: ReportFilterInput[] | undefined, range?: DateRange) => void;
   /** Lets the Reports page guard the rail, which swaps this component out. */
   onDirtyChange?: (dirty: boolean) => void;
+  /** What the board calls itself. The home page introduces it differently. */
+  title?: string;
+  /**
+   * Where the board is mounted, which decides two things that always travel
+   * together, so they are one prop rather than two booleans nobody could set
+   * inconsistently.
+   *
+   * "pane" is Reports: a fixed toolbar with the board scrolling underneath it
+   * inside a full-height pane, so the window and comparison you are reading by
+   * never leave the screen. It carries the needs-attention strip.
+   *
+   * "page" is the home page: the board flows with the document, because the
+   * page scrolls as a whole and a second scroll region inside it traps the
+   * wheel.
+   */
+  variant?: "pane" | "page";
 }) {
   const catalog = useReportCatalog();
   const stored = useDashboard();
@@ -151,11 +169,33 @@ export function Dashboard({
     }
   };
 
-  // The needs-attention strip is not a tile, it is a fixed strip of counts
-  // rather than one visualization, so it keeps its own small request.
+  /**
+   * Needs attention is a WIDGET TILE now, and this is the fallback for boards
+   * saved before it was.
+   *
+   * The strip and the tile show the same thing, so a board carrying the tile
+   * must not also carry the strip: on the default layout that printed "Needs
+   * attention" twice, once movable and once nailed to the foot of the page.
+   *
+   * Deleting the strip outright would have been simpler and was wrong. A board
+   * somebody customised before widgets existed has no tile to inherit, and the
+   * strip is the only place that board shows overdue work at all; taking it
+   * away would be a silent feature loss for exactly the users who had bothered
+   * to arrange their own dashboard. So the strip yields to the tile and
+   * otherwise stays, and anyone can retire it for good by adding the widget.
+   */
+  const hasAttentionTile = !!config?.panels.some((p) =>
+    p.visualizations.some((v) => v.viz === "widget" && v.widget === "attention")
+  );
+  const showAttention = !!panel && !hasAttentionTile;
+
+  // Null when the strip is not being drawn, which is what disables the query.
   const attentionRange = useMemo(
-    () => (panel ? rangeToIso(namedToDateRange(panel.range, timeZone), timeZone) : null),
-    [panel?.range, timeZone]
+    () =>
+      panel && showAttention
+        ? rangeToIso(namedToDateRange(panel.range, timeZone), timeZone)
+        : null,
+    [panel?.range, timeZone, showAttention]
   );
   const overview = useReportOverview(attentionRange, "none");
 
@@ -182,7 +222,14 @@ export function Dashboard({
   return (
     // Same bargain as a report: the toolbar is fixed and the board scrolls under
     // it, so the window and comparison you are reading by never leave the screen.
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4" data-doc-shot="dashboard-edit-mode">
+    <div
+      className={
+        variant === "pane"
+          ? "flex min-h-0 min-w-0 flex-1 flex-col gap-4"
+          : "flex min-w-0 flex-col gap-4"
+      }
+      data-doc-shot="dashboard-edit-mode"
+    >
       {/* Title and blurb first, controls on their own row underneath, the shape
           every report view uses. Sharing one row with the blurb is what made the
           board jump: Customise adds four buttons, the row runs out of width and
@@ -190,7 +237,7 @@ export function Dashboard({
           has the width to grow into. */}
       <div className="flex shrink-0 flex-col gap-3">
         <div className="min-w-0">
-          <h2 className="text-lg font-semibold">Overview</h2>
+          <h2 className="text-lg font-semibold">{title}</h2>
           <p className="text-sm text-muted-foreground">
             {editing
               ? "Drag to move, pull the corner to resize. Nothing is saved until you're done."
@@ -253,7 +300,13 @@ export function Dashboard({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5">
+      <div
+        className={
+          variant === "pane"
+            ? "min-h-0 flex-1 space-y-4 overflow-y-auto pr-0.5"
+            : "space-y-4"
+        }
+      >
         {panel.visualizations.length === 0 ? (
           <Card className="grid h-48 place-items-center px-6 text-center text-sm text-muted-foreground">
             No tiles yet. {editing ? "Add one to get started." : "Choose Customise to add one."}
@@ -286,6 +339,9 @@ export function Dashboard({
                       : undefined
                   );
                 }}
+                // The full handler, for widgets: each attention row opens its
+                // own report on its own window.
+                onOpenAnyReport={onOpenReport}
                 onEdit={() => { setEditingViz(viz); setBuilderOpen(true); }}
                 onRemove={() =>
                   setVisualizations(panel.visualizations.filter((v) => v.id !== viz.id))
@@ -295,6 +351,7 @@ export function Dashboard({
           </DashboardGrid>
         )}
 
+        {showAttention && (
         <AttentionStrip
           items={overview.data?.attention ?? []}
           loading={overview.isLoading}
@@ -310,6 +367,7 @@ export function Dashboard({
             })
           }
         />
+        )}
       </div>
 
       <TileBuilder

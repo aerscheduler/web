@@ -39,26 +39,47 @@ export function AttentionStrip({
   items,
   loading,
   onOpen,
+  density = "comfortable",
+  unstyled = false,
 }: {
   items: OverviewAttention[];
   loading?: boolean;
   onOpen: (item: OverviewAttention) => void;
+  /**
+   * How much room the strip is allowed to take.
+   *
+   * "comfortable" is the report pane, where this sits at the foot of a wide
+   * board and can afford a grid of boxes with a line of explanation each.
+   *
+   * "compact" is the home page, where it sits in a narrow column beside the
+   * schedule. The same eight items as boxes made a column twice the height of
+   * everything next to it and turned the page into a wall of prose, so here it
+   * is one row per item, count first, and the explanation moves to the row's
+   * tooltip rather than being dropped: it is still the thing that tells you
+   * what "Awaiting close-out" actually means.
+   */
+  density?: "comfortable" | "compact";
+  /**
+   * Render without the surrounding card and heading.
+   *
+   * For the dashboard tile, which already draws a card and puts the title in
+   * its own header. Nesting the two drew a border inside a border and printed
+   * "Needs attention" twice.
+   */
+  unstyled?: boolean;
 }) {
   if (!loading && items.length === 0) return null;
 
+  const compact = density === "compact";
   const outstanding = items.filter((i) => i.count > 0);
   const clear = items.filter((i) => i.count === 0);
 
-  return (
-    <Card data-doc-shot="reports-overview-attention">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm">Needs attention</CardTitle>
-      </CardHeader>
-      <CardContent className="pt-0">
+  const body = (
+    <>
         {loading ? (
-          <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+          <div className={compact ? "space-y-1.5" : "grid gap-2 sm:grid-cols-2 2xl:grid-cols-3"}>
             {Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-16" />
+              <Skeleton key={i} className={compact ? "h-8" : "h-16"} />
             ))}
           </div>
         ) : (
@@ -72,7 +93,11 @@ export function AttentionStrip({
               // Two across until the pane is genuinely wide: at four columns
               // inside the report pane, "Awaiting close-out" truncates to
               // "Awaiting cl…", which is worse than a shorter grid.
-              <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-3">
+              <div
+                className={
+                  compact ? "-mx-1 space-y-0.5" : "grid gap-2 sm:grid-cols-2 2xl:grid-cols-3"
+                }
+              >
                 {outstanding.map((item) => {
                   const tone = TONE[item.tone];
                   return (
@@ -83,6 +108,7 @@ export function AttentionStrip({
                       toneText={tone.text}
                       toneChip={tone.chip}
                       onOpen={onOpen}
+                      compact={compact}
                     />
                   );
                 })}
@@ -103,7 +129,17 @@ export function AttentionStrip({
             )}
           </>
         )}
-      </CardContent>
+    </>
+  );
+
+  if (unstyled) return body;
+
+  return (
+    <Card data-doc-shot="reports-overview-attention">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm">Needs attention</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">{body}</CardContent>
     </Card>
   );
 }
@@ -114,13 +150,35 @@ function AttentionItem({
   toneText,
   toneChip,
   onOpen,
+  compact,
 }: {
   item: OverviewAttention;
   icon: LucideIcon;
   toneText: string;
   toneChip: string;
   onOpen: (item: OverviewAttention) => void;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={() => onOpen(item)}
+        // The hint is not dropped, only moved. Without it "Awaiting close-out"
+        // is a number attached to jargon.
+        title={item.hint}
+        className="group flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <Icon className={cn("size-3.5 shrink-0", toneText)} />
+        <span className={cn("w-7 shrink-0 text-sm font-semibold tabular-nums", toneText)}>
+          {item.count}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[13px]">{item.label}</span>
+        <ArrowRight className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+      </button>
+    );
+  }
+
   return (
     <button
       type="button"

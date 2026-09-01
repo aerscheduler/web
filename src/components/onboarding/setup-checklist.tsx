@@ -29,6 +29,38 @@ import {
 /** Outstanding items shown before "Show more" when there is no campaign track. */
 const COLLAPSED_DEFAULT = 4;
 
+/**
+ * The wash that makes white text legible over the photograph.
+ *
+ * Lifted from the marketing site's module band, minus the part that does not
+ * belong here. That band tints from six time-of-day phases off the visitor's
+ * clock, because it sits under a hero whose whole idea is that it changes with
+ * the light. There is no such system in the console and inventing one for a
+ * card that retires itself after a week would be a lot of machinery for a
+ * dozen page views, so this is the same idea held still.
+ *
+ * Two layers rather than one flat tint, for the reason the site gives: the
+ * horizontal keeps the left edge dark enough for the heading at any crop, while
+ * the right stays light enough that the photograph is still a photograph. The
+ * vertical exists because this image has a bright sky exactly where the section
+ * headings land.
+ *
+ * WHY A PHOTOGRAPH IS HERE AND NOWHERE ELSE ON THIS PAGE: everything else on
+ * the dashboard is a figure somebody has to read precisely, and a photograph
+ * behind a number is contrast you cannot guarantee, because it changes with the
+ * crop. This card is the one thing on the page that is not data. It is the
+ * product talking to a school that has not finished setting up, it is temporary
+ * by construction, and being visibly a different kind of object is the point.
+ */
+function ChecklistScrim() {
+  return (
+    <div className="pointer-events-none absolute inset-0 -z-10" aria-hidden>
+      <div className="absolute inset-0 bg-gradient-to-r from-[#0d1f38] via-[#0d1f38]/85 to-[#0d1f38]/45" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0d1f38]/70 via-transparent to-[#0d1f38]/60" />
+    </div>
+  );
+}
+
 function ItemGrid({
   entries,
   orgType,
@@ -101,16 +133,43 @@ export function SetupChecklist({ className }: { className?: string }) {
   const waived = state.entries.filter((e) => e.dismissed);
 
   return (
-    <Card className={cn("gap-0 p-5", className)} data-testid="setup-checklist">
+    // A photographic band rather than a card, borrowed from the marketing site's
+    // five-module section. See `ChecklistScrim` for why it earns its place here
+    // and nowhere else on the dashboard.
+    <Card
+      className={cn(
+        "relative isolate gap-0 overflow-hidden border-0 p-6 text-white",
+        className
+      )}
+      data-testid="setup-checklist"
+    >
+      {/* The SAME photograph as the marketing home page's module band, on
+          purpose: the last thing somebody saw before they signed up is the
+          first thing that greets them inside. `img` rather than a CSS
+          background so it is fetched at the browser's own priority, and it is
+          never fetched at all for a school past setup, because this whole
+          component returns null before it renders.
+
+          WebP at 1400px and quality 72, which is 133KB against the 259KB JPEG
+          the marketing site serves. Smart subsampling because the crop is
+          mostly dusk sky, and a chroma-subsampled gradient bands visibly once
+          a scrim is laid over it. */}
+      <img
+        src="/photos/homepage-fleet.webp"
+        alt=""
+        aria-hidden
+        className="absolute inset-0 -z-20 size-full object-cover"
+      />
+      <ChecklistScrim />
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h2 className="text-[15px] font-semibold tracking-tight">Finish setting up</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground" data-testid="setup-checklist-caption">
+          <p className="mt-0.5 text-sm text-white/65" data-testid="setup-checklist-caption">
             {state.trackCaption ?? "Each one makes the schedule, the money, or the paperwork work harder."}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
-          <span className="text-sm font-medium tabular-nums text-muted-foreground">
+          <span className="text-sm font-medium tabular-nums text-white/70">
             {state.percent}% configured
           </span>
           {/* Only ever holds undo. There is deliberately no "hide this for good":
@@ -119,7 +178,12 @@ export function SetupChecklist({ className }: { className?: string }) {
           {waived.length > 0 && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Dismissed items">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Dismissed items"
+                  className="text-white/70 hover:bg-white/10 hover:text-white"
+                >
                   <MoreHorizontal className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -136,19 +200,26 @@ export function SetupChecklist({ className }: { className?: string }) {
         </div>
       </div>
 
-      <Progress value={state.percent} aria-label="Setup progress" className="mt-4 h-1.5" />
+      {/* The default track is a light grey that vanishes on the photo, and the
+          bar itself is brand blue against a blue-hour sky. White on a white
+          scrim is the only pair that holds at every crop. */}
+      <Progress
+        value={state.percent}
+        aria-label="Setup progress"
+        className="mt-4 h-1.5 bg-white/20 *:bg-white"
+      />
 
       {/* Only what's LEFT. A list of things you already did is a trophy cabinet, not a
           checklist, the percentage already says how far along you are. */}
       {outstanding.length === 0 ? (
-        <div className="mt-4 flex items-center gap-2 rounded-lg bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-3 py-2.5 text-sm text-success">
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2.5 text-sm text-white backdrop-blur-sm">
           <Sparkles className="size-4" /> Everything on the list is done. Nice.
         </div>
       ) : (
         <div className="mt-4 space-y-5">
           {startHere.length > 0 && (
             <section data-testid="setup-checklist-start-here">
-              <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-white/60">
                 Start here
               </h3>
               <ItemGrid
@@ -163,7 +234,7 @@ export function SetupChecklist({ className }: { className?: string }) {
           {alsoShown.length > 0 && (
             <section data-testid="setup-checklist-also">
               {collapseAlso && (
-                <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-white/60">
                   Also set up
                 </h3>
               )}
@@ -182,7 +253,7 @@ export function SetupChecklist({ className }: { className?: string }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mt-3 inline-flex items-center gap-1 self-start text-xs text-muted-foreground hover:text-foreground"
+          className="mt-3 inline-flex items-center gap-1 self-start text-xs text-white/65 hover:text-white"
           data-testid="setup-checklist-expand"
         >
           <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
@@ -250,6 +321,17 @@ export function SetupChecklistPreview({ limit = 4 }: { limit?: number }) {
  * these lines its buttons up however uneven the blurbs are. The blurb is clamped for
  * the same reason, one long line shouldn't set the height of the whole row.
  */
+/**
+ * The card CTA on the photographic band.
+ *
+ * `variant="outline"` alone paints a bordered button in the console's own
+ * surface colours, which over a dusk photograph is a light-grey rectangle with
+ * grey text: the one control on the card you are meant to press, and the least
+ * visible thing on it.
+ */
+const ON_PHOTO_CTA =
+  "w-full border-white/25 bg-white/10 text-white backdrop-blur-sm hover:bg-white/20 hover:text-white";
+
 function ItemCard({
   entry,
   orgType,
@@ -268,15 +350,18 @@ function ItemCard({
   // the focused experience. See components/onboarding/flows/index.tsx.
   const hasFlow = !!flowFor(item.id);
   return (
+    // Glass over the photograph, the marketing site's teaser card exactly: a
+    // translucent white fill with a blurred backdrop, so the photo reads through
+    // it without the copy ever sitting directly on the image.
     <div
-      className="group relative flex flex-col rounded-xl border p-4 transition-colors hover:border-primary/40 hover:bg-accent/30"
+      className="group relative flex flex-col rounded-xl border border-white/15 bg-white/[0.07] p-4 backdrop-blur-sm transition-colors hover:border-white/35 hover:bg-white/[0.12]"
       data-testid={`setup-checklist-item-${item.id}`}
     >
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-white/10 text-white">
         <Icon className="size-4.5" />
       </span>
-      <div className="mt-3 text-sm font-medium leading-snug text-balance">{title}</div>
-      <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+      <div className="mt-3 text-balance text-sm font-medium leading-snug text-white">{title}</div>
+      <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-white/65">
         {resolveCopy(item.blurb, orgType)}
       </p>
       {/* mt-auto on the wrapper, not a fixed margin on the button: a short blurb would
@@ -284,12 +369,12 @@ function ItemCard({
           pins every CTA to the floor of its card whatever the copy above it does. */}
       <div className="mt-auto pt-4">
         {hasFlow ? (
-          <Button size="sm" variant="outline" className="w-full" onClick={onOpenFlow}>
+          <Button size="sm" variant="outline" className={ON_PHOTO_CTA} onClick={onOpenFlow}>
             {resolveCopy(item.cta, orgType)}
             <ArrowRight className="size-3.5" />
           </Button>
         ) : (
-          <Button asChild size="sm" variant="outline" className="w-full">
+          <Button asChild size="sm" variant="outline" className={ON_PHOTO_CTA}>
             <Link to={item.to} search={item.search}>
               {resolveCopy(item.cta, orgType)}
               <ArrowRight className="size-3.5" />
@@ -303,7 +388,7 @@ function ItemCard({
           size="icon"
           aria-label={`Dismiss ${title}`}
           title={`Hide "${title}". You can bring it back from the menu above`}
-          className="absolute right-1.5 top-1.5 size-7 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+          className="absolute right-1.5 top-1.5 size-7 text-white/70 opacity-0 transition-opacity hover:bg-white/15 hover:text-white group-hover:opacity-100 focus-visible:opacity-100"
           onClick={onDismiss}
         >
           <X className="size-3.5" />

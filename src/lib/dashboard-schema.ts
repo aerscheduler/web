@@ -13,7 +13,7 @@
  */
 
 import { z } from "zod";
-import { VIZ_TYPES } from "@/types/dashboard";
+import { VIZ_TYPES, WIDGET_KEYS } from "@/types/dashboard";
 
 const namedRange = z.enum([
   "past7",
@@ -62,9 +62,11 @@ export const visualizationSchema = z
     id: z.string().min(1).max(40),
     title: z.string().max(60).optional(),
     viz: z.enum(VIZ_TYPES),
-    reportId: z.string().min(1).max(60),
-    metrics: z.array(z.string().min(1).max(64)).min(1).max(6),
+    // Empty on a widget tile; required per-type in the refine below.
+    reportId: z.string().max(60).default(""),
+    metrics: z.array(z.string().min(1).max(64)).max(6).default([]),
     dimension: z.string().min(1).max(64).optional(),
+    widget: z.enum(WIDGET_KEYS).optional(),
     filters: z.array(filterInput).max(20).default([]),
     range: z.union([z.literal("inherit"), rangeSpec]).default("inherit"),
     compare: z.enum(["inherit", "previous", "lastYear", "none"]).default("inherit"),
@@ -73,6 +75,11 @@ export const visualizationSchema = z
   .superRefine((viz, ctx) => {
     const fail = (message: string, path: string) =>
       ctx.addIssue({ code: "custom", message, path: [path] });
+
+    if (viz.viz !== "widget") {
+      if (!viz.reportId) fail("Pick a report", "reportId");
+      if (viz.metrics.length === 0) fail("Pick at least one metric", "metrics");
+    }
 
     switch (viz.viz) {
       case "metric":
@@ -87,7 +94,14 @@ export const visualizationSchema = z
         if (!viz.dimension) fail("Pick what to rank by", "dimension");
         if (viz.metrics.length !== 1) fail("A bar chart ranks one metric", "metrics");
         break;
+      case "list":
+        if (!viz.dimension) fail("Pick what to break down by", "dimension");
+        if (viz.metrics.length !== 1) fail("A list breaks down one metric", "metrics");
+        break;
       case "table":
+        break;
+      case "widget":
+        if (!viz.widget) fail("Pick which widget", "widget");
         break;
     }
   });

@@ -38,11 +38,51 @@ export const Route = createFileRoute("/_authed/reports")({
    * `?tab=`, Maintenance off `?view=`, and in both the rail item's value IS the
    * search value. Absent still means Overview, so a plain /reports is unchanged.
    */
-  validateSearch: (s: Record<string, unknown>): { report?: string } => ({
+  validateSearch: (s: Record<string, unknown>): ReportsSearch => ({
     report: typeof s.report === "string" ? s.report : undefined,
+    from: typeof s.from === "string" ? s.from : undefined,
+    to: typeof s.to === "string" ? s.to : undefined,
+    // The ARRAY, not a string of one. TanStack serialises search values as JSON
+    // itself, so stringifying first produced a double-encoded `filters="[{...}]"`
+    // in the URL that only round-tripped because both ends did it symmetrically.
+    filters: Array.isArray(s.filters) ? (s.filters as ReportFilterInput[]) : undefined,
   }),
   component: ReportsPage,
 });
+
+/**
+ * The search contract, which is also how a tile CLICK reaches a report.
+ *
+ * `report` alone used to be the whole of it, and the window and filters behind a
+ * clicked tile were pushed into component state. That worked only because the
+ * board and the reports lived on the same route. The board is now the home
+ * page's as well, so the click crosses a route boundary and anything held in
+ * state is gone by the time the report mounts, which is how "3 endorsements
+ * expiring" would have landed on a report reading "Nothing matched": the report
+ * would have opened on its own default window rather than the one the count was
+ * taken over.
+ *
+ * Putting them in the URL rather than in router state is the better trade
+ * anyway: it makes a configured report a link somebody can send, which is what
+ * `report` was moved into the URL for in the first place.
+ */
+interface ReportsSearch {
+  report?: string;
+  /** The window the clicked figure was counted over, as ISO instants. */
+  from?: string;
+  to?: string;
+  /** The filters behind the clicked figure. Dropped if it isn't an array. */
+  filters?: ReportFilterInput[];
+}
+
+/** A window from the URL, or nothing if it isn't a usable pair of dates. */
+function parseWindow(from?: string, to?: string): DateRange | undefined {
+  if (!from || !to) return undefined;
+  const start = new Date(from);
+  const end = new Date(to);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return undefined;
+  return { from: start, to: end };
+}
 
 /**
  * The two panes that are not reports, as `?report=` values.
@@ -78,7 +118,7 @@ function ReportsPage() {
   const catalog = useReportCatalog();
   const confirm = useConfirm();
   const navigate = Route.useNavigate();
-  const { report: requested } = Route.useSearch();
+  const { report: requested, from, to, filters: filtersParam } = Route.useSearch();
 
   // A school with nothing to report on gets shown what these dashboards WILL look
   // like, not an accurate board of zeros. `hasEnoughData` is the whole switch, so
@@ -102,16 +142,15 @@ function ReportsPage() {
   const fallbackRange = resolveRange("past30", timeZone);
 
   /**
-   * A deep link from the Overview. The nonce is what forces `ReportView` to
-   * remount, so the seeded filters become its initial state rather than having
-   * to be pushed into a live component.
+   * A deep link into a report, read from the URL.
+   *
+   * `ReportView` takes these as INITIAL state, so it has to remount for a new
+   * one to land. Its `key` is built from these same values below, which is what
+   * used to be a nonce: identical values mean the view already shows that link
+   * and there is nothing to remount for.
    */
-  const [link, setLink] = useState<{
-    reportId: string;
-    filters?: ReportFilterInput[];
-    range?: DateRange;
-    nonce: number;
-  } | null>(null);
+  const seededRange = useMemo(() => parseWindow(from, to), [from, to]);
+  const seededFilters = filtersParam?.length ? filtersParam : undefined;
 
   const reports = catalog.data?.reports ?? [];
   const categories = catalog.data?.categories ?? [];
@@ -160,16 +199,13 @@ function ReportsPage() {
   );
 
   /**
-   * Move the rail, which now means navigating.
+   * Open a report on the window and filters behind a figure that was clicked.
    *
-   * `replace`, so working down a rail of twenty reports does not bury the page
-   * you arrived from under twenty history entries. Back therefore still leaves
-   * Reports, which is where the dashboard's unsaved-edits blocker is mounted.
+   * Both navigations here `replace`, so working down a rail of twenty reports
+   * does not bury the page you arrived from under twenty history entries. Back
+   * therefore still leaves Reports, which is where the dashboard's unsaved-edits
+   * blocker is mounted.
    */
-  const show = (id: string) => {
-    void navigate({ search: (prev) => ({ ...prev, report: id }), replace: true });
-  };
-
   const openReport = async (
     reportId: string,
     filters: ReportFilterInput[] | undefined,
@@ -178,16 +214,24 @@ function ReportsPage() {
     if (!(await mayLeaveOverview())) return;
     // The window comes from the tile that was clicked, since tiles can each
     // carry their own, falling back to the page default when there isn't one.
-    setLink({ reportId, filters, range: range ?? fallbackRange, nonce: Date.now() });
-    show(reportId);
+    const window = range ?? fallbackRange;
+    void navigate({
+      search: {
+        report: reportId,
+        from: window?.from?.toISOString(),
+        to: (window?.to ?? window?.from)?.toISOString(),
+        filters: filters?.length ? filters : undefined,
+      },
+      replace: true,
+    });
   };
 
   const pickFromRail = async (id: string) => {
     if (id !== selectedId && !(await mayLeaveOverview())) return;
     // Choosing a report from the rail is a fresh start, not a continuation of
-    // whatever the last deep link asked.
-    setLink(null);
-    show(id);
+    // whatever the last deep link asked, so the seeded window and filters are
+    // dropped rather than carried onto the next report.
+    void navigate({ search: { report: id }, replace: true });
   };
 
   if (!organization) {
@@ -219,7 +263,9 @@ function ReportsPage() {
     );
   }
 
-  const seeded = link && link.reportId === selectedId ? link : null;
+  // A seeded window without a matching report is a half-built URL; it belongs
+  // to whichever report is actually open or to none.
+  const seeded = seededRange || seededFilters ? { range: seededRange, filters: seededFilters } : null;
 
   return (
     // Full-height page: the header and the rail stay put and each pane scrolls
@@ -267,7 +313,9 @@ function ReportsPage() {
             ) : (
               selected && (
                 <ReportView
-                  key={`${selected.id}:${seeded?.nonce ?? "plain"}`}
+                  // Remounts when the deep link changes, since the view takes
+                  // these as initial state. Same link, same key, no remount.
+                  key={`${selected.id}:${from ?? ""}:${to ?? ""}:${JSON.stringify(filtersParam ?? [])}`}
                   report={selected}
                   initialFilters={seeded?.filters}
                   initialRange={seeded?.range}

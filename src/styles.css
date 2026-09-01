@@ -90,12 +90,25 @@
      and direct labels rather than leaning on the hue being seen at all.
      Slots 1–3 are cleared for every chart form; past three series, re-validate
      for the form in use (scatter/small-multiples are stricter than lines) or
-     fold the tail into "Other" rather than inventing a hue. */
-  --chart-1: #2a78d6; /* blue */
-  --chart-2: #eb6834; /* orange */
-  --chart-3: #1baf7a; /* aqua */
-  --chart-4: #eda100; /* yellow */
-  --chart-5: #e87ba4; /* magenta */
+     fold the tail into "Other" rather than inventing a hue.
+
+     TUNED TOWARDS STRIPE, as far as the above allows, and the limit is worth
+     writing down because it will be asked again. Stripe's charts are a ramp of
+     indigos and violets, and they can be: theirs are almost all SINGLE-series,
+     one line plus a grey comparison, so hue never has to carry identity. Ours
+     carry up to three series, where hue is the identity, and blue-beside-violet
+     is the one pair a red-green colour-blind reader cannot separate at all. So
+     slot 1 moved to Stripe's dashboard indigo (#5469d4), which is still our
+     blue family and is what a one- or two-series tile actually looks like, and
+     slots 2–5 were softened towards their lower-chroma register while keeping
+     the blue-vs-orange opposition that makes the set legible. Adopting their
+     purple-on-purple ramp outright would look right on one series and be
+     unreadable on three. */
+  --chart-1: #5469d4; /* indigo, Stripe's dashboard blue */
+  --chart-2: #e07a3f; /* orange, softened from #eb6834 */
+  --chart-3: #12a37b; /* teal */
+  --chart-4: #d99a17; /* amber, softened from #eda100 */
+  --chart-5: #d9799f; /* rose */
   --chart-grid: #e3e5ea;
 }
 
@@ -157,11 +170,12 @@
 
   /* The same hues re-stepped for the dark card surface (#151b2d) and validated
      against it, all three of 1–3 clear 3:1 there. */
-  --chart-1: #3987e5;
-  --chart-2: #d95926;
-  --chart-3: #199e70;
-  --chart-4: #c98500;
-  --chart-5: #d55181;
+  /* Same hues, lifted for the dark surface; see the palette note above. */
+  --chart-1: #7b8cf0;
+  --chart-2: #e08a52;
+  --chart-3: #2ab68e;
+  --chart-4: #d9a33a;
+  --chart-5: #dd8aab;
   --chart-grid: #232b42;
 }
 

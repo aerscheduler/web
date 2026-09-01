@@ -41,9 +41,13 @@ import {
   VIZ_HINT,
   VIZ_LABEL,
   VIZ_TYPES,
+  WIDGET_HINT,
+  WIDGET_KEYS,
+  WIDGET_LABEL,
   type RangeSpec,
   type Visualization,
   type VizType,
+  type WidgetKey,
 } from "@/types/dashboard";
 import { cn } from "@/lib/utils";
 
@@ -51,13 +55,13 @@ const INHERIT = "__inherit__";
 
 /** How many metrics each shape accepts, mirrors the server's rules. */
 export function metricLimit(viz: VizType): number {
-  if (viz === "metric" || viz === "bar") return 1;
+  if (viz === "metric" || viz === "bar" || viz === "list") return 1;
   if (viz === "line") return 3;
   return 6;
 }
 
 /** Shapes that plot something along an axis, and so need a dimension to plot it against. */
-const NEEDS_DIMENSION = new Set<VizType>(["line", "bar"]);
+const NEEDS_DIMENSION = new Set<VizType>(["line", "bar", "list"]);
 
 export type TileBuilderMode = "add" | "edit" | "pin";
 
@@ -122,6 +126,7 @@ export function TileBuilder({
   const [compare, setCompare] = useState<"inherit" | "previous" | "lastYear" | "none">("inherit");
   const [filters, setFilters] = useState<ReportFilterInput[]>([]);
   const [title, setTitle] = useState("");
+  const [widget, setWidget] = useState<WidgetKey | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -137,6 +142,9 @@ export function TileBuilder({
       setCompare(initial.compare);
       setFilters(initial.filters ?? []);
       setTitle(initial.title ?? "");
+      // Without this, editing a widget tile opened on the picker with nothing
+      // selected and saved a widget tile naming no widget.
+      setWidget(initial.widget);
     } else {
       setReportId(reports[0]?.id ?? "");
       setViz("metric");
@@ -146,6 +154,7 @@ export function TileBuilder({
       setCompare("inherit");
       setFilters([]);
       setTitle("");
+      setWidget(undefined);
     }
     setError(null);
     setSaving(false);
@@ -191,7 +200,19 @@ export function TileBuilder({
     setViz(next);
     setMetrics((current) => current.slice(0, metricLimit(next)));
     if (next === "metric") setDimension(undefined);
+    // Landing on Widget with none chosen leaves the Save button dead with no
+    // sign why, so it opens on the first one.
+    if (next === "widget") setWidget((current) => current ?? WIDGET_KEYS[0]);
   };
+
+  /**
+   * A widget tile has no report behind it, so most of this form does not apply
+   * to one: no metric, no dimension, no filters, and the range and comparison
+   * are ignored because each widget declares its own window. Hiding those
+   * sections is not cosmetic, leaving them up would offer choices that silently
+   * do nothing to the tile being built.
+   */
+  const isWidget = viz === "widget";
 
   const limit = metricLimit(viz);
   const hasDimensions = (report?.dimensions.length ?? 0) > 0;
@@ -213,10 +234,13 @@ export function TileBuilder({
       id: editing ? initial.id : `v${Date.now().toString(36)}`,
       ...(title.trim() ? { title: title.trim() } : {}),
       viz,
-      reportId,
-      metrics,
-      ...(dimension ? { dimension } : {}),
-      filters,
+      // A widget carries a name where every other tile carries a report, and
+      // must not carry stale metrics from whatever shape was selected before it.
+      reportId: isWidget ? "" : reportId,
+      metrics: isWidget ? [] : metrics,
+      ...(isWidget && widget ? { widget } : {}),
+      ...(!isWidget && dimension ? { dimension } : {}),
+      filters: isWidget ? [] : filters,
       range: range === "inherit" ? "inherit" : (range as RangeSpec),
       compare,
       // Keep an edited tile where it is, but never smaller than its shape can be
@@ -263,7 +287,7 @@ export function TileBuilder({
       footer={<><Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={save} disabled={!reportId || metrics.length === 0 || saving}>
+          <Button onClick={save} disabled={(isWidget ? !widget : !reportId || metrics.length === 0) || saving}>
             {saving && <Loader2 className="size-4 animate-spin" />}
             {SUBMIT[mode]}
           </Button></>}
@@ -273,6 +297,7 @@ export function TileBuilder({
 
         <ScrollArea className="max-h-[60vh] pr-3">
           <div className="space-y-4">
+            {!isWidget && (
             <div className="space-y-1.5">
               <Label>Report</Label>
               {/* Pinning passes a catalog of exactly one report: the tile is
@@ -291,6 +316,7 @@ export function TileBuilder({
                 </SelectContent>
               </Select>
             </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>Show it as</Label>
@@ -328,6 +354,37 @@ export function TileBuilder({
               </div>
             </div>
 
+            {isWidget && (
+              <div className="space-y-1.5">
+                <Label>Which widget</Label>
+                <div className="grid gap-2">
+                  {WIDGET_KEYS.map((k) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setWidget(k)}
+                      className={cn(
+                        "rounded-md border p-2 text-left text-sm transition-colors",
+                        widget === k
+                          ? "border-primary bg-primary/5 font-medium"
+                          : "border-border hover:bg-muted/60"
+                      )}
+                    >
+                      {WIDGET_LABEL[k]}
+                      <span className="mt-0.5 block text-xs font-normal leading-snug text-muted-foreground">
+                        {WIDGET_HINT[k]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  A widget sets its own window, so the board&rsquo;s date range and
+                  comparison don&rsquo;t apply to it.
+                </p>
+              </div>
+            )}
+
+            {!isWidget && (
             <div className="space-y-1.5">
               <Label>
                 {limit === 1 ? "Metric" : `Metrics`}
@@ -363,10 +420,11 @@ export function TileBuilder({
                 ))}
               </div>
             </div>
+            )}
 
             {needsDimension && (
               <div className="space-y-1.5">
-                <Label>{viz === "bar" ? "Rank by" : "Across"}</Label>
+                <Label>{viz === "bar" ? "Rank by" : viz === "list" ? "Break down by" : "Across"}</Label>
                 <Select value={dimension ?? ""} onValueChange={setDimension}>
                   <SelectTrigger>
                     <SelectValue placeholder="Choose a dimension" />
@@ -382,6 +440,7 @@ export function TileBuilder({
               </div>
             )}
 
+            {!isWidget && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>Date range</Label>
@@ -419,7 +478,9 @@ export function TileBuilder({
                 </Select>
               </div>
             </div>
+            )}
 
+            {!isWidget && (
             <div className="space-y-1.5">
               <Label>Filters</Label>
               <FilterBuilder
@@ -428,6 +489,7 @@ export function TileBuilder({
                 onChange={setFilters}
               />
             </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="tile-title">Title</Label>

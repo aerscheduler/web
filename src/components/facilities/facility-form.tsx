@@ -215,14 +215,16 @@ export function FacilityFormModal({
         )}
 
         <div className="space-y-1.5">
-          <Label>Home base</Label>
+          <Label htmlFor="facility-location">Home base</Label>
           <Combobox
+            id="facility-location"
             options={locationOptions}
             value={locationId}
             onChange={setLocationId}
             placeholder={noLocations ? "No locations yet" : "Select location"}
             searchPlaceholder="Search locations…"
             emptyText="No locations."
+            invalid={showErrors && !!errLocation}
           />
           {showErrors && errLocation && (
             <p className="text-xs text-destructive">{errLocation}</p>

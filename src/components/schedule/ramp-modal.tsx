@@ -246,7 +246,7 @@ export function RampModal({
             ? "ramp-briefing"
             : "ramp-location";
       if (firstInvalid === "ramp-location") {
-        document.getElementById("ramp-location")?.querySelector("button")?.focus();
+        document.getElementById("ramp-location")?.focus();
       } else {
         document.getElementById(firstInvalid)?.focus();
       }
@@ -468,18 +468,18 @@ export function RampModal({
         {showLocationPicker && (
           <div className="space-y-1.5" data-doc-shot="ramp-in-home-base">
             <Label htmlFor="ramp-location">Home base</Label>
-            <div id="ramp-location">
-              <Combobox
-                options={locationOptions}
-                value={locationId}
-                onChange={setLocationId}
-                placeholder={
-                  locationsQ.isLoading ? "Loading locations…" : "Select home base"
-                }
-                searchPlaceholder="Search locations…"
-                emptyText="No locations found."
-              />
-            </div>
+            <Combobox
+              id="ramp-location"
+              options={locationOptions}
+              value={locationId}
+              onChange={setLocationId}
+              placeholder={
+                locationsQ.isLoading ? "Loading locations…" : "Select home base"
+              }
+              searchPlaceholder="Search locations…"
+              emptyText="No locations found."
+              invalid={showErrors && !!locationErr}
+            />
             {showErrors && locationErr && (
               <p className="text-xs text-destructive">{locationErr}</p>
             )}

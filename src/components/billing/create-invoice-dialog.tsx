@@ -132,7 +132,7 @@ export function CreateInvoiceDialog({
       if (guestMode) {
         document.getElementById(guestNameError ? "invoice-guest-name" : "invoice-guest-email")?.focus();
       } else if (customerError) {
-        document.getElementById("invoice-customer")?.querySelector("button")?.focus();
+        document.getElementById("invoice-customer")?.focus();
       } else {
         document.getElementById("invoice-item-0")?.focus();
       }
@@ -237,16 +237,16 @@ export function CreateInvoiceDialog({
         ) : (
           <div className="space-y-1.5">
             <Label htmlFor="invoice-customer">Customer</Label>
-            <div id="invoice-customer">
-              <Combobox
-                options={options}
-                value={customerId}
-                onChange={setCustomerId}
-                placeholder={members.isLoading ? "Loading members…" : "Select a customer"}
-                searchPlaceholder="Search members…"
-                emptyText="No members found."
-              />
-            </div>
+            <Combobox
+              id="invoice-customer"
+              options={options}
+              value={customerId}
+              onChange={setCustomerId}
+              placeholder={members.isLoading ? "Loading members…" : "Select a customer"}
+              searchPlaceholder="Search members…"
+              emptyText="No members found."
+              invalid={showErrors && !!customerError}
+            />
             {showErrors && customerError && (
               <p className="text-xs text-destructive">Select a customer.</p>
             )}

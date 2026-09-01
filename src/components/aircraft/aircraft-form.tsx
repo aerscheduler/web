@@ -68,7 +68,12 @@ const REQUIRED_FIELDS = [
   { key: "model", id: "ac-model" },
   { key: "year", id: "ac-year" },
   { key: "category", id: "ac-cat" },
-  { key: "locationId", id: "" },
+  // Validated and rendered since gliders arrived, but left out of this list, so a form whose
+  // only fault was the class fell through the guard and posted an aircraft with no class.
+  { key: "aircraftClass", id: "ac-class" },
+  // This was `id: ""`, which is falsy, so the focus call below was skipped for the one field
+  // that needed it most: last in a form twice the height of its own dialog.
+  { key: "locationId", id: "ac-location" },
 ] as const;
 
 /**
@@ -318,7 +323,14 @@ export function AircraftFormModal({
     // Instead of a silently-disabled button, tell the user exactly what's missing.
     if (noLocations || firstInvalid) {
       setShowErrors(true);
-      if (firstInvalid?.id) document.getElementById(firstInvalid.id)?.focus();
+      // A school with no location yet has nothing to mark invalid, so lib/form-focus.ts
+      // cannot help and this would be a silent button again. Take them to the dead end
+      // and its "add a location" button instead.
+      if (noLocations && !firstInvalid) {
+        document
+          .getElementById("ac-home-base")
+          ?.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
       return;
     }
 
@@ -859,9 +871,10 @@ export function AircraftFormModal({
           </p>
         </div>
 
-        <div className="space-y-1.5">
-          <Label>Home base</Label>
+        <div className="space-y-1.5" id="ac-home-base">
+          <Label htmlFor="ac-location">Home base</Label>
           <Combobox
+            id="ac-location"
             options={locationOptions}
             value={form.locationId}
             onChange={(v) => set("locationId", v)}
@@ -869,6 +882,7 @@ export function AircraftFormModal({
             searchPlaceholder="Search locations…"
             emptyText="No locations."
             disabled={noLocations}
+            invalid={showErrors && !!errors.locationId}
           />
           {showErrors && errors.locationId && (
             <p className="text-xs text-destructive">{errors.locationId}</p>

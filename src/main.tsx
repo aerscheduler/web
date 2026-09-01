@@ -13,6 +13,7 @@ import {
   trackPageview,
 } from "./lib/analytics";
 import { onNavigation, startInteractionTracking } from "./lib/interaction-tracking";
+import { startFormFocus } from "./lib/form-focus";
 import { startAds, startConsentMode } from "./lib/ads";
 import { initTheme } from "./lib/theme";
 import { silenceAbortedViewTransitions } from "./lib/view-transitions";
@@ -36,6 +37,10 @@ startAds();
 // routes through `track()`, which drops everything until PostHog is consented AND
 // loaded. See lib/interaction-tracking.ts for why this is not per-component.
 startInteractionTracking();
+
+// A failed submit takes you to the field that failed. Delegated for the same reason the
+// line above is: see lib/form-focus.ts for the dead Add-aircraft button that prompted it.
+startFormFocus();
 
 // See lib/view-transitions.ts: the router drops the ViewTransition it starts, so a
 // skipped one rejects into nowhere and lands in PostHog as a crash.

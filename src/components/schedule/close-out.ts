@@ -215,6 +215,37 @@ export function isRampedOut(r: Reservation): boolean {
   return rev?.hobbsTimeOut != null || rev?.tachTimeOut != null;
 }
 
+/**
+ * Has this booking actually happened yet?
+ *
+ * NOT the same question as `isRampedOut`, and using that one to answer this was a bug that
+ * took a booking away from the people who owned it.
+ *
+ * `isRampedOut` answers "is there anything left to collect at ramp-out", which is what
+ * `closeOutStep` needs. For a briefing-measured booking it therefore short-circuits on
+ * `!hasInstruction(r)`: no instructor and student means no instruction time to record, so
+ * there is nothing to ask for and the step is already behind you. True, and useless as a
+ * permission gate, because it is true from the moment the booking is CREATED.
+ *
+ * So a classroom booking, a resourceless booking, and a group ground lesson with no
+ * instructor on it were all "ramped out" the instant they existed, and the console hid
+ * Edit and Cancel on them for their whole lives. A ground school could book a room and
+ * then had no way to call it off. The seed fixture is literally called
+ * "Ground: airspace (no instructor)".
+ *
+ * This asks the narrow question instead: is there evidence it has begun. A briefing for
+ * anything measured that way, the ramp stamp for a glider that carries no readings, and
+ * the meters (or the stamp) for everything else. It matches what the SERVER enforces on
+ * both acts: `ReservationService.update` narrows a write once `hobbsTimeOut` is set, and
+ * `cancel` refuses on the same evidence, deliberately not on `hasInstruction`.
+ */
+export function hasStarted(r: Reservation): boolean {
+  const rev = r.review;
+  if (usesBriefingNotMeters(r)) return rev?.briefing != null;
+  if (!readsMeters(r)) return rev?.rampedOutAt != null;
+  return rev?.hobbsTimeOut != null || rev?.tachTimeOut != null || rev?.rampedOutAt != null;
+}
+
 export function isRampedIn(r: Reservation): boolean {
   const rev = r.review;
   //One briefing figure covers the whole lesson, there is no out-and-back to tell apart, so
@@ -317,7 +348,9 @@ export function canCancelReservation(
   orgUserId: number | null
 ): boolean {
   if (r.cancelledAt) return false;
-  if (isRampedOut(r)) return false;
+  //`hasStarted`, not `isRampedOut`: see that helper for the group ground lesson that could
+  //never be cancelled because it had no instructor on it.
+  if (hasStarted(r)) return false;
   return (
     isStaff(roles) ||
     isTechnician(roles) ||
@@ -366,7 +399,7 @@ export function canEditReservation(
   now: Date = new Date()
 ): boolean {
   if (r.cancelledAt) return false;
-  if (isRampedOut(r)) return false;
+  if (hasStarted(r)) return false;
   if (new Date(r.end).getTime() < now.getTime()) return false;
   return (
     isStaff(roles) || isReservationPersonnel(r, orgUserId) || isReservationCreator(r, orgUserId)

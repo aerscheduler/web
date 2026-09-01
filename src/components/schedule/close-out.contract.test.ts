@@ -7,6 +7,7 @@ import {
   isFullyBilled,
   isRampedIn,
   isRampedOut,
+  hasStarted,
   readsMeters,
   usesBriefingNotMeters,
   waivedPayerHoldsLiveMoney,
@@ -199,6 +200,59 @@ describe("the booking the two clients disagreed on", () => {
 
     expect(isRampedOut(briefed)).toBe(true);
     expect(isRampedIn(briefed)).toBe(true);
+  });
+});
+
+/**
+ * `isRampedOut` answers "is anything left to collect at ramp-out". `hasStarted` answers
+ * "has this actually happened". They differ on exactly one shape, and using the first to
+ * answer the second hid Edit and Cancel on a booking for its whole life.
+ */
+describe("hasStarted, the question the permission gates actually ask", () => {
+  it("does NOT call a ground lesson with no instructor started, though isRampedOut does", () => {
+    const groundNoInstructor = booking({ type: "ground", resource: "room", students: 2, briefing: null });
+
+    // The two disagree here on purpose, and this is the whole bug: a group ground with
+    // nobody teaching it was "ramped out" the moment it was created, so the console
+    // refused to edit, cancel or drag it, forever.
+    expect(isRampedOut(groundNoInstructor)).toBe(true);
+    expect(hasStarted(groundNoInstructor)).toBe(false);
+  });
+
+  it("does not call a bare classroom booking started either", () => {
+    expect(hasStarted(booking({ type: "sim", resource: "room" }))).toBe(false);
+  });
+
+  it("counts a briefing as started, whoever is on it", () => {
+    expect(hasStarted(booking({ type: "ground", resource: "room", students: 2, briefing: 10 }))).toBe(true);
+    expect(
+      hasStarted(booking({ type: "ground", resource: "room", instructors: 1, students: 1, briefing: 10 })),
+    ).toBe(true);
+  });
+
+  it("agrees with isRampedOut on an aircraft, before and after the reading", () => {
+    const booked = booking({ type: "dual", resource: "plane", instructors: 1, students: 1 });
+    const flown = booking({ type: "dual", resource: "plane", instructors: 1, students: 1, hobbsOut: 25000 });
+
+    expect(hasStarted(booked)).toBe(false);
+    expect(hasStarted(flown)).toBe(true);
+    expect(hasStarted(booked)).toBe(isRampedOut(booked));
+    expect(hasStarted(flown)).toBe(isRampedOut(flown));
+  });
+
+  //A GLIDER CARRIES NO READINGS, so the stamp is the only evidence it ever left.
+  it("counts a meterless aircraft as started on the ramp stamp alone", () => {
+    const glider = booking({ type: "solo", resource: "plane", meterMode: "none", students: 1 });
+    const departed = booking({
+      type: "solo",
+      resource: "plane",
+      meterMode: "none",
+      students: 1,
+      rampedOutAt: "2026-09-01T20:47:14Z",
+    });
+
+    expect(hasStarted(glider)).toBe(false);
+    expect(hasStarted(departed)).toBe(true);
   });
 });
 

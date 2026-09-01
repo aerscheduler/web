@@ -31,7 +31,7 @@ import {
 import type { SlotOfferHold } from "@/lib/slot-offer-holds";
 import { holdOverlaps } from "@/lib/slot-offer-holds";
 import { MIN_DURATION_MIN, SLOT_MIN } from "@/lib/scheduling";
-import { hasLiveBill, isRampedIn, isRampedOut, isReservationPersonnel } from "./close-out";
+import { hasLiveBill, hasStarted, isRampedIn, isReservationPersonnel } from "./close-out";
 import { TYPE_REQUIREMENTS } from "./reservation-shared";
 import { personnelIds } from "./board-filters";
 import { typeLabel } from "./meta";
@@ -167,7 +167,9 @@ export function dragAbility(
     return locked("The aircraft is back. This flight's times are part of its close-out now.");
   }
 
-  if (isRampedOut(r)) {
+  //`hasStarted` rather than `isRampedOut`, which called a ground lesson with no instructor
+  //"already out" from the moment it was booked and refused to let anyone move it.
+  if (hasStarted(r)) {
     const name = nameOf(r.resource);
     if (!mayChange(r, roles, orgUserId)) {
       return locked(`${name} is already out. Only dispatch or someone on this flight can change it.`);
@@ -371,8 +373,8 @@ export function validateDrop(args: {
     return { ok: false, reason: `A booking has to be at least ${MIN_DURATION_MIN} minutes long.` };
   }
 
-  // A ramped-out flight accepts an end time and nothing else, see dragAbility.
-  if (isRampedOut(r)) {
+  // A flight that has begun accepts an end time and nothing else, see dragAbility.
+  if (hasStarted(r)) {
     if (startMs !== new Date(r.start).getTime() || targetResourceId !== (r.resource?.id ?? null)) {
       return {
         ok: false,

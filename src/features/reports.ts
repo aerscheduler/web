@@ -258,12 +258,44 @@ export function usePinToDashboard() {
   });
 }
 
-/** Discard the saved layout and go back to the built-in one. */
+/**
+ * Discard your own layout and fall back to whatever you would have had without
+ * one, which is the school's board if an admin has published one.
+ */
 export function useResetDashboard() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: () => api<{ config: DashboardConfig }>("/reports/dashboard", { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["report-dashboard"] }),
+    mutationFn: () => api<DashboardDocument>("/reports/dashboard", { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY }),
+  });
+}
+
+/**
+ * Publish a board as the school's. Admin only, enforced on the server.
+ *
+ * A SNAPSHOT: this copies the layout onto the org's shared row and leaves the
+ * publisher's own board alone, so an admin can go on tuning their dashboard
+ * without rebroadcasting every drag. Everyone who has not built their own board
+ * sees the published one; anyone who has keeps theirs.
+ */
+export function useShareDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (config: DashboardConfig) =>
+      api<DashboardDocument>("/reports/dashboard/share", { method: "POST", body: { config } }),
+    // Refetch rather than seed: publishing does not change what the PUBLISHER
+    // is looking at (their own board), only `sharedExists`.
+    onSuccess: () => qc.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY }),
+  });
+}
+
+/** Withdraw the school's board. Everyone following it falls back to the default. */
+export function useUnshareDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<{ unpublished: boolean }>("/reports/dashboard/share", { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY }),
   });
 }
 

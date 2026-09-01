@@ -78,12 +78,26 @@ export interface DashboardConfig {
   panels: Panel[];
 }
 
+/**
+ * Which of the three boards the caller is actually looking at.
+ *
+ * "personal" is their own saved layout, "shared" is the one an admin published
+ * for the school, and "default" is the built-in. The server resolves the
+ * precedence (own, then the school's, then built-in); this only reports it, so
+ * the UI can say whose board is on screen and what Reset would fall back to.
+ */
+export type DashboardSource = "personal" | "shared" | "default";
+
 export interface DashboardDocument {
   id: number | null;
   name: string;
+  /** True when the board on screen is the school's rather than the caller's own. */
   isShared: boolean;
   /** True when nothing has been saved yet and this is the built-in layout. */
   isDefault: boolean;
+  source: DashboardSource;
+  /** Whether the school has a published board at all, whoever is looking. */
+  sharedExists: boolean;
   config: DashboardConfig;
   /**
    * Visualizations the server refused to serve, a report that was removed, a

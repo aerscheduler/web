@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useBlocker } from "@tanstack/react-router";
 import type { DateRange } from "react-day-picker";
-import { Check, LayoutGrid, Plus, RotateCcw, X } from "lucide-react";
+import { Building2, Check, LayoutGrid, Plus, RotateCcw, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -26,6 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useConfirm } from "@/components/confirm-dialog";
+import { useAuth } from "@/lib/auth";
+import { canManageOrg } from "@/lib/permissions";
 import { DISCARD_DASHBOARD_EDITS } from "./unsaved-prompt";
 import {
   useDashboard,
@@ -35,6 +37,8 @@ import {
   useResetDashboard,
   useRetryDashboard,
   useSaveDashboard,
+  useShareDashboard,
+  useUnshareDashboard,
 } from "@/features/reports";
 import { RANGE_LABELS } from "@/lib/report-format";
 import { placeAtBottom } from "@/lib/dashboard-layout";
@@ -77,10 +81,16 @@ export function Dashboard({
   const stored = useDashboard();
   const save = useSaveDashboard();
   const reset = useResetDashboard();
+  const share = useShareDashboard();
+  const unshare = useUnshareDashboard();
   const retry = useRetryDashboard();
   // One clock for the whole board, the school's. See `lib/report-format.ts`.
   const timeZone = useReportTimeZone();
   const confirm = useConfirm();
+  // Publishing writes a board onto every colleague's screen, so it is an
+  // org-wide setting and gated like one. The server enforces it regardless.
+  const { roles } = useAuth();
+  const canPublish = canManageOrg(roles);
 
   const [draft, setDraft] = useState<DashboardConfig | null>(null);
   const [editing, setEditing] = useState(false);
@@ -99,6 +109,8 @@ export function Dashboard({
 
   const config = draft ?? stored.data?.config ?? null;
   const panel = config?.panels[0] ?? null;
+  /** Whose board is on screen: the caller's own, the school's, or the built-in. */
+  const source = stored.data?.source ?? "default";
 
   // Opening Customise and touching nothing isn't progress worth protecting.
   // only a draft that actually differs from what the server holds.
@@ -152,9 +164,14 @@ export function Dashboard({
   };
 
   const resetAll = async () => {
+    // What Reset lands on depends on whether the school publishes a board, so
+    // saying "the default ones" flatly would be wrong half the time.
+    const toSchool = !!stored.data?.sharedExists;
     const ok = await confirm({
       title: "Reset the dashboard?",
-      description: "Your tiles and layout are replaced by the default ones. This can't be undone.",
+      description: toSchool
+        ? "Your tiles and layout are replaced by the school's dashboard. This can't be undone."
+        : "Your tiles and layout are replaced by the default ones. This can't be undone.",
       confirmLabel: "Reset",
       destructive: true,
     });
@@ -163,9 +180,45 @@ export function Dashboard({
       const fresh = await reset.mutateAsync();
       setDraft(fresh.config);
       setEditing(false);
-      toast.success("Back to the default dashboard");
+      toast.success(toSchool ? "Back to the school's dashboard" : "Back to the default dashboard");
     } catch (err: any) {
       toast.error(err?.message ?? "Could not reset the dashboard");
+    }
+  };
+
+  const publish = async () => {
+    if (!config) return;
+    const replacing = !!stored.data?.sharedExists;
+    const ok = await confirm({
+      title: replacing ? "Replace the school's dashboard?" : "Set this as the school's dashboard?",
+      description: replacing
+        ? "Everyone who hasn't built their own board sees this layout instead of the current school one. Anyone with their own dashboard keeps it."
+        : "Everyone who hasn't built their own board sees this layout. Anyone with their own keeps it, and so do you: this publishes a copy, so you can go on changing yours without changing theirs.",
+      confirmLabel: replacing ? "Replace it" : "Publish it",
+    });
+    if (!ok) return;
+    try {
+      await share.mutateAsync(config);
+      toast.success("Published as the school's dashboard");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Could not publish this dashboard");
+    }
+  };
+
+  const withdraw = async () => {
+    const ok = await confirm({
+      title: "Withdraw the school's dashboard?",
+      description:
+        "Anyone following it goes back to the built-in layout. Nobody's own saved dashboard is affected.",
+      confirmLabel: "Withdraw",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await unshare.mutateAsync();
+      toast.success("The school's dashboard has been withdrawn");
+    } catch (err: any) {
+      toast.error(err?.message ?? "Could not withdraw it");
     }
   };
 
@@ -241,7 +294,12 @@ export function Dashboard({
           <p className="text-sm text-muted-foreground">
             {editing
               ? "Drag to move, pull the corner to resize. Nothing is saved until you're done."
-              : "Every figure opens the report behind it."}
+              : source === "shared"
+                ? // Said plainly, because the next thing this person is likely to
+                  // do is move a tile, and they should know that doing so makes
+                  // the board theirs rather than changing everybody's.
+                  "Your school's dashboard. Customise it and you'll get your own copy."
+                : "Every figure opens the report behind it."}
           </p>
         </div>
 
@@ -281,6 +339,21 @@ export function Dashboard({
                 <Button variant="outline" size="sm" onClick={() => { setEditingViz(null); setBuilderOpen(true); }}>
                   <Plus className="size-4" /> Add tile
                 </Button>
+                {/* Publishing is not an edit to this board, it is a copy of it
+                    sent to the school, so it sits with the other board-level
+                    actions rather than beside Done. Admins only; the server
+                    refuses it regardless of what the toolbar shows. */}
+                {canPublish && (
+                  <Button variant="ghost" size="sm" onClick={publish} disabled={share.isPending}>
+                    <Building2 className="size-4" />
+                    {stored.data?.sharedExists ? "Replace school's" : "Set as school's"}
+                  </Button>
+                )}
+                {canPublish && stored.data?.sharedExists && (
+                  <Button variant="ghost" size="sm" onClick={withdraw} disabled={unshare.isPending}>
+                    <X className="size-4" /> Withdraw school's
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" onClick={resetAll}>
                   <RotateCcw className="size-4" /> Reset
                 </Button>

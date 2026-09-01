@@ -1776,7 +1776,7 @@ export interface RampInInput {
  *
  * SEND A PAIR OR NEITHER. The server treats one Hobbs field arriving as a request to
  * rewrite both, and refuses with "Hobbs time in is required" if its partner is missing.
- * The same rule applies to tach.
+ * The same rule applies to tach, which names the tach in its refusals.
  */
 export interface CorrectReviewTimesInput {
   hobbsTimeOut?: number;

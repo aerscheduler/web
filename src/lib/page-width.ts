@@ -1,30 +1,28 @@
 /**
- * How wide a page is allowed to get. Two measures, and the choice is about CONTENT.
+ * How wide a page is allowed to get.
  *
- * The app shell gives every page the wide measure by default, because most of this console
- * is boards, tables and queues, and those genuinely use the width: a dispatch board shows
- * more of the day, a table shows more columns before it starts hiding them, and the squawk
- * inbox has room to be two panes instead of a list with a drawer over it.
+ * One measure at present: the shell caps every page at 1280, and {@link NARROW_PAGE} asks
+ * for the same number. That is deliberate rather than an oversight. The console ran at
+ * 1680 for a few days and it read worse, not better: a header put its title and its
+ * buttons a desk apart, and a table spread its columns instead of showing more of them.
  *
- * A page whose content is a COLUMN OF FORM FIELDS or prose asks for the narrow one. Nothing
- * is gained by running a name field across 1600px, and plenty is lost: the label sits a
- * long way from where you type, and the eye has to travel the width of a desk to read a
- * setting's help text back to its control. Same reason the squawk write-up sets
- * `max-w-prose` on its description inside a pane that is much wider than that.
+ * The pair is kept because the DISTINCTION is real even while the numbers agree. A page
+ * that is a column of form fields or prose is narrow because of what it holds, not
+ * because of what the shell happens to cap at, so `NARROW_PAGE` still says something
+ * true, and it is what should shrink if the default ever grows again. Same reason the
+ * squawk write-up sets `max-w-prose` on its description inside a much wider pane.
  *
  * Applied by the page rather than declared to the shell, so it is visible in the file you
  * are reading: `<TableView className={NARROW_PAGE}>`.
  */
 
 /**
- * The default, set by the app shell. 1920 minus the nav rail, so the commonest big monitor
- * is filled edge to edge and anything past it keeps a margin instead of stretching a header
- * across a desk.
+ * The default, set by the app shell.
  *
  * Here for reference and for anything that needs to reason about it; the shell writes the
  * literal, because a Tailwind arbitrary value cannot read a constant. Change both together.
  */
-export const PAGE_MAX_PX = 1680;
+export const PAGE_MAX_PX = 1280;
 
 /** What {@link NARROW_PAGE} caps at. Same caveat about the literal. */
 export const NARROW_PAGE_MAX_PX = 1280;

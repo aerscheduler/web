@@ -138,16 +138,17 @@ export function AppShell({ children }: { children: ReactNode }) {
                   moving the padding out to `main` either: a scroll container's end
                   padding is not re-applied after descendant overflow. */}
               <main className="min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto">
-                {/* 1680px is 1920 minus the nav rail, so the commonest big monitor is
-                    filled edge to edge and anything past it keeps a margin rather than
-                    stretching a header across a desk. It was 1280, which left a third of
-                    a 1920 screen empty and gave a two-pane layout no room to be one. */}
-                <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[1680px] flex-col px-4 py-5 md:px-10 md:py-8 md:[&:has([data-fill-page])]:h-full md:[&:has([data-fill-page])]:pb-0">
+                {/* 1280px. This was briefly 1680, filling a 1920 monitor edge to edge,
+                    and edge to edge turned out to be the problem: a header's title and
+                    its buttons ended up a desk apart, and a table spread its columns
+                    rather than showing more of them. The gutter is not wasted, the docked
+                    record panel spends it. Keep in step with `PAGE_MAX_PX`. */}
+                <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[1280px] flex-col px-4 py-5 md:px-10 md:py-8 md:[&:has([data-fill-page])]:h-full md:[&:has([data-fill-page])]:pb-0">
                   {children}
                 </div>
               </main>
               </div>
-              {/* Deliberately OUTSIDE the max-w-[1680px] wrapper: on a wide monitor
+              {/* Deliberately OUTSIDE the max-w-[1280px] wrapper: on a wide monitor
                   the panel spends the empty gutter, so the list barely narrows.
                   Zero-width until a page docks a record into it. */}
               <DetailPanelOutlet />
@@ -388,7 +389,7 @@ function Topbar() {
     <header className="sticky top-0 z-50 shrink-0 bg-background">
       {/* Inner row shares the content's max-width + gutters so the search aligns
           with the page's left edge and the icons with its right edge. */}
-      <div className="mx-auto flex h-12 w-full max-w-[1680px] items-center gap-2 px-4 md:px-10">
+      <div className="mx-auto flex h-12 w-full max-w-[1280px] items-center gap-2 px-4 md:px-10">
         <Button
           variant="ghost"
           size="icon-sm"

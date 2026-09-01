@@ -2,7 +2,15 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Loader2, LogOut, Search as SearchIcon, X } from "lucide-react";
+import {
+  BookOpen,
+  ChevronRight,
+  ExternalLink,
+  Loader2,
+  LogOut,
+  Search as SearchIcon,
+  X,
+} from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -26,6 +34,16 @@ import {
   useTimeZonePreferences,
 } from "@/features/queries";
 import { highlightMatch } from "@/lib/highlight-match";
+import {
+  docsResultPath,
+  docsResultUrl,
+  docsSnippet,
+  loadDocsIndex,
+  openDocsPage,
+  searchDocs,
+  type DocsSearchEngine,
+  type DocsSearchRecord,
+} from "@/lib/docs-search";
 import {
   SEARCH_TYPE_ICON,
   SEARCH_TYPE_LABEL,
@@ -312,6 +330,27 @@ export function CommandMenuSearch() {
     return () => cancelAnimationFrame(id);
   }, [open]);
 
+  // The help documentation, fetched from the public site the first time the
+  // palette opens and kept for the rest of the session. Off the critical path
+  // on purpose: it is a few hundred KB from another origin, so it loads beside
+  // the palette rather than in front of it, and a failure (www down, an offline
+  // laptop, a missing CORS header) leaves the group absent and everything else
+  // working. Never surfaced as an error, because nobody opened search to hear
+  // about the marketing site.
+  const [docsEngine, setDocsEngine] = React.useState<DocsSearchEngine | null>(null);
+  React.useEffect(() => {
+    if (!open || docsEngine) return;
+    let cancelled = false;
+    loadDocsIndex()
+      .then((engine) => {
+        if (!cancelled) setDocsEngine(engine);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [open, docsEngine]);
+
   // Lock background scroll while the mobile full-screen sheet is up.
   React.useEffect(() => {
     if (!open || !isMobile) return;
@@ -357,6 +396,21 @@ export function CommandMenuSearch() {
       );
     },
     [navigate, orgUserId, run]
+  );
+
+  /**
+   * A documentation hit opens in a NEW TAB.
+   *
+   * These pages live on www, not in the console, so navigating to one would
+   * unload the app: the half-filled reservation somebody was on when the
+   * question came up, plus every query in the cache. The question is usually
+   * asked mid-task, and the answer is meant to be read beside the task.
+   */
+  const openDocsResult = React.useCallback(
+    (record: DocsSearchRecord) => {
+      run(() => openDocsPage(docsResultUrl(record)));
+    },
+    [run]
   );
 
   const applyFilter = React.useCallback((type: SearchEntityType) => {
@@ -411,6 +465,22 @@ export function CommandMenuSearch() {
     }).slice(0, 4);
   }, [typeFilter, typed, highlightQuery, permittedTypes]);
 
+  /**
+   * Documentation hits, and only once something has been typed.
+   *
+   * A type chip suppresses them: `people: jane` is an explicit "only people",
+   * and answering it with an article is the palette arguing with the filter.
+   * Single letters are skipped too, since prefix matching makes "b" match a
+   * third of the corpus and the org's own records are what matter first.
+   */
+  const docsResults = React.useMemo(
+    () =>
+      docsEngine && !typeFilter && highlightQuery.length >= 2
+        ? searchDocs(docsEngine, highlightQuery)
+        : [],
+    [docsEngine, typeFilter, highlightQuery]
+  );
+
   const hasResults = grouped.length > 0;
   const actionQ = highlightQuery.toLowerCase();
   const showActions =
@@ -419,7 +489,12 @@ export function CommandMenuSearch() {
   // would otherwise flash "No results" over hits that are one tick away.
   const settled = !search.isFetching;
   const showEmpty =
-    settled && !hasResults && navItems.length === 0 && suggestedFilters.length === 0 && !showActions;
+    settled &&
+    !hasResults &&
+    navItems.length === 0 &&
+    suggestedFilters.length === 0 &&
+    docsResults.length === 0 &&
+    !showActions;
 
   const browsing = !typed && !typeFilter;
 
@@ -446,6 +521,7 @@ export function CommandMenuSearch() {
       suggestedFilters={suggestedFilters}
       navItems={navItems}
       grouped={grouped}
+      docsResults={docsResults}
       browsing={browsing}
       showActions={showActions}
       fallbackZone={tz.zone}
@@ -461,6 +537,7 @@ export function CommandMenuSearch() {
         )
       }
       onOpenResult={openResult}
+      onOpenDocs={openDocsResult}
       onSignOut={() =>
         run(() => {
           logout();
@@ -650,6 +727,7 @@ function SearchResults({
   suggestedFilters,
   navItems,
   grouped,
+  docsResults,
   browsing,
   showActions,
   fallbackZone,
@@ -657,6 +735,7 @@ function SearchResults({
   onApplyFilter,
   onNavigate,
   onOpenResult,
+  onOpenDocs,
   onSignOut,
 }: {
   showEmpty: boolean;
@@ -665,6 +744,7 @@ function SearchResults({
   suggestedFilters: Array<(typeof TYPE_FILTERS)[number]>;
   navItems: CommandPage[];
   grouped: Array<{ type: SearchEntityType; results: SearchResult[] }>;
+  docsResults: DocsSearchRecord[];
   browsing: boolean;
   showActions: boolean;
   fallbackZone: string;
@@ -672,6 +752,7 @@ function SearchResults({
   onApplyFilter: (type: SearchEntityType) => void;
   onNavigate: (page: CommandPage) => void;
   onOpenResult: (result: SearchResult) => void;
+  onOpenDocs: (record: DocsSearchRecord) => void;
   onSignOut: () => void;
 }) {
   return (
@@ -751,6 +832,27 @@ function SearchResults({
           </CommandGroup>
         </React.Fragment>
       ))}
+
+      {docsResults.length > 0 && (
+        <>
+          {(suggestedFilters.length > 0 || navItems.length > 0 || grouped.length > 0) && (
+            <CommandSeparator />
+          )}
+          {/* Last, under the school's own records: somebody searching the console
+              is usually after a booking or a person, and the article is the
+              answer waiting underneath when they are not. */}
+          <CommandGroup heading="Help docs">
+            {docsResults.map((record) => (
+              <DocsResultItem
+                key={record.id}
+                record={record}
+                query={highlightQuery}
+                onSelect={onOpenDocs}
+              />
+            ))}
+          </CommandGroup>
+        </>
+      )}
 
       {showActions && (
         <>
@@ -839,6 +941,53 @@ function ResultItem({
           {result.dateLabel} {when}
         </span>
       )}
+    </CommandItem>
+  );
+}
+
+/**
+ * One help documentation hit.
+ *
+ * Shaped like {@link ResultItem} so the two read as one list, with two
+ * differences that matter. The row carries an external-link glyph, because it
+ * leaves the console and a person deserves to know that before they click. And
+ * the second line leads with the breadcrumb: documentation is indexed one
+ * record per heading, so a title alone is a fragment ("Reversing a charge")
+ * with no way to tell which article it came out of.
+ */
+function DocsResultItem({
+  record,
+  query,
+  onSelect,
+}: {
+  record: DocsSearchRecord;
+  query: string;
+  onSelect: (record: DocsSearchRecord) => void;
+}) {
+  const crumbs = docsResultPath(record).join(" › ");
+  const snippet = docsSnippet(record);
+
+  return (
+    <CommandItem
+      value={`docs-${record.id} ${record.title}`}
+      onSelect={() => onSelect(record)}
+      className="items-start gap-3"
+    >
+      <BookOpen className="mt-0.5 text-muted-foreground" />
+      <div className="min-w-0 flex-1">
+        <span className="block truncate">{highlightMatch(record.title, query)}</span>
+        {(crumbs || snippet) && (
+          <p className="truncate text-xs text-muted-foreground">
+            {crumbs && <span className="text-muted-foreground/80">{crumbs}</span>}
+            {crumbs && snippet && <span aria-hidden> · </span>}
+            {snippet}
+          </p>
+        )}
+      </div>
+      <ExternalLink
+        className="mt-1 ml-auto size-3.5! shrink-0 text-muted-foreground/60"
+        aria-label="Opens in a new tab"
+      />
     </CommandItem>
   );
 }

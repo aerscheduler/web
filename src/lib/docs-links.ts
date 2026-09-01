@@ -18,7 +18,16 @@
  * the link is for. No em dashes.
  */
 
-export const DOCS_BASE_URL = "https://www.aerscheduler.com/docs";
+/**
+ * The public site. Overridable so a local `website` dev server can stand in,
+ * which is the only way to work on the docs search in `lib/docs-search.ts`
+ * against unpublished articles.
+ */
+export const SITE_URL = (
+  import.meta.env.VITE_SITE_URL ?? "https://www.aerscheduler.com"
+).replace(/\/$/, "");
+
+export const DOCS_BASE_URL = `${SITE_URL}/docs`;
 
 export type DocsTopic = {
   /** Title of the popover. Usually the label of the control it sits beside. */

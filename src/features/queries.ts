@@ -301,6 +301,8 @@ export function useUsers(opts?: QueryOpts) {
 /** One row of the public aircraft registry, as returned by the tail-number lookup. */
 export type RegistryMatch = {
   tailNumber: string;
+  /** The data-plate serial as the federal file has it. Null on rows that do not carry one. */
+  serialNumber: string | null;
   make: string;
   model: string;
   year: number | null;

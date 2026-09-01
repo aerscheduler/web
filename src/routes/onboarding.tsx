@@ -702,6 +702,21 @@ function AircraftStep({
   const [rate, setRate] = React.useState(16500);
   const [make, setMake] = React.useState("");
   const [model, setModel] = React.useState("");
+  //Filled by the tail-number lookup only; there is no box for it, because three steps is
+  //the point of this flow and nobody is walking out to the aeroplane mid-signup. It still
+  //has to be carried, though: an AD's applicability is written against a serial number, and
+  //this is the screen every school goes through, so a fleet's very first aircraft was the
+  //one arriving without one.
+  //
+  //INVISIBLE STATE, SO IT IS CLEARED THE MOMENT THE TAIL IS TOUCHED. Nothing on this screen
+  //shows the serial, which makes a stale one genuinely dangerous rather than merely untidy:
+  //pick N172SP from the lookup, correct the tail to the aeroplane you actually meant, and
+  //without this the school's first aircraft is created carrying a different airframe's data
+  //plate. A wrong serial is worse than no serial, because the whole point of the field is
+  //deciding whether an Airworthiness Directive applies. `TailNumberField` calls `onChange`
+  //before `onPick` (see its `choose`), so clearing on every keystroke costs a genuine pick
+  //nothing: the clear lands first, then the pick sets it.
+  const [serial, setSerial] = React.useState("");
   //The wizard asks for category and class the same way the Aircraft page does, so a
   //helicopter school can finish setup. CATEGORY_CLASSES was a four-value list that could
   //not describe one. See components/aircraft/vocabulary.ts.
@@ -744,6 +759,7 @@ function AircraftStep({
         type: {
           plane: {
             tailNumber: tail.trim().toUpperCase(),
+            serialNumber: serial || undefined,
             make: make.trim(),
             model: model.trim(),
             year: year.trim(),
@@ -791,11 +807,20 @@ function AircraftStep({
         <TailNumberField
           id="ac-tail"
           value={tail}
-          onChange={setTail}
+          onChange={(v) => {
+            setTail(v);
+            //See the `serial` declaration: it belongs to the tail that was picked, and this
+            //screen never shows it, so it does not outlive an edit to that tail.
+            setSerial("");
+          }}
           onPick={(m) => {
             setTail(m.tailNumber);
             if (m.make) setMake(m.make);
             if (m.model) setModel(m.model);
+            //Same rule as the make and the model: take the registry's value when the row
+            //carries one, keep what is already there when it does not. A row with no serial
+            //arrives as null, so this never blanks anything.
+            if (m.serialNumber) setSerial(m.serialNumber);
             if (m.year) setYear(String(m.year));
             //Straight from the registry now, so a helicopter arrives as a rotorcraft
             //rather than leaving the pickers for the person to work out.

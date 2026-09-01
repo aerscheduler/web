@@ -237,6 +237,14 @@ export function AircraftFormModal({
       const next = {
       ...f,
       tailNumber: match.tailNumber,
+      //An airframe fact like the make and the model below, stamped on the plate at the
+      //factory, so it prefills with them instead of being held back with the rate and the
+      //fuel capacity: nobody at the school chooses it, and the file already knows it, so
+      //asking for it again is asking somebody to walk out to the aeroplane for nothing.
+      //`||` and not `??`, the same as the two lines below it. A row with no serial arrives as
+      //null, since the import NULLIFs the blank column, so what this has to guarantee is only
+      //that a missing serial keeps whatever was already read off the plate.
+      serialNumber: match.serialNumber || f.serialNumber,
       make: match.make || f.make,
       model: match.model || f.model,
       year: match.year ? String(match.year) : f.year,
@@ -838,8 +846,10 @@ export function AircraftFormModal({
             spellCheck={false}
             maxLength={40}
           />
+          {/* Where the number lives, not an errand to go and read it: the tail-number lookup
+              has often filled this in already. */}
           <p className="text-xs text-muted-foreground">
-            From the data plate, not the tail number. It is what lets us tell whether an
+            On the data plate, not the tail number. It is what lets us tell whether an
             Airworthiness Directive applies to this aeroplane.
           </p>
         </div>

@@ -558,7 +558,7 @@ export const DOCS_TOPICS = {
   "aircraft-serial-number": {
     title: "Serial number",
     summary:
-      "The manufacturer's serial number from the data plate, not the tail number. An AD's applicability is usually written against a serial number range, so without this we can only match by make and model.",
+      "On the data plate, not the tail number. It is what lets us tell whether an Airworthiness Directive applies to this aeroplane, because applicability is written against serial number ranges. Picking a US tail number from the lookup fills it in for you.",
     href: "maintenance/choose-how-we-handle-airworthiness-directives",
   },
 

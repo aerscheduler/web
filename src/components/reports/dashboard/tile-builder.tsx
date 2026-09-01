@@ -214,6 +214,16 @@ export function TileBuilder({
    */
   const isWidget = viz === "widget";
 
+  /**
+   * Widget is not offered when PINNING.
+   *
+   * A pin starts from a saved view, and choosing Widget would throw that view
+   * away and leave a built-in panel with the view's name on it. There is
+   * nothing to warn about because there is nothing the choice could preserve,
+   * so the shape simply is not on the list.
+   */
+  const shapes = mode === "pin" ? VIZ_TYPES.filter((t) => t !== "widget") : VIZ_TYPES;
+
   const limit = metricLimit(viz);
   const hasDimensions = (report?.dimensions.length ?? 0) > 0;
   const needsDimension = NEEDS_DIMENSION.has(viz);
@@ -321,7 +331,7 @@ export function TileBuilder({
             <div className="space-y-1.5">
               <Label>Show it as</Label>
               <div className="grid grid-cols-2 gap-2">
-                {VIZ_TYPES.map((t) => {
+                {shapes.map((t) => {
                   // Some reports have nothing to cut by, instructor activity is
                   // already one row per instructor. Offering a chart there leads
                   // to an empty "Across" list and a tile that can never be

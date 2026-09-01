@@ -180,6 +180,15 @@ export function VizTile({
         "group/viz flex h-full flex-col overflow-hidden p-3",
         editing && "ring-1 ring-border"
       )}
+      // The help docs photograph the attention widget, and the id has to sit on
+      // the TILE rather than inside it so the shot includes the header that
+      // names it. It used to live on the strip's own card, which the widget no
+      // longer renders, so the capture had nothing to crop to.
+      data-doc-shot={
+        viz.viz === "widget" && viz.widget === "attention"
+          ? "reports-overview-attention"
+          : undefined
+      }
     >
       <div className="flex items-start gap-1.5 pb-2">
         {editing && (

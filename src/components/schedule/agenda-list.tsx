@@ -61,7 +61,7 @@ export function AgendaList({
     <div className="h-full min-h-0 divide-y divide-border overflow-auto">
       {[...groups.entries()].map(([hour, items]) => (
         <div key={hour} className="py-3">
-          <div className="sticky top-0 z-10 bg-card px-4 pb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground tabular-nums">
+          <div className="sticky top-0 z-10 bg-card px-4 pb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground tabular-nums">
             {hour}
           </div>
           <ul className="space-y-2 px-3">

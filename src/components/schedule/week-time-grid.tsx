@@ -4,6 +4,7 @@ import { resourceLabel, type Reservation } from "@/types/api";
 import { dateKeyInZone, daysBetweenDateKeys, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
@@ -11,7 +12,13 @@ import {
   type SlotOfferHold,
 } from "@/lib/slot-offer-holds";
 import { formatTimeInZone, formatTimeRangeInZone } from "@/lib/timezone";
-import { hourLabel, hourWindow, type FlyingDayFrame } from "./hours";
+import {
+  closedHourMessage,
+  hourLabel,
+  hourWindow,
+  isOpenHour,
+  type FlyingDayFrame,
+} from "./hours";
 import { BLOCK_CLASS, personnelNames, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import { dimClass, selectedClass, type BoardMarks } from "./board-filters";
@@ -145,11 +152,24 @@ export function WeekTimeGrid({
   //in that day just as you were aiming at one of them.
   const drawn = reservations;
 
-  // Computed over the WHOLE week, not per column, so all seven days share one time axis.
-  const { startHour, endHour } = hourWindow(drawn, tz.zone, undefined, slotOfferHolds, flyingDayFrame);
+  // Computed over the WHOLE week, not per column, so all seven days share one time axis, then
+  // buffered on both sides so the grid never ends flush against a block. Hours outside the
+  // school's flying day are shaded rather than withheld, see `closedBands`.
+  const win = hourWindow(drawn, tz.zone, undefined, slotOfferHolds, flyingDayFrame);
+  const { startHour, endHour, frameStartHour, frameEndHour } = win;
+  //Where the keyboard path starts a booking: mid-morning, unless the school isn't open then.
+  const kbHour = Math.min(Math.max(frameStartHour, 9), frameEndHour - 1);
+  const kbStart = `${String(kbHour).padStart(2, "0")}:00`;
+  const kbEnd = `${String(kbHour + 1).padStart(2, "0")}:00`;
   const hours = endHour - startHour;
   const totalMin = hours * 60;
   const gridHeight = hours * HOUR_HEIGHT;
+  //The hours the school isn't open: the scroll buffer at each end, plus any hour a booking
+  //pushed the window into past closing. A 24-hour flying day produces neither band.
+  const closedBands = [
+    { fromHour: startHour, toHour: Math.min(frameStartHour, endHour) },
+    { fromHour: Math.max(frameEndHour, startHour), toHour: endHour },
+  ].filter((b) => b.toHour > b.fromHour);
   const now = new Date();
   const nowMin = minutesInWindow(now, tz.zone, startHour);
   const showNow = nowMin >= 0 && nowMin <= totalMin;
@@ -165,7 +185,7 @@ export function WeekTimeGrid({
       {/* The gutter column needs an EXPLICIT width: every hour label inside it is absolutely
           positioned, so an `auto` track has no in-flow content to measure and collapses to the
           1px border, the labels then overflow left and get clipped by the scroll container. */}
-      <div className="grid min-w-[52rem] grid-cols-[2.75rem_repeat(7,minmax(0,1fr))]">
+      <div className="grid min-w-[52rem] grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]">
         {/* Header row: corner + day headers (sticky top) */}
         <div className="sticky left-0 top-0 z-30 border-b border-r border-border bg-card" />
         {days.map((d) => (
@@ -174,18 +194,18 @@ export function WeekTimeGrid({
             type="button"
             onClick={() => onSelectDay(d)}
             className={cn(
-              "sticky top-0 z-20 flex items-baseline justify-center gap-1.5 border-b border-l border-border bg-card px-2 py-2 text-sm transition-colors hover:bg-accent/50",
+              "sticky top-0 z-20 flex items-baseline justify-center gap-1.5 border-b border-l border-border bg-card px-2 py-1.5 text-xs transition-colors hover:bg-accent/50",
               isToday(d) && "bg-accent/40"
             )}
           >
-            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
               {format(d, "EEE")}
             </span>
+            {/* Today is already marked by the tinted cell, so the date only needs a little
+                extra weight. It used to be printed in the brand blue, which read as a link
+                rather than as today. */}
             <span
-              className={cn(
-                "tabular-nums",
-                isToday(d) ? "font-semibold text-primary" : "text-foreground"
-              )}
+              className={cn("tabular-nums text-foreground", isToday(d) && "font-semibold")}
             >
               {format(d, "d")}
             </span>
@@ -197,10 +217,28 @@ export function WeekTimeGrid({
           className="sticky left-0 z-10 shrink-0 border-r border-border bg-card"
           style={{ height: gridHeight }}
         >
-          {Array.from({ length: hours }).map((_, i) => (
+          {closedBands.map((band) => (
+            <div
+              key={`closed-${band.fromHour}`}
+              className="absolute inset-x-0 bg-muted/60"
+              style={{
+                top: (band.fromHour - startHour) * HOUR_HEIGHT,
+                height: (band.toHour - band.fromHour) * HOUR_HEIGHT,
+              }}
+              aria-hidden
+            />
+          ))}
+          {/* One more label than there are hour bands: the closing hour gets its own, lifted
+              to sit above the bottom edge rather than off the end of the gutter. Without it a
+              booking in the last band ran out under nothing, the grid simply stopped at an
+              unnamed time. */}
+          {Array.from({ length: hours + 1 }).map((_, i) => (
             <div
               key={i}
-              className="absolute right-1.5 pt-0.5 text-[10px] tabular-nums text-muted-foreground"
+              className={cn(
+                "absolute right-1.5 whitespace-nowrap text-[10px] tabular-nums text-muted-foreground",
+                i === hours ? "-translate-y-full pb-0.5" : "pt-0.5"
+              )}
               style={{ top: i * HOUR_HEIGHT }}
             >
               {hourLabel(startHour + i)}
@@ -241,6 +279,13 @@ export function WeekTimeGrid({
                         endHour - 1,
                         Math.max(startHour, startHour + Math.floor(y / HOUR_HEIGHT))
                       );
+                      //The shaded hours are drawn so a late booking has somewhere to sit and
+                      //so there is room to scroll, not so they can be booked: the server
+                      //refuses a same-day booking outside the flying day.
+                      if (!isOpenHour(win, hour)) {
+                        toast.message(closedHourMessage(win));
+                        return;
+                      }
                       const hh = String(hour).padStart(2, "0");
                       const eh = String(hour + 1).padStart(2, "0");
                       onCreate?.({ date: d, start: `${hh}:00`, end: `${eh}:00` });
@@ -252,7 +297,7 @@ export function WeekTimeGrid({
                   ? (e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        onCreate?.({ date: d, start: "09:00", end: "10:00" });
+                        onCreate?.({ date: d, start: kbStart, end: kbEnd });
                       }
                     }
                   : undefined
@@ -260,7 +305,7 @@ export function WeekTimeGrid({
               className={cn(
                 "relative border-l border-border",
                 canCreate &&
-                  "cursor-copy focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  "focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 isDropColumn && "bg-primary/5"
               )}
               style={{
@@ -268,6 +313,17 @@ export function WeekTimeGrid({
                 backgroundImage: `repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px ${HOUR_HEIGHT}px)`,
               }}
             >
+              {closedBands.map((band) => (
+                <div
+                  key={`closed-${band.fromHour}`}
+                  className="pointer-events-none absolute inset-x-0 z-0 bg-muted/40"
+                  style={{
+                    top: (band.fromHour - startHour) * HOUR_HEIGHT,
+                    height: (band.toHour - band.fromHour) * HOUR_HEIGHT,
+                  }}
+                  aria-hidden
+                />
+              ))}
               {today && showNow && (
                 <div
                   className="pointer-events-none absolute inset-x-0 z-20 h-px bg-destructive"
@@ -492,7 +548,7 @@ function WeekBlock({
         }
       }}
       className={cn(
-        "group relative flex h-full w-full flex-col overflow-hidden rounded-md border border-l-2 px-1.5 py-0.5 text-left shadow-sm",
+        "group relative flex h-full w-full flex-col overflow-hidden rounded-md border border-l-2 px-1.5 py-0.5 text-left shadow-sm transition-colors",
         BLOCK_CLASS[r.type],
         dimClass(marks, r.id),
         selectedClass(marks, r.id),

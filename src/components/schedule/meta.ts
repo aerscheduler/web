@@ -52,17 +52,24 @@ export const DOT_CLASS: Record<ReservationType, string> = {
   maintenance: "bg-res-maintenance",
 };
 
-/** Filled block used on the desktop lane grid + week chips. */
+/**
+ * Filled block used on the desktop lane grid + week chips.
+ *
+ * The hover step is spelled out per type rather than shared as one `hover:bg-current/…` on
+ * the block itself. That shorter version generated no CSS in this build, so the class sat in
+ * the DOM and did nothing, the sort of failure that only shows up if you go looking for the
+ * rule. Written out, each tint is a literal Tailwind already emits for the base state.
+ */
 export const BLOCK_CLASS: Record<ReservationType, string> = {
-  dual: "bg-res-dual/12 border-res-dual/40 text-res-dual",
-  instructor: "bg-res-dual/12 border-res-dual/40 text-res-dual",
-  solo: "bg-res-solo/12 border-res-solo/40 text-res-solo",
-  shared: "bg-res-rental/12 border-res-rental/40 text-res-rental",
-  ground: "bg-res-ground/15 border-res-ground/45 text-res-ground",
-  sim: "bg-res-sim/12 border-res-sim/40 text-res-sim",
-  rental: "bg-res-rental/12 border-res-rental/40 text-res-rental",
-  guest: "bg-res-guest/12 border-res-guest/40 text-res-guest",
-  maintenance: "bg-res-maintenance/12 border-res-maintenance/40 text-res-maintenance",
+  dual: "bg-res-dual/12 border-res-dual/40 text-res-dual hover:bg-res-dual/22",
+  instructor: "bg-res-dual/12 border-res-dual/40 text-res-dual hover:bg-res-dual/22",
+  solo: "bg-res-solo/12 border-res-solo/40 text-res-solo hover:bg-res-solo/22",
+  shared: "bg-res-rental/12 border-res-rental/40 text-res-rental hover:bg-res-rental/22",
+  ground: "bg-res-ground/15 border-res-ground/45 text-res-ground hover:bg-res-ground/25",
+  sim: "bg-res-sim/12 border-res-sim/40 text-res-sim hover:bg-res-sim/22",
+  rental: "bg-res-rental/12 border-res-rental/40 text-res-rental hover:bg-res-rental/22",
+  guest: "bg-res-guest/12 border-res-guest/40 text-res-guest hover:bg-res-guest/22",
+  maintenance: "bg-res-maintenance/12 border-res-maintenance/40 text-res-maintenance hover:bg-res-maintenance/22",
 };
 
 /** Left accent border used by the mobile agenda rows. */
@@ -80,15 +87,15 @@ export const BORDER_L_CLASS: Record<ReservationType, string> = {
 
 /** Tinted chip (soft fill + colored text) used by the month grid cells. */
 export const CHIP_CLASS: Record<ReservationType, string> = {
-  dual: "bg-res-dual/15 text-res-dual",
-  instructor: "bg-res-dual/15 text-res-dual",
-  solo: "bg-res-solo/15 text-res-solo",
-  shared: "bg-res-rental/15 text-res-rental",
-  ground: "bg-res-ground/15 text-res-ground",
-  sim: "bg-res-sim/15 text-res-sim",
-  rental: "bg-res-rental/15 text-res-rental",
-  guest: "bg-res-guest/15 text-res-guest",
-  maintenance: "bg-res-maintenance/15 text-res-maintenance",
+  dual: "bg-res-dual/15 text-res-dual hover:bg-res-dual/25",
+  instructor: "bg-res-dual/15 text-res-dual hover:bg-res-dual/25",
+  solo: "bg-res-solo/15 text-res-solo hover:bg-res-solo/25",
+  shared: "bg-res-rental/15 text-res-rental hover:bg-res-rental/25",
+  ground: "bg-res-ground/15 text-res-ground hover:bg-res-ground/25",
+  sim: "bg-res-sim/15 text-res-sim hover:bg-res-sim/25",
+  rental: "bg-res-rental/15 text-res-rental hover:bg-res-rental/25",
+  guest: "bg-res-guest/15 text-res-guest hover:bg-res-guest/25",
+  maintenance: "bg-res-maintenance/15 text-res-maintenance hover:bg-res-maintenance/25",
 };
 
 export function typeLabel(t: ReservationType): string {

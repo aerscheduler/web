@@ -18,7 +18,13 @@ import { toast } from "sonner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { highlightMatch } from "@/lib/highlight-match";
-import { hourLabel, hourWindow, type FlyingDayFrame } from "./hours";
+import {
+  closedHourMessage,
+  hourLabel,
+  hourWindow,
+  isOpenHour,
+  type FlyingDayFrame,
+} from "./hours";
 import { BLOCK_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
 import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
@@ -205,13 +211,28 @@ export function LaneGrid({
   const leftoverLabel = offLane.length > 0 ? "Other" : "Unassigned";
 
   // Widened past the default 6a–10p by whatever this day's reservations need, so an early or
-  // late booking gets its own hour instead of collapsing onto the edge of the ruler.
+  // late booking gets its own hour instead of collapsing onto the edge of the ruler, then
+  // buffered on both sides so the ruler never stops flush against a block. Hours outside the
+  // school's flying day are shaded rather than withheld, see `closedBands` below.
   //The displayed day, as the key both the ruler and the block geometry measure against.
   const dayKey = format(day, "yyyy-MM-dd");
-  const { startHour, endHour } = hourWindow(drawn, tz.zone, dayKey, slotOfferHolds, flyingDayFrame);
+  const win = hourWindow(drawn, tz.zone, dayKey, slotOfferHolds, flyingDayFrame);
+  const { startHour, endHour, frameStartHour, frameEndHour } = win;
+  //Where the keyboard path starts a booking: mid-morning, unless the school isn't open then.
+  const kbHour = Math.min(Math.max(frameStartHour, 9), frameEndHour - 1);
+  const kbStart = `${String(kbHour).padStart(2, "0")}:00`;
+  const kbEnd = `${String(kbHour + 1).padStart(2, "0")}:00`;
   const hours = endHour - startHour;
   const totalMin = hours * 60;
   const laneWidth = hours * HOUR_WIDTH;
+  //The hours the school isn't open, drawn but shaded: the scroll buffer at each end, plus any
+  //hour a booking pushed the window into past closing. Shading is what keeps the wider window
+  //honest, the board still says where the flying day is, it just no longer stops there. A
+  //24-hour flying day produces neither band.
+  const closedBands = [
+    { fromHour: startHour, toHour: Math.min(frameStartHour, endHour) },
+    { fromHour: Math.max(frameEndHour, startHour), toHour: endHour },
+  ].filter((b) => b.toHour > b.fromHour);
   //"Is the selected day today" is asked at the AIRPORT, not here. A dispatcher opening the
   //board from Tokyo is looking at the school's day, so the now-line belongs on the school's
   //today. `day` is a picked calendar date, so its own local components ARE the date.
@@ -236,23 +257,47 @@ export function LaneGrid({
         {/* Header: hour ruler (sticky while scrolling resource lanes) */}
         <div className="sticky top-0 z-30 flex border-b border-border bg-card">
           <div
-            className="sticky left-0 z-40 shrink-0 border-r border-border bg-card px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            className="sticky left-0 z-40 shrink-0 border-r border-border bg-card px-3 py-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
             style={{ width: LABEL_WIDTH }}
           >
             Resource
           </div>
           <div className="relative" style={{ width: laneWidth, height: 32 }}>
+            {closedBands.map((band) => (
+              <div
+                key={`closed-${band.fromHour}`}
+                className="absolute inset-y-0 bg-muted/60"
+                style={{
+                  left: (band.fromHour - startHour) * HOUR_WIDTH,
+                  width: (band.toHour - band.fromHour) * HOUR_WIDTH,
+                }}
+                aria-hidden
+              />
+            ))}
             {Array.from({ length: hours + 1 }).map((_, i) => (
               <div
                 key={i}
                 className="absolute top-0 h-full text-[11px] tabular-nums text-muted-foreground"
                 style={{ left: i * HOUR_WIDTH }}
               >
-                {/* Ticks are centred on their gridline, but the first one sits on the ruler's
-                    left edge, centring it slides half the label under the sticky Resource
-                    column, which clipped "12a" down to "2a". Left-align just that one. */}
-                <span className={cn("absolute pt-2", i === 0 ? "left-0" : "-translate-x-1/2")}>
-                  {i < hours ? hourLabel(startHour + i) : ""}
+                {/* Ticks are centred on their gridline, but the two on the ruler's own edges
+                    can't be: centring the first slides half the label under the sticky
+                    Resource column (which clipped "12 AM" down to "AM"), and centring the last
+                    hangs it off the end of the scroll area. Align those two inwards.
+                    The closing tick is LABELLED, not blank. It used to be dropped, which left
+                    a booking in the final hour sitting under nothing: the board ended at some
+                    unnamed time just past the last label. */}
+                <span
+                  className={cn(
+                    //`whitespace-nowrap` is load-bearing: the tick is a zero-width absolutely
+                    //positioned box, so "10 AM" wrapped to two lines and the second one hung
+                    //below the ruler, where it showed through beside the sticky Resource
+                    //column instead of scrolling under it.
+                    "absolute whitespace-nowrap pt-2",
+                    i === 0 ? "left-0" : i === hours ? "-translate-x-full" : "-translate-x-1/2"
+                  )}
+                >
+                  {hourLabel(startHour + i)}
                 </span>
               </div>
             ))}
@@ -261,6 +306,17 @@ export function LaneGrid({
 
         {/* Body: one lane per resource */}
         <div className="relative">
+          {closedBands.map((band) => (
+            <div
+              key={`closed-${band.fromHour}`}
+              className="pointer-events-none absolute bottom-0 top-0 z-0 bg-muted/40"
+              style={{
+                left: LABEL_WIDTH + (band.fromHour - startHour) * HOUR_WIDTH,
+                width: (band.toHour - band.fromHour) * HOUR_WIDTH,
+              }}
+              aria-hidden
+            />
+          ))}
           {showNow && (
             <div
               className="pointer-events-none absolute bottom-0 top-0 z-20 w-px bg-destructive"
@@ -334,7 +390,7 @@ export function LaneGrid({
                   className={cn(
                     "relative shrink-0",
                     canCreate &&
-                      "cursor-copy focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     isDropLane && "bg-primary/5"
                   )}
                   style={{
@@ -358,8 +414,8 @@ export function LaneGrid({
                               date: day,
                               resourceId: row.resource?.id,
                               type: laneType,
-                              start: "09:00",
-                              end: "10:00",
+                              start: kbStart,
+                              end: kbEnd,
                             });
                           }
                         }
@@ -377,6 +433,13 @@ export function LaneGrid({
                             endHour - 1,
                             Math.max(startHour, startHour + Math.floor(x / HOUR_WIDTH))
                           );
+                          //The shaded hours are drawn so a late booking has somewhere to sit
+                          //and so there is room to scroll, not so they can be booked: the
+                          //server refuses a same-day booking outside the flying day.
+                          if (!isOpenHour(win, hour)) {
+                            toast.message(closedHourMessage(win));
+                            return;
+                          }
                           const hh = String(hour).padStart(2, "0");
                           const eh = String(hour + 1).padStart(2, "0");
                           const startMs = instantAtDayMinutes(
@@ -684,12 +747,11 @@ function LaneBlock({
         drag.nudge(r, e.shiftKey ? "resize-end" : "move", step);
       }}
       className={cn(
-        "group relative flex h-full w-full items-center gap-1 overflow-hidden rounded-md border-l-2 border px-1.5 text-left shadow-sm",
+        "group relative flex h-full w-full items-center gap-1 overflow-hidden rounded-md border-l-2 border px-1.5 text-left shadow-sm transition-colors",
         BLOCK_CLASS[r.type],
         dimClass(marks, r.id),
         selectedClass(marks, r.id),
-        //A locked block still opens its details, so it reads as a pointer target rather than
-        //inheriting the lane's cursor-copy, which promises a booking it won't create.
+        //A locked block still opens its details, so it reads as a pointer target.
         grabbable ? "cursor-grab select-none active:cursor-grabbing" : "cursor-pointer",
         //Lifted: a shadow and a ring say "this one is in your hand", and a touch of
         //translucency lets whatever it is passing over stay readable underneath.

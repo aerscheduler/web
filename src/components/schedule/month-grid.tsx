@@ -113,7 +113,7 @@ export function MonthGrid({
         {weekdays.map((d) => (
           <div
             key={d.toISOString()}
-            className="truncate px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            className="truncate px-2 py-1.5 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
           >
             {format(d, "EEE")}
           </div>
@@ -151,7 +151,7 @@ export function MonthGrid({
               className={cn(
                 "flex min-h-28 min-w-0 flex-col gap-1 border-b border-r border-border p-1.5 transition-colors last:border-r-0 [&:nth-child(7n)]:border-r-0",
                 canCreate &&
-                  "cursor-copy hover:bg-accent/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                  "hover:bg-accent/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 !inMonth && "bg-muted/30"
               )}
             >
@@ -165,7 +165,9 @@ export function MonthGrid({
                   }}
                   className={cn(
                     "grid size-6 place-items-center rounded-full text-xs tabular-nums transition-colors hover:bg-accent",
-                    today && "bg-primary font-semibold text-primary-foreground hover:bg-primary/90",
+                    //Today is a neutral pill, not a brand-blue disc: on a grid of dates a
+                    //solid blue circle read as the selected day rather than as today.
+                    today && "bg-foreground/10 font-semibold text-foreground hover:bg-foreground/20",
                     !today && !inMonth && "text-muted-foreground/50",
                     !today && inMonth && "text-foreground"
                   )}
@@ -184,7 +186,7 @@ export function MonthGrid({
                       onView(r);
                     }}
                     className={cn(
-                      "flex w-full min-w-0 items-center gap-1 rounded border-l-2 px-1.5 py-0.5 text-left text-[11px] leading-tight",
+                      "flex w-full min-w-0 items-center gap-1 rounded border-l-2 px-1.5 py-0.5 text-left text-[11px] leading-tight transition-colors",
                       BORDER_L_CLASS[r.type],
                       CHIP_CLASS[r.type],
                       dimClass(marks, r.id),

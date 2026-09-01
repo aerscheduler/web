@@ -57,9 +57,9 @@ export function MonthAgenda({
     <div className="h-full min-h-0 divide-y divide-border overflow-auto">
       {[...groups.values()].map(({ date, items }) => (
         <div key={date.toISOString()} className="py-3">
-          <div className="sticky top-0 z-10 flex items-center gap-2 bg-card px-4 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="sticky top-0 z-10 flex items-center gap-2 bg-card px-4 pb-2 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
             <span>{format(date, "EEE, MMM d")}</span>
-            {isToday(date) && <span className="text-primary">Today</span>}
+            {isToday(date) && <span className="text-foreground">Today</span>}
           </div>
           <ul className="space-y-2 px-3">
             {items.map((r) => (

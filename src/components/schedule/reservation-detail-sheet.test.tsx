@@ -34,7 +34,6 @@ vi.mock("./close-out-section", () => ({
     <Probe reservation={reservation} />
   ),
 }));
-vi.mock("./lesson-section", () => ({ LessonSection: () => null }));
 vi.mock("./reservation-audit", () => ({ ReservationAudit: () => null }));
 vi.mock("@/components/slot-offers/reservation-standby", () => ({
   ReservationStandby: () => null,
@@ -45,6 +44,26 @@ vi.mock("@/components/weather-badge", () => ({ WeatherBadge: () => null }));
 //about the body's identity rather than about where the body is mounted.
 vi.mock("@/components/detail-panel", () => ({
   DetailPanel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+
+//The panel links out to the record page, the aircraft and the people on the booking. The
+//router isn't mounted here, so `Link` is a plain anchor: what is under test is the body's
+//identity, not routing.
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({
+    children,
+    to,
+    params: _params,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    to: string;
+    params?: unknown;
+  } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <a href={to} {...rest}>
+      {children}
+    </a>
+  ),
 }));
 
 vi.mock("@/lib/auth", () => ({

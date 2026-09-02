@@ -56,6 +56,7 @@ import { Route as AuthedSlotOffersOfferIdRouteImport } from './routes/_authed/sl
 import { Route as AuthedTrainingCourseIdRouteImport } from './routes/_authed/training_.$courseId'
 import { Route as AuthedDeveloperOrganizationsOrgIdRouteImport } from './routes/_authed/developer_.organizations.$orgId'
 import { Route as AuthedMaintenanceSquawksSquawkIdRouteImport } from './routes/_authed/maintenance_.squawks.$squawkId'
+import { Route as AuthedScheduleReservationsReservationIdRouteImport } from './routes/_authed/schedule_.reservations.$reservationId'
 import { Route as AuthedSettingsIntegrationsQuickbooksRouteImport } from './routes/_authed/settings/integrations/quickbooks'
 import { Route as AuthedTrainingEnrollmentsEnrollmentIdRouteImport } from './routes/_authed/training_.enrollments.$enrollmentId'
 
@@ -299,6 +300,12 @@ const AuthedMaintenanceSquawksSquawkIdRoute =
     path: '/maintenance/squawks/$squawkId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedScheduleReservationsReservationIdRoute =
+  AuthedScheduleReservationsReservationIdRouteImport.update({
+    id: '/schedule_/reservations/$reservationId',
+    path: '/schedule/reservations/$reservationId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedSettingsIntegrationsQuickbooksRoute =
   AuthedSettingsIntegrationsQuickbooksRouteImport.update({
     id: '/settings/integrations/quickbooks',
@@ -359,6 +366,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthedSettingsIndexRoute
   '/developer/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
   '/maintenance/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
+  '/schedule/reservations/$reservationId': typeof AuthedScheduleReservationsReservationIdRoute
   '/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
   '/training/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
@@ -409,6 +417,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthedSettingsIndexRoute
   '/developer/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
   '/maintenance/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
+  '/schedule/reservations/$reservationId': typeof AuthedScheduleReservationsReservationIdRoute
   '/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
   '/training/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
@@ -461,6 +470,7 @@ export interface FileRoutesById {
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/developer_/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
   '/_authed/maintenance_/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
+  '/_authed/schedule_/reservations/$reservationId': typeof AuthedScheduleReservationsReservationIdRoute
   '/_authed/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
   '/_authed/training_/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
@@ -513,6 +523,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/developer/organizations/$orgId'
     | '/maintenance/squawks/$squawkId'
+    | '/schedule/reservations/$reservationId'
     | '/settings/integrations/quickbooks'
     | '/training/enrollments/$enrollmentId'
   fileRoutesByTo: FileRoutesByTo
@@ -563,6 +574,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/developer/organizations/$orgId'
     | '/maintenance/squawks/$squawkId'
+    | '/schedule/reservations/$reservationId'
     | '/settings/integrations/quickbooks'
     | '/training/enrollments/$enrollmentId'
   id:
@@ -614,6 +626,7 @@ export interface FileRouteTypes {
     | '/_authed/settings/'
     | '/_authed/developer_/organizations/$orgId'
     | '/_authed/maintenance_/squawks/$squawkId'
+    | '/_authed/schedule_/reservations/$reservationId'
     | '/_authed/settings/integrations/quickbooks'
     | '/_authed/training_/enrollments/$enrollmentId'
   fileRoutesById: FileRoutesById
@@ -964,6 +977,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedMaintenanceSquawksSquawkIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/schedule_/reservations/$reservationId': {
+      id: '/_authed/schedule_/reservations/$reservationId'
+      path: '/schedule/reservations/$reservationId'
+      fullPath: '/schedule/reservations/$reservationId'
+      preLoaderRoute: typeof AuthedScheduleReservationsReservationIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/settings/integrations/quickbooks': {
       id: '/_authed/settings/integrations/quickbooks'
       path: '/settings/integrations/quickbooks'
@@ -1017,6 +1037,7 @@ interface AuthedRouteChildren {
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedDeveloperOrganizationsOrgIdRoute: typeof AuthedDeveloperOrganizationsOrgIdRoute
   AuthedMaintenanceSquawksSquawkIdRoute: typeof AuthedMaintenanceSquawksSquawkIdRoute
+  AuthedScheduleReservationsReservationIdRoute: typeof AuthedScheduleReservationsReservationIdRoute
   AuthedSettingsIntegrationsQuickbooksRoute: typeof AuthedSettingsIntegrationsQuickbooksRoute
   AuthedTrainingEnrollmentsEnrollmentIdRoute: typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
 }
@@ -1058,6 +1079,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedDeveloperOrganizationsOrgIdRoute:
     AuthedDeveloperOrganizationsOrgIdRoute,
   AuthedMaintenanceSquawksSquawkIdRoute: AuthedMaintenanceSquawksSquawkIdRoute,
+  AuthedScheduleReservationsReservationIdRoute:
+    AuthedScheduleReservationsReservationIdRoute,
   AuthedSettingsIntegrationsQuickbooksRoute:
     AuthedSettingsIntegrationsQuickbooksRoute,
   AuthedTrainingEnrollmentsEnrollmentIdRoute:

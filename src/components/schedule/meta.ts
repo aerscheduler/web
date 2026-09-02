@@ -1,5 +1,11 @@
 import { Box, DoorOpen, MonitorPlay, Plane, type LucideIcon } from "lucide-react";
-import { resourceLabel, type Reservation, type ReservationType, type Resource } from "@/types/api";
+import {
+  resourceLabel,
+  type OrganizationUser,
+  type Reservation,
+  type ReservationType,
+  type Resource,
+} from "@/types/api";
 import { RESERVATION_TYPE_ORDER } from "@/lib/permissions";
 
 /** The icon for a resource, by kind, aircraft get the plane, sims/rooms don't. */
@@ -102,13 +108,39 @@ export function typeLabel(t: ReservationType): string {
   return TYPE_LABEL[t] ?? t;
 }
 
+/**
+ * One person on a booking, with enough to open their record.
+ *
+ * `orgUserId` is null for a GUEST, who is a name captured on the reservation and not a
+ * member of the school, so there is no `/people/:id` behind them. Anything rendering a
+ * personnel row has to handle that: a guest is text, everyone else is a link.
+ */
+export type PersonnelEntry = {
+  name: string;
+  orgUserId: number | null;
+  /** The seat on this booking ("Instructor"), not the person's roles in the school. */
+  seat: string;
+};
+
+/** Everyone on a booking, in the order the detail surfaces read them out. */
+export function personnelEntries(r: Reservation): PersonnelEntry[] {
+  const p = r.personnel;
+  const from = (list: OrganizationUser[] | undefined, seat: string): PersonnelEntry[] =>
+    (list ?? []).flatMap((x) =>
+      x.user?.name ? [{ name: x.user.name, orgUserId: x.id, seat }] : []
+    );
+
+  return [
+    ...from(p?.instructors, "Instructor"),
+    ...from(p?.students, "Student"),
+    ...from(p?.renters, "Renter"),
+    ...(p?.guests ?? []).flatMap((g) =>
+      g.name ? [{ name: g.name, orgUserId: null, seat: "Guest" }] : []
+    ),
+  ];
+}
+
 /** Collapse a reservation's personnel + guests into display names. */
 export function personnelNames(r: Reservation): string[] {
-  const p = r.personnel;
-  return [
-    ...(p?.instructors ?? []).map((x) => x.user?.name),
-    ...(p?.students ?? []).map((x) => x.user?.name),
-    ...(p?.renters ?? []).map((x) => x.user?.name),
-    ...(p?.guests ?? []).map((g) => g.name),
-  ].filter((n): n is string => Boolean(n));
+  return personnelEntries(r).map((e) => e.name);
 }

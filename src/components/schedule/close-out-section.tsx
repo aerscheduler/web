@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import {
   CircleCheck,
   ClipboardCheck,
@@ -65,9 +66,36 @@ import { OverridePaymentModal } from "./override-payment-modal";
 
 /**
  * Role-aware close-out flow for a reservation, walking the state machine:
- * ramp out → ramp in → confirm review → (auto) invoice. Rendered inside the detail sheet.
+ * ramp out → ramp in → confirm review → (auto) invoice.
+ *
+ * TWO SHAPES, ONE STATE MACHINE.
+ *
+ * `full` is the booking's record page, where the close-out is the work: readings, who pays
+ * what, corrections, hand-typed rates, the invoice.
+ *
+ * `panel` is the peek beside the board. It says WHERE the booking is and offers the ONE
+ * action that step is asking for, and that button is portalled into the panel's sticky
+ * footer rather than drawn in the middle of the body. Everything that is a form or a
+ * decision is left to the record page.
+ *
+ * The split is deliberately a branch in here rather than a second component: the step
+ * rules, the permission predicates and the modals are the fiddly part, and two copies of
+ * them would drift the first time a step was added.
  */
-export function CloseOutSection({ reservation }: { reservation: Reservation }) {
+export function CloseOutSection({
+  reservation,
+  variant = "full",
+  actionSlot,
+}: {
+  reservation: Reservation;
+  variant?: "full" | "panel";
+  /**
+   * Where the panel's primary action is drawn. The detail panel owns a sticky footer and
+   * this section owns the decision about what belongs in it, so the button is portalled
+   * across rather than the whole state machine being lifted into the sheet.
+   */
+  actionSlot?: HTMLElement | null;
+}) {
   const { orgUserId, roles, isStaff, organization } = useAuth();
   const tz = useTimeZone();
   const r = reservation;
@@ -183,7 +211,8 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
     <Button
       variant="ghost"
       size="sm"
-      className="w-full text-muted-foreground"
+      //`full` is the record page, where a page-width ghost bar reads as a mistake.
+      className="w-full text-muted-foreground sm:w-auto"
       onClick={() => setReopenOpen(true)}
       disabled={reopen.isPending}
     >
@@ -286,6 +315,192 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
     .filter(Boolean)
     .join(", ");
 
+  /**
+   * THE ONE THING THIS BOOKING IS ASKING FOR, for the panel's sticky footer.
+   *
+   * Null when the reader can only watch (a student looking at somebody else's flight, a
+   * booking already billed). The footer then carries nothing but the link to the record
+   * page, which is honest: there is no action here for this person right now.
+   *
+   * Every entry is a single click that opens a dialog or fires one mutation. Anything that
+   * is a FORM (who pays what, a hand-typed rate, a correction, grading) is deliberately
+   * absent, and lives on the record page instead.
+   */
+  const panelAction: {
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+    disabled?: boolean;
+  } | null = (() => {
+    if (step === "rampOut" && canRamp) {
+      return noMeters
+        ? {
+            label: "Review times",
+            icon: <ClipboardCheck className="size-4" />,
+            onClick: () => setRampMode("out"),
+          }
+        : {
+            label: "Ramp out",
+            icon: <PlaneTakeoff className="size-4" />,
+            onClick: () => setRampMode("out"),
+          };
+    }
+    if (step === "rampIn" && canRamp) {
+      return {
+        label: "Ramp in",
+        icon: <PlaneLanding className="size-4" />,
+        onClick: () => setRampMode("in"),
+      };
+    }
+    if (step === "confirm" && canConfirm) {
+      return {
+        label: "Confirm review",
+        icon: <ClipboardCheck className="size-4" />,
+        onClick: () => setConfirmOpen(true),
+      };
+    }
+    if (step === "confirmGuest" && canConfirmGuest) {
+      return {
+        label: "Close out & bill guest",
+        icon: <Receipt className="size-4" />,
+        onClick: () => setGuestConfirmOpen(true),
+      };
+    }
+    if (step === "reviewed" && canInvoice) {
+      return {
+        label: expectsLedger ? "Post to ledger" : "Create invoice",
+        icon: createInvoice.isPending ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Receipt className="size-4" />
+        ),
+        onClick: () => void raiseInvoice(),
+        disabled: createInvoice.isPending,
+      };
+    }
+    return null;
+  })();
+
+  /** Where the booking stands, in one sentence, for the panel. */
+  const panelStatus = (() => {
+    switch (step) {
+      case "rampOut":
+        if (!canRamp) return "Not started yet.";
+        return noMeters
+          ? "Record the instruction time once the lesson is done."
+          : "Ready to dispatch. Ramp out when the aircraft departs.";
+      case "rampIn":
+        return readsMeters(r)
+          ? "Ramped out, record the ending readings when the aircraft is back."
+          : "Ramped out. Ramp in when the aircraft is back.";
+      case "confirm":
+        return `${noMeters ? "Times recorded. Needs sign-off." : "Flown. Needs pilot sign-off."} ${done} of ${needed} confirmed.`;
+      case "confirmGuest":
+        return `Flown. This guest flight needs to be closed out and billed to ${guestName}.`;
+      case "reviewed":
+        if (r.type === "maintenance") return "Maintenance complete. This booking isn't billed.";
+        return expectsLedger
+          ? "Review complete. No ledger charge has been posted yet."
+          : "Review complete. No invoice has been raised yet.";
+      case "invoiced":
+        if (ledgerStakeCount > 0) {
+          return ledgerStakeCount > 1
+            ? `Charged to the account ledger, split ${ledgerStakeCount} ways.`
+            : "Charged to the account ledger.";
+        }
+        return invoiceCount > 1
+          ? `Billed. ${invoiceCount} invoices, one per person.`
+          : invoice
+            ? `Invoice #${invoice.id} · ${formatMoney(invoice.total)}`
+            : "This flight has been invoiced.";
+    }
+  })();
+
+  if (variant === "panel") {
+    return (
+      <>
+        <Separator />
+        {/* `close-out-not-started` stays on the panel because that is the shot the help
+            docs take of a booking waiting to be dispatched. The button it used to contain
+            now sits in the footer, so the crop is the rail and the sentence. */}
+        <section data-doc-shot="close-out-not-started" className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {heading}
+            </h3>
+            {step === "invoiced" && <StepBadge invoice={invoice} />}
+          </div>
+
+          <CloseOutRail step={step} noMeters={noMeters} />
+
+          <div
+            data-doc-shot={step === "confirm" ? "reservation-detail-awaiting-signoff" : undefined}
+            className="space-y-2"
+          >
+            <p className="text-sm text-muted-foreground">{panelStatus}</p>
+            {/* The one status worth a second line: you have signed, and the flight is
+                waiting on somebody else, so there is nothing for you to do but wait. */}
+            {step === "confirm" && !canConfirm && alreadyConfirmed && (
+              <p className="flex items-start gap-2 text-sm text-muted-foreground">
+                <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
+                <span>You&rsquo;ve signed off. Waiting on the other pilot&rsquo;s PIN.</span>
+              </p>
+            )}
+          </div>
+
+          {/* What is on the record so far. Renders nothing before the booking has flown. */}
+          <CloseOutReadings r={r} />
+
+          {/* Money the school is owed that the readings alone do not explain. Rare, and
+              wrong to fold away: somebody is being charged for a night the aircraft sat. */}
+          {step !== "invoiced" && (
+            <OvernightMinimumNotice
+              start={new Date(r.start)}
+              end={new Date(r.end)}
+              timeZone={tz.zone}
+              resource={r.resource ?? undefined}
+              orgMinimumTenths={billingQ.data?.overnightMinimumTenths ?? null}
+              graceMinutes={billingQ.data?.overnightGraceMinutes ?? null}
+            />
+          )}
+
+          {/* A booking priced by hand does not cost what the rate card says, and that is
+              true whether or not the reader ever opens the record page. The figures, and
+              the buttons that change them, are over there. */}
+          {hasOverrides && (
+            <p className="flex items-start gap-2 text-sm text-muted-foreground">
+              <Tag className="mt-0.5 size-4 shrink-0" />
+              <span>Priced by hand. The school&rsquo;s rate card does not apply here.</span>
+            </p>
+          )}
+        </section>
+
+        {actionSlot &&
+          panelAction &&
+          createPortal(
+            <Button className="w-full" onClick={panelAction.onClick} disabled={panelAction.disabled}>
+              {panelAction.icon}
+              {panelAction.label}
+            </Button>,
+            actionSlot
+          )}
+
+        <RampModal
+          open={rampMode !== null}
+          onOpenChange={(o) => !o && setRampMode(null)}
+          reservation={r}
+          mode={rampMode ?? "out"}
+        />
+        <ConfirmReviewModal open={confirmOpen} onOpenChange={setConfirmOpen} reservation={r} />
+        <ConfirmGuestReviewModal
+          open={guestConfirmOpen}
+          onOpenChange={setGuestConfirmOpen}
+          reservation={r}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <Separator />
@@ -314,7 +529,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
                   ? "Record the instruction time once the lesson is done."
                   : "Ready to dispatch. Ramp out when the aircraft departs."}
               </p>
-              <Button className="w-full" onClick={() => setRampMode("out")}>
+              <Button className="w-full sm:w-auto" onClick={() => setRampMode("out")}>
                 {noMeters ? (
                   <>
                     <ClipboardCheck className="size-4" /> Review times
@@ -340,7 +555,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
                 : "Ramped out. Ramp in when the aircraft is back."}
             </p>
             {canRamp && (
-              <Button className="w-full" onClick={() => setRampMode("in")}>
+              <Button className="w-full sm:w-auto" onClick={() => setRampMode("in")}>
                 <PlaneLanding className="size-4" /> Ramp in
               </Button>
             )}
@@ -357,7 +572,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
               confirmed.
             </p>
             {canConfirm ? (
-              <Button className="w-full" onClick={() => setConfirmOpen(true)}>
+              <Button className="w-full sm:w-auto" onClick={() => setConfirmOpen(true)}>
                 <ClipboardCheck className="size-4" /> Confirm review
               </Button>
             ) : alreadyConfirmed ? (
@@ -381,7 +596,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
               <span className="text-foreground">{guestName}</span>.
             </p>
             {canConfirmGuest ? (
-              <Button className="w-full" onClick={() => setGuestConfirmOpen(true)}>
+              <Button className="w-full sm:w-auto" onClick={() => setGuestConfirmOpen(true)}>
                 <Receipt className="size-4" /> Close out &amp; bill guest
               </Button>
             ) : (
@@ -415,7 +630,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
           <Button
             variant="ghost"
             size="sm"
-            className="w-full text-muted-foreground"
+            className="w-full text-muted-foreground sm:w-auto"
             onClick={() => setSquawkOpen(true)}
           >
             <Wrench className="size-4" /> Report a squawk
@@ -564,7 +779,7 @@ export function CloseOutSection({ reservation }: { reservation: Reservation }) {
                   {expectsLedger && <DocsHint topic="post-to-ledger" />}
                 </div>
                 <Button
-                  className="w-full"
+                  className="w-full sm:w-auto"
                   onClick={() => void raiseInvoice()}
                   disabled={createInvoice.isPending}
                 >

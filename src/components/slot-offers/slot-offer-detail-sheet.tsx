@@ -14,7 +14,7 @@ import { DetailPanel } from "@/components/detail-panel";
 import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { SheetDetailField } from "@/components/sheet-detail-field";
+import { SheetDetailField, SheetDetailFields } from "@/components/sheet-detail-field";
 import { cn } from "@/lib/utils";
 import { formatTimeInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
@@ -119,69 +119,71 @@ export function SlotOfferDetailSheet({
     >
       {o && (
         <div className="space-y-5 pt-4">
-          <SheetDetailField icon={Clock} label="Time">
-            <span className="tabular-nums">
-              {tz.time(o.start)}{" – "}{/* em-dash-ok: same time range mark as ReservationDetailSheet */}
-              {tz.spansDays(o.start, o.end)
-                ? `${tz.date(o.end, "short")} at ${tz.time(o.end)}`
-                : tz.time(o.end)}
-            </span>
-            {tz.differs(o.start) && (
-              <span className="ml-2 text-muted-foreground">
-                {tz.label(o.start)} · {formatTimeInZone(o.start, tz.viewerZone)} your time
+          <SheetDetailFields>
+            <SheetDetailField icon={Clock} label="Time">
+              <span className="tabular-nums">
+                {tz.time(o.start)}{" – "}{/* em-dash-ok: same time range mark as ReservationDetailSheet */}
+                {tz.spansDays(o.start, o.end)
+                  ? `${tz.date(o.end, "short")} at ${tz.time(o.end)}`
+                  : tz.time(o.end)}
               </span>
-            )}
-          </SheetDetailField>
-
-          <SheetDetailField icon={Hourglass} label="Offer ends">
-            <span>
-              in {formatDistanceToNowStrict(new Date(o.holdUntil))}
-              <span className="ml-2 text-muted-foreground tabular-nums">
-                ({tz.time(o.holdUntil)}
-                {tz.differs(o.holdUntil) ? ` ${tz.label(o.holdUntil)}` : ""})
-              </span>
-            </span>
-          </SheetDetailField>
-
-          <SheetDetailField icon={ResourceIcon} label="Resource">
-            {res ? (
-              <span>
-                <span className="font-medium">{res.name}</span>
-                <span className="ml-2 text-muted-foreground">{res.kind}</span>
-              </span>
-            ) : (
-              <span className="text-muted-foreground">Unassigned</span>
-            )}
-          </SheetDetailField>
-
-          {locationName && (
-            <SheetDetailField icon={MapPin} label="Location">
-              {locationName}
+              {tz.differs(o.start) && (
+                <span className="mt-0.5 block text-muted-foreground">
+                  {tz.label(o.start)} · {formatTimeInZone(o.start, tz.viewerZone)} your time
+                </span>
+              )}
             </SheetDetailField>
-          )}
 
-          <SheetDetailField icon={Users} label="Personnel">
-            {personnel.length > 0 ? (
-              <ul className="space-y-0.5">
-                {personnel.map((n) => (
-                  <li key={n}>{n}</li>
-                ))}
-              </ul>
-            ) : (
-              <span className="text-muted-foreground">No one assigned</span>
+            <SheetDetailField icon={Hourglass} label="Offer ends">
+              <span>
+                in {formatDistanceToNowStrict(new Date(o.holdUntil))}
+                <span className="ml-2 text-muted-foreground tabular-nums">
+                  ({tz.time(o.holdUntil)}
+                  {tz.differs(o.holdUntil) ? ` ${tz.label(o.holdUntil)}` : ""})
+                </span>
+              </span>
+            </SheetDetailField>
+
+            <SheetDetailField icon={ResourceIcon} label="Resource">
+              {res ? (
+                <span>
+                  <span className="font-medium">{res.name}</span>
+                  <span className="ml-2 text-muted-foreground">{res.kind}</span>
+                </span>
+              ) : (
+                <span className="text-muted-foreground">Unassigned</span>
+              )}
+            </SheetDetailField>
+
+            {locationName && (
+              <SheetDetailField icon={MapPin} label="Location">
+                {locationName}
+              </SheetDetailField>
             )}
-          </SheetDetailField>
 
-          <SheetDetailField icon={RefreshCw} label="Offer">
-            <span className="text-muted-foreground">
-              {triggerLabel(o.trigger)}
-              {o.purpose === "instructor_confirm" ? " · instructor confirm first" : ""}
-              {o.createdBy?.user?.name ? ` · by ${o.createdBy.user.name}` : ""}
-              {o.notificationDelivery?.anyChannelEnabled === false
-                ? " · notifications off for this member"
-                : ""}
-            </span>
-          </SheetDetailField>
+            <SheetDetailField icon={Users} label="Personnel">
+              {personnel.length > 0 ? (
+                <ul className="space-y-0.5">
+                  {personnel.map((n) => (
+                    <li key={n}>{n}</li>
+                  ))}
+                </ul>
+              ) : (
+                <span className="text-muted-foreground">No one assigned</span>
+              )}
+            </SheetDetailField>
+
+            <SheetDetailField icon={RefreshCw} label="Offer">
+              <span className="text-muted-foreground">
+                {triggerLabel(o.trigger)}
+                {o.purpose === "instructor_confirm" ? " · instructor confirm first" : ""}
+                {o.createdBy?.user?.name ? ` · by ${o.createdBy.user.name}` : ""}
+                {o.notificationDelivery?.anyChannelEnabled === false
+                  ? " · notifications off for this member"
+                  : ""}
+              </span>
+            </SheetDetailField>
+          </SheetDetailFields>
         </div>
       )}
     </DetailPanel>

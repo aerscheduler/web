@@ -104,14 +104,21 @@ export function WeatherBadge({
       <TooltipTrigger asChild>
         {variant === "detail" ? (
           // tabIndex so the provenance tooltip is reachable without a mouse.
-          <div className={cn("flex gap-3 text-sm", className)} tabIndex={0}>
-            <CloudSun className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            <div className="min-w-0 flex-1">
-              <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Weather
-              </div>
-              <div className="mt-0.5">{content}</div>
+          // Mirrors SheetDetailField's row, which it cannot use directly: the whole row
+          // is the tooltip's trigger, and it has to be able to render nothing at all
+          // rather than leave a labelled row with no weather in it.
+          <div
+            className={cn(
+              "flex items-start gap-3 py-2.5 text-[13px] first:pt-0 last:pb-0",
+              className
+            )}
+            tabIndex={0}
+          >
+            <div className="flex w-[100px] shrink-0 items-center gap-2 text-muted-foreground">
+              <CloudSun className="size-3.5 shrink-0" />
+              <span>Weather</span>
             </div>
+            <div className="min-w-0 flex-1">{content}</div>
           </div>
         ) : (
           <span

@@ -13,12 +13,10 @@ import {
 import type { Squawk } from "@/types/api";
 import { resourceLabel } from "@/types/api";
 import { useSquawk } from "@/features/queries";
-import { useAuth } from "@/lib/auth";
-import { canResolveSquawk } from "@/lib/permissions";
 import { formatDate } from "@/lib/utils";
 import { SquawkNotes } from "@/components/maintenance/squawk-notes";
 import { DetailPanel } from "@/components/detail-panel";
-import { SheetDetailField } from "@/components/sheet-detail-field";
+import { SheetDetailField, SheetDetailFields } from "@/components/sheet-detail-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -54,7 +52,6 @@ export function SquawkDetailSheet({
   onStep?: (delta: -1 | 1) => void;
 }) {
   const s = squawk;
-  const { roles } = useAuth();
 
   //The list row this panel is opened from carries no comments: the thread only comes back
   //on the single-squawk read. Fetched here rather than widened onto the list, because a
@@ -64,6 +61,10 @@ export function SquawkDetailSheet({
   const comments = full.data?.comments;
 
   const aircraft = s?.resource ? resourceLabel(s.resource).name : null;
+  // `/aircraft/:id` is the AIRCRAFT page; a squawk is only ever raised against a plane,
+  // but the id is only there to link to on the hydrated record.
+  const aircraftId = s?.resource?.id ?? null;
+  const reporterId = s?.reportedBy?.id ?? null;
   const reported = formatDate(s?.reportedAt ?? s?.createdAt, STAMP, "");
   const resolved = formatDate(s?.resolvedAt, STAMP, "");
   const verified = formatDate(s?.verifiedAt, STAMP, "");
@@ -119,53 +120,83 @@ export function SquawkDetailSheet({
             </p>
           )}
 
-          {s.description ? (
-            <SheetDetailField icon={FileText} label="Description">
-              <p className="whitespace-pre-wrap">{s.description}</p>
+          <SheetDetailFields>
+            {/* Prose, so it goes under its label at the panel's full width. In a 230px
+                value column a write-up is a ladder of two-word lines. */}
+            <SheetDetailField icon={FileText} label="Description" stacked>
+              {s.description ? (
+                <p className="whitespace-pre-wrap">{s.description}</p>
+              ) : (
+                <span className="text-muted-foreground">No description</span>
+              )}
             </SheetDetailField>
-          ) : (
-            <SheetDetailField icon={FileText} label="Description">
-              <span className="text-muted-foreground">No description</span>
+
+            {aircraft && (
+              <SheetDetailField icon={PlaneTakeoff} label="Aircraft">
+                {aircraftId != null ? (
+                  <Link
+                    to="/aircraft/$resourceId"
+                    params={{ resourceId: String(aircraftId) }}
+                    className="font-medium underline-offset-2 hover:underline"
+                  >
+                    {aircraft}
+                  </Link>
+                ) : (
+                  <span className="font-medium">{aircraft}</span>
+                )}
+              </SheetDetailField>
+            )}
+
+            <SheetDetailField icon={User} label="Reported by">
+              {s.reportedBy?.user?.name ? (
+                reporterId != null ? (
+                  <Link
+                    to="/people/$orgUserId"
+                    params={{ orgUserId: String(reporterId) }}
+                    className="underline-offset-2 hover:underline"
+                  >
+                    {s.reportedBy.user.name}
+                  </Link>
+                ) : (
+                  s.reportedBy.user.name
+                )
+              ) : (
+                <span className="text-muted-foreground">Unknown</span>
+              )}
             </SheetDetailField>
-          )}
 
-          {aircraft && (
-            <SheetDetailField icon={PlaneTakeoff} label="Aircraft">
-              <span className="font-medium">{aircraft}</span>
+            {reported && (
+              <SheetDetailField icon={CalendarClock} label="Reported">
+                <span className="tabular-nums">{reported}</span>
+              </SheetDetailField>
+            )}
+
+            {verified && (
+              <SheetDetailField icon={ClipboardCheck} label="Verified">
+                <span className="tabular-nums">{verified}</span>
+              </SheetDetailField>
+            )}
+
+            {resolved && (
+              <SheetDetailField icon={Check} label="Resolved">
+                <span className="tabular-nums">{resolved}</span>
+              </SheetDetailField>
+            )}
+
+            {/* READ ONLY HERE. The thread is append-only and a note is a permanent part of
+                the maintenance account of an aircraft, which is not something to type into
+                a 384px column with a booking's worth of other things on top of it. The
+                composer lives on the write-up, one click away. */}
+            <SheetDetailField icon={MessageSquare} label="Notes" stacked>
+              <SquawkNotes
+                squawkId={s.id}
+                comments={comments}
+                canWrite={false}
+                loading={full.isLoading}
+                compact
+              />
             </SheetDetailField>
-          )}
-
-          <SheetDetailField icon={User} label="Reported by">
-            {s.reportedBy?.user?.name ?? <span className="text-muted-foreground">Unknown</span>}
-          </SheetDetailField>
-
-          {reported && (
-            <SheetDetailField icon={CalendarClock} label="Reported">
-              <span className="tabular-nums">{reported}</span>
-            </SheetDetailField>
-          )}
-
-          {verified && (
-            <SheetDetailField icon={ClipboardCheck} label="Verified">
-              <span className="tabular-nums">{verified}</span>
-            </SheetDetailField>
-          )}
-
-          {resolved && (
-            <SheetDetailField icon={Check} label="Resolved">
-              <span className="tabular-nums">{resolved}</span>
-            </SheetDetailField>
-          )}
-
-          <SheetDetailField icon={MessageSquare} label="Notes">
-            <SquawkNotes
-              squawkId={s.id}
-              comments={comments}
-              canWrite={canResolveSquawk(roles)}
-              loading={full.isLoading}
-              compact
-            />
-          </SheetDetailField>
+          </SheetDetailFields>
 
           {/* The panel is a peek at a row in a list. The record page is the thing you can
               bookmark, link a colleague to, and land on from a notification. */}

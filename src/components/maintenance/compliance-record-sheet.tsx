@@ -12,7 +12,7 @@ import { resourceLabel } from "@/types/api";
 import { formatDate } from "@/lib/utils";
 import { fromDeciHours, SOURCE_TYPE_LABELS, sourceLabel } from "@/lib/maintenance";
 import { DetailPanel } from "@/components/detail-panel";
-import { SheetDetailField } from "@/components/sheet-detail-field";
+import { SheetDetailField, SheetDetailFields } from "@/components/sheet-detail-field";
 import { Badge } from "@/components/ui/badge";
 
 const STAMP = "MMM d, yyyy 'at' h:mm a";
@@ -74,70 +74,72 @@ export function ComplianceRecordSheet({
       )}
       {record && (
         <div data-doc-shot="compliance-record-panel" className="space-y-5 pt-4">
-          {/* What was actually done. First, because it is the sentence an inspector reads
-              and everything else on this panel is context for it. */}
-          <SheetDetailField icon={FileText} label="Method of compliance">
-            <p className="whitespace-pre-wrap">{record.methodOfCompliance}</p>
-          </SheetDetailField>
-
-          {ref && (
-            <SheetDetailField icon={ShieldCheck} label="Rule complied with">
-              {/* As it stood at signature. The template may have been superseded since,
-                  and this record deliberately does not follow it. */}
-              <span className="font-medium">{ref}</span>
+          <SheetDetailFields>
+            {/* What was actually done. First, because it is the sentence an inspector reads
+                and everything else on this panel is context for it. */}
+            <SheetDetailField icon={FileText} label="Method of compliance" stacked>
+              <p className="whitespace-pre-wrap">{record.methodOfCompliance}</p>
             </SheetDetailField>
-          )}
 
-          {aircraft && (
-            <SheetDetailField icon={PlaneTakeoff} label="Aircraft">
-              <span className="font-mono">{aircraft}</span>
+            {ref && (
+              <SheetDetailField icon={ShieldCheck} label="Rule complied with" stacked>
+                {/* As it stood at signature. The template may have been superseded since,
+                    and this record deliberately does not follow it. */}
+                <span className="font-medium">{ref}</span>
+              </SheetDetailField>
+            )}
+
+            {aircraft && (
+              <SheetDetailField icon={PlaneTakeoff} label="Aircraft">
+                <span className="font-mono">{aircraft}</span>
+              </SheetDetailField>
+            )}
+
+            <SheetDetailField icon={CalendarClock} label="Complied">
+              <span className="tabular-nums">{formatDate(record.complianceDate, "MMM d, yyyy", "")}</span>
             </SheetDetailField>
-          )}
 
-          <SheetDetailField icon={CalendarClock} label="Complied">
-            <span className="tabular-nums">{formatDate(record.complianceDate, "MMM d, yyyy", "")}</span>
-          </SheetDetailField>
+            {(record.tachAtCompliance != null || record.hobbsAtCompliance != null) && (
+              <SheetDetailField icon={Gauge} label="Meter readings at compliance" stacked>
+                <span className="tabular-nums">
+                  {record.tachAtCompliance != null && `${fromDeciHours(record.tachAtCompliance)} tach`}
+                  {record.tachAtCompliance != null && record.hobbsAtCompliance != null && " · "}
+                  {record.hobbsAtCompliance != null && `${fromDeciHours(record.hobbsAtCompliance)} hobbs`}
+                </span>
+              </SheetDetailField>
+            )}
 
-          {(record.tachAtCompliance != null || record.hobbsAtCompliance != null) && (
-            <SheetDetailField icon={Gauge} label="Meter readings at compliance">
-              <span className="tabular-nums">
-                {record.tachAtCompliance != null && `${fromDeciHours(record.tachAtCompliance)} tach`}
-                {record.tachAtCompliance != null && record.hobbsAtCompliance != null && " · "}
-                {record.hobbsAtCompliance != null && `${fromDeciHours(record.hobbsAtCompliance)} hobbs`}
-              </span>
+            <SheetDetailField icon={ShieldCheck} label="Certified by">
+              <div>
+                <div className="font-medium">{record.mechanicName}</div>
+                {record.mechanicCertificateNumber && (
+                  <div className="font-mono text-xs text-muted-foreground">
+                    {record.mechanicCertificateType ? `${record.mechanicCertificateType} ` : ""}
+                    {record.mechanicCertificateNumber}
+                  </div>
+                )}
+              </div>
             </SheetDetailField>
-          )}
 
-          <SheetDetailField icon={ShieldCheck} label="Certified by">
-            <div>
-              <div className="font-medium">{record.mechanicName}</div>
-              {record.mechanicCertificateNumber && (
-                <div className="font-mono text-xs text-muted-foreground">
-                  {record.mechanicCertificateType ? `${record.mechanicCertificateType} ` : ""}
-                  {record.mechanicCertificateNumber}
-                </div>
-              )}
-            </div>
-          </SheetDetailField>
-
-          {record.fileUrls.length > 0 && (
-            <SheetDetailField icon={Paperclip} label="Attached">
-              <ul className="space-y-1">
-                {record.fileUrls.map((url) => (
-                  <li key={url}>
-                    <a
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm underline-offset-2 hover:underline"
-                    >
-                      {url.split("/").pop() || "Attachment"}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </SheetDetailField>
-          )}
+            {record.fileUrls.length > 0 && (
+              <SheetDetailField icon={Paperclip} label="Attached">
+                <ul className="space-y-1">
+                  {record.fileUrls.map((url) => (
+                    <li key={url}>
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm underline-offset-2 hover:underline"
+                      >
+                        {url.split("/").pop() || "Attachment"}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </SheetDetailField>
+            )}
+          </SheetDetailFields>
         </div>
       )}
     </DetailPanel>

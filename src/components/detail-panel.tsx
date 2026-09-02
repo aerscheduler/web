@@ -118,7 +118,9 @@ export function DetailPanel({
   title,
   description,
   badge,
+  actions,
   footer,
+  footerClassName,
   onStep,
   children,
   className,
@@ -130,8 +132,22 @@ export function DetailPanel({
   description?: React.ReactNode;
   /** Status chip shown opposite the title. */
   badge?: React.ReactNode;
+  /**
+   * Secondary actions for the record, beside the close button. An overflow menu, not a
+   * row of buttons: this is the corner a reader's eye lands in last, which is exactly
+   * where the rare acts (edit, cancel, report a squawk) belong, and it keeps the footer
+   * free for the ONE thing the record is asking for right now.
+   */
+  actions?: React.ReactNode;
   /** Sticky action row under the scrolling body. */
   footer?: React.ReactNode;
+  /**
+   * Extra classes on the footer's own bar. For a footer whose contents are decided
+   * further down the tree (the reservation panel portals its one action into an
+   * otherwise-empty slot), `has-[>div:empty]:hidden` takes the border and the padding
+   * away with it rather than leaving a blank strip across the bottom.
+   */
+  footerClassName?: string;
   /** Move to the previous (-1) or next (+1) record in the list. */
   onStep?: (delta: -1 | 1) => void;
   children: React.ReactNode;
@@ -213,21 +229,26 @@ export function DetailPanel({
               <h2 className="truncate font-semibold text-foreground">{title}</h2>
               {badge}
             </div>
-            <button
-              type="button"
-              onClick={() => onOpenChange(false)}
-              aria-label="Close details"
-              className="-mr-1 shrink-0 rounded-sm p-1 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
-            >
-              <XIcon className="size-4" />
-            </button>
+            <div className="flex shrink-0 items-center gap-0.5">
+              {actions}
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                aria-label="Close details"
+                className="-mr-1 shrink-0 rounded-sm p-1 text-muted-foreground opacity-70 transition-opacity hover:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
+              >
+                <XIcon className="size-4" />
+              </button>
+            </div>
           </div>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </div>
 
         {body}
 
-        {footer && <div className="shrink-0 border-t p-4">{footer}</div>}
+        {footer && (
+          <div className={cn("shrink-0 border-t p-4", footerClassName)}>{footer}</div>
+        )}
       </section>,
       ctx.mount,
     );
@@ -237,9 +258,11 @@ export function DetailPanel({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="flex w-full flex-col gap-0 sm:max-w-md">
         <SheetHeader className="shrink-0 border-b">
-          <div className="flex items-center justify-between gap-3 pr-6">
+          <div className="flex items-center gap-2 pr-8">
             <SheetTitle className="truncate">{title}</SheetTitle>
             {badge}
+            {/* Pushed to the far end, clear of the Sheet's own absolutely-placed close. */}
+            {actions && <div className="ml-auto flex shrink-0 items-center">{actions}</div>}
           </div>
           {description ? (
             <SheetDescription>{description}</SheetDescription>
@@ -250,7 +273,9 @@ export function DetailPanel({
 
         {body}
 
-        {footer && <div className="shrink-0 border-t p-4">{footer}</div>}
+        {footer && (
+          <div className={cn("shrink-0 border-t p-4", footerClassName)}>{footer}</div>
+        )}
       </SheetContent>
     </Sheet>
   );

@@ -112,7 +112,10 @@ export function ReservationStandby({ reservation }: { reservation: Reservation }
   };
 
   return (
-    <div className="space-y-3">
+    // `empty:hidden` because this renders NOTHING on the overwhelming majority of
+    // bookings, and a zero-height div still collects a gap from the panel's `space-y`
+    // on both sides of itself.
+    <div className="space-y-3 empty:hidden">
       {(myInterest?.notificationDelivery?.anyChannelEnabled === false ||
         (showStandbyCard && !myInterest && notificationsOff)) && (
         <SlotOfferNotificationWarning />
@@ -164,9 +167,11 @@ export function ReservationStandby({ reservation }: { reservation: Reservation }
         </Card>
       )}
 
-      {desk && standbyOpen && (
-        <WatcherList watchers={watchers} loading={watchersQuery.isPending} />
-      )}
+      {/* ONLY WHEN SOMEBODY IS ACTUALLY WATCHING. A card whose entire content was "No
+          members are watching this booking" was drawn on every booking on the board, for
+          every member of the desk, and standby is rare: it told the reader nothing and
+          cost them a card's worth of the panel every single time. */}
+      {desk && standbyOpen && watchers.length > 0 && <WatcherList watchers={watchers} />}
 
       {desk && reservation.cancelledAt && (
         <Card className="border-primary/30 bg-primary/5">
@@ -189,37 +194,26 @@ export function ReservationStandby({ reservation }: { reservation: Reservation }
   );
 }
 
-function WatcherList({
-  watchers,
-  loading,
-}: {
-  watchers: StandbyInterest[];
-  loading: boolean;
-}) {
+/** Only ever rendered with somebody in it, so it has no loading or empty state. */
+function WatcherList({ watchers }: { watchers: StandbyInterest[] }) {
   return (
     <Card>
       <CardHeader className="flex-row items-center gap-2 space-y-0 pb-3">
         <Users className="size-4 text-muted-foreground" />
         <CardTitle className="text-sm">Standby watchers</CardTitle>
-        {!loading && <Badge variant="secondary">{watchers.length}</Badge>}
+        <Badge variant="secondary">{watchers.length}</Badge>
       </CardHeader>
       <CardContent className="pt-0">
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading watchers...</p>
-        ) : watchers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No members are watching this booking.</p>
-        ) : (
-          <ul className="space-y-2">
-            {watchers.map((interest) => (
-              <li key={interest.id} className="flex items-center justify-between gap-2 text-sm">
-                <span>{interest.orgUser?.user?.name ?? `Member #${interest.orgUser?.id}`}</span>
-                {interest.notificationDelivery?.anyChannelEnabled === false && (
-                  <Badge variant="outline">Notifications off</Badge>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+        <ul className="space-y-2">
+          {watchers.map((interest) => (
+            <li key={interest.id} className="flex items-center justify-between gap-2 text-sm">
+              <span>{interest.orgUser?.user?.name ?? `Member #${interest.orgUser?.id}`}</span>
+              {interest.notificationDelivery?.anyChannelEnabled === false && (
+                <Badge variant="outline">Notifications off</Badge>
+              )}
+            </li>
+          ))}
+        </ul>
       </CardContent>
     </Card>
   );

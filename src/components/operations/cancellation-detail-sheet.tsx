@@ -2,7 +2,7 @@ import { format, parseISO } from "date-fns";
 import { CalendarX2, Clock, FileText, Plane, User, Users } from "lucide-react";
 import type { CancelledReservation, ReservationType } from "@/types/api";
 import { cancelledForLabel, cancelledResourceLabel } from "@/types/api";
-import { SheetDetailField } from "@/components/sheet-detail-field";
+import { SheetDetailField, SheetDetailFields } from "@/components/sheet-detail-field";
 import { DOT_CLASS, typeLabel } from "@/components/schedule/meta";
 import { DetailPanel } from "@/components/detail-panel";
 import { Badge } from "@/components/ui/badge";
@@ -69,44 +69,46 @@ export function CancellationDetailSheet({
             )}
           </div>
 
-          <SheetDetailField icon={Clock} label="Scheduled">
-            <span className="tabular-nums">
-              {format(parseISO(row.start), "h:mm a")} –{" "}
-              {format(parseISO(row.end), "h:mm a")}
-            </span>
-          </SheetDetailField>
+          <SheetDetailFields>
+            <SheetDetailField icon={Clock} label="Scheduled">
+              <span className="tabular-nums">
+                {format(parseISO(row.start), "h:mm a")} –{" "}
+                {format(parseISO(row.end), "h:mm a")}
+              </span>
+            </SheetDetailField>
 
-          <SheetDetailField icon={CalendarX2} label="Cancelled">
-            <span className="tabular-nums">{fmtDateTime(row.cancelledAt)}</span>
-          </SheetDetailField>
+            <SheetDetailField icon={CalendarX2} label="Cancelled">
+              <span className="tabular-nums">{fmtDateTime(row.cancelledAt)}</span>
+            </SheetDetailField>
 
-          <SheetDetailField icon={User} label="Cancelled by">
-            {row.cancelledBy?.user?.name ?? (
-              <span className="text-muted-foreground">–</span>
-            )}
-          </SheetDetailField>
+            <SheetDetailField icon={User} label="Cancelled by">
+              {row.cancelledBy?.user?.name ?? (
+                <span className="text-muted-foreground">–</span>
+              )}
+            </SheetDetailField>
 
-          <SheetDetailField icon={Plane} label="Resource">
-            <span className="font-medium">{resName}</span>
-          </SheetDetailField>
+            <SheetDetailField icon={Plane} label="Resource">
+              <span className="font-medium">{resName}</span>
+            </SheetDetailField>
 
-          <SheetDetailField icon={Users} label="Personnel">
-            {forLabel !== "–" ? (
-              forLabel
-            ) : (
-              <span className="text-muted-foreground">No one assigned</span>
-            )}
-          </SheetDetailField>
+            <SheetDetailField icon={Users} label="Personnel">
+              {forLabel !== "–" ? (
+                forLabel
+              ) : (
+                <span className="text-muted-foreground">No one assigned</span>
+              )}
+            </SheetDetailField>
 
-          <SheetDetailField icon={FileText} label="Cancellation note">
-            {row.cancellationReason?.trim() ? (
-              <p className="whitespace-pre-wrap text-muted-foreground">
-                {row.cancellationReason}
-              </p>
-            ) : (
-              <span className="text-muted-foreground">–</span>
-            )}
-          </SheetDetailField>
+            <SheetDetailField icon={FileText} label="Cancellation note" stacked>
+              {row.cancellationReason?.trim() ? (
+                <p className="whitespace-pre-wrap text-muted-foreground">
+                  {row.cancellationReason}
+                </p>
+              ) : (
+                <span className="text-muted-foreground">–</span>
+              )}
+            </SheetDetailField>
+          </SheetDetailFields>
         </div>
       )}
     </DetailPanel>

@@ -72,7 +72,7 @@
   --brand-surface-2: #1a3763;
 
   /* reservation / dispatch-lane hues, calmer, to sit on white cards */
-  --res-dual: #b5397e; /* rose. was #2c4589, an indigo too close to solo's azure to tell apart on a dense board, especially once past bookings are dimmed. Mirrored in app lib/constants/style.dart calendarColorDual — see res-colors.test.ts */
+  --res-dual: #b5397e; /* rose. was #2c4589, an indigo too close to solo's azure to tell apart on a dense board, especially once past bookings are dimmed. Mirrored in app lib/constants/style.dart calendarColorDual, see res-colors.test.ts */
   --res-solo: #1967d2;
   --res-ground: #5b6472;
   --res-sim: #9a6a45;
@@ -112,35 +112,51 @@
   --chart-grid: #e3e5ea;
 }
 
-.dark {
-  --background: #0a0e1a; /* Stripe deep-slate canvas */
-  --foreground: #f2f4f8;
+/*
+  Dark mode, on a Linear-derived ramp.
 
-  --card: #151b2d;
-  --card-foreground: #f2f4f8;
-  --popover: #151b2d;
-  --popover-foreground: #f2f4f8;
+  This started as navy (#0a0e1a canvas, #151b2d cards), which fought the brand blue and
+  read as a deliberate colour rather than an absence of light. Linear answers the same
+  problem by going much further down: a near-black canvas, surfaces only a few points
+  apart, hairline borders, and near-white text. High contrast where the content is, and
+  almost none anywhere else.
+
+  Two things to know before changing a value here. Linear's greys are very slightly
+  cool rather than dead neutral (#8a8f98 is the giveaway); that is intentional, and it
+  is nothing like the old navy. And the surface steps are deliberately tiny, because
+  the borders are what separate things, the same way they do in light mode.
+*/
+.dark {
+  --background: #08090a; /* Linear canvas */
+  --foreground: #f7f8f8; /* Linear primary text, near-white on purpose */
+
+  --card: #0f1011; /* one step off the canvas */
+  --card-foreground: #f7f8f8;
+  --popover: #1c1c1f; /* elevated surface, for menus and modals */
+  --popover-foreground: #f7f8f8;
 
   --primary: #4a8fe7; /* brightened logo-blue for dark-surface legibility */
-  --primary-foreground: #071022;
+  --primary-foreground: #121212;
 
-  --secondary: #1e2740;
-  --secondary-foreground: #e6eaf2;
-  --muted: #1b2338;
-  --muted-foreground: #8a94a8;
-  --accent: #1e2740; /* neutral hover on dark */
-  --accent-foreground: #e6eaf2;
+  --secondary: #1c1c1f;
+  --secondary-foreground: #f7f8f8;
+  --muted: #141516;
+  --muted-foreground: #8a8f98; /* Linear secondary text, cool grey */
+  --accent: #1f2023; /* neutral hover fill */
+  --accent-foreground: #f7f8f8;
 
-  --destructive: #ff6b81;
-  --destructive-foreground: #1a0a10;
-  --success: #34d399;
-  --warning: #f0b955;
-  --info: #4a8fe7;
+  /* Linear's semantic colours, which run bright because the canvas under them is so
+     dark. All four clear 5:1 on --card. */
+  --destructive: #f2555a;
+  --destructive-foreground: #141414;
+  --success: #4cb782;
+  --warning: #fc7840;
+  --info: #4ea7fc;
 
   --brand: #4a8fe7;
 
-  --border: #232b42;
-  --input: #2c3550;
+  --border: #23252a; /* Linear hairline */
+  --input: #2c2d30; /* a step stronger than a divider, so a field reads as a field */
   --ring: #4a8fe7;
 
   --sh-xs: 0 0 0 1px rgba(0, 0, 0, 0.5);
@@ -148,35 +164,43 @@
   --sh-md: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 4px 10px -2px rgba(0, 0, 0, 0.55);
   --sh-lg: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 18px 44px -10px rgba(0, 0, 0, 0.7);
 
-  --sidebar: #0a0e1a;
-  --sidebar-foreground: #9aa4b8;
-  --sidebar-primary: #2f7ae4;
+  /* Linear's rail shares the canvas rather than sitting on a surface of its own, so
+     the content cards are what lift off the page. */
+  --sidebar: #08090a;
+  --sidebar-foreground: #8a8f98;
+  --sidebar-primary: #4a8fe7;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #171d2b; /* subtle neutral hover fill */
+  --sidebar-accent: #1f2023; /* subtle neutral hover fill */
   --sidebar-accent-foreground: #6aa0ee; /* accent text+icon on the ACTIVE item */
-  --sidebar-border: #1d2740;
+  --sidebar-border: #1f2023;
   --sidebar-ring: #4a8fe7;
 
+  /* Auth pages only, and branded navy in BOTH themes, so these deliberately do not
+     follow the ramp above. */
   --brand-surface: #0b1626;
   --brand-surface-2: #16305a;
 
-  --res-dual: #d4709f; /* dark-mode rose, see the light value above */
+  /* Lane hues on the dark card. The LIGHT values are the ones pinned to the mobile
+     app in res-colors.test.ts; these dark counterparts are free. Ground and
+     maintenance stay one neutral grey and one blue-grey, which is the same way the
+     two are told apart in light mode. */
+  --res-dual: #e06fa8; /* dark-mode rose, see the light value above */
   --res-solo: #4a8fe7;
-  --res-ground: #7f8aa0;
+  --res-ground: #9ca1a9;
   --res-sim: #c08a63;
-  --res-rental: #35a891;
+  --res-rental: #4cb782;
   --res-guest: #a08bd6;
-  --res-maintenance: #9aa4c0;
+  --res-maintenance: #6f7a8a;
 
-  /* The same hues re-stepped for the dark card surface (#151b2d) and validated
-     against it, all three of 1–3 clear 3:1 there. */
-  /* Same hues, lifted for the dark surface; see the palette note above. */
+  /* The same hues re-stepped for the dark card surface (#0f1011) and validated
+     against it, all three of 1-3 clear 3:1 there. See the palette note in :root
+     before changing any of these. */
   --chart-1: #7b8cf0;
   --chart-2: #e08a52;
-  --chart-3: #2ab68e;
+  --chart-3: #4cb782;
   --chart-4: #d9a33a;
   --chart-5: #dd8aab;
-  --chart-grid: #232b42;
+  --chart-grid: #23252a;
 }
 
 @theme inline {

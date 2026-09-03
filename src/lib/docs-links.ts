@@ -591,6 +591,12 @@ export const DOCS_TOPICS = {
       "Email, push, and SMS share the same categories, and each channel has its own master switch. SMS needs a verified US mobile first and is included in your plan. Reply STOP on any AerScheduler text to opt out.",
     href: "getting-started/notifications-and-emails",
   },
+  "appearance-theme": {
+    title: "Appearance",
+    summary:
+      "Light and Dark stay fixed on this device. System follows this device's appearance setting and changes with it.",
+    href: "getting-started/your-profile-and-time-zone#appearance",
+  },
   "personal-calendar-sync": {
     title: "Personal calendars",
     summary:

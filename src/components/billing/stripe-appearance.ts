@@ -26,9 +26,9 @@ export function stripeAppearance(dark: boolean): Appearance {
   return {
     theme: dark ? "night" : "stripe",
     variables: {
-      colorPrimary: "#1967d2",
-      colorBackground: dark ? "#1b2430" : "#ffffff",
-      colorText: dark ? "#e6e9ee" : "#363740",
+      colorPrimary: dark ? "#4a8fe7" : "#1967d2",
+      colorBackground: dark ? "#0f1011" : "#ffffff",
+      colorText: dark ? "#f7f8f8" : "#363740",
       colorDanger: "#d92d20",
       borderRadius: "8px",
       fontSizeBase: "15px",

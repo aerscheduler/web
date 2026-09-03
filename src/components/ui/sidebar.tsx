@@ -483,7 +483,10 @@ const sidebarMenuButtonVariants = cva(
           "bg-background shadow-[0_0_0_1px_var(--sidebar-border)] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:shadow-[0_0_0_1px_var(--sidebar-accent)]",
       },
       size: {
-        default: "h-8 text-sm",
+        // 28px. 32 read chunky, and 28 is where Linear's rail rows sit, which is what
+        // the dark palette is derived from. The collapsed icon rail keeps its 32px
+        // square via the size-8! override above, which only applies in that state.
+        default: "h-7 text-sm",
         sm: "h-7 text-xs",
         lg: "h-12 text-sm group-data-[collapsible=icon]:p-0!",
       },

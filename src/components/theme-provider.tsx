@@ -1,8 +1,17 @@
 import * as React from "react";
-import { getTheme, applyTheme, type Theme } from "@/lib/theme";
+import {
+  applyTheme,
+  applyThemeToDocument,
+  getTheme,
+  resolveTheme,
+  subscribeToSystemTheme,
+  type ResolvedTheme,
+  type Theme,
+} from "@/lib/theme";
 
 type ThemeContextValue = {
   theme: Theme;
+  resolvedTheme: ResolvedTheme;
   setTheme: (t: Theme) => void;
   toggle: () => void;
 };
@@ -11,18 +20,29 @@ const ThemeContext = React.createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = React.useState<Theme>(() => getTheme());
+  const [resolvedTheme, setResolvedTheme] = React.useState<ResolvedTheme>(() =>
+    resolveTheme(theme)
+  );
 
   const setTheme = React.useCallback((t: Theme) => {
-    applyTheme(t);
+    setResolvedTheme(applyTheme(t));
     setThemeState(t);
   }, []);
 
   const toggle = React.useCallback(() => {
-    setTheme(theme === "dark" ? "light" : "dark");
-  }, [theme, setTheme]);
+    setTheme(resolvedTheme === "dark" ? "light" : "dark");
+  }, [resolvedTheme, setTheme]);
+
+  React.useEffect(() => {
+    if (theme !== "system") return;
+    return subscribeToSystemTheme((next) => {
+      applyThemeToDocument(next);
+      setResolvedTheme(next);
+    });
+  }, [theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, toggle }}>
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, toggle }}>
       {children}
     </ThemeContext.Provider>
   );

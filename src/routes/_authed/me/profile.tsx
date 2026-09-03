@@ -14,6 +14,7 @@ import { MechanicCertificateCard } from "@/components/me-account/mechanic-certif
 import { MyMembershipCard } from "@/components/me-account/my-membership-card";
 import { ContactDetailsCard } from "@/components/me-account/contact-details-card";
 import { EmergencyContactsCard } from "@/components/me-account/emergency-contacts-card";
+import { AppearanceCard } from "@/components/settings/appearance-card";
 import { MyTimeZoneCard } from "@/components/settings/time-zone-card";
 import { SecurityCard } from "@/components/me-account/security-card";
 import { GoogleCalendarCard } from "@/components/me-account/google-calendar-card";
@@ -91,6 +92,7 @@ function ProfilePage() {
                 <MechanicCertificateCard />
               )}
               <EmergencyContactsCard userId={user?.id ?? null} />
+              <AppearanceCard />
               {/* Lives on the profile tab rather than its own: it's a personal preference, and
                   most people will set it once when they first travel and never look again. */}
               <MyTimeZoneCard />

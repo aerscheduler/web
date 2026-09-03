@@ -95,7 +95,7 @@ export function AttentionStrip({
               // "Awaiting cl…", which is worse than a shorter grid.
               <div
                 className={
-                  compact ? "-mx-1 space-y-0.5" : "grid gap-2 sm:grid-cols-2 2xl:grid-cols-3"
+                  compact ? "min-w-0 space-y-0.5" : "grid gap-2 sm:grid-cols-2 2xl:grid-cols-3"
                 }
               >
                 {outstanding.map((item) => {
@@ -167,7 +167,7 @@ function AttentionItem({
         // The hint is not dropped, only moved. Without it "Awaiting close-out"
         // is a number attached to jargon.
         title={item.hint}
-        className="group flex w-full items-center gap-2 rounded-md px-1 py-1.5 text-left transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="group flex w-full min-w-0 items-center gap-2 rounded-md py-1.5 text-left transition-colors hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <Icon className={cn("size-3.5 shrink-0", toneText)} />
         <span className={cn("w-7 shrink-0 text-sm font-semibold tabular-nums", toneText)}>

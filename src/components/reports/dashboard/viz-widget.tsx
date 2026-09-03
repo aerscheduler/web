@@ -92,7 +92,10 @@ function AttentionWidget({
     });
 
   return (
-    <div className="h-full overflow-y-auto">
+    // overflow-y:auto computes overflow-x to auto as well. A list even one
+    // pixel wider than the tile (negative margin, subpixels) then paints a
+    // horizontal scrollbar when nothing needs to scroll sideways.
+    <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto">
       <AttentionStrip
         items={overview.data?.attention ?? []}
         loading={overview.isLoading}
@@ -156,7 +159,7 @@ function UpcomingWidget({ editing }: { editing: boolean }) {
 
   return (
     <>
-      <div className="h-full overflow-y-auto">
+      <div className="h-full min-w-0 overflow-x-hidden overflow-y-auto">
         <ul className="divide-y divide-border">
           {upcoming.map((r) => (
             <UpcomingRow

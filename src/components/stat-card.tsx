@@ -24,6 +24,7 @@ export function StatGrid({
   return (
     <div className={cn("@container min-w-0 shrink-0", className)}>
       <div
+        data-stat-grid=""
         className={cn(
           "grid grid-cols-2 gap-4",
           wideCols === 3 ? "@4xl:grid-cols-3" : "@4xl:grid-cols-4",
@@ -62,9 +63,10 @@ export function StatCard({
     | "/billing"
     | "/training"
     | "/aircraft"
-    | "/schedule";
+    | "/schedule"
+    | "/settings";
   /** Search params for `to`, so a tile can land on the filtered list it counts. */
-  search?: Record<string, string>;
+  search?: Record<string, string | boolean>;
 }) {
   const tone =
     accent === "warning"
@@ -94,8 +96,12 @@ export function StatCard({
     </div>
   );
 
+  // h-full on both shapes, not just the grid item: a row is only as tall as its
+  // tallest tile, and `hint` is optional, so without this a tile that has one
+  // sits short next to a tile that doesn't. On the linked shape the Link is the
+  // grid item, so the Card inside it needs the height too or it floats.
   if (!to) {
-    return <Card className="p-4">{body}</Card>;
+    return <Card className="h-full p-4">{body}</Card>;
   }
 
   return (
@@ -103,9 +109,9 @@ export function StatCard({
       to={to}
       search={search}
       aria-label={label}
-      className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="block h-full rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <Card className="p-4 transition-colors hover:bg-muted/40">
+      <Card className="h-full p-4 transition-colors hover:bg-muted/40">
         {body}
       </Card>
     </Link>

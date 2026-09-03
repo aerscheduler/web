@@ -50,6 +50,7 @@ const ENTITY_TYPES: { value: string; label: string }[] = [
   { value: "joinRequest", label: "Join requests" },
   { value: "organization", label: "Settings" },
   { value: "apiKey", label: "API keys" },
+  { value: "standbyInterest", label: "Standby" },
   { value: "ledgerEntry", label: "Ledger" },
 ];
 
@@ -152,6 +153,10 @@ function actionLabel(action: string): string {
     "organization.bookingPolicyChanged": "Booking policy changed",
     "organization.preferencesChanged": "Preferences changed",
     "organization.timeZoneChanged": "Time zone changed",
+
+    //Standby
+    "standby.created": "Joined standby",
+    "standby.withdrawn": "Left standby",
 
     //Access
     "apiKey.created": "API key created",

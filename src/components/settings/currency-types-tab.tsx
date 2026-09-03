@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Link } from "@tanstack/react-router";
 import { format, parseISO } from "date-fns";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -83,7 +84,7 @@ function storedExpiryRules(t: CurrencyType): number {
 }
 
 /** The rule's expiry in one phrase, e.g. "Expires 24 months after sign-off". */
-function expirySummary(t: CurrencyType): string {
+export function expirySummary(t: CurrencyType): string {
   switch (effectiveExpiryMode(t)) {
     case "on":
       return `Expires ${formatDay(t.expiresOn!)}`;
@@ -107,7 +108,7 @@ function expirySummary(t: CurrencyType): string {
  * them there (there is no endpoint to create one for an individual), so with no
  * people group there is nothing to match either. Either gap = enforces nothing.
  */
-function scopeGapText(aircraftGroups: number, peopleGroups: number): string | null {
+export function scopeGapText(aircraftGroups: number, peopleGroups: number): string | null {
   if (!aircraftGroups && !peopleGroups)
     return "No aircraft groups and no people groups, nobody is tracked against this rule and it covers no aircraft, so it never blocks a booking.";
   if (!aircraftGroups)
@@ -289,7 +290,13 @@ function TypeRow({
     <li className="flex items-start justify-between gap-4 px-4 py-3">
       <div className="min-w-0 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-medium">{type.name}</span>
+          <Link
+            to="/compliance/rules/$currencyTypeId"
+            params={{ currencyTypeId: String(type.id) }}
+            className="truncate rounded-sm text-sm font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {type.name}
+          </Link>
           {gap && (
             <Badge variant="danger">
               <AlertTriangle className="size-3" /> Enforces nothing
@@ -490,7 +497,7 @@ function sameIds(a: number[], b: number[]) {
   return [...a].sort((x, y) => x - y).every((v, i) => v === sortedB[i]);
 }
 
-function CurrencyTypeFormModal({
+export function CurrencyTypeFormModal({
   open,
   onOpenChange,
   type,

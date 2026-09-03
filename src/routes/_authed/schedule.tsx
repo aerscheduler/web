@@ -26,7 +26,6 @@ import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/state
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TableView } from "@/components/table-view";
-import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { usePersistedState } from "@/hooks/use-persisted-state";
 import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
@@ -41,6 +40,7 @@ import { WeekTimeGrid } from "@/components/schedule/week-time-grid";
 import { MonthGrid } from "@/components/schedule/month-grid";
 import { MonthAgenda } from "@/components/schedule/month-agenda";
 import { AgendaList } from "@/components/schedule/agenda-list";
+import { ScheduleCalendarSkeleton } from "@/components/schedule/calendar-skeleton";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
 import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
 import {
@@ -150,13 +150,10 @@ function SchedulePage() {
   );
   const [day, setDay] = React.useState<Date>(() => new Date());
   const [view, setView] = usePersistedState<ScheduleView>("view:schedule-range", "day");
-  const [presentation, setPresentation] = usePersistedState<ViewMode>(
-    "view:schedule-presentation",
-    "grid"
-  );
   const isDesktop = useMediaQuery("(min-width: 768px)");
-  // Mobile always uses the agenda; desktop honors the board/list toggle.
-  const showBoard = isDesktop && presentation === "grid";
+  // The desktop schedule is always the dispatch board. Narrow browser widths keep
+  // the agenda because the time grids need room for their lanes and drag targets.
+  const showBoard = isDesktop;
 
   //The window we FETCH has to be the same calendar range we RENDER, and rendering is
   //pinned to the airport. Computing the bounds locally while positioning by airport time
@@ -446,10 +443,7 @@ function SchedulePage() {
           subtitle="Dispatch board for aircraft, instructors and students at a glance."
           actions={
             <>
-              {isDesktop && (
-                <ViewModeToggle value={presentation} onChange={setPresentation} />
-              )}
-              {staff && slotOffersOn && (
+              {staff && slotOffersOn && (pendingOffersQ.data?.length ?? 0) > 0 && (
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -496,7 +490,7 @@ function SchedulePage() {
           className="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
         >
           {q.isPending ? (
-            <CalendarGridSkeleton />
+            showBoard ? <ScheduleCalendarSkeleton view={view} /> : <CalendarGridSkeleton />
           ) : q.isError ? (
             <ErrorState error={q.error} onRetry={() => q.refetch()} />
           ) : view === "day" && reservations.length === 0 ? (

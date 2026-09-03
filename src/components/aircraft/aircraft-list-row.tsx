@@ -39,18 +39,25 @@ export function AircraftListRow({
   const rate = planeRate(p);
 
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5">
+    <div className="relative flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-accent/40 focus-within:ring-2 focus-within:ring-ring focus-within:ring-inset">
+      {/* The whole row opens the aircraft, not just the tail number. The row also carries
+          an actions button, and a button inside an anchor is invalid HTML that swallows the
+          keyboard, so the anchor is a full-row overlay, the content ignores pointer events,
+          and anything genuinely clickable lifts itself back above it. */}
       <Link
         to="/aircraft/$resourceId"
         params={{ resourceId: String(r.id) }}
-        className="min-w-0 flex-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
+        className="absolute inset-0 z-0"
+        aria-label={`${p.tailNumber}, aircraft detail`}
+      />
+
+      <div className="pointer-events-none min-w-0 flex-1 text-left">
         <div className="flex items-center gap-2">
           <span className="font-mono font-semibold tracking-tight">{p.tailNumber}</span>
           {status.variant === "danger" && p.groundedReason ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span>
+                <span className="pointer-events-auto relative z-10">
                   <Badge variant={status.variant}>{status.label}</Badge>
                 </span>
               </TooltipTrigger>
@@ -61,12 +68,12 @@ export function AircraftListRow({
           )}
         </div>
         <div className="truncate text-xs text-muted-foreground">{planeTitle(p)}</div>
-      </Link>
+      </div>
 
-      <div className="hidden gap-4 text-xs text-muted-foreground sm:flex">
+      <div className="pointer-events-none hidden gap-4 text-xs text-muted-foreground sm:flex">
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1">
+            <span className="pointer-events-auto relative z-10 inline-flex items-center gap-1">
               <span className="tnum font-medium text-foreground">
                 {(p.hobbsTime / 10).toFixed(1)}
               </span>
@@ -77,7 +84,7 @@ export function AircraftListRow({
         </Tooltip>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="inline-flex items-center gap-1">
+            <span className="pointer-events-auto relative z-10 inline-flex items-center gap-1">
               <span className="tnum font-medium text-foreground">
                 {(p.tachTime / 10).toFixed(1)}
               </span>
@@ -89,7 +96,7 @@ export function AircraftListRow({
       </div>
 
       {rate && (
-        <div className="w-24 shrink-0 text-right text-sm">
+        <div className="pointer-events-none w-24 shrink-0 text-right text-sm">
           <span className="tnum font-semibold">{formatMoney(rate.cents)}</span>
           <span className="text-xs text-muted-foreground">
             {" "}
@@ -106,7 +113,7 @@ export function AircraftListRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="shrink-0"
+                className="pointer-events-auto relative z-10 shrink-0"
                 aria-label={`Actions for ${p.tailNumber}`}
               >
                 <MoreHorizontal className="size-4" />

@@ -42,8 +42,19 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
   const meterless = p.meterMode === "none";
 
   return (
-    <Card className="flex flex-col overflow-hidden pt-0">
-      <div className="relative h-28 bg-muted">
+    <Card className="relative flex flex-col overflow-hidden pt-0 transition-colors hover:bg-accent/30 focus-within:ring-2 focus-within:ring-ring">
+      {/* The whole card opens the aircraft, but the card also carries its own actions
+          button, and a button inside an anchor is invalid HTML that swallows the keyboard.
+          So the anchor is a full-card overlay, the content ignores pointer events, and
+          anything genuinely clickable lifts itself back above it. */}
+      <Link
+        to="/aircraft/$resourceId"
+        params={{ resourceId: String(r.id) }}
+        className="absolute inset-0 z-0 rounded-xl"
+        aria-label={`${p.tailNumber}, aircraft detail`}
+      />
+
+      <div className="pointer-events-none relative h-28 bg-muted">
         {r.featuredImage ? (
           <img
             src={r.featuredImage}
@@ -51,15 +62,18 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
             className="h-full w-full object-cover"
           />
         ) : (
-          <div className="grid h-full place-items-center text-muted-foreground/40">
-            <PlaneIcon className="size-10" />
+          // Most schools never upload a photo, so this is the common case, not the
+          // exception: a flat grey slab with a small icon in it reads as a picture that
+          // failed to load. A wash and a watermark reads as the design.
+          <div className="grid h-full place-items-center bg-gradient-to-br from-muted to-muted/30 text-muted-foreground/25">
+            <PlaneIcon className="size-12" strokeWidth={1.25} />
           </div>
         )}
         <div className="absolute left-3 top-3">
           {status.variant === "danger" && p.groundedReason ? (
             <Tooltip>
               <TooltipTrigger asChild>
-                <span>
+                <span className="pointer-events-auto relative z-10">
                   <Badge variant={status.variant}>{status.label}</Badge>
                 </span>
               </TooltipTrigger>
@@ -71,16 +85,12 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
         </div>
       </div>
 
-      <div className="flex flex-1 flex-col p-4">
+      <div className="pointer-events-none flex flex-1 flex-col p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <Link
-              to="/aircraft/$resourceId"
-              params={{ resourceId: String(r.id) }}
-              className="rounded font-mono text-lg font-semibold tracking-tight outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-            >
+            <div className="font-mono text-lg font-semibold tracking-tight">
               {p.tailNumber}
-            </Link>
+            </div>
             <div className="truncate text-sm text-muted-foreground">{planeTitle(p)}</div>
           </div>
 
@@ -91,7 +101,7 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="-mr-1 shrink-0"
+                    className="pointer-events-auto relative z-10 -mr-1 shrink-0"
                     aria-label={`Actions for ${p.tailNumber}`}
                   >
                     <MoreHorizontal className="size-4" />
@@ -158,7 +168,7 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
             <div className="flex gap-4 text-xs text-muted-foreground">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex items-center gap-1">
+                  <span className="pointer-events-auto relative z-10 inline-flex items-center gap-1">
                     <span className="tnum font-medium text-foreground">
                       {(p.hobbsTime / 10).toFixed(1)}
                     </span>
@@ -169,7 +179,7 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <span className="inline-flex items-center gap-1">
+                  <span className="pointer-events-auto relative z-10 inline-flex items-center gap-1">
                     <span className="tnum font-medium text-foreground">
                       {(p.tachTime / 10).toFixed(1)}
                     </span>

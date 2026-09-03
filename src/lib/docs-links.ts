@@ -465,6 +465,18 @@ export const DOCS_TOPICS = {
 
   /* ── Maintenance ──────────────────────────────────────────────────────── */
 
+  "go-no-go-board": {
+    title: "Go / No-Go",
+    summary:
+      "This board collects grounded aircraft and members in one place. Open an item to review the reason and use its full Aircraft or People page for the next action.",
+    href: "maintenance/use-the-go-no-go-board",
+  },
+  "currency-rule-details": {
+    title: "Currency rule details",
+    summary:
+      "This page shows who the rule covers, who needs attention, and which required documents are attached or missing. Sign off here when the rule allows it, or open the member to review their evidence.",
+    href: "scheduling/manage-a-currency-rule",
+  },
   "squawk-grounding": {
     title: "Grounding on a squawk",
     summary:

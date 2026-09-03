@@ -4,6 +4,7 @@ import { api, apiList, apiRaw, ApiError, raw, type PaginationMeta } from "@/lib/
 import { track } from "@/lib/analytics";
 import type { Paged, PagingState } from "@/lib/paging";
 import { outstandingHolds } from "@/lib/outstanding-holds";
+import type { CurrencyRuleDetail, CurrencyRuleStanding } from "@/types/currency-rule";
 import {
   coordinateKey,
   fetchNearestObservation,
@@ -622,6 +623,21 @@ export function useCurrencyTypes(opts?: QueryOpts) {
     queryKey: ["currencyTypes"],
     queryFn: () => api<CurrencyType[]>("/currencies/types"),
     ...opts,
+  });
+}
+
+export function useCurrencyRuleDetail(
+  currencyTypeId: number,
+  filter?: { q?: string; status?: CurrencyRuleStanding; limit?: number; offset?: number },
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: ["currencyTypes", "detail", currencyTypeId, filter ?? {}],
+    queryFn: () =>
+      api<CurrencyRuleDetail>(`/currencies/types/${currencyTypeId}/detail`, {
+        query: filter,
+      }),
+    enabled: (opts?.enabled ?? true) && Number.isFinite(currencyTypeId),
   });
 }
 
@@ -2597,6 +2613,7 @@ export function useRenewCurrency() {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["currencies"] });
+      void qc.invalidateQueries({ queryKey: ["currencyTypes", "detail"] });
     },
   });
 }

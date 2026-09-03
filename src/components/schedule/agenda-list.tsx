@@ -49,14 +49,14 @@ export function AgendaList({
 
   if (groups.size === 0) {
     return (
-      <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+      <div data-layout="agenda" className="px-4 py-10 text-center text-sm text-muted-foreground">
         No reservations in this range.
       </div>
     );
   }
 
   return (
-    <div className="h-full min-h-0 divide-y divide-border overflow-auto">
+    <div data-layout="agenda" className="h-full min-h-0 divide-y divide-border overflow-auto">
       {[...groups.entries()].map(([hour, items]) => (
         <div key={hour} className="py-3">
           <div className="sticky top-0 z-10 bg-card px-4 pb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground tabular-nums">

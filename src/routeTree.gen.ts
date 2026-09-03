@@ -54,6 +54,7 @@ import { Route as AuthedPeopleOrgUserIdRouteImport } from './routes/_authed/peop
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedSlotOffersOfferIdRouteImport } from './routes/_authed/slot-offers.$offerId'
 import { Route as AuthedTrainingCourseIdRouteImport } from './routes/_authed/training_.$courseId'
+import { Route as AuthedComplianceRulesCurrencyTypeIdRouteImport } from './routes/_authed/compliance_.rules.$currencyTypeId'
 import { Route as AuthedDeveloperOrganizationsOrgIdRouteImport } from './routes/_authed/developer_.organizations.$orgId'
 import { Route as AuthedMaintenanceSquawksSquawkIdRouteImport } from './routes/_authed/maintenance_.squawks.$squawkId'
 import { Route as AuthedScheduleReservationsReservationIdRouteImport } from './routes/_authed/schedule_.reservations.$reservationId'
@@ -288,6 +289,12 @@ const AuthedTrainingCourseIdRoute = AuthedTrainingCourseIdRouteImport.update({
   path: '/training/$courseId',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedComplianceRulesCurrencyTypeIdRoute =
+  AuthedComplianceRulesCurrencyTypeIdRouteImport.update({
+    id: '/compliance_/rules/$currencyTypeId',
+    path: '/compliance/rules/$currencyTypeId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedDeveloperOrganizationsOrgIdRoute =
   AuthedDeveloperOrganizationsOrgIdRouteImport.update({
     id: '/developer_/organizations/$orgId',
@@ -364,6 +371,7 @@ export interface FileRoutesByFullPath {
   '/training/$courseId': typeof AuthedTrainingCourseIdRoute
   '/me/': typeof AuthedMeIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
+  '/compliance/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
   '/developer/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
   '/maintenance/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/schedule/reservations/$reservationId': typeof AuthedScheduleReservationsReservationIdRoute
@@ -415,6 +423,7 @@ export interface FileRoutesByTo {
   '/training/$courseId': typeof AuthedTrainingCourseIdRoute
   '/me': typeof AuthedMeIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
+  '/compliance/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
   '/developer/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
   '/maintenance/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/schedule/reservations/$reservationId': typeof AuthedScheduleReservationsReservationIdRoute
@@ -468,6 +477,7 @@ export interface FileRoutesById {
   '/_authed/training_/$courseId': typeof AuthedTrainingCourseIdRoute
   '/_authed/me/': typeof AuthedMeIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
+  '/_authed/compliance_/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
   '/_authed/developer_/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
   '/_authed/maintenance_/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/_authed/schedule_/reservations/$reservationId': typeof AuthedScheduleReservationsReservationIdRoute
@@ -521,6 +531,7 @@ export interface FileRouteTypes {
     | '/training/$courseId'
     | '/me/'
     | '/settings/'
+    | '/compliance/rules/$currencyTypeId'
     | '/developer/organizations/$orgId'
     | '/maintenance/squawks/$squawkId'
     | '/schedule/reservations/$reservationId'
@@ -572,6 +583,7 @@ export interface FileRouteTypes {
     | '/training/$courseId'
     | '/me'
     | '/settings'
+    | '/compliance/rules/$currencyTypeId'
     | '/developer/organizations/$orgId'
     | '/maintenance/squawks/$squawkId'
     | '/schedule/reservations/$reservationId'
@@ -624,6 +636,7 @@ export interface FileRouteTypes {
     | '/_authed/training_/$courseId'
     | '/_authed/me/'
     | '/_authed/settings/'
+    | '/_authed/compliance_/rules/$currencyTypeId'
     | '/_authed/developer_/organizations/$orgId'
     | '/_authed/maintenance_/squawks/$squawkId'
     | '/_authed/schedule_/reservations/$reservationId'
@@ -963,6 +976,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedTrainingCourseIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/compliance_/rules/$currencyTypeId': {
+      id: '/_authed/compliance_/rules/$currencyTypeId'
+      path: '/compliance/rules/$currencyTypeId'
+      fullPath: '/compliance/rules/$currencyTypeId'
+      preLoaderRoute: typeof AuthedComplianceRulesCurrencyTypeIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/developer_/organizations/$orgId': {
       id: '/_authed/developer_/organizations/$orgId'
       path: '/developer/organizations/$orgId'
@@ -1035,6 +1055,7 @@ interface AuthedRouteChildren {
   AuthedTrainingCourseIdRoute: typeof AuthedTrainingCourseIdRoute
   AuthedMeIndexRoute: typeof AuthedMeIndexRoute
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
+  AuthedComplianceRulesCurrencyTypeIdRoute: typeof AuthedComplianceRulesCurrencyTypeIdRoute
   AuthedDeveloperOrganizationsOrgIdRoute: typeof AuthedDeveloperOrganizationsOrgIdRoute
   AuthedMaintenanceSquawksSquawkIdRoute: typeof AuthedMaintenanceSquawksSquawkIdRoute
   AuthedScheduleReservationsReservationIdRoute: typeof AuthedScheduleReservationsReservationIdRoute
@@ -1076,6 +1097,8 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedTrainingCourseIdRoute: AuthedTrainingCourseIdRoute,
   AuthedMeIndexRoute: AuthedMeIndexRoute,
   AuthedSettingsIndexRoute: AuthedSettingsIndexRoute,
+  AuthedComplianceRulesCurrencyTypeIdRoute:
+    AuthedComplianceRulesCurrencyTypeIdRoute,
   AuthedDeveloperOrganizationsOrgIdRoute:
     AuthedDeveloperOrganizationsOrgIdRoute,
   AuthedMaintenanceSquawksSquawkIdRoute: AuthedMaintenanceSquawksSquawkIdRoute,

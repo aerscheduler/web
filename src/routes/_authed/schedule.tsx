@@ -91,9 +91,11 @@ export const Route = createFileRoute("/_authed/schedule")({
   validateSearch: (s) => {
     const list = validateListSearch(s, [...FACET_KEYS]);
     const reservation = Number.parseInt(String(s.reservation ?? ""), 10);
+    const panel = typeof s.panel === "string" ? s.panel : undefined;
     return {
       ...list,
       ...(Number.isFinite(reservation) ? { reservation } : {}),
+      ...(panel ? { panel } : {}),
     };
   },
   component: SchedulePage,
@@ -119,6 +121,12 @@ function SchedulePage() {
   const pendingOffersQ = usePendingSlotOffers(staff && slotOffersOn);
   const pendingBookingRequestsQ = usePendingBookingRequests(staff);
   const [bookingRequestsOpen, setBookingRequestsOpen] = React.useState(false);
+
+  React.useEffect(() => {
+    if (panel === "booking-requests" && staff) {
+      setBookingRequestsOpen(true);
+    }
+  }, [panel, staff]);
   const slotOfferHolds = React.useMemo(
     () => liveSlotOfferHolds(pendingOffersQ.data),
     [pendingOffersQ.data]
@@ -132,7 +140,7 @@ function SchedulePage() {
   const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
   // Which booking is open is not a list filter. Split it off so it never reaches the
   // facet machinery (string-valued, and persisted to localStorage).
-  const { reservation: openReservationId, ...listSearch } = routeSearch;
+  const { reservation: openReservationId, panel, ...listSearch } = routeSearch;
   const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
     storageKey: "schedule",
     search: listSearch,

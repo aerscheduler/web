@@ -67,6 +67,7 @@ const EXACT: Record<string, NotificationHref | undefined> = {
   // Slot-offer list (no id). Same destination as /slot-offers/:id.
   "/slot-offers": "/me/schedule?tab=offers",
   "/booking-requests": "/schedule?panel=booking-requests",
+  "/booking-requests/pending": "/schedule?panel=booking-requests",
 };
 
 /**

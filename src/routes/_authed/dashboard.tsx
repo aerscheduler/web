@@ -32,6 +32,7 @@ import { CardFlourish } from "@/components/ui/card-flourish";
 import { Dashboard } from "@/components/reports/dashboard/dashboard";
 import type { ReportFilterInput } from "@/types/reports";
 import { guardRoute } from "@/lib/permissions";
+import { navigateFromAttention } from "@/lib/attention-navigation";
 
 export const Route = createFileRoute("/_authed/dashboard")({
   beforeLoad: guardRoute("/dashboard"),
@@ -59,15 +60,7 @@ function DashboardPage() {
     filters: ReportFilterInput[] | undefined,
     range?: DateRange
   ) => {
-    void navigate({
-      to: "/reports",
-      search: {
-        report: reportId,
-        from: range?.from?.toISOString(),
-        to: (range?.to ?? range?.from)?.toISOString(),
-        filters: filters?.length ? filters : undefined,
-      },
-    });
+    navigateFromAttention(navigate, reportId, filters, range);
   };
 
   return (

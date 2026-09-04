@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, SlidersHorizontal, TriangleAlert } from "lucide-react";
+import { ChevronsUpDown, Loader2, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { useMultiDayReadiness, useOrgLedgerSettings, useOrgUserGroups, useUpdateOrganization } from "@/features/queries";
@@ -24,6 +24,10 @@ import { PreferenceToggle } from "@/components/settings/parts";
 import { DocsHint } from "@/components/docs-hint";
 import type { DocsTopicKey } from "@/lib/docs-links";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 type SlotOfferPolicyPatch = Partial<
   Pick<
@@ -1136,91 +1140,75 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                 </div>
                 <DocsHint topic="booking-approval-required" />
               </div>
-              <div className="flex flex-wrap gap-2">
-                {(["student", "renter", "instructor"] as const).map((role) => (
-                  <PreferenceToggle
-                    key={role}
-                    label={role.charAt(0).toUpperCase() + role.slice(1)}
-                    checked={approvalRoles.includes(role)}
-                    disabled={rulesDisabled || pending != null}
-                    onCheckedChange={(checked) => {
-                      const next = checked
-                        ? [...approvalRoles, role]
-                        : approvalRoles.filter((r) => r !== role);
-                      const prev = approvalRoles;
-                      setApprovalRoles(next);
-                      setPending("approvalRoles");
-                      update.mutate(
-                        {
-                          bookingPolicy: {
-                            bookingApprovalRequiredRoles: next,
-                          },
-                        },
-                        {
-                          onSuccess: async () => {
-                            await rehydrate();
-                            toast.success("Approval rules updated");
-                          },
-                          onError: (err) => {
-                            setApprovalRoles(prev);
-                            toast.error(
-                              err instanceof ApiError ? err.message : "Couldn't save approval rules"
-                            );
-                          },
-                          onSettled: () => setPending(null),
-                        }
-                      );
-                    }}
-                  />
-                ))}
-              </div>
+              <PolicyMultiSelect
+                label="Roles requiring approval"
+                placeholder="Select roles"
+                options={APPROVAL_ROLE_OPTIONS}
+                selected={approvalRoles}
+                disabled={rulesDisabled || pending != null}
+                onChange={(next) => {
+                  const prev = approvalRoles;
+                  setApprovalRoles(next);
+                  setPending("approvalRoles");
+                  update.mutate(
+                    {
+                      bookingPolicy: {
+                        bookingApprovalRequiredRoles: next,
+                      },
+                    },
+                    {
+                      onSuccess: async () => {
+                        await rehydrate();
+                        toast.success("Approval rules updated");
+                      },
+                      onError: (err) => {
+                        setApprovalRoles(prev);
+                        toast.error(
+                          err instanceof ApiError ? err.message : "Couldn't save approval rules"
+                        );
+                      },
+                      onSettled: () => setPending(null),
+                    }
+                  );
+                }}
+              />
               {(orgUserGroupsQ.data?.length ?? 0) > 0 && (
-                <div className="space-y-2">
-                  <Label>Groups requiring approval</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {(orgUserGroupsQ.data ?? []).map((group) => {
-                      const on = approvalGroupIds.includes(group.id);
-                      return (
-                        <PreferenceToggle
-                          key={group.id}
-                          label={group.name}
-                          checked={on}
-                          disabled={rulesDisabled || pending != null}
-                          onCheckedChange={(checked) => {
-                            const next = checked
-                              ? [...approvalGroupIds, group.id]
-                              : approvalGroupIds.filter((id) => id !== group.id);
-                            const prev = approvalGroupIds;
-                            setApprovalGroupIds(next);
-                            setPending("approvalGroups");
-                            update.mutate(
-                              {
-                                bookingPolicy: {
-                                  bookingApprovalRequiredGroupIds: next,
-                                } as unknown as Organization["bookingPolicy"],
-                              },
-                              {
-                                onSuccess: async () => {
-                                  await rehydrate();
-                                  toast.success("Approval groups updated");
-                                },
-                                onError: (err) => {
-                                  setApprovalGroupIds(prev);
-                                  toast.error(
-                                    err instanceof ApiError
-                                      ? err.message
-                                      : "Couldn't save approval groups"
-                                  );
-                                },
-                                onSettled: () => setPending(null),
-                              }
-                            );
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
+                <PolicyMultiSelect
+                  label="Groups requiring approval"
+                  placeholder="Select groups"
+                  options={(orgUserGroupsQ.data ?? []).map((group) => ({
+                    value: String(group.id),
+                    label: group.name,
+                  }))}
+                  selected={approvalGroupIds.map(String)}
+                  disabled={rulesDisabled || pending != null}
+                  onChange={(next) => {
+                    const nextIds = next.map(Number).filter((id) => Number.isInteger(id) && id > 0);
+                    const prev = approvalGroupIds;
+                    setApprovalGroupIds(nextIds);
+                    setPending("approvalGroups");
+                    update.mutate(
+                      {
+                        bookingPolicy: {
+                          bookingApprovalRequiredGroupIds: nextIds,
+                        } as unknown as Organization["bookingPolicy"],
+                      },
+                      {
+                        onSuccess: async () => {
+                          await rehydrate();
+                          toast.success("Approval groups updated");
+                        },
+                        onError: (err) => {
+                          setApprovalGroupIds(prev);
+                          toast.error(
+                            err instanceof ApiError ? err.message : "Couldn't save approval groups"
+                          );
+                        },
+                        onSettled: () => setPending(null),
+                      }
+                    );
+                  }}
+                />
               )}
             </div>
 
@@ -1413,6 +1401,97 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+const APPROVAL_ROLE_OPTIONS = [
+  { value: "student", label: "Student" },
+  { value: "renter", label: "Renter" },
+  { value: "instructor", label: "Instructor" },
+];
+
+function formatMultiSelectSummary(
+  selected: string[],
+  options: Array<{ value: string; label: string }>,
+  placeholder: string
+): string {
+  if (selected.length === 0) return placeholder;
+  return selected
+    .map((value) => options.find((o) => o.value === value)?.label ?? value)
+    .sort((a, b) => a.localeCompare(b))
+    .join(", ");
+}
+
+function PolicyMultiSelect({
+  label,
+  placeholder,
+  options,
+  selected,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  options: Array<{ value: string; label: string }>;
+  selected: string[];
+  disabled: boolean;
+  onChange: (next: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const summary = formatMultiSelectSummary(selected, options, placeholder);
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs font-medium text-muted-foreground">{label}</Label>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            aria-label={label}
+            disabled={disabled}
+            className={cn(
+              "h-10 w-full max-w-md justify-between font-normal",
+              selected.length === 0 && "text-muted-foreground"
+            )}
+          >
+            <span className="truncate">{summary}</span>
+            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-2" align="start">
+          <div className="space-y-1">
+            {options.map((option) => {
+              const checked = selected.includes(option.value);
+              return (
+                <label
+                  key={option.value}
+                  className={cn(
+                    "flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted/60",
+                    disabled && "cursor-not-allowed opacity-60"
+                  )}
+                >
+                  <Checkbox
+                    checked={checked}
+                    disabled={disabled}
+                    onCheckedChange={(value) => {
+                      const on = value === true;
+                      const next = on
+                        ? [...selected, option.value]
+                        : selected.filter((v) => v !== option.value);
+                      onChange(next);
+                    }}
+                  />
+                  <span>{option.label}</span>
+                </label>
+              );
+            })}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 

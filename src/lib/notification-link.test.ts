@@ -15,6 +15,7 @@ describe("organization deletion notification links", () => {
 
 describe("booking request notification links", () => {
   it("opens the desk queue from the staff list link", () => {
+    expect(notificationHref("/booking-requests/pending")).toBe("/schedule?panel=booking-requests");
     expect(notificationHref("/booking-requests")).toBe("/schedule?panel=booking-requests");
   });
 

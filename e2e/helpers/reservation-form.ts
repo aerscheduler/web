@@ -14,8 +14,8 @@ export async function pickByPlaceholder(
   searchPlaceholder?: RegExp,
 ) {
   const trigger = page.getByRole("combobox").filter({ hasText: placeholder }).first();
-  await trigger.scrollIntoViewIfNeeded();
   await expect(trigger).toBeVisible({ timeout: 25_000 });
+  await trigger.scrollIntoViewIfNeeded();
   await trigger.click();
   if (searchPlaceholder) {
     const search = page.getByPlaceholder(searchPlaceholder).last();
@@ -95,4 +95,66 @@ export async function submitBookReservation(page: Page) {
     `POST /reservations failed ${raced.r.status()}: ${(await raced.r.text()).slice(0, 400)}`,
   ).toBeTruthy();
   return raced.r;
+}
+
+/** Submit a booking request from /me/book when approval policy applies. */
+export async function submitBookingRequest(page: Page) {
+  const postPromise = page.waitForResponse(
+    (r) =>
+      r.request().method() === "POST" &&
+      /\/(api\/)?booking-requests\/?$/.test(new URL(r.url()).pathname),
+    { timeout: 45_000 },
+  );
+  await page.getByRole("button", { name: /^Submit request$/i }).click();
+
+  const alert = page.getByRole("alert");
+  const raced = await Promise.race([
+    postPromise.then((r) => ({ kind: "post" as const, r })),
+    alert
+      .waitFor({ state: "visible", timeout: 8_000 })
+      .then(async () => ({
+        kind: "alert" as const,
+        text: (await alert.textContent()) ?? "",
+      }))
+      .catch(() => null),
+  ]);
+  if (!raced || raced.kind === "alert") {
+    throw new Error(
+      `Request blocked before POST. Alert: ${
+        raced && raced.kind === "alert" ? raced.text : "(none)"
+      }`,
+    );
+  }
+  expect(
+    raced.r.ok(),
+    `POST /booking-requests failed ${raced.r.status()}: ${(await raced.r.text()).slice(0, 400)}`,
+  ).toBeTruthy();
+  return raced.r;
+}
+
+/** Click Book/Submit and return visible refusal text (toast or alert) without throwing. */
+export async function attemptBookOrRequest(page: Page, mode: "book" | "request") {
+  const label = mode === "request" ? /^Submit request$/i : /^Book reservation$/i;
+  const pathRe =
+    mode === "request" ? /\/(api\/)?booking-requests\/?$/ : /\/(api\/)?reservations\/?$/;
+  const postPromise = page.waitForResponse(
+    (r) => r.request().method() === "POST" && pathRe.test(new URL(r.url()).pathname),
+    { timeout: 45_000 },
+  );
+  await page.getByRole("button", { name: label }).click();
+  const alert = page.getByRole("alert");
+  const raced = await Promise.race([
+    postPromise.then((r) => ({ kind: "post" as const, r })),
+    alert
+      .waitFor({ state: "visible", timeout: 12_000 })
+      .then(async () => ({
+        kind: "alert" as const,
+        text: (await alert.textContent()) ?? "",
+      }))
+      .catch(() => null),
+  ]);
+  if (!raced) return { ok: false, text: "" };
+  if (raced.kind === "alert") return { ok: false, text: raced.text };
+  const text = await raced.r.text();
+  return { ok: raced.r.ok(), text, status: raced.r.status() };
 }

@@ -24,6 +24,7 @@ import { DISCARD_DASHBOARD_EDITS } from "@/components/reports/dashboard/unsaved-
 import { useConfirm } from "@/components/confirm-dialog";
 import { resolveRange } from "@/lib/report-format";
 import type { ReportFilterInput } from "@/types/reports";
+import { navigateFromAttention } from "@/lib/attention-navigation";
 
 export const Route = createFileRoute("/_authed/reports")({
   beforeLoad: guardRoute("/reports"),
@@ -212,18 +213,8 @@ function ReportsPage() {
     range?: DateRange
   ) => {
     if (!(await mayLeaveOverview())) return;
-    // The window comes from the tile that was clicked, since tiles can each
-    // carry their own, falling back to the page default when there isn't one.
     const window = range ?? fallbackRange;
-    void navigate({
-      search: {
-        report: reportId,
-        from: window?.from?.toISOString(),
-        to: (window?.to ?? window?.from)?.toISOString(),
-        filters: filters?.length ? filters : undefined,
-      },
-      replace: true,
-    });
+    navigateFromAttention(navigate, reportId, filters, window, { replace: true });
   };
 
   const pickFromRail = async (id: string) => {

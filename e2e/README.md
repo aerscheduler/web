@@ -35,6 +35,7 @@ Defaults: `VITE_API_PROXY=http://127.0.0.1:5001`, Playwright starts Vite on
 | `e2e/schedule/ui-create.spec.ts` | Owner: New reservation form through POST /reservations |
 | `e2e/schedule/me-book-create.spec.ts` | Student: /me/book solo self-serve booking |
 | `e2e/schedule/booking-request.spec.ts` | Student submits booking request; owner approves from desk queue |
+| `e2e/schedule/booking-adversarial.spec.ts` | Approval + ledger gate matrix: multi-select, role split, decline/cancel, min credit / max owing / $0 floor |
 | `e2e/schedule/api-lifecycle.spec.ts` | Create / patch / cancel reservation via API |
 | `e2e/schedule/slot-offer-cancel-recovery.spec.ts` | API: Standby → cancel → offer → accept; desk withdraw; Pending offers opens |
 | `e2e/schedule/slot-offer-cancel-recovery-ui.spec.ts` | UI clicks: stand by → cancel dialog → Pending offers → Accept on Offers tab; Withdraw |

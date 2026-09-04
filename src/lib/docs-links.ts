@@ -437,7 +437,7 @@ export const DOCS_TOPICS = {
   "booking-policy-rules": {
     title: "Booking and cancellation rules",
     summary:
-      "Opt-in rules for cancel/edit lock, late-cancel fee, max upcoming bookings, max reservation length, and (ledger mode) minimum credit or max owing to self-book. Off by default. Members see a clear reason when a rule refuses them. Currency checks at book stay always on under Compliance.",
+      "Opt-in shared calendar rules: cancel/edit lock, late-cancel fee, max upcoming bookings, max reservation length, minimum notice, booking horizon, start time interval, fixed duration, buffers before and after, and (ledger mode) minimum credit or max owing to self-book. Shared means they apply to every booking on the schedule. Front desk staff can still create a walk-up inside the notice or horizon window. Off by default, and members see a clear reason when a rule refuses them. Currency checks at book stay always on under Compliance.",
     href: "scheduling/booking-rules-and-settings#booking-and-cancellation-rules",
   },
   "what-you-can-book": {

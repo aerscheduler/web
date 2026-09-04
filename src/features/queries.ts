@@ -1708,7 +1708,10 @@ export function useUpdateOrganization() {
   return useMutation({
     mutationFn: (input: Record<string, unknown>) =>
       api<Organization>("/organizations/", { method: "PATCH", body: input }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["organization"] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["organization"] });
+      void qc.invalidateQueries({ queryKey: ["availability"] });
+    },
   });
 }
 
@@ -2845,16 +2848,41 @@ export function useMyAvailability(opts?: QueryOpts) {
 
 // ── Free-window availability (powers smart scheduling) ───────────────────────
 // These endpoints return the INVERSE of existing reservations, free windows
-// with booked time already subtracted server-side (matching the server's
-// resourceIsAvailable / orgUserIsAvailable overlap checks at create time).
-// They ignore date-range params and return ~[yesterday, +1yr], so callers slice
-// to the selected day client-side.
+// with booked time and school-wide buffers already subtracted server-side
+// (matching the server's resourceIsAvailable / orgUserIsAvailable overlap
+// checks at create time). They ignore date-range params and return
+// ~[yesterday, +1yr], so callers slice to the selected day client-side.
 
 /** A resource's free (conflict-free) windows. */
-export function useResourceAvailability(resourceId: number | null, opts?: QueryOpts) {
+export function useResourceAvailability(
+  resourceId: number | null,
+  opts?: QueryOpts & {
+    excludeReservationId?: number | null;
+    locationId?: number | null;
+    bookingOnBehalf?: boolean;
+  }
+) {
+  const query = {
+    applyBookingPolicy: true,
+    ...(opts?.excludeReservationId
+      ? { reservationId: opts.excludeReservationId }
+      : {}),
+    ...(opts?.locationId != null ? { locationId: opts.locationId } : {}),
+    ...(opts?.bookingOnBehalf ? { bookingOnBehalf: true } : {}),
+  };
   return useQuery({
-    queryKey: ["availability", "resource", resourceId],
-    queryFn: () => api<AvailabilityWindow[]>(`/availability/resource/${resourceId}`),
+    queryKey: [
+      "availability",
+      "resource",
+      resourceId,
+      opts?.excludeReservationId ?? null,
+      opts?.locationId ?? null,
+      opts?.bookingOnBehalf ?? false,
+    ],
+    queryFn: () =>
+      api<AvailabilityWindow[]>(`/availability/resource/${resourceId}`, {
+        query: Object.keys(query).length ? query : undefined,
+      }),
     enabled: (opts?.enabled ?? true) && resourceId != null,
     staleTime: 30_000,
   });
@@ -2865,12 +2893,30 @@ export function useResourceAvailability(resourceId: number | null, opts?: QueryO
  * id via useQueries so the set can vary with the personnel selection. Returns a
  * stable array aligned to `userIds`.
  */
-export function useUsersAvailability(userIds: number[], opts?: QueryOpts) {
+export function useUsersAvailability(
+  userIds: number[],
+  opts?: QueryOpts & {
+    excludeReservationId?: number | null;
+    locationId?: number | null;
+    bookingOnBehalf?: boolean;
+  }
+) {
   const enabled = opts?.enabled ?? true;
+  const excludeReservationId = opts?.excludeReservationId ?? null;
+  const locationId = opts?.locationId ?? null;
+  const bookingOnBehalf = opts?.bookingOnBehalf ?? false;
   return useQueries({
     queries: userIds.map((id) => ({
-      queryKey: ["availability", "user", id],
-      queryFn: () => api<AvailabilityWindow[]>(`/availability/user/${id}`),
+      queryKey: ["availability", "user", id, excludeReservationId, locationId, bookingOnBehalf],
+      queryFn: () =>
+        api<AvailabilityWindow[]>(`/availability/user/${id}`, {
+          query: {
+            applyBookingPolicy: true,
+            ...(excludeReservationId ? { reservationId: excludeReservationId } : {}),
+            ...(locationId != null ? { locationId } : {}),
+            ...(bookingOnBehalf ? { bookingOnBehalf: true } : {}),
+          },
+        }),
       enabled: enabled && id != null,
       staleTime: 30_000,
     })),

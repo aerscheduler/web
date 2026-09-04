@@ -4,9 +4,10 @@
  *
  * The web fetches conflict-free windows straight from the server availability
  * endpoints (`/availability/resource/:id`, `/availability/user/:userId`): those
- * already have existing reservations subtracted server-side, which is exactly
+ * already have existing reservations subtracted server-side, including the
+ * school's stacked before/after buffers around each booking, which is exactly
  * what the server re-checks at create time (`resourceIsAvailable` +
- * `orgUserIsAvailable`, both pure overlap counts). So this module never
+ * `orgUserIsAvailable` with `bufferedAvailabilityRange`). So this module never
  * re-derives conflicts from the reservation list; it only INTERSECTS the free
  * windows of the resource + each assigned person and slices the result into a
  * 15-minute grid of valid start/end options.
@@ -205,6 +206,49 @@ export function isBookable(dayWindows: Window[], start: Date, end: Date): boolea
   return !!w && end.getTime() <= w.end.getTime();
 }
 
+// ── the school's own start / duration rules ──────────────────────────────────
+//
+// Two of the shared calendar rules (`startTimeIncrementMinutes` and
+// `fixedReservationMinutes` on OrganizationBookingPolicy) decide which of the marks above
+// are actually offerable. They are applied HERE, to the option lists, rather than checked
+// at submit: the server refuses either violation outright, and a picker that offers 09:45
+// to a school booking on the hour is a form whose only feedback is a rejection.
+//
+// This is guidance, not authorization. The server stays the authority; nothing below can
+// let a booking through that it would refuse.
+
+/**
+ * Keep only the marks that land on the school's start grid.
+ *
+ * `minuteOfDay` is injected rather than computed here because the grid is measured from
+ * midnight IN A TIME ZONE, and this module deliberately knows nothing about zones. The
+ * caller passes the same zone the picker renders in, so the marks a person sees and the
+ * marks that survive the filter are the same set. A null or non-positive increment means
+ * the rule is off and every mark stands.
+ */
+export function filterToStartIncrement(
+  starts: Date[],
+  incrementMinutes: number | null | undefined,
+  minuteOfDay: (instant: Date) => number
+): Date[] {
+  if (incrementMinutes == null || incrementMinutes <= 0) return starts;
+  return starts.filter((s) => minuteOfDay(s) % incrementMinutes === 0);
+}
+
+/**
+ * The one legal end when the school fixes every booking's length: `start + fixed`, but
+ * only if it still fits the free window the start sits in. Null means this start cannot
+ * host a booking of that length, so it should not be offered as a start at all.
+ */
+export function fixedEndInWindow(
+  dayWindows: Window[],
+  start: Date,
+  fixedMinutes: number
+): Date | null {
+  const candidate = addMinutes(start, fixedMinutes);
+  return isBookable(dayWindows, start, candidate) ? candidate : null;
+}
+
 // ── multi-day bookings ───────────────────────────────────────────────────────
 //
 // Everything above works a DAY at a time: `windowsForDay` clips the free windows to one
@@ -280,6 +324,23 @@ export function lastEndDay(windows: Window[] | null, start: Date, now: Date): Da
   const end = w.end;
   const atMidnight = end.getTime() === startOfDay(end).getTime();
   return atMidnight ? startOfDay(addDays(end, -1)) : startOfDay(end);
+}
+
+/**
+ * As `fixedEndInWindow`, but without confining the booking to the start's own day.
+ *
+ * A fixed length may be up to 24 hours, which is longer than the tail of most evenings, so
+ * a multi-day school judging it against the day-clipped windows would find no offerable
+ * start at all and lose booking entirely.
+ */
+export function fixedEndAcrossDays(
+  windows: Window[] | null,
+  start: Date,
+  fixedMinutes: number,
+  now: Date
+): Date | null {
+  const candidate = addMinutes(start, fixedMinutes);
+  return isBookableAcrossDays(windows, start, candidate, now) ? candidate : null;
 }
 
 /** As `isBookable`, but without confining the booking to the start's own day. */

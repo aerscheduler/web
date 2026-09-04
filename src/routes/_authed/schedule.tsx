@@ -62,6 +62,7 @@ import { PendingOffersSheet } from "@/components/slot-offers/pending-offers-shee
 import { SlotOfferDetailSheet } from "@/components/slot-offers/slot-offer-detail-sheet";
 import { usePendingSlotOffers } from "@/features/slot-offers";
 import { liveSlotOfferHolds } from "@/lib/slot-offer-holds";
+import { BookingZoneBanner } from "@/components/schedule/booking-zone-banner";
 
 /**
  * Facets that remove LANES from the board. Narrowing to two aircraft is honest because the rows
@@ -464,6 +465,8 @@ function SchedulePage() {
             </>
           }
         />
+
+        <BookingZoneBanner />
 
         <ScheduleControls
           day={day}

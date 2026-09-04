@@ -63,6 +63,7 @@ import { useTimeZone } from "@/lib/use-timezone";
 import { DOT_CLASS, typeLabel } from "./meta";
 import { SmartTimeRange } from "./smart-time-range";
 import { OvernightMinimumNotice } from "./overnight-notice";
+import { BookingZoneBanner } from "./booking-zone-banner";
 import {
   RecurrenceField,
   defaultRecurrence,
@@ -71,8 +72,8 @@ import {
 } from "./recurrence-field";
 
 import {
-  DEVICE_TZ,
   TYPE_REQUIREMENTS,
+  bookingTimePolicyOf,
   buildReservationInput,
   maxForSide,
   resolveLocationId,
@@ -456,6 +457,18 @@ export function ReservationForm({
   //and this is the one booking form both the dispatch and self variants share.
   const allowMultiDay = organization?.bookingPolicy?.multiDayEnabled ?? false;
   const maxUpcomingBookings = organization?.bookingPolicy?.maxFutureBookings ?? null;
+  /**
+   * The school's shared calendar rules, for the time picker.
+   *
+   * Read off the org for the same reason `allowMultiDay` is: they are properties of the
+   * school, not of this form, and both variants of it are held to them. Front desk
+   * staff can still book a walk-up inside the notice/horizon window; the server skips
+   * those two rules for them. Increment, fixed length and buffers still apply.
+   */
+  const timePolicy = React.useMemo(
+    () => bookingTimePolicyOf(organization?.bookingPolicy),
+    [organization?.bookingPolicy]
+  );
 
   const isSelf = variant === "self";
   //A self booking on /me/book renders as a page card, so there is no modal to close and
@@ -817,6 +830,9 @@ export function ReservationForm({
 
   // Everyone assigned must be free for the slot, feed their USER ids to the
   // smart time picker so it intersects their availability with the aircraft's.
+  const relaxNoticeAndHorizon =
+    !isSelf || (selfSide !== "students" && selfSide !== "renters");
+
   const personnelUserIds = React.useMemo(() => {
     const allows = TYPE_REQUIREMENTS[type].allows;
     const ids: number[] = [];
@@ -986,6 +1002,7 @@ export function ReservationForm({
   });
 
   const selectedResource = eligibleResources.find((r) => String(r.id) === resourceId);
+  const bookingLocationId = resolveLocationId(selectedResource, locationsQ.data);
 
   //Which fleet request has to land before the picker means anything.
   const fleetQ = restrictToApproved ? approvedQ : resourcesQ;
@@ -1117,9 +1134,18 @@ export function ReservationForm({
     //Repeating booking. Editing never carries a rule: changing one occurrence is an
     //ordinary edit, and the server ignores `recurrence` on PATCH anyway.
     if (!editing) {
-      const { input: rule, problem } = toRecurrenceInput(recurrence, startAt, endAt, DEVICE_TZ, {
-        maxUpcomingBookings,
-      });
+      const bookingLocation = locationsQ.data?.find((l) => l.id === locationId);
+      const schoolRecurrenceZone =
+        bookingLocation?.timeZone ?? organization?.timeZone ?? undefined;
+      const { input: rule, problem } = toRecurrenceInput(
+        recurrence,
+        startAt,
+        endAt,
+        schoolRecurrenceZone ?? tz.zone,
+        {
+          maxUpcomingBookings,
+        }
+      );
       if (problem) {
         // No single control owns a recurrence problem, so `fail` toasts it.
         fail(problem, null);
@@ -1197,6 +1223,7 @@ export function ReservationForm({
 
   const body = (
       <form id="modal-reservation-form" onSubmit={submit} data-doc-shot="reservation-form-dispatch" className="space-y-4">
+        <BookingZoneBanner />
         {rampedOutLock && (
           <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
             This aircraft is off the ramp. Only the end time and notes can change until it
@@ -1358,11 +1385,13 @@ export function ReservationForm({
           }
           personnelUserIds={personnelUserIds}
           allowMultiDay={allowMultiDay}
+          policy={timePolicy}
+          relaxNoticeAndHorizon={relaxNoticeAndHorizon}
           restoreWindow={
-            // The reservation we're editing occupies its own slot; without this
-            // the picker would report its current time as unavailable.
             editing ? { start: new Date(editing.start), end: new Date(editing.end) } : null
           }
+          excludeReservationId={editing?.id ?? null}
+          locationId={bookingLocationId}
         />
 
         <fieldset disabled={rampedOutLock} className="space-y-4 disabled:opacity-60">

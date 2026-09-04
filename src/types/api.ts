@@ -317,6 +317,29 @@ export interface OrganizationBookingPolicy {
    * Longest a single booking may run, in minutes. Null = off.
    */
   maxReservationMinutes?: number | null;
+  /*
+   * The six below are SHARED CALENDAR RULES. The server checks them on every booking
+   * it accepts, from the dispatch board and from a member booking themselves alike,
+   * with no staff bypass. Each is null when the school has not turned it on.
+   */
+  /** Minutes of notice a booking needs before it starts. Server range 15 to 525600. */
+  minimumNoticeMinutes?: number | null;
+  /** How many days ahead anyone may book. Server range 1 to 730. */
+  bookingHorizonDays?: number | null;
+  /**
+   * Start times must land on this minute grid, measured from midnight in the school's
+   * time zone. Only 15, 30 or 60 are accepted.
+   */
+  startTimeIncrementMinutes?: number | null;
+  /**
+   * Every booking is exactly this many minutes long. Server range 15 to 1440, and the
+   * server refuses a value longer than `maxReservationMinutes`.
+   */
+  fixedReservationMinutes?: number | null;
+  /** Idle minutes required BEFORE a booking. Server range 5 to 720. */
+  bufferBeforeMinutes?: number | null;
+  /** Idle minutes required AFTER a booking. Independent of the buffer before it. */
+  bufferAfterMinutes?: number | null;
   /**
    * @deprecated Currency checks at book are always enforced. Kept on the wire for
    * older clients; the server ignores this flag.
@@ -2036,7 +2059,8 @@ export type DayBlocks = { start: string; end: string }[];
  * A free (bookable) time window returned by the availability endpoints
  * (`/availability/resource/:id`, `/availability/user/:userId`). These are the
  * INVERSE of existing reservations, the server has already subtracted booked
- * time, spanning roughly [yesterday, +1 year]. An empty array means fully booked.
+ * time and any school-wide buffer around those bookings, spanning roughly
+ * [yesterday, +1 year]. An empty array means fully booked.
  */
 export interface AvailabilityWindow {
   start: string; // ISO
@@ -2391,7 +2415,7 @@ export type ReservationPayer = ReservationPayerInput & {
   FK_ledgerEntryId?: number | null;
   /**
    * Nested ledger flight_charge for this stake (retrieve/list).
-   * This is what the web must read for "already billed" — `FK_ledgerEntryId` is stripped.
+   * This is what the web must read for "already billed": `FK_ledgerEntryId` is stripped.
    * `reversedBy` means the stake is no longer billed.
    */
   ledgerEntry?: { id: number; reversedBy?: { id: number } | null } | null;

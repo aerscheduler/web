@@ -106,6 +106,24 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   const [maxLengthMinutes, setMaxLengthMinutes] = useState(
     () => String(bookingPolicy?.maxReservationMinutes ?? "")
   );
+  const [noticeMinutes, setNoticeMinutes] = useState(
+    () => String(bookingPolicy?.minimumNoticeMinutes ?? "")
+  );
+  const [horizonDays, setHorizonDays] = useState(
+    () => String(bookingPolicy?.bookingHorizonDays ?? "")
+  );
+  const [startIncrement, setStartIncrement] = useState(
+    () => String(bookingPolicy?.startTimeIncrementMinutes ?? "")
+  );
+  const [fixedMinutes, setFixedMinutes] = useState(
+    () => String(bookingPolicy?.fixedReservationMinutes ?? "")
+  );
+  const [bufferBefore, setBufferBefore] = useState(
+    () => String(bookingPolicy?.bufferBeforeMinutes ?? "")
+  );
+  const [bufferAfter, setBufferAfter] = useState(
+    () => String(bookingPolicy?.bufferAfterMinutes ?? "")
+  );
   const ledgerOn = useOrgLedgerSettings().data?.enabled === true;
   const [minCreditDollars, setMinCreditDollars] = useState(() =>
     bookingPolicy?.minimumBalanceCents != null
@@ -169,6 +187,8 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
 
   const readiness = useMultiDayReadiness({ enabled: !multiDay });
   const blocked = !multiDay && readiness.data?.ready === false;
+  const zoneReadiness = useMultiDayReadiness();
+  const zoneBlocked = zoneReadiness.data?.ready === false;
 
   useEffect(() => {
     setOverridePrices(prefs?.instructorsCanOverrideReservationPrices ?? false);
@@ -185,6 +205,12 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     );
     setMaxFuture(String(bookingPolicy?.maxFutureBookings ?? ""));
     setMaxLengthMinutes(String(bookingPolicy?.maxReservationMinutes ?? ""));
+    setNoticeMinutes(String(bookingPolicy?.minimumNoticeMinutes ?? ""));
+    setHorizonDays(String(bookingPolicy?.bookingHorizonDays ?? ""));
+    setStartIncrement(String(bookingPolicy?.startTimeIncrementMinutes ?? ""));
+    setFixedMinutes(String(bookingPolicy?.fixedReservationMinutes ?? ""));
+    setBufferBefore(String(bookingPolicy?.bufferBeforeMinutes ?? ""));
+    setBufferAfter(String(bookingPolicy?.bufferAfterMinutes ?? ""));
     setMinCreditDollars(
       bookingPolicy?.minimumBalanceCents != null
         ? String(bookingPolicy.minimumBalanceCents / 100)
@@ -238,6 +264,12 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     bookingPolicy?.lateCancelFeeCents,
     bookingPolicy?.maxFutureBookings,
     bookingPolicy?.maxReservationMinutes,
+    bookingPolicy?.minimumNoticeMinutes,
+    bookingPolicy?.bookingHorizonDays,
+    bookingPolicy?.startTimeIncrementMinutes,
+    bookingPolicy?.fixedReservationMinutes,
+    bookingPolicy?.bufferBeforeMinutes,
+    bookingPolicy?.bufferAfterMinutes,
     bookingPolicy?.minimumBalanceCents,
     bookingPolicy?.balanceMaximumCents,
     bookingPolicy?.dispatchMinimumBalanceCents,
@@ -294,6 +326,10 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     const previous = flyingDayKey;
     const opt = FLYING_DAY_OPTIONS.find((o) => o.key === key);
     if (!opt) return;
+    if (opt.key !== "24h" && zoneBlocked) {
+      toast.error(zoneReadiness.data?.problem ?? "Set a time zone before restricting flying-day hours.");
+      return;
+    }
     setFlyingDayKey(key);
     setPending("flyingDay");
     update.mutate(
@@ -390,6 +426,12 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
     lateCancelFeeCents?: number | null;
     maxFutureBookings?: number | null;
     maxReservationMinutes?: number | null;
+    minimumNoticeMinutes?: number | null;
+    bookingHorizonDays?: number | null;
+    startTimeIncrementMinutes?: number | null;
+    fixedReservationMinutes?: number | null;
+    bufferBeforeMinutes?: number | null;
+    bufferAfterMinutes?: number | null;
     minimumBalanceCents?: number | null;
     balanceMaximumCents?: number | null;
     dispatchMinimumBalanceCents?: number | null;
@@ -416,6 +458,12 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
           );
           setMaxFuture(String(bookingPolicy?.maxFutureBookings ?? ""));
           setMaxLengthMinutes(String(bookingPolicy?.maxReservationMinutes ?? ""));
+          setNoticeMinutes(String(bookingPolicy?.minimumNoticeMinutes ?? ""));
+          setHorizonDays(String(bookingPolicy?.bookingHorizonDays ?? ""));
+          setStartIncrement(String(bookingPolicy?.startTimeIncrementMinutes ?? ""));
+          setFixedMinutes(String(bookingPolicy?.fixedReservationMinutes ?? ""));
+          setBufferBefore(String(bookingPolicy?.bufferBeforeMinutes ?? ""));
+          setBufferAfter(String(bookingPolicy?.bufferAfterMinutes ?? ""));
           setMinCreditDollars(
             bookingPolicy?.minimumBalanceCents != null
               ? String(bookingPolicy.minimumBalanceCents / 100)
@@ -444,6 +492,22 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
 
   const stripeReady = organization.billing?.stripeEnabled === true;
   const lockEnabled = cancelLockHours.trim() !== "";
+  /**
+   * The two length rules read as one sentence or they read as nothing.
+   *
+   * The server refuses a fixed length longer than the ceiling, so each picker offers only
+   * the values that still agree with the other one's current setting. Without this the
+   * pair is a trap: pick "every booking is 4 hours" under a 2 hour ceiling and the only
+   * feedback is a validation toast that names neither control.
+   */
+  const fixedLengthValue = fixedMinutes === "" ? null : Number(fixedMinutes);
+  const maxLengthValue = maxLengthMinutes === "" ? null : Number(maxLengthMinutes);
+  const maxLengthOptions = MAX_LENGTH_OPTIONS.filter(
+    (o) => o.value === "off" || fixedLengthValue == null || Number(o.value) >= fixedLengthValue
+  );
+  const fixedLengthOptions = FIXED_LENGTH_OPTIONS.filter(
+    (o) => o.value === "off" || maxLengthValue == null || Number(o.value) <= maxLengthValue
+  );
   const policyDisabled = pending !== null || !slotOffers;
   const policySaving = pending === "slotOfferPolicy";
   const rulesSaving = pending === "bookingRules";
@@ -741,6 +805,12 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
             bookings must start and finish inside this window. Multi-day trips skip it.
             Individual aircraft can override this on their edit screen.
           </p>
+          {zoneBlocked && flyingDayKey !== "24h" && (
+            <p className="flex gap-1.5 text-xs text-amber-700 dark:text-amber-500">
+              <TriangleAlert className="mt-px size-3.5 shrink-0" />
+              <span>{zoneReadiness.data?.problem}</span>
+            </p>
+          )}
           <Select
             value={flyingDayKey}
             disabled={pending !== null}
@@ -793,8 +863,10 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            All off by default. Turn on only what your school needs. Members see a clear
-            reason when a rule refuses a booking or cancel.
+            All off by default. Turn on only what your school needs. These are shared
+            calendar rules: they apply to every booking on the schedule, including the
+            ones the front desk makes, and members see a clear reason when a rule refuses
+            a booking or cancel.
           </p>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -897,8 +969,38 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
             />
 
             <PolicySelect
+              label="Start time interval"
+              docs="booking-policy-rules"
+              hint="Start times must land on this grid in the school's time zone, so the board does not fill with ragged times. The Start picker offers only these marks."
+              value={startIncrement === "" ? "off" : startIncrement}
+              disabled={rulesDisabled}
+              onValueChange={(value) => {
+                if (value === "off") {
+                  setStartIncrement("");
+                  saveBookingRules({ startTimeIncrementMinutes: null });
+                  return;
+                }
+                if (zoneBlocked) {
+                  toast.error(zoneReadiness.data?.problem ?? "Set a time zone before using a start interval.");
+                  return;
+                }
+                setStartIncrement(value);
+                saveBookingRules({ startTimeIncrementMinutes: Number(value) });
+              }}
+              options={START_INTERVAL_OPTIONS}
+            />
+
+            {/* Max length and fixed duration are a pair and are kept adjacent so the
+                two-column grid puts them on one row: they are only comprehensible
+                together, and the server refuses a fixed length above the ceiling. */}
+            <PolicySelect
               label="Max reservation length"
               docs="booking-policy-rules"
+              hint={
+                fixedLengthValue != null
+                  ? "The ceiling on a single booking. Every booking is already a fixed length, so this only has to be at least that long."
+                  : "The longest a single booking may run. Use a fixed reservation duration instead if every booking should be the same length."
+              }
               value={maxLengthMinutes === "" ? "off" : maxLengthMinutes}
               disabled={rulesDisabled}
               onValueChange={(value) => {
@@ -910,15 +1012,105 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                 setMaxLengthMinutes(value);
                 saveBookingRules({ maxReservationMinutes: Number(value) });
               }}
-              options={[
-                { value: "off", label: "Off" },
-                { value: "120", label: "2 hours" },
-                { value: "180", label: "3 hours" },
-                { value: "240", label: "4 hours" },
-                { value: "360", label: "6 hours" },
-                { value: "480", label: "8 hours" },
-                { value: "720", label: "12 hours" },
-              ]}
+              options={maxLengthOptions}
+            />
+
+            <PolicySelect
+              label="Fixed reservation duration"
+              docs="booking-policy-rules"
+              hint={
+                maxLengthValue != null
+                  ? "Every booking is exactly this long and the End time is filled in for you. It cannot be longer than the max reservation length."
+                  : "Every booking is exactly this long and the End time is filled in for you. Leave it off to let people choose their own end time up to the max length."
+              }
+              value={fixedMinutes === "" ? "off" : fixedMinutes}
+              disabled={rulesDisabled}
+              onValueChange={(value) => {
+                if (value === "off") {
+                  setFixedMinutes("");
+                  saveBookingRules({ fixedReservationMinutes: null });
+                  return;
+                }
+                setFixedMinutes(value);
+                saveBookingRules({ fixedReservationMinutes: Number(value) });
+              }}
+              options={fixedLengthOptions}
+            />
+
+            <PolicySelect
+              label="Minimum notice"
+              docs="booking-policy-rules"
+              hint="How far ahead a booking has to be made. Times inside this window stop being offered in the picker."
+              value={noticeMinutes === "" ? "off" : noticeMinutes}
+              disabled={rulesDisabled}
+              onValueChange={(value) => {
+                if (value === "off") {
+                  setNoticeMinutes("");
+                  saveBookingRules({ minimumNoticeMinutes: null });
+                  return;
+                }
+                setNoticeMinutes(value);
+                saveBookingRules({ minimumNoticeMinutes: Number(value) });
+              }}
+              options={NOTICE_OPTIONS}
+            />
+
+            <PolicySelect
+              label="Booking horizon"
+              docs="booking-policy-rules"
+              hint="How far into the future anyone may book. Off leaves the standard one year limit in place."
+              value={horizonDays === "" ? "off" : horizonDays}
+              disabled={rulesDisabled}
+              onValueChange={(value) => {
+                if (value === "off") {
+                  setHorizonDays("");
+                  saveBookingRules({ bookingHorizonDays: null });
+                  return;
+                }
+                if (zoneBlocked) {
+                  toast.error(zoneReadiness.data?.problem ?? "Set a time zone before using a booking horizon.");
+                  return;
+                }
+                setHorizonDays(value);
+                saveBookingRules({ bookingHorizonDays: Number(value) });
+              }}
+              options={HORIZON_OPTIONS}
+            />
+
+            <PolicySelect
+              label="Buffer before a booking"
+              docs="booking-policy-rules"
+              hint="Idle time the resource needs ahead of a booking, for preflight or a turnaround. Set on its own; it does not imply any buffer after."
+              value={bufferBefore === "" ? "off" : bufferBefore}
+              disabled={rulesDisabled}
+              onValueChange={(value) => {
+                if (value === "off") {
+                  setBufferBefore("");
+                  saveBookingRules({ bufferBeforeMinutes: null });
+                  return;
+                }
+                setBufferBefore(value);
+                saveBookingRules({ bufferBeforeMinutes: Number(value) });
+              }}
+              options={BUFFER_OPTIONS}
+            />
+
+            <PolicySelect
+              label="Buffer after a booking"
+              docs="booking-policy-rules"
+              hint="Idle time after a booking, for tie-down and paperwork. A separate rule from the buffer before, so you can set either one alone."
+              value={bufferAfter === "" ? "off" : bufferAfter}
+              disabled={rulesDisabled}
+              onValueChange={(value) => {
+                if (value === "off") {
+                  setBufferAfter("");
+                  saveBookingRules({ bufferAfterMinutes: null });
+                  return;
+                }
+                setBufferAfter(value);
+                saveBookingRules({ bufferAfterMinutes: Number(value) });
+              }}
+              options={BUFFER_OPTIONS}
             />
           </div>
 
@@ -1151,6 +1343,77 @@ function PolicySelect({
     </div>
   );
 }
+
+/*
+ * Presets for the shared calendar rules.
+ *
+ * Every value sits inside the server's own bounds (notice 15 minutes to 1 year, horizon 1
+ * to 730 days, interval 15/30/60 only, fixed length 15 minutes to 24 hours, buffers 5
+ * minutes to 12 hours), so no preset here can come back as a validation error. Selects
+ * rather than free number inputs for the same reason: the ranges are wide, the useful
+ * values are few, and a typo in a box is a rule nobody meant to set.
+ */
+const MAX_LENGTH_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "120", label: "2 hours" },
+  { value: "180", label: "3 hours" },
+  { value: "240", label: "4 hours" },
+  { value: "360", label: "6 hours" },
+  { value: "480", label: "8 hours" },
+  { value: "720", label: "12 hours" },
+];
+
+const FIXED_LENGTH_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "30", label: "30 minutes" },
+  { value: "45", label: "45 minutes" },
+  { value: "60", label: "1 hour" },
+  { value: "90", label: "1 hour 30 minutes" },
+  { value: "120", label: "2 hours" },
+  { value: "180", label: "3 hours" },
+  { value: "240", label: "4 hours" },
+];
+
+/** 15, 30 and 60 are the only intervals the server accepts. */
+const START_INTERVAL_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "15", label: "Every 15 minutes" },
+  { value: "30", label: "Every 30 minutes" },
+  { value: "60", label: "On the hour" },
+];
+
+const NOTICE_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "30", label: "30 minutes" },
+  { value: "60", label: "1 hour" },
+  { value: "120", label: "2 hours" },
+  { value: "240", label: "4 hours" },
+  { value: "720", label: "12 hours" },
+  { value: "1440", label: "24 hours" },
+  { value: "2880", label: "48 hours" },
+];
+
+const HORIZON_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "7", label: "7 days" },
+  { value: "14", label: "14 days" },
+  { value: "30", label: "30 days" },
+  { value: "60", label: "60 days" },
+  { value: "90", label: "90 days" },
+  { value: "180", label: "180 days" },
+  { value: "365", label: "365 days" },
+];
+
+/** Shared by both buffers. They are independent rules that happen to want the same list. */
+const BUFFER_OPTIONS = [
+  { value: "off", label: "Off" },
+  { value: "5", label: "5 minutes" },
+  { value: "10", label: "10 minutes" },
+  { value: "15", label: "15 minutes" },
+  { value: "30", label: "30 minutes" },
+  { value: "45", label: "45 minutes" },
+  { value: "60", label: "1 hour" },
+];
 
 const QUIET_OPTIONS = [
   { key: "off", label: "Off", start: 0, end: 0 },

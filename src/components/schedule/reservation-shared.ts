@@ -2,6 +2,7 @@ import { resourceLabel } from "@/types/api";
 import type {
   CreateReservationInput,
   Location,
+  OrganizationBookingPolicy,
   Reservation,
   Resource,
   ReservationType,
@@ -334,6 +335,119 @@ export function resolveLocationId(
   locations: Location[] | undefined
 ): number | null {
   return resource?.location?.id ?? locations?.[0]?.id ?? null;
+}
+
+// ── The school's shared calendar rules ───────────────────────────────────────
+
+/**
+ * The six shared calendar rules, reduced to what a time picker can do with them.
+ *
+ * SHARED means shared: the server checks every one of these on any booking it accepts,
+ * from the dispatch board and from a member booking themselves alike, with no staff
+ * bypass. The picker has to speak for all six.
+ *
+ * Which the picker acts on, and why:
+ *
+ *  - `fixedDurationMinutes` and `startIncrementMinutes` shape the option lists directly.
+ *    Both are properties of a start/end pair alone, so the form knows enough to offer only
+ *    what the server accepts.
+ *  - `minimumNoticeMinutes` and `bookingHorizonDays` bound the grid: a floor on the
+ *    earliest offerable mark and a ceiling on the date picker.
+ *  - The two buffers arrive already subtracted: availability endpoints grow each existing
+ *    busy reservation by before+after on both sides before they invert, so the lists this
+ *    picker intersects already leave that clear time. Naming them here explains the gap;
+ *    shrinking window edges again would double-count.
+ *
+ * Read through this type rather than off the org, so the picker never has to know the
+ * policy field names and there is one place to add the seventh rule.
+ */
+export type BookingTimePolicy = {
+  startIncrementMinutes: number | null;
+  fixedDurationMinutes: number | null;
+  minimumNoticeMinutes: number | null;
+  bookingHorizonDays: number | null;
+  bufferBeforeMinutes: number | null;
+  bufferAfterMinutes: number | null;
+};
+
+/** A school with none of the rules turned on, which is every school by default. */
+export const NO_BOOKING_TIME_POLICY: BookingTimePolicy = {
+  startIncrementMinutes: null,
+  fixedDurationMinutes: null,
+  minimumNoticeMinutes: null,
+  bookingHorizonDays: null,
+  bufferBeforeMinutes: null,
+  bufferAfterMinutes: null,
+};
+
+/**
+ * Read the rules off the organization's booking policy.
+ *
+ * Zero and negative are normalised to "off" alongside null: the server's own evaluation
+ * treats a non-positive value as no rule, and a `0` reaching the picker as a live grid
+ * would divide by nothing and offer no times at all.
+ */
+export function bookingTimePolicyOf(
+  policy: OrganizationBookingPolicy | null | undefined
+): BookingTimePolicy {
+  const on = (value: number | null | undefined): number | null =>
+    typeof value === "number" && value > 0 ? value : null;
+
+  return {
+    startIncrementMinutes: on(policy?.startTimeIncrementMinutes),
+    fixedDurationMinutes: on(policy?.fixedReservationMinutes),
+    minimumNoticeMinutes: on(policy?.minimumNoticeMinutes),
+    bookingHorizonDays: on(policy?.bookingHorizonDays),
+    bufferBeforeMinutes: on(policy?.bufferBeforeMinutes),
+    bufferAfterMinutes: on(policy?.bufferAfterMinutes),
+  };
+}
+
+/** `45 minutes`, `1 hour`, `1 hour 30 minutes`. */
+export function formatMinutes(total: number): string {
+  const hours = Math.floor(total / 60);
+  const minutes = total % 60;
+  const hourText = hours === 1 ? "1 hour" : `${hours} hours`;
+  const minuteText = minutes === 1 ? "1 minute" : `${minutes} minutes`;
+  if (hours === 0) return minuteText;
+  if (minutes === 0) return hourText;
+  return `${hourText} ${minuteText}`;
+}
+
+/**
+ * The rules in force, as clauses for one line beside the time fields.
+ *
+ * Empty when the school has set none, which is the default and the common case: the
+ * picker then says nothing new at all.
+ */
+export function describeBookingTimePolicy(policy: BookingTimePolicy): string[] {
+  const clauses: string[] = [];
+
+  if (policy.fixedDurationMinutes != null) {
+    clauses.push(`every booking is ${formatMinutes(policy.fixedDurationMinutes)}`);
+  }
+  if (policy.startIncrementMinutes != null) {
+    clauses.push(
+      policy.startIncrementMinutes === 60
+        ? "starts are on the hour"
+        : `starts are every ${formatMinutes(policy.startIncrementMinutes)}`
+    );
+  }
+  if (policy.minimumNoticeMinutes != null) {
+    clauses.push(`at least ${formatMinutes(policy.minimumNoticeMinutes)} notice`);
+  }
+  if (policy.bookingHorizonDays != null) {
+    const days = policy.bookingHorizonDays;
+    clauses.push(`no more than ${days} day${days === 1 ? "" : "s"} ahead`);
+  }
+  if (policy.bufferBeforeMinutes != null) {
+    clauses.push(`${formatMinutes(policy.bufferBeforeMinutes)} clear before`);
+  }
+  if (policy.bufferAfterMinutes != null) {
+    clauses.push(`${formatMinutes(policy.bufferAfterMinutes)} clear after`);
+  }
+
+  return clauses;
 }
 
 /** Validate a start/end pair; returns an error message, or null if it's fine. */

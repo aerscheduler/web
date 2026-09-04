@@ -36,6 +36,7 @@ import { Route as AuthedScheduleRouteImport } from './routes/_authed/schedule'
 import { Route as AuthedTrainingRouteImport } from './routes/_authed/training'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
 import { Route as AuthedAircraftResourceIdRouteImport } from './routes/_authed/aircraft_.$resourceId'
+import { Route as AuthedDevBookingZoneBannerRouteImport } from './routes/_authed/dev.booking-zone-banner'
 import { Route as AuthedMeIndexRouteImport } from './routes/_authed/me/index'
 import { Route as AuthedMeAvailabilityRouteImport } from './routes/_authed/me/availability'
 import { Route as AuthedMeBookRouteImport } from './routes/_authed/me/book'
@@ -197,6 +198,12 @@ const AuthedAircraftResourceIdRoute =
     path: '/aircraft/$resourceId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedDevBookingZoneBannerRoute =
+  AuthedDevBookingZoneBannerRouteImport.update({
+    id: '/dev/booking-zone-banner',
+    path: '/dev/booking-zone-banner',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedMeIndexRoute = AuthedMeIndexRouteImport.update({
   id: '/me/',
   path: '/me/',
@@ -353,6 +360,7 @@ export interface FileRoutesByFullPath {
   '/training': typeof AuthedTrainingRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/aircraft/$resourceId': typeof AuthedAircraftResourceIdRoute
+  '/dev/booking-zone-banner': typeof AuthedDevBookingZoneBannerRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
   '/me/book': typeof AuthedMeBookRoute
   '/me/currencies': typeof AuthedMeCurrenciesRoute
@@ -405,6 +413,7 @@ export interface FileRoutesByTo {
   '/training': typeof AuthedTrainingRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/aircraft/$resourceId': typeof AuthedAircraftResourceIdRoute
+  '/dev/booking-zone-banner': typeof AuthedDevBookingZoneBannerRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
   '/me/book': typeof AuthedMeBookRoute
   '/me/currencies': typeof AuthedMeCurrenciesRoute
@@ -459,6 +468,7 @@ export interface FileRoutesById {
   '/_authed/training': typeof AuthedTrainingRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/_authed/aircraft_/$resourceId': typeof AuthedAircraftResourceIdRoute
+  '/_authed/dev/booking-zone-banner': typeof AuthedDevBookingZoneBannerRoute
   '/_authed/me/availability': typeof AuthedMeAvailabilityRoute
   '/_authed/me/book': typeof AuthedMeBookRoute
   '/_authed/me/currencies': typeof AuthedMeCurrenciesRoute
@@ -513,6 +523,7 @@ export interface FileRouteTypes {
     | '/training'
     | '/auth/callback'
     | '/aircraft/$resourceId'
+    | '/dev/booking-zone-banner'
     | '/me/availability'
     | '/me/book'
     | '/me/currencies'
@@ -565,6 +576,7 @@ export interface FileRouteTypes {
     | '/training'
     | '/auth/callback'
     | '/aircraft/$resourceId'
+    | '/dev/booking-zone-banner'
     | '/me/availability'
     | '/me/book'
     | '/me/currencies'
@@ -618,6 +630,7 @@ export interface FileRouteTypes {
     | '/_authed/training'
     | '/auth/callback'
     | '/_authed/aircraft_/$resourceId'
+    | '/_authed/dev/booking-zone-banner'
     | '/_authed/me/availability'
     | '/_authed/me/book'
     | '/_authed/me/currencies'
@@ -850,6 +863,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedAircraftResourceIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/dev/booking-zone-banner': {
+      id: '/_authed/dev/booking-zone-banner'
+      path: '/dev/booking-zone-banner'
+      fullPath: '/dev/booking-zone-banner'
+      preLoaderRoute: typeof AuthedDevBookingZoneBannerRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/me/': {
       id: '/_authed/me/'
       path: '/me'
@@ -1037,6 +1057,7 @@ interface AuthedRouteChildren {
   AuthedScheduleRoute: typeof AuthedScheduleRoute
   AuthedTrainingRoute: typeof AuthedTrainingRoute
   AuthedAircraftResourceIdRoute: typeof AuthedAircraftResourceIdRoute
+  AuthedDevBookingZoneBannerRoute: typeof AuthedDevBookingZoneBannerRoute
   AuthedMeAvailabilityRoute: typeof AuthedMeAvailabilityRoute
   AuthedMeBookRoute: typeof AuthedMeBookRoute
   AuthedMeCurrenciesRoute: typeof AuthedMeCurrenciesRoute
@@ -1079,6 +1100,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedScheduleRoute: AuthedScheduleRoute,
   AuthedTrainingRoute: AuthedTrainingRoute,
   AuthedAircraftResourceIdRoute: AuthedAircraftResourceIdRoute,
+  AuthedDevBookingZoneBannerRoute: AuthedDevBookingZoneBannerRoute,
   AuthedMeAvailabilityRoute: AuthedMeAvailabilityRoute,
   AuthedMeBookRoute: AuthedMeBookRoute,
   AuthedMeCurrenciesRoute: AuthedMeCurrenciesRoute,

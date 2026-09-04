@@ -1,6 +1,10 @@
 import * as React from "react";
-import { addDays, startOfDay } from "date-fns";
-import { dateKeyInZone, zonedWallClockToUtc } from "@/lib/timezone";
+import { addDays, addMinutes, startOfDay } from "date-fns";
+import {
+  dateKeyInZone,
+  minutesFromMidnightInZone,
+  zonedWallClockToUtc,
+} from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { CalendarClock, Loader2 } from "lucide-react";
 import { useResourceAvailability, useUsersAvailability } from "@/features/queries";
@@ -8,6 +12,9 @@ import {
   defaultEnd,
   endOptions,
   endOptionsOnDay,
+  filterToStartIncrement,
+  fixedEndAcrossDays,
+  fixedEndInWindow,
   intersectAvailability,
   withWindowRestored,
   isBookable,
@@ -20,6 +27,11 @@ import {
   windowsForDay,
   type Window,
 } from "@/lib/scheduling";
+import {
+  describeBookingTimePolicy,
+  NO_BOOKING_TIME_POLICY,
+  type BookingTimePolicy,
+} from "./reservation-shared";
 import { DocsHint } from "@/components/docs-hint";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -39,6 +51,13 @@ import {
  * only 15-minute slots during which everyone is simultaneously free, so an
  * invalid (double-booked or past) appointment can't be selected. Picking a start
  * auto-fills a valid end (default 1h, backing off to fit the free window).
+ *
+ * On top of availability it honours the school's SHARED CALENDAR RULES (`policy`): the
+ * start grid, the fixed booking length, the minimum notice floor and the booking horizon
+ * all narrow what is offered, so the rules shape the picker instead of arriving as a
+ * rejection after the form is filled in. Clear-time buffers are already baked into the
+ * free windows the availability endpoints return; the guidance line names them so the
+ * shortened lists make sense.
  */
 /** ISO string for a Select value; "" for null or an invalid Date. Prevents a bad
  * Date from crashing the render via `toISOString()` ("Invalid time value"), the
@@ -76,6 +95,10 @@ export function SmartTimeRange({
   restoreWindow = null,
   lockStart = false,
   allowMultiDay = false,
+  policy = NO_BOOKING_TIME_POLICY,
+  excludeReservationId = null,
+  relaxNoticeAndHorizon = false,
+  locationId = null,
 }: {
   /**
    * Id of the control the parent's validation is complaining about, so it can be marked
@@ -114,17 +137,96 @@ export function SmartTimeRange({
    * to a later day, bounded by the free window it starts in.
    */
   allowMultiDay?: boolean;
+  /**
+   * The school's shared calendar rules. Off for every field by default, which is every
+   * school until an owner turns one on, and then this picker offers only what the server
+   * accepts instead of letting somebody find out at Save. See `BookingTimePolicy`.
+   */
+  policy?: BookingTimePolicy;
+  /**
+   * When editing, the server excludes this reservation from busy windows so the operator
+   * can keep or extend the current slot, including into its own buffer.
+   */
+  excludeReservationId?: number | null;
+  /**
+   * Front desk walk-ups: the server skips notice and horizon for staff, so the picker
+   * must not hide those times either. Member self-book keeps the floor.
+   */
+  relaxNoticeAndHorizon?: boolean;
+  /** Airport location for weekly hours and booking-policy clipping. */
+  locationId?: number | null;
 }) {
   const tz = useTimeZone();
   // Captured once so the past-clamp / memo keys stay stable while the form is open.
   const now = React.useMemo(() => new Date(), []);
   const personnelKey = personnelUserIds.join(",");
 
-  const resQ = useResourceAvailability(resourceId, { enabled: !disabled });
-  const userResults = useUsersAvailability(personnelUserIds, { enabled: !disabled });
+  const fixedLength = policy.fixedDurationMinutes;
+  /**
+   * The earliest instant a booking may start: now, pushed out by the school's minimum
+   * notice. Used everywhere `now` was the "not in the past" floor, so a school that wants
+   * 24 hours' notice simply has no marks inside the next 24 hours rather than a refusal
+   * after the form is filled in.
+   *
+   * NOT applied while editing. The rule is about how far ahead a booking is MADE, and an
+   * existing booking that starts in ten minutes is a legitimate thing to extend or move
+   * the end of; flooring past its own slot would clear the selection the operator opened
+   * the form to change. `restoreWindow` is only passed when editing (see its doc).
+   *
+   * Memoised on the MINUTE COUNT, not on `restoreWindow`: the parent rebuilds that object
+   * every render, and a fresh `bookableFrom` identity each time would re-derive every
+   * option list and re-run the reconcile effect below on every keystroke elsewhere in the
+   * form. Same reason `restoreKey` exists further down.
+   */
+  const noticeFloorMinutes =
+    restoreWindow != null || relaxNoticeAndHorizon ? null : policy.minimumNoticeMinutes;
+  const bookableFrom = React.useMemo(
+    () => (noticeFloorMinutes == null ? now : addMinutes(now, noticeFloorMinutes)),
+    [now, noticeFloorMinutes]
+  );
+
+  /**
+   * How far ahead a START may be. The school's horizon, never beyond the client's own
+   * one-year cap. Deliberately not applied to the "Back on" date: the server checks the
+   * horizon against the start alone, so a trip that leaves inside the window may return
+   * after it.
+   */
+  const advanceDays =
+    relaxNoticeAndHorizon || policy.bookingHorizonDays == null
+      ? MAX_ADVANCE_DAYS
+      : Math.min(policy.bookingHorizonDays, MAX_ADVANCE_DAYS);
+
+  /**
+   * Minutes past midnight in the zone the picker RENDERS in, which is the zone whose
+   * marks the person is reading. Every US zone is a whole number of hours from UTC, so
+   * this agrees with the server's own check (made in the airport's zone) on any 15, 30 or
+   * 60 minute grid.
+   */
+  const minuteOfDay = React.useCallback(
+    (instant: Date) => minutesFromMidnightInZone(instant, tz.zone),
+    [tz.zone]
+  );
+
+  const resQ = useResourceAvailability(resourceId, {
+    enabled: !disabled,
+    excludeReservationId,
+    locationId,
+    bookingOnBehalf: relaxNoticeAndHorizon,
+  });
+  const userResults = useUsersAvailability(personnelUserIds, {
+    enabled: !disabled,
+    excludeReservationId,
+    locationId,
+    bookingOnBehalf: relaxNoticeAndHorizon,
+  });
 
   const resUpdated = resQ.dataUpdatedAt;
   const usersUpdated = userResults.map((r) => r.dataUpdatedAt).join(",");
+  const availabilityStatus = [
+    resQ.status,
+    resQ.isError ? "e" : "ok",
+    ...userResults.map((r) => `${r.status}:${r.isError ? "e" : "ok"}`),
+  ].join(",");
   const loading =
     (resourceId != null && resQ.isLoading) || userResults.some((r) => r.isLoading);
 
@@ -136,12 +238,14 @@ export function SmartTimeRange({
     : "";
   const allWindows: Window[] | null = React.useMemo(() => {
     const lists: (Window[] | null)[] = [];
-    if (resourceId != null) lists.push(resQ.data ? parseWindows(resQ.data) : null);
-    userResults.forEach((r) => lists.push(r.data ? parseWindows(r.data) : null));
+    if (resourceId != null) {
+      lists.push(resQ.isError ? [] : resQ.data ? parseWindows(resQ.data) : null);
+    }
+    userResults.forEach((r) => lists.push(r.isError ? [] : r.data ? parseWindows(r.data) : null));
     // The reservation being edited books itself, so add its own slot back in.
     return withWindowRestored(intersectAvailability(lists), restoreWindow);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resourceId, resUpdated, usersUpdated, personnelKey, restoreKey]);
+  }, [resourceId, resUpdated, usersUpdated, availabilityStatus, personnelKey, restoreKey]);
 
   //`date` is "YYYY-MM-DD" chosen by a person, meaning that day AT THE FIELD. Anchored to
   //noon in the airport's zone rather than parsed to local midnight: noon is never within an
@@ -154,10 +258,55 @@ export function SmartTimeRange({
   }, [date, tz.zone]);
 
   const dayWindows = React.useMemo(
-    () => (day ? windowsForDay(allWindows, day, now) : []),
-    [allWindows, day, now]
+    () => (day ? windowsForDay(allWindows, day, bookableFrom) : []),
+    [allWindows, day, bookableFrom]
   );
-  const starts = React.useMemo(() => valid(startOptions(dayWindows)), [dayWindows]);
+
+  /**
+   * The end this start implies. With a fixed length that is the only legal end; otherwise
+   * it is the usual default hour, backing off to fit the window. Null means the start
+   * cannot host a booking at all, which is what keeps it out of `offerableStarts`.
+   */
+  const endFor = React.useCallback(
+    (dayW: Window[], s: Date): Date | null => {
+      if (fixedLength == null) return defaultEnd(dayW, s);
+      return allowMultiDay
+        ? fixedEndAcrossDays(allWindows, s, fixedLength, bookableFrom)
+        : fixedEndInWindow(dayW, s, fixedLength);
+    },
+    [fixedLength, allowMultiDay, allWindows, bookableFrom]
+  );
+
+  /** A day's start marks, narrowed to the ones the school's rules actually allow. */
+  const offerableStarts = React.useCallback(
+    (dayW: Window[]): Date[] => {
+      const grid = filterToStartIncrement(
+        valid(startOptions(dayW)),
+        policy.startIncrementMinutes,
+        minuteOfDay
+      );
+      //Only worth filtering when a fixed length can fail to fit; otherwise `startOptions`
+      //has already guaranteed room for the minimum booking.
+      if (fixedLength == null) return grid;
+      return grid.filter((s) => endFor(dayW, s) != null);
+    },
+    [policy.startIncrementMinutes, minuteOfDay, fixedLength, endFor]
+  );
+
+  const starts = React.useMemo(() => {
+    const offered = offerableStarts(dayWindows);
+    if (
+      restoreWindow &&
+      start &&
+      start.getTime() === restoreWindow.start.getTime() &&
+      date &&
+      dateKeyInZone(start, tz.zone) === date &&
+      !offered.some((s) => s.getTime() === start.getTime())
+    ) {
+      return [start, ...offered];
+    }
+    return offered;
+  }, [offerableStarts, dayWindows, restoreWindow, start, date, tz.zone]);
 
   //The day the booking ENDS on, as "YYYY-MM-DD" at the field. Derived from the current end
   //rather than held as separate state, so it cannot drift out of step with it: whatever the
@@ -184,26 +333,74 @@ export function SmartTimeRange({
   //day-clipped one cannot express an end past midnight at all.
   const ends = React.useMemo(() => {
     if (!start) return [];
+    //A fixed length leaves exactly one end. It is still offered as an option rather than
+    //rendered as text so the field keeps its shape, and the control is disabled below.
+    if (fixedLength != null) {
+      const only = endFor(dayWindows, start);
+      return only ? [only] : [];
+    }
     if (!spansDays) return valid(endOptions(dayWindows, start));
-    return endDay ? valid(endOptionsOnDay(allWindows, start, endDay, now)) : [];
-  }, [dayWindows, allWindows, start, spansDays, endDay, now]);
+    return endDay ? valid(endOptionsOnDay(allWindows, start, endDay, bookableFrom)) : [];
+  }, [
+    dayWindows,
+    allWindows,
+    start,
+    spansDays,
+    endDay,
+    bookableFrom,
+    fixedLength,
+    endFor,
+  ]);
 
   //The furthest day this booking could end on, so a date that can only ever produce an
   //empty time list is not offerable. Bounded by the free window the START sits in, which is
   //what keeps a trip from being booked straight through somebody else's reservation.
   const maxEndDate = React.useMemo(() => {
     if (!allowMultiDay || !start) return date;
-    const last = lastEndDay(allWindows, start, now);
+    const last = lastEndDay(allWindows, start, bookableFrom);
     const horizon = addDays(now, MAX_ADVANCE_DAYS);
     const capped = last && last.getTime() < horizon.getTime() ? last : horizon;
     return dateKeyInZone(capped, tz.zone);
-  }, [allowMultiDay, allWindows, start, now, date, tz.zone]);
+  }, [allowMultiDay, allWindows, start, now, bookableFrom, date, tz.zone]);
 
-  // The earliest bookable slot from the selected day onward (may be a later day).
-  const next = React.useMemo(
-    () => nextAvailable(allWindows, day ? startOfDay(day) : now, now),
-    [allWindows, day, now]
-  );
+  /**
+   * The earliest OFFERABLE slot from the selected day onward, which may be a later day.
+   *
+   * `nextAvailable` answers "when is anyone free next", which is not the same question
+   * once the school books on a grid or at a fixed length: the free scrap it finds can hold
+   * no offerable start at all. So each candidate day is checked against the same rules the
+   * Start dropdown uses, and the scan moves to the next day when a day has none. Bounded
+   * because it is walking days, and a link that names a time the picker then refuses to
+   * select is worse than no link.
+   */
+  const next = React.useMemo(() => {
+    const unconstrained =
+      policy.startIncrementMinutes == null && fixedLength == null;
+    const horizonMs = addDays(now, advanceDays).getTime();
+    const scanDays = Math.min(advanceDays, 90);
+    let from = day ? startOfDay(day) : bookableFrom;
+    for (let i = 0; i < scanDays; i++) {
+      const raw = nextAvailable(allWindows, from, bookableFrom);
+      if (!raw) return null;
+      if (raw.getTime() > horizonMs) return null;
+      if (unconstrained) return raw;
+      const pick = offerableStarts(windowsForDay(allWindows, raw, bookableFrom)).find(
+        (s) => s.getTime() >= raw.getTime()
+      );
+      if (pick) return pick;
+      from = startOfDay(addDays(raw, 1));
+    }
+    return null;
+  }, [
+    allWindows,
+    day,
+    bookableFrom,
+    now,
+    advanceDays,
+    policy.startIncrementMinutes,
+    fixedLength,
+    offerableStarts,
+  ]);
 
   // Reconcile the selection whenever the loaded availability changes (a refetch,
   // or the resource/personnel/date changed). If the start is no longer a valid
@@ -213,24 +410,47 @@ export function SmartTimeRange({
   React.useEffect(() => {
     if (loading || !start) return;
     if (!starts.some((s) => s.getTime() === start.getTime())) {
-      onChange(null, null);
+      const sameDayAsPicker =
+        !!date && dateKeyInZone(start, tz.zone) === date;
+      const keepingExisting =
+        restoreWindow != null &&
+        start.getTime() === restoreWindow.start.getTime() &&
+        sameDayAsPicker;
+      if (!keepingExisting) onChange(null, null);
       return;
     }
     //A multi-day end is judged against the unclipped windows. Checking it with `isBookable`
     //would call every valid trip unbookable, because that asks whether the end fits inside
     //the START's own day, which is precisely what a trip does not do. It would then "refit"
     //the end back to the same day on every render.
-    const stillValid = spansDays
-      ? isBookableAcrossDays(allWindows, start, end!, now)
+    const inWindow = spansDays
+      ? isBookableAcrossDays(allWindows, start, end!, bookableFrom)
       : !!end && isBookable(dayWindows, start, end);
-    if (!stillValid) {
-      onChange(start, defaultEnd(dayWindows, start));
+    //A fixed length is part of "still valid": an end left over from before the school set
+    //the rule, or from a start that has since moved, is a length the server refuses.
+    const lengthOk =
+      fixedLength == null ||
+      (!!end && end.getTime() - start.getTime() === fixedLength * 60_000);
+    if (!inWindow || !lengthOk) {
+      onChange(start, endFor(dayWindows, start));
     }
-  }, [loading, start, end, starts, dayWindows, allWindows, spansDays, now, onChange]);
+  }, [
+    loading,
+    start,
+    end,
+    starts,
+    dayWindows,
+    allWindows,
+    spansDays,
+    bookableFrom,
+    fixedLength,
+    endFor,
+    onChange,
+  ]);
 
   const pickStart = (iso: string) => {
     const s = new Date(iso);
-    onChange(s, defaultEnd(dayWindows, s));
+    onChange(s, endFor(dayWindows, s));
   };
   const pickEnd = (iso: string) => {
     if (start) onChange(start, new Date(iso));
@@ -242,19 +462,21 @@ export function SmartTimeRange({
    * the field is never left holding an end the server would refuse.
    */
   const pickEndDate = (next: string) => {
+    //With a fixed length the return day is derived, not chosen; the control is disabled.
+    if (fixedLength != null) return;
     if (!start || !next) return;
     const [yy, mm, dd] = next.split("-").map(Number);
     if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd)) return;
     const target = zonedWallClockToUtc(yy, mm, dd, 12, 0, tz.zone);
 
     if (next === date) {
-      onChange(start, defaultEnd(dayWindows, start));
+      onChange(start, endFor(dayWindows, start));
       return;
     }
 
-    const options = valid(endOptionsOnDay(allWindows, start, target, now));
+    const options = valid(endOptionsOnDay(allWindows, start, target, bookableFrom));
     if (!options.length) {
-      onChange(start, defaultEnd(dayWindows, start));
+      onChange(start, endFor(dayWindows, start));
       return;
     }
     //Hold the wall-clock time the operator already chose if that mark exists on the new day,
@@ -264,17 +486,18 @@ export function SmartTimeRange({
     onChange(start, options.find((o) => tz.time(o) === wanted) ?? options[0]);
   };
 
+  //`next` is already an offerable start under the school's rules, so the link and what
+  //clicking it selects can never disagree.
   const jumpToNextAvailable = () => {
-    const from = day ? startOfDay(day) : now;
-    const slot = nextAvailable(allWindows, from, now);
-    if (!slot) return;
-    onDateChange(dateKeyInZone(slot, tz.zone));
-    onChange(slot, defaultEnd(windowsForDay(allWindows, slot, now), slot));
+    if (!next) return;
+    onDateChange(dateKeyInZone(next, tz.zone));
+    onChange(next, endFor(windowsForDay(allWindows, next, bookableFrom), next));
   };
 
-  const minDate = dateKeyInZone(now, tz.zone);
-  const maxDate = dateKeyInZone(addDays(now, MAX_ADVANCE_DAYS), tz.zone);
+  const minDate = dateKeyInZone(bookableFrom, tz.zone);
+  const maxDate = dateKeyInZone(addDays(now, advanceDays), tz.zone);
   const noSlots = !loading && day != null && starts.length === 0;
+  const policyClauses = describeBookingTimePolicy(policy);
 
   return (
     <div data-doc-shot="overnight-booking-fields" className="space-y-2">
@@ -335,7 +558,7 @@ export function SmartTimeRange({
               //starts in closes.
               min={date}
               max={maxEndDate}
-              disabled={disabled || loading || !start}
+              disabled={disabled || loading || !start || fixedLength != null}
               onChange={pickEndDate}
             />
           </div>
@@ -346,7 +569,10 @@ export function SmartTimeRange({
           <Select
             value={isoValue(end)}
             onValueChange={pickEnd}
-            disabled={disabled || loading || !start || ends.length === 0}
+            //A fixed length settles the end, so the field reports it rather than asking.
+            disabled={
+              disabled || loading || !start || ends.length === 0 || fixedLength != null
+            }
           >
             <SelectTrigger
               id="smart-end"
@@ -366,6 +592,17 @@ export function SmartTimeRange({
         </div>
       </div>
 
+      {/* The school's own rules, said where the times are chosen. The picker already
+          honours the ones it can, and the availability lists already leave buffer
+          time around neighbouring bookings, so this exists to explain why the lists
+          look the way they do. Absent for a school that has set none, which is the
+          default. */}
+      {policyClauses.length > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Shared calendar rules: {policyClauses.join(", ")}.
+        </p>
+      )}
+
       {loading ? (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Loader2 className="size-3 animate-spin" /> Checking availability…
@@ -376,7 +613,12 @@ export function SmartTimeRange({
           className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
         >
           <CalendarClock className="size-3.5 shrink-0" />
-          <span>No open times on this date for everyone selected.</span>
+          <span>
+            No open times on this date for everyone selected
+            {policyClauses.length > 0
+              ? " that fit your school's calendar rules."
+              : "."}
+          </span>
           {next && (
             <Button
               type="button"

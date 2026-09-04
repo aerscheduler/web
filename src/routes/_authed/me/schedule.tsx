@@ -37,6 +37,7 @@ import { CancelReservationDialog } from "@/components/schedule/cancel-reservatio
 import { ReservationForm } from "@/components/schedule/reservation-form";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 import { MySlotOffersPanel } from "@/components/slot-offers/my-slot-offers-panel";
+import { MyBookingRequestsPanel } from "@/components/booking-requests/my-booking-requests-panel";
 import { resourceLabel } from "@/types/api";
 
 const FACET_KEYS = ["resourceId", "locationId"] as const;
@@ -201,7 +202,7 @@ function MySchedulePage() {
     const tab = (ME_SCHEDULE_TAB_VALUES as readonly string[]).includes(next)
       ? (next as MeScheduleTab)
       : "schedule";
-    if (tab === "offers") setOpen(false);
+    if (tab === "offers" || tab === "requests") setOpen(false);
     void navigate({
       search: (prev) => {
         const { reservation: _drop, ...rest } = prev as Record<string, unknown> & {
@@ -266,6 +267,8 @@ function MySchedulePage() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto">
           {activeTab === "offers" && slotOffersOn ? (
             <MySlotOffersPanel />
+          ) : activeTab === "requests" ? (
+            <MyBookingRequestsPanel />
           ) : (
             <>
               <div

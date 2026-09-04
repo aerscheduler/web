@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2, SlidersHorizontal, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { useMultiDayReadiness, useOrgLedgerSettings, useUpdateOrganization } from "@/features/queries";
+import { useMultiDayReadiness, useOrgLedgerSettings, useOrgUserGroups, useUpdateOrganization } from "@/features/queries";
 import type { Organization, OrganizationSlotOfferSettings } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import {
@@ -78,6 +78,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   const update = useUpdateOrganization();
   const prefs = organization.preferences;
   const bookingPolicy = organization.bookingPolicy;
+  const orgUserGroupsQ = useOrgUserGroups();
   const slotOfferSettings = organization.slotOfferSettings;
 
   const [overridePrices, setOverridePrices] = useState(
@@ -121,6 +122,12 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   const [bufferBefore, setBufferBefore] = useState(
     () => String(bookingPolicy?.bufferBeforeMinutes ?? "")
   );
+  const [approvalRoles, setApprovalRoles] = useState<string[]>(
+    () => bookingPolicy?.bookingApprovalRequiredRoles ?? []
+  );
+  const [approvalGroupIds, setApprovalGroupIds] = useState<number[]>(
+    () => bookingPolicy?.bookingApprovalRequiredGroups?.map((g) => g.id) ?? []
+  );
   const [bufferAfter, setBufferAfter] = useState(
     () => String(bookingPolicy?.bufferAfterMinutes ?? "")
   );
@@ -153,6 +160,8 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     | "slotOffersEnabled"
     | "slotOfferPolicy"
     | "bookingRules"
+    | "approvalRoles"
+    | "approvalGroups"
     | null
   >(null);
 
@@ -211,6 +220,8 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     setFixedMinutes(String(bookingPolicy?.fixedReservationMinutes ?? ""));
     setBufferBefore(String(bookingPolicy?.bufferBeforeMinutes ?? ""));
     setBufferAfter(String(bookingPolicy?.bufferAfterMinutes ?? ""));
+    setApprovalRoles(bookingPolicy?.bookingApprovalRequiredRoles ?? []);
+    setApprovalGroupIds(bookingPolicy?.bookingApprovalRequiredGroups?.map((g) => g.id) ?? []);
     setMinCreditDollars(
       bookingPolicy?.minimumBalanceCents != null
         ? String(bookingPolicy.minimumBalanceCents / 100)
@@ -464,6 +475,8 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
           setFixedMinutes(String(bookingPolicy?.fixedReservationMinutes ?? ""));
           setBufferBefore(String(bookingPolicy?.bufferBeforeMinutes ?? ""));
           setBufferAfter(String(bookingPolicy?.bufferAfterMinutes ?? ""));
+    setApprovalRoles(bookingPolicy?.bookingApprovalRequiredRoles ?? []);
+    setApprovalGroupIds(bookingPolicy?.bookingApprovalRequiredGroups?.map((g) => g.id) ?? []);
           setMinCreditDollars(
             bookingPolicy?.minimumBalanceCents != null
               ? String(bookingPolicy.minimumBalanceCents / 100)
@@ -1112,6 +1125,105 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
               }}
               options={BUFFER_OPTIONS}
             />
+            <div className="space-y-3 border-t border-border pt-4">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium">Booking approval required</p>
+                  <p className="text-sm text-muted-foreground">
+                    Members with these roles (or in selected groups) submit requests instead of booking instantly.
+                    Staff scheduling on the board is unchanged.
+                  </p>
+                </div>
+                <DocsHint topic="booking-approval-required" />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(["student", "renter", "instructor"] as const).map((role) => (
+                  <PreferenceToggle
+                    key={role}
+                    label={role.charAt(0).toUpperCase() + role.slice(1)}
+                    checked={approvalRoles.includes(role)}
+                    disabled={rulesDisabled || pending != null}
+                    onCheckedChange={(checked) => {
+                      const next = checked
+                        ? [...approvalRoles, role]
+                        : approvalRoles.filter((r) => r !== role);
+                      const prev = approvalRoles;
+                      setApprovalRoles(next);
+                      setPending("approvalRoles");
+                      update.mutate(
+                        {
+                          bookingPolicy: {
+                            bookingApprovalRequiredRoles: next,
+                          },
+                        },
+                        {
+                          onSuccess: async () => {
+                            await rehydrate();
+                            toast.success("Approval rules updated");
+                          },
+                          onError: (err) => {
+                            setApprovalRoles(prev);
+                            toast.error(
+                              err instanceof ApiError ? err.message : "Couldn't save approval rules"
+                            );
+                          },
+                          onSettled: () => setPending(null),
+                        }
+                      );
+                    }}
+                  />
+                ))}
+              </div>
+              {(orgUserGroupsQ.data?.length ?? 0) > 0 && (
+                <div className="space-y-2">
+                  <Label>Groups requiring approval</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {(orgUserGroupsQ.data ?? []).map((group) => {
+                      const on = approvalGroupIds.includes(group.id);
+                      return (
+                        <PreferenceToggle
+                          key={group.id}
+                          label={group.name}
+                          checked={on}
+                          disabled={rulesDisabled || pending != null}
+                          onCheckedChange={(checked) => {
+                            const next = checked
+                              ? [...approvalGroupIds, group.id]
+                              : approvalGroupIds.filter((id) => id !== group.id);
+                            const prev = approvalGroupIds;
+                            setApprovalGroupIds(next);
+                            setPending("approvalGroups");
+                            update.mutate(
+                              {
+                                bookingPolicy: {
+                                  bookingApprovalRequiredGroupIds: next,
+                                } as unknown as Organization["bookingPolicy"],
+                              },
+                              {
+                                onSuccess: async () => {
+                                  await rehydrate();
+                                  toast.success("Approval groups updated");
+                                },
+                                onError: (err) => {
+                                  setApprovalGroupIds(prev);
+                                  toast.error(
+                                    err instanceof ApiError
+                                      ? err.message
+                                      : "Couldn't save approval groups"
+                                  );
+                                },
+                                onSettled: () => setPending(null),
+                              }
+                            );
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
 
           {ledgerOn && (

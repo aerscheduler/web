@@ -18,7 +18,8 @@ const CLIENT_ID = `aerscheduler-web/${
 // VITE_API_PROXY in `.env.local` is ignored and the proxy stays on production.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const apiProxy = env.VITE_API_PROXY || process.env.VITE_API_PROXY || "https://api.aerscheduler.com";
+  const apiProxy =
+    env.VITE_API_PROXY || process.env.VITE_API_PROXY || "http://127.0.0.1:5001";
 
   return {
     define: {
@@ -35,13 +36,13 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5173,
-      // During dev, proxy /api -> the real API so cookies/CORS behave like prod.
-      // Point VITE_API_PROXY at a local server to develop against one.
+      // During dev, proxy /api to the API. Default is the local server (see .env.development).
+      // Set VITE_API_PROXY=https://api.aerscheduler.com only for post-deploy smoke tests.
       proxy: {
         "/api": {
           target: apiProxy,
           changeOrigin: true,
-          secure: true,
+          secure: apiProxy.startsWith("https"),
           ws: true,
           rewrite: (p) => p.replace(/^\/api/, ""),
         },

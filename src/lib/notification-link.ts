@@ -60,11 +60,13 @@ const EXACT: Record<string, NotificationHref | undefined> = {
   //Owner-only notification, and console Settings is admin-gated, so the audiences match.
   "/organization-settings/billing": "/settings?tab=billing",
   //Deletion countdown notices go to admins and owners; console Settings is admin-gated.
+  "/organization-settings/security": "/settings?tab=security",
   "/organization-settings": "/settings?tab=organization",
   //Automatic dunning handoff: admins/owners only. App org-invoice list; console Billing.
   "/organization-invoices": "/billing",
   // Slot-offer list (no id). Same destination as /slot-offers/:id.
   "/slot-offers": "/me/schedule?tab=offers",
+  "/booking-requests": "/schedule?panel=booking-requests",
 };
 
 /**
@@ -95,6 +97,7 @@ const WITH_ID: Record<string, ((id: number) => NotificationHref) | undefined> = 
   "/currencies": () => "/me/currencies",
   // Member list lives under Schedule; offer detail is not a separate console page.
   "/slot-offers": () => `/me/schedule?tab=offers`,
+  "/booking-requests": () => `/me/schedule?tab=requests`,
 };
 
 /**
@@ -146,6 +149,15 @@ export function notificationHref(link: string | null | undefined): NotificationH
   const trimmed = path.replace(/\/+$/, "");
 
   if (query) {
+    // The mobile app has no Security pane. Deletion notices use its existing
+    // organization-settings route with this discriminator so the web inbox can
+    // still open the Security tab.
+    if (
+      trimmed === "/organization-settings" &&
+      new URLSearchParams(query).get("tab") === "security"
+    ) {
+      return "/settings?tab=security";
+    }
     const id = parseId(new URLSearchParams(query).get("id"));
     const build = WITH_QUERY_ID[trimmed];
     //A query this table does not understand is left alone rather than silently dropped:

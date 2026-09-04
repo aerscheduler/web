@@ -1,4 +1,4 @@
-import { CalendarDays, RefreshCw, type LucideIcon } from "lucide-react";
+import { CalendarDays, ClipboardList, RefreshCw, type LucideIcon } from "lucide-react";
 import type { RailSection } from "@/components/section-rail";
 
 /**
@@ -8,7 +8,7 @@ import type { RailSection } from "@/components/section-rail";
  * Layout uses SectionRail (same shell as Settings / My training), told apart
  * by `?tab=`.
  */
-export type MeScheduleTab = "schedule" | "offers";
+export type MeScheduleTab = "schedule" | "offers" | "requests";
 
 export type MeScheduleTabDef = {
   value: MeScheduleTab;
@@ -29,6 +29,12 @@ export const ME_SCHEDULE_TABS: MeScheduleTabDef[] = [
     label: "Offers",
     icon: RefreshCw,
     keywords: ["offers", "standby", "waitlist", "open slot", "claim"],
+  },
+  {
+    value: "requests",
+    label: "Requests",
+    icon: ClipboardList,
+    keywords: ["booking request", "approval", "pending"],
   },
 ];
 

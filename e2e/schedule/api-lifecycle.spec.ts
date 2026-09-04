@@ -40,10 +40,10 @@ test.describe("Schedule API lifecycle (owner)", () => {
     const users = Array.isArray(usersBody) ? usersBody : (usersBody.data ?? []);
     const student = users.find((u: any) => u?.user?.email === ACCOUNTS.student);
     const renter = users.find((u: any) => u?.user?.email === ACCOUNTS.renter);
-    expect(renter || student).toBeTruthy();
+    expect(student, "need test student").toBeTruthy();
 
-    // Prefer renter: the seeded student is often grounded for unpaid invoices locally.
-    const useRenter = !!renter;
+    // Prefer student: the seeded renter is often grounded locally (Medical lapsed).
+    const useRenter = !!renter && !renter.grounded;
     // Denver daytime (MDT/MST). Avoid UTC hours that fall outside 6 AM-10 PM local.
     // Probe several days for a free window; soft holds / prior e2e can pack today.
     let created: Awaited<ReturnType<typeof request.post>> | null = null;

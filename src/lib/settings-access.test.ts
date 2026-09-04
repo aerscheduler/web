@@ -30,6 +30,21 @@ describe("the Plan pane", () => {
   });
 });
 
+describe("the Security pane", () => {
+  it("is offered to an admin", () => {
+    expect(tabsFor(false, true)).toContain("security");
+  });
+
+  it("is hidden from a non-admin who reached Settings on a grant", () => {
+    expect(tabsFor(false, false)).not.toContain("security");
+  });
+
+  it("is not reachable by typing ?tab=security", () => {
+    expect(canSeeSettingsTab("security", false, false)).toBe(false);
+    expect(canSeeSettingsTab("security", false, true)).toBe(true);
+  });
+});
+
 describe("the rest of Settings", () => {
   it("still reaches a non-admin, or the grant would be pointless", () => {
     // The failure to avoid is over-correcting: gating all of Settings on admin would
@@ -43,10 +58,17 @@ describe("the rest of Settings", () => {
 
   it("drops no section entirely for a non-admin", () => {
     // Plan lives in the Billing group beside Billing, Memberships and the rest, so
-    // hiding it must not empty a whole rail heading.
+    // hiding it must not empty a whole rail heading. Security is its own last group
+    // and is admin-only, so that heading is supposed to disappear.
     const groups = settingsSectionsFor(false, false).map((s) => s.label);
     expect(groups).toContain("Billing");
     expect(groups).toContain("School");
+    expect(groups).not.toContain("Security");
+  });
+
+  it("puts Security last for an admin", () => {
+    const groups = settingsSectionsFor(false, true).map((s) => s.label);
+    expect(groups.at(-1)).toBe("Security");
   });
 });
 
@@ -76,6 +98,6 @@ describe("the registry itself", () => {
     //                NOT granted it either; see the role journey in
     //                e2e/operations/airworthiness-roles.spec.ts.
     const adminOnly = SETTINGS_TABS.filter((t) => t.adminOnly).map((t) => t.value);
-    expect(adminOnly).toEqual(["ad-tracking", "plan"]);
+    expect(adminOnly).toEqual(["ad-tracking", "plan", "security"]);
   });
 });

@@ -6,6 +6,8 @@ Local / CI only. Refuses production API hosts unless `ALLOW_PROD_E2E=1`.
 
 ```bash
 cd server && npm run dev          # :5001 + AERTEST01 seeded
+# Re-run if booking tests hit the subscribe paywall (trial lapsed):
+PGPASSWORD=mysecretpassword psql -h 127.0.0.1 -U admin -d mydb -f server/prisma/seed-test-accounts.sql
 cd web && VITE_API_PROXY=http://127.0.0.1:5001 npm run dev
 ```
 
@@ -30,6 +32,9 @@ Defaults: `VITE_API_PROXY=http://127.0.0.1:5001`, Playwright starts Vite on
 | `e2e/auth.setup.ts` | UI login as owner + storageState + E2E cleanup |
 | `e2e/auth/login.spec.ts` | Real login + bad password |
 | `e2e/schedule/journeys.spec.ts` | Schedule loads; create affordance |
+| `e2e/schedule/ui-create.spec.ts` | Owner: New reservation form through POST /reservations |
+| `e2e/schedule/me-book-create.spec.ts` | Student: /me/book solo self-serve booking |
+| `e2e/schedule/booking-request.spec.ts` | Student submits booking request; owner approves from desk queue |
 | `e2e/schedule/api-lifecycle.spec.ts` | Create / patch / cancel reservation via API |
 | `e2e/schedule/slot-offer-cancel-recovery.spec.ts` | API: Standby → cancel → offer → accept; desk withdraw; Pending offers opens |
 | `e2e/schedule/slot-offer-cancel-recovery-ui.spec.ts` | UI clicks: stand by → cancel dialog → Pending offers → Accept on Offers tab; Withdraw |

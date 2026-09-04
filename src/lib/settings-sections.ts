@@ -101,6 +101,18 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
       },
     ],
   },
+  {
+    label: "Security",
+    tabs: [
+      {
+        value: "security",
+        label: "Security",
+        icon: ShieldCheck,
+        keywords: ["organization deletion", "delete organization", "danger zone"],
+        adminOnly: true,
+      },
+    ],
+  },
 ];
 
 /**

@@ -30,6 +30,7 @@ import { Route as AuthedDeveloperRouteImport } from './routes/_authed/developer'
 import { Route as AuthedFacilitiesRouteImport } from './routes/_authed/facilities'
 import { Route as AuthedMaintenanceRouteImport } from './routes/_authed/maintenance'
 import { Route as AuthedNotificationsRouteImport } from './routes/_authed/notifications'
+import { Route as AuthedOrganizationSettingsRouteImport } from './routes/_authed/organization-settings'
 import { Route as AuthedPeopleRouteImport } from './routes/_authed/people'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedScheduleRouteImport } from './routes/_authed/schedule'
@@ -167,6 +168,12 @@ const AuthedNotificationsRoute = AuthedNotificationsRouteImport.update({
   path: '/notifications',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedOrganizationSettingsRoute =
+  AuthedOrganizationSettingsRouteImport.update({
+    id: '/organization-settings',
+    path: '/organization-settings',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedPeopleRoute = AuthedPeopleRouteImport.update({
   id: '/people',
   path: '/people',
@@ -354,6 +361,7 @@ export interface FileRoutesByFullPath {
   '/facilities': typeof AuthedFacilitiesRoute
   '/maintenance': typeof AuthedMaintenanceRoute
   '/notifications': typeof AuthedNotificationsRoute
+  '/organization-settings': typeof AuthedOrganizationSettingsRoute
   '/people': typeof AuthedPeopleRoute
   '/reports': typeof AuthedReportsRoute
   '/schedule': typeof AuthedScheduleRoute
@@ -407,6 +415,7 @@ export interface FileRoutesByTo {
   '/facilities': typeof AuthedFacilitiesRoute
   '/maintenance': typeof AuthedMaintenanceRoute
   '/notifications': typeof AuthedNotificationsRoute
+  '/organization-settings': typeof AuthedOrganizationSettingsRoute
   '/people': typeof AuthedPeopleRoute
   '/reports': typeof AuthedReportsRoute
   '/schedule': typeof AuthedScheduleRoute
@@ -462,6 +471,7 @@ export interface FileRoutesById {
   '/_authed/facilities': typeof AuthedFacilitiesRoute
   '/_authed/maintenance': typeof AuthedMaintenanceRoute
   '/_authed/notifications': typeof AuthedNotificationsRoute
+  '/_authed/organization-settings': typeof AuthedOrganizationSettingsRoute
   '/_authed/people': typeof AuthedPeopleRoute
   '/_authed/reports': typeof AuthedReportsRoute
   '/_authed/schedule': typeof AuthedScheduleRoute
@@ -517,6 +527,7 @@ export interface FileRouteTypes {
     | '/facilities'
     | '/maintenance'
     | '/notifications'
+    | '/organization-settings'
     | '/people'
     | '/reports'
     | '/schedule'
@@ -570,6 +581,7 @@ export interface FileRouteTypes {
     | '/facilities'
     | '/maintenance'
     | '/notifications'
+    | '/organization-settings'
     | '/people'
     | '/reports'
     | '/schedule'
@@ -624,6 +636,7 @@ export interface FileRouteTypes {
     | '/_authed/facilities'
     | '/_authed/maintenance'
     | '/_authed/notifications'
+    | '/_authed/organization-settings'
     | '/_authed/people'
     | '/_authed/reports'
     | '/_authed/schedule'
@@ -819,6 +832,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof AuthedNotificationsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/organization-settings': {
+      id: '/_authed/organization-settings'
+      path: '/organization-settings'
+      fullPath: '/organization-settings'
+      preLoaderRoute: typeof AuthedOrganizationSettingsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/people': {
@@ -1052,6 +1072,7 @@ interface AuthedRouteChildren {
   AuthedFacilitiesRoute: typeof AuthedFacilitiesRoute
   AuthedMaintenanceRoute: typeof AuthedMaintenanceRoute
   AuthedNotificationsRoute: typeof AuthedNotificationsRoute
+  AuthedOrganizationSettingsRoute: typeof AuthedOrganizationSettingsRoute
   AuthedPeopleRoute: typeof AuthedPeopleRoute
   AuthedReportsRoute: typeof AuthedReportsRoute
   AuthedScheduleRoute: typeof AuthedScheduleRoute
@@ -1095,6 +1116,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedFacilitiesRoute: AuthedFacilitiesRoute,
   AuthedMaintenanceRoute: AuthedMaintenanceRoute,
   AuthedNotificationsRoute: AuthedNotificationsRoute,
+  AuthedOrganizationSettingsRoute: AuthedOrganizationSettingsRoute,
   AuthedPeopleRoute: AuthedPeopleRoute,
   AuthedReportsRoute: AuthedReportsRoute,
   AuthedScheduleRoute: AuthedScheduleRoute,

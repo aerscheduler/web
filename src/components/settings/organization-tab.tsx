@@ -27,7 +27,6 @@ import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Field, PreferenceToggle } from "@/components/settings/parts";
 import { OrganizationTimeZoneCard } from "@/components/settings/time-zone-card";
-import { DeleteOrganizationCard } from "@/components/settings/delete-organization-card";
 
 export function OrganizationTab() {
   const { organization, rehydrate } = useAuth();
@@ -44,35 +43,32 @@ export function OrganizationTab() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-      <OrganizationProfileCard
-        organization={organization}
-        saving={update.isPending}
-        onSave={(patch) =>
-          update.mutate(patch, {
-            onSuccess: async () => {
-              toast.success("Organization updated");
-              await rehydrate();
-            },
-            onError: (err) =>
-              toast.error(
-                err instanceof ApiError ? err.message : "Couldn't save changes"
-              ),
-          })
-        }
-      />
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="md:col-span-2">
+        <OrganizationProfileCard
+          organization={organization}
+          saving={update.isPending}
+          onSave={(patch) =>
+            update.mutate(patch, {
+              onSuccess: async () => {
+                toast.success("Organization updated");
+                await rehydrate();
+              },
+              onError: (err) =>
+                toast.error(
+                  err instanceof ApiError ? err.message : "Couldn't save changes"
+                ),
+            })
+          }
+        />
+      </div>
 
-      <div className="space-y-5">
-        <LogoCard organization={organization} />
-        <IdentityCard organization={organization} />
+      <LogoCard organization={organization} />
+      <IdentityCard organization={organization} />
+      <OrganizationTimeZoneCard />
 
-        <OrganizationTimeZoneCard />
-
+      <div className="md:col-span-2">
         <JoiningAndFleetCard organization={organization} />
-
-        {/* Renders nothing for anybody but an owner. Last in the column because it is the
-            one action on this page that cannot be undone. */}
-        <DeleteOrganizationCard />
       </div>
     </div>
   );

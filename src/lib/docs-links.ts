@@ -440,6 +440,18 @@ export const DOCS_TOPICS = {
       "Opt-in shared calendar rules: cancel/edit lock, late-cancel fee, max upcoming bookings, max reservation length, minimum notice, booking horizon, start time interval, fixed duration, buffers before and after, and (ledger mode) minimum credit or max owing to self-book. Shared means they apply to every booking on the schedule. Front desk staff can still create a walk-up inside the notice or horizon window. Off by default, and members see a clear reason when a rule refuses them. Currency checks at book stay always on under Compliance.",
     href: "scheduling/booking-rules-and-settings#booking-and-cancellation-rules",
   },
+  "booking-approval-required": {
+    title: "Booking approval required",
+    summary:
+      "Members with these roles or in these groups submit a request instead of booking instantly. Staff approve from Calendar → Booking requests; approval creates the reservation. Desk scheduling is unchanged.",
+    href: "scheduling/booking-approval-requests",
+  },
+  "pending-booking-requests": {
+    title: "Booking requests",
+    summary:
+      "Pending member requests waiting for a desk decision. Approve to book the slot on the board, or decline to close the request without a reservation.",
+    href: "scheduling/booking-approval-requests#approve-or-decline-front-desk",
+  },
   "what-you-can-book": {
     title: "What you can book",
     summary:

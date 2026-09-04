@@ -23,6 +23,7 @@ import { ApiKeysTab } from "@/components/settings/api-keys-tab";
 import { CostSplittingTab } from "@/components/settings/cost-splitting-tab";
 import { MembershipsTab } from "@/components/settings/memberships-tab";
 import { EnterpriseUpsell } from "@/components/settings/enterprise-upsell";
+import { OrganizationSecurityTab } from "@/components/settings/organization-security-tab";
 
 type SettingsSearch = {
   tab?: string;
@@ -94,6 +95,7 @@ function SettingsPage() {
 
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
           {active === "organization" && <OrganizationTab />}
+          {active === "security" && <OrganizationSecurityTab />}
           {active === "booking-preferences" && <BookingPreferencesTab />}
           {active === "ad-tracking" && <AdTrackingTab />}
           {active === "plan" && <PlanTab />}

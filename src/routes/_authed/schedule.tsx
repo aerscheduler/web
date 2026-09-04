@@ -6,7 +6,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { CalendarClock, Plus, RefreshCw } from "lucide-react";
+import { CalendarClock, ClipboardList, Plus, RefreshCw } from "lucide-react";
 import { useLocations, useOrgUsers, useReservations, useResources } from "@/features/queries";
 import { zonedStartOfDay, zonedEndOfDay } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
@@ -61,6 +61,8 @@ import { TYPE_LABEL, TYPE_ORDER } from "@/components/schedule/meta";
 import { PendingOffersSheet } from "@/components/slot-offers/pending-offers-sheet";
 import { SlotOfferDetailSheet } from "@/components/slot-offers/slot-offer-detail-sheet";
 import { usePendingSlotOffers } from "@/features/slot-offers";
+import { usePendingBookingRequests } from "@/features/booking-requests";
+import { PendingBookingRequestsSheet } from "@/components/booking-requests/pending-requests-sheet";
 import { liveSlotOfferHolds } from "@/lib/slot-offer-holds";
 import { BookingZoneBanner } from "@/components/schedule/booking-zone-banner";
 
@@ -115,6 +117,8 @@ function SchedulePage() {
   const staff = isStaff(roles);
   const slotOffersOn = orgSlotOffersEnabled(organization);
   const pendingOffersQ = usePendingSlotOffers(staff && slotOffersOn);
+  const pendingBookingRequestsQ = usePendingBookingRequests(staff);
+  const [bookingRequestsOpen, setBookingRequestsOpen] = React.useState(false);
   const slotOfferHolds = React.useMemo(
     () => liveSlotOfferHolds(pendingOffersQ.data),
     [pendingOffersQ.data]
@@ -444,6 +448,19 @@ function SchedulePage() {
           subtitle="Dispatch board for aircraft, instructors and students at a glance."
           actions={
             <>
+              {staff && (pendingBookingRequestsQ.data?.length ?? 0) > 0 && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDetailOpen(false);
+                    setOfferDetailId(null);
+                    setOffersOpen(false);
+                    setBookingRequestsOpen(true);
+                  }}
+                >
+                  <ClipboardList className="size-4" /> Booking requests
+                </Button>
+              )}
               {staff && slotOffersOn && (pendingOffersQ.data?.length ?? 0) > 0 && (
                 <Button
                   variant="outline"
@@ -451,6 +468,7 @@ function SchedulePage() {
                     // Same DetailPanel dock as reservation detail: only one at a time.
                     setDetailOpen(false);
                     setOfferDetailId(null);
+                    setBookingRequestsOpen(false);
                     setOffersOpen(true);
                   }}
                 >
@@ -610,6 +628,12 @@ function SchedulePage() {
       <DragCallout drag={drag} />
 
       <CancelReservationDialog {...cancelDialog} />
+      {staff && (
+        <PendingBookingRequestsSheet
+          open={bookingRequestsOpen}
+          onOpenChange={setBookingRequestsOpen}
+        />
+      )}
       {staff && slotOffersOn && (
         <PendingOffersSheet
           open={offersOpen}

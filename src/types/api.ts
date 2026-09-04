@@ -155,6 +155,8 @@ export interface ChannelNotificationPreferences {
   userDocumentReminders?: boolean;
   currencyReminders?: boolean;
   endorsementReminders?: boolean;
+  slotOffers?: boolean;
+  bookingRequests?: boolean;
   grounded?: boolean;
   /**
    * Onboarding and activation nudges from AerScheduler itself, not from the school.
@@ -361,6 +363,12 @@ export interface OrganizationBookingPolicy {
    */
   dispatchMinimumBalanceCents?: number | null;
   dispatchBalanceMaximumCents?: number | null;
+  /** Roles that must submit booking requests instead of instant self-book. */
+  bookingApprovalRequiredRoles?: string[];
+  /** Groups whose members must submit booking requests. */
+  bookingApprovalRequiredGroups?: { id: number; name: string }[];
+  /** PATCH only: replace the set of groups requiring approval. */
+  bookingApprovalRequiredGroupIds?: number[];
 }
 
 /** Org-wide slot offer / standby settings (1:1). Master switch plus hold / spam governors. */

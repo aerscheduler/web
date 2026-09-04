@@ -40,6 +40,7 @@ import {
   type SessionPermissions,
   type User,
 } from "@/types/api";
+import { queryClient } from "./query";
 
 interface AuthEnvelope {
   auth: { accessToken: string };
@@ -328,8 +329,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       organization: env.data.organization ?? orgs[0] ?? null,
       organizations: orgs,
     };
+    // Fleet, locations, reservations and members are all org-scoped, but React Query
+    // keys like `["resources", "all"]` are not. Without clearing on org change, a
+    // switch leaves the previous school's aircraft in cache and the booking form can
+    // POST a resource id that does not exist in the active org.
+    setSession((prev) => {
+      const prevOrgId = prev.organization?.id;
+      const nextOrgId = next.organization?.id;
+      if (prevOrgId != null && nextOrgId != null && prevOrgId !== nextOrgId) {
+        queryClient.clear();
+      }
+      return next;
+    });
     saveSession(next);
-    setSession(next);
 
     // Fire and forget. The roles in `next` already answer every guard correctly today, so
     // there is no window where a page is wrongly denied; this replaces that answer with
@@ -494,6 +506,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Signing out means signing out, never leave a parked developer token behind
     // in storage for the next person at this browser.
     clearDevStash();
+    queryClient.clear();
     setSession({ user: null, organization: null, organizations: [] });
   }, []);
 

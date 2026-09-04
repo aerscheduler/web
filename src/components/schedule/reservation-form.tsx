@@ -4,6 +4,10 @@ import { format } from "date-fns";
 import { Ban, Loader2, Plus, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
 import {
+  useCreateBookingRequest,
+  useMyBookingApprovalPolicy,
+} from "@/features/booking-requests";
+import {
   useBilling,
   useApprovedResources,
   useCreateReservation,
@@ -569,6 +573,9 @@ export function ReservationForm({
   const ratingsQ = useRatings({ enabled: open });
   const locationsQ = useLocations({ enabled: open });
   const create = useCreateReservation();
+  const createRequest = useCreateBookingRequest();
+  const approvalPolicyQ = useMyBookingApprovalPolicy();
+  const requiresApproval = isSelf && (approvalPolicyQ.data?.requiresApproval ?? false);
   const update = useUpdateReservation();
 
   const isEditing = editing != null;
@@ -1121,7 +1128,10 @@ export function ReservationForm({
       type,
       startAt: startAt!,
       endAt: endAt!,
-      resourceId: resourceId ? Number(resourceId) : null,
+      // Never echo a raw `resourceId` string: a calendar click can seed an id from a
+      // stale fleet row, and the picker may have cleared the visible selection while
+      // state still held the number. Only send what the current eligible fleet resolves.
+      resourceId: selectedResource?.id ?? null,
       locationId,
       //Null when the course answers it, so the server's own derivation runs. Sending the
       //picker's last value here would let a rating chosen BEFORE the student was added
@@ -1161,14 +1171,32 @@ export function ReservationForm({
         closeModal(false);
         return;
       }
+      if (requiresApproval) {
+        await createRequest.mutateAsync({
+          start: input.start,
+          end: input.end,
+          type: input.type,
+          title: input.title,
+          timeZoneName: input.timeZoneName,
+          notes: input.notes,
+          resource: input.resource,
+          location: input.location,
+          rating: input.rating,
+          personnel: input.personnel,
+        });
+        toast.success("Booking request submitted for approval");
+        if (isSelf && asPage) {
+          await navigate({ to: "/me/schedule", search: { tab: "requests" } });
+          return;
+        }
+        closeModal(false);
+        return;
+      }
       const created = await create.mutateAsync(input);
       toast.success(
         input.recurrence ? "Repeating booking created" : "Reservation booked"
       );
       if (isSelf && asPage) {
-        ///me/book is a page with nothing behind it, send them to their schedule so they
-        //can see what they just booked. From the calendar there's somewhere to go back
-        //TO: the booking they made is already drawn on the board behind the modal.
         await navigate({ to: "/me/schedule" });
         return;
       }
@@ -1671,15 +1699,19 @@ export function ReservationForm({
       <Button
         type="submit"
         form="modal-reservation-form"
-        disabled={create.isPending || update.isPending || rampStateUnknown}
+        disabled={create.isPending || createRequest.isPending || update.isPending || rampStateUnknown}
       >
         {isEditing
           ? update.isPending
             ? "Saving…"
             : "Save changes"
-          : create.isPending
-            ? "Booking…"
-            : "Book reservation"}
+          : create.isPending || createRequest.isPending
+            ? requiresApproval
+              ? "Submitting…"
+              : "Booking…"
+            : requiresApproval
+              ? "Submit request"
+              : "Book reservation"}
       </Button>
     </div>
   );

@@ -70,6 +70,11 @@ const RESERVATION_ROWS: PrefRow[] = [
     label: "Offers & standby",
     hint: "Time-sensitive offers that must be accepted before the offer window closes.",
   },
+  {
+    key: "bookingRequests",
+    label: "Booking requests",
+    hint: "When a member submits a request for approval, or when your request is approved or declined.",
+  },
 ];
 
 const BILLING_ROWS: PrefRow[] = [

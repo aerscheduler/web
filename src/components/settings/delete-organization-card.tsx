@@ -143,7 +143,7 @@ export function DeleteOrganizationCard() {
     <Card className="border-destructive/40">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-destructive">
-          <TriangleAlert className="size-4" /> Delete this school
+          <TriangleAlert className="size-4" /> Delete this organization
           <DocsHint topic="delete-organization" />
         </CardTitle>
         <CardDescription>

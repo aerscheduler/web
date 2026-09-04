@@ -8,45 +8,32 @@ import {
   submitBookReservation,
 } from "../helpers/reservation-form";
 
-test.describe("Schedule UI create", () => {
-  test.use({ storageState: ".auth/owner.json" });
+test.describe("/me/book UI create", () => {
+  test.use({ storageState: ".auth/student.json" });
 
   test.afterAll(async ({ request }) => {
     await cleanupE2eReservations(request);
   });
 
-  test("owner books via New reservation form", async ({ page, request }) => {
-    const marker = `E2E-UI-web-${Date.now()}`;
-    await page.goto("/schedule");
+  test("student books a solo flight for themselves", async ({ page, request }) => {
+    const marker = `E2E-UI-me-book-${Date.now()}`;
+    await page.goto("/me/book");
     await expect(page).not.toHaveURL(/\/login/);
     await dismissCookieBanner(page);
     await expect(page.getByText(/Your free trial has ended/i)).toHaveCount(0);
-
-    const newRes = page.getByRole("button", { name: /\+?\s*New reservation/i }).first();
-    await expect(newRes).toBeVisible({ timeout: 25_000 });
-    await newRes.click();
-    await expect(page.getByText("New reservation").first()).toBeVisible({
-      timeout: 15_000,
+    await expect(page.getByRole("button", { name: /^Book reservation$/i })).toBeVisible({
+      timeout: 25_000,
     });
 
     await pickByPlaceholder(page, /Select resource/i, /N172TS/, /Search fleet/i);
-
-    // Solo + student: the seeded renter is often grounded locally (Medical lapsed).
-    await page.locator("#res-type").click();
-    await page.getByRole("option", { name: /^Solo$/i }).click();
-    await pickByPlaceholder(page, /Assign student/i, /Test Student/, /Search students/i);
-
     await pickNextBookableSlot(page);
-
-    await page.locator("#res-title").fill(marker);
     await page.locator("#res-notes").fill(marker);
 
     await submitBookReservation(page);
-    await expect(page.locator("#res-notes")).toBeHidden({ timeout: 15_000 });
 
     const base = apiProxyTarget().replace(/\/$/, "");
     const auth = await request.post(`${base}/auth/`, {
-      data: { email: ACCOUNTS.owner, password: TEST_PASSWORD },
+      data: { email: ACCOUNTS.student, password: TEST_PASSWORD },
     });
     const token = (await auth.json()).auth.accessToken as string;
     const start = new Date(Date.now() - 2 * 864e5).toISOString();
@@ -58,11 +45,9 @@ test.describe("Schedule UI create", () => {
     expect(list.ok()).toBeTruthy();
     const body = await list.json();
     const items = Array.isArray(body) ? body : (body.data ?? []);
-    const found = items.some(
-      (r: { notes?: string; title?: string }) =>
-        String(r.notes ?? "").includes(marker) ||
-        String(r.title ?? "").includes(marker),
+    const found = items.some((r: { notes?: string }) =>
+      String(r.notes ?? "").includes(marker),
     );
-    expect(found, `Booked but not listed for marker=${marker}`).toBeTruthy();
+    expect(found, `Student booked but not listed for marker=${marker}`).toBeTruthy();
   });
 });

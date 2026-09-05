@@ -225,10 +225,9 @@ function OrgSwitcher() {
       size="lg"
       className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
     >
-      {/* Light tile, not the brand blue: the fallback mark is two-tone (navy
-          wing over a blue arch), so on a brand-blue fill its blue half
-          disappears and what's left reads as a stray navy tick. White backs it
-          in both themes, the mark has no dark-surface variant to switch to. */}
+      {/* Always-white tile so the navy wing stays visible in both themes.
+          `onLight` pins the light-surface mark; the default would swap to
+          the white-wing variant under `.dark` and that wing would vanish. */}
       <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg border border-sidebar-border bg-white">
         {organization?.profileImage ? (
           <img
@@ -237,7 +236,7 @@ function OrgSwitcher() {
             className="size-full object-cover"
           />
         ) : (
-          <LogoMark className="size-full p-1" />
+          <LogoMark onLight className="size-full p-1" />
         )}
       </div>
       <div className="grid flex-1 text-left text-sm leading-tight">

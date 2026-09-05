@@ -1,25 +1,59 @@
 import { cn } from "@/lib/utils";
 
 /**
- * The AerScheduler mark (from the production app assets). Use `onDark` on navy /
- * dark surfaces (renders the white mark); otherwise the brand-blue mark is used.
+ * The two-tone mark. Filenames are historical and inverted from the surface
+ * they belong on:
+ *
+ * - `/brand/logo-white.png` - blue arch + navy wing. Use on light backgrounds;
+ *   the navy wing is what would vanish on a dark surface.
+ * - `/brand/logo-blue.png` - blue arch + white wing. Use on dark backgrounds;
+ *   the white wing is what vanishes on a white page.
+ *
+ * Default follows the console theme (`.dark` on `<html>`). Pass `onDark` on a
+ * navy/black panel that does not follow the theme, or `onLight` on a surface
+ * that is always white (the org-switcher tile).
  */
+const LOGO_ON_LIGHT = "/brand/logo-white.png";
+const LOGO_ON_DARK = "/brand/logo-blue.png";
+
 export function LogoMark({
   className,
   onDark = false,
+  onLight = false,
   alt = "AerScheduler",
 }: {
   className?: string;
   onDark?: boolean;
+  onLight?: boolean;
   alt?: string;
 }) {
+  const imgClass = cn("object-contain", className);
+  if (onDark) {
+    return (
+      <img src={LOGO_ON_DARK} alt={alt} className={imgClass} draggable={false} />
+    );
+  }
+  if (onLight) {
+    return (
+      <img src={LOGO_ON_LIGHT} alt={alt} className={imgClass} draggable={false} />
+    );
+  }
   return (
-    <img
-      src={onDark ? "/brand/logo-white.png" : "/brand/logo-blue.png"}
-      alt={alt}
-      className={cn("object-contain", className)}
-      draggable={false}
-    />
+    <>
+      <img
+        src={LOGO_ON_LIGHT}
+        alt={alt}
+        className={cn(imgClass, "dark:hidden")}
+        draggable={false}
+      />
+      <img
+        src={LOGO_ON_DARK}
+        alt=""
+        aria-hidden
+        className={cn(imgClass, "hidden dark:block")}
+        draggable={false}
+      />
+    </>
   );
 }
 

@@ -24,12 +24,13 @@ export function navigateFromAttention(
 
   void navigate({
     to: "/reports",
+    // Reports route expects structured filter objects in search; cast for cross-route navigation.
     search: {
       report: reportId,
       from: range?.from?.toISOString(),
       to: (range?.to ?? range?.from)?.toISOString(),
       filters: filters?.length ? filters : undefined,
-    },
+    } as never,
     ...extra,
   });
 }

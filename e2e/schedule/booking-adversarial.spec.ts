@@ -52,9 +52,13 @@ test.describe("booking approval adversarial UI", () => {
     await expect(rolesTrigger).toBeVisible({ timeout: 20_000 });
     await rolesTrigger.click();
     const studentBox = page.getByRole("checkbox", { name: /^Student$/ });
-    if (!(await studentBox.isChecked())) await studentBox.click();
-    await page.keyboard.press("Escape");
+    if (await studentBox.isChecked()) {
+      await studentBox.click();
+      await expect(page.getByText(/Approval rules updated/i)).toBeVisible({ timeout: 15_000 });
+    }
+    await studentBox.click();
     await expect(page.getByText(/Approval rules updated/i)).toBeVisible({ timeout: 15_000 });
+    await page.keyboard.press("Escape");
     await ctx.close();
   });
 
@@ -283,5 +287,49 @@ test.describe("ledger booking gate adversarial UI", () => {
       minimumBalanceCents: null,
       balanceMaximumCents: null,
     });
+  });
+
+  test("student URL tampering does not open desk booking-requests panel", async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: ".auth/student.json" });
+    const page = await ctx.newPage();
+    await page.goto("/schedule?panel=booking-requests");
+    await dismissCookieBanner(page);
+    await expect(page.getByRole("heading", { name: /Booking requests/i })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^Approve$/i })).toHaveCount(0);
+    await ctx.close();
+  });
+
+  test("owner deep link opens booking-requests desk panel", async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: ".auth/owner.json" });
+    const page = await ctx.newPage();
+    await page.goto("/schedule?panel=booking-requests");
+    await dismissCookieBanner(page);
+    await expect(page.getByRole("heading", { name: /Booking requests/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await ctx.close();
+  });
+
+  test("owner deep link reopens booking-requests panel after dismiss", async ({ browser }) => {
+    const ctx = await browser.newContext({ storageState: ".auth/owner.json" });
+    const page = await ctx.newPage();
+    await page.goto("/schedule?panel=booking-requests");
+    await dismissCookieBanner(page);
+    await expect(page.getByRole("heading", { name: /Booking requests/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    const close = page.getByRole("button", { name: /Close details/i });
+    if (await close.count()) {
+      await close.first().click();
+    } else {
+      await page.keyboard.press("Escape");
+    }
+    await expect(page).not.toHaveURL(/panel=booking-requests/);
+    await expect(page.getByRole("heading", { name: /Booking requests/i })).toHaveCount(0);
+    await page.goto("/schedule?panel=booking-requests");
+    await expect(page.getByRole("heading", { name: /Booking requests/i })).toBeVisible({
+      timeout: 20_000,
+    });
+    await ctx.close();
   });
 });

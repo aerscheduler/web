@@ -9,6 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test:e2e": "playwright test",
+    "test:e2e:stack": "bash ../scripts/e2e-run.sh",
+    "test:e2e:stack:headed": "bash ../scripts/e2e-run.sh --headed",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
     "test": "vitest run",

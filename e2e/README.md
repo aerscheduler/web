@@ -2,7 +2,30 @@
 
 Local / CI only. Refuses production API hosts unless `ALLOW_PROD_E2E=1`.
 
-## Prerequisites
+## One-command stack (recommended)
+
+Starts ephemeral Postgres (tmpfs), migrates, seeds AERTEST01, runs the API on
+`:5101`, and lets Playwright start Vite on `:5173`. Your everyday dev DB/API
+(`mydb` / `:5001`) can stay running.
+
+```bash
+cd web
+npm run test:e2e:stack
+# one spec:
+npm run test:e2e:stack -- e2e/schedule/booking-adversarial.spec.ts
+# headed:
+npm run test:e2e:stack:headed
+```
+
+Requires Podman or Docker. Teardown is automatic; if a run is interrupted:
+
+```bash
+./scripts/e2e-down.sh
+```
+
+Override ports with `E2E_PG_PORT`, `E2E_API_PORT`, `E2E_WEB_PORT`.
+
+## Manual prerequisites
 
 ```bash
 cd server && npm run dev          # :5001 + AERTEST01 seeded
@@ -11,7 +34,7 @@ PGPASSWORD=mysecretpassword psql -h 127.0.0.1 -U admin -d mydb -f server/prisma/
 cd web && VITE_API_PROXY=http://127.0.0.1:5001 npm run dev
 ```
 
-## Run
+## Run (manual stack)
 
 ```bash
 cd web

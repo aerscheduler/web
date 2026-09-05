@@ -3,7 +3,10 @@ import { assertLocalApiTarget } from "./e2e/helpers/env";
 
 assertLocalApiTarget();
 
-const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5173";
+const e2eStack = process.env.E2E_STACK === "1";
+const webPort = process.env.E2E_WEB_PORT ?? "5173";
+const baseURL =
+  process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${webPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -47,13 +50,14 @@ export default defineConfig({
   webServer: process.env.PLAYWRIGHT_SKIP_WEBSERVER
     ? undefined
     : {
-        command: "npm run dev -- --host 127.0.0.1 --port 5173",
+        command: `npm run dev -- --host 127.0.0.1 --port ${webPort}`,
         url: baseURL,
-        reuseExistingServer: !process.env.CI,
+        reuseExistingServer: e2eStack ? false : !process.env.CI,
         timeout: 120_000,
         env: {
           ...process.env,
-          VITE_API_PROXY: process.env.VITE_API_PROXY ?? "http://127.0.0.1:5001",
+          VITE_API_PROXY:
+            process.env.VITE_API_PROXY ?? "http://127.0.0.1:5001",
         },
       },
 });

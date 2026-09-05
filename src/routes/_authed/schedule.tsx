@@ -120,11 +120,14 @@ function SchedulePage() {
   const slotOffersOn = orgSlotOffersEnabled(organization);
   const pendingOffersQ = usePendingSlotOffers(staff && slotOffersOn);
   const pendingBookingRequestsQ = usePendingBookingRequests(staff);
-  const [bookingRequestsOpen, setBookingRequestsOpen] = React.useState(false);
+  const [bookingRequestsOpen, setBookingRequestsOpenState] = React.useState(false);
+  const tz = useTimeZone();
+  const routeSearch = Route.useSearch();
+  const { reservation: openReservationId, panel, ...listSearch } = routeSearch;
 
   React.useEffect(() => {
     if (panel === "booking-requests" && staff) {
-      setBookingRequestsOpen(true);
+      setBookingRequestsOpenState(true);
     }
   }, [panel, staff]);
   const slotOfferHolds = React.useMemo(
@@ -134,19 +137,27 @@ function SchedulePage() {
   const selfBooks =
     !staff && canSelfBook(roles) && orgUserId != null && userId != null;
   const canBook = staff || selfBooks;
-  const tz = useTimeZone();
-  const routeSearch = Route.useSearch();
   const navigate = Route.useNavigate();
   const navigateSearch = navigate as Parameters<typeof useListQueryState>[0]["navigate"];
-  // Which booking is open is not a list filter. Split it off so it never reaches the
-  // facet machinery (string-valued, and persisted to localStorage).
-  const { reservation: openReservationId, panel, ...listSearch } = routeSearch;
   const { search, setSearch, debouncedQ, facets, setFacets } = useListQueryState({
     storageKey: "schedule",
     search: listSearch,
     navigate: navigateSearch,
     facetKeys: [...FACET_KEYS],
   });
+
+  const setBookingRequestsOpen = React.useCallback(
+    (open: boolean) => {
+      setBookingRequestsOpenState(open);
+      if (!open && panel === "booking-requests") {
+        navigateSearch({
+          search: ({ panel: _drop, ...rest }: Record<string, unknown>) => rest,
+          replace: true,
+        });
+      }
+    },
+    [navigateSearch, panel]
+  );
 
   // `replace`, always: stepping through bookings with ↑/↓ would otherwise stack a
   // history entry per record, and Back would walk the panel backwards one booking

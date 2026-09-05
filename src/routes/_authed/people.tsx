@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { UserPlus, Users, GraduationCap } from "lucide-react";
+import { UserPlus, GraduationCap } from "lucide-react";
 import {
   pageRows,
   useMembersPage,
@@ -14,7 +14,8 @@ import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { DataTable } from "@/components/data-table";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
-import { EmptyState, ErrorState, TableSkeleton } from "@/components/states";
+import { EmptyState, ErrorState, TableSkeleton, emptyFillClass } from "@/components/states";
+import type { EmptyGraphicId } from "@/components/empty-graphics";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { RoleBadges } from "@/components/role-badges";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,7 @@ import { formatDate, initials } from "@/lib/utils";
  * a Type filter, exactly like Role or Group. It defaults to Members, and being a facet
  * it is remembered and shareable like every other one.
  */
-const PEOPLE_FACET_KEYS = ["type", "role", "grounded", "groupId", "archived"] as const;
+export const PEOPLE_FACET_KEYS = ["type", "role", "grounded", "groupId", "archived"] as const;
 
 const TYPE_OPTIONS = [
   { value: "members", label: "Members" },
@@ -136,6 +137,17 @@ const EMPTY_BY_ROLE: Record<RoleKey | "all", { title: string; body: string }> = 
     title: "Everyone has a role",
     body: "Nobody is waiting to be assigned, new members will show up here.",
   },
+};
+
+const EMPTY_GRAPHIC_BY_ROLE: Record<RoleKey | "all", EmptyGraphicId> = {
+  all: "people-you",
+  instructor: "instructors",
+  student: "students",
+  renter: "renters",
+  technician: "technicians",
+  dispatcher: "dispatchers",
+  admin: "admins",
+  noRoles: "people-roles",
 };
 
 function PeoplePage() {
@@ -465,7 +477,7 @@ function PeoplePage() {
       {showingGuests ? (
         <GuestsTable q={debouncedQ} />
       ) : q.isPending ? (
-        <Card className="min-h-0 flex-1 overflow-hidden">
+        <Card className="flex flex-col min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={8} cols={5} />
         </Card>
       ) : q.isError ? (
@@ -473,11 +485,12 @@ function PeoplePage() {
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
       ) : total === 0 && !filtersActive ? (
-        <Card>
+        <Card className={emptyFillClass}>
           <EmptyState
-            icon={Users}
+            graphic={EMPTY_GRAPHIC_BY_ROLE[roleKeys.length === 1 ? roleKeys[0]! : "all"]}
             title={emptyCopy.title}
             body={emptyCopy.body}
+            docs="invite-people"
             action={
               canManageMembers(roles) && (
                 <Button onClick={() => setInviteOpen(true)}>

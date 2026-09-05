@@ -215,19 +215,20 @@ export function LedgerAccountsTable() {
       </div>
 
       {q.isPending ? (
-        <Card className="min-h-0 flex-1 overflow-hidden">
+        <Card className="flex flex-col min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={8} cols={4} />
         </Card>
       ) : q.isError ? (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
       ) : total === 0 && !filtersActive ? (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <EmptyState
-            icon={Users}
+            graphic="member-accounts"
             title="No member accounts yet"
             body="Balances show up here as people join and fly. Guest invoices stay on the Invoices tab."
+            docs="ledger-accounts"
           />
         </Card>
       ) : (

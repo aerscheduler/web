@@ -94,7 +94,7 @@ export function InspectionTemplates({
 
   if (q.error) {
     return (
-      <Card className="min-h-0 flex-1 p-0">
+      <Card className="flex flex-col min-h-0 flex-1 p-0">
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       </Card>
     );
@@ -102,15 +102,17 @@ export function InspectionTemplates({
 
   if (grouped.length === 0) {
     return (
-      <Card className="min-h-0 flex-1 p-0">
+      <Card className="flex flex-col min-h-0 flex-1 p-0">
         <EmptyState
           icon={Wrench}
+          graphic={search ? undefined : "inspections"}
           title={search ? "No matches" : "No inspections set up"}
           body={
             search
               ? "Nothing matches that."
               : "Add the AVIATES set and every aircraft you pick starts tracking its annual, 100-hour and the rest."
           }
+          docs={search ? undefined : "track-inspections"}
           action={
             canManage && !search ? (
               <Button onClick={onAdd}>

@@ -236,7 +236,7 @@ function EnrollmentPage() {
 
 function RequirementsProgress({ standings }: { standings: Standing[] }) {
   if (standings.length === 0) {
-    return <EmptyState icon={ClipboardList} title="No requirements" body="This syllabus tracks no hour requirements." />;
+    return <EmptyState graphic="requirements" title="No requirements" body="This syllabus tracks no hour requirements." />;
   }
 
   return (
@@ -720,7 +720,7 @@ function LedgerTab({ progress }: { progress: EnrollmentProgress }) {
   if (rows.length === 0) {
     return (
       <EmptyState
-        icon={History}
+        graphic="credited"
         title="Nothing credited yet"
         body="Hours appear here the moment a lesson is signed, one flight can post to several requirements at once."
       />

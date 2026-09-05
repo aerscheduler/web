@@ -136,7 +136,7 @@
   --popover-foreground: #f7f8f8;
 
   --primary: #4a8fe7; /* brightened logo-blue for dark-surface legibility */
-  --primary-foreground: #121212;
+  --primary-foreground: #ffffff; /* same as light: light label on the blue fill */
 
   --secondary: #1c1c1f;
   --secondary-foreground: #f7f8f8;

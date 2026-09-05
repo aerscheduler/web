@@ -114,13 +114,14 @@ function AnnouncementsPage() {
           <CardGridSkeleton />
         </TableView.Body>
       ) : q.error ? (
-        <Card className="min-h-0 flex-1 p-0">
+        <Card className="flex flex-col min-h-0 flex-1 p-0">
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         </Card>
       ) : total === 0 ? (
-        <Card className="min-h-0 flex-1 p-0">
+        <Card className="flex flex-col min-h-0 flex-1 p-0">
           <EmptyState
             icon={Megaphone}
+            graphic={debouncedQ ? undefined : "announcements"}
             title={debouncedQ ? "No matching announcements" : "No announcements yet"}
             body={
               debouncedQ
@@ -129,6 +130,7 @@ function AnnouncementsPage() {
                   ? "Post the first notice so members see it on home and get notified."
                   : "When an admin posts a notice, it shows up here for everyone."
             }
+            docs={debouncedQ ? undefined : "hide-announcement"}
             action={
               admin && !debouncedQ ? (
                 <Button onClick={openCreate}>

@@ -150,7 +150,7 @@ export function LocationsPanel({
         aria-label="Search locations"
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="flex flex-col min-h-0 flex-1 overflow-y-auto">
         {locationsQ.isPending ? (
           <Card className="space-y-3 p-4">
             {Array.from({ length: 3 }).map((_, i) => (
@@ -167,9 +167,10 @@ export function LocationsPanel({
         ) : locations.length === 0 ? (
           <Card>
             <EmptyState
-              icon={MapPin}
+              graphic="locations"
               title="No locations yet"
               body="Add the airport you fly from. Aircraft, simulators and rooms are all based at a location, so this comes first."
+              docs="add-a-simulator-or-classroom"
               action={
                 <Button size="sm" onClick={() => onAddOpenChange(true)}>
                   <Plus className="size-4" /> Add location

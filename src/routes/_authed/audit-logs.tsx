@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 
 //`startDate`/`endDate` are facet keys rather than local state so the window travels in the
 //URL with the other two filters, an audit finding is something you paste to someone else.
-const FACET_KEYS = ["entityType", "actorOrgUserId", "startDate", "endDate", "event"] as const;
+export const FACET_KEYS = ["entityType", "actorOrgUserId", "startDate", "endDate", "event"] as const;
 
 export const Route = createFileRoute("/_authed/audit-logs")({
   //Admin-only, matching `GET /audit` on the server. Guarding the route as well as the nav
@@ -451,7 +451,7 @@ function AuditLogsPage() {
       </TableView.Header>
 
       {q.isPending ? (
-        <Card className="min-h-0 flex-1 overflow-hidden">
+        <Card className="flex flex-col min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={8} cols={5} />
         </Card>
       ) : q.isError ? (
@@ -477,7 +477,9 @@ function AuditLogsPage() {
             <EmptyState
               icon={ScrollText}
               title="Nothing in this window"
-              body="Auditing records what people do from the moment it was switched on, widen the dates, or clear the filters."
+              body="Auditing records what people do from the moment it was switched on. Widen the dates, or clear the filters."
+              docs="audit-who"
+              compact
             />
           }
           mobileCard={(e) => {

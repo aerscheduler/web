@@ -15,7 +15,6 @@
 import { useMemo, useState } from "react";
 import {
   AlertCircle,
-  CalendarClock,
   Loader2,
   Mail,
   MoreVertical,
@@ -129,9 +128,10 @@ export function SchedulesPage() {
       {list.length === 0 ? (
         <Card className="p-0">
           <EmptyState
-            icon={CalendarClock}
+            graphic="report-schedules"
             title="Nothing scheduled yet"
             body="Open a report, save it as a view, then use the clock icon beside it to have it emailed on a cadence."
+            docs="email-a-report"
           />
         </Card>
       ) : (

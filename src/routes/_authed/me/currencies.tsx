@@ -1,12 +1,18 @@
 import { useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { AlertTriangle, Building2, CheckCircle2, Clock, ShieldCheck, ShieldQuestion } from "lucide-react";
+import { AlertTriangle, Building2, CheckCircle2, Clock, ShieldQuestion } from "lucide-react";
 import { useMyCurrencies } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import type { Currency } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { StatCard, StatGrid } from "@/components/stat-card";
-import { EmptyState, ErrorState, CardGridSkeleton, StatSkeleton } from "@/components/states";
+import { TableView } from "@/components/table-view";
+import {
+  EmptyState,
+  ErrorState,
+  CardGridSkeleton,
+  emptyFillClass,
+} from "@/components/states";
 import { CurrencyCard } from "@/components/me-money/currency-card";
 import { currencyStatus } from "@/components/me-money/currency-status";
 import { currencyAttention } from "@/components/me/currency";
@@ -15,9 +21,6 @@ import { Card } from "@/components/ui/card";
 export const Route = createFileRoute("/_authed/me/currencies")({
   component: MyCurrenciesPage,
 });
-
-const EMPTY_COPY =
-  "No currencies tracked yet. Your school adds these (medicals, flight reviews, checkouts) so you always know you're legal to fly.";
 
 function MyCurrenciesPage() {
   const { organization } = useAuth();
@@ -56,62 +59,74 @@ function MyCurrenciesPage() {
 
   if (!organization) {
     return (
-      <div>
-        <PageHeader title="Currencies" subtitle="Your medicals, reviews & checkouts." />
-        <Card className="p-0">
+      <TableView>
+        <TableView.Header>
+          <PageHeader title="Currencies" subtitle="Your medicals, reviews & checkouts." />
+        </TableView.Header>
+        <Card className={`${emptyFillClass} p-0`}>
           <EmptyState
             icon={Building2}
             title="No active school"
             body="Join or pick a flight school and the currencies they track for you will show up here."
+            docs="join-a-school"
           />
         </Card>
-      </div>
+      </TableView>
     );
   }
 
+  const empty = !currenciesQ.isPending && !currenciesQ.isError && sorted.length === 0;
+
   return (
-    <div data-doc-shot="me-currencies">
-      <PageHeader
-        title="Currencies"
-        subtitle="Medicals, flight reviews and checkouts, so you always know you're legal to fly."
-      />
+    <TableView data-doc-shot="me-currencies">
+      <TableView.Header>
+        <PageHeader
+          title="Currencies"
+          subtitle="Medicals, flight reviews and checkouts, so you always know you're legal to fly."
+        />
+        {!currenciesQ.isPending && !currenciesQ.isError && sorted.length > 0 && (
+          <StatGrid>
+            <StatCard label="Current" value={current} icon={CheckCircle2} accent="success" />
+            <StatCard label="Expiring soon" value={expiring} icon={Clock} accent="warning" />
+            <StatCard label="Expired" value={expired} icon={AlertTriangle} accent="warning" />
+            <StatCard
+              label="Not signed off"
+              value={notSignedOff}
+              icon={ShieldQuestion}
+              accent="warning"
+              hint="Never signed off"
+            />
+          </StatGrid>
+        )}
+      </TableView.Header>
 
       {currenciesQ.isPending ? (
-        <StatSkeleton count={3} />
-      ) : (
-        <StatGrid>
-          <StatCard label="Current" value={current} icon={CheckCircle2} accent="success" />
-          <StatCard label="Expiring soon" value={expiring} icon={Clock} accent="warning" />
-          <StatCard label="Expired" value={expired} icon={AlertTriangle} accent="warning" />
-          <StatCard
-            label="Not signed off"
-            value={notSignedOff}
-            icon={ShieldQuestion}
-            accent="warning"
-            hint="Never signed off"
-          />
-        </StatGrid>
-      )}
-
-      <div className="mt-5">
-        {currenciesQ.isPending ? (
+        <Card className={`${emptyFillClass} overflow-hidden p-4`}>
           <CardGridSkeleton count={6} />
-        ) : currenciesQ.isError ? (
-          <Card className="p-0">
-            <ErrorState error={currenciesQ.error} onRetry={() => currenciesQ.refetch()} />
-          </Card>
-        ) : sorted.length === 0 ? (
-          <Card className="p-0">
-            <EmptyState icon={ShieldCheck} title="Nothing tracked yet" body={EMPTY_COPY} />
-          </Card>
-        ) : (
+        </Card>
+      ) : currenciesQ.isError ? (
+        <Card className={emptyFillClass}>
+          <ErrorState error={currenciesQ.error} onRetry={() => currenciesQ.refetch()} />
+        </Card>
+      ) : empty ? (
+        <Card className={emptyFillClass}>
+          <EmptyState
+            graphic="currencies"
+            title="Nothing tracked yet"
+            body="Your school adds these (medicals, flight reviews, checkouts) so you always know you are legal to fly. A lapsed one can stop you booking until it is signed off again."
+            hint="Ask an admin to set up currency rules under Settings, School, Currencies. Once a rule covers you, it appears here."
+            docs="check-your-currency"
+          />
+        </Card>
+      ) : (
+        <TableView.Body>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {sorted.map((c: Currency) => (
               <CurrencyCard key={c.id} currency={c} />
             ))}
           </div>
-        )}
-      </div>
-    </div>
+        </TableView.Body>
+      )}
+    </TableView>
   );
 }

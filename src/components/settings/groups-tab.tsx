@@ -138,9 +138,10 @@ function ResourceGroupsCard() {
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         ) : total === 0 ? (
           <EmptyState
-            icon={Plane}
+            graphic="aircraft-groups"
             title="No aircraft groups yet"
             body="Group aircraft (Complex Singles, Twins, the whole fleet) so currency rules have something to apply to."
+            docs="currency-rule-details"
             action={
               <Button size="sm" onClick={openAdd}>
                 <Plus className="size-4" /> Add group
@@ -256,9 +257,10 @@ function OrgUserGroupsCard() {
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         ) : total === 0 ? (
           <EmptyState
-            icon={Users}
+            graphic="people-groups"
             title="No people groups yet"
             body="Group members (Primary Students, Club Renters, CFIs) so currency rules know who they cover."
+            docs="currency-rule-details"
             action={
               <Button size="sm" onClick={openAdd}>
                 <Plus className="size-4" /> Add group

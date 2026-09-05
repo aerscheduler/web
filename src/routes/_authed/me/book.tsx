@@ -5,7 +5,6 @@ import { useAuth } from "@/lib/auth";
 import { isStaff, isTechnician, selfBookableTypes } from "@/lib/permissions";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/states";
-import { DocsLink } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookingForm } from "@/components/book/booking-form";
@@ -56,7 +55,8 @@ function Book() {
             <EmptyState
               icon={Building2}
               title="No active organization"
-              body="Join or select a flight school to book a reservation."
+              body="Join or pick a flight school to book a reservation."
+              docs="join-a-school"
             />
           </CardContent>
         </Card>
@@ -65,20 +65,20 @@ function Book() {
           <CardContent className="p-0">
             <EmptyState
               icon={CalendarPlus}
+              graphic="book"
               title={staffOnly ? "Add a flying role to book yourself" : "Nothing to book yet"}
               body={
                 staffOnly
                   ? "Booking yourself puts you in the seat, which needs a flying role. Add renter, student or instructor to your own account, then book here. Until then you can book other people from the schedule board."
                   : "Your account doesn't have a role that can book. Ask your school to add one so you can book yourself."
               }
+              docs="what-you-can-book"
               action={
                 staffOnly ? (
                   <Button asChild>
                     <Link to="/people">Add a role to your account</Link>
                   </Button>
-                ) : (
-                  <DocsLink topic="what-you-can-book" />
-                )
+                ) : undefined
               }
             />
           </CardContent>

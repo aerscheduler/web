@@ -127,7 +127,7 @@ export function FleetStatus({
 
   if (planesQ.error || remindersQ.error) {
     return (
-      <Card className="min-h-0 flex-1 p-0">
+      <Card className="flex flex-col min-h-0 flex-1 p-0">
         <ErrorState
           error={planesQ.error ?? remindersQ.error}
           onRetry={() => {
@@ -150,9 +150,10 @@ export function FleetStatus({
 
   if (cards.length === 0) {
     return (
-      <Card className="min-h-0 flex-1 p-0">
+      <Card className="flex flex-col min-h-0 flex-1 p-0">
         <EmptyState
           icon={PlaneTakeoff}
+          graphic={filtered ? undefined : "aircraft"}
           title={filtered ? "No matches" : "No aircraft yet"}
           body={
             onlyStatusNarrows
@@ -161,6 +162,7 @@ export function FleetStatus({
                 ? "No aircraft matches those filters."
                 : "Add a tail and its inspections will have something to hang off."
           }
+          docs={filtered ? undefined : "add-an-aircraft"}
         />
       </Card>
     );

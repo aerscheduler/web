@@ -6,7 +6,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { CalendarClock, ClipboardList, Plus, RefreshCw } from "lucide-react";
+import { ClipboardList, Plus, RefreshCw } from "lucide-react";
 import { useLocations, useOrgUsers, useReservations, useResources } from "@/features/queries";
 import { zonedStartOfDay, zonedEndOfDay } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
@@ -70,15 +70,15 @@ import { BookingZoneBanner } from "@/components/schedule/booking-zone-banner";
  * Facets that remove LANES from the board. Narrowing to two aircraft is honest because the rows
  * you didn't ask for are visibly gone, so nothing claims to be free that isn't.
  */
-const ROW_FACET_KEYS = ["resourceId", "locationId"] as const;
+export const ROW_FACET_KEYS = ["resourceId", "locationId"] as const;
 
 /**
  * Facets that mark BOOKINGS. These never remove anything: they dim non-matches so the
  * board's occupancy stays true. See `board-filters.ts` for why that distinction matters.
  */
-const BLOCK_FACET_KEYS = ["personId", "ramp", "billing", "type"] as const;
+export const BLOCK_FACET_KEYS = ["personId", "ramp", "billing", "type"] as const;
 
-const FACET_KEYS = [...ROW_FACET_KEYS, ...BLOCK_FACET_KEYS] as const;
+export const FACET_KEYS = [...ROW_FACET_KEYS, ...BLOCK_FACET_KEYS] as const;
 
 export const Route = createFileRoute("/_authed/schedule")({
   /**
@@ -535,9 +535,10 @@ function SchedulePage() {
             <ErrorState error={q.error} onRetry={() => q.refetch()} />
           ) : view === "day" && reservations.length === 0 ? (
             <EmptyState
-              icon={CalendarClock}
+              graphic="dispatch"
               title="Your dispatch board is clear"
-              body="Book a reservation to see aircraft and instructors line up."
+              body="Book a reservation to see aircraft and instructors line up. Dual, solo, ground, sim and maintenance all appear here once they are on the calendar."
+              docs="book-a-reservation"
               action={
                 canBook && (
                   <Button onClick={openNew}>

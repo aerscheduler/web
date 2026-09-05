@@ -21,7 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
 
-const FACET_KEYS = [] as const;
+export const FACET_KEYS = [] as const;
 
 export const Route = createFileRoute("/_authed/notifications")({
   validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
@@ -104,19 +104,20 @@ function NotificationsPage() {
           <CardGridSkeleton count={4} />
         </TableView.Body>
       ) : q.isError ? (
-        <Card className="min-h-0 flex-1 p-0">
+        <Card className="flex flex-col min-h-0 flex-1 p-0">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
       ) : total === 0 && !searching ? (
-        <Card className="min-h-0 flex-1 p-0">
+        <Card className="flex flex-col min-h-0 flex-1 p-0">
           <EmptyState
-            icon={BellOff}
+            graphic="notifications"
             title="You're all caught up."
-            body="Reservation changes, squawks, and account activity will show up here."
+            body="Reservation changes, squawks, and account activity will show up here. Choose which of those you get by email, push, or SMS from notification settings."
+            docs="notification-preferences"
           />
         </Card>
       ) : total === 0 ? (
-        <Card className="min-h-0 flex-1 p-0">
+        <Card className="flex flex-col min-h-0 flex-1 p-0">
           <EmptyState
             icon={BellOff}
             title="No matches"

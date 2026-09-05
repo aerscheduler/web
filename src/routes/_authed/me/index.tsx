@@ -93,6 +93,7 @@ function MyDayPage() {
             icon={UserRound}
             title="You're not in an organization yet"
             body="Accept an invite or ask your school's admin to add you, and your schedule, invoices and currencies will show up here."
+            docs="join-a-school"
           />
         </Card>
       </div>
@@ -248,6 +249,7 @@ function MyDayPage() {
                 icon={CalendarClock}
                 title={`No upcoming ${bookings.many}`}
                 body={`${bookLabel} and it'll show up here.`}
+                docs="book-a-reservation"
                 action={
                   <div className="pointer-events-auto">
                     <Button asChild>

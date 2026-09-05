@@ -62,9 +62,10 @@ export function SyllabusEditor({ version }: { version: CourseVersion }) {
     <div className="space-y-4" data-doc-shot="syllabus-stages-lessons">
       {version.stages.length === 0 ? (
         <EmptyState
-          icon={BookOpen}
+          graphic="stages"
           title="No stages yet"
           body="A syllabus is stages of lessons. Add the first stage to start building."
+          docs="build-a-syllabus"
           action={
             <Button onClick={() => setStageDialog({})}>
               <Plus className="size-4" /> Add stage

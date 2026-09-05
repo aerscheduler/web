@@ -15,7 +15,7 @@ import { PART_LABEL, STATUS_LABEL } from "@/lib/training";
 import { TRAINING_TABS } from "@/lib/training-sections";
 import type { Course, CourseVersionSummary } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
-import { DocsHint, DocsLink } from "@/components/docs-hint";
+import { DocsHint } from "@/components/docs-hint";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { TrainingPermissions } from "@/components/training/training-permissions";
@@ -254,15 +254,11 @@ function TrainingPage() {
 function EmptyCourses() {
   return (
     <EmptyState
-      icon={BookOpen}
+      graphic="courses"
       title="No courses yet"
-      body="Start from a ready-made Private Pilot syllabus, stages, lessons, ACS tasks and the §61.109 hour requirements, already wired up, then change whatever your school does differently."
-      action={
-        <div className="flex flex-col items-center gap-3">
-          <NewCourseActions hasCourses={false} />
-          <DocsLink topic="what-a-course-is" />
-        </div>
-      }
+      body="Start from a ready-made Private Pilot syllabus: stages, lessons, ACS tasks and the §61.109 hour requirements, already wired up. Change whatever your school does differently."
+      docs="what-a-course-is"
+      action={<NewCourseActions hasCourses={false} />}
     />
   );
 }
@@ -423,10 +419,10 @@ function ActiveStudents({ loading }: { loading: boolean }) {
   if (rows.length === 0) {
     return (
       <EmptyState
-        icon={GraduationCap}
+        graphic="in-training"
         title="Nobody is in training"
         body="Enroll a student on a course from their syllabus and their progress appears here."
-        action={<DocsLink topic="enrolling-a-student" />}
+        docs="enrolling-a-student"
       />
     );
   }

@@ -110,9 +110,10 @@ export function DocumentTypesTab() {
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         ) : total === 0 ? (
           <EmptyState
-            icon={FileCog}
+            graphic="document-types"
             title="No document types yet"
-            body="Add types like Medical Certificate, Photo ID, or Renter Agreement so members know what to upload."
+            body="Add types like Medical Certificate, Photo ID, or Renter Agreement so members know what to upload. Types with an expiry date warn everyone before they lapse."
+            docs="member-documents"
             action={
               <Button size="sm" onClick={openAdd}>
                 <Plus className="size-4" /> Add type

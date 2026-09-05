@@ -24,7 +24,6 @@ import {
   validateListSearch,
 } from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
-import { DocsLink } from "@/components/docs-hint";
 import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
 import { FleetStatus } from "@/components/maintenance/fleet-status";
@@ -37,7 +36,7 @@ import { ResolveReminderModal } from "@/components/maintenance/resolve-reminder-
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-const FACET_KEYS = ["view", "resourceId", "status", "fleetStatus", "grounded", "open"] as const;
+export const FACET_KEYS = ["view", "resourceId", "status", "fleetStatus", "grounded", "open"] as const;
 const TRANSIENT_FACET_KEYS = ["open"];
 
 export const Route = createFileRoute("/_authed/maintenance")({
@@ -293,7 +292,7 @@ function Frame({
     );
   if (error)
     return (
-      <Card className="min-h-0 flex-1 p-0">
+      <Card className="flex flex-col min-h-0 flex-1 p-0">
         <ErrorState error={error} onRetry={onRetry} />
       </Card>
     );
@@ -334,25 +333,23 @@ function Reminders({
   return (
     <Frame isLoading={q.isLoading} error={q.error} onRetry={() => q.refetch()}>
       {empty ? (
-        <Card className="min-h-0 flex-1 p-0">
+        <Card className="flex flex-col min-h-0 flex-1 p-0">
           <EmptyState
-            icon={Wrench}
+            graphic="maintenance"
             title="Nothing being tracked yet"
             body="Add the AVIATES set and every aircraft you pick starts counting down its annual, 100-hour, transponder and the rest."
+            docs="track-inspections"
             action={
-              <div className="flex flex-col items-center gap-3">
-                {canManage ? (
-                  <Button onClick={onAdd}>
-                    <Wrench className="size-4" /> Add inspections
-                  </Button>
-                ) : null}
-                <DocsLink topic="track-inspections" />
-              </div>
+              canManage ? (
+                <Button onClick={onAdd}>
+                  <Wrench className="size-4" /> Add inspections
+                </Button>
+              ) : undefined
             }
           />
         </Card>
       ) : noMatch ? (
-        <Card className="min-h-0 flex-1 p-0">
+        <Card className="flex flex-col min-h-0 flex-1 p-0">
           <EmptyState icon={Wrench} title="No matches" body="Nothing matches those filters." />
         </Card>
       ) : (

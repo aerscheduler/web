@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
-  CheckCircle2,
   ChevronRight,
   PlaneTakeoff,
   ShieldCheck,
@@ -113,9 +112,10 @@ function CompliancePage() {
       ) : noGoCount === 0 ? (
         <Card className="p-0">
           <EmptyState
-            icon={CheckCircle2}
+            graphic="compliance-clear"
             title="Everything's cleared to fly"
             body="No grounded aircraft or members right now. Ground an aircraft from the Aircraft page, or a member from People, and it shows up here."
+            docs="go-no-go-board"
           />
         </Card>
       ) : (
@@ -168,9 +168,10 @@ function CompliancePage() {
         ) : (
           <Card className="p-0">
             <EmptyState
-              icon={ShieldCheck}
+              graphic="compliance-setup"
               title="Track medicals, flight reviews & checkouts"
               body="Add the currencies your operation enforces so nobody flies out of currency."
+              docs="currency-rule-details"
               action={
                 canManageCurrencyRules ? (
                   <Button asChild size="sm">

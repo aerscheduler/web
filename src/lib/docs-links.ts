@@ -462,6 +462,90 @@ export const DOCS_TOPICS = {
 
   /* ── Organization ─────────────────────────────────────────────────────── */
 
+  "member-documents": {
+    title: "Documents",
+    summary:
+      "Your school sets the types (medical, certificate, renter agreement). Upload your own from You, Documents, or an admin can file one on your People record.",
+    href: "getting-started/member-documents",
+    linkLabel: "How documents work",
+  },
+  "add-an-aircraft": {
+    title: "Aircraft",
+    summary:
+      "Add a tail from Aircraft, with its meters and category. Until one is on the list there is nothing to book, inspect, or check people out on.",
+    href: "getting-started/add-an-aircraft",
+    linkLabel: "How to add an aircraft",
+  },
+  "add-a-simulator-or-classroom": {
+    title: "Simulators and rooms",
+    summary:
+      "Simulators and ground-school rooms live under Facilities, and each one is based at a location. Add the airport first if you have not already.",
+    href: "getting-started/add-a-simulator-or-classroom",
+    linkLabel: "How to add a simulator or room",
+  },
+  "invite-people": {
+    title: "Invite people",
+    summary:
+      "An invite email lets someone join this school with the roles you pick. Until they accept they are not on the roster and cannot book.",
+    href: "getting-started/invite-people",
+    linkLabel: "How inviting works",
+  },
+  "join-a-school": {
+    title: "Join a school",
+    summary:
+      "Ask an admin for the school code, then join from the join page. You can belong to more than one school and switch between them from the sidebar.",
+    href: "getting-started/join-a-school",
+    linkLabel: "How to join a school",
+  },
+  "book-a-reservation": {
+    title: "Book a reservation",
+    summary:
+      "Pick the type, the aircraft or room, who is on it, and a time when everyone is free. The board and You, Book both create a real reservation.",
+    href: "scheduling/book-a-reservation",
+    linkLabel: "How to book",
+  },
+  "how-billing-works": {
+    title: "Billing",
+    summary:
+      "A flight invoices itself at close-out, or posts to the member's account ledger if that is how the school bills. Manual invoices cover everything else.",
+    href: "billing/how-billing-works",
+    linkLabel: "How billing works",
+  },
+  "how-reporting-works": {
+    title: "Reports",
+    summary:
+      "Each report is a saved question over a date range. What you can open depends on your roles, so a dispatcher and an owner do not see the same catalog.",
+    href: "reports/how-reporting-works",
+    linkLabel: "How reports work",
+  },
+  "email-a-report": {
+    title: "Scheduled reports",
+    summary:
+      "Save a view, then use the clock beside it to email that exact report on a cadence. The dates it was saved with travel with it, so reset them if you want this month.",
+    href: "reports/email-a-report-on-a-schedule",
+  },
+  "check-your-currency": {
+    title: "Currencies",
+    summary:
+      "These are the medicals, flight reviews and checkouts your school tracks for you. A lapsed one can stop you booking until it is signed off again.",
+    href: "scheduling/check-your-currency-status",
+    linkLabel: "How currency status works",
+  },
+  "my-training": {
+    title: "My training",
+    summary:
+      "Your lessons, hours and endorsements for the course you are enrolled on. Hours appear when a lesson is graded and signed, not when the flight is booked.",
+    href: "training/my-training-for-students",
+    linkLabel: "How my training works",
+  },
+  "build-a-syllabus": {
+    title: "Syllabus",
+    summary:
+      "A syllabus is stages of lessons, with the hour requirements a student has to build up. Start from a built-in Private Pilot course if you do not want to write one from scratch.",
+    href: "training/build-a-syllabus",
+    linkLabel: "How to build a syllabus",
+  },
+
   "hide-announcement": {
     title: "Got it",
     summary:

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Archive, ArchiveRestore, BadgeCheck, Pencil, Plus, Users } from "lucide-react";
+import { Archive, ArchiveRestore, Pencil, Plus, Users } from "lucide-react";
 import type { DuesInterval, MembershipPlan } from "@/types/api";
 import {
   useArchiveMembershipPlan,
@@ -72,9 +72,10 @@ export function MembershipsTab() {
         <Card className="p-6 text-sm text-muted-foreground">Loading plans…</Card>
       ) : live.length === 0 && retired.length === 0 ? (
         <EmptyState
-          icon={BadgeCheck}
+          graphic="memberships"
           title="No membership plans yet"
           body="Clubs and FBOs use these to charge dues and a join fee. Nothing changes for anyone until you put a member on a plan."
+          docs="membership-dues"
           action={<Button onClick={() => setEditing("new")}>Add your first plan</Button>}
         />
       ) : (

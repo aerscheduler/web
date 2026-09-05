@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { CheckCircle2, ClipboardList, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { Squawk } from "@/types/api";
 import { resourceLabel } from "@/types/api";
 import { pageRows, useSquawk, useSquawksPage } from "@/features/queries";
@@ -89,29 +89,30 @@ export function SquawkTable({
   const body = () => {
     if (listQ.isLoading) {
       return (
-        <Card className="min-h-0 flex-1 overflow-hidden">
+        <Card className="flex flex-col min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={8} cols={5} />
         </Card>
       );
     }
     if (listQ.isError) {
       return (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <ErrorState error={listQ.error} onRetry={() => listQ.refetch()} />
         </Card>
       );
     }
     if (total === 0 && !filtering) {
       return (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <EmptyState
-            icon={resolved ? ClipboardList : CheckCircle2}
+            graphic={resolved ? "squawks-resolved" : "squawks-open"}
             title={resolved ? "Nothing resolved yet" : "No open squawks, the fleet's clean."}
             body={
               resolved
                 ? "Squawks you sign off will be archived here for the record."
                 : "Anything a pilot reports shows up here until a technician signs it off."
             }
+            docs="squawk-grounding"
             action={
               onLog ? (
                 <Button onClick={onLog}>

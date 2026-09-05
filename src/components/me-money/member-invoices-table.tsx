@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format, parseISO } from "date-fns";
-import { CheckCircle2, ChevronRight, Receipt, Wallet } from "lucide-react";
+import { CheckCircle2, ChevronRight, Wallet } from "lucide-react";
 import {
   pageRows,
   useMemberInvoicesPage,
@@ -238,7 +238,7 @@ export function MemberInvoicesTable({
     </Card>
   ) : total === 0 && !filtersActive ? (
     <Card className={cn(fill && "min-h-0 flex-1")}>
-      <EmptyState icon={Receipt} title="No invoices yet" body={emptyBody} />
+      <EmptyState graphic="invoices" title="No invoices yet" body={emptyBody} docs="autopay" />
     </Card>
   ) : (
     <DataTable

@@ -61,7 +61,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { asFacetStrings, useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { formatDate, formatMoney } from "@/lib/utils";
 
-const FACET_KEYS = ["status", "startDate", "endDate"] as const;
+export const FACET_KEYS = ["status", "startDate", "endDate"] as const;
 
 const LEDGER_BILLING_RAIL = [
   {
@@ -645,20 +645,20 @@ function BillingPage() {
   function renderInvoiceTable(emptyMessage: string) {
     if (invoicesQ.isLoading)
       return (
-        <Card className="min-h-0 flex-1 overflow-hidden">
+        <Card className="flex flex-col min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={8} cols={6} />
         </Card>
       );
     if (invoicesQ.isError)
       return (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <ErrorState error={invoicesQ.error} onRetry={() => invoicesQ.refetch()} />
         </Card>
       );
     if (invoiceTotal === 0 && !debouncedQ && statuses.length === 0)
       return (
-        <Card className="min-h-0 flex-1">
-          <EmptyState icon={Receipt} title="No invoices yet" body={EMPTY_COPY} />
+        <Card className="flex flex-col min-h-0 flex-1">
+          <EmptyState graphic="invoices" title="No invoices yet" body={EMPTY_COPY} docs="how-billing-works" />
         </Card>
       );
     return (
@@ -682,21 +682,21 @@ function BillingPage() {
   function renderUnbilled() {
     if (reservationsQ.isPending)
       return (
-        <Card className="min-h-0 flex-1 overflow-hidden">
+        <Card className="flex flex-col min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={6} cols={4} />
         </Card>
       );
     if (reservationsQ.isError)
       return (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <ErrorState error={reservationsQ.error} onRetry={() => reservationsQ.refetch()} />
         </Card>
       );
     if (unbilledTotal === 0)
       return (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <EmptyState
-            icon={CheckCircle2}
+            graphic="billed"
             title="Everything billed"
             body="Every past reservation in this range already has an invoice."
           />

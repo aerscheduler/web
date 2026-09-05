@@ -362,7 +362,7 @@ export function MemberLedgerTable({
     </Card>
   ) : total === 0 && !filtersActive ? (
     <Card className={cn(fill && "min-h-0 flex-1")}>
-      <EmptyState icon={Wallet} title="No ledger entries yet" body={EMPTY_LEDGER} />
+      <EmptyState graphic="my-ledger" title="No ledger entries yet" body={EMPTY_LEDGER} docs="account-ledger" />
     </Card>
   ) : (
     <DataTable

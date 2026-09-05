@@ -40,7 +40,7 @@ import { MySlotOffersPanel } from "@/components/slot-offers/my-slot-offers-panel
 import { MyBookingRequestsPanel } from "@/components/booking-requests/my-booking-requests-panel";
 import { resourceLabel } from "@/types/api";
 
-const FACET_KEYS = ["resourceId", "locationId"] as const;
+export const FACET_KEYS = ["resourceId", "locationId"] as const;
 
 export const Route = createFileRoute("/_authed/me/schedule")({
   /** `reservation` = which booking the detail panel shows. Outside the facet list
@@ -225,11 +225,12 @@ function MySchedulePage() {
         <TableView.Header>
           <PageHeader title="Schedule" />
         </TableView.Header>
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <EmptyState
             icon={UserRound}
             title="You're not in an organization yet"
             body="Accept an invite or ask your school's admin to add you, and your schedule will show up here."
+            docs="join-a-school"
           />
         </Card>
       </TableView>
@@ -304,19 +305,20 @@ function MySchedulePage() {
               />
 
               {q.isPending ? (
-                <Card className="min-h-0 flex-1 overflow-hidden p-0">
+                <Card className="flex flex-col min-h-0 flex-1 overflow-hidden p-0">
                   <CalendarGridSkeleton />
                 </Card>
               ) : q.isError ? (
-                <Card className="min-h-0 flex-1 p-0">
+                <Card className="flex flex-col min-h-0 flex-1 p-0">
                   <ErrorState error={q.error} onRetry={() => q.refetch()} />
                 </Card>
               ) : groups.length === 0 && !filtersActive ? (
-                <Card className="min-h-0 flex-1 p-0">
+                <Card className="flex flex-col min-h-0 flex-1 p-0">
                   <EmptyState
-                    icon={CalendarClock}
+                    graphic="my-schedule"
                     title={`No ${bookings.many} on your schedule`}
-                    body="Book one to get started."
+                    body="Book one to get started. You only see the kinds of booking your roles allow."
+                    docs="book-a-reservation"
                     action={
                       <Button asChild>
                         <Link to="/me/book">
@@ -327,7 +329,7 @@ function MySchedulePage() {
                   />
                 </Card>
               ) : groups.length === 0 ? (
-                <Card className="min-h-0 flex-1 p-0">
+                <Card className="flex flex-col min-h-0 flex-1 p-0">
                   <EmptyState
                     icon={CalendarClock}
                     title="No matches"

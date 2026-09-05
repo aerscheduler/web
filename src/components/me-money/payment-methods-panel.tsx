@@ -132,9 +132,10 @@ export function PaymentMethodsPanel() {
   const stripeEmpty = (
     <Card className="p-0">
       <EmptyState
-        icon={CreditCard}
+        graphic="payments"
         title="Online payments aren't set up"
         body="Your school hasn't enabled card payments yet. Once they do, you can save a card and pay invoices here."
+        docs="autopay"
       />
     </Card>
   );

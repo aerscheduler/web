@@ -1,6 +1,6 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { DocsHint } from "@/components/docs-hint";
-import { FileCheck2, Paperclip } from "lucide-react";
+import { Paperclip } from "lucide-react";
 import type { MaintenanceComplianceRecord } from "@/types/api";
 import { resourceLabel } from "@/types/api";
 import {
@@ -63,7 +63,7 @@ export function ComplianceLog({
 
   if (listQ.isLoading) {
     return (
-      <Card className="min-h-0 flex-1 overflow-hidden">
+      <Card className="flex flex-col min-h-0 flex-1 overflow-hidden">
         <TableSkeleton rows={8} cols={6} />
       </Card>
     );
@@ -71,7 +71,7 @@ export function ComplianceLog({
 
   if (listQ.isError) {
     return (
-      <Card className="min-h-0 flex-1">
+      <Card className="flex flex-col min-h-0 flex-1">
         <ErrorState error={listQ.error} onRetry={() => listQ.refetch()} />
       </Card>
     );
@@ -79,11 +79,12 @@ export function ComplianceLog({
 
   if (total === 0 && !filtering) {
     return (
-      <Card className="min-h-0 flex-1">
+      <Card className="flex flex-col min-h-0 flex-1">
         <EmptyState
-          icon={FileCheck2}
+          graphic="compliance-log"
           title="Nothing signed off yet"
           body="When you sign an inspection off and record what was done, it is kept here permanently. This is the history an inspector asks for at an annual."
+          docs="compliance-record"
         />
       </Card>
     );

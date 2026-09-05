@@ -60,9 +60,10 @@ export function RatesTab() {
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         ) : total === 0 ? (
           <EmptyState
-            icon={GraduationCap}
+            graphic="ratings"
             title="No ratings yet"
             body="Add ratings like Private, Instrument, or Commercial to set default instructor rates."
+            docs="rate-basis"
             action={
               <Button size="sm" onClick={() => setOpen(true)}>
                 <Plus className="size-4" /> Add rating

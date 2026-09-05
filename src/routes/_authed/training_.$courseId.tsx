@@ -28,7 +28,7 @@ import { LESSON_KIND_LABEL, PART_LABEL, deciHoursLabel } from "@/lib/training";
 import { rolesOf } from "@/types/api";
 import type { CourseRequirement, CourseVersion, SyllabusLesson } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
-import { DocsHint, DocsLink } from "@/components/docs-hint";
+import { DocsHint } from "@/components/docs-hint";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { EmptyState, ErrorState } from "@/components/states";
@@ -234,7 +234,14 @@ function SyllabusView({ version }: { version: CourseVersion }) {
   const requirementsById = new Map(version.requirements.map((r) => [r.id, r]));
 
   if (version.stages.length === 0) {
-    return <EmptyState icon={BookOpen} title="No stages yet" body="This syllabus has no lessons in it." />;
+    return (
+      <EmptyState
+        graphic="stages"
+        title="No stages yet"
+        body="A syllabus is stages of lessons. Add the first stage from the syllabus editor to start building."
+        docs="build-a-syllabus"
+      />
+    );
   }
 
   return (
@@ -360,9 +367,10 @@ function RequirementsView({ version }: { version: CourseVersion }) {
   if (version.requirements.length === 0) {
     return (
       <EmptyState
-        icon={Target}
+        graphic="requirements"
         title="No requirements"
         body="Nothing will accumulate as lessons are signed until this syllabus says what a student has to build up."
+        docs="requirement-source"
       />
     );
   }
@@ -405,10 +413,10 @@ function StudentsView({ courseId }: { courseId: number }) {
   if (rows.length === 0) {
     return (
       <EmptyState
-        icon={GraduationCap}
+        graphic="enrolled"
         title="Nobody enrolled yet"
         body="Enroll a student to start recording their training."
-        action={<DocsLink topic="enrolling-a-student" />}
+        docs="enrolling-a-student"
       />
     );
   }

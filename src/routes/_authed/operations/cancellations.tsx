@@ -2,7 +2,6 @@ import { useCallback, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { DateRange } from "react-day-picker";
 import { endOfDay, startOfDay } from "date-fns";
-import { CalendarX2 } from "lucide-react";
 import { CancellationDetailSheet } from "@/components/operations/cancellation-detail-sheet";
 import {
   CancellationsDataTable,
@@ -20,7 +19,7 @@ import { guardRoute } from "@/lib/permissions";
 import { useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import type { CancelledReservation } from "@/types/api";
 
-const FACET_KEYS = ["category", "notice"] as const;
+export const FACET_KEYS = ["category", "notice"] as const;
 
 export const Route = createFileRoute("/_authed/operations/cancellations")({
   beforeLoad: guardRoute("/operations/cancellations"),
@@ -77,7 +76,7 @@ function CancellationsPage() {
           actions={<DateRangePicker value={range} onChange={setRange} />}
         />
         <EmptyState
-          icon={CalendarX2}
+          graphic="cancellations"
           title="Pick a date range"
           body="Choose start and end dates to load cancellations."
         />
@@ -112,7 +111,7 @@ function CancellationsPage() {
       </TableView.Header>
 
       {report.isLoading ? (
-        <Card className="min-h-0 flex-1 overflow-hidden p-0">
+        <Card className="flex flex-col min-h-0 flex-1 overflow-hidden p-0">
           <TableSkeleton rows={8} cols={6} />
         </Card>
       ) : (

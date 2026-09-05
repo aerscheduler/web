@@ -5,26 +5,82 @@ import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatGrid } from "@/components/stat-card";
+import { DOCS_TOPICS, docsUrl, type DocsTopicKey } from "@/lib/docs-links";
+import { EmptyGraphic, type EmptyGraphicId } from "@/components/empty-graphics";
+import { cn } from "@/lib/utils";
+
+/**
+ * Parent class for a Card (or other flex child) that should fill remaining
+ * page height so EmptyState can sit in the vertical middle.
+ */
+export const emptyFillClass = "flex min-h-0 flex-1 flex-col";
 
 export function EmptyState({
   icon: Icon,
+  graphic,
   title,
   body,
+  hint,
   action,
+  docs,
+  compact = false,
+  className,
 }: {
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  /** Page-level drawing from `empty-graphics/`. Wins over `icon` when both are set. */
+  graphic?: EmptyGraphicId;
   title: string;
   body?: string;
+  /** Quieter second paragraph under the body, for a how-to or extra detail. */
+  hint?: ReactNode;
   action?: ReactNode;
+  /** Help article shown as a secondary Documentation button. */
+  docs?: DocsTopicKey;
+  /**
+   * Tight padding for sheets and inline panels that should not grow to fill
+   * the page. Page-level empties leave this off so they sit in the vertical
+   * middle of the card. The inner column stays left-aligned; mx-auto keeps the
+   * whole block centered in the card. Do not pin this to the card's left edge.
+   */
+  compact?: boolean;
+  className?: string;
 }) {
+  const docsEntry = docs ? DOCS_TOPICS[docs] : undefined;
+
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-      <span className="grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
-        <Icon className="size-6" />
-      </span>
-      <div className="mt-1 text-sm font-semibold">{title}</div>
-      {body && <div className="max-w-sm text-[13px] text-muted-foreground">{body}</div>}
-      {action && <div className="mt-3">{action}</div>}
+    <div
+      className={cn(
+        "flex w-full flex-col items-center justify-center px-6",
+        compact ? "py-10" : "h-full min-h-64 flex-1 py-16",
+        className
+      )}
+    >
+      <div className="mx-auto flex w-fit max-w-md flex-col items-start text-left">
+        {graphic ? (
+          <EmptyGraphic id={graphic} />
+        ) : Icon ? (
+          <Icon className="size-7 text-muted-foreground" strokeWidth={1.5} />
+        ) : null}
+        <h2 className="mt-5 text-lg font-semibold tracking-tight">{title}</h2>
+        {body && (
+          <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{body}</p>
+        )}
+        {hint && (
+          <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground/80">{hint}</p>
+        )}
+        {(action || docsEntry) && (
+          <div className="mt-5 flex flex-wrap items-center gap-2">
+            {action}
+            {docsEntry && (
+              <Button asChild variant="outline">
+                <a href={docsUrl(docsEntry.href)} target="_blank" rel="noreferrer">
+                  Documentation
+                </a>
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -32,23 +88,23 @@ export function EmptyState({
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   // A genuinely expired session never reaches here, the API layer signs the
   // user out and routes to /login. So a 401/403 that does land here means "you
-  // aren't allowed to see this"and retrying it would just fail again.
+  // aren't allowed to see this" and retrying it would just fail again.
   const auth = error instanceof ApiError && (error.status === 401 || error.status === 403);
   // Show the API's real message (a 400 can mean many things, don't assume "no org").
   const message =
     error instanceof ApiError ? error.message : "Something went wrong loading this data.";
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-      <span className="grid size-12 place-items-center rounded-full bg-destructive/10 text-destructive">
-        <AlertTriangle className="size-6" />
-      </span>
-      <div className="mt-1 text-base font-medium">Couldn&rsquo;t load this</div>
-      <div className="max-w-sm text-sm text-muted-foreground">{message}</div>
-      {onRetry && !auth && (
-        <Button variant="outline" size="sm" className="mt-3" onClick={onRetry}>
-          <RefreshCw className="size-4" /> Try again
-        </Button>
-      )}
+    <div className="flex h-full min-h-64 w-full flex-1 flex-col items-center justify-center px-6 py-16">
+      <div className="mx-auto flex w-fit max-w-md flex-col items-start text-left">
+        <AlertTriangle className="size-7 text-destructive" strokeWidth={1.5} />
+        <h2 className="mt-5 text-lg font-semibold tracking-tight">Couldn&rsquo;t load this</h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">{message}</p>
+        {onRetry && !auth && (
+          <Button variant="outline" size="sm" className="mt-5" onClick={onRetry}>
+            <RefreshCw className="size-4" /> Try again
+          </Button>
+        )}
+      </div>
     </div>
   );
 }

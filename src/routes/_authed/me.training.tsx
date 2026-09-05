@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, FileSignature, GraduationCap, Info, ScrollText } from "lucide-react";
+import { CheckCircle2, FileSignature, Info } from "lucide-react";
 import {
   useCountersignLessonRecord,
   useEndorsements,
@@ -96,9 +96,10 @@ function MyTrainingPage() {
               <Skeleton className="h-64 w-full" />
             ) : rows.length === 0 ? (
               <EmptyState
-                icon={GraduationCap}
+                graphic="my-training"
                 title="You're not on a course"
                 body="When your school enrolls you on a syllabus, your lessons and hours appear here."
+                docs="my-training"
               />
             ) : (
               rows.map((e) => <EnrollmentCard key={e.id} enrollmentId={e.id} />)
@@ -130,9 +131,10 @@ function MyEndorsements({ orgUserId }: { orgUserId: number | null }) {
   if (orgUserId == null || q.isError || ((q.data ?? []).length === 0 && !canSign)) {
     return (
       <EmptyState
-        icon={ScrollText}
+        graphic="endorsements"
         title="No endorsements yet"
         body="Anything an instructor signs for you, your solo, a cross-country, a knowledge test, shows up here with its expiry."
+        docs="endorsement-blanks"
       />
     );
   }

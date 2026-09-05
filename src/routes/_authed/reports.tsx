@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { DateRange } from "react-day-picker";
-import { Building2, FileBarChart } from "lucide-react";
+import { Building2 } from "lucide-react";
 import { useReportCatalog, useReportTimeZone } from "@/features/reports";
 import { useReportsReadiness } from "@/features/onboarding";
 import { hasEnoughData, ReportsWelcome } from "@/components/reports/welcome/reports-welcome";
@@ -234,6 +234,7 @@ function ReportsPage() {
             icon={Building2}
             title="No active school"
             body="Pick or join a school to see its reports."
+            docs="join-a-school"
           />
         </Card>
       </div>
@@ -278,9 +279,10 @@ function ReportsPage() {
       ) : reports.length === 0 ? (
         <Card className="p-0">
           <EmptyState
-            icon={FileBarChart}
+            graphic="reports"
             title="No reports available"
             body="Your roles don't give you access to any reports yet. An owner or admin can change that."
+            docs="how-reporting-works"
           />
         </Card>
       ) : (

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Building2, ExternalLink, FileText, Plus, Upload } from "lucide-react";
+import { Building2, ExternalLink, Plus, Upload } from "lucide-react";
 import { pageRows, useDocumentTypes, useMemberDocumentsPage } from "@/features/queries";
 import { usePaging } from "@/lib/paging";
 import { useAuth } from "@/lib/auth";
@@ -18,7 +18,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { asFacetInts, asFacetStrings, useListQueryState, validateListSearch } from "@/lib/list-query-state";
 
-const FACET_KEYS = ["documentTypeId", "status", "includeArchived"] as const;
+export const FACET_KEYS = ["documentTypeId", "status", "includeArchived"] as const;
 
 export const Route = createFileRoute("/_authed/me/documents")({
   validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
@@ -192,11 +192,12 @@ function MyDocumentsPage() {
         <TableView.Header>
           <PageHeader title="Documents" subtitle="Medicals, certificates, and agreements." />
         </TableView.Header>
-        <Card className="min-h-0 flex-1 p-0">
+        <Card className="flex flex-col min-h-0 flex-1 p-0">
           <EmptyState
             icon={Building2}
             title="No active school"
             body="Join or pick a flight school to manage your documents here."
+            docs="join-a-school"
           />
         </Card>
       </TableView>
@@ -218,19 +219,21 @@ function MyDocumentsPage() {
       </TableView.Header>
 
       {q.isPending ? (
-        <Card className="min-h-0 flex-1 overflow-hidden">
+        <Card className="flex flex-col min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={6} cols={4} />
         </Card>
       ) : q.isError ? (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
       ) : total === 0 && !filtersActive ? (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <EmptyState
-            icon={FileText}
+            graphic="documents"
             title="No documents yet"
-            body="Upload your medical, pilot certificate, or renter agreement to keep them on file."
+            body="Upload your medical, pilot certificate, or renter agreement to keep them on file. Types with an expiry date warn you before they lapse."
+            hint="Your school chooses which types you can upload. An admin can also file one on your behalf from your People record."
+            docs="member-documents"
             action={
               <Button onClick={() => setUploadOpen(true)}>
                 <Upload className="size-4" /> Upload a document

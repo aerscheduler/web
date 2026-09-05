@@ -141,7 +141,7 @@ export function ApiKeysTab() {
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         ) : total === 0 ? (
           <EmptyState
-            icon={KeyRound}
+            graphic="api-keys"
             title="No API keys yet"
             body="Create one to connect your own tools, a booking page on your website, a report that runs itself, or an automation in Zapier."
             action={

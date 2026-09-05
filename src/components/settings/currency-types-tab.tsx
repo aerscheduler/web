@@ -221,9 +221,10 @@ export function CurrencyTypesTab() {
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         ) : total === 0 ? (
           <EmptyState
-            icon={ShieldCheck}
+            graphic="currency-rules"
             title="No currency rules yet"
             body="A rule blocks bookings for anyone who isn't signed off on it, a medical for every renter, a checkout before the complex singles."
+            docs="currency-rule-details"
             action={
               <Button size="sm" onClick={openAdd}>
                 <Plus className="size-4" /> Add rule

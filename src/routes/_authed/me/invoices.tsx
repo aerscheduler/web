@@ -55,11 +55,12 @@ function MyInvoicesPage() {
         <TableView.Header>
           <PageHeader title="Billing" subtitle="What your school has charged you." />
         </TableView.Header>
-        <Card className="min-h-0 flex-1 p-0">
+        <Card className="flex flex-col min-h-0 flex-1 p-0">
           <EmptyState
             icon={Building2}
             title="No active school"
             body="Join or pick a flight school and your invoices will show up here."
+            docs="join-a-school"
           />
         </Card>
       </TableView>
@@ -94,7 +95,7 @@ function MyInvoicesPage() {
       </TableView.Header>
 
       {ledgerSettingsQ.isPending || orgUserId == null ? (
-        <Card className="min-h-0 flex-1 overflow-hidden">
+        <Card className="flex flex-col min-h-0 flex-1 overflow-hidden">
           <TableSkeleton rows={8} cols={5} />
         </Card>
       ) : ledgerOn ? (

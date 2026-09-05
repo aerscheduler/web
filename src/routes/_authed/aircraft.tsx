@@ -29,7 +29,7 @@ import { useConfirm } from "@/components/confirm-dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
-const FACET_KEYS = ["grounded", "locationId"] as const;
+export const FACET_KEYS = ["grounded", "locationId"] as const;
 
 export const Route = createFileRoute("/_authed/aircraft")({
   validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
@@ -200,20 +200,21 @@ function AircraftPage() {
           <CardGridSkeleton />
         </TableView.Body>
       ) : q.isError ? (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </Card>
       ) : total === 0 && !filtersActive ? (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <EmptyState
-            icon={PlaneTakeoff}
+            graphic="aircraft"
             title="No aircraft yet"
-            body="No aircraft yet. Add your first tail to make the schedule real."
+            body="Add your first tail so the schedule, inspections, and checkouts have something to hang off. Meters on the aircraft are what billing reads at close-out."
+            docs="add-an-aircraft"
             action={addButton}
           />
         </Card>
       ) : total === 0 ? (
-        <Card className="min-h-0 flex-1">
+        <Card className="flex flex-col min-h-0 flex-1">
           <EmptyState
             icon={PlaneTakeoff}
             title="No aircraft match"

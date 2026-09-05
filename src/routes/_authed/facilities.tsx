@@ -31,7 +31,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
 
-const FACET_KEYS = ["tab", "locationId", "grounded"] as const;
+export const FACET_KEYS = ["tab", "locationId", "grounded"] as const;
 
 /** The list state, plus the one-shot `add` instruction below. Written out rather than
  *  inferred: a spread loses `ListFilterValues`'s index signature, and with it every
@@ -301,7 +301,7 @@ function FacilitiesPage() {
               filterValues={facets}
               onFilterChange={setFacets}
             />
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="flex flex-col min-h-0 flex-1 overflow-y-auto">
               {simsQ.isPending ? (
                 <CardGridSkeleton count={3} />
               ) : simsQ.isError ? (
@@ -311,9 +311,10 @@ function FacilitiesPage() {
               ) : simTotal === 0 && !simFiltersActive ? (
                 <Card>
                   <EmptyState
-                    icon={MonitorPlay}
+                    graphic="simulators"
                     title="No simulators yet"
-                    body="Add a simulator to schedule and bill sim sessions."
+                    body="Add a simulator to schedule and bill sim sessions. Each one is based at a location, so add the airport first if you have not already."
+                    docs="add-a-simulator-or-classroom"
                     action={
                       <Button size="sm" onClick={() => setAddKind("simulator")}>
                         <Plus className="size-4" /> Add simulator
@@ -359,7 +360,7 @@ function FacilitiesPage() {
               filterValues={facets}
               onFilterChange={setFacets}
             />
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="flex flex-col min-h-0 flex-1 overflow-y-auto">
               {roomsQ.isPending ? (
                 <Card className="h-24 animate-pulse" />
               ) : roomsQ.isError ? (
@@ -369,9 +370,10 @@ function FacilitiesPage() {
               ) : roomTotal === 0 && !roomFiltersActive ? (
                 <Card>
                   <EmptyState
-                    icon={DoorOpen}
+                    graphic="rooms"
                     title="No rooms yet"
-                    body="Add a ground-school room to schedule ground lessons."
+                    body="Add a ground-school room to schedule ground lessons. Rooms live at a location, same as simulators."
+                    docs="add-a-simulator-or-classroom"
                     action={
                       <Button size="sm" onClick={() => setAddKind("room")}>
                         <Plus className="size-4" /> Add room

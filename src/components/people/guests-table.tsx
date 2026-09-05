@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { UserRound } from "lucide-react";
 import { pageRows, useGuestsPage } from "@/features/queries";
 import { usePaging } from "@/lib/paging";
 import type { Guest } from "@/types/api";
@@ -68,7 +67,7 @@ export function GuestsTable({ q: debouncedQ }: { q?: string }) {
 
   if (q.isPending) {
     return (
-      <Card className="min-h-0 flex-1 overflow-hidden">
+      <Card className="flex flex-col min-h-0 flex-1 overflow-hidden">
         <TableSkeleton rows={6} cols={2} />
       </Card>
     );
@@ -86,9 +85,10 @@ export function GuestsTable({ q: debouncedQ }: { q?: string }) {
     return (
       <Card>
         <EmptyState
-          icon={UserRound}
+          graphic="guests"
           title="No guests yet"
           body="Anyone booked as a guest on a reservation shows up here."
+          docs="book-a-reservation"
         />
       </Card>
     );

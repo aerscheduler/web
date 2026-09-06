@@ -484,6 +484,21 @@ export async function pickHeatmapSlot(page: Page) {
   await expect(name).toBeVisible({ timeout: 10_000 });
 }
 
+export async function openHeatmapAircraftPicker(page: Page) {
+  await goToWeekCalendarWithSlots(page);
+  const pills = page.getByTestId("heatmap-slot");
+  const n = await pills.count();
+  for (let i = 0; i < n; i++) {
+    const aria = await pills.nth(i).getAttribute("aria-label");
+    if (aria && /\d+ options/.test(aria)) {
+      await pills.nth(i).click();
+      await expect(page.getByText(/pick an aircraft/i)).toBeVisible();
+      return;
+    }
+  }
+  throw new Error("No heatmap cell with multiple aircraft");
+}
+
 /** Overflowing ancestors of a node, excluding the document/body/html page scroller. */
 export async function nestedOverflowScrollers(page: Page, selector: string) {
   return page.evaluate((sel) => {

@@ -5,6 +5,7 @@ import {
   dateKey,
   daysWithSlots,
   formatStart,
+  heatmapChipHint,
   heatmapOccupancy,
   heatmapRowMinutes,
   heatmapSlotOffset,
@@ -129,6 +130,18 @@ describe("scheduler-time", () => {
     const map = heatmapOccupancy([morning], weekStart, ZONE);
     expect(map.size).toBe(1);
     expect(map.get(`2026-09-07-${9 * 60 + 15}`)).toEqual([morning]);
+  });
+
+  it("keeps two tails in the same 15-minute heatmap cell", () => {
+    const weekStart = zonedWallClockToUtc(2026, 9, 7, 0, 0, ZONE);
+    const start = zonedWallClockToUtc(2026, 9, 7, 9, 0, ZONE).toISOString();
+    const a = slot(start, { resourceId: 3, resourceLabel: "N12345" });
+    const b = slot(start, { resourceId: 4, resourceLabel: "N67890" });
+    const map = heatmapOccupancy([a, b], weekStart, ZONE);
+    const hits = map.get(`2026-09-07-${9 * 60}`) ?? [];
+    expect(hits).toHaveLength(2);
+    expect(heatmapChipHint(hits)).toBe("2 aircraft");
+    expect(heatmapChipHint([a])).toBe("N12345");
   });
 
   it("builds hour heatmap rows from real starts, not 15-minute rows", () => {

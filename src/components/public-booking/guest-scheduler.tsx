@@ -49,23 +49,24 @@ import {
   formatDayHeading,
   formatStart,
   formatWeekdayHeader,
+  heatmapChipHint,
   heatmapOccupancy,
-    heatmapRowMinutes,
-    heatmapSlotOffset,
-    heatmapNowTop,
-    heatmapPastCover,
-    HEAT_HOUR_PX,
-    isFutureSlot,
-    rangeCovers,
-    reanchorCivilDay,
-    slotsInWeek,
-    slotsOnDay,
-    startOfDayInZone,
-    startOfMonth,
-    startOfWeekMonday,
-    slotFetchRange,
-    unionLoadedRanges,
-    zoneChoices,
+  heatmapRowMinutes,
+  heatmapSlotOffset,
+  heatmapNowTop,
+  heatmapPastCover,
+  HEAT_HOUR_PX,
+  isFutureSlot,
+  rangeCovers,
+  reanchorCivilDay,
+  slotsInWeek,
+  slotsOnDay,
+  startOfDayInZone,
+  startOfMonth,
+  startOfWeekMonday,
+  slotFetchRange,
+  unionLoadedRanges,
+  zoneChoices,
 } from "./scheduler-time";
 
 export type SchedulerView = "column" | "heatmap" | "week";
@@ -934,10 +935,10 @@ function HeatmapView({
   slots: PublicBookableSlot[];
   onPick: (slot: PublicBookableSlot) => void;
 }) {
-  const [cellChoices, setCellChoices] = React.useState<PublicBookableSlot[] | null>(null);
+  const [openCellKey, setOpenCellKey] = React.useState<string | null>(null);
   React.useEffect(() => {
-    setCellChoices(null);
-  }, [weekStart, slots]);
+    setOpenCellKey(null);
+  }, [weekStart]);
   const days = React.useMemo(() => weekDays(weekStart, zone), [weekStart, zone]);
   const occupancy = React.useMemo(
     () => heatmapOccupancy(slots, weekStart, zone),
@@ -947,14 +948,15 @@ function HeatmapView({
     () => heatmapRowMinutes(slots, weekStart, zone),
     [slots, weekStart, zone]
   );
+  const cellChoices = openCellKey ? occupancy.get(openCellKey) ?? null : null;
 
-  function pickCell(hits: PublicBookableSlot[]) {
+  function pickCell(key: string, hits: PublicBookableSlot[]) {
     if (hits.length === 1) {
-      setCellChoices(null);
-      onPick(hits[0]);
+      setOpenCellKey(null);
+      onPick(hits[0]!);
       return;
     }
-    if (hits.length > 1) setCellChoices(hits);
+    if (hits.length > 1) setOpenCellKey(key);
   }
 
   if (slots.length === 0 || hours.length === 0) return <EmptyTimes kind="week" />;
@@ -1027,6 +1029,7 @@ function HeatmapView({
                       if (start.getTime() <= now.getTime()) return null;
                       const { top, height } = heatmapSlotOffset(start, firstHour, zone);
                       if (top + height <= 0 || top >= bodyH) return null;
+                      const hint = heatmapChipHint(hits);
                       const extra = hits.length > 1 ? ` (${hits.length} options)` : "";
                       const label = formatStart(slot, hour12, zone);
                       return (
@@ -1036,11 +1039,14 @@ function HeatmapView({
                           data-testid="heatmap-slot"
                           data-start={slot.start}
                           aria-label={`Open ${label}${extra}`}
-                          onClick={() => pickCell(hits)}
+                          onClick={() => pickCell(key, hits)}
                           className="absolute inset-x-1 z-[2] flex items-center overflow-hidden rounded-md bg-primary/35 px-1.5 text-left text-[11px] font-medium leading-none text-foreground hover:z-[3] hover:bg-background hover:shadow-sm hover:ring-1 hover:ring-border"
                           style={{ top, height }}
                         >
-                          <span>{label}</span>
+                          <span>
+                            {label}
+                            {hint ? ` · ${hint}` : ""}
+                          </span>
                         </button>
                       );
                     })}
@@ -1072,7 +1078,15 @@ function HeatmapView({
               ? "Pick an aircraft"
               : "More than one opening. Pick one."}
           </p>
-          <TimeList slots={cellChoices} zone={zone} hour12={hour12} onPick={onPick} />
+          <TimeList
+            slots={cellChoices}
+            zone={zone}
+            hour12={hour12}
+            onPick={(slot) => {
+              setOpenCellKey(null);
+              onPick(slot);
+            }}
+          />
         </div>
       ) : null}
     </div>

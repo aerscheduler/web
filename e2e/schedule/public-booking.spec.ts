@@ -16,11 +16,13 @@ import {
   openGuestPage,
   pickAFutureSlot,
   pickSlotWithLabel,
+  slotStartButtons,
   waitForConfirmUrl,
   waitForSlots,
   goToWeekTimesWithSlots,
   goToWeekCalendarWithSlots,
   pickHeatmapSlot,
+  openHeatmapAircraftPicker,
   nestedOverflowScrollers,
   setPublicBookingEmbedHosts,
   expectGuestFrameBlocked,
@@ -478,6 +480,51 @@ test.describe("public guest booking page", () => {
       await expect(page.getByRole("heading", { name: /check your email/i })).toBeVisible({
         timeout: 20_000,
       });
+      expectNoBootCrash(errors);
+    } finally {
+      await ensurePublicOffering(request);
+    }
+  });
+
+  test("week calendar pick-aircraft stays open after the clock ticks", async ({ page, request }) => {
+    const offeringId = await ensurePublicOffering(request);
+    const owner = await authAs(request, ACCOUNTS.owner);
+    const planes = await bookablePlanes(request, owner.headers);
+    expect(planes.length, "need two bookable planes").toBeGreaterThan(1);
+    const first = planes[0]!;
+    const second = planes[1]!;
+    try {
+      const patched = await request.patch(`${apiBase()}/booking-offerings/${offeringId}`, {
+        headers: owner.headers,
+        data: {
+          resourceIds: [first.id, second.id],
+          allowResourceChoice: true,
+        },
+      });
+      expect(patched.ok(), await patched.text()).toBeTruthy();
+      await restoreCalendarVisibility(request);
+      await page.clock.install();
+      const errors = await openGuestPage(page);
+      await openHeatmapAircraftPicker(page);
+      await page.clock.fastForward(35_000);
+      await expect(page.getByText(/pick an aircraft/i)).toBeVisible();
+      const tailRe = new RegExp(second.tail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+      await slotStartButtons(page).filter({ hasText: tailRe }).first().click();
+      await expect(page.getByRole("textbox", { name: "Name" })).toBeVisible({ timeout: 10_000 });
+      const [posted] = await Promise.all([
+        page.waitForRequest(
+          (req) => req.method() === "POST" && /\/public\/book\/.+\/requests$/.test(req.url()),
+        ),
+        (async () => {
+          await fillGuestForm(page, {
+            name: "E2E Heatmap Tail",
+            email: `e2e-heat-${Date.now()}@example.com`,
+            notes: `E2E-public-heat-${Date.now()}`,
+          });
+          await page.getByRole("button", { name: /submit request/i }).click();
+        })(),
+      ]);
+      expect(posted.postDataJSON().resourceId).toBe(second.id);
       expectNoBootCrash(errors);
     } finally {
       await ensurePublicOffering(request);

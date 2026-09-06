@@ -112,6 +112,12 @@ export function heatmapOccupancy(
   return map;
 }
 
+/** Visible extra on a heatmap pill: a tail, or how many aircraft share the cell. */
+export function heatmapChipHint(hits: Array<{ resourceLabel?: string | null }>): string {
+  if (hits.length > 1) return `${hits.length} aircraft`;
+  return hits[0]?.resourceLabel ?? "";
+}
+
 /** Hour rows covering occupied starts in the visible week. Quarters stay in occupancy, not as extra rows. */
 export function heatmapRowMinutes(
   slots: PublicBookableSlot[],

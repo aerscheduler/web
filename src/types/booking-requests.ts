@@ -41,6 +41,8 @@ export interface BookingRequest {
   } | null;
   location?: { id: number; name?: string; timeZone?: string | null } | null;
   resultingReservation?: { id: number; start?: string; end?: string; type?: string } | null;
+  convertedAt?: string | null;
+  convertRole?: string | null;
 }
 
 export type CreateBookingRequestInput = {

@@ -473,6 +473,8 @@ export function buildReservationInput(fields: {
   ratingId?: number | null;
   personnel?: CreateReservationInput["personnel"];
   notes?: string;
+  collectionStyle?: CreateReservationInput["collectionStyle"];
+  prepaidAmountCents?: number | null;
 }): CreateReservationInput {
   const input: CreateReservationInput = {
     title: fields.title,
@@ -489,6 +491,8 @@ export function buildReservationInput(fields: {
   if (fields.personnel && Object.keys(fields.personnel).length > 0) {
     input.personnel = fields.personnel;
   }
+  if (fields.collectionStyle) input.collectionStyle = fields.collectionStyle;
+  if (fields.prepaidAmountCents != null) input.prepaidAmountCents = fields.prepaidAmountCents;
   return input;
 }
 

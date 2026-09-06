@@ -90,3 +90,17 @@ export function useRejectBookingRequest() {
 export function useCancelBookingRequest() {
   return useBookingRequestTransition("cancel");
 }
+
+export function useConvertBookingRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, role }: { id: number; role: "student" | "renter" }) =>
+      api<BookingRequest>(`/booking-requests/${id}/convert`, {
+        method: "POST",
+        body: { role },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["booking-requests"] });
+    },
+  });
+}

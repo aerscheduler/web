@@ -74,6 +74,49 @@ export type SchedulerView = "column" | "heatmap" | "week";
 const EMBED_SOURCE = "aerscheduler-book";
 const MARKETING_URL = "https://www.aerscheduler.com";
 
+function formatPackagePrice(cents: number) {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+}
+
+function requestCopy(page: PublicBookingPage) {
+  if (page.offering.allowResourceChoice) {
+    return "Pick a time and a tail. After you confirm your email, that aircraft is held until the front desk approves or declines, or the request expires. This is still a request, not instant booking.";
+  }
+  return "Pick a time and submit a request. The front desk reviews it after you confirm your email. This does not book the aircraft until they approve it.";
+}
+
+function useGuestBrand(page: PublicBookingPage) {
+  const brand = page.organization.brand;
+  const [systemDark, setSystemDark] = React.useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
+  React.useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const apply = () => setSystemDark(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  const appearance = brand?.appearance ?? "system";
+  const dark = appearance === "dark" || (appearance === "system" && systemDark);
+  const vars: Record<string, string> = {};
+  if (brand?.accentHex) {
+    vars["--primary"] = brand.accentHex;
+    vars["--ring"] = brand.accentHex;
+    vars["--brand"] = brand.accentHex;
+    vars["--info"] = brand.accentHex;
+  }
+  if (brand?.cornerStyle === "sharp") {
+    vars["--radius"] = "0px";
+  }
+  const style = vars as React.CSSProperties;
+  return {
+    className: cn(dark && "dark", brand?.density === "compact" && "[&_.p-4]:p-3 [&_.p-5]:p-3"),
+    style,
+    radiusClass: brand?.cornerStyle === "sharp" ? "rounded-none" : "rounded-xl",
+  };
+}
+
 function OrgLogo({
   name,
   src,
@@ -224,6 +267,7 @@ export function GuestScheduler({
   const rootRef = useEmbedBridge(embedded && embedAllowed);
   const desktop = useDesktopLayout();
   const now = useNow();
+  const brand = useGuestBrand(page);
   const layoutView: SchedulerView = desktop ? view : "column";
   const loadedRangeRef = React.useRef<{ start: Date; end: Date } | null>(null);
 
@@ -490,10 +534,14 @@ export function GuestScheduler({
         <li className="flex min-w-0 items-center gap-2">
           <ZoneSelect zone={zone} zones={zones} onChange={changeZone} />
         </li>
+        {page.offering.collectionStyle === "prepaid_fixed" && page.offering.prepaidAmountCents ? (
+          <li className="font-medium text-foreground">
+            {formatPackagePrice(page.offering.prepaidAmountCents)} package, invoiced when approved
+          </li>
+        ) : null}
       </ul>
       <p className="mt-4 hidden text-sm text-muted-foreground md:block">
-        Pick a time and submit a request. The front desk reviews it after you confirm your
-        email. This does not book the aircraft until they approve it.
+        {requestCopy(page)}
       </p>
       {step === "pick" ? (
         <MiniMonth
@@ -509,7 +557,7 @@ export function GuestScheduler({
   );
 
   const successCard = (
-    <div className="rounded-xl border bg-card p-8 text-center">
+    <div className={cn("border bg-card p-8 text-center", brand.radiusClass)}>
       <div className="mx-auto grid size-12 place-items-center rounded-full bg-[color-mix(in_oklch,var(--success)_15%,transparent)] text-success">
         <CheckCircle2 className="size-6" />
       </div>
@@ -518,6 +566,9 @@ export function GuestScheduler({
         {submittedEmail ? `We sent a confirmation link to ${submittedEmail}. ` : null}
         {page.organization.name} will only see this request after you confirm. This is a
         request, not a booking, until the front desk approves it.
+        {page.offering.allowResourceChoice
+          ? " The aircraft you picked is held until they decide or the request expires."
+          : ""}
       </p>
     </div>
   );
@@ -529,7 +580,7 @@ export function GuestScheduler({
       );
     }
     return (
-      <div className="flex min-h-svh flex-col items-center justify-center bg-muted/30 px-4 py-10">
+      <div className={cn(brand.className, "flex min-h-svh flex-col items-center justify-center bg-muted/30 px-4 py-10")} style={brand.style}>
         <div ref={rootRef} className="w-full max-w-lg">
           {successCard}
         </div>
@@ -540,7 +591,7 @@ export function GuestScheduler({
 
   if (!embedAllowed) {
     const blocked = (
-      <div className="rounded-xl border bg-card p-8 text-center">
+      <div className={cn("border bg-card p-8 text-center", brand.radiusClass)}>
         <div className="mx-auto grid size-12 place-items-center rounded-full bg-muted text-muted-foreground">
           <ShieldOff className="size-6" />
         </div>
@@ -555,7 +606,7 @@ export function GuestScheduler({
       return <div ref={rootRef}>{blocked}</div>;
     }
     return (
-      <div className="flex min-h-svh flex-col items-center justify-center bg-muted/30 px-4 py-10">
+      <div className={cn(brand.className, "flex min-h-svh flex-col items-center justify-center bg-muted/30 px-4 py-10")} style={brand.style}>
         <div ref={rootRef} className="w-full max-w-lg">
           {blocked}
         </div>
@@ -572,7 +623,13 @@ export function GuestScheduler({
   );
 
   return (
-    <div className={cn(pageChrome && (desktop ? "relative min-h-svh w-full bg-muted/30" : "min-h-svh bg-background"))}>
+    <div
+      className={cn(
+        brand.className,
+        pageChrome && (desktop ? "relative min-h-svh w-full bg-muted/30" : "min-h-svh bg-background")
+      )}
+      style={brand.style}
+    >
       {pageChrome && desktop && step === "pick" && !fullBleed ? (
         <div className="absolute top-5 right-5 z-20">{viewToggle}</div>
       ) : null}
@@ -1255,6 +1312,11 @@ function DetailsStep({
         <ChevronLeft className="size-4" /> Back to times
       </Button>
       <p className="text-base font-medium sm:text-sm">{when}</p>
+      {page.offering.collectionStyle === "prepaid_fixed" && page.offering.prepaidAmountCents ? (
+        <p className="text-xs text-muted-foreground">
+          {formatPackagePrice(page.offering.prepaidAmountCents)} package, invoiced when the desk approves
+        </p>
+      ) : null}
       {slot.resourceLabel ? (
         <p className="text-xs text-muted-foreground">{slot.resourceLabel}</p>
       ) : null}
@@ -1318,6 +1380,9 @@ function DetailsStep({
           <span>
             I understand this is a request. {page.organization.name} will review it after I
             confirm my email, and it is not a booking until they approve it.
+            {page.offering.allowResourceChoice
+              ? " The aircraft I pick is held until they approve, decline, or the request expires."
+              : ""}
           </span>
         </label>
         {error ? (

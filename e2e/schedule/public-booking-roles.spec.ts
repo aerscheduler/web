@@ -344,8 +344,9 @@ test.describe("offering settings from the UI", () => {
     await expect(page.getByText("Eligible aircraft", { exact: true })).toBeVisible();
     await expect(page.getByText("Eligible instructors", { exact: true })).toBeVisible();
     await expect(page.getByRole("switch", { name: /let requester pick aircraft/i })).toBeVisible();
-    await expect(page.getByRole("switch", { name: /let requester pick instructor/i })).toBeVisible();
-    await expect(page.getByRole("switch", { name: /let requester pick location/i })).toBeVisible();
+    await expect(page.getByRole("switch", { name: /let requester pick instructor/i })).toHaveCount(0);
+    await expect(page.getByRole("switch", { name: /let requester pick location/i })).toHaveCount(0);
+    await expect(page.getByLabel(/how this offering is billed/i)).toBeVisible();
     await page.getByRole("button", { name: /^Cancel$/i }).click();
     expectNoBootCrash(errors);
   });
@@ -588,6 +589,11 @@ test.describe("settings API by role", () => {
         data: {},
       });
       expect(approve.status(), `${role} approve`).toBe(403);
+      const convert = await request.post(`${apiBase()}/booking-requests/1/convert`, {
+        headers: session.headers,
+        data: { role: "student" },
+      });
+      expect(convert.status(), `${role} convert`).toBe(403);
     }
   });
 });
@@ -658,11 +664,9 @@ test.describe("offering setting effects", () => {
     const errors = await openBookingOfferingsSettings(page);
     await dismissCookieBanner(page);
     await openOfferingEdit(page);
-    const pickInstructor = page.getByRole("switch", { name: /let requester pick instructor/i });
-    const pickLocation = page.getByRole("switch", { name: /let requester pick location/i });
-    if (!(await pickInstructor.isChecked())) await pickInstructor.click();
-    if (!(await pickLocation.isChecked())) await pickLocation.click();
-    await saveOfferingEdit(page);
+    await expect(page.getByRole("switch", { name: /let requester pick instructor/i })).toHaveCount(0);
+    await expect(page.getByRole("switch", { name: /let requester pick location/i })).toHaveCount(0);
+    await page.getByRole("button", { name: /^Cancel$/i }).click();
 
     const guestCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const guestPage = await guestCtx.newPage();

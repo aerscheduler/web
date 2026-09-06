@@ -5,6 +5,12 @@ export type PublicBookingPage = {
     logo: string | null;
     timeZone: string | null;
     embedHosts: string[];
+    brand?: {
+      accentHex: string | null;
+      appearance: "light" | "dark" | "system";
+      density: "compact" | "comfortable";
+      cornerStyle: "rounded" | "sharp";
+    };
   };
   offering: {
     slug: string;
@@ -13,6 +19,8 @@ export type PublicBookingPage = {
     reservationType: string;
     fixedReservationMinutes: number | null;
     allowResourceChoice: boolean;
+    collectionStyle?: "close_out" | "prepaid_fixed";
+    prepaidAmountCents?: number | null;
     location: { name: string; timeZone?: string | null } | null;
   };
 };

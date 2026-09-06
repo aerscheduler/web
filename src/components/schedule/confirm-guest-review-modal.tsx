@@ -9,6 +9,7 @@ import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { hasStandingPrepaid } from "./close-out";
 
 /**
  * Close out a guest reservation. Guests never confirm with a PIN, an admin, the instructor,
@@ -46,13 +47,15 @@ export function ConfirmGuestReviewModal({
 
   async function submit() {
     if (!reservation || !emailValid) return;
+    const prepaid = hasStandingPrepaid(reservation);
     const ok = await confirm({
       title: "Close out this guest flight?",
-      description:
-        "This finalizes the review and generates the invoice. The guest is emailed a link to pay. This can't be undone.",
-      confirmLabel: "Close out & bill",
+      description: prepaid
+        ? "This records the flight. The package invoice is already on file, so close-out does not bill Hobbs a second time."
+        : "This finalizes the review and generates the invoice. The guest is emailed a link to pay. This can't be undone.",
+      confirmLabel: prepaid ? "Close out" : "Close out & bill",
       cancelLabel: "Back",
-      destructive: true,
+      destructive: !prepaid,
     });
     if (!ok) return;
 
@@ -74,7 +77,11 @@ export function ConfirmGuestReviewModal({
 
     try {
       await reviewGuest.mutateAsync(body);
-      toast.success("Guest flight closed out, invoice sent");
+      toast.success(
+        hasStandingPrepaid(reservation)
+          ? "Guest flight closed out"
+          : "Guest flight closed out, invoice sent"
+      );
       onOpenChange(false);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't close out this flight");
@@ -95,14 +102,22 @@ export function ConfirmGuestReviewModal({
             </Button>
             <Button type="submit"
                 form="modal-confirm-guest-review-modal" disabled={!emailValid || reviewGuest.isPending}>
-              {reviewGuest.isPending ? "Closing out…" : "Close out & bill"}
+              {reviewGuest.isPending
+                ? "Closing out…"
+                : reservation && hasStandingPrepaid(reservation)
+                  ? "Close out"
+                  : "Close out & bill"}
             </Button>
         </div>
       }
       open={open}
       onOpenChange={onOpenChange}
       title="Close out guest flight"
-      description="Review the flight and bill the guest. Confirm their details so the invoice reaches them."
+      description={
+        reservation && hasStandingPrepaid(reservation)
+          ? "Review the flight. The package invoice is already on file."
+          : "Review the flight and bill the guest. Confirm their details so the invoice reaches them."
+      }
     >
       <form id="modal-confirm-guest-review-modal"
         data-doc-shot="guest-close-out-modal"

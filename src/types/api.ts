@@ -113,6 +113,10 @@ export interface Organization {
   publicBookingSlug?: string | null;
   /** Origins allowed to iframe /book pages. Empty means the share link only. */
   publicBookingEmbedHosts?: string[];
+  publicBookingAccentHex?: string | null;
+  publicBookingAppearance?: "light" | "dark" | "system";
+  publicBookingDensity?: "compact" | "comfortable";
+  publicBookingCornerStyle?: "rounded" | "sharp";
   /** Sandbox org. Public booking is refused on the server; hide the settings card. */
   isDemo?: boolean;
   /**
@@ -726,6 +730,16 @@ export interface Reservation {
    * `close-out.ts` (closeOutStep), which reason over the whole set.
    */
   invoices?: Invoice[];
+  collectionStyle?: "close_out" | "prepaid_fixed";
+  prepaidAmountCents?: number | null;
+  prepaidInvoice?: Invoice | null;
+  /** Slim prepaid_package ledger rows (ledger-mode members billed at book). */
+  ledgerEntries?: Array<{
+    id: number;
+    type?: string | null;
+    FK_reversesId?: number | null;
+    reversedBy?: { id: number } | null;
+  }> | null;
   /** Ramp/close-out readings + sign-offs. Present on the retrieve include set. */
   review?: ReservationReview | null;
   /**
@@ -981,6 +995,10 @@ export interface Invoice {
   subtotal: number;
   tax: number | null;
   memo: string | null;
+  /** Hosted Stripe pay link. Present on retrieve for prepaid_package invoices. */
+  stripePaymentLink?: string | null;
+  refundedAt?: string | null;
+  purpose?: string | null;
   /** QuickBooks Sales Receipt id when synced. */
   qboSalesReceiptId?: string | null;
   qboSyncedAt?: string | null;
@@ -1689,6 +1707,8 @@ export interface CreateReservationInput {
    * names the offending dates.
    */
   recurrence?: RecurrenceInput;
+  collectionStyle?: "close_out" | "prepaid_fixed";
+  prepaidAmountCents?: number | null;
 }
 
 export type RecurrenceFrequency = "daily" | "weekly" | "monthly" | "yearly";

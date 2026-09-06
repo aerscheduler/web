@@ -11,6 +11,9 @@ import {
   canCreateReservationInvoice,
   canReopenCloseOut,
   closeOutStep,
+  guestCloseOutLabel,
+  prepaidIsCollected,
+  prepaidNeedsCollection,
 } from "./close-out";
 
 /**
@@ -378,6 +381,116 @@ describe("canReopenCloseOut", () => {
     expect(canReopenCloseOut(base, ADMIN, PILOT)).toBe(false);
     const reviewed = { ...base, completedByForGuest: { id: 3 } } as unknown as Reservation;
     expect(canReopenCloseOut(reviewed, ADMIN, PILOT)).toBe(true);
+  });
+});
+
+describe("closeOutStep with a standing package invoice", () => {
+  it("still asks for ramp-out before the flight, then shows invoiced after guest close-out", () => {
+    const prepaid = {
+      ...soloFlight(),
+      type: "guest",
+      prepaidInvoice: { id: 9, voidedAt: null },
+      personnel: { instructors: [], students: [], renters: [], guests: [{ id: 1 }] },
+      review: { hobbsTimeOut: null, hobbsTimeIn: null, tachTimeOut: null, tachTimeIn: null, reviewConfirmations: [] },
+    } as unknown as Reservation;
+    expect(closeOutStep(prepaid)).toBe("rampOut");
+    const reviewed = {
+      ...prepaid,
+      completedByForGuest: { id: 3 },
+      review: {
+        hobbsTimeOut: 1,
+        hobbsTimeIn: 2,
+        tachTimeOut: 1,
+        tachTimeIn: 2,
+        reviewConfirmations: [],
+      },
+    } as unknown as Reservation;
+    expect(closeOutStep(reviewed)).toBe("invoiced");
+  });
+
+  it("treats an unreversed ledger package debit as invoiced after guest close-out", () => {
+    const prepaid = {
+      ...soloFlight(),
+      type: "guest",
+      ledgerEntries: [{ id: 4, type: "prepaid_package", reversedBy: null, FK_reversesId: null }],
+      personnel: { instructors: [], students: [], renters: [], guests: [{ id: 1 }] },
+      review: { hobbsTimeOut: null, hobbsTimeIn: null, tachTimeOut: null, tachTimeIn: null, reviewConfirmations: [] },
+    } as unknown as Reservation;
+    expect(closeOutStep(prepaid)).toBe("rampOut");
+    const reviewed = {
+      ...prepaid,
+      completedByForGuest: { id: 3 },
+      review: {
+        hobbsTimeOut: 1,
+        hobbsTimeIn: 2,
+        tachTimeOut: 1,
+        tachTimeIn: 2,
+        reviewConfirmations: [],
+      },
+    } as unknown as Reservation;
+    expect(closeOutStep(reviewed)).toBe("invoiced");
+  });
+});
+
+describe("prepaidNeedsCollection vs skip-Hobbs", () => {
+  const unpaidGuest = {
+    ...soloFlight(),
+    type: "guest",
+    prepaidInvoice: {
+      id: 9,
+      voidedAt: null,
+      paidAt: null,
+      total: 19900,
+      stripePaymentLink: "https://invoice.stripe.test/pay",
+    },
+    personnel: { instructors: [], students: [], renters: [], guests: [{ id: 1, name: "Pat" }] },
+    review: { hobbsTimeOut: null, hobbsTimeIn: null, tachTimeOut: null, tachTimeIn: null, reviewConfirmations: [] },
+  } as unknown as Reservation;
+
+  it("flags an unpaid Stripe package as needing collection without changing skip-Hobbs", () => {
+    expect(prepaidNeedsCollection(unpaidGuest)).toBe(true);
+    expect(prepaidIsCollected(unpaidGuest)).toBe(false);
+    expect(closeOutStep(unpaidGuest)).toBe("rampOut");
+    expect(guestCloseOutLabel(unpaidGuest)).toBe("Close out (collect package)");
+  });
+
+  it("treats a paid package as collected and still invoiced after guest close-out", () => {
+    const paid = {
+      ...unpaidGuest,
+      prepaidInvoice: { ...unpaidGuest.prepaidInvoice, paidAt: "2026-09-06T12:00:00.000Z" },
+      completedByForGuest: { id: 3 },
+      review: {
+        hobbsTimeOut: 1,
+        hobbsTimeIn: 2,
+        tachTimeOut: 1,
+        tachTimeIn: 2,
+        reviewConfirmations: [],
+      },
+    } as unknown as Reservation;
+    expect(prepaidNeedsCollection(paid)).toBe(false);
+    expect(prepaidIsCollected(paid)).toBe(true);
+    expect(closeOutStep(paid)).toBe("invoiced");
+    expect(guestCloseOutLabel(paid)).toBe("Close out");
+  });
+
+  it("treats a ledger package debit as already collected", () => {
+    const ledger = {
+      ...soloFlight(),
+      type: "instruction",
+      ledgerEntries: [{ id: 4, type: "prepaid_package", reversedBy: null, FK_reversesId: null }],
+    } as unknown as Reservation;
+    expect(prepaidNeedsCollection(ledger)).toBe(false);
+    expect(prepaidIsCollected(ledger)).toBe(true);
+    expect(guestCloseOutLabel(ledger)).toBe("Close out");
+  });
+
+  it("keeps bill-after guest copy when there is no package invoice", () => {
+    const after = {
+      ...soloFlight(),
+      type: "guest",
+      personnel: { instructors: [], students: [], renters: [], guests: [{ id: 1 }] },
+    } as unknown as Reservation;
+    expect(guestCloseOutLabel(after)).toBe("Close out & bill guest");
   });
 });
 

@@ -44,8 +44,8 @@ export interface BookingOffering {
   bufferAfterMinutes?: number | null;
   maxReservationMinutes?: number | null;
   allowResourceChoice: boolean;
-  allowInstructorChoice: boolean;
-  allowLocationChoice: boolean;
+  collectionStyle?: "close_out" | "prepaid_fixed";
+  prepaidAmountCents?: number | null;
   questions?: Record<string, unknown> | null;
   location?: Pick<Location, "id" | "name" | "timeZone"> | null;
   resources?: { resource?: Resource | null }[];
@@ -71,8 +71,8 @@ export type BookingOfferingInput = {
   bufferAfterMinutes?: number | null;
   maxReservationMinutes?: number | null;
   allowResourceChoice?: boolean;
-  allowInstructorChoice?: boolean;
-  allowLocationChoice?: boolean;
+  collectionStyle?: "close_out" | "prepaid_fixed";
+  prepaidAmountCents?: number | null;
   locationId?: number | null;
   resourceIds?: number[];
   instructorOrgUserIds?: number[];

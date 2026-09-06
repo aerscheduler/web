@@ -640,6 +640,8 @@ export function ReservationForm({
   const [guestName, setGuestName] = React.useState("");
   const [guestEmail, setGuestEmail] = React.useState("");
   const [guestPhone, setGuestPhone] = React.useState("");
+  const [collectionStyle, setCollectionStyle] = React.useState<"close_out" | "prepaid_fixed">("close_out");
+  const [packageDollars, setPackageDollars] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
   /**
@@ -1123,6 +1125,20 @@ export function ReservationForm({
       }
     }
 
+    let prepaidAmountCents: number | null = null;
+    const canChargeWhenBooked = isStaff(roles) && !isSelf && type !== "maintenance" && !editing;
+    const effectiveCollection = canChargeWhenBooked ? collectionStyle : "close_out";
+    if (effectiveCollection === "prepaid_fixed") {
+      if (recurrence.enabled) {
+        return fail("Charge-when-booked is for a single booking, not a repeating series.", "package-price");
+      }
+      const dollars = Number(packageDollars);
+      if (!Number.isFinite(dollars) || dollars < 0.5) {
+        return fail("Enter a package price of at least $0.50.", "package-price");
+      }
+      prepaidAmountCents = Math.round(dollars * 100);
+    }
+
     const input = buildReservationInput({
       title: effectiveTitle,
       type,
@@ -1139,6 +1155,8 @@ export function ReservationForm({
       ratingId: derivedRating ? null : ratingId ? Number(ratingId) : null,
       personnel,
       notes,
+      collectionStyle: editing ? undefined : effectiveCollection,
+      prepaidAmountCents: editing ? undefined : prepaidAmountCents,
     });
 
     //Repeating booking. Editing never carries a rule: changing one occurrence is an
@@ -1478,7 +1496,9 @@ export function ReservationForm({
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              The guest is emailed an invoice after the flight is closed out, no account needed.
+              {collectionStyle === "prepaid_fixed"
+                ? "The guest is emailed a Stripe invoice for the package price when you book. They can pay any time, including the day of. Instructors see Collect payment until it is paid. Close-out still records Hobbs and does not bill the hop a second time."
+                : "The guest is emailed an invoice after the flight is closed out, no account needed."}
             </p>
           </div>
         ) : type === "maintenance" ? (
@@ -1637,6 +1657,45 @@ export function ReservationForm({
         )}
 
         </fieldset>
+
+        {isStaff(roles) && !isSelf && type !== "maintenance" && !editing ? (
+          <div className="space-y-2 rounded-md border p-3">
+            <div className="flex items-center gap-1">
+              <Label className="text-xs font-medium text-muted-foreground">How this booking is billed</Label>
+              <DocsHint topic="collection-style" />
+            </div>
+            <Select
+              value={collectionStyle}
+              onValueChange={(value) => setCollectionStyle(value as "close_out" | "prepaid_fixed")}
+            >
+              <SelectTrigger aria-label="How this booking is billed">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="close_out">Bill after the flight (Hobbs and instruction)</SelectItem>
+                <SelectItem value="prepaid_fixed">Charge a package price when booked</SelectItem>
+              </SelectContent>
+            </Select>
+            {collectionStyle === "prepaid_fixed" ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="package-price">Package price (USD)</Label>
+                <Input
+                  id="package-price"
+                  aria-invalid={errorField === "package-price"}
+                  inputMode="decimal"
+                  placeholder="249.00"
+                  value={packageDollars}
+                  onChange={(e) => setPackageDollars(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Stripe invoices this amount when you save. The guest can pay any time,
+                  including the day of. Instructors see Collect payment until it is paid.
+                  Close-out still records Hobbs and does not bill the hop a second time.
+                </p>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="space-y-1.5">
           {/* Repeating bookings are a create-time choice; editing one occurrence of a

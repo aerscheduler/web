@@ -231,6 +231,7 @@ function PublicBookingCard() {
   const [embedHostsText, setEmbedHostsText] = React.useState(
     (organization?.publicBookingEmbedHosts ?? []).join("\n")
   );
+  const [accentHex, setAccentHex] = React.useState(organization?.publicBookingAccentHex ?? "");
 
   React.useEffect(() => {
     void rehydrate();
@@ -239,6 +240,9 @@ function PublicBookingCard() {
   React.useEffect(() => {
     setSlug(organization?.publicBookingSlug ?? "");
   }, [organization?.publicBookingSlug]);
+  React.useEffect(() => {
+    setAccentHex(organization?.publicBookingAccentHex ?? "");
+  }, [organization?.publicBookingAccentHex]);
 
   const storedEmbedHosts = (organization?.publicBookingEmbedHosts ?? []).join("\n");
   const embedDirtyRef = React.useRef(false);
@@ -369,6 +373,71 @@ function PublicBookingCard() {
               cannot show the frame until you list them here. Do not paste arbitrary CSS or
               scripts into the page.
             </p>
+            <div className="flex items-center gap-1">
+              <p className="text-xs font-medium text-muted-foreground">Guest page look</p>
+              <DocsHint topic="public-booking-branding" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Accent color" htmlFor="public-booking-accent" hint="Hex on the guest page. Leave blank for the default blue.">
+                <Input
+                  id="public-booking-accent"
+                  value={accentHex}
+                  placeholder="#1967D2"
+                  onChange={(e) => setAccentHex(e.target.value)}
+                  onBlur={() => {
+                    const next = accentHex.trim() || null;
+                    if (next === (organization.publicBookingAccentHex ?? null)) return;
+                    save({ publicBookingAccentHex: next }, "Guest page accent updated.");
+                  }}
+                />
+              </Field>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Appearance</Label>
+                <Select
+                  value={organization.publicBookingAppearance ?? "system"}
+                  onValueChange={(value) => save({ publicBookingAppearance: value }, "Guest page appearance updated.")}
+                >
+                  <SelectTrigger aria-label="Guest page appearance">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="system">Match the visitor</SelectItem>
+                    <SelectItem value="light">Light</SelectItem>
+                    <SelectItem value="dark">Dark</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Density</Label>
+                <Select
+                  value={organization.publicBookingDensity ?? "comfortable"}
+                  onValueChange={(value) => save({ publicBookingDensity: value }, "Guest page density updated.")}
+                >
+                  <SelectTrigger aria-label="Guest page density">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="comfortable">Comfortable</SelectItem>
+                    <SelectItem value="compact">Compact</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">Corners</Label>
+                <Select
+                  value={organization.publicBookingCornerStyle ?? "rounded"}
+                  onValueChange={(value) => save({ publicBookingCornerStyle: value }, "Guest page corners updated.")}
+                >
+                  <SelectTrigger aria-label="Guest page corners">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="rounded">Rounded</SelectItem>
+                    <SelectItem value="sharp">Sharp</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </>
         ) : null}
         </form>
@@ -682,8 +751,8 @@ type FormState = {
   noticeMinutes: string;
   horizonDays: string;
   allowResourceChoice: boolean;
-  allowInstructorChoice: boolean;
-  allowLocationChoice: boolean;
+  collectionStyle: "close_out" | "prepaid_fixed";
+  packageDollars: string;
 };
 
 function emptyForm(): FormState {
@@ -701,8 +770,8 @@ function emptyForm(): FormState {
     noticeMinutes: "off",
     horizonDays: "off",
     allowResourceChoice: false,
-    allowInstructorChoice: false,
-    allowLocationChoice: false,
+    collectionStyle: "close_out",
+    packageDollars: "",
   };
 }
 
@@ -725,8 +794,9 @@ function formFromOffering(offering: BookingOffering): FormState {
     noticeMinutes: minutesSelectValue(offering.minimumNoticeMinutes),
     horizonDays: minutesSelectValue(offering.bookingHorizonDays),
     allowResourceChoice: offering.allowResourceChoice,
-    allowInstructorChoice: offering.allowInstructorChoice,
-    allowLocationChoice: offering.allowLocationChoice,
+    collectionStyle: offering.collectionStyle === "prepaid_fixed" ? "prepaid_fixed" : "close_out",
+    packageDollars:
+      offering.prepaidAmountCents != null ? (offering.prepaidAmountCents / 100).toFixed(2) : "",
   };
 }
 
@@ -789,8 +859,11 @@ function BookingOfferingFormModal({
       minimumNoticeMinutes: optionalMinutes(form.noticeMinutes),
       bookingHorizonDays: optionalMinutes(form.horizonDays),
       allowResourceChoice: form.allowResourceChoice,
-      allowInstructorChoice: form.allowInstructorChoice,
-      allowLocationChoice: form.allowLocationChoice,
+      collectionStyle: form.collectionStyle,
+      prepaidAmountCents:
+        form.collectionStyle === "prepaid_fixed"
+          ? Math.round(Number(form.packageDollars) * 100)
+          : null,
     };
   }
 
@@ -801,6 +874,13 @@ function BookingOfferingFormModal({
     if (!input) {
       toast.error("Name, slug, and fixed duration are required.");
       return;
+    }
+    if (form.collectionStyle === "prepaid_fixed") {
+      const dollars = Number(form.packageDollars);
+      if (!Number.isFinite(dollars) || dollars < 0.5) {
+        toast.error("Enter a package price of at least $0.50.");
+        return;
+      }
     }
 
     const done = {
@@ -1003,22 +1083,55 @@ function BookingOfferingFormModal({
           <Label className="text-xs font-medium text-muted-foreground">Requester choices</Label>
           <PreferenceToggle
             label="Let requester pick aircraft"
-            description="Each free time shows the tail so they can choose the aircraft. Tick more than one eligible aircraft above. Open-slots visibility still hides who is already flying."
+            description="Each free time shows the tail so they can choose the aircraft. That tail is held until the request expires, is declined, or you approve it. Tick more than one eligible aircraft above. The desk assigns the instructor. An offering has one location."
             checked={form.allowResourceChoice}
             onCheckedChange={(checked) => set("allowResourceChoice", checked)}
           />
-          <PreferenceToggle
-            label="Let requester pick instructor"
-            description="Only when multiple eligible instructors exist."
-            checked={form.allowInstructorChoice}
-            onCheckedChange={(checked) => set("allowInstructorChoice", checked)}
-          />
-          <PreferenceToggle
-            label="Let requester pick location"
-            description="When the offering spans more than one location."
-            checked={form.allowLocationChoice}
-            onCheckedChange={(checked) => set("allowLocationChoice", checked)}
-          />
+          <p className="text-xs text-muted-foreground">
+            Guests do not pick an instructor or location. Eligible instructors above are who the
+            desk can assign when they approve.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center gap-1">
+            <Label className="text-xs font-medium text-muted-foreground">How this offering is billed</Label>
+            <DocsHint topic="collection-style" />
+          </div>
+          <Select
+            value={form.collectionStyle}
+            onValueChange={(value) => set("collectionStyle", value as FormState["collectionStyle"])}
+          >
+            <SelectTrigger aria-label="How this offering is billed">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="close_out">Bill after the flight</SelectItem>
+              <SelectItem value="prepaid_fixed">Charge a package price when approved</SelectItem>
+            </SelectContent>
+          </Select>
+          {form.collectionStyle === "prepaid_fixed" ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="bo-package">Package price (USD)</Label>
+              <Input
+                id="bo-package"
+                inputMode="decimal"
+                placeholder="249.00"
+                value={form.packageDollars}
+                onChange={(e) => set("packageDollars", e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                When the desk approves, AerScheduler invoices this amount through Stripe.
+                The guest can pay any time, including the day of. Instructors see Collect
+                payment until it is paid. Close-out records Hobbs and does not bill the hop
+                a second time.
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Close-out bills Hobbs and instruction as usual.
+            </p>
+          )}
         </div>
       </form>
     </ResponsiveModal>

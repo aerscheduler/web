@@ -8,6 +8,7 @@ import {
   RotateCcw,
   PlaneLanding,
   PlaneTakeoff,
+  ExternalLink,
   Receipt,
   SlidersHorizontal,
   SquarePen,
@@ -42,10 +43,14 @@ import {
   canRampReservation,
   canReopenCloseOut,
   canViewReservationInvoice,
+  guestCloseOutLabel,
   hasLiveInvoice,
+  hasStandingPrepaid,
   isGuestReservation,
   liveLedgerStakes,
   closeOutStep,
+  prepaidIsCollected,
+  prepaidNeedsCollection,
   readsMeters,
   usesBriefingNotMeters,
   confirmationCount,
@@ -361,7 +366,7 @@ export function CloseOutSection({
     }
     if (step === "confirmGuest" && canConfirmGuest) {
       return {
-        label: "Close out & bill guest",
+        label: guestCloseOutLabel(r),
         icon: <Receipt className="size-4" />,
         onClick: () => setGuestConfirmOpen(true),
       };
@@ -396,13 +401,27 @@ export function CloseOutSection({
       case "confirm":
         return `${noMeters ? "Times recorded. Needs sign-off." : "Flown. Needs pilot sign-off."} ${done} of ${needed} confirmed.`;
       case "confirmGuest":
-        return `Flown. This guest flight needs to be closed out and billed to ${guestName}.`;
+        return hasStandingPrepaid(r)
+          ? `Flown. Close out this guest flight for ${guestName}. The package invoice is already on file.`
+          : `Flown. This guest flight needs to be closed out and billed to ${guestName}.`;
       case "reviewed":
         if (r.type === "maintenance") return "Maintenance complete. This booking isn't billed.";
         return expectsLedger
           ? "Review complete. No ledger charge has been posted yet."
           : "Review complete. No invoice has been raised yet.";
       case "invoiced":
+        if (prepaidNeedsCollection(r)) {
+          const amount = r.prepaidInvoice?.total;
+          return amount != null
+            ? `Package unpaid. Collect ${formatMoney(amount)} from ${guestName}.`
+            : `Package unpaid. Collect payment from ${guestName}.`;
+        }
+        if (prepaidIsCollected(r) && r.prepaidInvoice?.paidAt) {
+          return `Package paid · ${formatMoney(r.prepaidInvoice.total)}`;
+        }
+        if (prepaidIsCollected(r) && !r.prepaidInvoice) {
+          return "Package charged to the account ledger.";
+        }
         if (ledgerStakeCount > 0) {
           return ledgerStakeCount > 1
             ? `Charged to the account ledger, split ${ledgerStakeCount} ways.`
@@ -428,7 +447,7 @@ export function CloseOutSection({
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {heading}
             </h3>
-            {step === "invoiced" && <StepBadge invoice={invoice} />}
+            {step === "invoiced" && <MoneyBadge r={r} invoice={invoice} />}
           </div>
 
           <CloseOutRail step={step} noMeters={noMeters} />
@@ -438,6 +457,7 @@ export function CloseOutSection({
             className="space-y-2"
           >
             <p className="text-sm text-muted-foreground">{panelStatus}</p>
+            <PackagePaymentCallout r={r} />
             {/* The one status worth a second line: you have signed, and the flight is
                 waiting on somebody else, so there is nothing for you to do but wait. */}
             {step === "confirm" && !canConfirm && alreadyConfirmed && (
@@ -513,13 +533,15 @@ export function CloseOutSection({
               voided long after the flight is over. Everything before billing is the rail's
               to say, and saying it twice in different words was half of what made this
               section noisy. */}
-          {step === "invoiced" && <StepBadge invoice={invoice} />}
+          {step === "invoiced" && <MoneyBadge r={r} invoice={invoice} />}
         </div>
 
         <CloseOutRail step={step} noMeters={noMeters} />
 
         {/* What is on the record so far. Renders nothing before the booking has flown. */}
         <CloseOutReadings r={r} />
+
+        <PackagePaymentCallout r={r} />
 
         {step === "rampOut" &&
           (canRamp ? (
@@ -592,12 +614,15 @@ export function CloseOutSection({
         {step === "confirmGuest" && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Flown: this guest flight needs to be closed out and billed to{" "}
-              <span className="text-foreground">{guestName}</span>.
+              {hasStandingPrepaid(r)
+                ? "Flown: close out this guest flight for "
+                : "Flown: this guest flight needs to be closed out and billed to "}
+              <span className="text-foreground">{guestName}</span>
+              {hasStandingPrepaid(r) ? ". The package invoice is already on file." : "."}
             </p>
             {canConfirmGuest ? (
               <Button className="w-full sm:w-auto" onClick={() => setGuestConfirmOpen(true)}>
-                <Receipt className="size-4" /> Close out &amp; bill guest
+                <Receipt className="size-4" /> {guestCloseOutLabel(r)}
               </Button>
             ) : (
               <p className="text-sm text-muted-foreground">
@@ -874,6 +899,67 @@ function StepBadge({ invoice }: { invoice: Invoice | null }) {
   if (invoice?.paidAt) return <Badge variant="success">Paid</Badge>;
   if (invoice?.voidedAt) return <Badge variant="outline">Void</Badge>;
   return <Badge variant="warning">Billed</Badge>;
+}
+
+function MoneyBadge({ r, invoice }: { r: Reservation; invoice: Invoice | null }) {
+  if (prepaidNeedsCollection(r)) return <Badge variant="warning">Collect payment</Badge>;
+  if (prepaidIsCollected(r)) {
+    return <Badge variant="success">{r.prepaidInvoice?.paidAt ? "Package paid" : "Charged"}</Badge>;
+  }
+  return <StepBadge invoice={invoice} />;
+}
+
+function PackagePaymentCallout({ r }: { r: Reservation }) {
+  if (!hasStandingPrepaid(r)) return null;
+  const invoice = r.prepaidInvoice;
+  const unpaid = prepaidNeedsCollection(r);
+  const amount = invoice?.total != null ? formatMoney(invoice.total) : null;
+  const payLink = invoice?.stripePaymentLink ?? null;
+
+  return (
+    <div
+      data-testid="package-payment-callout"
+      data-doc-shot={
+        unpaid ? "package-payment-collect" : invoice?.paidAt ? "package-payment-paid" : undefined
+      }
+      className={
+        unpaid
+          ? "space-y-2 rounded-lg border border-warning/40 bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] p-3"
+          : "space-y-2 rounded-lg border border-border bg-muted/40 p-3"
+      }
+    >
+      <div className="flex items-start gap-2 text-sm">
+        <Receipt className="mt-0.5 size-4 shrink-0" />
+        <div className="min-w-0 space-y-1">
+          <p className="font-medium">
+            {unpaid
+              ? amount
+                ? `Collect payment · ${amount}`
+                : "Collect payment"
+              : invoice?.paidAt
+                ? amount
+                  ? `Package paid · ${amount}`
+                  : "Package paid"
+                : "Package charged to account"}
+          </p>
+          <p className="text-muted-foreground">
+            {unpaid
+              ? "The guest was invoiced when this booking was confirmed. They can pay any time, including the day of. Close-out records Hobbs and does not bill the hop a second time."
+              : invoice?.paidAt
+                ? "The package invoice is paid. Close-out still records Hobbs and does not bill the hop a second time."
+                : "This package was charged to the member account when the booking was created. Close-out records Hobbs and does not bill the hop a second time."}
+          </p>
+        </div>
+      </div>
+      {unpaid && payLink ? (
+        <Button asChild variant="outline" size="sm">
+          <a href={payLink} target="_blank" rel="noreferrer">
+            <ExternalLink className="size-4" /> Open pay link
+          </a>
+        </Button>
+      ) : null}
+    </div>
+  );
 }
 
 function LedgerChargeSummary({ splitAcross }: { splitAcross: number | null }) {

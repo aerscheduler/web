@@ -283,6 +283,46 @@ export function liveLedgerStakes(r: Reservation) {
  * Ledger mode posts no Invoice rows for members; treating those flights as unbilled would
  * keep "Create invoice" live and unlock meter corrections after money had moved.
  */
+export function hasStandingPrepaid(r: Reservation): boolean {
+  const invoice = r.prepaidInvoice;
+  if (invoice && !invoice.voidedAt && !(invoice as { refundedAt?: string | null }).refundedAt) {
+    return true;
+  }
+  return (r.ledgerEntries ?? []).some(
+    (entry) =>
+      entry.type === "prepaid_package" &&
+      entry.reversedBy == null &&
+      entry.FK_reversesId == null
+  );
+}
+
+/**
+ * Standing Stripe package invoice that has not been paid yet.
+ *
+ * Ledger-mode members are already collected (a prepaid_package debit). Guests
+ * always go through Stripe, so this is the unpaid-guest case instructors must
+ * see. Do not fold this into `hasStandingPrepaid`: that helper skips Hobbs
+ * whether the package is open or paid, so close-out does not double-bill.
+ */
+export function prepaidNeedsCollection(r: Reservation): boolean {
+  const invoice = r.prepaidInvoice;
+  if (!invoice || invoice.voidedAt) return false;
+  if ((invoice as { refundedAt?: string | null }).refundedAt) return false;
+  return invoice.paidAt == null;
+}
+
+/** Package already collected: paid Stripe invoice, or an unreversed ledger debit. */
+export function prepaidIsCollected(r: Reservation): boolean {
+  return hasStandingPrepaid(r) && !prepaidNeedsCollection(r);
+}
+
+/** Guest close-out CTA. Prepaid bookings already have the invoice; do not say "bill guest". */
+export function guestCloseOutLabel(r: Reservation): string {
+  if (prepaidNeedsCollection(r)) return "Close out (collect package)";
+  if (hasStandingPrepaid(r)) return "Close out";
+  return "Close out & bill guest";
+}
+
 export function hasLiveBill(r: Reservation): boolean {
   return hasLiveInvoice(r) || liveLedgerStakes(r).length > 0;
 }
@@ -297,12 +337,13 @@ export function closeOutStep(r: Reservation): CloseOutStep {
   if (!isRampedIn(r)) return "rampIn";
   // Guest reservations don't collect pilot PINs, they're closed out by staff/instructor.
   if (isGuestReservation(r)) {
-    return guestIsReviewed(r) ? "reviewed" : "confirmGuest";
+    if (!(guestIsReviewed(r) || reviewIsComplete(r))) return "confirmGuest";
+    return hasStandingPrepaid(r) ? "invoiced" : "reviewed";
   }
   const needed = reviewerCount(r);
   // Nobody to sign off (e.g. maintenance / solo with no personnel), treat as complete.
-  if (needed === 0) return "reviewed";
-  if (confirmationCount(r) >= needed) return "reviewed";
+  if (needed === 0) return hasStandingPrepaid(r) ? "invoiced" : "reviewed";
+  if (confirmationCount(r) >= needed) return hasStandingPrepaid(r) ? "invoiced" : "reviewed";
   return "confirm";
 }
 

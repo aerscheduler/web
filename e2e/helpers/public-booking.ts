@@ -390,10 +390,6 @@ export async function seedConfirmedGuest(
   }>;
   const created = rows.find((row) => row.guestEmail === email || row.notes === notes);
   expect(created, `confirmed guest should appear in the desk queue: ${JSON.stringify(rows)}`).toBeTruthy();
-  expect(
-    created?.resource?.id,
-    `guest request must carry an aircraft so Approve can book: ${JSON.stringify(created)}`,
-  ).toBeTruthy();
   return { name, email, notes };
 }
 

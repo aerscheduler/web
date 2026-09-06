@@ -449,13 +449,25 @@ export const DOCS_TOPICS = {
   "pending-booking-requests": {
     title: "Booking requests",
     summary:
-      "Pending requests waiting for a desk decision, from members who need approval and from guests who used a public booking link. Approve to book the slot on the board, or decline to close the request without a reservation.",
+      "Pending requests waiting for a desk decision, from members who need approval and from guests who used a public booking link. Approve to book the slot, or decline to close it. Approved public guests can be invited as a student or renter.",
     href: "scheduling/booking-approval-requests#approve-or-decline-front-desk",
   },
   "public-booking-links": {
     title: "Public booking links",
     summary:
       "A shareable page for guests who do not have an account. They pick a day and start time, confirm by email, and you approve from Calendar → Booking requests. Members still book with Solo, Dual, Ground and the rest. This does not replace reservation types.",
+    href: "scheduling/public-booking-requests",
+  },
+  "collection-style": {
+    title: "How this booking is billed",
+    summary:
+      "Bill after the flight prices Hobbs at close-out. Charge a package price when booked emails a Stripe invoice when the reservation is created. The guest can pay any time, including the day of. Instructors see Collect payment until it is paid. Close-out records Hobbs and does not bill the hop a second time.",
+    href: "billing/charge-a-package-price-when-booked",
+  },
+  "public-booking-branding": {
+    title: "Guest page look",
+    summary:
+      "Accent, light or dark, density, and corners on the public /book page. There is no custom CSS. The school logo is already the header mark.",
     href: "scheduling/public-booking-requests",
   },
   "public-booking-embed-hosts": {

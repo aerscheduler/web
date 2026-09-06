@@ -27,6 +27,7 @@ import {
   setPublicBookingEmbedHosts,
   expectGuestFrameBlocked,
   bookablePlanes,
+  fetchPublicSlots,
   restoreCalendarVisibility,
 } from "../helpers/public-booking";
 
@@ -481,6 +482,59 @@ test.describe("public guest booking page", () => {
         timeout: 20_000,
       });
       expectNoBootCrash(errors);
+    } finally {
+      await ensurePublicOffering(request);
+    }
+  });
+
+  test("pick-aircraft request holds that tail for a second guest", async ({ request }) => {
+    const offeringId = await ensurePublicOffering(request);
+    const owner = await authAs(request, ACCOUNTS.owner);
+    const planes = await bookablePlanes(request, owner.headers);
+    expect(planes.length, "need a bookable plane").toBeGreaterThan(0);
+    const tail = planes[0]!;
+    try {
+      const patched = await request.patch(`${apiBase()}/booking-offerings/${offeringId}`, {
+        headers: owner.headers,
+        data: { resourceIds: [tail.id], allowResourceChoice: true },
+      });
+      expect(patched.ok(), await patched.text()).toBeTruthy();
+      const slots = await fetchPublicSlots(request);
+      const slot = slots.find((row) => row.resourceId === tail.id);
+      expect(slot, "expected a slot on the held tail").toBeTruthy();
+      const stamp = Date.now();
+      const first = await request.post(
+        `${apiBase()}/public/book/${ORG_SLUG}/offerings/${OFFERING_SLUG}/requests`,
+        {
+          data: {
+            name: `E2E-HOLD-A-${stamp}`,
+            email: `e2e-hold-a-${stamp}@example.com`,
+            notes: `E2E-public-hold-${stamp}`,
+            start: slot!.start,
+            end: slot!.end,
+            timeZoneName: slot!.timeZone,
+            resourceId: tail.id,
+            consent: true,
+          },
+        },
+      );
+      expect(first.ok(), await first.text()).toBeTruthy();
+      const second = await request.post(
+        `${apiBase()}/public/book/${ORG_SLUG}/offerings/${OFFERING_SLUG}/requests`,
+        {
+          data: {
+            name: `E2E-HOLD-B-${stamp}`,
+            email: `e2e-hold-b-${stamp}@example.com`,
+            notes: `E2E-public-hold-b-${stamp}`,
+            start: slot!.start,
+            end: slot!.end,
+            timeZoneName: slot!.timeZone,
+            resourceId: tail.id,
+            consent: true,
+          },
+        },
+      );
+      expect(second.status(), await second.text()).toBe(409);
     } finally {
       await ensurePublicOffering(request);
     }

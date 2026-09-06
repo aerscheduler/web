@@ -1231,9 +1231,10 @@ export function ReservationForm({
   ) : eligibleResources.length === 0 && TYPE_REQUIREMENTS[type].resourceRequired ? (
     <EmptyState
       icon={Ban}
-      //Keyed on the restriction rather than on the type: with checkouts enforced, a
-      //student with no approvals has nothing to book on a dual either, and telling them
-      //the school "hasn't set up any aircraft" would send them to ask the wrong question.
+      compact
+      // Keyed on the restriction rather than on the type: with checkouts enforced, a
+      // student with no approvals has nothing to book on a dual either, and telling them
+      // the school "hasn't set up any aircraft" would send them to ask the wrong question.
       title={
         restrictToApproved
           ? "You're not checked out on any aircraft"
@@ -1246,6 +1247,7 @@ export function ReservationForm({
               type
             ].resource.toLowerCase()}s yet.`
       }
+      docs={restrictToApproved ? "approve-members" : "add-an-aircraft"}
     />
   ) : null;
 

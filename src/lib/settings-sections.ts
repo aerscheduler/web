@@ -1,4 +1,4 @@
-import { BadgeCheck, BadgeDollarSign, Building2, CreditCard, FileCog, GraduationCap, KeyRound, Layers, Puzzle, ShieldCheck, SlidersHorizontal, Split, type LucideIcon } from "lucide-react";
+import { BadgeCheck, BadgeDollarSign, Building2, CalendarRange, CreditCard, FileCog, GraduationCap, KeyRound, Layers, Puzzle, ShieldCheck, SlidersHorizontal, Split, type LucideIcon } from "lucide-react";
 
 /**
  * Every section of Settings, in the order the page's left rail shows them.
@@ -47,6 +47,13 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
         label: "Booking preferences",
         icon: SlidersHorizontal,
         keywords: ["booking policy", "multi-day", "overnight", "payment method required", "rules", "approved resources", "checkout"],
+      },
+      {
+        value: "booking-offerings",
+        label: "Booking offerings",
+        icon: CalendarRange,
+        keywords: ["discovery flight", "guest booking", "public booking", "calendar visibility", "offering"],
+        adminOnly: true,
       },
       { value: "groups", label: "Groups", icon: Layers, keywords: ["resource groups", "fleet groups"] },
       { value: "documents", label: "Document types", icon: FileCog, keywords: ["required documents", "licenses", "expiry"] },

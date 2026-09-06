@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { OrganizationTab } from "@/components/settings/organization-tab";
+import { BookingOfferingsTab } from "@/components/settings/booking-offerings-tab";
 import { BookingPreferencesTab } from "@/components/settings/booking-preferences-tab";
 import { AdTrackingTab } from "@/components/settings/ad-tracking-tab";
 import { PlanTab } from "@/components/settings/plan-tab";
@@ -97,6 +98,7 @@ function SettingsPage() {
           {active === "organization" && <OrganizationTab />}
           {active === "security" && <OrganizationSecurityTab />}
           {active === "booking-preferences" && <BookingPreferencesTab />}
+          {active === "booking-offerings" && <BookingOfferingsTab />}
           {active === "ad-tracking" && <AdTrackingTab />}
           {active === "plan" && <PlanTab />}
           {active === "memberships" && <MembershipsTab />}

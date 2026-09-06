@@ -105,6 +105,17 @@ export interface Organization {
    */
   scheduledDeletionAt?: string | null;
   /**
+   * When true, guests can request active offerings at /book/{slug}/{offering}.
+   * Staff still approve every request. Members keep booking as they do today.
+   */
+  publicBookingEnabled?: boolean;
+  /** Share-link slug for guest booking pages. Unique across schools. */
+  publicBookingSlug?: string | null;
+  /** Origins allowed to iframe /book pages. Empty means the share link only. */
+  publicBookingEmbedHosts?: string[];
+  /** Sandbox org. Public booking is refused on the server; hide the settings card. */
+  isDemo?: boolean;
+  /**
    * Which plan the school is on, `standard` or `enterprise`. Set by hand in the
    * database when a school signs; no endpoint turns it on, so nothing in this console
    * writes it. Read-only here, and only ever used to decide what to SHOW, the server

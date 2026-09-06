@@ -100,6 +100,8 @@ function parse(raw: string | undefined): Attribution | null {
 export function captureAttribution(): void {
   if (typeof window === "undefined") return;
   try {
+    const path = window.location.pathname;
+    if (path === "/book" || path.startsWith("/book/")) return;
     if (readAttribution()) return; // first touch wins, from any source
 
     const params = new URLSearchParams(window.location.search);

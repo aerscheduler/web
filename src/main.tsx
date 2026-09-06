@@ -8,29 +8,38 @@ import { AuthProvider } from "./lib/auth";
 import { captureAttribution } from "./lib/attribution";
 import {
   bootstrapAnalyticsConsent,
+  isPublicGuestBookingPath,
+  pauseAnalyticsOnGuestSpa,
+  resumeAnalyticsAfterGuestSpa,
+  stashAndStripBookConfirmToken,
   startDwell,
   trackFilters,
   trackPageview,
 } from "./lib/analytics";
 import { onNavigation, startInteractionTracking } from "./lib/interaction-tracking";
 import { startFormFocus } from "./lib/form-focus";
-import { startAds, startConsentMode } from "./lib/ads";
+import { pauseAdsOnGuestSurface, startAds, startConsentMode, syncGoogleConsent } from "./lib/ads";
+import { rememberGuestBookingHtmlDocument, guestBookingHtmlWasLoaded } from "./lib/public-booking-embed-hosts";
 import { initTheme } from "./lib/theme";
 import { silenceAbortedViewTransitions } from "./lib/view-transitions";
 import "./styles.css";
 
 initTheme();
+rememberGuestBookingHtmlDocument();
+// Confirm links carry a one-time token in the query. Pull it out of the address
+// bar before attribution or ads boot, or gtag / PostHog record the raw URL.
+stashAndStripBookConfirmToken();
 // Before the router touches the URL and before any OAuth hop leaves our origin,
 // both of which would take the campaign params with them. See lib/attribution.ts.
-captureAttribution();
+if (!isPublicGuestBookingPath()) captureAttribution();
 // Starts PostHog when consent already exists, or when US geo implies it. The banner
 // uses the same helper so it does not flash for US visitors.
 bootstrapAnalyticsConsent();
 // Same consent, different question: gtag reports which ad click paid for this visit.
-// No-ops until VITE_GOOGLE_ADS_ID is set. See lib/ads.ts.
-// Unconditional: installs the Google tag under Consent Mode v2 denied defaults so an
-// unconsented signup is still reported as a cookieless ping. startAds() is the gated
-// half (Meta only).
+// No-ops until VITE_GOOGLE_ADS_ID is set, and no-ops inside a guest booking embed.
+// Unconditional on the console: installs the Google tag under Consent Mode v2 denied
+// defaults so an unconsented signup is still reported as a cookieless ping. startAds()
+// is the gated half (Meta only).
 startConsentMode();
 startAds();
 // Delegated click and field instrumentation. Safe to wire before consent exists: it
@@ -57,6 +66,16 @@ const router = createRouter({
 // TanStack navigation that only changes search params still counts as a view, which is
 // how the dispatch board and every filtered table move.
 router.subscribe("onResolved", ({ toLocation }) => {
+  if (isPublicGuestBookingPath(toLocation.pathname)) {
+    stashAndStripBookConfirmToken();
+    pauseAdsOnGuestSurface();
+    if (!guestBookingHtmlWasLoaded()) pauseAnalyticsOnGuestSpa();
+  } else {
+    syncGoogleConsent();
+    startConsentMode();
+    startAds();
+    resumeAnalyticsAfterGuestSpa();
+  }
   const search = toLocation.search as Record<string, unknown> | undefined;
   // Before the pageview: leaving a screen closes any half-filled form on it as an
   // abandonment, and that belongs to the screen being left, not the one arriving.

@@ -225,6 +225,7 @@ export function OrganizationsTable() {
               icon={Building2}
               title="No schools match"
               body="Search by name, join code, organization id, or the email of anybody in the school."
+              compact
             />
           }
           mobileCard={(o) => (

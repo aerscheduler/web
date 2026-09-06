@@ -97,6 +97,12 @@ export interface ApiOptions {
    * is the half of the handoff that deliberately does not travel in the URL.
    */
   withCredentials?: boolean;
+  /**
+   * Skip the signed-in session. Public pages (`/book/...`) must not send a leftover
+   * console token: an expired bearer turns a guest offering into a 401 instead of a
+   * booking form.
+   */
+  anonymous?: boolean;
 }
 
 /**
@@ -231,7 +237,7 @@ function errorCode(parsed: unknown): string | null {
 
 export async function raw(path: string, opts: ApiOptions): Promise<{ status: number; body: unknown }> {
   const headers = new Headers({ Accept: "application/json" });
-  const token = getToken();
+  const token = opts.anonymous ? null : getToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   // The zone this browser is in. The server uses it as the LAST step of the
@@ -308,7 +314,12 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
   // valid, so signing them out would strand them at the login screen with the
   // same problem and no way to reach the fix.
   if (res.status === 403 && errorCode(parsed) === "email_not_verified") {
-    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/verify-email")) {
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    if (
+      typeof window !== "undefined" &&
+      !path.startsWith("/verify-email") &&
+      !path.startsWith("/book")
+    ) {
       window.location.assign("/verify-email");
     }
     throw new ApiError(403, "Please verify your email address to continue.", parsed);

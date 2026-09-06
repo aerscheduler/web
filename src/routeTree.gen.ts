@@ -36,6 +36,7 @@ import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
 import { Route as AuthedScheduleRouteImport } from './routes/_authed/schedule'
 import { Route as AuthedTrainingRouteImport } from './routes/_authed/training'
 import { Route as AuthCallbackRouteImport } from './routes/auth/callback'
+import { Route as BookConfirmRouteImport } from './routes/book.confirm'
 import { Route as AuthedAircraftResourceIdRouteImport } from './routes/_authed/aircraft_.$resourceId'
 import { Route as AuthedDevBookingZoneBannerRouteImport } from './routes/_authed/dev.booking-zone-banner'
 import { Route as AuthedMeIndexRouteImport } from './routes/_authed/me/index'
@@ -56,6 +57,7 @@ import { Route as AuthedPeopleOrgUserIdRouteImport } from './routes/_authed/peop
 import { Route as AuthedSettingsIndexRouteImport } from './routes/_authed/settings/index'
 import { Route as AuthedSlotOffersOfferIdRouteImport } from './routes/_authed/slot-offers.$offerId'
 import { Route as AuthedTrainingCourseIdRouteImport } from './routes/_authed/training_.$courseId'
+import { Route as BookOrgSlugOfferingSlugRouteImport } from './routes/book.$orgSlug.$offeringSlug'
 import { Route as AuthedComplianceRulesCurrencyTypeIdRouteImport } from './routes/_authed/compliance_.rules.$currencyTypeId'
 import { Route as AuthedDeveloperOrganizationsOrgIdRouteImport } from './routes/_authed/developer_.organizations.$orgId'
 import { Route as AuthedMaintenanceSquawksSquawkIdRouteImport } from './routes/_authed/maintenance_.squawks.$squawkId'
@@ -199,6 +201,11 @@ const AuthCallbackRoute = AuthCallbackRouteImport.update({
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookConfirmRoute = BookConfirmRouteImport.update({
+  id: '/book/confirm',
+  path: '/book/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthedAircraftResourceIdRoute =
   AuthedAircraftResourceIdRouteImport.update({
     id: '/aircraft_/$resourceId',
@@ -303,6 +310,11 @@ const AuthedTrainingCourseIdRoute = AuthedTrainingCourseIdRouteImport.update({
   path: '/training/$courseId',
   getParentRoute: () => AuthedRoute,
 } as any)
+const BookOrgSlugOfferingSlugRoute = BookOrgSlugOfferingSlugRouteImport.update({
+  id: '/book/$orgSlug/$offeringSlug',
+  path: '/book/$orgSlug/$offeringSlug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthedComplianceRulesCurrencyTypeIdRoute =
   AuthedComplianceRulesCurrencyTypeIdRouteImport.update({
     id: '/compliance_/rules/$currencyTypeId',
@@ -367,6 +379,7 @@ export interface FileRoutesByFullPath {
   '/schedule': typeof AuthedScheduleRoute
   '/training': typeof AuthedTrainingRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/book/confirm': typeof BookConfirmRoute
   '/aircraft/$resourceId': typeof AuthedAircraftResourceIdRoute
   '/dev/booking-zone-banner': typeof AuthedDevBookingZoneBannerRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
@@ -385,6 +398,7 @@ export interface FileRoutesByFullPath {
   '/people/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
   '/slot-offers/$offerId': typeof AuthedSlotOffersOfferIdRoute
   '/training/$courseId': typeof AuthedTrainingCourseIdRoute
+  '/book/$orgSlug/$offeringSlug': typeof BookOrgSlugOfferingSlugRoute
   '/me/': typeof AuthedMeIndexRoute
   '/settings/': typeof AuthedSettingsIndexRoute
   '/compliance/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
@@ -421,6 +435,7 @@ export interface FileRoutesByTo {
   '/schedule': typeof AuthedScheduleRoute
   '/training': typeof AuthedTrainingRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/book/confirm': typeof BookConfirmRoute
   '/aircraft/$resourceId': typeof AuthedAircraftResourceIdRoute
   '/dev/booking-zone-banner': typeof AuthedDevBookingZoneBannerRoute
   '/me/availability': typeof AuthedMeAvailabilityRoute
@@ -439,6 +454,7 @@ export interface FileRoutesByTo {
   '/people/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
   '/slot-offers/$offerId': typeof AuthedSlotOffersOfferIdRoute
   '/training/$courseId': typeof AuthedTrainingCourseIdRoute
+  '/book/$orgSlug/$offeringSlug': typeof BookOrgSlugOfferingSlugRoute
   '/me': typeof AuthedMeIndexRoute
   '/settings': typeof AuthedSettingsIndexRoute
   '/compliance/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
@@ -477,6 +493,7 @@ export interface FileRoutesById {
   '/_authed/schedule': typeof AuthedScheduleRoute
   '/_authed/training': typeof AuthedTrainingRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/book/confirm': typeof BookConfirmRoute
   '/_authed/aircraft_/$resourceId': typeof AuthedAircraftResourceIdRoute
   '/_authed/dev/booking-zone-banner': typeof AuthedDevBookingZoneBannerRoute
   '/_authed/me/availability': typeof AuthedMeAvailabilityRoute
@@ -495,6 +512,7 @@ export interface FileRoutesById {
   '/_authed/people_/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
   '/_authed/slot-offers/$offerId': typeof AuthedSlotOffersOfferIdRoute
   '/_authed/training_/$courseId': typeof AuthedTrainingCourseIdRoute
+  '/book/$orgSlug/$offeringSlug': typeof BookOrgSlugOfferingSlugRoute
   '/_authed/me/': typeof AuthedMeIndexRoute
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/compliance_/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
@@ -533,6 +551,7 @@ export interface FileRouteTypes {
     | '/schedule'
     | '/training'
     | '/auth/callback'
+    | '/book/confirm'
     | '/aircraft/$resourceId'
     | '/dev/booking-zone-banner'
     | '/me/availability'
@@ -551,6 +570,7 @@ export interface FileRouteTypes {
     | '/people/$orgUserId'
     | '/slot-offers/$offerId'
     | '/training/$courseId'
+    | '/book/$orgSlug/$offeringSlug'
     | '/me/'
     | '/settings/'
     | '/compliance/rules/$currencyTypeId'
@@ -587,6 +607,7 @@ export interface FileRouteTypes {
     | '/schedule'
     | '/training'
     | '/auth/callback'
+    | '/book/confirm'
     | '/aircraft/$resourceId'
     | '/dev/booking-zone-banner'
     | '/me/availability'
@@ -605,6 +626,7 @@ export interface FileRouteTypes {
     | '/people/$orgUserId'
     | '/slot-offers/$offerId'
     | '/training/$courseId'
+    | '/book/$orgSlug/$offeringSlug'
     | '/me'
     | '/settings'
     | '/compliance/rules/$currencyTypeId'
@@ -642,6 +664,7 @@ export interface FileRouteTypes {
     | '/_authed/schedule'
     | '/_authed/training'
     | '/auth/callback'
+    | '/book/confirm'
     | '/_authed/aircraft_/$resourceId'
     | '/_authed/dev/booking-zone-banner'
     | '/_authed/me/availability'
@@ -660,6 +683,7 @@ export interface FileRouteTypes {
     | '/_authed/people_/$orgUserId'
     | '/_authed/slot-offers/$offerId'
     | '/_authed/training_/$courseId'
+    | '/book/$orgSlug/$offeringSlug'
     | '/_authed/me/'
     | '/_authed/settings/'
     | '/_authed/compliance_/rules/$currencyTypeId'
@@ -683,6 +707,8 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   VerifyEmailRoute: typeof VerifyEmailRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  BookConfirmRoute: typeof BookConfirmRoute
+  BookOrgSlugOfferingSlugRoute: typeof BookOrgSlugOfferingSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -876,6 +902,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/book/confirm': {
+      id: '/book/confirm'
+      path: '/book/confirm'
+      fullPath: '/book/confirm'
+      preLoaderRoute: typeof BookConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authed/aircraft_/$resourceId': {
       id: '/_authed/aircraft_/$resourceId'
       path: '/aircraft/$resourceId'
@@ -1015,6 +1048,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/training/$courseId'
       preLoaderRoute: typeof AuthedTrainingCourseIdRouteImport
       parentRoute: typeof AuthedRoute
+    }
+    '/book/$orgSlug/$offeringSlug': {
+      id: '/book/$orgSlug/$offeringSlug'
+      path: '/book/$orgSlug/$offeringSlug'
+      fullPath: '/book/$orgSlug/$offeringSlug'
+      preLoaderRoute: typeof BookOrgSlugOfferingSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authed/compliance_/rules/$currencyTypeId': {
       id: '/_authed/compliance_/rules/$currencyTypeId'
@@ -1170,6 +1210,8 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   VerifyEmailRoute: VerifyEmailRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  BookConfirmRoute: BookConfirmRoute,
+  BookOrgSlugOfferingSlugRoute: BookOrgSlugOfferingSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

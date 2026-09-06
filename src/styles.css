@@ -171,7 +171,7 @@
   --sidebar-primary: #4a8fe7;
   --sidebar-primary-foreground: #ffffff;
   --sidebar-accent: #1f2023; /* subtle neutral hover fill */
-  --sidebar-accent-foreground: #6aa0ee; /* accent text+icon on the ACTIVE item */
+  --sidebar-accent-foreground: #f7f8f8; /* selected nav is white, not brand blue */
   --sidebar-border: #1f2023;
   --sidebar-ring: #4a8fe7;
 

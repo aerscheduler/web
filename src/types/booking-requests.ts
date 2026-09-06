@@ -1,6 +1,7 @@
 import type { Resource } from "@/types/api";
 
 export type BookingRequestStatus =
+  | "unverified"
   | "pending"
   | "approved"
   | "rejected"
@@ -22,10 +23,13 @@ export interface BookingRequest {
   personnel?: Record<string, unknown> | null;
   decidedAt?: string | null;
   decisionReason?: string | null;
+  guestName?: string | null;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
   requestedBy?: {
     id: number;
     user?: { id: number; name?: string; email?: string };
-  };
+  } | null;
   decidedBy?: {
     id: number;
     user?: { id: number; name?: string };

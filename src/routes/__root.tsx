@@ -42,6 +42,8 @@ const TITLES: Array<[string, string]> = [
   ["/settings", "Settings"],
   ["/onboarding", "Get started"],
   ["/join", "Join a school"],
+  ["/book/confirm", "Confirm request"],
+  ["/book", "Request a flight"],
   ["/demo", "Demo"],
   ["/login", "Sign in"],
   ["/signup", "Create account"],
@@ -54,7 +56,7 @@ const TITLES: Array<[string, string]> = [
 function RouteTitle() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const ledgerQ = useOrgLedgerSettings({
-    enabled: !!getToken(),
+    enabled: !!getToken() && !pathname.startsWith("/book"),
   });
   useEffect(() => {
     const match = TITLES.find(([p]) => pathname === p || pathname.startsWith(p + "/"));

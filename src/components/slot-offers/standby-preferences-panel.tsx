@@ -158,6 +158,8 @@ export function StandbyPreferencesPanel() {
               icon={RefreshCw}
               title="No standing preferences yet"
               body="Add a weekly pattern or a specific open window below."
+              docs="standing-preferences"
+              compact
             />
           ) : (
             <ul className="space-y-2">

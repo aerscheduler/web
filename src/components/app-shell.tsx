@@ -9,16 +9,20 @@ import {
   ChevronsUpDown,
   LogOut,
   Menu,
-  MoreHorizontal,
+  Monitor,
+  Moon,
   Plus,
   Settings,
+  Sun,
   TerminalSquare,
   User as UserIcon,
+  UserPlus,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/realtime";
 import {
   canCreateReservation,
+  canManageMembers,
   canSelfBook,
   isAdmin,
   isStaff,
@@ -38,7 +42,6 @@ import { initials } from "@/lib/utils";
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -52,10 +55,17 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { InviteModal } from "@/components/people/invite-modal";
+import { useTheme } from "@/components/theme-provider";
+import type { Theme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -166,17 +176,13 @@ export function AppShell({ children }: { children: ReactNode }) {
 function AppSidebar() {
   return (
     <Sidebar collapsible="offcanvas">
-      <SidebarHeader>
+      <SidebarHeader className="px-2 py-2">
         <OrgSwitcher />
       </SidebarHeader>
 
       <SidebarContent>
         <SidebarNav />
       </SidebarContent>
-
-      <SidebarFooter>
-        <UserMenu />
-      </SidebarFooter>
     </Sidebar>
   );
 }
@@ -216,43 +222,17 @@ function SidebarEdgeToggle() {
 }
 
 function OrgSwitcher() {
-  const { organization, organizations, switchOrg } = useAuth();
+  const { user, organization, organizations, switchOrg, logout, roles, isDeveloper } = useAuth();
+  const { theme, setTheme } = useTheme();
   const qc = useQueryClient();
-  const multi = organizations.length > 1;
-
-  const button = (
-    <SidebarMenuButton
-      size="lg"
-      className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-    >
-      {/* Always-white tile so the navy wing stays visible in both themes.
-          `onLight` pins the light-surface mark; the default would swap to
-          the white-wing variant under `.dark` and that wing would vanish. */}
-      <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg border border-sidebar-border bg-white">
-        {organization?.profileImage ? (
-          <img
-            src={organization.profileImage}
-            alt={organization.name}
-            className="size-full object-cover"
-          />
-        ) : (
-          <LogoMark onLight className="size-full p-1" />
-        )}
-      </div>
-      <div className="grid flex-1 text-left text-sm leading-tight">
-        <span className="truncate font-semibold">{organization?.name ?? "AerScheduler"}</span>
-      </div>
-      {multi && <ChevronsUpDown className="ml-auto size-4 opacity-60" />}
-    </SidebarMenuButton>
-  );
-
-  if (!multi) {
-    return (
-      <SidebarMenu>
-        <SidebarMenuItem>{button}</SidebarMenuItem>
-      </SidebarMenu>
-    );
-  }
+  const navigate = useNavigate();
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const admin = isAdmin(roles);
+  const canInvite = canManageMembers(roles);
+  // Same reason as the rail's links: this menu lives INSIDE the mobile drawer,
+  // so following one of these would leave the drawer over the page it opened.
+  const { isMobile, setOpenMobile } = useSidebar();
+  const dismiss = () => isMobile && setOpenMobile(false);
 
   async function onSwitch(id: number) {
     if (id === organization?.id) return;
@@ -264,117 +244,149 @@ function OrgSwitcher() {
   }
 
   return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
-            align="start"
-          >
-            <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Organizations
-            </DropdownMenuLabel>
-            {organizations.map((o) => (
-              <DropdownMenuItem key={o.id} onClick={() => void onSwitch(o.id)} className="gap-2">
-                <div className="flex size-6 items-center justify-center rounded-md border bg-card text-[10px] font-semibold">
-                  {initials(o.name)}
+    <>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <SidebarMenuButton
+                className="h-8 gap-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+              >
+                {/* Always-white tile so the navy wing stays visible in both themes.
+                    `onLight` pins the light-surface mark; the default would swap to
+                    the white-wing variant under `.dark` and that wing would vanish. */}
+                <div className="flex aspect-square size-4 items-center justify-center overflow-hidden rounded-md border border-sidebar-border bg-white">
+                  {organization?.profileImage ? (
+                    <img
+                      src={organization.profileImage}
+                      alt={organization.name}
+                      className="size-full object-cover"
+                    />
+                  ) : (
+                    <LogoMark onLight className="size-full p-px" />
+                  )}
                 </div>
-                <span className="truncate">{o.name}</span>
-                {o.id === organization?.id && <Check className="ml-auto size-4" />}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
-  );
-}
-
-function UserMenu() {
-  const { user, logout, membership, isDeveloper } = useAuth();
-  const navigate = useNavigate();
-  const avatarSrc = membership?.profileImage ?? undefined;
-  const qc = useQueryClient();
-  // Same reason as the rail's links: this menu lives INSIDE the mobile drawer,
-  // so following one of these would leave the drawer over the page it opened.
-  const { isMobile, setOpenMobile } = useSidebar();
-  const dismiss = () => isMobile && setOpenMobile(false);
-
-  return (
-    <SidebarMenu>
-      <SidebarMenuItem>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-            >
-              <Avatar className="size-8 rounded-lg">
-                {avatarSrc && (
-                  <AvatarImage
-                    src={avatarSrc}
-                    alt={user?.name ?? ""}
-                    className="rounded-lg object-cover"
-                  />
-                )}
-                <AvatarFallback className="rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                  {initials(user?.name)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user?.name ?? "Signed in"}</span>
-                <span className="truncate text-xs text-sidebar-foreground/60">{user?.email}</span>
-              </div>
-              <MoreHorizontal className="ml-auto size-4 opacity-60" />
-            </SidebarMenuButton>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56"
-            side="top"
-            align="start"
-          >
-            <DropdownMenuLabel className="flex flex-col">
-              <span className="text-sm font-medium">{user?.name}</span>
-              <span className="text-xs font-normal text-muted-foreground">{user?.email}</span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to="/me/profile" onClick={dismiss}>
-                <UserIcon />
-                Account &amp; settings
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to="/me/notifications" onClick={dismiss}>
-                <Bell />
-                Notification settings
-              </Link>
-            </DropdownMenuItem>
-            {isDeveloper && (
+                <span className="truncate text-[13px] font-medium">
+                  {organization?.name ?? "AerScheduler"}
+                </span>
+                <ChevronsUpDown className="ml-auto size-3.5 opacity-50" />
+              </SidebarMenuButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="min-w-56" align="start" side="bottom" sideOffset={6}>
+              {user?.email && (
+                <>
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    {user.email}
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                </>
+              )}
+              {admin && (
+                <DropdownMenuItem asChild>
+                  <Link to="/settings" onClick={dismiss}>
+                    <Settings />
+                    Settings
+                  </Link>
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem asChild>
-                <Link to="/developer" onClick={dismiss}>
-                  <TerminalSquare />
-                  Developer
+                <Link to="/me/profile" onClick={dismiss}>
+                  <UserIcon />
+                  Account
                 </Link>
               </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              onClick={() => {
-                logout();
-                qc.clear();
-                navigate({ to: "/login" });
-              }}
-            >
-              <LogOut />
-              Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </SidebarMenuItem>
-    </SidebarMenu>
+              {canInvite && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    dismiss();
+                    setInviteOpen(true);
+                  }}
+                >
+                  <UserPlus />
+                  Invite people
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  {theme === "dark" ? <Moon /> : theme === "light" ? <Sun /> : <Monitor />}
+                  Theme
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuRadioGroup
+                    value={theme}
+                    onValueChange={(value) => setTheme(value as Theme)}
+                  >
+                    <DropdownMenuRadioItem value="light">
+                      <Sun />
+                      Light
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="dark">
+                      <Moon />
+                      Dark
+                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem value="system">
+                      <Monitor />
+                      System
+                    </DropdownMenuRadioItem>
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>Switch organization</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent className="min-w-52">
+                  {organizations.map((o) => (
+                    <DropdownMenuItem
+                      key={o.id}
+                      onClick={() => void onSwitch(o.id)}
+                      className="gap-2"
+                    >
+                      <div className="flex size-5 items-center justify-center rounded-md border bg-card text-[10px] font-semibold">
+                        {initials(o.name)}
+                      </div>
+                      <span className="truncate">{o.name}</span>
+                      {o.id === organization?.id && <Check className="ml-auto size-4" />}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link to="/join" onClick={dismiss}>
+                      Join another school
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+              <DropdownMenuItem asChild>
+                <Link to="/me/notifications" onClick={dismiss}>
+                  <Bell />
+                  Notification settings
+                </Link>
+              </DropdownMenuItem>
+              {isDeveloper && (
+                <DropdownMenuItem asChild>
+                  <Link to="/developer" onClick={dismiss}>
+                    <TerminalSquare />
+                    Developer
+                  </Link>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  logout();
+                  qc.clear();
+                  navigate({ to: "/login" });
+                }}
+              >
+                <LogOut />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </SidebarMenuItem>
+      </SidebarMenu>
+      {canInvite && <InviteModal open={inviteOpen} onOpenChange={setInviteOpen} />}
+    </>
   );
 }
 

@@ -142,12 +142,15 @@ export function ApproveRentersSheet({
               icon={Users}
               title="No students or renters yet"
               body="Give someone the student or renter role from People, then approve them here. Instructors can already book any tail."
+              docs="approve-members"
+              compact
             />
           ) : visible.length === 0 ? (
             <EmptyState
               icon={Search}
               title="No matches"
               body="Nobody in this list matches that name or email."
+              compact
             />
           ) : (
             <ul className="divide-y divide-border">

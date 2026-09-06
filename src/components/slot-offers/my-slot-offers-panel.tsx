@@ -99,6 +99,8 @@ export function MySlotOffersPanel() {
             icon={CalendarClock}
             title="No pending offers"
             body="When a matching time opens, your offer will appear here."
+            docs="slot-offers"
+            compact
           />
         </Card>
       ) : (

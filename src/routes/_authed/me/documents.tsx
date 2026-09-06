@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Building2, ExternalLink, Plus, Upload } from "lucide-react";
+import { Building2, ExternalLink, FileText, Plus, Upload } from "lucide-react";
 import { pageRows, useDocumentTypes, useMemberDocumentsPage } from "@/features/queries";
 import { usePaging } from "@/lib/paging";
 import { useAuth } from "@/lib/auth";

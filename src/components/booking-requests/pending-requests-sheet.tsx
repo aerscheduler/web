@@ -39,14 +39,14 @@ export function PendingBookingRequestsSheet({
     }
   };
 
-  const requests = requestsQuery.data ?? [];
+  const requests = (requestsQuery.data ?? []).filter((request) => request.status === "pending");
 
   return (
     <DetailPanel
       open={open}
       onOpenChange={onOpenChange}
       title="Booking requests"
-      description="Pending member requests waiting for desk approval. Approving creates a normal reservation."
+      description="Pending requests waiting for desk approval, including guest requests from a public booking link. Approving creates a normal reservation."
     >
       {requestsQuery.isPending ? (
         <p className="py-6 text-center text-sm text-muted-foreground">Loading requests...</p>
@@ -57,7 +57,7 @@ export function PendingBookingRequestsSheet({
           <ClipboardList className="mx-auto size-8 text-muted-foreground/60" />
           <p className="mt-3 font-medium">No pending requests</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            When members need approval to book, their requests appear here.
+            When members or guests need approval to book, their requests appear here.
           </p>
         </div>
       ) : (
@@ -67,7 +67,9 @@ export function PendingBookingRequestsSheet({
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium">
-                    {request.requestedBy?.user?.name ?? `Member #${request.requestedBy?.id}`}
+                    {request.requestedBy?.user?.name ??
+                      request.guestName ??
+                      (request.requestedBy?.id ? `Member #${request.requestedBy.id}` : "Guest")}
                   </p>
                   <Badge variant="outline">{request.reservationType}</Badge>
                   <Badge variant="secondary">Pending</Badge>

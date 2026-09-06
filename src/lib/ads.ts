@@ -44,7 +44,7 @@
  * unchanged on a laptop, in preview builds, and for anyone who declined the banner.
  */
 
-import { hasConsent } from "./analytics";
+import { hasConsent, isPublicGuestBookingPath, redactSensitiveUrl } from "./analytics";
 
 /**
  * Ad platform ids, injected at build time.
@@ -122,7 +122,7 @@ const GRANTED = {
  * defaults, which is what lets an unconsented signup still be reported.
  */
 export function startAds(): void {
-  if (started || typeof window === "undefined" || !hasConsent()) return;
+  if (started || typeof window === "undefined" || isPublicGuestBookingPath() || !hasConsent()) return;
   started = true;
   loadMeta();
 }
@@ -142,12 +142,16 @@ export function stopAds(): void {
 
 /**
  * Install the Google tag with everything denied. Not gated on consent, deliberately.
+ * Skipped on guest booking pages: the cookie banner is hidden there, and a cookieless
+ * Ads ping on a school's share link or iframe is still a third-party tracker they did
+ * not disclose.
  *
  * Order matters: dataLayer, then the consent default, then the script. A default pushed
  * after the tag initialises is ignored and the visitor falls back to platform defaults.
  */
 export function startConsentMode(): void {
-  if (googleLoaded || typeof window === "undefined" || !GOOGLE_ADS_ID || window.gtag) return;
+  if (googleLoaded || typeof window === "undefined" || isPublicGuestBookingPath()) return;
+  if (!GOOGLE_ADS_ID || window.gtag) return;
   googleLoaded = true;
 
   window.dataLayer = window.dataLayer || [];
@@ -174,14 +178,24 @@ export function startConsentMode(): void {
   window.gtag("js", new Date());
   // `conversion_linker` is what reads the `_gcl_*` cookie the marketing site wrote.
   // Without it a conversion fired here is unattributed, which is the whole point of
-  // this module.
-  window.gtag("config", GOOGLE_ADS_ID, { conversion_linker: true });
+  // this module. page_location is redacted so a confirm-link token never lands in Ads.
+  window.gtag("config", GOOGLE_ADS_ID, {
+    conversion_linker: true,
+    page_location: redactSensitiveUrl(window.location.href),
+  });
 }
 
 /** Push the current answer to Google. Safe to call repeatedly, and in both directions. */
 export function syncGoogleConsent(): void {
   if (typeof window === "undefined" || !window.gtag) return;
   window.gtag("consent", "update", hasConsent() ? { ...GRANTED } : { ...DENIED });
+}
+
+/** Console already loaded gtag; a later SPA visit to /book must not keep pinging Ads. */
+export function pauseAdsOnGuestSurface(): void {
+  if (typeof window === "undefined") return;
+  started = false;
+  if (window.gtag) window.gtag("consent", "update", { ...DENIED });
 }
 
 function loadMeta(): void {
@@ -246,7 +260,7 @@ export function trackAdConversion(
   name: AdConversion,
   opts?: { value?: number; currency?: string; transactionId?: string }
 ): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || isPublicGuestBookingPath()) return;
   // A hard reload straight onto the Stripe success redirect can land here before either
   // loader has run, so make sure the Google tag exists before firing at it.
   startConsentMode();

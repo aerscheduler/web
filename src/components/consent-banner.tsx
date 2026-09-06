@@ -1,5 +1,6 @@
 import * as React from "react";
-import { bootstrapAnalyticsConsent, setConsent } from "@/lib/analytics";
+import { useRouterState } from "@tanstack/react-router";
+import { bootstrapAnalyticsConsent, isPublicGuestBookingPath, setConsent } from "@/lib/analytics";
 import { startAds, stopAds, syncGoogleConsent } from "@/lib/ads";
 import { Button } from "@/components/ui/button";
 
@@ -16,21 +17,38 @@ import { Button } from "@/components/ui/button";
  * `bootstrapAnalyticsConsent`). Non-US and unknown geo still get this card. An
  * explicit prior decline always wins over geo.
  *
+ * Guest booking pages never show this card. An iframe on a school's site is their
+ * visitor, not ours, and a share link should not put AerScheduler cookies over the
+ * request form. Embeds also skip PostHog, ads, and replay.
+ *
  * Deliberately bottom-left and small: the console is a working tool, and a modal in
  * front of a dispatcher's schedule on a Monday morning is not a reasonable thing to do
  * over analytics.
  */
 export function ConsentBanner() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const search = useRouterState({ select: (s) => s.location.searchStr });
   const [visible, setVisible] = React.useState(false);
+  const hide = isPublicGuestBookingPath(pathname);
 
   React.useEffect(() => {
     // Country cookie is stamped by middleware on the HTML response, so it is already
     // readable when this effect runs. Read on the client only so we never flash the
     // banner at people who already decided (or who are in the US).
+    if (hide) {
+      setVisible(false);
+      return;
+    }
     if (bootstrapAnalyticsConsent()) setVisible(true);
-  }, []);
+  }, [pathname, search, hide]);
 
-  if (!visible) return null;
+  React.useEffect(() => {
+    if (!visible) return;
+    document.documentElement.classList.add("consent-banner-open");
+    return () => document.documentElement.classList.remove("consent-banner-open");
+  }, [visible]);
+
+  if (hide || !visible) return null;
 
   function decide(state: "granted" | "denied") {
     // setConsent starts or stops PostHog immediately, so accepting takes effect on this

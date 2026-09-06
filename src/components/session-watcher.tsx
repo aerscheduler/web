@@ -16,7 +16,14 @@ import { isDemoTab } from "@/lib/demo";
  * Routes that already assume you are signed out. Landing on one of these with a
  * dead token is not an event worth announcing, you are where you belong.
  */
-const SIGNED_OUT_ROUTES = ["/login", "/signup", "/forgot-password", "/reset-password", "/auth"];
+const SIGNED_OUT_ROUTES = [
+  "/login",
+  "/signup",
+  "/forgot-password",
+  "/reset-password",
+  "/auth",
+  "/book",
+];
 
 function isSignedOutRoute(pathname: string) {
   return SIGNED_OUT_ROUTES.some((p) => pathname === p || pathname.startsWith(p + "/"));

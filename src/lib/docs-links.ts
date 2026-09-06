@@ -449,8 +449,62 @@ export const DOCS_TOPICS = {
   "pending-booking-requests": {
     title: "Booking requests",
     summary:
-      "Pending member requests waiting for a desk decision. Approve to book the slot on the board, or decline to close the request without a reservation.",
+      "Pending requests waiting for a desk decision, from members who need approval and from guests who used a public booking link. Approve to book the slot on the board, or decline to close the request without a reservation.",
     href: "scheduling/booking-approval-requests#approve-or-decline-front-desk",
+  },
+  "public-booking-links": {
+    title: "Public booking links",
+    summary:
+      "A shareable page for guests who do not have an account. They pick a day and start time, confirm by email, and you approve from Calendar → Booking requests. Members still book with Solo, Dual, Ground and the rest. This does not replace reservation types.",
+    href: "scheduling/public-booking-requests",
+  },
+  "public-booking-embed-hosts": {
+    title: "Websites that may embed",
+    summary:
+      "Leave this empty to keep the share link only. Add your site host, one per line, before you paste an iframe. www and the bare domain are different sites: list both if both serve your pages. Other domains cannot show the page until they are listed. AerScheduler can still open the link in its own tab.",
+    href: "scheduling/public-booking-requests",
+  },
+  "calendar-visibility": {
+    title: "Calendar visibility",
+    summary:
+      "These dropdowns are for people picking a time on a public page or offering, not the staff Calendar. Owners, admins, and dispatchers always see the full board.",
+    href: "scheduling/calendar-visibility",
+  },
+  "calendar-visibility-guests": {
+    title: "Guests (public booking)",
+    summary:
+      "People with no account on a public /book link. Open slots only is the usual choice: they see times they can request, not who is already flying.",
+    href: "scheduling/calendar-visibility",
+  },
+  "calendar-visibility-students": {
+    title: "Students",
+    summary:
+      "Signed-in members with the student role, when they pick times on an offering. This does not change what they see on Calendar.",
+    href: "scheduling/calendar-visibility",
+  },
+  "calendar-visibility-renters": {
+    title: "Renters",
+    summary:
+      "Signed-in members with the renter role, when they pick times on an offering. This does not change what they see on Calendar.",
+    href: "scheduling/calendar-visibility",
+  },
+  "calendar-visibility-instructors": {
+    title: "Instructors",
+    summary:
+      "Signed-in members with the instructor role, when they pick times on an offering. This does not change what they see on Calendar.",
+    href: "scheduling/calendar-visibility",
+  },
+  "calendar-visibility-members": {
+    title: "Other members",
+    summary:
+      "Signed-in people who are not student, renter, or instructor. Desk staff are never in this list: they always see the full board.",
+    href: "scheduling/calendar-visibility",
+  },
+  "calendar-visibility-levels": {
+    title: "What each option means",
+    summary:
+      "Open slots only lists times they can book. The other options add anonymous busy times, their own flights by name, or the full schedule (including tails when the offering lets them pick an aircraft).",
+    href: "scheduling/calendar-visibility",
   },
   "what-you-can-book": {
     title: "What you can book",
@@ -545,7 +599,6 @@ export const DOCS_TOPICS = {
     href: "training/build-a-syllabus",
     linkLabel: "How to build a syllabus",
   },
-
   "hide-announcement": {
     title: "Got it",
     summary:

@@ -25,13 +25,15 @@
  * somebody who answered the banner there is never asked again here. Undecided is treated
  * as "no", so nothing loads until they accept, except for US visitors: the console
  * implies grant there (see `bootstrapAnalyticsConsent`) so dispatchers are not nagged
- * for product analytics. An explicit prior decline is always respected.
+ * for product analytics. An explicit prior decline is always respected. An embed on a
+ * school's website never starts tracking and never writes that cookie.
  */
 
 import type { PostHog } from "posthog-js";
 import { attributionChannel, readAttribution } from "./attribution";
 import { isDemoTab } from "./demo";
 import { getVisitorCountry, isConsentImpliedRegion } from "./geo";
+import { guestBookingHtmlWasLoaded } from "./public-booking-embed-hosts";
 
 /** Public, write-only ingest key, meant to ship in the client bundle. */
 const POSTHOG_KEY =
@@ -59,6 +61,35 @@ export const CONSENT_COOKIE = "aer_consent";
 const CONSENT_DAYS = 365;
 
 export type ConsentState = "granted" | "denied" | "unset";
+
+/**
+ * Guest page sitting on a school's site (iframe, or `?embed=1` used to preview that).
+ *
+ * That visit belongs to the school, not to our console. Do not start PostHog, replay,
+ * or ads there, do not write `aer_consent` from implied US grant, and do not show the
+ * cookie banner. The hosted share link (`/book/{slug}/{offering}` in its own tab) still
+ * follows implied US consent for our own analytics, but the banner stays off there too
+ * so a discovery-flight form is not covered by an AerScheduler cookie card.
+ */
+export function isEmbeddedGuestBooking(): boolean {
+  if (typeof window === "undefined") return false;
+  if (!isPublicGuestBookingPath()) return false;
+  if (!/^\/book\/[^/]+\/[^/]+$/.test(window.location.pathname)) return false;
+  const embed = new URLSearchParams(window.location.search).get("embed");
+  if (embed === "1" || embed === "true") return true;
+  try {
+    return window.self !== window.top;
+  } catch {
+    return true;
+  }
+}
+
+/** Hosted share link, embed, or email confirm. Never `/me/book`. */
+export function isPublicGuestBookingPath(
+  pathname = typeof window !== "undefined" ? window.location.pathname : ""
+): boolean {
+  return pathname === "/book" || pathname.startsWith("/book/");
+}
 
 // ---------------------------------------------------------------- consent
 
@@ -123,6 +154,8 @@ export function setConsent(state: "granted" | "denied"): void {
  * Returns whether the cookie banner should still prompt.
  */
 export function bootstrapAnalyticsConsent(): boolean {
+  if (isEmbeddedGuestBooking()) return false;
+
   const existing = readConsent();
   if (existing === "granted") {
     startAnalytics();
@@ -164,7 +197,8 @@ let pending: Array<(client: PostHog) => void> = [];
 
 /** Load PostHog, if consented. Idempotent. */
 export function startAnalytics(): void {
-  if (started || typeof window === "undefined" || !hasConsent() || !POSTHOG_KEY) return;
+  if (started || typeof window === "undefined" || isEmbeddedGuestBooking()) return;
+  if (!hasConsent() || !POSTHOG_KEY) return;
   if (!ANALYTICS_ENABLED) return;
   started = true;
 
@@ -184,6 +218,16 @@ export function startAnalytics(): void {
         // This is a console people run their business in. Recording keystrokes in it
         // would capture student names, rates and addresses, so every input is masked.
         session_recording: { maskAllInputs: true },
+        disable_session_recording:
+          typeof window !== "undefined" && window.location.pathname.startsWith("/book/confirm"),
+        before_send: (event) => {
+          if (event && typeof event === "object" && "properties" in event) {
+            redactSensitiveEventProperties(
+              (event as { properties?: Record<string, unknown> }).properties
+            );
+          }
+          return event;
+        },
         // Crash reporting. Off by default in posthog-js, which is why the project
         // had not recorded one `$exception` in 90 days on any surface. A console
         // that throws on load looks identical to a console nobody opened, and
@@ -254,6 +298,30 @@ function stopAnalytics(): void {
     }
   }
   started = false;
+}
+
+/** SPA from the console onto /book: stop capturing without dropping identity. */
+export function pauseAnalyticsOnGuestSpa(): void {
+  pending = [];
+  if (!ph) return;
+  try {
+    ph.stopSessionRecording();
+    ph.opt_out_capturing();
+  } catch {
+    /* nothing here is worth an error */
+  }
+}
+
+export function resumeAnalyticsAfterGuestSpa(): void {
+  if (!ph) {
+    startAnalytics();
+    return;
+  }
+  try {
+    ph.opt_in_capturing();
+  } catch {
+    /* nothing here is worth an error */
+  }
 }
 
 // ---------------------------------------------------------------- paths
@@ -338,9 +406,84 @@ export function track(event: string, props?: Props): void {
  * The uncollapsed value is kept as `path_exact` for the rare case of chasing one
  * specific record, and `$current_url` has always carried it anyway.
  */
+/** Query keys that are secrets in the address bar (confirm links, password reset). */
+const SECRET_QUERY_KEYS = ["token", "code", "resetToken"] as const;
+
+const BOOK_CONFIRM_TOKEN_KEY = "aer.bookConfirmToken";
+let memoryBookConfirmToken: string | null = null;
+
+export function redactSensitiveUrl(href: string): string {
+  try {
+    const url = new URL(href);
+    for (const key of SECRET_QUERY_KEYS) {
+      if (url.searchParams.has(key)) url.searchParams.set(key, "<redacted>");
+    }
+    return url.toString();
+  } catch {
+    return href.replace(/([?&](?:token|code|resetToken)=)[^&]*/gi, "$1<redacted>");
+  }
+}
+
+const URL_PROPERTY_KEYS = [
+  "$current_url",
+  "$referrer",
+  "$initial_current_url",
+  "$initial_referrer",
+  "$session_entry_url",
+] as const;
+
+/** Mutates PostHog event properties so autocapture / pageleave / exceptions cannot leak tokens. */
+export function redactSensitiveEventProperties(properties: Record<string, unknown> | undefined): void {
+  if (!properties) return;
+  for (const key of URL_PROPERTY_KEYS) {
+    const value = properties[key];
+    if (typeof value === "string") properties[key] = redactSensitiveUrl(value);
+  }
+}
+
+/**
+ * Pull the public-booking confirm token out of the address bar before analytics
+ * or ads boot, so gtag and PostHog never see it. The confirm page reads it back
+ * from sessionStorage.
+ */
+export function stashAndStripBookConfirmToken(): void {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  if (!url.pathname.startsWith("/book/confirm")) return;
+  const token = url.searchParams.get("token");
+  if (!token) return;
+  try {
+    sessionStorage.setItem(BOOK_CONFIRM_TOKEN_KEY, token);
+  } catch {
+    memoryBookConfirmToken = token;
+  }
+  url.searchParams.delete("token");
+  window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+}
+
+export function peekBookConfirmToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return sessionStorage.getItem(BOOK_CONFIRM_TOKEN_KEY) ?? memoryBookConfirmToken;
+  } catch {
+    return memoryBookConfirmToken;
+  }
+}
+
+export function clearBookConfirmToken(): void {
+  memoryBookConfirmToken = null;
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.removeItem(BOOK_CONFIRM_TOKEN_KEY);
+  } catch {
+    /* private mode */
+  }
+}
+
 export function trackPageview(path: string, search?: Record<string, unknown>): void {
+  if (isPublicGuestBookingPath(path) && !guestBookingHtmlWasLoaded()) return;
   track("$pageview", {
-    $current_url: window.location.href,
+    $current_url: redactSensitiveUrl(window.location.href),
     path: normalizePath(path),
     path_exact: path,
     ...describeFilters(search),
@@ -357,7 +500,7 @@ export function trackPageview(path: string, search?: Record<string, unknown>): v
  * number to find them, and that lands in the query string. Sending it would put customer
  * names into a third-party analytics tool, so these keys report only that they were used.
  */
-const OPAQUE_KEYS = new Set(["q", "search", "query", "name", "email"]);
+const OPAQUE_KEYS = new Set(["q", "search", "query", "name", "email", "token", "code", "resetToken"]);
 
 /** Slug-ish values are enum-like and safe to keep. Anything else is somebody's data. */
 const SAFE_VALUE = /^[\w,:-]{1,60}$/;

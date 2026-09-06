@@ -45,6 +45,21 @@ describe("the Security pane", () => {
   });
 });
 
+describe("the Booking offerings pane", () => {
+  it("is offered to an admin", () => {
+    expect(tabsFor(false, true)).toContain("booking-offerings");
+  });
+
+  it("is hidden from a non-admin who reached Settings on a grant", () => {
+    expect(tabsFor(false, false)).not.toContain("booking-offerings");
+  });
+
+  it("is not reachable by typing ?tab=booking-offerings", () => {
+    expect(canSeeSettingsTab("booking-offerings", false, false)).toBe(false);
+    expect(canSeeSettingsTab("booking-offerings", false, true)).toBe(true);
+  });
+});
+
 describe("the rest of Settings", () => {
   it("still reaches a non-admin, or the grant would be pointless", () => {
     // The failure to avoid is over-correcting: gating all of Settings on admin would
@@ -98,6 +113,6 @@ describe("the registry itself", () => {
     //                NOT granted it either; see the role journey in
     //                e2e/operations/airworthiness-roles.spec.ts.
     const adminOnly = SETTINGS_TABS.filter((t) => t.adminOnly).map((t) => t.value);
-    expect(adminOnly).toEqual(["ad-tracking", "plan", "security"]);
+    expect(adminOnly).toEqual(["booking-offerings", "ad-tracking", "plan", "security"]);
   });
 });

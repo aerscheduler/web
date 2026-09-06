@@ -114,6 +114,7 @@ export function OrgMembersTable({ orgId }: { orgId: number }) {
               icon={UserRound}
               title="Nobody matches"
               body="Search this school's members by name or email address."
+              compact
             />
           }
           mobileCard={(m) => (

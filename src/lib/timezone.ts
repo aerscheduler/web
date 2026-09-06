@@ -125,7 +125,7 @@ export function wallClockInZone(
 
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone,
-    hour12: false,
+    hourCycle: "h23",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -134,12 +134,26 @@ export function wallClockInZone(
   }).formatToParts(date);
 
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const hourRaw = get("hour");
+
+  if (hourRaw === 24) {
+    const next = new Date(date.getTime() + 60 * 1000);
+    const rolled = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(next);
+    const take = (type: string) => Number(rolled.find((p) => p.type === type)?.value ?? 0);
+    return { year: take("year"), month: take("month"), day: take("day"), hour: 0, minute: get("minute") };
+  }
 
   return {
     year: get("year"),
     month: get("month"),
     day: get("day"),
-    hour: get("hour") % 24,
+    hour: hourRaw,
     minute: get("minute"),
   };
 }

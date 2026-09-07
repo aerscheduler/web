@@ -43,6 +43,20 @@ export interface BookingRequest {
   resultingReservation?: { id: number; start?: string; end?: string; type?: string } | null;
   convertedAt?: string | null;
   convertRole?: string | null;
+  offering?: {
+    id: number;
+    name?: string | null;
+    reservationType?: string;
+    resources?: Array<{
+      resource?: Resource | null;
+    }>;
+    instructors?: Array<{
+      instructorOrgUser?: {
+        id: number;
+        user?: { id: number; name?: string | null };
+      } | null;
+    }>;
+  } | null;
 }
 
 export type CreateBookingRequestInput = {

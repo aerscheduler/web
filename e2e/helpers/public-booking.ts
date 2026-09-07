@@ -350,10 +350,11 @@ export async function openGuestPage(page: Page) {
 
 export async function fillGuestForm(
   page: GuestUi,
-  args: { name: string; email: string; notes: string; consent?: boolean },
+  args: { name: string; email: string; notes: string; phone?: string; consent?: boolean },
 ) {
   await page.getByRole("textbox", { name: "Name" }).fill(args.name);
   await page.getByRole("textbox", { name: "Email" }).fill(args.email);
+  await page.getByRole("textbox", { name: "Phone" }).fill(args.phone ?? "5551234567");
   await page.getByRole("textbox", { name: /notes/i }).fill(args.notes);
   if (args.consent !== false) await page.getByRole("checkbox").check();
 }
@@ -404,6 +405,7 @@ export async function seedConfirmedGuest(
       data: {
         name,
         email,
+        phone: "5551234567",
         notes,
         start: slot.start,
         end: slot.end,
@@ -466,7 +468,7 @@ export async function openOfferingsPage(page: Page) {
   const errors = collectPageErrors(page);
   await page.goto("/offerings");
   await dismissCookieBanner(page);
-  await expect(page.getByRole("heading", { level: 1, name: "Offerings" })).toBeVisible({
+  await expect(page.getByRole("heading", { level: 1, name: "Booking links" })).toBeVisible({
     timeout: 20_000,
   });
   return errors;

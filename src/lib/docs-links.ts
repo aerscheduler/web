@@ -459,9 +459,9 @@ export const DOCS_TOPICS = {
     href: "scheduling/public-booking-requests",
   },
   "booking-offerings": {
-    title: "Offerings",
+    title: "Booking links",
     summary:
-      "Presets for discovery flights and other bookable products. Every school starts with a Discovery flight offering. Active offerings get a public link once you turn on Allow public requests under Settings → Booking links.",
+      "Public pages for discovery flights and other guest requests. Every school starts with a Discovery flight. Active rows get a public link once you turn on Allow public requests under Settings → Booking links.",
     href: "scheduling/public-booking-requests",
   },
   "collection-style": {

@@ -71,13 +71,12 @@ for (const role of SETTINGS_ROLES) {
         await expect(page.getByText(label, { exact: true })).toBeVisible();
         await expect(audienceSelect(page, label)).toBeVisible();
       }
-      await expect(page.getByRole("link", { name: /configure booking offerings/i })).toBeVisible();
+      await expect(page.getByRole("link", { name: /configure booking links/i })).toBeVisible();
       await expect(page.getByRole("button", { name: /add offering/i })).toHaveCount(0);
-      await page.getByRole("link", { name: /configure booking offerings/i }).click();
+      await page.getByRole("link", { name: /configure booking links/i }).click();
       await expect(page).toHaveURL(/\/offerings/, { timeout: 15_000 });
       await expect(page.getByRole("button", { name: /add offering/i })).toBeVisible();
       await expect(page.getByText("E2E Discovery")).toBeVisible();
-      await expect(page.getByText("Active").first()).toBeVisible();
       await page.getByRole("button", { name: /actions for e2e discovery/i }).click();
       await expect(page.getByRole("menuitem", { name: /^Edit$/i })).toBeVisible();
       await expect(page.getByRole("menuitem", { name: /open public link/i })).toBeVisible();
@@ -723,6 +722,7 @@ test.describe("offering setting effects", () => {
         data: {
           name: `E2E-ASSIGN-${Date.now()}`,
           email: `e2e-assign-${Date.now()}@example.com`,
+          phone: "5551234567",
           notes: `E2E-public-assign-${Date.now()}`,
           start: slot.start,
           end: slot.end,

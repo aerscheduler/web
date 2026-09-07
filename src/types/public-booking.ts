@@ -4,6 +4,7 @@ export type PublicBookingPage = {
     slug: string | null;
     logo: string | null;
     timeZone: string | null;
+    privacyUrl?: string | null;
     embedHosts: string[];
     brand?: {
       accentHex: string | null;

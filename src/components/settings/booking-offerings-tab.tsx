@@ -140,11 +140,6 @@ const VISIBILITY_AUDIENCES: {
 
 const RESERVATION_TYPE_OPTIONS: { value: BookingOfferingReservationType; label: string }[] = [
   { value: "guest", label: "Guest / discovery" },
-  { value: "solo", label: "Solo" },
-  { value: "dual", label: "Dual instruction" },
-  { value: "rental", label: "Rental" },
-  { value: "ground", label: "Ground" },
-  { value: "sim", label: "Simulator" },
 ];
 
 const ASSIGNMENT_MODE_OPTIONS = [
@@ -232,10 +227,10 @@ function OfferingsJumpCard() {
             <CalendarRange className="size-4" />
           </span>
           <div>
-            <CardTitle>Offerings</CardTitle>
+            <CardTitle>Booking links</CardTitle>
             <CardDescription>
-              Discovery flights and other bookable products. Add, pause, and share each
-              offering&rsquo;s public link from the Offerings page.
+              Discovery flights and other public pages. Add, pause, and share each link
+              from the Booking links page.
             </CardDescription>
           </div>
         </div>
@@ -243,7 +238,7 @@ function OfferingsJumpCard() {
       <CardContent>
         <Button asChild>
           <Link to="/offerings">
-            Configure booking offerings
+            Configure booking links
             <ArrowRight className="size-4" />
           </Link>
         </Button>
@@ -400,7 +395,7 @@ function PublicBookingCard() {
               />
             </Field>
             <p className="text-xs text-muted-foreground">
-              Open an offering on the Offerings page for Open public link, Copy public
+              Open a row on More → Booking links for Open public link, Copy public
               link, Copy embed code (iframe), and Copy modal embed. Other websites cannot
               show the frame until you list them here. Do not paste arbitrary CSS or
               scripts into the page.
@@ -966,6 +961,10 @@ export function BookingOfferingFormModal({
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label>Reservation type</Label>
+            <p className="text-xs text-muted-foreground">
+              Public offerings always create a guest reservation. Dual, solo, and rental stay on
+              the member Book flow.
+            </p>
             <Select
               value={form.reservationType}
               onValueChange={(value) =>
@@ -981,6 +980,11 @@ export function BookingOfferingFormModal({
                     {o.label}
                   </SelectItem>
                 ))}
+                {form.reservationType !== "guest" ? (
+                  <SelectItem value={form.reservationType}>
+                    {form.reservationType} (not public until switched to guest)
+                  </SelectItem>
+                ) : null}
               </SelectContent>
             </Select>
           </div>

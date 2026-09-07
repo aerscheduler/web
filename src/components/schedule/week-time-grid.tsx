@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { highlightMatch } from "@/lib/highlight-match";
 import {
+  holdBlockLabel,
   holdDragRefusalReason,
   type SlotOfferHold,
 } from "@/lib/slot-offer-holds";
@@ -368,7 +369,7 @@ export function WeekTimeGrid({
                   );
                   return (
                     <WeekOfferHoldBlock
-                      key={`hold-${hold.id}`}
+                      key={`hold-${hold.kind ?? "slot_offer"}-${hold.id}`}
                       hold={hold}
                       zone={tz.zone}
                       style={{ top, height, left: 2, right: 2 }}
@@ -408,10 +409,7 @@ function WeekOfferHoldBlock({
   onClick?: (hold: SlotOfferHold) => void;
   drag?: ScheduleDrag;
 }) {
-  const label =
-    hold.purpose === "instructor_confirm"
-      ? `Confirm: ${hold.offeredToName}`
-      : `Offer: ${hold.offeredToName}`;
+  const label = holdBlockLabel(hold);
   const detail = `${formatTimeRangeInZone(hold.start, hold.end, zone)}. Expires ${formatTimeInZone(
     hold.holdUntil,
     zone
@@ -457,7 +455,8 @@ function WeekOfferHoldBlock({
           <div className="font-medium">{label}</div>
           <div className="tabular-nums">{detail}</div>
           <div className="mt-1 opacity-80">
-            Pending offer: this time is not free to book until the offer ends or is withdrawn.
+            Pending {hold.kind === "public_request" ? "request" : "offer"}: this time is not free
+            to book until the desk decides or the hold ends.
           </div>
           <div className="mt-1 border-t border-border/50 pt-1 opacity-90">{refuseReason}</div>
         </div>

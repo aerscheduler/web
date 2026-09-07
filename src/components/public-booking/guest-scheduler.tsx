@@ -83,7 +83,7 @@ function requestCopy(page: PublicBookingPage) {
   if (page.offering.allowResourceChoice) {
     return "Pick a time and a tail. After you confirm your email, that aircraft is held until the front desk approves or declines, or the request expires. This is still a request, not instant booking.";
   }
-  return "Pick a time and submit a request. The front desk reviews it after you confirm your email. This does not book the aircraft until they approve it.";
+  return "Pick a time and submit a request. Confirming your email does not hold an aircraft. The front desk assigns a plane when they approve, and another booking can take a tail while you wait.";
 }
 
 function useGuestBrand(page: PublicBookingPage) {
@@ -435,7 +435,7 @@ export function GuestScheduler({
         layoutView === "heatmap"
           ? "min-h-0 flex-1 overflow-hidden"
           : desktop
-            ? "min-h-72 flex-1 overflow-y-auto overscroll-contain sm:min-h-0"
+            ? "min-h-0 flex-1 overflow-y-auto overscroll-contain"
             : "overflow-visible"
       )}
       aria-busy={slotsLoading}
@@ -448,7 +448,7 @@ export function GuestScheduler({
         <div
           className={cn(
             "min-h-0 transition-opacity duration-200",
-            layoutView === "heatmap" && "flex flex-1 flex-col",
+            layoutView !== "week" && "flex flex-1 flex-col",
             slotsLoading ? "pointer-events-none opacity-50" : "opacity-100"
           )}
         >
@@ -970,7 +970,7 @@ function TimeList({
   onPick: (slot: PublicBookableSlot) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 md:max-h-112 md:overflow-y-auto md:pr-1">
+    <div className="flex flex-col gap-2">
       {slots.map((slot) => {
         const label = formatStart(slot, hour12, zone);
         const extra = slot.resourceLabel ? ` · ${slot.resourceLabel}` : "";
@@ -1291,6 +1291,9 @@ function DetailsStep({
     if (submittingRef.current || busy) return;
     if (name.trim().length < 2) return setError("Enter your name.");
     if (!email.trim()) return setError("Enter your email.");
+    if (!/^\d{7,15}$/.test(phone.replace(/\D/g, ""))) {
+      return setError("Enter a phone number so the school can call you.");
+    }
     if (!consent) return setError("Please confirm you want the school to review this request.");
     if (page.offering.allowResourceChoice && !(typeof slot.resourceId === "number" && slot.resourceId > 0)) {
       return setError("Choose an aircraft.");
@@ -1302,7 +1305,7 @@ function DetailsStep({
       await submitPublicBookingRequest(orgSlug, offeringSlug, {
         name: name.trim(),
         email: email.trim(),
-        phone: phone.trim() || undefined,
+        phone: phone.trim(),
         notes: notes.trim() || undefined,
         start: slot.start,
         end: slot.end,
@@ -1379,14 +1382,16 @@ function DetailsStep({
           />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="guest-phone">Phone (optional)</Label>
+          <Label htmlFor="guest-phone">Phone</Label>
           <Input
             id="guest-phone"
             type="tel"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             autoComplete="tel"
+            aria-label="Phone"
             className="h-12 text-base sm:h-9 sm:text-sm"
+            required
           />
         </div>
         <div className="space-y-1.5">
@@ -1406,7 +1411,18 @@ function DetailsStep({
             confirm my email, and it is not a booking until they approve it.
             {page.offering.allowResourceChoice
               ? " The aircraft I pick is held until they approve, decline, or the request expires."
-              : ""}
+              : " The aircraft is not held until they approve."}{" "}
+            I agree that the school may use my name, email, and phone to contact me about this
+            request, under{" "}
+            <a
+              href={page.organization.privacyUrl || "https://www.aerscheduler.com/privacy"}
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
+              AerScheduler's privacy policy
+            </a>
+            .
           </span>
         </label>
         {error ? (

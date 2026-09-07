@@ -1,19 +1,28 @@
+import { useState } from "react";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { ClipboardList, X } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
-  useApproveBookingRequest,
+  useApproveBookingRequestWithBody,
   useConvertBookingRequest,
   usePendingBookingRequests,
   useRejectBookingRequest,
 } from "@/features/booking-requests";
 import { ApiError } from "@/lib/api";
-import type { BookingRequest } from "@/types/booking-requests";
+import type { ApproveBookingRequestInput, BookingRequest } from "@/types/booking-requests";
 import { resourceLabel, type Resource } from "@/types/api";
 import { DetailPanel } from "@/components/detail-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ErrorState } from "@/components/states";
 
 export function PendingBookingRequestsSheet({
@@ -24,15 +33,19 @@ export function PendingBookingRequestsSheet({
   onOpenChange: (open: boolean) => void;
 }) {
   const requestsQuery = usePendingBookingRequests(open);
-  const approve = useApproveBookingRequest();
+  const approve = useApproveBookingRequestWithBody();
   const reject = useRejectBookingRequest();
   const convert = useConvertBookingRequest();
   const navigate = useNavigate();
 
-  const act = async (action: "approve" | "reject", request: BookingRequest) => {
+  const act = async (
+    action: "approve" | "reject",
+    request: BookingRequest,
+    input?: ApproveBookingRequestInput
+  ) => {
     try {
       if (action === "approve") {
-        await approve.mutateAsync({ id: request.id });
+        await approve.mutateAsync({ id: request.id, input: input ?? {} });
         toast.success("Request approved and booked");
       } else {
         await reject.mutateAsync({ id: request.id });
@@ -115,19 +128,12 @@ export function PendingBookingRequestsSheet({
               {pending.map((request) => (
                 <li key={request.id} className="flex flex-col gap-3 px-4 py-3">
                   <RequestHeader request={request} badge="Pending" />
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" disabled={busy} onClick={() => void act("approve", request)}>
-                      Approve
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => void act("reject", request)}
-                    >
-                      <X className="size-4" /> Decline
-                    </Button>
-                  </div>
+                  <ApproveActions
+                    request={request}
+                    busy={busy}
+                    onApprove={(input) => void act("approve", request, input)}
+                    onReject={() => void act("reject", request)}
+                  />
                 </li>
               ))}
             </ul>
@@ -184,6 +190,9 @@ function RequestHeader({ request, badge }: { request: BookingRequest; badge: str
         {request.resource ? `${resourceLabel(request.resource as Resource).name} · ` : ""}
         {formatWindow(request)}
       </p>
+      {request.guestPhone ? (
+        <p className="mt-1 text-xs text-muted-foreground">{request.guestPhone}</p>
+      ) : null}
       <p className="mt-1 text-xs text-muted-foreground">
         Submitted {formatDistanceToNowStrict(new Date(request.createdAt))} ago
       </p>
@@ -203,4 +212,106 @@ function formatWindow(request: BookingRequest): string {
   const start = format(new Date(request.start), "h:mm a");
   const end = format(new Date(request.end), "h:mm a");
   return `${date} · ${start} - ${end}`;
+}
+
+function offeringAircraft(request: BookingRequest): { id: number; name: string }[] {
+  const rows = request.offering?.resources ?? [];
+  const out: { id: number; name: string }[] = [];
+  for (const row of rows) {
+    const resource = row.resource;
+    if (!resource?.id) continue;
+    out.push({ id: resource.id, name: resourceLabel(resource).name });
+  }
+  return out;
+}
+
+function offeringInstructors(request: BookingRequest): { id: number; name: string }[] {
+  const rows = request.offering?.instructors ?? [];
+  const out: { id: number; name: string }[] = [];
+  for (const row of rows) {
+    const instructor = row.instructorOrgUser;
+    if (!instructor?.id) continue;
+    out.push({
+      id: instructor.id,
+      name: instructor.user?.name?.trim() || `Instructor #${instructor.id}`,
+    });
+  }
+  return out;
+}
+
+function ApproveActions({
+  request,
+  busy,
+  onApprove,
+  onReject,
+}: {
+  request: BookingRequest;
+  busy: boolean;
+  onApprove: (input: ApproveBookingRequestInput) => void;
+  onReject: () => void;
+}) {
+  const aircraft = offeringAircraft(request);
+  const instructors = offeringInstructors(request);
+  const showAircraft = !request.resource && aircraft.length > 0;
+  const showInstructor = !request.instructorOrgUser && instructors.length > 0;
+  const [resourceId, setResourceId] = useState("auto");
+  const [instructorId, setInstructorId] = useState("auto");
+
+  const input = (): ApproveBookingRequestInput => {
+    const body: ApproveBookingRequestInput = {};
+    if (showAircraft && resourceId !== "auto") body.resource = { id: Number(resourceId) };
+    if (showInstructor && instructorId !== "auto") {
+      body.instructorOrgUserId = Number(instructorId);
+    }
+    return body;
+  };
+
+  return (
+    <div className="flex flex-col gap-3">
+      {showAircraft ? (
+        <div className="space-y-1.5">
+          <Label>Aircraft</Label>
+          <Select value={resourceId} onValueChange={setResourceId}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Assign automatically" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Assign automatically</SelectItem>
+              {aircraft.map((row) => (
+                <SelectItem key={row.id} value={String(row.id)}>
+                  {row.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      {showInstructor ? (
+        <div className="space-y-1.5">
+          <Label>Instructor</Label>
+          <Select value={instructorId} onValueChange={setInstructorId}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Assign automatically" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Assign automatically</SelectItem>
+              {instructors.map((row) => (
+                <SelectItem key={row.id} value={String(row.id)}>
+                  {row.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <Button size="sm" disabled={busy} onClick={() => onApprove(input())}>
+          Approve
+        </Button>
+        <Button variant="outline" size="sm" disabled={busy} onClick={onReject}>
+          <X className="size-4" /> Decline
+        </Button>
+      </div>
+    </div>
+  );
 }

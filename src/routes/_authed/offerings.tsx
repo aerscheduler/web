@@ -30,7 +30,7 @@ export const Route = createFileRoute("/_authed/offerings")({
 });
 
 /**
- * Discovery flights and other bookable products. Public-link on/off, embed hosts,
+ * Discovery flights and other public pages. School slug, embed hosts,
  * and calendar visibility stay under Settings → Booking links; this is the list.
  *
  * Admin/owner only, matching BookingOfferingService. The manageOrgSettings grant
@@ -96,16 +96,17 @@ function OfferingsPage() {
     <TableView>
       <TableView.Header>
         <PageHeader
-          title="Offerings"
+          title="Booking links"
           subtitle={
             <span className="inline-flex flex-wrap items-center gap-1.5">
-              Discovery flights and other bookable products. Public requests live under{" "}
+              Public pages guests can request from. School slug, embed hosts, and guest
+              calendar visibility stay under{" "}
               <Link
                 to="/settings"
                 search={{ tab: "booking-offerings" }}
                 className="font-medium text-foreground underline-offset-4 hover:underline"
               >
-                Settings → Booking links
+                Settings
               </Link>
               .
               <DocsHint topic="booking-offerings" />
@@ -120,8 +121,8 @@ function OfferingsPage() {
         <ListSearchBar
           value={search}
           onChange={setSearch}
-          placeholder="Search offerings…"
-          aria-label="Search offerings"
+          placeholder="Search booking links…"
+          aria-label="Search booking links"
         />
       </TableView.Header>
 
@@ -137,8 +138,8 @@ function OfferingsPage() {
         <Card className="flex min-h-0 flex-1 flex-col p-0">
           <EmptyState
             graphic="booking-offerings"
-            title="No offerings yet"
-            body="Create a discovery flight or other preset with fixed duration, eligible aircraft, and optional instructor pool."
+            title="No booking links yet"
+            body="Create a discovery flight or other public page with fixed duration, eligible aircraft, and optional instructor pool."
             docs="public-booking-links"
             action={
               <Button onClick={openAdd}>
@@ -150,7 +151,7 @@ function OfferingsPage() {
       ) : visible.length === 0 ? (
         <Card className="flex min-h-0 flex-1 flex-col p-0">
           <EmptyState
-            title="No offerings match"
+            title="No booking links match"
             body="Try a different name or slug."
           />
         </Card>

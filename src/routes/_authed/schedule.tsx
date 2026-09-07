@@ -63,7 +63,7 @@ import { SlotOfferDetailSheet } from "@/components/slot-offers/slot-offer-detail
 import { usePendingSlotOffers } from "@/features/slot-offers";
 import { usePendingBookingRequests } from "@/features/booking-requests";
 import { PendingBookingRequestsSheet } from "@/components/booking-requests/pending-requests-sheet";
-import { liveSlotOfferHolds } from "@/lib/slot-offer-holds";
+import { deskBookingRequestChromeCount, livePublicRequestHolds, liveSlotOfferHolds } from "@/lib/slot-offer-holds";
 import { BookingZoneBanner } from "@/components/schedule/booking-zone-banner";
 
 /**
@@ -131,8 +131,11 @@ function SchedulePage() {
     }
   }, [panel, staff]);
   const slotOfferHolds = React.useMemo(
-    () => liveSlotOfferHolds(pendingOffersQ.data),
-    [pendingOffersQ.data]
+    () => [
+      ...liveSlotOfferHolds(pendingOffersQ.data),
+      ...livePublicRequestHolds(pendingBookingRequestsQ.data),
+    ],
+    [pendingOffersQ.data, pendingBookingRequestsQ.data]
   );
   const selfBooks =
     !staff && canSelfBook(roles) && orgUserId != null && userId != null;
@@ -429,6 +432,17 @@ function SchedulePage() {
     setOfferDetailId(offerId);
   }, [setDetailOpen]);
 
+  const openHoldDetail = React.useCallback(
+    (hold: { id: number; kind?: "slot_offer" | "public_request" }) => {
+      if (hold.kind === "public_request") {
+        setBookingRequestsOpen(true);
+        return;
+      }
+      openOfferDetail(hold.id);
+    },
+    [openOfferDetail, setBookingRequestsOpen]
+  );
+
   const openNew = () => {
     setDraft({ date: day });
     setFormOpen(true);
@@ -467,7 +481,7 @@ function SchedulePage() {
           subtitle="Dispatch board for aircraft, instructors and students at a glance."
           actions={
             <>
-              {staff && (pendingBookingRequestsQ.data?.length ?? 0) > 0 && (
+              {staff && deskBookingRequestChromeCount(pendingBookingRequestsQ.data) > 0 && (
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -576,9 +590,7 @@ function SchedulePage() {
                 onView={openReservationDetail}
                 onCreate={onCreate}
                 onSelectDay={selectDay}
-                onOfferHoldClick={(hold) => {
-                  openOfferDetail(hold.id);
-                }}
+                onOfferHoldClick={openHoldDetail}
                 drag={drag}
                 {...marks}
               />
@@ -602,9 +614,7 @@ function SchedulePage() {
               onEdit={startEdit}
               onCancel={handleCancel}
               onCreate={onCreate}
-              onOfferHoldClick={(hold) => {
-                openOfferDetail(hold.id);
-              }}
+              onOfferHoldClick={openHoldDetail}
               drag={drag}
               {...marks}
             />

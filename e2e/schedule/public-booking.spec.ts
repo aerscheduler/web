@@ -607,6 +607,7 @@ test.describe("public guest booking page", () => {
           data: {
             name: `E2E-HOLD-A-${stamp}`,
             email: `e2e-hold-a-${stamp}@example.com`,
+            phone: "5551234567",
             notes: `E2E-public-hold-${stamp}`,
             start: slot!.start,
             end: slot!.end,
@@ -623,6 +624,7 @@ test.describe("public guest booking page", () => {
           data: {
             name: `E2E-HOLD-B-${stamp}`,
             email: `e2e-hold-b-${stamp}@example.com`,
+            phone: "5551234567",
             notes: `E2E-public-hold-b-${stamp}`,
             start: slot!.start,
             end: slot!.end,

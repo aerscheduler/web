@@ -344,3 +344,49 @@
     }
   }
 }
+
+/* Auth pages: slow ambient orbs. Reduced-motion is handled by the base rule above. */
+@keyframes auth-glow-a {
+  0%,
+  100% {
+    transform: translate3d(-3%, -2%, 0) scale(1);
+  }
+  40% {
+    transform: translate3d(7%, 5%, 0) scale(1.08);
+  }
+  70% {
+    transform: translate3d(2%, 9%, 0) scale(0.96);
+  }
+}
+@keyframes auth-glow-b {
+  0%,
+  100% {
+    transform: translate3d(4%, 3%, 0) scale(1);
+  }
+  35% {
+    transform: translate3d(-8%, -4%, 0) scale(1.1);
+  }
+  80% {
+    transform: translate3d(-3%, 6%, 0) scale(0.94);
+  }
+}
+.auth-glow-a {
+  animation: auth-glow-a 18s ease-in-out infinite;
+}
+.auth-glow-b {
+  animation: auth-glow-b 24s ease-in-out infinite;
+}
+
+@keyframes onboard-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.onboard-step-in {
+  animation: onboard-step-in 280ms ease-out;
+}

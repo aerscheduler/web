@@ -35,12 +35,14 @@ import {
   rolesOf,
   type GrantName,
   type Organization,
+  type OrganizationPreferences,
   type OrganizationUser,
   type Role,
   type SessionPermissions,
   type User,
 } from "@/types/api";
 import { queryClient } from "./query";
+import { clearOnboardingSticky } from "./onboarding-sticky";
 
 interface AuthEnvelope {
   auth: { accessToken: string };
@@ -150,6 +152,14 @@ export function isStaffSync(): boolean {
   return rolesFromSession().some((r) => r === "owner" || r === "admin" || r === "dispatcher");
 }
 
+/**
+ * Owner or admin in the active org. Narrower than `isStaffSync`: dispatchers are
+ * staff but the server still 403s them on PATCH /organizations and POST /resources.
+ */
+export function isAdminSync(): boolean {
+  return rolesFromSession().some((r) => r === "owner" || r === "admin");
+}
+
 /** Synchronous developer check from the stored session, for the /developer route
  *  guard. Cosmetic: the server enforces the same allowlist on every request. */
 export function isDeveloperSync(): boolean {
@@ -227,6 +237,8 @@ interface AuthContextValue extends SessionState {
   /** Sign in / sign up with Apple (opens the Apple popup). */
   appleLogin: () => Promise<void>;
   logout: () => void;
+  /** Merge `newOrgOnboardingComplete` into the stored session after the PATCH lands. */
+  markOrgOnboardingComplete: () => void;
   switchOrg: (orgId: number) => Promise<void>;
   /** Create a new org (caller becomes owner+admin). Swaps the active token. */
   createOrganization: (input: Record<string, unknown>) => Promise<Organization>;
@@ -490,6 +502,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [session.user, session.organization, session.organizations.length]);
 
   const logout = useCallback(() => {
+    // Wizard resume is tab-local. Leaving it behind after logout lets a same-tab
+    // re-login skip AllSet and reopen the Stripe nudge for a finished school.
+    clearOnboardingSticky();
     // In a demo tab this must clear the DEMO session and nothing else. The
     // localStorage session belongs to a real account the same person may have
     // open in another tab, and signing out of a sandbox is not a reason to sign
@@ -508,6 +523,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clearDevStash();
     queryClient.clear();
     setSession({ user: null, organization: null, organizations: [] });
+  }, []);
+
+  const markOrgOnboardingComplete = useCallback(() => {
+    setSession((prev) => {
+      if (!prev.organization) return prev;
+      const preferences = {
+        ...prev.organization.preferences,
+        newOrgOnboardingComplete: true,
+      } as OrganizationPreferences;
+      const organization = { ...prev.organization, preferences };
+      const next: SessionState = {
+        ...prev,
+        organization,
+        organizations: prev.organizations.map((o) =>
+          o.id === organization.id ? { ...o, preferences } : o
+        ),
+      };
+      saveSession(next);
+      return next;
+    });
   }, []);
 
   /**
@@ -680,6 +715,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         googleLogin,
         appleLogin,
         logout,
+        markOrgOnboardingComplete,
         switchOrg,
         createOrganization,
         joinByCode,

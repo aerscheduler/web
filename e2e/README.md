@@ -73,12 +73,21 @@ Defaults: `VITE_API_PROXY=http://127.0.0.1:5001`, Playwright starts Vite on
 | `e2e/access/route-matrix.spec.ts` | Owner can open first N `ROUTE_ACCESS` routes |
 | `e2e/onboarding/intent-logic.spec.ts` | Pure: landingPath→source, tracks, heard-from gate |
 | `e2e/onboarding/checklist-tracks.spec.ts` | Dashboard `?track=` + `?checklist=fresh` Start here leads |
+| `e2e/onboarding/wizard.spec.ts` | Unauth `/onboarding` → login; complete org AllSet; student no-code escape; school 3-step operation details, skip aircraft then billing Skip for now, Finish on updates, complete only after Finish; **API asserts** after a full save (club + KAPA + aircraft + heard-from + tips off) and after solo skip (type, source, tips stay on) |
 
 Preview query params (display-only, safe on any org):
 
 - `?track=maintenance|clubs|reports|...` - reorder as that campaign
 - `?checklist=show` - show a retired checklist
 - `?checklist=fresh` - show and treat every item as undone (best for comparing tracks)
+
+Local wizard replay (`npm run dev` only; ignored in production builds):
+
+- `/onboarding?restart=1` - persona picker again, even if the org already exists or
+  setup is marked complete. **Owner/admin only**; members still see You're all set
+  (Continue would 403). Continue/Create operation PATCHes the current school
+  rather than minting a second one. To wipe the org and start truly fresh, re-run
+  `server/prisma/seed-onboarding-preview.sql` and sign in as `preview-1@`…`preview-6@`.
 
 Cleanup cancels only E2E-tagged reservations (same markers as Flutter).
 

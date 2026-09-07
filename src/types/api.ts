@@ -294,6 +294,9 @@ export interface OrgOnboarding {
   id: number;
   /** Marketing entry point captured at signup ("quickbooks"); null for direct. */
   source: string | null;
+  /** Optional "how did you hear about us" answer from the last wizard step. */
+  heardFrom?: string | null;
+  heardFromDetail?: string | null;
   /** Item ids the org waved off. Ids are owned by the client. */
   dismissedItems: string[];
   /** Set when the whole checklist was dismissed. */

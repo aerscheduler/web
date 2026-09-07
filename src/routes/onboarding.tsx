@@ -108,15 +108,11 @@ function apiErr(e: unknown): string {
   return "Something went wrong. Your entries are safe. Try again.";
 }
 
-/** First airport/site id for this org, or null. */
+/** First airport/site id for this org, or null when the list is empty. Throws on a failed GET. */
 async function firstLocationId(): Promise<number | null> {
-  try {
-    const { data } = await apiList<{ id: number }>("/locations");
-    const id = data[0]?.id;
-    return typeof id === "number" && Number.isFinite(id) ? id : null;
-  } catch {
-    return null;
-  }
+  const { data } = await apiList<{ id: number }>("/locations");
+  const id = data[0]?.id;
+  return typeof id === "number" && Number.isFinite(id) ? id : null;
 }
 
 // ---------------------------------------------------------------- orchestrator
@@ -541,6 +537,7 @@ function OperationFlow({
           name: orgName.trim(),
           organizationType: subtype,
         });
+        let locationWriteFailed = false;
         const locId = locationId ?? homeLocation?.id ?? (await firstLocationId());
         if (locId && airportPick) {
           const loc = locationFields();
@@ -555,8 +552,8 @@ function OperationFlow({
             setLocationId(locId);
             setHomeLocation({ id: locId, name: loc.name, address: loc.address });
           } catch (e) {
-            // A stale or non-org location id 403s here. Aircraft can still create one.
             if (!(e instanceof ApiError && (e.status === 403 || e.status === 404))) throw e;
+            locationWriteFailed = true;
           }
         } else if (locId) {
           // Typed without a lookup row: rename the site, keep city/state/zone.
@@ -602,8 +599,15 @@ function OperationFlow({
               setHomeLocation({ id: locId, name: newName, address: existing });
             } catch (e) {
               if (!(e instanceof ApiError && (e.status === 403 || e.status === 404))) throw e;
+              locationWriteFailed = true;
             }
           }
+        }
+        if (locationWriteFailed) {
+          setLocationId(null);
+          toast.error("Could not update the home airport. Try again.");
+          await rehydrate();
+          return;
         }
         await rehydrate();
         setStep(1);
@@ -1060,6 +1064,7 @@ function AircraftStep({
   const [category, setCategory] = React.useState<AircraftCategory>("airplane");
   const [aircraftClass, setAircraftClass] = React.useState<string>("single_engine_land");
   const [busy, setBusy] = React.useState(false);
+  const submitting = React.useRef(false);
   const [showErrors, setShowErrors] = React.useState(false);
   //Reported with the activation event so we can see whether the registry lookup is
   //actually carrying people through this step or whether they still type it all out.
@@ -1080,6 +1085,8 @@ function AircraftStep({
       document.getElementById(firstInvalid)?.focus();
       return;
     }
+    if (submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     try {
       let locId = locationId ?? (await firstLocationId());
@@ -1090,7 +1097,7 @@ function AircraftStep({
         //the org somehow has no location yet. The server now creates a location without
         //an address, which is the whole point of the field being optional.
         const loc = await createLocation.mutateAsync({
-          name: fallbackLocationName.trim() || "Home",
+          name: (fallbackLocationName.trim() || "Home").slice(0, 60),
         });
         locId = loc.id;
       }
@@ -1142,6 +1149,7 @@ function AircraftStep({
     } catch (e) {
       toast.error(apiErr(e));
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }

@@ -1457,6 +1457,33 @@ export function useRemindInvoice() {
   });
 }
 
+export function useEnsurePrepaidInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (reservationId: number) =>
+      api<Reservation>(`/reservations/${reservationId}/prepaid/ensure`, { method: "POST" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+export function useRecordPrepaidOffline() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ reservationId, method }: { reservationId: number; method: "cash" | "check" }) =>
+      raw(`/reservations/${reservationId}/prepaid/record-offline`, {
+        method: "POST",
+        body: { method },
+      }).then(({ body }) => body as { data?: Reservation; warning?: string }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reservations"] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------- onboarding / org setup
 
 /**

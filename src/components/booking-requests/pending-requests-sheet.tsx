@@ -1,5 +1,6 @@
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { ClipboardList, X } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import {
   useApproveBookingRequest,
@@ -26,6 +27,7 @@ export function PendingBookingRequestsSheet({
   const approve = useApproveBookingRequest();
   const reject = useRejectBookingRequest();
   const convert = useConvertBookingRequest();
+  const navigate = useNavigate();
 
   const act = async (action: "approve" | "reject", request: BookingRequest) => {
     try {
@@ -37,6 +39,31 @@ export function PendingBookingRequestsSheet({
         toast.success("Request declined");
       }
     } catch (error) {
+      const body =
+        error instanceof ApiError && error.body && typeof error.body === "object"
+          ? (error.body as { reservation?: { id?: number } })
+          : null;
+      const reservationId = body?.reservation?.id;
+      if (action === "approve" && reservationId) {
+        toast.error(
+          error instanceof ApiError
+            ? `${error.message} The booking is on the calendar. Open it to send the invoice or record a check or cash.`
+            : "The booking is on the calendar, but the package invoice did not go out.",
+          {
+            action: {
+              label: "Open booking",
+              onClick: () => {
+                onOpenChange(false);
+                void navigate({
+                  to: "/schedule/reservations/$reservationId",
+                  params: { reservationId: String(reservationId) },
+                });
+              },
+            },
+          },
+        );
+        return;
+      }
       toast.error(error instanceof ApiError ? error.message : "Could not update this request");
     }
   };

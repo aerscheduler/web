@@ -461,7 +461,7 @@ export const DOCS_TOPICS = {
   "collection-style": {
     title: "How this booking is billed",
     summary:
-      "Bill after the flight prices Hobbs at close-out. Charge a package price when booked emails a Stripe invoice when the reservation is created. The guest can pay any time, including the day of. Instructors see Collect payment until it is paid. Close-out records Hobbs and does not bill the hop a second time.",
+      "Bill after the flight prices Hobbs at close-out. Charge a package price when booked emails a Stripe invoice when the reservation is created. If they already paid by check or cash, record it on the booking. If the invoice never went out, send it from there too. Close-out records Hobbs and does not bill the hop a second time.",
     href: "billing/charge-a-package-price-when-booked",
   },
   "public-booking-branding": {

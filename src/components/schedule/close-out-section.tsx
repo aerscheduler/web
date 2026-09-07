@@ -26,6 +26,8 @@ import {
   useOrgLedgerSettings,
   useReopenCloseOut,
   useReservationInvoice,
+  useEnsurePrepaidInvoice,
+  useRecordPrepaidOffline,
 } from "@/features/queries";
 import { useTimeZone } from "@/lib/use-timezone";
 import { OvernightMinimumNotice } from "./overnight-notice";
@@ -51,6 +53,8 @@ import {
   closeOutStep,
   prepaidIsCollected,
   prepaidNeedsCollection,
+  packageInvoiceMissing,
+  canCollectPackageOnBooking,
   readsMeters,
   usesBriefingNotMeters,
   confirmationCount,
@@ -413,14 +417,14 @@ export function CloseOutSection({
         if (prepaidNeedsCollection(r)) {
           const amount = r.prepaidInvoice?.total;
           return amount != null
-            ? `Package unpaid. Collect ${formatMoney(amount)} from ${guestName}.`
-            : `Package unpaid. Collect payment from ${guestName}.`;
+            ? `Unpaid. Collect ${formatMoney(amount)} from ${guestName}.`
+            : `Unpaid. Collect payment from ${guestName}.`;
         }
         if (prepaidIsCollected(r) && r.prepaidInvoice?.paidAt) {
-          return `Package paid · ${formatMoney(r.prepaidInvoice.total)}`;
+          return `Paid · ${formatMoney(r.prepaidInvoice.total)}`;
         }
         if (prepaidIsCollected(r) && !r.prepaidInvoice) {
-          return "Package charged to the account ledger.";
+          return "Charged to the account ledger.";
         }
         if (ledgerStakeCount > 0) {
           return ledgerStakeCount > 1
@@ -541,8 +545,6 @@ export function CloseOutSection({
         {/* What is on the record so far. Renders nothing before the booking has flown. */}
         <CloseOutReadings r={r} />
 
-        <PackagePaymentCallout r={r} />
-
         {step === "rampOut" &&
           (canRamp ? (
             <div className="space-y-3">
@@ -618,7 +620,7 @@ export function CloseOutSection({
                 ? "Flown: close out this guest flight for "
                 : "Flown: this guest flight needs to be closed out and billed to "}
               <span className="text-foreground">{guestName}</span>
-              {hasStandingPrepaid(r) ? ". The package invoice is already on file." : "."}
+              {hasStandingPrepaid(r) ? ". The invoice is already on file." : "."}
             </p>
             {canConfirmGuest ? (
               <Button className="w-full sm:w-auto" onClick={() => setGuestConfirmOpen(true)}>
@@ -631,6 +633,8 @@ export function CloseOutSection({
             )}
           </div>
         )}
+
+        <PackagePaymentCallout r={r} />
 
         {/* The overnight minimum, from dispatch through to sign-off. Deliberately shown at
             every step before the invoice exists rather than only at ramp-in: the person who
@@ -904,60 +908,128 @@ function StepBadge({ invoice }: { invoice: Invoice | null }) {
 function MoneyBadge({ r, invoice }: { r: Reservation; invoice: Invoice | null }) {
   if (prepaidNeedsCollection(r)) return <Badge variant="warning">Collect payment</Badge>;
   if (prepaidIsCollected(r)) {
-    return <Badge variant="success">{r.prepaidInvoice?.paidAt ? "Package paid" : "Charged"}</Badge>;
+    return <Badge variant="success">{r.prepaidInvoice?.paidAt ? "Paid" : "Charged"}</Badge>;
   }
   return <StepBadge invoice={invoice} />;
 }
 
 function PackagePaymentCallout({ r }: { r: Reservation }) {
-  if (!hasStandingPrepaid(r)) return null;
+  const { orgUserId, roles } = useAuth();
+  const canCollect = canCollectPackageOnBooking(r, orgUserId, roles);
+  const ensure = useEnsurePrepaidInvoice();
+  const offline = useRecordPrepaidOffline();
+  const missing = packageInvoiceMissing(r);
   const invoice = r.prepaidInvoice;
   const unpaid = prepaidNeedsCollection(r);
   const amount = invoice?.total != null ? formatMoney(invoice.total) : null;
   const payLink = invoice?.stripePaymentLink ?? null;
+  const busy = ensure.isPending || offline.isPending;
 
-  return (
-    <div
-      data-testid="package-payment-callout"
-      data-doc-shot={
-        unpaid ? "package-payment-collect" : invoice?.paidAt ? "package-payment-paid" : undefined
-      }
-      className={
-        unpaid
-          ? "space-y-2 rounded-lg border border-warning/40 bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] p-3"
-          : "space-y-2 rounded-lg border border-border bg-muted/40 p-3"
-      }
-    >
-      <div className="flex items-start gap-2 text-sm">
-        <Receipt className="mt-0.5 size-4 shrink-0" />
-        <div className="min-w-0 space-y-1">
-          <p className="font-medium">
-            {unpaid
-              ? amount
-                ? `Collect payment · ${amount}`
-                : "Collect payment"
-              : invoice?.paidAt
-                ? amount
-                  ? `Package paid · ${amount}`
-                  : "Package paid"
-                : "Package charged to account"}
-          </p>
-          <p className="text-muted-foreground">
-            {unpaid
-              ? "The guest was invoiced when this booking was confirmed. They can pay any time, including the day of. Close-out records Hobbs and does not bill the hop a second time."
-              : invoice?.paidAt
-                ? "The package invoice is paid. Close-out still records Hobbs and does not bill the hop a second time."
-                : "This package was charged to the member account when the booking was created. Close-out records Hobbs and does not bill the hop a second time."}
-          </p>
-        </div>
-      </div>
-      {unpaid && payLink ? (
+  const record = async (method: "cash" | "check") => {
+    try {
+      const body = await offline.mutateAsync({ reservationId: r.id, method });
+      if (body.warning) toast.warning(body.warning);
+      else toast.success(method === "check" ? "Recorded check." : "Recorded cash.");
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Could not record that payment");
+    }
+  };
+
+  const retryInvoice = async () => {
+    try {
+      await ensure.mutateAsync(r.id);
+      toast.success("Invoice sent");
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Could not create the invoice");
+    }
+  };
+
+  const showMissing = missing && canCollect;
+  if (!showMissing && !hasStandingPrepaid(r)) return null;
+
+  const warning = showMissing || unpaid;
+  const title = showMissing
+    ? "Invoice did not go out"
+    : unpaid
+      ? amount
+        ? `Collect payment · ${amount}`
+        : "Collect payment"
+      : invoice?.paidAt
+        ? amount
+          ? `Paid · ${amount}`
+          : "Paid"
+        : "Charged to account";
+  const detail = showMissing
+    ? "Send the Stripe invoice, or record a check or cash. Close-out will not bill Hobbs twice."
+    : unpaid
+      ? "They can pay any time. Close-out records Hobbs and does not bill again."
+      : "Close-out records Hobbs and does not bill again.";
+
+  const actions = showMissing ? (
+    <>
+      <Button size="sm" disabled={busy} onClick={() => void retryInvoice()}>
+        Send invoice
+      </Button>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => void record("check")}>
+        Record check
+      </Button>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => void record("cash")}>
+        Record cash
+      </Button>
+    </>
+  ) : unpaid && canCollect ? (
+    <>
+      {payLink ? (
         <Button asChild variant="outline" size="sm">
           <a href={payLink} target="_blank" rel="noreferrer">
             <ExternalLink className="size-4" /> Open pay link
           </a>
         </Button>
       ) : null}
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => void record("check")}>
+        Record check
+      </Button>
+      <Button size="sm" variant="outline" disabled={busy} onClick={() => void record("cash")}>
+        Record cash
+      </Button>
+    </>
+  ) : unpaid && payLink ? (
+    <Button asChild variant="outline" size="sm">
+      <a href={payLink} target="_blank" rel="noreferrer">
+        <ExternalLink className="size-4" /> Open pay link
+      </a>
+    </Button>
+  ) : null;
+
+  return (
+    <div
+      data-testid={showMissing ? "package-payment-missing" : "package-payment-callout"}
+      data-doc-shot={
+        showMissing
+          ? undefined
+          : unpaid
+            ? "package-payment-collect"
+            : invoice?.paidAt
+              ? "package-payment-paid"
+              : undefined
+      }
+      className={
+        warning
+          ? "rounded-lg border border-warning/40 bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] p-3"
+          : "rounded-lg border border-border bg-muted/40 p-3"
+      }
+    >
+      <div className="flex items-start gap-2 text-sm">
+        <Receipt className="mt-0.5 size-4 shrink-0" />
+        <div className="min-w-0">
+          <div className="inline-flex items-center gap-1.5 font-medium">
+            {title}
+            <DocsHint topic="collection-style" />
+          </div>
+          <p className="mt-0.5 text-muted-foreground">{detail}</p>
+          {actions ? <div className="mt-2 flex flex-wrap gap-2">{actions}</div> : null}
+        </div>
+      </div>
     </div>
   );
 }

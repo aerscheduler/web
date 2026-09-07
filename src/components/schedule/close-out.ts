@@ -316,9 +316,26 @@ export function prepaidIsCollected(r: Reservation): boolean {
   return hasStandingPrepaid(r) && !prepaidNeedsCollection(r);
 }
 
+/** Prepaid style but no standing package bill. Desk must attach or record cash/check. */
+export function packageInvoiceMissing(r: Reservation): boolean {
+  return r.collectionStyle === "prepaid_fixed" && !hasStandingPrepaid(r);
+}
+
+/** Desk, instructor on the booking, or the person who created it. */
+export function canCollectPackageOnBooking(
+  r: Reservation,
+  orgUserId: number | null,
+  roles: Role[]
+): boolean {
+  if (orgUserId == null) return false;
+  if (isStaff(roles)) return true;
+  if (r.createdBy?.id === orgUserId) return true;
+  return (r.personnel?.instructors ?? []).some((person) => person.id === orgUserId);
+}
+
 /** Guest close-out CTA. Prepaid bookings already have the invoice; do not say "bill guest". */
 export function guestCloseOutLabel(r: Reservation): string {
-  if (prepaidNeedsCollection(r)) return "Close out (collect package)";
+  if (prepaidNeedsCollection(r)) return "Close out (collect payment)";
   if (hasStandingPrepaid(r)) return "Close out";
   return "Close out & bill guest";
 }

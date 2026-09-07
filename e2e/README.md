@@ -66,6 +66,7 @@ Defaults: `VITE_API_PROXY=http://127.0.0.1:5001`, Playwright starts Vite on
 | `e2e/schedule/slot-offer-cancel-recovery-ui.spec.ts` | UI clicks: stand by → cancel dialog → Pending offers → Accept on Offers tab; Withdraw |
 | `e2e/billing/invoices.spec.ts` | Billing / invoices reachable |
 | `e2e/billing/prepaid-package-flow.spec.ts` | Prepaid guest: invoice at confirm, Collect payment, ramp, close-out, no second Hobbs invoice (skips without Stripe Connect) |
+| `e2e/billing/invoice-privacy-and-offline.spec.ts` | Calendar GET hides other people's rates/invoices; missing-invoice banner; Record check; wedged-approve toast |
 | `e2e/billing/ledger.spec.ts` | Ledger GET/auth/write contracts; `/me` Add funds + desk credit/refund/adjustment when mode is on |
 | `e2e/people/invite.spec.ts` | People + invite sheet |
 | `e2e/operations/hide-announcement.spec.ts` | Got it hides a notice from Home; board still lists it |

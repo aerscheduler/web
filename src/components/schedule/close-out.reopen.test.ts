@@ -14,6 +14,8 @@ import {
   guestCloseOutLabel,
   prepaidIsCollected,
   prepaidNeedsCollection,
+  packageInvoiceMissing,
+  canCollectPackageOnBooking,
 } from "./close-out";
 
 /**
@@ -451,7 +453,7 @@ describe("prepaidNeedsCollection vs skip-Hobbs", () => {
     expect(prepaidNeedsCollection(unpaidGuest)).toBe(true);
     expect(prepaidIsCollected(unpaidGuest)).toBe(false);
     expect(closeOutStep(unpaidGuest)).toBe("rampOut");
-    expect(guestCloseOutLabel(unpaidGuest)).toBe("Close out (collect package)");
+    expect(guestCloseOutLabel(unpaidGuest)).toBe("Close out (collect payment)");
   });
 
   it("treats a paid package as collected and still invoiced after guest close-out", () => {
@@ -491,6 +493,21 @@ describe("prepaidNeedsCollection vs skip-Hobbs", () => {
       personnel: { instructors: [], students: [], renters: [], guests: [{ id: 1 }] },
     } as unknown as Reservation;
     expect(guestCloseOutLabel(after)).toBe("Close out & bill guest");
+  });
+
+  it("flags prepaid_fixed with no standing bill as missing", () => {
+    const missing = {
+      ...soloFlight(),
+      type: "guest",
+      collectionStyle: "prepaid_fixed",
+      prepaidInvoice: null,
+      ledgerEntries: [],
+      personnel: { instructors: [{ id: 3 }], students: [], renters: [], guests: [{ id: 1 }] },
+    } as unknown as Reservation;
+    expect(packageInvoiceMissing(missing)).toBe(true);
+    expect(canCollectPackageOnBooking(missing, 3, ["instructor"])).toBe(true);
+    expect(canCollectPackageOnBooking(missing, STRANGER, RENTER)).toBe(false);
+    expect(canCollectPackageOnBooking(missing, STRANGER, ADMIN)).toBe(true);
   });
 });
 

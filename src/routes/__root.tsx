@@ -32,6 +32,7 @@ const TITLES: Array<[string, string]> = [
   ["/people", "People"],
   ["/aircraft", "Aircraft"],
   ["/facilities", "Facilities"],
+  ["/offerings", "Offerings"],
   ["/billing", "Billing"],
   ["/reports", "Reports"],
   ["/compliance", "Go / No-Go"],

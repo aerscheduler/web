@@ -462,6 +462,16 @@ export async function openBookingOfferingsSettings(page: Page) {
   return errors;
 }
 
+export async function openOfferingsPage(page: Page) {
+  const errors = collectPageErrors(page);
+  await page.goto("/offerings");
+  await dismissCookieBanner(page);
+  await expect(page.getByRole("heading", { level: 1, name: "Offerings" })).toBeVisible({
+    timeout: 20_000,
+  });
+  return errors;
+}
+
 export function audienceSelect(page: Page, label: string) {
   return page
     .locator("div.space-y-2", { has: page.getByText(label, { exact: true }) })

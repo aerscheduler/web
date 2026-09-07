@@ -16,6 +16,7 @@ import {
   fetchOfferingSlots,
   fetchPublicSlots,
   openBookingOfferingsSettings,
+  openOfferingsPage,
   openGuestPage,
   openOfferingEdit,
   rejectE2ePublicGuests,
@@ -70,6 +71,10 @@ for (const role of SETTINGS_ROLES) {
         await expect(page.getByText(label, { exact: true })).toBeVisible();
         await expect(audienceSelect(page, label)).toBeVisible();
       }
+      await expect(page.getByRole("link", { name: /configure booking offerings/i })).toBeVisible();
+      await expect(page.getByRole("button", { name: /add offering/i })).toHaveCount(0);
+      await page.getByRole("link", { name: /configure booking offerings/i }).click();
+      await expect(page).toHaveURL(/\/offerings/, { timeout: 15_000 });
       await expect(page.getByRole("button", { name: /add offering/i })).toBeVisible();
       await expect(page.getByText("E2E Discovery")).toBeVisible();
       await expect(page.getByText("Active").first()).toBeVisible();
@@ -95,7 +100,7 @@ test.describe("admin can write offering settings", () => {
   test("admin can save offering copy that guests see", async ({ page, browser, request }) => {
     await ensurePublicOffering(request);
     const marker = `E2E-admin-desc-${Date.now()}`;
-    const errors = await openBookingOfferingsSettings(page);
+    const errors = await openOfferingsPage(page);
     await dismissCookieBanner(page);
     await openOfferingEdit(page);
     await page.getByLabel(/^Description$/i).fill(marker);
@@ -124,6 +129,14 @@ for (const role of SETTINGS_DENIED) {
       await expect(page).toHaveURL(/\/me($|\/|\?)/, { timeout: 20_000 });
       await expect(page.getByText("Public booking links")).toHaveCount(0);
       await expect(page.getByText("Calendar visibility")).toHaveCount(0);
+      expectNoBootCrash(errors);
+    });
+
+    test(`${role} cannot open /offerings`, async ({ page }) => {
+      const errors = collectPageErrors(page);
+      await page.goto("/offerings");
+      await expect(page).toHaveURL(/\/me($|\/|\?)/, { timeout: 20_000 });
+      await expect(page.getByRole("button", { name: /add offering/i })).toHaveCount(0);
       expectNoBootCrash(errors);
     });
   });
@@ -277,7 +290,7 @@ test.describe("calendar visibility settings", () => {
     request,
   }) => {
     await ensurePublicOffering(request);
-    const errors = await openBookingOfferingsSettings(page);
+    const errors = await openOfferingsPage(page);
     await dismissCookieBanner(page);
     await openOfferingEdit(page);
     const pickAircraft = page.getByRole("switch", { name: /let requester pick aircraft/i });
@@ -287,6 +300,7 @@ test.describe("calendar visibility settings", () => {
     const guestCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const guestPage = await guestCtx.newPage();
     try {
+      await openBookingOfferingsSettings(page);
       await setAudienceVisibility(page, "Guests (public booking)", "Open slots only");
       await openGuestPage(guestPage);
       const labeled = await slotLabels(guestPage);
@@ -300,6 +314,7 @@ test.describe("calendar visibility settings", () => {
       const stillLabeled = await slotLabels(guestPage);
       expect(stillLabeled.some((label) => TAIL_RE.test(label))).toBeTruthy();
 
+      await openOfferingsPage(page);
       await openOfferingEdit(page);
       const pickAgain = page.getByRole("switch", { name: /let requester pick aircraft/i });
       if (await pickAgain.isChecked()) await pickAgain.click();
@@ -331,7 +346,7 @@ test.describe("offering settings from the UI", () => {
     request,
   }) => {
     await ensurePublicOffering(request);
-    const errors = await openBookingOfferingsSettings(page);
+    const errors = await openOfferingsPage(page);
     await dismissCookieBanner(page);
     await openOfferingEdit(page);
     await expect(page.getByLabel(/^Name$/i)).toHaveValue("E2E Discovery");
@@ -358,7 +373,7 @@ test.describe("offering settings from the UI", () => {
     request,
   }) => {
     await ensurePublicOffering(request);
-    const errors = await openBookingOfferingsSettings(page);
+    const errors = await openOfferingsPage(page);
     await dismissCookieBanner(page);
     const guestCtx = await browser.newContext({ storageState: { cookies: [], origins: [] } });
     const guestPage = await guestCtx.newPage();
@@ -394,7 +409,7 @@ test.describe("offering settings from the UI", () => {
     request,
   }) => {
     await ensurePublicOffering(request);
-    const errors = await openBookingOfferingsSettings(page);
+    const errors = await openOfferingsPage(page);
     await dismissCookieBanner(page);
     await openOfferingEdit(page);
     await page.getByRole("combobox", { name: "Booking horizon" }).click();
@@ -425,7 +440,7 @@ test.describe("offering settings from the UI", () => {
     request,
   }) => {
     await ensurePublicOffering(request);
-    const errors = await openBookingOfferingsSettings(page);
+    const errors = await openOfferingsPage(page);
     await dismissCookieBanner(page);
     await openOfferingEdit(page);
     await page.getByRole("combobox", { name: "Minimum notice" }).click();
@@ -477,6 +492,7 @@ test.describe("offering settings from the UI", () => {
       const unlabeled = await slotLabels(guestPage);
       expect(unlabeled.some((label) => TAIL_RE.test(label))).toBeFalsy();
 
+      await openOfferingsPage(page);
       await openOfferingEdit(page);
       const pickAircraft = page.getByRole("switch", { name: /let requester pick aircraft/i });
       await expect(pickAircraft).not.toBeChecked();
@@ -612,7 +628,7 @@ test.describe("offering setting effects", () => {
     request,
   }) => {
     await ensurePublicOffering(request);
-    const errors = await openBookingOfferingsSettings(page);
+    const errors = await openOfferingsPage(page);
     await dismissCookieBanner(page);
     await openOfferingEdit(page);
     await page.getByRole("combobox", { name: "Fixed duration" }).click();
@@ -662,7 +678,7 @@ test.describe("offering setting effects", () => {
     request,
   }) => {
     await ensurePublicOffering(request);
-    const errors = await openBookingOfferingsSettings(page);
+    const errors = await openOfferingsPage(page);
     await dismissCookieBanner(page);
     await openOfferingEdit(page);
     await expect(page.getByRole("switch", { name: /let requester pick instructor/i })).toHaveCount(0);

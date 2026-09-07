@@ -39,6 +39,7 @@ const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   "/maintenance": (r) => isStaff(r) || isTechnician(r),
   "/audit-logs": isAdmin,
   "/settings": isAdmin,
+  "/offerings": isAdmin,
 };
 
 /** Session roles for each seeded AERTEST01 account. */

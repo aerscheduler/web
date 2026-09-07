@@ -150,6 +150,13 @@ describe("routes deliberately left on roles", () => {
       expect(canAccess(path, ["student"], grantsFor(["student"]))).toBe(true);
     }
   });
+
+  it("keeps /offerings on admin roles, matching BookingOfferingService", () => {
+    expect(canAccess("/offerings", ["admin"], grantsFor(["admin"]))).toBe(true);
+    expect(canAccess("/offerings", ["owner"], grantsFor(["owner"]))).toBe(true);
+    expect(canAccess("/offerings", ["student"], grantsFor(["student"]))).toBe(false);
+    expect(canAccess("/offerings", ["dispatcher"], grantsFor(["dispatcher"]))).toBe(false);
+  });
 });
 
 // ── /me/book: who the self-serve page is for ─────────────────────────────────

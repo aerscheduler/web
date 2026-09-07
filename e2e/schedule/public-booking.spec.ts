@@ -31,6 +31,7 @@ import {
   bookablePlanes,
   fetchPublicSlots,
   restoreCalendarVisibility,
+  openOfferingsPage,
 } from "../helpers/public-booking";
 
 test.describe("public guest booking page", () => {
@@ -779,6 +780,8 @@ test.describe("public booking settings", () => {
     } finally {
       await setPublicBookingEmbedHosts(request, []);
     }
+    await expect(page.getByRole("link", { name: /configure booking offerings/i })).toBeVisible();
+    await openOfferingsPage(page);
     await page.getByRole("button", { name: /actions for e2e discovery/i }).click();
     await expect(page.getByRole("menuitem", { name: /copy public link/i })).toBeVisible();
     await page.getByRole("menuitem", { name: /copy public link/i }).click();

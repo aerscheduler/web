@@ -76,6 +76,10 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   //link would reach a page that could only 403.
   "/audit-logs": isAdmin,
   "/settings": isAdmin,
+  // Matches BookingOfferingService: isOrgAdmin. Left off ROUTE_GRANTS so an office
+  // manager with manageOrgSettings can still reach Settings without a page whose API
+  // would 403.
+  "/offerings": isAdmin,
 };
 
 /**

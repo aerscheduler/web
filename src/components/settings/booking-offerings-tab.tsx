@@ -1,7 +1,10 @@
 import * as React from "react";
+import { Link } from "@tanstack/react-router";
 import {
+  ArrowRight,
   CalendarRange,
   Check,
+  Clock,
   Copy,
   ExternalLink,
   Globe,
@@ -9,20 +12,16 @@ import {
   Loader2,
   MoreHorizontal,
   Pencil,
-  Plus,
   Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  useBookingOfferingsPage,
   useCalendarVisibility,
   useCreateBookingOffering,
   useUpdateBookingOffering,
   useUpdateCalendarVisibility,
 } from "@/features/booking-offerings";
-import { pageRows, useLocations, useMembers, useResources, useUpdateOrganization } from "@/features/queries";
-import { TablePagination } from "@/components/table-pagination";
-import { usePaging } from "@/lib/paging";
+import { useLocations, useMembers, useResources, useUpdateOrganization } from "@/features/queries";
 import type {
   BookingOffering,
   BookingOfferingInput,
@@ -33,7 +32,7 @@ import type {
 import type { OrganizationUser, Resource } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
-import { EmptyState, ErrorState } from "@/components/states";
+import { ErrorState } from "@/components/states";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import {
   Card,
@@ -54,7 +53,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -216,9 +217,38 @@ export function BookingOfferingsTab() {
   return (
     <div className="space-y-5">
       <PublicBookingCard />
+      <OfferingsJumpCard />
       <CalendarVisibilityCard />
-      <BookingOfferingsListCard />
     </div>
+  );
+}
+
+function OfferingsJumpCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2.5">
+          <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+            <CalendarRange className="size-4" />
+          </span>
+          <div>
+            <CardTitle>Offerings</CardTitle>
+            <CardDescription>
+              Discovery flights and other bookable products. Add, pause, and share each
+              offering&rsquo;s public link from the Offerings page.
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Button asChild>
+          <Link to="/offerings">
+            Configure booking offerings
+            <ArrowRight className="size-4" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -370,10 +400,9 @@ function PublicBookingCard() {
               />
             </Field>
             <p className="text-xs text-muted-foreground">
-              Each active offering has Open public link, Copy public link, Copy embed code
-              (iframe), and Copy modal embed. Open the public link in a new tab to see the
-              guest page. Guests request a time. The desk still approves it. Other websites
-              cannot show the frame until you list them here. Do not paste arbitrary CSS or
+              Open an offering on the Offerings page for Open public link, Copy public
+              link, Copy embed code (iframe), and Copy modal embed. Other websites cannot
+              show the frame until you list them here. Do not paste arbitrary CSS or
               scripts into the page.
             </p>
             <div className="flex items-center gap-1">
@@ -539,108 +568,7 @@ function CalendarVisibilityCard() {
   );
 }
 
-function BookingOfferingsListCard() {
-  const paging = usePaging();
-  const q = useBookingOfferingsPage(paging);
-  const update = useUpdateBookingOffering();
-  const [formOpen, setFormOpen] = React.useState(false);
-  const [editing, setEditing] = React.useState<BookingOffering | null>(null);
-  const { rows: offerings, total } = pageRows(q);
-
-  function openAdd() {
-    setEditing(null);
-    setFormOpen(true);
-  }
-
-  function openEdit(offering: BookingOffering) {
-    setEditing(offering);
-    setFormOpen(true);
-  }
-
-  function toggleActive(offering: BookingOffering) {
-    update.mutate(
-      { id: offering.id, active: !offering.active },
-      {
-        onSuccess: () =>
-          toast.success(offering.active ? `"${offering.name}" paused.` : `"${offering.name}" activated.`),
-        onError: (e) => toast.error(errMessage(e, "Couldn't update this offering.")),
-      }
-    );
-  }
-
-  return (
-    <Card>
-      <CardHeader className="flex-row items-start justify-between gap-4">
-        <div className="flex items-center gap-2.5">
-          <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
-            <CalendarRange className="size-4" />
-          </span>
-          <div>
-            <CardTitle>Offerings</CardTitle>
-            <CardDescription>
-              Presets for discovery flights and other bookable products. Every school
-              starts with a Discovery flight offering. Active offerings get a public
-              link. Each offering inherits org booking rules and may only tighten them.
-            </CardDescription>
-          </div>
-        </div>
-        <Button size="sm" onClick={openAdd}>
-          <Plus className="size-4" /> Add offering
-        </Button>
-      </CardHeader>
-      <CardContent className="p-0">
-        {q.isPending ? (
-          <div className="space-y-3 p-4">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        ) : q.isError ? (
-          <ErrorState error={q.error} onRetry={() => void q.refetch()} />
-        ) : total === 0 ? (
-          <EmptyState
-            graphic="booking-offerings"
-            title="No offerings yet"
-            body="Create a discovery flight or other preset with fixed duration, eligible aircraft, and optional instructor pool."
-            docs="public-booking-links"
-            action={
-              <Button size="sm" onClick={openAdd}>
-                <Plus className="size-4" /> Add offering
-              </Button>
-            }
-          />
-        ) : (
-          <ul className="divide-y divide-border">
-            {offerings.map((offering) => (
-              <OfferingRow
-                key={offering.id}
-                offering={offering}
-                onEdit={openEdit}
-                onToggleActive={toggleActive}
-                busy={update.isPending}
-              />
-            ))}
-          </ul>
-        )}
-        <TablePagination
-          paging={paging}
-          total={total}
-          returned={offerings.length}
-          loading={q.isFetching}
-          className="px-1"
-        />
-      </CardContent>
-
-      <BookingOfferingFormModal
-        open={formOpen}
-        onOpenChange={setFormOpen}
-        offering={editing}
-      />
-    </Card>
-  );
-}
-
-function OfferingRow({
+export function OfferingRow({
   offering,
   onEdit,
   onToggleActive,
@@ -653,12 +581,18 @@ function OfferingRow({
 }) {
   const { organization } = useAuth();
   const [copied, setCopied] = React.useState(false);
-  const resourceCount = offering.resources?.length ?? 0;
-  const instructorCount = offering.instructors?.length ?? 0;
   const publicSlug = organization?.publicBookingEnabled ? organization.publicBookingSlug : null;
+  const path = publicSlug ? `/${publicSlug}/${offering.slug}` : `/${offering.slug}`;
   const shareUrl =
     publicSlug && offering.active ? publicOfferingUrl(publicSlug, offering.slug) : null;
   const embedListed = (organization?.publicBookingEmbedHosts?.length ?? 0) > 0;
+  const duration =
+    offering.fixedReservationMinutes != null ? `${offering.fixedReservationMinutes}m` : null;
+  const shareHint = !organization?.publicBookingEnabled
+    ? "Turn on public requests under Settings → Booking links."
+    : !offering.active
+      ? "Activate this offering to share its public link."
+      : null;
 
   function copySnippet(text: string, ok: string, needsAllowlist: boolean) {
     void navigator.clipboard
@@ -685,74 +619,117 @@ function OfferingRow({
       .catch(() => toast.error("Couldn't copy link"));
   }
 
+  function openPublic() {
+    if (!shareUrl) return;
+    window.open(shareUrl, "_blank", "noopener,noreferrer");
+  }
+
   return (
-    <li className="flex items-start justify-between gap-4 px-4 py-3">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-medium">{offering.name}</span>
-          <Badge variant={offering.active ? "default" : "secondary"}>
-            {offering.active ? "Active" : "Paused"}
-          </Badge>
-          <Badge variant="outline">{offering.reservationType}</Badge>
+    <div className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-accent/40">
+      <button
+        type="button"
+        className="min-w-0 flex-1 text-left"
+        aria-label={`Edit ${offering.name}`}
+        onClick={() => onEdit(offering)}
+      >
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="truncate text-sm font-semibold">{offering.name}</span>
+          <span className="truncate font-mono text-xs text-muted-foreground">{path}</span>
         </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">
-          /{offering.slug}
-          {offering.fixedReservationMinutes != null &&
-            ` · ${offering.fixedReservationMinutes} min`}
-          {resourceCount > 0 && ` · ${resourceCount} aircraft`}
-          {instructorCount > 0 && ` · ${instructorCount} instructors`}
-          {offering.location?.name && ` · ${offering.location.name}`}
-        </p>
-        {offering.description && (
-          <p className="mt-1 text-xs text-muted-foreground">{offering.description}</p>
-        )}
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          {duration && (
+            <Badge variant="outline">
+              <Clock className="size-3" />
+              {duration}
+            </Badge>
+          )}
+          <Badge variant="outline">{offering.reservationType}</Badge>
+          {!offering.active && <Badge variant="warning">Paused</Badge>}
+        </div>
+      </button>
+      <div className="flex shrink-0 items-center gap-1">
+        <Switch
+          size="sm"
+          checked={offering.active}
+          disabled={busy}
+          onCheckedChange={() => onToggleActive(offering)}
+          aria-label={offering.active ? `Pause ${offering.name}` : `Activate ${offering.name}`}
+        />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                disabled={!shareUrl}
+                aria-label={`Open public link for ${offering.name}`}
+                onClick={openPublic}
+              >
+                <ExternalLink className="size-4" />
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{shareHint ?? "Open public link"}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                disabled={!shareUrl}
+                aria-label={`Copy public link for ${offering.name}`}
+                onClick={copyLink}
+              >
+                {copied ? <Check className="size-4" /> : <Link2 className="size-4" />}
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>{shareHint ?? "Copy public link"}</TooltipContent>
+        </Tooltip>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${offering.name}`}>
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuItem onSelect={() => onEdit(offering)}>
+              <Pencil /> Edit
+            </DropdownMenuItem>
+            {shareUrl ? (
+              <>
+                <DropdownMenuItem onSelect={openPublic}>
+                  <ExternalLink /> Open public link
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={copyLink}>
+                  {copied ? <Check /> : <Copy />} Copy public link
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    copySnippet(publicBookingIframeSnippet(shareUrl), "Embed code copied.", true);
+                  }}
+                >
+                  <Copy /> Copy embed code
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => {
+                    copySnippet(publicBookingModalSnippet(shareUrl), "Modal embed copied.", true);
+                  }}
+                >
+                  <Copy /> Copy modal embed
+                </DropdownMenuItem>
+              </>
+            ) : null}
+            <DropdownMenuItem disabled={busy} onSelect={() => onToggleActive(offering)}>
+              {offering.active ? "Pause offering" : "Activate offering"}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={`Actions for ${offering.name}`}>
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onSelect={() => onEdit(offering)}>
-            <Pencil /> Edit
-          </DropdownMenuItem>
-          {shareUrl ? (
-            <>
-              <DropdownMenuItem
-                onSelect={() => {
-                  window.open(shareUrl, "_blank", "noopener,noreferrer");
-                }}
-              >
-                <ExternalLink /> Open public link
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={copyLink}>
-                {copied ? <Check /> : <Copy />} Copy public link
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => {
-                  if (!shareUrl) return;
-                  copySnippet(publicBookingIframeSnippet(shareUrl), "Embed code copied.", true);
-                }}
-              >
-                <Copy /> Copy embed code
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => {
-                  if (!shareUrl) return;
-                  copySnippet(publicBookingModalSnippet(shareUrl), "Modal embed copied.", true);
-                }}
-              >
-                <Copy /> Copy modal embed
-              </DropdownMenuItem>
-            </>
-          ) : null}
-          <DropdownMenuItem disabled={busy} onSelect={() => onToggleActive(offering)}>
-            {offering.active ? "Pause offering" : "Activate offering"}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </li>
+    </div>
   );
 }
 
@@ -819,7 +796,7 @@ function formFromOffering(offering: BookingOffering): FormState {
   };
 }
 
-function BookingOfferingFormModal({
+export function BookingOfferingFormModal({
   open,
   onOpenChange,
   offering,

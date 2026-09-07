@@ -458,6 +458,12 @@ export const DOCS_TOPICS = {
       "A shareable page for guests who do not have an account. They pick a day and start time, confirm by email, and you approve from Calendar → Booking requests. Members still book with Solo, Dual, Ground and the rest. This does not replace reservation types.",
     href: "scheduling/public-booking-requests",
   },
+  "booking-offerings": {
+    title: "Offerings",
+    summary:
+      "Presets for discovery flights and other bookable products. Every school starts with a Discovery flight offering. Active offerings get a public link once you turn on Allow public requests under Settings → Booking links.",
+    href: "scheduling/public-booking-requests",
+  },
   "collection-style": {
     title: "How this booking is billed",
     summary:

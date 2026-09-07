@@ -30,6 +30,7 @@ import { Route as AuthedDeveloperRouteImport } from './routes/_authed/developer'
 import { Route as AuthedFacilitiesRouteImport } from './routes/_authed/facilities'
 import { Route as AuthedMaintenanceRouteImport } from './routes/_authed/maintenance'
 import { Route as AuthedNotificationsRouteImport } from './routes/_authed/notifications'
+import { Route as AuthedOfferingsRouteImport } from './routes/_authed/offerings'
 import { Route as AuthedOrganizationSettingsRouteImport } from './routes/_authed/organization-settings'
 import { Route as AuthedPeopleRouteImport } from './routes/_authed/people'
 import { Route as AuthedReportsRouteImport } from './routes/_authed/reports'
@@ -168,6 +169,11 @@ const AuthedMaintenanceRoute = AuthedMaintenanceRouteImport.update({
 const AuthedNotificationsRoute = AuthedNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedOfferingsRoute = AuthedOfferingsRouteImport.update({
+  id: '/offerings',
+  path: '/offerings',
   getParentRoute: () => AuthedRoute,
 } as any)
 const AuthedOrganizationSettingsRoute =
@@ -373,6 +379,7 @@ export interface FileRoutesByFullPath {
   '/facilities': typeof AuthedFacilitiesRoute
   '/maintenance': typeof AuthedMaintenanceRoute
   '/notifications': typeof AuthedNotificationsRoute
+  '/offerings': typeof AuthedOfferingsRoute
   '/organization-settings': typeof AuthedOrganizationSettingsRoute
   '/people': typeof AuthedPeopleRoute
   '/reports': typeof AuthedReportsRoute
@@ -429,6 +436,7 @@ export interface FileRoutesByTo {
   '/facilities': typeof AuthedFacilitiesRoute
   '/maintenance': typeof AuthedMaintenanceRoute
   '/notifications': typeof AuthedNotificationsRoute
+  '/offerings': typeof AuthedOfferingsRoute
   '/organization-settings': typeof AuthedOrganizationSettingsRoute
   '/people': typeof AuthedPeopleRoute
   '/reports': typeof AuthedReportsRoute
@@ -487,6 +495,7 @@ export interface FileRoutesById {
   '/_authed/facilities': typeof AuthedFacilitiesRoute
   '/_authed/maintenance': typeof AuthedMaintenanceRoute
   '/_authed/notifications': typeof AuthedNotificationsRoute
+  '/_authed/offerings': typeof AuthedOfferingsRoute
   '/_authed/organization-settings': typeof AuthedOrganizationSettingsRoute
   '/_authed/people': typeof AuthedPeopleRoute
   '/_authed/reports': typeof AuthedReportsRoute
@@ -545,6 +554,7 @@ export interface FileRouteTypes {
     | '/facilities'
     | '/maintenance'
     | '/notifications'
+    | '/offerings'
     | '/organization-settings'
     | '/people'
     | '/reports'
@@ -601,6 +611,7 @@ export interface FileRouteTypes {
     | '/facilities'
     | '/maintenance'
     | '/notifications'
+    | '/offerings'
     | '/organization-settings'
     | '/people'
     | '/reports'
@@ -658,6 +669,7 @@ export interface FileRouteTypes {
     | '/_authed/facilities'
     | '/_authed/maintenance'
     | '/_authed/notifications'
+    | '/_authed/offerings'
     | '/_authed/organization-settings'
     | '/_authed/people'
     | '/_authed/reports'
@@ -858,6 +870,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof AuthedNotificationsRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/offerings': {
+      id: '/_authed/offerings'
+      path: '/offerings'
+      fullPath: '/offerings'
+      preLoaderRoute: typeof AuthedOfferingsRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/organization-settings': {
@@ -1112,6 +1131,7 @@ interface AuthedRouteChildren {
   AuthedFacilitiesRoute: typeof AuthedFacilitiesRoute
   AuthedMaintenanceRoute: typeof AuthedMaintenanceRoute
   AuthedNotificationsRoute: typeof AuthedNotificationsRoute
+  AuthedOfferingsRoute: typeof AuthedOfferingsRoute
   AuthedOrganizationSettingsRoute: typeof AuthedOrganizationSettingsRoute
   AuthedPeopleRoute: typeof AuthedPeopleRoute
   AuthedReportsRoute: typeof AuthedReportsRoute
@@ -1156,6 +1176,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedFacilitiesRoute: AuthedFacilitiesRoute,
   AuthedMaintenanceRoute: AuthedMaintenanceRoute,
   AuthedNotificationsRoute: AuthedNotificationsRoute,
+  AuthedOfferingsRoute: AuthedOfferingsRoute,
   AuthedOrganizationSettingsRoute: AuthedOrganizationSettingsRoute,
   AuthedPeopleRoute: AuthedPeopleRoute,
   AuthedReportsRoute: AuthedReportsRoute,

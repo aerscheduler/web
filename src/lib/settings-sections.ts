@@ -52,7 +52,7 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
         value: "booking-offerings",
         label: "Booking links",
         icon: CalendarRange,
-        keywords: ["booking links", "discovery flight", "guest booking", "public booking", "calendar visibility", "offering"],
+        keywords: ["booking links", "guest booking", "public booking", "calendar visibility", "embed"],
         adminOnly: true,
       },
       { value: "groups", label: "Groups", icon: Layers, keywords: ["resource groups", "fleet groups"] },

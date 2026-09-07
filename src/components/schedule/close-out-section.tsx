@@ -1006,7 +1006,7 @@ function PackagePaymentCallout({ r }: { r: Reservation }) {
       data-testid={showMissing ? "package-payment-missing" : "package-payment-callout"}
       data-doc-shot={
         showMissing
-          ? undefined
+          ? "package-payment-missing"
           : unpaid
             ? "package-payment-collect"
             : invoice?.paidAt

@@ -6,10 +6,9 @@ import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogoLockup } from "@/components/logo";
-import { GoogleButton, AppleButton, OrDivider } from "@/components/google-button";
+import { AuthSocials, OrDivider } from "@/components/google-button";
 import { LegalNotice } from "@/components/legal-notice";
-import { BrandPanel } from "./login";
+import { AUTH_CONTROL, AuthShell } from "@/components/auth-shell";
 import { track } from "@/lib/analytics";
 import { trackAdConversion } from "@/lib/ads";
 import { attributionChannel } from "@/lib/attribution";
@@ -50,84 +49,82 @@ function SignupPage() {
   }
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
-      <BrandPanel />
-      <main className="flex items-center justify-center bg-background px-6 py-12">
-        <div className="w-full max-w-sm">
-          <div className="mb-5 lg:hidden">
-            <LogoLockup />
-          </div>
-          <h1 className="text-[22px] font-semibold tracking-tight">Create your account</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Two minutes to a bookable aircraft. No credit card, no sales call.
-          </p>
+    <AuthShell
+      aside={
+        <>
+          <span className="hidden sm:inline">Already have an account? </span>
+          <Link to="/login" className="font-medium text-foreground hover:text-primary">
+            Sign in
+          </Link>
+        </>
+      }
+    >
+      <h1 className="text-[28px] font-semibold tracking-tight sm:text-[32px]">Create your account</h1>
+      <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+        Two minutes to a bookable aircraft. No credit card, no sales call.
+      </p>
 
-          <div className="mt-5 space-y-3">
-            <GoogleButton label="Sign up with Google" />
-            <AppleButton label="Sign up with Apple" />
-            <OrDivider />
-          </div>
-
-          <form onSubmit={onSubmit} className="mt-4 space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="name">Your name</Label>
-              <Input
-                id="name"
-                autoComplete="name"
-                required
-                placeholder="Amelia Earhart"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Work email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                placeholder="you@flightschool.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                placeholder="At least 8 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-
-            {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
-
-            <Button type="submit" size="lg" className="w-full" disabled={busy}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              {busy ? "Creating account…" : "Create account"}
-            </Button>
-          </form>
-
-          <LegalNotice />
-
-          <p className="mt-5 text-center text-sm text-muted-foreground">
-            Already have an account?{" "}
-            <Link to="/login" className="font-medium text-primary hover:underline">
-              Sign in
-            </Link>
-          </p>
+      <div className="mt-8">
+        <AuthSocials googleLabel="Google" appleLabel="Apple" />
+        <div className="mt-6">
+          <OrDivider />
         </div>
-      </main>
-    </div>
+      </div>
+
+      <form onSubmit={onSubmit} className="mt-6 space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="name">Your name</Label>
+          <Input
+            id="name"
+            autoComplete="name"
+            required
+            placeholder="Amelia Earhart"
+            className={AUTH_CONTROL}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="email">Work email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            placeholder="you@flightschool.com"
+            className={AUTH_CONTROL}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            required
+            minLength={8}
+            placeholder="At least 8 characters"
+            className={AUTH_CONTROL}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+
+        {error && (
+          <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+
+        <Button type="submit" size="lg" className={`w-full ${AUTH_CONTROL}`} disabled={busy}>
+          {busy && <Loader2 className="size-4 animate-spin" />}
+          {busy ? "Creating account…" : "Create account"}
+        </Button>
+      </form>
+
+      <LegalNotice />
+    </AuthShell>
   );
 }

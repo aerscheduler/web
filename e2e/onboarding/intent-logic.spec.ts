@@ -9,6 +9,7 @@ import { test, expect } from "@playwright/test";
 import {
   attributionIsWeak,
   inferredIntent,
+  pickerIntentFromSource,
   resolveSetupSource,
   shouldAskHeardFrom,
   sourceFromLandingPath,
@@ -96,6 +97,13 @@ test.describe("attribution weakness", () => {
         at: new Date().toISOString(),
       })
     ).toBe("maintenance");
+  });
+
+  test("pickerIntentFromSource maps stored slugs onto picker cards", () => {
+    expect(pickerIntentFromSource("maintenance")).toBe("maintenance");
+    expect(pickerIntentFromSource("quickbooks")).toBe("billing");
+    expect(pickerIntentFromSource("clubs")).toBe("scheduling");
+    expect(pickerIntentFromSource("google-cpc")).toBeNull();
   });
 });
 

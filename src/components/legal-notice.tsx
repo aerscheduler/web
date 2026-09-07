@@ -18,26 +18,28 @@ import { PRIVACY_URL, TERMS_URL } from "@/lib/legal";
  */
 export function LegalNotice({ action = "creating an account" }: { action?: string }) {
   return (
-    <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+    <p className="mt-4 text-xs leading-relaxed text-pretty text-muted-foreground">
       By {action}, you agree to our{" "}
       <a
         href={TERMS_URL}
         target="_blank"
         rel="noreferrer"
-        className="font-medium text-foreground underline underline-offset-2 hover:text-primary"
+        className="whitespace-nowrap font-medium text-foreground underline underline-offset-2 hover:text-primary"
       >
         Terms of Service
       </a>{" "}
       and{" "}
-      <a
-        href={PRIVACY_URL}
-        target="_blank"
-        rel="noreferrer"
-        className="font-medium text-foreground underline underline-offset-2 hover:text-primary"
-      >
-        Privacy Policy
-      </a>
-      .
+      <span className="whitespace-nowrap">
+        <a
+          href={PRIVACY_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="font-medium text-foreground underline underline-offset-2 hover:text-primary"
+        >
+          Privacy Policy
+        </a>
+        .
+      </span>
     </p>
   );
 }

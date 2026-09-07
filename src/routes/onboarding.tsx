@@ -31,6 +31,7 @@ import {
   SETUP_INTENTS,
   HEARD_FROM_OPTIONS,
   inferredIntent,
+  pickerIntentFromSource,
   resolveSetupSource,
   type SetupIntent,
 } from "@/lib/onboarding-intent";
@@ -490,6 +491,25 @@ function OperationFlow({
     };
   }, [organization]);
 
+  const intentTouched = React.useRef(false);
+  React.useEffect(() => {
+    if (!organization?.id) return;
+    let cancelled = false;
+    void api<{ source?: string | null }>("/organizations/onboarding")
+      .then((row) => {
+        if (cancelled || intentTouched.current) return;
+        const next = pickerIntentFromSource(row.source);
+        if (next) setIntent(next);
+      })
+      .catch(() => {
+        // Attribution was cleared at create. A failed read leaves the picker on
+        // the inferred default; they can still pick before Continue.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [organization?.id]);
+
   function locationFields() {
     return {
       name: (airport.trim() || orgName.trim() || "Home").slice(0, 60),
@@ -537,6 +557,12 @@ function OperationFlow({
           name: orgName.trim(),
           organizationType: subtype,
         });
+        if (intentTouched.current && intent) {
+          await api("/organizations/onboarding", {
+            method: "PATCH",
+            body: { source: intent },
+          });
+        }
         let locationWriteFailed = false;
         const locId = locationId ?? homeLocation?.id ?? (await firstLocationId());
         if (locId && airportPick) {
@@ -615,7 +641,7 @@ function OperationFlow({
       }
       const source =
         resolveSetupSource({
-          intent,
+          intent: intentTouched.current ? intent : null,
           src: attribution?.src,
           landingPath: attribution?.landingPath,
           utmCampaign: attribution?.utm_campaign,
@@ -833,7 +859,10 @@ function OperationFlow({
                 <button
                   key={opt.id}
                   type="button"
-                  onClick={() => setIntent(opt.id)}
+                  onClick={() => {
+                    intentTouched.current = true;
+                    setIntent(opt.id);
+                  }}
                   className={cn(
                     "rounded-lg border px-3 py-2.5 text-left transition-colors",
                     intent === opt.id

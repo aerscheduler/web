@@ -104,6 +104,17 @@ export function isSetupIntent(value: string | null | undefined): value is SetupI
 }
 
 /**
+ * Card to highlight on the wizard picker from a stored `source` slug.
+ *
+ * quickbooks/clubs are tracks but not picker rows, same mapping as {@link inferredIntent}.
+ */
+export function pickerIntentFromSource(source: string | null | undefined): SetupIntent | null {
+  if (source === "quickbooks") return "billing";
+  if (source === "clubs") return "scheduling";
+  return SETUP_INTENTS.some((i) => i.id === source) ? (source as SetupIntent) : null;
+}
+
+/**
  * The slug written to `OrganizationOnboarding.source`.
  *
  * Precedence: what they picked in the wizard → explicit `src` → landing path → utm.

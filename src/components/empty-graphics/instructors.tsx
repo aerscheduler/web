@@ -2,7 +2,7 @@ import { EmptyGraphicSvg } from "./graphic-svg";
 
 export function InstructorsEmptyGraphic({ className }: { className?: string }) {
   return (
-    <EmptyGraphicSvg viewBox="41.5 48.5 161 138" className={className}>
+    <EmptyGraphicSvg viewBox="26.5 44.5 166 143" className={className}>
       {/* Aviation headset, large cups, obvious boom mic. */}
         <g stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <ellipse cx="122" cy="178" rx="56" ry="8" opacity="0.28" strokeDasharray="3.5 4" />

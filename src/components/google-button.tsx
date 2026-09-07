@@ -4,6 +4,10 @@ import { Loader2 } from "lucide-react";
 import { useAuth, postLoginPath } from "@/lib/auth";
 import { APPLE_ENABLED } from "@/lib/apple";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+
+/** Outline socials need a 3:1 edge; the default `border-input` hairline does not. */
+const SOCIAL_OUTLINE = "h-11 w-full border-foreground/40 dark:border-foreground/40";
 
 /** "Continue with Google", opens the Google chooser, then routes into the app. */
 export function GoogleButton({ label = "Continue with Google" }: { label?: string }) {
@@ -32,7 +36,7 @@ export function GoogleButton({ label = "Continue with Google" }: { label?: strin
         type="button"
         variant="outline"
         size="lg"
-        className="w-full"
+        className={SOCIAL_OUTLINE}
         onClick={onClick}
         disabled={busy}
       >
@@ -74,17 +78,18 @@ export function AppleButton({ label = "Continue with Apple" }: { label?: string 
     <div className="space-y-2">
       <Button
         type="button"
+        variant="outline"
         size="lg"
         onClick={onClick}
         disabled={busy}
-        className="w-full bg-black text-white hover:bg-black/90 dark:bg-white dark:text-black dark:hover:bg-white/90"
+        className={SOCIAL_OUTLINE}
       >
         {busy ? (
           <Loader2 className="size-4 animate-spin" />
         ) : (
           <>
-            <img src="/brand/apple-white.png" alt="" aria-hidden className="size-4 dark:hidden" />
-            <img src="/brand/apple.png" alt="" aria-hidden className="hidden size-4 dark:block" />
+            <img src="/brand/apple.png" alt="" aria-hidden className="size-4 dark:hidden" />
+            <img src="/brand/apple-white.png" alt="" aria-hidden className="hidden size-4 dark:block" />
           </>
         )}
         {label}
@@ -101,6 +106,22 @@ export function OrDivider() {
       <span className="h-px flex-1 bg-border" />
       <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">or</span>
       <span className="h-px flex-1 bg-border" />
+    </div>
+  );
+}
+
+/** Google + Apple in a row on desktop so the form is not a tall stack of full-width pills. */
+export function AuthSocials({
+  googleLabel = "Google",
+  appleLabel = "Apple",
+}: {
+  googleLabel?: string;
+  appleLabel?: string;
+}) {
+  return (
+    <div className={cn("grid gap-3", APPLE_ENABLED && "sm:grid-cols-2")}>
+      <GoogleButton label={googleLabel} />
+      <AppleButton label={appleLabel} />
     </div>
   );
 }

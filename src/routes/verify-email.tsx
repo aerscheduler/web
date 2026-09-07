@@ -4,8 +4,8 @@ import { MailCheck, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { isAuthenticated, isEmailVerifiedSync, needsEmailVerification, postLoginPath, useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
-import { LogoMark } from "@/components/logo";
 import { Button } from "@/components/ui/button";
+import { AUTH_CONTROL, AuthShell } from "@/components/auth-shell";
 import { track } from "@/lib/analytics";
 import { attributionChannel } from "@/lib/attribution";
 
@@ -69,42 +69,37 @@ function VerifyEmailPage() {
   }
 
   return (
-    <div className="grid min-h-svh place-items-center bg-muted/30 px-4 py-10">
-      <div className="w-full max-w-md rounded-xl border bg-card p-8 text-center shadow-sm">
-        <div className="mb-5 flex justify-center">
-          <LogoMark className="h-9" />
-        </div>
-        <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
-          <MailCheck className="size-6" />
-        </div>
-        <h1 className="mt-4 text-xl font-semibold tracking-tight">Verify your email</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          We sent a verification link to{" "}
-          <span className="font-medium text-foreground">{user?.email ?? "your email"}</span>. Click it to
-          continue. This page updates automatically once you do.
-        </p>
-
-        <Button className="mt-5 w-full" onClick={checkNow} disabled={checking}>
-          {checking ? <Loader2 className="size-4 animate-spin" /> : null}
-          I've verified. Continue
-        </Button>
-
-        <button
-          type="button"
-          onClick={resend}
-          disabled={resending}
-          className="mt-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-60"
-        >
-          {resending ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-          Resend email
+    <AuthShell
+      aside={
+        <button type="button" onClick={logout} className="font-medium text-foreground hover:text-primary">
+          Sign out
         </button>
-
-        <div className="mt-6 border-t pt-4">
-          <button onClick={logout} className="text-xs text-muted-foreground hover:text-foreground">
-            Sign out
-          </button>
-        </div>
+      }
+    >
+      <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+        <MailCheck className="size-6" />
       </div>
-    </div>
+      <h1 className="mt-5 text-[28px] font-semibold tracking-tight sm:text-[32px]">Verify your email</h1>
+      <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+        We sent a verification link to{" "}
+        <span className="font-medium text-foreground">{user?.email ?? "your email"}</span>. Click it to
+        continue. This page updates automatically once you do.
+      </p>
+
+      <Button className={`mt-8 w-full ${AUTH_CONTROL}`} size="lg" onClick={checkNow} disabled={checking}>
+        {checking ? <Loader2 className="size-4 animate-spin" /> : null}
+        I've verified. Continue
+      </Button>
+
+      <button
+        type="button"
+        onClick={resend}
+        disabled={resending}
+        className="mt-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-60"
+      >
+        {resending ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
+        Resend email
+      </button>
+    </AuthShell>
   );
 }

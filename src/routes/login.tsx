@@ -6,9 +6,9 @@ import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogoLockup, LogoMark } from "@/components/logo";
-import { GoogleButton, AppleButton, OrDivider } from "@/components/google-button";
+import { AuthSocials, OrDivider } from "@/components/google-button";
 import { LegalNotice } from "@/components/legal-notice";
+import { AUTH_CONTROL, AuthShell } from "@/components/auth-shell";
 
 export const Route = createFileRoute("/login")({
   component: LoginPage,
@@ -63,142 +63,77 @@ function LoginPage() {
   }
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
-      <BrandPanel />
+    <AuthShell
+      aside={
+        <>
+          <span className="hidden sm:inline">New here? </span>
+          <Link to="/signup" className="font-medium text-foreground hover:text-primary">
+            Create an account
+          </Link>
+        </>
+      }
+    >
+      <h1 className="text-[28px] font-semibold tracking-tight sm:text-[32px]">Sign in</h1>
+      <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+        Welcome back. Enter your credentials to reach your flight school.
+      </p>
 
-      {/* Form */}
-      <main className="flex items-center justify-center bg-background px-6 py-12">
-        <div className="w-full max-w-sm">
-          <div className="mb-5 lg:hidden">
-            <LogoLockup />
-          </div>
-
-          <h1 className="text-[22px] font-semibold tracking-tight">Sign in</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Welcome back. Enter your credentials to reach your flight school.
-          </p>
-
-          <div className="mt-5 space-y-3">
-            <GoogleButton />
-            <AppleButton />
-            <OrDivider />
-          </div>
-
-          <form onSubmit={onSubmit} className="mt-4 space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="email"
-                required
-                placeholder="you@flightschool.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link
-                  to="/forgot-password"
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  Forgot?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-
-            {error && (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
-
-            <Button type="submit" size="lg" className="w-full" disabled={busy}>
-              {busy && <Loader2 className="size-4 animate-spin" />}
-              {busy ? "Signing in…" : "Sign in"}
-            </Button>
-          </form>
-
-          {/* Sign-in, not just sign-up: the Google and Apple buttons above CREATE an
-              account when the address is new, so this page is an acceptance point too. */}
-          <LegalNotice action="continuing" />
-
-          <p className="mt-5 text-center text-sm text-muted-foreground">
-            New to AerScheduler?{" "}
-            <Link to="/signup" className="font-medium text-primary hover:underline">
-              Create an account
-            </Link>
-          </p>
+      <div className="mt-8">
+        <AuthSocials />
+        <div className="mt-6">
+          <OrDivider />
         </div>
-      </main>
-    </div>
-  );
-}
-
-/** The signature deep-navy brand panel with the checkered grid, shared by auth pages. */
-export function BrandPanel() {
-  return (
-    <aside className="relative hidden flex-col justify-between overflow-hidden bg-brand-surface p-12 text-white lg:flex">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.6]"
-        style={{
-          background:
-            "radial-gradient(120% 80% at 15% 0%, color-mix(in oklch, var(--primary) 55%, transparent), transparent 60%), radial-gradient(90% 70% at 100% 100%, color-mix(in oklch, var(--brand-surface-2) 70%, transparent), transparent 55%)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.06]"
-        style={{
-          backgroundImage:
-            "linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg, #fff 1px, transparent 1px)",
-          backgroundSize: "40px 40px",
-        }}
-      />
-      <div className="relative flex items-center gap-2.5">
-        <LogoMark onDark className="size-9" />
-        <span className="text-[15px] font-semibold tracking-tight">AerScheduler</span>
       </div>
 
-      <div className="relative max-w-md">
-        <h2 className="text-3xl font-semibold leading-tight tracking-tight text-balance">
-          The command deck for your flight school.
-        </h2>
-        <p className="mt-4 text-[15px] leading-relaxed text-white/65">
-          Schedule aircraft, manage instructors and renters, and keep billing
-          square, all from one place built for the front desk.
-        </p>
-        <dl className="mt-10 grid grid-cols-3 gap-6 border-t border-white/10 pt-6">
-          {[
-            ["Dispatch", "Aircraft & sims"],
-            ["Roster", "Instructors & renters"],
-            ["Billing", "Invoices, paid & due"],
-          ].map(([k, v]) => (
-            <div key={k}>
-              <dt className="text-xs font-semibold uppercase tracking-wider text-white/45">
-                {k}
-              </dt>
-              <dd className="mt-1 text-sm text-white/80">{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
+      <form onSubmit={onSubmit} className="mt-6 space-y-5">
+        <div className="space-y-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            required
+            placeholder="you@flightschool.com"
+            className={AUTH_CONTROL}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </div>
+        <div className="relative space-y-1.5">
+          <Label htmlFor="password">Password</Label>
+          <Input
+            id="password"
+            type="password"
+            autoComplete="current-password"
+            required
+            placeholder="••••••••"
+            className={AUTH_CONTROL}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          <Link
+            to="/forgot-password"
+            className="absolute right-0 top-0 text-xs font-medium text-muted-foreground hover:text-foreground"
+          >
+            Forgot password?
+          </Link>
+        </div>
 
-      <div className="relative text-xs text-white/40">
-        &copy; {new Date().getFullYear()} AerScheduler
-      </div>
-    </aside>
+        {error && (
+          <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+
+        <Button type="submit" size="lg" className={`w-full ${AUTH_CONTROL}`} disabled={busy}>
+          {busy && <Loader2 className="size-4 animate-spin" />}
+          {busy ? "Signing in…" : "Sign in"}
+        </Button>
+      </form>
+
+      {/* Sign-in, not just sign-up: the Google and Apple buttons above CREATE an
+          account when the address is new, so this page is an acceptance point too. */}
+      <LegalNotice action="continuing" />
+    </AuthShell>
   );
 }

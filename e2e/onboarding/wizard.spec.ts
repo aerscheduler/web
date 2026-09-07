@@ -266,14 +266,33 @@ test.describe("Onboarding wizard", () => {
       if (req.method() === "PATCH") orgPatches += 1;
     });
 
+    const token = await bearerToken(page);
+    const beforeIntent = await apiGet<{ source: string | null }>(
+      request,
+      token,
+      "/organizations/onboarding",
+    );
+    expect(beforeIntent.source).toBe("scheduling");
+
     await page.getByRole("button", { name: "Back" }).click();
     await expect(page.getByLabel("Operation name")).toHaveValue(firstName);
     const renamed = `${firstName} Renamed`;
     await page.getByLabel("Operation name").fill(renamed);
-    await finishOperationDetails(page, "Continue");
+    await page.getByRole("button", { name: "Continue" }).click();
+    await expect(page.getByRole("heading", { name: /What do you want working first/i })).toBeVisible();
+    await page.getByRole("button", { name: /Track maintenance/i }).click();
+    const sourcePatch = page.waitForResponse((res) => {
+      if (!res.url().includes("/organizations/onboarding")) return false;
+      if (res.request().method() !== "PATCH") return false;
+      const body = res.request().postDataJSON() as { source?: string } | null;
+      return body?.source === "maintenance";
+    });
+    await page.getByRole("button", { name: "Continue" }).click();
     await expect(page.getByRole("heading", { name: /Add your first aircraft/i })).toBeVisible({
       timeout: 30_000,
     });
+    const sourceRes = await sourcePatch;
+    expect(sourceRes.ok(), await sourceRes.text()).toBeTruthy();
     expect(orgPosts, "must not POST a second organization").toBe(0);
     expect(orgPatches, "must PATCH the organization that already exists").toBeGreaterThan(0);
 
@@ -292,7 +311,13 @@ test.describe("Onboarding wizard", () => {
       })
       .toBe(renamed);
 
-    const token = await bearerToken(page);
+    const afterIntent = await apiGet<{ source: string | null }>(
+      request,
+      token,
+      "/organizations/onboarding",
+    );
+    expect(afterIntent.source).toBe("maintenance");
+
     const locations = await apiGet<
       { name: string; address?: { city?: string; state?: string } }[]
     >(request, token, "/locations");

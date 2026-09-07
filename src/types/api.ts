@@ -292,7 +292,10 @@ export interface OrganizationPreferences {
  */
 export interface OrgOnboarding {
   id: number;
-  /** Marketing entry point captured at signup ("quickbooks"); null for direct. */
+  /**
+   * Checklist track. Written at signup, then updated if they pick a different
+   * "what do you want working first" card before the wizard is done.
+   */
   source: string | null;
   /** Optional "how did you hear about us" answer from the last wizard step. */
   heardFrom?: string | null;

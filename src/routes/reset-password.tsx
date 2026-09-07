@@ -5,8 +5,7 @@ import { apiRaw, ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LogoLockup } from "@/components/logo";
-import { BrandPanel } from "./login";
+import { AUTH_CONTROL, AuthShell } from "@/components/auth-shell";
 
 type Search = { token?: string };
 
@@ -47,86 +46,85 @@ function ResetPasswordPage() {
   }
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
-      <BrandPanel />
-      <main className="flex items-center justify-center bg-background px-6 py-12">
-        <div className="w-full max-w-sm">
-          <div className="mb-5 lg:hidden">
-            <LogoLockup />
-          </div>
+    <AuthShell
+      aside={
+        <Link to="/login" className="font-medium text-foreground hover:text-primary">
+          Sign in
+        </Link>
+      }
+    >
+      {done ? (
+        <>
+          <span className="grid size-12 place-items-center rounded-full bg-success/12 text-success">
+            <CheckCircle2 className="size-6" />
+          </span>
+          <h1 className="mt-5 text-[28px] font-semibold tracking-tight sm:text-[32px]">Password updated</h1>
+          <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+            You can now sign in with your new password.
+          </p>
+          <Button className={`mt-8 ${AUTH_CONTROL}`} onClick={() => navigate({ to: "/login" })}>
+            Go to sign in
+          </Button>
+        </>
+      ) : !token ? (
+        <>
+          <h1 className="text-[28px] font-semibold tracking-tight sm:text-[32px]">Invalid reset link</h1>
+          <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+            This link is missing its token. Request a fresh one and try again.
+          </p>
+          <Button asChild variant="outline" className={`mt-8 ${AUTH_CONTROL}`}>
+            <Link to="/forgot-password">Request a new link</Link>
+          </Button>
+        </>
+      ) : (
+        <>
+          <h1 className="text-[28px] font-semibold tracking-tight sm:text-[32px]">Set a new password</h1>
+          <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
+            Choose a strong password you don&rsquo;t use anywhere else.
+          </p>
 
-          {done ? (
-            <div className="text-center">
-              <span className="mx-auto grid size-12 place-items-center rounded-full bg-success/12 text-success">
-                <CheckCircle2 className="size-6" />
-              </span>
-              <h1 className="mt-4 text-[22px] font-semibold tracking-tight">Password updated</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                You can now sign in with your new password.
-              </p>
-              <Button className="mt-5" onClick={() => navigate({ to: "/login" })}>
-                Go to sign in
-              </Button>
+          <form onSubmit={onSubmit} className="mt-8 space-y-5">
+            <div className="space-y-1.5">
+              <Label htmlFor="password">New password</Label>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                minLength={8}
+                placeholder="At least 8 characters"
+                className={AUTH_CONTROL}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
-          ) : !token ? (
-            <div className="text-center">
-              <h1 className="text-[22px] font-semibold tracking-tight">Invalid reset link</h1>
-              <p className="mt-2 text-sm text-muted-foreground">
-                This link is missing its token. Request a fresh one and try again.
-              </p>
-              <Button asChild variant="outline" className="mt-5">
-                <Link to="/forgot-password">Request a new link</Link>
-              </Button>
+            <div className="space-y-1.5">
+              <Label htmlFor="confirm">Confirm password</Label>
+              <Input
+                id="confirm"
+                type="password"
+                autoComplete="new-password"
+                required
+                placeholder="Re-enter your password"
+                className={AUTH_CONTROL}
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+              />
             </div>
-          ) : (
-            <>
-              <h1 className="text-[22px] font-semibold tracking-tight">Set a new password</h1>
-              <p className="mt-1.5 text-sm text-muted-foreground">
-                Choose a strong password you don&rsquo;t use anywhere else.
+
+            {error && (
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
               </p>
+            )}
 
-              <form onSubmit={onSubmit} className="mt-5 space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="password">New password</Label>
-                  <Input
-                    id="password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    minLength={8}
-                    placeholder="At least 8 characters"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="confirm">Confirm password</Label>
-                  <Input
-                    id="confirm"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    placeholder="Re-enter your password"
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                  />
-                </div>
-
-                {error && (
-                  <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                    {error}
-                  </p>
-                )}
-
-                <Button type="submit" size="lg" className="w-full" disabled={busy}>
-                  {busy && <Loader2 className="size-4 animate-spin" />}
-                  {busy ? "Updating…" : "Update password"}
-                </Button>
-              </form>
-            </>
-          )}
-        </div>
-      </main>
-    </div>
+            <Button type="submit" size="lg" className={`w-full ${AUTH_CONTROL}`} disabled={busy}>
+              {busy && <Loader2 className="size-4 animate-spin" />}
+              {busy ? "Updating…" : "Update password"}
+            </Button>
+          </form>
+        </>
+      )}
+    </AuthShell>
   );
 }

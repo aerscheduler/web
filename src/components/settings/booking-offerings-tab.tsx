@@ -3,6 +3,7 @@ import {
   CalendarRange,
   Check,
   Copy,
+  ExternalLink,
   Globe,
   Link2,
   Loader2,
@@ -69,6 +70,7 @@ import {
   publicBookingModalSnippet,
 } from "@/components/public-booking/embed-snippets";
 import { parsePublicBookingEmbedHosts } from "@/lib/public-booking-embed-hosts";
+import { publicBookingAccentFeedback } from "@/lib/public-booking-brand";
 
 function errMessage(e: unknown, fallback: string) {
   if (e instanceof ApiError || e instanceof Error) return e.message || fallback;
@@ -368,8 +370,9 @@ function PublicBookingCard() {
               />
             </Field>
             <p className="text-xs text-muted-foreground">
-              Each active offering has Copy public link, Copy embed code (iframe), and Copy
-              modal embed. Guests request a time. The desk still approves it. Other websites
+              Each active offering has Open public link, Copy public link, Copy embed code
+              (iframe), and Copy modal embed. Open the public link in a new tab to see the
+              guest page. Guests request a time. The desk still approves it. Other websites
               cannot show the frame until you list them here. Do not paste arbitrary CSS or
               scripts into the page.
             </p>
@@ -387,6 +390,14 @@ function PublicBookingCard() {
                   onBlur={() => {
                     const next = accentHex.trim() || null;
                     if (next === (organization.publicBookingAccentHex ?? null)) return;
+                    if (next) {
+                      const problem = publicBookingAccentFeedback(next);
+                      if (problem) {
+                        toast.error(problem);
+                        setAccentHex(organization.publicBookingAccentHex ?? "");
+                        return;
+                      }
+                    }
                     save({ publicBookingAccentHex: next }, "Guest page accent updated.");
                   }}
                 />
@@ -565,10 +576,11 @@ function BookingOfferingsListCard() {
             <CalendarRange className="size-4" />
           </span>
           <div>
-            <CardTitle>Booking offerings</CardTitle>
+            <CardTitle>Offerings</CardTitle>
             <CardDescription>
-              Presets for discovery flights and other bookable products. Each offering
-              inherits org booking rules and may only tighten them.
+              Presets for discovery flights and other bookable products. Every school
+              starts with a Discovery flight offering. Active offerings get a public
+              link. Each offering inherits org booking rules and may only tighten them.
             </CardDescription>
           </div>
         </div>
@@ -588,7 +600,7 @@ function BookingOfferingsListCard() {
         ) : total === 0 ? (
           <EmptyState
             graphic="booking-offerings"
-            title="No booking offerings yet"
+            title="No offerings yet"
             body="Create a discovery flight or other preset with fixed duration, eligible aircraft, and optional instructor pool."
             docs="public-booking-links"
             action={
@@ -707,6 +719,13 @@ function OfferingRow({
           </DropdownMenuItem>
           {shareUrl ? (
             <>
+              <DropdownMenuItem
+                onSelect={() => {
+                  window.open(shareUrl, "_blank", "noopener,noreferrer");
+                }}
+              >
+                <ExternalLink /> Open public link
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={copyLink}>
                 {copied ? <Check /> : <Copy />} Copy public link
               </DropdownMenuItem>

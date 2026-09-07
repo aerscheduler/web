@@ -189,8 +189,78 @@ export function parentMayEmbed(args: {
   // Unknown parent: only defer to CSP when some site is actually allowed to embed.
   // An empty list is share-link only; a no-referrer iframe must not see the picker
   // just because the header was missing or stale.
+  // Do not read parentOrigin from the query string. That param is only a
+  // postMessage target after this gate (and CSP) have already allowed the picker.
   if (!args.parentOrigin) return args.allowedOrigins.length > 0;
   return args.allowedOrigins.includes(args.parentOrigin);
+}
+
+export const PUBLIC_BOOKING_EMBED_SOURCE = "aerscheduler-book";
+
+/** Validated `parentOrigin` query value, or null if missing or not a stored host origin. */
+export function parseEmbedParentOriginQuery(search: string): string | null {
+  const raw = search.startsWith("?") ? search.slice(1) : search;
+  let value: string | null = null;
+  try {
+    value = new URLSearchParams(raw).get("parentOrigin");
+  } catch {
+    return null;
+  }
+  if (!value) return null;
+  const parsed = parsePublicBookingEmbedHosts([value]);
+  if ("error" in parsed || parsed.origins.length !== 1) return null;
+  return parsed.origins[0] ?? null;
+}
+
+/**
+ * postMessage targetOrigin. Never "*".
+ * Prefer the discovered parent. The query param is a fallback for browsers that
+ * hide ancestorOrigins; it is used only when it is this app origin or a listed host.
+ */
+export function embedPostTargetOrigin(args: {
+  discoveredParent: string | null;
+  queryParentOrigin: string | null;
+  allowedOrigins: string[];
+  selfOrigin: string;
+}): string | null {
+  if (args.discoveredParent) return args.discoveredParent;
+  if (!args.queryParentOrigin) return null;
+  if (args.queryParentOrigin === args.selfOrigin) return args.queryParentOrigin;
+  if (args.allowedOrigins.includes(args.queryParentOrigin)) return args.queryParentOrigin;
+  return null;
+}
+
+export function postEmbedMessage(args: {
+  type: string;
+  extra?: Record<string, unknown>;
+  allowedOrigins: string[];
+}): void {
+  if (typeof window === "undefined" || window.parent === window) return;
+  const target = embedPostTargetOrigin({
+    discoveredParent: parentFrameOrigin(),
+    queryParentOrigin: parseEmbedParentOriginQuery(window.location.search),
+    allowedOrigins: args.allowedOrigins,
+    selfOrigin: window.location.origin,
+  });
+  if (!target) return;
+  window.parent.postMessage(
+    { source: PUBLIC_BOOKING_EMBED_SOURCE, type: args.type, ...args.extra },
+    target
+  );
+}
+
+/** Load/slots/submit failures. Same target rules as success events. When the public
+ *  page never loaded (empty allowlist), a validated query parentOrigin is still a
+ *  legal targetOrigin: postMessage only delivers if it matches the real parent. */
+export function postEmbedError(
+  extra: { code: string; message: string },
+  allowedOrigins: string[] = []
+): void {
+  if (typeof window === "undefined") return;
+  const query = parseEmbedParentOriginQuery(window.location.search);
+  const origins =
+    allowedOrigins.length > 0 ? allowedOrigins : query ? [query] : [];
+  postEmbedMessage({ type: "error", extra, allowedOrigins: origins });
 }
 
 let htmlDocumentIsGuestBook = false;

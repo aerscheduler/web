@@ -3,7 +3,7 @@ import { EmptyGraphicSvg } from "./graphic-svg";
 export function BookingOfferingsEmptyGraphic({ className }: { className?: string }) {
   return (
     <EmptyGraphicSvg viewBox="67.5 44.5 117 142" className={className}>
-      {/* Settings / Booking offerings. Three ticket stubs. */}
+      {/* Settings / Booking links. Three ticket stubs. */}
         <g stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
           <ellipse cx="126" cy="178" rx="52" ry="8" opacity="0.28" strokeDasharray="3.5 4" />
           <rect x="92" y="92" width="88" height="52" rx="8" opacity="0.28" />

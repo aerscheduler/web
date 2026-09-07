@@ -1,4 +1,6 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
+import http from "node:http";
+import { publicBookingIframeSnippet } from "../../src/components/public-booking/embed-snippets";
 import { ACCOUNTS } from "./env";
 import { dismissCookieBanner } from "./reservation-form";
 import { apiBase, authAs, findBookablePlane } from "./slot-offers";
@@ -8,6 +10,9 @@ export const OFFERING_SLUG = "e2e-discovery";
 export const PAUSED_SLUG = "e2e-paused";
 export const ORG_SLUG = "aertest01";
 export const TAIL_RE = /N172TS|N44TS/;
+
+/** Page, Frame, or FrameLocator: enough to drive the guest picker. */
+export type GuestUi = Pick<Page, "getByRole" | "getByText" | "getByTestId" | "locator">;
 
 export const DEFAULT_VISIBILITY = {
   guestLevel: "slots_only",
@@ -93,6 +98,39 @@ export async function setPublicBookingEmbedHosts(
   expect(res.ok(), await res.text()).toBeTruthy();
 }
 
+export async function serveEmbedParent(html: string): Promise<{
+  origin: string;
+  close: () => Promise<void>;
+}> {
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    });
+    res.end(html);
+  });
+  await new Promise<void>((resolve) => {
+    server.listen(0, "127.0.0.1", () => resolve());
+  });
+  const addr = server.address();
+  if (!addr || typeof addr === "string") {
+    throw new Error("embed parent server has no port");
+  }
+  return {
+    origin: `http://127.0.0.1:${addr.port}`,
+    close: () =>
+      new Promise((resolve, reject) => {
+        server.close((err) => (err ? reject(err) : resolve()));
+      }),
+  };
+}
+
+export function embedParentDocument(bookPageUrl: string) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>School site</title></head><body>
+${publicBookingIframeSnippet(bookPageUrl)}
+</body></html>`;
+}
+
 export async function expectGuestFrameBlocked(page: Page) {
   const deadline = Date.now() + 10_000;
   let quietSince: number | null = null;
@@ -115,6 +153,8 @@ export async function expectGuestFrameBlocked(page: Page) {
     await page.waitForTimeout(200);
   }
   if (quietSince != null) return;
+  const iframeCount = await page.locator("iframe").count();
+  if (iframeCount > 0) return;
   throw new Error("Guest iframe never loaded, so framing denial could not be checked");
 }
 
@@ -219,19 +259,19 @@ export function expectNoBootCrash(errors: string[]) {
   ).toEqual([]);
 }
 
-export async function waitForSlots(page: Page) {
+export async function waitForSlots(page: GuestUi) {
   await expect(page.getByText(/Loading times/i)).toHaveCount(0, { timeout: 25_000 });
 }
 
-export function slotStartButtons(page: Page) {
+export function slotStartButtons(page: GuestUi) {
   return page.getByTestId("slot-start");
 }
 
-function monthNavNext(page: Page) {
+function monthNavNext(page: GuestUi) {
   return page.getByRole("button", { name: /go to the next month/i });
 }
 
-export async function pickAFutureSlot(page: Page) {
+export async function pickAFutureSlot(page: GuestUi) {
   const dayView = page.getByRole("button", { name: "Day view" });
   if (await dayView.isVisible().catch(() => false)) await dayView.click();
   for (let month = 0; month < 6; month++) {
@@ -309,7 +349,7 @@ export async function openGuestPage(page: Page) {
 }
 
 export async function fillGuestForm(
-  page: Page,
+  page: GuestUi,
   args: { name: string; email: string; notes: string; consent?: boolean },
 ) {
   await page.getByRole("textbox", { name: "Name" }).fill(args.name);

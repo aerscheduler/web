@@ -56,7 +56,7 @@ for (const role of SETTINGS_ROLES) {
   test.describe(`settings surface (${role})`, () => {
     test.use({ storageState: `.auth/${role}.json` });
 
-    test(`${role} can open Booking offerings and see every settings card`, async ({
+    test(`${role} can open Booking links and see every settings card`, async ({
       page,
       request,
     }) => {
@@ -75,6 +75,7 @@ for (const role of SETTINGS_ROLES) {
       await expect(page.getByText("Active").first()).toBeVisible();
       await page.getByRole("button", { name: /actions for e2e discovery/i }).click();
       await expect(page.getByRole("menuitem", { name: /^Edit$/i })).toBeVisible();
+      await expect(page.getByRole("menuitem", { name: /open public link/i })).toBeVisible();
       await expect(page.getByRole("menuitem", { name: /copy public link/i })).toBeVisible();
       await expect(page.getByRole("menuitem", { name: /copy embed code/i })).toBeVisible();
       await expect(page.getByRole("menuitem", { name: /pause offering/i })).toBeVisible();

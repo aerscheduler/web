@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  embedPostTargetOrigin,
   frameAncestorsCsp,
   parentMayEmbed,
+  parseEmbedParentOriginQuery,
   parsePublicBookingEmbedHosts,
 } from "./public-booking-embed-hosts";
 import { bookFrameAncestorsHeader, publicBookPathMatch, publicBookingApiOrigin } from "./public-booking-csp";
@@ -103,6 +105,17 @@ describe("parentMayEmbed", () => {
     ).toBe(false);
   });
 
+  it("refuses a listed origin that is not the discovered parent", () => {
+    expect(
+      parentMayEmbed({
+        framed: true,
+        parentOrigin: "https://evil.example",
+        allowedOrigins: ["https://www.flynow.com"],
+        selfOrigin: "https://app.aerscheduler.com",
+      })
+    ).toBe(false);
+  });
+
   it("hides the picker when the HTML document was not loaded as /book", () => {
     expect(
       parentMayEmbed({
@@ -113,6 +126,64 @@ describe("parentMayEmbed", () => {
         htmlDocumentIsGuestBook: false,
       })
     ).toBe(false);
+  });
+});
+
+describe("embedPostTargetOrigin", () => {
+  const self = "https://app.aerscheduler.com";
+  const school = "https://www.flynow.com";
+
+  it("prefers the discovered parent over a spoofed query", () => {
+    expect(
+      embedPostTargetOrigin({
+        discoveredParent: self,
+        queryParentOrigin: school,
+        allowedOrigins: [school],
+        selfOrigin: self,
+      })
+    ).toBe(self);
+  });
+
+  it("uses a listed query origin when the parent cannot be discovered", () => {
+    expect(
+      embedPostTargetOrigin({
+        discoveredParent: null,
+        queryParentOrigin: school,
+        allowedOrigins: [school],
+        selfOrigin: self,
+      })
+    ).toBe(school);
+  });
+
+  it("uses this app origin from the query for same-origin preview", () => {
+    expect(
+      embedPostTargetOrigin({
+        discoveredParent: null,
+        queryParentOrigin: self,
+        allowedOrigins: [],
+        selfOrigin: self,
+      })
+    ).toBe(self);
+  });
+
+  it("ignores an unlisted query origin", () => {
+    expect(
+      embedPostTargetOrigin({
+        discoveredParent: null,
+        queryParentOrigin: "https://evil.example",
+        allowedOrigins: [school],
+        selfOrigin: self,
+      })
+    ).toBeNull();
+  });
+});
+
+describe("parseEmbedParentOriginQuery", () => {
+  it("accepts a local origin and rejects a path", () => {
+    expect(parseEmbedParentOriginQuery("?embed=1&parentOrigin=http%3A%2F%2F127.0.0.1%3A43721")).toBe(
+      "http://127.0.0.1:43721"
+    );
+    expect(parseEmbedParentOriginQuery("parentOrigin=https://www.flynow.com/book")).toBeNull();
   });
 });
 
@@ -195,7 +266,7 @@ describe("bookFrameAncestorsHeader", () => {
     try {
       const req = new Request("https://app.aerscheduler.com/book/stale-school/discovery");
       await bookFrameAncestorsHeader(req);
-      vi.setSystemTime(new Date("2026-09-06T00:02:00.000Z"));
+      vi.setSystemTime(new Date("2026-09-06T00:00:30.000Z"));
       const header = await bookFrameAncestorsHeader(req);
       expect(header).toBe("frame-ancestors 'self' https://www.flynow.com");
       expect(fetchMock).toHaveBeenCalledTimes(2);

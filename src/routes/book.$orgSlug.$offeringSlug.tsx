@@ -5,15 +5,19 @@ import { ApiError } from "@/lib/api";
 import { fetchPublicBookingPage } from "@/features/public-booking";
 import type { PublicBookingPage } from "@/types/public-booking";
 import { cn } from "@/lib/utils";
+import { postEmbedError } from "@/lib/public-booking-embed-hosts";
 
 export const Route = createFileRoute("/book/$orgSlug/$offeringSlug")({
   component: PublicBookPage,
-  validateSearch: (search: Record<string, unknown>): { embed?: boolean } => ({
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { embed?: boolean; parentOrigin?: string } => ({
     embed:
       search.embed === "1" ||
       search.embed === "true" ||
       search.embed === true ||
       search.embed === 1,
+    parentOrigin: typeof search.parentOrigin === "string" ? search.parentOrigin : undefined,
   }),
 });
 
@@ -49,6 +53,11 @@ function PublicBookPage() {
       cancelled = true;
     };
   }, [orgSlug, offeringSlug]);
+
+  React.useEffect(() => {
+    if (!embed || !loadError) return;
+    postEmbedError({ code: "page_unavailable", message: loadError });
+  }, [embed, loadError]);
 
   return (
     <div

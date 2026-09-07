@@ -25,6 +25,8 @@ import {
   openHeatmapAircraftPicker,
   nestedOverflowScrollers,
   setPublicBookingEmbedHosts,
+  serveEmbedParent,
+  embedParentDocument,
   expectGuestFrameBlocked,
   bookablePlanes,
   fetchPublicSlots,
@@ -403,6 +405,101 @@ test.describe("public guest booking page", () => {
     await expect(frame.getByRole("dialog", { name: /cookie preferences/i })).toHaveCount(0);
   });
 
+  test("allowlisted 127.0.0.1 parent can complete a request in the iframe", async ({
+    page,
+    request,
+  }) => {
+    await page.goto("/");
+    const bookOrigin = new URL(page.url()).origin;
+    const bookPageUrl = `${bookOrigin}/book/${ORG_SLUG}/${OFFERING_SLUG}`;
+    const parent = await serveEmbedParent(embedParentDocument(bookPageUrl));
+    try {
+      await setPublicBookingEmbedHosts(request, [parent.origin]);
+      await expect
+        .poll(
+          async () => {
+            const hosted = await page.request.get(bookPageUrl);
+            return hosted.headers()["content-security-policy"] ?? "";
+          },
+          { timeout: 20_000 },
+        )
+        .toContain(parent.origin);
+
+      await page.goto(parent.origin);
+      const submitted = page.evaluate(
+        () =>
+          new Promise<boolean>((resolve) => {
+            window.addEventListener("message", (event) => {
+              const data = event.data as { source?: string; type?: string } | null;
+              if (data?.source === "aerscheduler-book" && data.type === "request-submitted") {
+                resolve(true);
+              }
+            });
+          }),
+      );
+      const frame = page.frameLocator("iframe.aer-book-frame");
+      await expect(frame.getByRole("heading", { name: "E2E Discovery" })).toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(frame.getByRole("dialog", { name: /cookie preferences/i })).toHaveCount(0);
+      await expect.poll(async () => page.locator("iframe.aer-book-frame").getAttribute("src")).toMatch(
+        /parentOrigin=/,
+      );
+      await expect(page.locator("iframe.aer-book-frame")).toHaveAttribute(
+        "sandbox",
+        /allow-scripts.*allow-same-origin.*allow-forms/,
+      );
+      await pickAFutureSlot(frame);
+      const marker = `E2E-public-embed-${Date.now()}`;
+      await fillGuestForm(frame, {
+        name: "E2E Embed Guest",
+        email: `e2e-embed-${Date.now()}@example.com`,
+        notes: marker,
+      });
+      await frame.getByRole("button", { name: /submit request/i }).click();
+      await expect(frame.getByRole("heading", { name: /check your email/i })).toBeVisible({
+        timeout: 20_000,
+      });
+      await expect(submitted).resolves.toBe(true);
+      const minHeight = await page.locator("iframe.aer-book-frame").evaluate((el) => {
+        return getComputedStyle(el).minHeight;
+      });
+      expect(parseFloat(minHeight) || 0, "resize should drop the 720px floor").toBeLessThan(300);
+    } finally {
+      await setPublicBookingEmbedHosts(request, []);
+      await parent.close();
+    }
+  });
+
+  test("unlisted 127.0.0.1 parent is blocked even with a spoofed parentOrigin", async ({
+    page,
+    request,
+  }) => {
+    await page.goto("/");
+    const bookOrigin = new URL(page.url()).origin;
+    const bookPageUrl = `${bookOrigin}/book/${ORG_SLUG}/${OFFERING_SLUG}`;
+    const parent = await serveEmbedParent(
+      `<!doctype html><iframe id="aer" src="${bookPageUrl}?embed=1&parentOrigin=${encodeURIComponent(bookOrigin)}" title="book" style="width:100%;height:900px;border:0"></iframe>`,
+    );
+    try {
+      await setPublicBookingEmbedHosts(request, ["https://www.example.com"]);
+      await expect
+        .poll(
+          async () => {
+            const hosted = await page.request.get(bookPageUrl);
+            return hosted.headers()["content-security-policy"] ?? "";
+          },
+          { timeout: 20_000 },
+        )
+        .toContain("https://www.example.com");
+      await page.goto(parent.origin);
+      await expectGuestFrameBlocked(page);
+    } finally {
+      await setPublicBookingEmbedHosts(request, []);
+      await parent.close();
+    }
+  });
+
   test("public offering JSON includes embedHosts and rejects wildcards", async ({ request }) => {
     await setPublicBookingEmbedHosts(request, []);
     const empty = await request.get(
@@ -694,6 +791,18 @@ test.describe("public booking settings", () => {
     const embed = await page.evaluate(() => navigator.clipboard.readText());
     expect(embed).toContain(`?embed=1`);
     expect(embed).toContain("aerscheduler-book");
+    expect(embed).toContain("parentOrigin=");
+    expect(embed).toContain("sandbox=");
+    expect(embed).not.toContain("min-height:720px");
+    await page.getByRole("button", { name: /actions for e2e discovery/i }).click();
+    const popupPromise = page.waitForEvent("popup");
+    await page.getByRole("menuitem", { name: /open public link/i }).click();
+    const guestPage = await popupPromise;
+    await expect(guestPage).toHaveURL(new RegExp(`/book/${ORG_SLUG}/${OFFERING_SLUG}`));
+    await expect(guestPage.getByRole("heading", { name: "E2E Discovery" })).toBeVisible({
+      timeout: 20_000,
+    });
+    await guestPage.close();
     expectNoBootCrash(errors);
   });
 });

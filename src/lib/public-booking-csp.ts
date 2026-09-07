@@ -2,11 +2,12 @@ import { frameAncestorsCsp, sanitizeStoredPublicBookingEmbedHosts } from "./publ
 
 export const CONSOLE_FRAME_ANCESTORS = "frame-ancestors 'self'";
 const FAIL_CLOSED = CONSOLE_FRAME_ANCESTORS;
-const CACHE_OK_MS = 60_000;
+const CACHE_OK_MS = 5_000;
 const CACHE_STALE_MS = 60_000;
 const CACHE_FAIL_MS = 10_000;
 const CACHE_MAX = 200;
 const headerCache = new Map<string, { header: string; freshUntil: number; staleUntil: number }>();
+const headerFetchSeq = new Map<string, number>();
 
 function readCache(key: string): { header: string; fresh: boolean } | undefined {
   const row = headerCache.get(key);
@@ -26,16 +27,25 @@ function storeHeader(key: string, header: string, freshMs: number, staleMs = fre
     freshUntil: now + freshMs,
     staleUntil: now + staleMs,
   });
-  if (headerCache.size <= CACHE_MAX) return;
+  if (headerCache.size <= CACHE_MAX && headerFetchSeq.size <= CACHE_MAX) return;
   const expired: string[] = [];
   for (const [k, v] of headerCache) {
     if (v.staleUntil < now) expired.push(k);
   }
-  for (const k of expired) headerCache.delete(k);
+  for (const k of expired) {
+    headerCache.delete(k);
+    headerFetchSeq.delete(k);
+  }
   while (headerCache.size > CACHE_MAX) {
     const first = headerCache.keys().next().value;
     if (first === undefined) break;
     headerCache.delete(first);
+    headerFetchSeq.delete(first);
+  }
+  while (headerFetchSeq.size > CACHE_MAX) {
+    const first = headerFetchSeq.keys().next().value;
+    if (first === undefined) break;
+    headerFetchSeq.delete(first);
   }
 }
 
@@ -100,6 +110,9 @@ export async function bookFrameAncestorsHeader(
   const cached = readCache(cacheKey);
   if (cached?.fresh) return cached.header;
 
+  const seq = (headerFetchSeq.get(cacheKey) ?? 0) + 1;
+  headerFetchSeq.set(cacheKey, seq);
+
   const url = `${api}/public/book/${encodeURIComponent(parts.orgSlug)}/offerings/${encodeURIComponent(parts.offeringSlug)}`;
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), 2000);
@@ -109,6 +122,9 @@ export async function bookFrameAncestorsHeader(
       headers: { accept: "application/json" },
     });
     if (!res.ok) {
+      if (headerFetchSeq.get(cacheKey) !== seq) {
+        return readCache(cacheKey)?.header ?? (cached?.header ?? FAIL_CLOSED);
+      }
       if (cached) return cached.header;
       storeHeader(cacheKey, FAIL_CLOSED, CACHE_FAIL_MS);
       return FAIL_CLOSED;
@@ -116,12 +132,18 @@ export async function bookFrameAncestorsHeader(
     const body = (await res.json()) as {
       data?: { organization?: { embedHosts?: unknown } };
     };
+    if (headerFetchSeq.get(cacheKey) !== seq) {
+      return readCache(cacheKey)?.header ?? (cached?.header ?? FAIL_CLOSED);
+    }
     const header = frameAncestorsCsp(
       sanitizeStoredPublicBookingEmbedHosts(body.data?.organization?.embedHosts)
     );
     storeHeader(cacheKey, header, CACHE_OK_MS, CACHE_OK_MS + CACHE_STALE_MS);
     return header;
   } catch {
+    if (headerFetchSeq.get(cacheKey) !== seq) {
+      return readCache(cacheKey)?.header ?? (cached?.header ?? FAIL_CLOSED);
+    }
     if (cached) return cached.header;
     storeHeader(cacheKey, FAIL_CLOSED, CACHE_FAIL_MS);
     return FAIL_CLOSED;

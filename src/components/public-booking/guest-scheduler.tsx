@@ -41,6 +41,8 @@ import {
   isFramedWindow,
   parentFrameOrigin,
   parentMayEmbed,
+  postEmbedMessage,
+  sanitizeStoredPublicBookingEmbedHosts,
 } from "@/lib/public-booking-embed-hosts";
 import {
   addDaysInZone,
@@ -71,7 +73,6 @@ import {
 
 export type SchedulerView = "column" | "heatmap" | "week";
 
-const EMBED_SOURCE = "aerscheduler-book";
 const MARKETING_URL = "https://www.aerscheduler.com";
 
 function formatPackagePrice(cents: number) {
@@ -184,26 +185,23 @@ function ZoneSelect({
   );
 }
 
-function postToParent(type: string, extra?: Record<string, unknown>) {
-  if (typeof window === "undefined" || window.parent === window) return;
-  const origin = parentFrameOrigin();
-  if (!origin) return;
-  window.parent.postMessage({ source: EMBED_SOURCE, type, ...extra }, origin);
-}
-
-function useEmbedBridge(active: boolean) {
+function useEmbedBridge(active: boolean, allowedOrigins: string[]) {
   const rootRef = React.useRef<HTMLDivElement>(null);
   React.useEffect(() => {
     if (!active) return;
-    postToParent("ready");
+    postEmbedMessage({ type: "ready", allowedOrigins });
     const node = rootRef.current;
     if (!node || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver(() => {
-      postToParent("resize", { height: Math.ceil(node.getBoundingClientRect().height) });
+      postEmbedMessage({
+        type: "resize",
+        extra: { height: Math.ceil(node.getBoundingClientRect().height) },
+        allowedOrigins,
+      });
     });
     ro.observe(node);
     return () => ro.disconnect();
-  }, [active]);
+  }, [active, allowedOrigins]);
   return rootRef;
 }
 
@@ -257,14 +255,19 @@ export function GuestScheduler({
   const [step, setStep] = React.useState<"pick" | "details">("pick");
   const [submitted, setSubmitted] = React.useState(false);
   const [submittedEmail, setSubmittedEmail] = React.useState("");
+  const embedHostsKey = (page.organization.embedHosts ?? []).join("\n");
+  const allowedOrigins = React.useMemo(
+    () => sanitizeStoredPublicBookingEmbedHosts(page.organization.embedHosts),
+    [embedHostsKey]
+  );
   const embedAllowed = parentMayEmbed({
     framed: isFramedWindow(),
     parentOrigin: parentFrameOrigin(),
-    allowedOrigins: page.organization.embedHosts ?? [],
+    allowedOrigins,
     selfOrigin: typeof window !== "undefined" ? window.location.origin : "",
     htmlDocumentIsGuestBook: guestBookingHtmlWasLoaded(),
   });
-  const rootRef = useEmbedBridge(embedded && embedAllowed);
+  const rootRef = useEmbedBridge(embedded && embedAllowed, allowedOrigins);
   const desktop = useDesktopLayout();
   const now = useNow();
   const brand = useGuestBrand(page);
@@ -326,6 +329,15 @@ export function GuestScheduler({
       cancelled = true;
     };
   }, [orgSlug, offeringSlug, pageKey, range, page.offering.allowResourceChoice, embedAllowed]);
+
+  React.useEffect(() => {
+    if (!embedded || !embedAllowed || !slotsError) return;
+    postEmbedMessage({
+      type: "error",
+      extra: { code: "slots_failed", message: slotsError },
+      allowedOrigins,
+    });
+  }, [embedded, embedAllowed, slotsError, allowedOrigins]);
 
   React.useEffect(() => {
     if (!embedAllowed) return;
@@ -491,11 +503,20 @@ export function GuestScheduler({
       onSubmitted={(email) => {
         setSubmittedEmail(email);
         setSubmitted(true);
-        if (embedded) postToParent("request-submitted");
+        if (embedded) postEmbedMessage({ type: "request-submitted", allowedOrigins });
         track("public_booking_request_submitted", {
           org_slug: orgSlug,
           offering_slug: offeringSlug,
         });
+      }}
+      onSubmitFailed={(message) => {
+        if (embedded) {
+          postEmbedMessage({
+            type: "error",
+            extra: { code: "submit_failed", message },
+            allowedOrigins,
+          });
+        }
       }}
     />
   ) : null;
@@ -1241,6 +1262,7 @@ function DetailsStep({
   hour12,
   onBack,
   onSubmitted,
+  onSubmitFailed,
 }: {
   page: PublicBookingPage;
   orgSlug: string;
@@ -1250,6 +1272,7 @@ function DetailsStep({
   hour12: boolean;
   onBack: () => void;
   onSubmitted: (email: string) => void;
+  onSubmitFailed?: (message: string) => void;
 }) {
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
@@ -1294,6 +1317,7 @@ function DetailsStep({
         err instanceof ApiError ? err.message : "Could not submit this request. Try another time.";
       setError(message);
       toast.error(message);
+      onSubmitFailed?.(message);
     } finally {
       submittingRef.current = false;
       setBusy(false);

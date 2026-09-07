@@ -45,7 +45,7 @@ describe("the Security pane", () => {
   });
 });
 
-describe("the Booking offerings pane", () => {
+describe("the Booking links pane", () => {
   it("is offered to an admin", () => {
     expect(tabsFor(false, true)).toContain("booking-offerings");
   });

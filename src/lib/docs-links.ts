@@ -653,8 +653,14 @@ export const DOCS_TOPICS = {
   "squawk-notes": {
     title: "Notes on a squawk",
     summary:
-      "Record what is happening without closing the squawk: part ordered, waiting on a hangar slot, ran it again and it did not repeat. Nobody can edit or delete a note afterwards, so correct a mistake by adding another.",
+      "Record what is happening without closing the squawk: part ordered, waiting on a hangar slot, ran it again and it did not repeat. You can attach photos or a PDF. Nobody can edit or delete a note afterwards, so correct a mistake by adding another.",
     href: "maintenance/add-a-note-to-a-squawk",
+  },
+  "squawk-attach": {
+    title: "Photos and PDFs on a squawk",
+    summary:
+      "Attach up to five photos or PDFs when you report a squawk, or on a note. They stay with the thread and cannot be deleted afterwards.",
+    href: "maintenance/report-a-squawk",
   },
   "inspection-last-done": {
     title: "When was it last done?",

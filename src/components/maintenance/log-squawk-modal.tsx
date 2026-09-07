@@ -5,6 +5,7 @@ import { resourceLabel, type Resource } from "@/types/api";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { DocsHint } from "@/components/docs-hint";
+import { SquawkFileInput } from "@/components/maintenance/squawk-file-input";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,7 @@ export function LogSquawkModal({
   const [description, setDescription] = React.useState("");
   const [resourceId, setResourceId] = React.useState<string>("");
   const [grounding, setGrounding] = React.useState(false);
+  const [files, setFiles] = React.useState<File[]>([]);
 
   // A fixed tail is the value, not a default the user could have edited away.
   const effectiveResourceId = fixedResource ? String(fixedResource.id) : resourceId;
@@ -50,6 +52,7 @@ export function LogSquawkModal({
     setDescription("");
     setResourceId("");
     setGrounding(false);
+    setFiles([]);
   }
 
   async function submit() {
@@ -60,13 +63,18 @@ export function LogSquawkModal({
     const trimmedDescription = description.trim();
     if (!trimmed || !trimmedDescription) return;
     try {
-      await create.mutateAsync({
+      const result = await create.mutateAsync({
         title: trimmed,
         description: trimmedDescription,
         resourceId: effectiveResourceId ? Number(effectiveResourceId) : undefined,
         grounding,
+        files,
       });
-      toast.success(grounding ? "Squawk logged, aircraft grounded." : "Squawk logged.");
+      if (result.uploadError) {
+        toast.error(`Squawk logged, but ${result.uploadError}`);
+      } else {
+        toast.success(grounding ? "Squawk logged, aircraft grounded." : "Squawk logged.");
+      }
       reset();
       onOpenChange(false);
     } catch (e) {
@@ -78,7 +86,13 @@ export function LogSquawkModal({
     <ResponsiveModal
       footer={
         <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                reset();
+                onOpenChange(false);
+              }}
+            >
               Cancel
             </Button>
             <Button
@@ -151,6 +165,8 @@ export function LogSquawkModal({
           </div>
           <Switch id="squawk-grounding" checked={grounding} onCheckedChange={setGrounding} />
         </div>
+
+        <SquawkFileInput files={files} onChange={setFiles} disabled={create.isPending} />
 
       </div>
     </ResponsiveModal>

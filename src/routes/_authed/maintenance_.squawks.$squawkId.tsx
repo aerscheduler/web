@@ -11,11 +11,12 @@ import {
 } from "lucide-react";
 import { useSquawk } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
-import { canResolveSquawk, guardRoute } from "@/lib/permissions";
+import { canAccess, canResolveSquawk, guardRoute } from "@/lib/permissions";
 import { formatDate } from "@/lib/utils";
 import { resourceLabel, type OrganizationUser, type Squawk } from "@/types/api";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
 import { SquawkNotes } from "@/components/maintenance/squawk-notes";
+import { SquawkAttachments } from "@/components/maintenance/squawk-attachments";
 import { DocsHint } from "@/components/docs-hint";
 import { VerifySquawkModal } from "@/components/maintenance/verify-squawk-modal";
 import {
@@ -57,9 +58,7 @@ import { Skeleton } from "@/components/ui/skeleton";
  * different columns, and a squawk can be resolved having never been verified.
  */
 export const Route = createFileRoute("/_authed/maintenance_/squawks/$squawkId")({
-  // Resolves through `canAccess`'s nearest-parent rule to `/maintenance`, i.e. staff or
-  // technician. Same shape as the server guard: `GET /maintenance/squawks/:id` is admin,
-  // technician or dispatcher.
+  // Matches GET one: any org member. The board at `/maintenance` stays staff.
   beforeLoad: guardRoute("/maintenance/squawks"),
   component: SquawkDetailPage,
 });
@@ -69,6 +68,8 @@ function SquawkDetailPage() {
   const id = Number.parseInt(param, 10);
   const q = useSquawk(Number.isFinite(id) ? id : null);
   const squawk = q.data ?? null;
+  const { roles } = useAuth();
+  const staffBoard = canAccess("/maintenance", roles);
 
   // A bad id, a squawk from another organization, and a deleted one all land here. The
   // server answers 403 rather than 404 (it can't say "no such squawk" without confirming
@@ -87,8 +88,8 @@ function SquawkDetailPage() {
           icon={Wrench}
           title="Squawk not found"
           body="That link doesn't point at a write-up in this organization. It may have been removed."
-          backTo="/maintenance"
-          backLabel="Back to Maintenance"
+          backTo={staffBoard ? "/maintenance" : "/aircraft"}
+          backLabel={staffBoard ? "Back to Maintenance" : "Back to Aircraft"}
         />
       </PageFrame>
     );
@@ -139,6 +140,7 @@ const STAGE_COPY: Record<Stage, { label: string; detail: string }> = {
 function SquawkBody({ squawk }: { squawk: Squawk }) {
   const { roles } = useAuth();
   const canManage = canResolveSquawk(roles);
+  const staffBoard = canAccess("/maintenance", roles);
   const [verifying, setVerifying] = useState(false);
   const [resolving, setResolving] = useState(false);
 
@@ -157,7 +159,16 @@ function SquawkBody({ squawk }: { squawk: Squawk }) {
   return (
     <TableView className="gap-5">
       <TableView.Header>
-        <DetailBack to="/maintenance" label="Maintenance" />
+        <DetailBack
+          to={
+            staffBoard
+              ? "/maintenance"
+              : squawk.resource
+                ? `/aircraft/${squawk.resource.id}`
+                : "/aircraft"
+          }
+          label={staffBoard ? "Maintenance" : aircraft ?? "Aircraft"}
+        />
 
         <DetailHeader
           media={
@@ -209,15 +220,13 @@ function SquawkBody({ squawk }: { squawk: Squawk }) {
       <TableView.Body>
         <div className="grid gap-4 pb-8 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-4">
-            {/* Grounding is an audit-only flag today: the server records it on the audit
-                entry and never stores it on the squawk, so this only draws for a payload
-                that carries one. Left in so it lights up the day the column lands. */}
+            {/* Grounding is stored on the squawk (`priority`) and returned as `grounding`. */}
             {squawk.grounding && !squawk.resolvedAt && (
               <p className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" />
                 <span>
-                  This squawk grounded the aircraft. Resolving it doesn&rsquo;t return it to
-                  service on its own.
+                  This squawk grounded the aircraft. Resolving it returns the aircraft to
+                service unless another hold is still in place.
                 </span>
               </p>
             )}
@@ -228,6 +237,7 @@ function SquawkBody({ squawk }: { squawk: Squawk }) {
               ) : (
                 <CardEmpty>No description was given.</CardEmpty>
               )}
+              <SquawkAttachments fileUrls={squawk.fileUrls} />
             </DetailCard>
 
             {/* Only drawn where there is one. This is the single paragraph the resolve

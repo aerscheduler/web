@@ -50,7 +50,18 @@ export async function uploadToPresignedPost(presigned: PresignedPost, file: File
   const form = new FormData();
   for (const [k, v] of Object.entries(presigned.fields)) form.append(k, v);
   form.append("file", file); // must be appended last
-  const res = await fetch(presigned.url, { method: "POST", body: form });
+  let res: Response;
+  try {
+    res = await fetch(presigned.url, { method: "POST", body: form });
+  } catch {
+    // Browser "Failed to fetch" on a presigned POST is almost always S3 CORS
+    // (localhost is not on the bucket allowlist) or a blocked network, not the
+    // squawk create. The row already saved. Local development does not need a
+    // bucket: the API serves /local-s3 unless S3_USE_AWS=1.
+    throw new UploadError(
+      "Couldn't reach file storage from this browser. Restart the local API so it can serve /local-s3, or allow this origin on the S3 bucket CORS list."
+    );
+  }
   if (!res.ok) {
     // S3 uses 400 with an EntityTooLarge body for an over-size POST, not 413.
     const body = await res.text().catch(() => "");

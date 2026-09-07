@@ -7,6 +7,8 @@ import { formatDate, initials } from "@/lib/utils";
 import type { SquawkComment } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { SquawkAttachments } from "@/components/maintenance/squawk-attachments";
+import { SquawkFileInput } from "@/components/maintenance/squawk-file-input";
 
 const STAMP = "MMM d, yyyy 'at' h:mm a";
 
@@ -46,17 +48,23 @@ export function SquawkNotes({
   compact?: boolean;
 }) {
   const [body, setBody] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
   const add = useAddSquawkComment();
   const trimmed = body.trim();
   const list = comments ?? [];
+  const canSubmit = (trimmed.length > 0 || files.length > 0) && !add.isPending;
 
   async function submit() {
-    if (!trimmed || add.isPending) return;
+    if (!canSubmit) return;
     try {
-      await add.mutateAsync({ id: squawkId, body: trimmed });
+      const result = await add.mutateAsync({ id: squawkId, body: trimmed, files });
       //Cleared only after the server has it. A failed write that empties the box loses
       //what somebody just typed, which is the one thing a composer must never do.
       setBody("");
+      setFiles([]);
+      if (result.uploadError) {
+        toast.error(`Note added, but ${result.uploadError}`);
+      }
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Couldn't add that note.");
     }
@@ -92,6 +100,7 @@ export function SquawkNotes({
                 >
                   {c.body}
                 </p>
+                <SquawkAttachments fileUrls={c.fileUrls} compact />
               </div>
             </li>
           ))}
@@ -123,11 +132,12 @@ export function SquawkNotes({
               }
             }}
           />
+          <SquawkFileInput files={files} onChange={setFiles} disabled={add.isPending} hint={!compact} />
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] text-muted-foreground">
               {trimmed.length > MAX - 200 ? `${trimmed.length} of ${MAX}` : "Notes cannot be edited or deleted."}
             </span>
-            <Button size="sm" disabled={!trimmed || add.isPending} onClick={() => void submit()}>
+            <Button size="sm" disabled={!canSubmit} onClick={() => void submit()}>
               {add.isPending ? "Adding..." : "Add note"}
             </Button>
           </div>

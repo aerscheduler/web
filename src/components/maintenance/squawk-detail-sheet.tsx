@@ -15,6 +15,7 @@ import { resourceLabel } from "@/types/api";
 import { useSquawk } from "@/features/queries";
 import { formatDate } from "@/lib/utils";
 import { SquawkNotes } from "@/components/maintenance/squawk-notes";
+import { SquawkAttachments } from "@/components/maintenance/squawk-attachments";
 import { DetailPanel } from "@/components/detail-panel";
 import { SheetDetailField, SheetDetailFields } from "@/components/sheet-detail-field";
 import { Badge } from "@/components/ui/badge";
@@ -114,8 +115,8 @@ export function SquawkDetailSheet({
             <p className="flex gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
               <span>
-                This squawk grounded the aircraft. Resolving it doesn&rsquo;t return it to
-                service on its own.
+                This squawk grounded the aircraft. Resolving it returns the aircraft to
+                service unless another hold is still in place.
               </span>
             </p>
           )}
@@ -128,6 +129,11 @@ export function SquawkDetailSheet({
                 <p className="whitespace-pre-wrap">{s.description}</p>
               ) : (
                 <span className="text-muted-foreground">No description</span>
+              )}
+              {full.isError && !full.data ? (
+                <p className="text-sm text-destructive">Couldn't load attachments.</p>
+              ) : (
+                <SquawkAttachments fileUrls={full.data?.fileUrls} />
               )}
             </SheetDetailField>
 
@@ -188,13 +194,17 @@ export function SquawkDetailSheet({
                 a 384px column with a booking's worth of other things on top of it. The
                 composer lives on the write-up, one click away. */}
             <SheetDetailField icon={MessageSquare} label="Notes" stacked>
-              <SquawkNotes
-                squawkId={s.id}
-                comments={comments}
-                canWrite={false}
-                loading={full.isLoading}
-                compact
-              />
+              {full.isError && !full.data ? (
+                <p className="text-sm text-destructive">Couldn't load notes.</p>
+              ) : (
+                <SquawkNotes
+                  squawkId={s.id}
+                  comments={comments}
+                  canWrite={false}
+                  loading={full.isLoading}
+                  compact
+                />
+              )}
             </SheetDetailField>
           </SheetDetailFields>
 

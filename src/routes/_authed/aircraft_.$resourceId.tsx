@@ -2,6 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   Ban,
   CalendarClock,
   Fuel,
@@ -73,7 +74,8 @@ import { Skeleton } from "@/components/ui/skeleton";
  * What a viewer gets is decided by `resourceViewAccess`: a technician opens this
  * for the squawks and the meters, a dispatcher for utilization and the board, an
  * admin for all of it plus what the tail earned. Everyone else still gets the
- * aircraft and its schedule, which is what the fleet list already showed them.
+ * aircraft, its schedule, and open squawks, the same defects the API already
+ * publishes on GET /resources/:id.
  *
  * Sections sit in a left rail (same shell as Settings / course detail) so the
  * page can grow without stacking every card into one scroll.
@@ -181,7 +183,7 @@ function sectionsFor(access: ResourceViewAccess): RailSection[] {
     { value: "schedule", label: "Schedule", icon: CalendarClock },
     ...(access.maintenance
       ? [{ value: "maintenance", label: "Maintenance", icon: Wrench }]
-      : []),
+      : [{ value: "squawks", label: "Squawks", icon: AlertTriangle }]),
     ...(access.approvedPilots
       ? [{ value: "approved-renters", label: "Approved members", icon: UserCheck }]
       : []),
@@ -465,6 +467,15 @@ function ResourceBody({ resource }: { resource: Resource }) {
                 canReport={access.reportSquawk}
               />
             </>
+          )}
+
+          {active === "squawks" && !access.maintenance && (
+            <ResourceSquawks
+              resource={resource}
+              canResolve={false}
+              canReport={access.reportSquawk}
+              canOpenMaintenance={false}
+            />
           )}
 
           {active === "approved-renters" && access.approvedPilots && (

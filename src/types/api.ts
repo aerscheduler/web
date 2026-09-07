@@ -867,6 +867,8 @@ export interface Resource {
   featuredImage: string | null;
   type?: ResourceType;
   location?: Location;
+  /** Open squawks on this tail. List shape: flag, no keys, no thread. */
+  squawks?: Squawk[];
 }
 
 export interface ResourceType {
@@ -1218,6 +1220,8 @@ export interface SquawkComment {
   createdAt: string;
   body: string;
   author?: OrganizationUser | null;
+  /** Signed GET URLs. Only on the single-squawk read. */
+  fileUrls?: string[];
 }
 
 export interface Squawk {
@@ -1240,6 +1244,10 @@ export interface Squawk {
    * carrying who wrote it and when.
    */
   comments?: SquawkComment[];
+  /** Signed GET URLs for photos/PDFs filed with the squawk. Single-squawk read only. */
+  fileUrls?: string[];
+  /** List rows send this instead of keys, so a paperclip can render without signing. */
+  hasAttachments?: boolean;
   /** When the work was actually finished, as opposed to when it was signed off. */
   completedAt?: string | null;
   resource?: Resource;

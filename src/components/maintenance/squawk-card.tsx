@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { SquawkPaperclip } from "@/components/maintenance/squawk-attachments";
 
 /**
  * A single squawk.
@@ -56,6 +57,7 @@ export function SquawkCard({
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-medium">{squawk.title || "Untitled squawk"}</span>
           {squawk.grounding && <Badge variant="danger">Grounding</Badge>}
+          <SquawkPaperclip has={squawk.hasAttachments} />
         </div>
         {squawk.description && (
           <p className="line-clamp-2 text-sm text-muted-foreground">{squawk.description}</p>

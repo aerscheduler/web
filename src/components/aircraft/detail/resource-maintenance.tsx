@@ -3,6 +3,8 @@ import { Link } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import type { MaintenanceReminder, Resource, Squawk } from "@/types/api";
 import { useMaintenanceReminders, useSquawks } from "@/features/queries";
+import { useAuth } from "@/lib/auth";
+import { canViewSquawks } from "@/lib/permissions";
 import { fleetSummary } from "@/lib/maintenance";
 import { formatDate } from "@/lib/utils";
 import { DetailCard, CardEmpty, CardSkeleton } from "@/components/detail/detail-page";
@@ -12,6 +14,7 @@ import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
 import { ResolveReminderModal } from "@/components/maintenance/resolve-reminder-modal";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
 import { SquawkDetailSheet } from "@/components/maintenance/squawk-detail-sheet";
+import { SquawkPaperclip } from "@/components/maintenance/squawk-attachments";
 import { VerifySquawkModal } from "@/components/maintenance/verify-squawk-modal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,25 +34,31 @@ export function ResourceSquawks({
   resource,
   canResolve,
   canReport,
+  canOpenMaintenance = true,
 }: {
   resource: Resource;
   canResolve: boolean;
   canReport: boolean;
+  /** Staff can jump to the Maintenance board. Members cannot. */
+  canOpenMaintenance?: boolean;
 }) {
-  const q = useSquawks({ resourceId: resource.id, resolved: false });
+  const { roles } = useAuth();
+  const canList = canViewSquawks(roles);
+  const q = useSquawks({ resourceId: resource.id, resolved: false }, { enabled: canList });
   const [logOpen, setLogOpen] = useState(false);
   const [resolving, setResolving] = useState<Squawk | null>(null);
   const [verifying, setVerifying] = useState<Squawk | null>(null);
   const [viewing, setViewing] = useState<Squawk | null>(null);
 
   const squawks = useMemo(() => {
-    return [...(q.data ?? [])].sort((a, b) => {
+    const source = canList ? (q.data ?? []) : (resource.squawks ?? []);
+    return [...source].sort((a, b) => {
       if (!!a.grounding !== !!b.grounding) return a.grounding ? -1 : 1;
-      return (b.createdAt ?? "").localeCompare(a.createdAt ?? "");
+      return (b.reportedAt ?? b.createdAt ?? "").localeCompare(a.reportedAt ?? a.createdAt ?? "");
     });
-  }, [q.data]);
+  }, [canList, q.data, resource.squawks]);
 
-  const shown = squawks.slice(0, SHOWN);
+  const shown = canOpenMaintenance ? squawks.slice(0, SHOWN) : squawks;
 
   const step = (delta: -1 | 1) => {
     if (!viewing || shown.length === 0) return;
@@ -72,9 +81,9 @@ export function ResourceSquawks({
           ) : undefined
         }
       >
-        {q.isPending ? (
+        {canList && q.isPending ? (
           <CardSkeleton rows={2} />
-        ) : q.isError ? (
+        ) : canList && q.isError ? (
           <CardEmpty>Couldn&apos;t load squawks.</CardEmpty>
         ) : squawks.length === 0 ? (
           <CardEmpty>Nothing outstanding. This aircraft is clean.</CardEmpty>
@@ -98,9 +107,10 @@ export function ResourceSquawks({
                       {s.title || "Untitled squawk"}
                     </span>
                     {s.grounding && <Badge variant="danger">Grounding</Badge>}
+                    <SquawkPaperclip has={s.hasAttachments} />
                   </div>
                   <div className="mt-0.5 text-xs text-muted-foreground">
-                    Reported {formatDate(s.createdAt)}
+                    Reported {formatDate(s.reportedAt ?? s.createdAt)}
                     {s.reportedBy?.user?.name ? ` by ${s.reportedBy.user.name}` : ""}
                   </div>
                 </button>
@@ -118,15 +128,15 @@ export function ResourceSquawks({
             ))}
           </ul>
         )}
-        {squawks.length > SHOWN && (
+        {canOpenMaintenance && squawks.length > SHOWN ? (
           <p className="mt-3 text-[13px] text-muted-foreground">
-            {squawks.length - SHOWN} more open, {" "}
+            {squawks.length - SHOWN} more open,{" "}
             <Link to="/maintenance" className="underline underline-offset-2">
               see Maintenance
             </Link>
             .
           </p>
-        )}
+        ) : null}
       </DetailCard>
 
       <LogSquawkModal open={logOpen} onOpenChange={setLogOpen} fixedResource={resource} />

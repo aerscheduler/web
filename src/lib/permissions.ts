@@ -72,6 +72,11 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   //dead end for the instructor whose student it is.
   "/training/enrollments": anyMember,
   "/maintenance": (r) => isStaff(r) || isTechnician(r),
+  // Write-up only. GET one is any org member (airworthiness for the PIC); the
+  // Maintenance board above stays staff. Nested `/maintenance/squawks/:id`
+  // matches this key, not `/maintenance`, so a student following a link lands
+  // on the record instead of Home.
+  "/maintenance/squawks": anyMember,
   //Matches the server exactly: `GET /audit` is isOrgAdmin. A dispatcher offered this
   //link would reach a page that could only 403.
   "/audit-logs": isAdmin,
@@ -292,7 +297,7 @@ export interface ResourceViewAccess {
   metrics: boolean;
   /** Revenue and payments for this tail. `/reports/resource/*` financial tier: admin only. */
   money: boolean;
-  /** Squawks and maintenance reminders. Server: admin, dispatcher or technician. */
+  /** Squawks and maintenance reminders. Server list: admin, dispatcher or technician. */
   maintenance: boolean;
   /** Close a squawk out. Narrower than `maintenance`: server: admin or technician. */
   resolveSquawks: boolean;
@@ -309,8 +314,9 @@ export interface ResourceViewAccess {
 /**
  * What this viewer may see on an aircraft's page. A technician gets the
  * maintenance half and no money; a dispatcher gets utilization and no money;
- * every other member still gets the aircraft itself and its schedule, which is
- * what they already see on the fleet list.
+ * every other member still gets the aircraft itself, its schedule, and open
+ * squawks (the same defects GET /resources/:id already publishes). Inspections
+ * stay on the staff Maintenance tab.
  */
 export function resourceViewAccess(roles: Role[]): ResourceViewAccess {
   const admin = isAdmin(roles);

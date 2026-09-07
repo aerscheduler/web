@@ -3434,11 +3434,49 @@ export function useSquawk(id: number | null, opts?: QueryOpts) {
   });
 }
 
+/** S3 POST after a 201. Failure must not look like the squawk/note was refused. */
+async function uploadSquawkAttachments(
+  signed: PresignedPost[] | undefined,
+  files: File[]
+): Promise<string | null> {
+  let lastError: string | null = null;
+  for (let i = 0; i < files.length && i < (signed?.length ?? 0); i++) {
+    try {
+      await uploadToPresignedPost(signed![i], files[i]);
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : "A file did not upload.";
+    }
+  }
+  return lastError;
+}
+
 export function useCreateSquawk() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { title: string; description?: string; resourceId?: number; grounding?: boolean }) =>
-      api("/maintenance/squawks", { method: "POST", body: input }),
+    mutationFn: async (input: {
+      title: string;
+      description?: string;
+      resourceId?: number;
+      grounding?: boolean;
+      files?: File[];
+    }) => {
+      const files = input.files ?? [];
+      const res = await apiRaw<{ data: Squawk; signedUrlData?: PresignedPost[] }>(
+        "/maintenance/squawks",
+        {
+          method: "POST",
+          body: {
+            title: input.title,
+            description: input.description,
+            resourceId: input.resourceId,
+            grounding: input.grounding,
+            ...(files.length ? { fileNames: files.map((f) => f.name) } : {}),
+          },
+        }
+      );
+      const uploadError = await uploadSquawkAttachments(res.signedUrlData, files);
+      return { data: res.data, uploadError };
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["squawks"] });
       void qc.invalidateQueries({ queryKey: ["resources"] });
@@ -3495,11 +3533,21 @@ export function useResolveSquawk() {
 export function useAddSquawkComment() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, body }: { id: number; body: string }) =>
-      api<SquawkComment>(`/maintenance/squawks/${id}/comments`, {
-        method: "POST",
-        body: { body: body.trim() },
-      }),
+    mutationFn: async ({ id, body, files }: { id: number; body: string; files?: File[] }) => {
+      const attached = files ?? [];
+      const res = await apiRaw<{ data: SquawkComment; signedUrlData?: PresignedPost[] }>(
+        `/maintenance/squawks/${id}/comments`,
+        {
+          method: "POST",
+          body: {
+            body: body.trim(),
+            ...(attached.length ? { fileNames: attached.map((f) => f.name) } : {}),
+          },
+        }
+      );
+      const uploadError = await uploadSquawkAttachments(res.signedUrlData, attached);
+      return { data: res.data, uploadError };
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["squawks"] });
     },

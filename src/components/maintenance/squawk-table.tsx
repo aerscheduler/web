@@ -17,6 +17,7 @@ import { VerifySquawkModal } from "@/components/maintenance/verify-squawk-modal"
 import { SquawkCard } from "@/components/maintenance/squawk-card";
 import { SquawkDetailSheet } from "@/components/maintenance/squawk-detail-sheet";
 import { SquawkStatusBadge } from "@/components/maintenance/squawk-status-badge";
+import { SquawkPaperclip } from "@/components/maintenance/squawk-attachments";
 
 /**
  * The squawk queue: a table, and the row you click opens the docked panel.
@@ -201,8 +202,11 @@ function squawkColumns(resolved: boolean): ColumnDef<Squawk, unknown>[] {
         // by its widest cell whatever the colgroup says, and one long write-up stretched
         // this one until the other four were pushed off the side of the table.
         <div className="min-w-0 max-w-[34rem]">
-          <div className="truncate text-sm font-medium">
-            {row.original.title || "Untitled squawk"}
+          <div className="flex items-center gap-1.5">
+            <div className="truncate text-sm font-medium">
+              {row.original.title || "Untitled squawk"}
+            </div>
+            <SquawkPaperclip has={row.original.hasAttachments} />
           </div>
           {row.original.description && (
             <div className="truncate text-xs text-muted-foreground">

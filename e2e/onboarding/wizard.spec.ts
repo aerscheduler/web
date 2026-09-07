@@ -248,10 +248,11 @@ test.describe("Onboarding wizard", () => {
     expect(planes).toHaveLength(0);
   });
 
-  test("back from aircraft updates the same organization", async ({ page }) => {
+  test("back from aircraft updates the same organization", async ({ page, request }) => {
     await signupFresh(page, "E2E Owner");
     const firstName = `E2E Onboard ${Date.now()}`;
     await startSchoolOperation(page, firstName);
+    await pickAirport(page, "KAPA", /KAPA Centennial Airport/i);
     await finishOperationDetails(page, "Create operation");
     await expect(page.getByRole("heading", { name: /Add your first aircraft/i })).toBeVisible({
       timeout: 30_000,
@@ -290,6 +291,28 @@ test.describe("Onboarding wizard", () => {
         });
       })
       .toBe(renamed);
+
+    const token = await bearerToken(page);
+    const locations = await apiGet<
+      { name: string; address?: { city?: string; state?: string } }[]
+    >(request, token, "/locations");
+    expect(locations[0].name).toMatch(/Centennial/i);
+    expect(locations[0].address?.city).toMatch(/Denver/i);
+    expect(locations[0].address?.state).toBe("CO");
+
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.getByLabel("Home airport")).toHaveValue(/Centennial/i);
+    await page.getByLabel("Home airport").fill("MY STRIP");
+    await finishOperationDetails(page, "Continue");
+    await expect(page.getByRole("heading", { name: /Add your first aircraft/i })).toBeVisible({
+      timeout: 30_000,
+    });
+    const afterType = await apiGet<
+      { name: string; address?: { city?: string; state?: string } }[]
+    >(request, token, "/locations");
+    expect(afterType[0].name).toMatch(/MY STRIP/i);
+    expect(afterType[0].address?.city).toMatch(/Denver/i);
+    expect(afterType[0].address?.state).toBe("CO");
   });
 
   test("school owner save: org, airport, intent, aircraft, heard-from, and tips", async ({

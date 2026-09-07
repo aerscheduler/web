@@ -404,6 +404,7 @@ function OperationFlow({
   const attribution = React.useMemo(() => readAttribution(), []);
 
   const creating = React.useRef(false);
+  const finishing = React.useRef(false);
   // Resume on aircraft if the org already exists (refresh after Create operation,
   // before billing). Sticky step 2 keeps a refresh on the Stripe nudge.
   const [step, setStep] = React.useState(() => {
@@ -495,7 +496,7 @@ function OperationFlow({
 
   function locationFields() {
     return {
-      name: airport.trim() || orgName.trim() || "Home",
+      name: (airport.trim() || orgName.trim() || "Home").slice(0, 60),
       address: airportPick
         ? {
             ...EMPTY_ADDRESS,
@@ -509,10 +510,11 @@ function OperationFlow({
   }
 
   async function applyUpdatesPref(want: boolean) {
-    if (want) return;
+    // Always write, including true. A failed Finish after an opt-out would
+    // otherwise leave the server on false when they re-check and retry.
     await updatePrefs.mutateAsync({
       notificationPreferences: {
-        emailNotificationPreferences: { onboardingTips: false },
+        emailNotificationPreferences: { onboardingTips: want },
       },
     });
   }
@@ -539,34 +541,68 @@ function OperationFlow({
           name: orgName.trim(),
           organizationType: subtype,
         });
-        const locId = locationId ?? (await firstLocationId());
-        if (locId) {
+        const locId = locationId ?? homeLocation?.id ?? (await firstLocationId());
+        if (locId && airportPick) {
           const loc = locationFields();
-          const existing = homeLocation?.address ?? {};
           try {
             await updateLocation.mutateAsync({
               id: locId,
               name: loc.name,
-              // A Back without a new airport pick must not blank the address we saved.
-              address: airportPick
-                ? loc.address
-                : {
-                    streetAddress1: existing.streetAddress1 ?? "",
-                    streetAddress2: existing.streetAddress2 ?? "",
-                    city: existing.city ?? "",
-                    state: existing.state ?? "",
-                    zipCode: existing.zipCode ?? "",
-                    country: existing.country ?? "",
-                  },
-              ...(airportPick?.timeZone ? { timeZone: airportPick.timeZone } : {}),
-              ...(airportPick
-                ? { coordinates: { lat: airportPick.latitude, lng: airportPick.longitude } }
-                : {}),
+              address: loc.address,
+              timeZone: loc.timeZone ?? null,
+              coordinates: { lat: airportPick.latitude, lng: airportPick.longitude },
             });
             setLocationId(locId);
-            setHomeLocation({ id: locId, name: loc.name, address: airportPick ? loc.address : existing });
-          } catch {
+            setHomeLocation({ id: locId, name: loc.name, address: loc.address });
+          } catch (e) {
             // A stale or non-org location id 403s here. Aircraft can still create one.
+            if (!(e instanceof ApiError && (e.status === 403 || e.status === 404))) throw e;
+          }
+        } else if (locId) {
+          // Typed without a lookup row: rename the site, keep city/state/zone.
+          // Sending an empty address here would wipe the airport we already saved.
+          setLocationId(locId);
+          type LocRow = {
+            id: number;
+            name: string;
+            address?: {
+              streetAddress1?: string;
+              streetAddress2?: string | null;
+              city?: string;
+              state?: string;
+              zipCode?: string;
+              country?: string;
+            } | null;
+          };
+          let saved: LocRow | null = homeLocation;
+          if (!saved || saved.id !== locId) {
+            try {
+              const { data } = await apiList<LocRow>("/locations");
+              saved = data.find((row) => row.id === locId) ?? data[0] ?? null;
+            } catch {
+              saved = null;
+            }
+          }
+          const newName = (airport.trim() || orgName.trim()).slice(0, 60);
+          if (saved && newName && newName !== saved.name) {
+            const existing = saved.address ?? {};
+            try {
+              await updateLocation.mutateAsync({
+                id: locId,
+                name: newName,
+                address: {
+                  streetAddress1: existing.streetAddress1 ?? "",
+                  streetAddress2: existing.streetAddress2 ?? "",
+                  city: existing.city ?? "",
+                  state: existing.state ?? "",
+                  zipCode: existing.zipCode ?? "",
+                  country: existing.country ?? "",
+                },
+              });
+              setHomeLocation({ id: locId, name: newName, address: existing });
+            } catch (e) {
+              if (!(e instanceof ApiError && (e.status === 403 || e.status === 404))) throw e;
+            }
           }
         }
         await rehydrate();
@@ -633,6 +669,8 @@ function OperationFlow({
   }
 
   async function finishUpdates() {
+    if (finishing.current) return;
+    finishing.current = true;
     setBusy(true);
     const heard = heardFromRef.current;
     const heardDetail = heardFromDetailRef.current.trim();
@@ -653,12 +691,13 @@ function OperationFlow({
         marketing_updates: want,
         channel: attributionChannel(),
       });
-      markOrgOnboardingComplete();
       await updateOrg.mutateAsync({ preferences: { newOrgOnboardingComplete: true } });
+      markOrgOnboardingComplete();
       finish();
     } catch (e) {
       toast.error(apiErr(e));
     } finally {
+      finishing.current = false;
       setBusy(false);
     }
   }
@@ -764,7 +803,7 @@ function OperationFlow({
               }}
               onPick={(m) => {
                 setAirportPick(m);
-                setAirport(`${m.ident} ${m.name}`);
+                setAirport(`${m.ident} ${m.name}`.slice(0, 60));
               }}
               //VarChar(60) on the server, which does not truncate.
               maxLength={60}

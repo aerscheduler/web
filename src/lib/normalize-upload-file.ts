@@ -33,6 +33,13 @@ export function looksLikeHeic(bytes: Uint8Array): boolean {
   return HEIC_BRANDS.has(brand);
 }
 
+/** `File` wants an ArrayBuffer, not a Uint8Array whose buffer might be SharedArrayBuffer. */
+function copyBytes(bytes: Uint8Array): ArrayBuffer {
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return copy;
+}
+
 function stem(name: string): string {
   const base = name.replace(/\\/g, "/").split("/").pop() ?? "file";
   const dot = base.lastIndexOf(".");
@@ -82,13 +89,13 @@ export async function normalizeUploadFile(file: File, bytes?: Uint8Array): Promi
   const b = bytes ?? new Uint8Array(await file.arrayBuffer());
 
   if (looksLikePdf(b)) {
-    return new File([b], `${stem(file.name)}.pdf`, { type: "application/pdf" });
+    return new File([copyBytes(b)], `${stem(file.name)}.pdf`, { type: "application/pdf" });
   }
   if (looksLikeJpeg(b)) {
-    return new File([b], `${stem(file.name)}.jpg`, { type: "image/jpeg" });
+    return new File([copyBytes(b)], `${stem(file.name)}.jpg`, { type: "image/jpeg" });
   }
   if (looksLikePng(b)) {
-    return new File([b], `${stem(file.name)}.png`, { type: "image/png" });
+    return new File([copyBytes(b)], `${stem(file.name)}.png`, { type: "image/png" });
   }
   return null;
 }

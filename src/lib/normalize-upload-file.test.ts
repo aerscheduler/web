@@ -7,6 +7,12 @@ import {
   normalizeUploadFile,
 } from "./normalize-upload-file";
 
+function asFileBytes(bytes: Uint8Array): ArrayBuffer {
+  const copy = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(copy).set(bytes);
+  return copy;
+}
+
 const TINY_JPEG = Uint8Array.from(
   atob(
     "/9j/4AAQSkZJRgABAQAAAQABAAD/2wAAAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAACKAAB//9k="
@@ -39,21 +45,21 @@ describe("magic bytes", () => {
 
 describe("normalizeUploadFile", () => {
   it("renames a JPEG that an iPhone labelled .HEIC", async () => {
-    const file = new File([TINY_JPEG], "IMG_1234.HEIC", { type: "image/heic" });
+    const file = new File([asFileBytes(TINY_JPEG)], "IMG_1234.HEIC", { type: "image/heic" });
     const out = await normalizeUploadFile(file);
     expect(out?.name).toBe("IMG_1234.jpg");
     expect(out?.type).toBe("image/jpeg");
   });
 
   it("skips a HEIC the browser cannot decode so Chrome is not left a dead file", async () => {
-    const file = new File([fakeHeic()], "sheet.heic", { type: "image/heic" });
+    const file = new File([asFileBytes(fakeHeic())], "sheet.heic", { type: "image/heic" });
     const out = await normalizeUploadFile(file);
     expect(out).toBeNull();
   });
 
   it("keeps a PDF even if the name is wrong", async () => {
     const bytes = Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
-    const file = new File([bytes], "POH.heic", { type: "image/heic" });
+    const file = new File([asFileBytes(bytes)], "POH.heic", { type: "image/heic" });
     const out = await normalizeUploadFile(file);
     expect(out?.name).toBe("POH.pdf");
   });

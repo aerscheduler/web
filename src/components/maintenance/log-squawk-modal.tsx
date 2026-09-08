@@ -34,6 +34,7 @@ export function LogSquawkModal({
   const [resourceId, setResourceId] = React.useState<string>("");
   const [grounding, setGrounding] = React.useState(false);
   const [files, setFiles] = React.useState<File[]>([]);
+  const [fileBusy, setFileBusy] = React.useState(false);
 
   // A fixed tail is the value, not a default the user could have edited away.
   const effectiveResourceId = fixedResource ? String(fixedResource.id) : resourceId;
@@ -88,6 +89,7 @@ export function LogSquawkModal({
         <div className="flex justify-end gap-2">
             <Button
               variant="ghost"
+              disabled={fileBusy}
               onClick={() => {
                 reset();
                 onOpenChange(false);
@@ -97,7 +99,7 @@ export function LogSquawkModal({
             </Button>
             <Button
               onClick={submit}
-              disabled={!title.trim() || !description.trim() || create.isPending}
+              disabled={!title.trim() || !description.trim() || create.isPending || fileBusy}
             >
               {create.isPending ? "Logging…" : "Log squawk"}
             </Button>
@@ -105,6 +107,7 @@ export function LogSquawkModal({
       }
       open={open}
       onOpenChange={(o) => {
+        if (!o && fileBusy) return;
         if (!o) reset();
         onOpenChange(o);
       }}
@@ -166,7 +169,12 @@ export function LogSquawkModal({
           <Switch id="squawk-grounding" checked={grounding} onCheckedChange={setGrounding} />
         </div>
 
-        <SquawkFileInput files={files} onChange={setFiles} disabled={create.isPending} />
+        <SquawkFileInput
+          files={files}
+          onChange={setFiles}
+          disabled={create.isPending}
+          onBusyChange={setFileBusy}
+        />
 
       </div>
     </ResponsiveModal>

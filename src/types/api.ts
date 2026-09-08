@@ -869,6 +869,34 @@ export interface Resource {
   location?: Location;
   /** Open squawks on this tail. List shape: flag, no keys, no thread. */
   squawks?: Squawk[];
+  /** Booker-visible papers. No keys. Staff-only files are omitted. */
+  papers?: ResourceFileSummary[];
+}
+
+export interface ResourceFileSummary {
+  id: number;
+  category: ResourceFileCategory;
+  label: string | null;
+  hasFile: boolean;
+}
+
+export type ResourceFileCategory =
+  | "poh"
+  | "weight_and_balance"
+  | "insurance"
+  | "form_337"
+  | "logbook_scan"
+  | "other";
+
+export type ResourceFileVisibility = "bookers" | "staff";
+
+export interface ResourceFile {
+  id: number;
+  createdAt: string;
+  category: ResourceFileCategory;
+  visibility: ResourceFileVisibility;
+  label: string | null;
+  fileUrls: string[];
 }
 
 export interface ResourceType {

@@ -49,10 +49,11 @@ export function SquawkNotes({
 }) {
   const [body, setBody] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [fileBusy, setFileBusy] = useState(false);
   const add = useAddSquawkComment();
   const trimmed = body.trim();
   const list = comments ?? [];
-  const canSubmit = (trimmed.length > 0 || files.length > 0) && !add.isPending;
+  const canSubmit = (trimmed.length > 0 || files.length > 0) && !add.isPending && !fileBusy;
 
   async function submit() {
     if (!canSubmit) return;
@@ -132,7 +133,13 @@ export function SquawkNotes({
               }
             }}
           />
-          <SquawkFileInput files={files} onChange={setFiles} disabled={add.isPending} hint={!compact} />
+          <SquawkFileInput
+            files={files}
+            onChange={setFiles}
+            disabled={add.isPending}
+            hint={!compact}
+            onBusyChange={setFileBusy}
+          />
           <div className="flex items-center justify-between gap-2">
             <span className="text-[11px] text-muted-foreground">
               {trimmed.length > MAX - 200 ? `${trimmed.length} of ${MAX}` : "Notes cannot be edited or deleted."}

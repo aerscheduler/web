@@ -108,6 +108,7 @@ import type {
   ReservationPayerInput,
   ReservationPaymentOverridesInput,
   Resource,
+  ResourceFile,
   ResourceGroup,
   ResourceGroupInput,
   RevenueDimension,
@@ -3217,6 +3218,83 @@ export function useResource(id: number | null, opts?: QueryOpts) {
     queryKey: ["resources", "one", id],
     queryFn: () => api<Resource>(`/resources/${id}`),
     enabled: (opts?.enabled ?? true) && id != null,
+  });
+}
+
+export function useResourceFiles(resourceId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["resource-files", resourceId],
+    queryFn: () => api<ResourceFile[]>(`/resources/${resourceId}/files`),
+    enabled: (opts?.enabled ?? true) && resourceId != null,
+  });
+}
+
+export function useCreateResourceFiles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      resourceId: number;
+      category: string;
+      visibility?: string;
+      label?: string;
+      files: File[];
+    }) => {
+      const res = await apiRaw<{ data: ResourceFile[]; signedUrlData?: PresignedPost[] }>(
+        `/resources/${input.resourceId}/files`,
+        {
+          method: "POST",
+          body: {
+            category: input.category,
+            visibility: input.visibility,
+            label: input.label,
+            fileNames: input.files.map((f) => f.name),
+          },
+        }
+      );
+      const uploadError = await uploadSquawkAttachments(res.signedUrlData, input.files);
+      return { data: res.data, uploadError };
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["resource-files"] });
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+    },
+  });
+}
+
+export function useUpdateResourceFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      resourceId: number;
+      fileId: number;
+      visibility?: string;
+      label?: string;
+      category?: string;
+    }) =>
+      api<ResourceFile>(`/resources/${input.resourceId}/files/${input.fileId}`, {
+        method: "PATCH",
+        body: {
+          visibility: input.visibility,
+          label: input.label,
+          category: input.category,
+        },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["resource-files"] });
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+    },
+  });
+}
+
+export function useDeleteResourceFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { resourceId: number; fileId: number }) =>
+      api(`/resources/${input.resourceId}/files/${input.fileId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["resource-files"] });
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+    },
   });
 }
 

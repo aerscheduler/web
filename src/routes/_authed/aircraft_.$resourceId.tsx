@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Ban,
   CalendarClock,
+  FileText,
   Fuel,
   Gauge,
   MapPin,
@@ -39,6 +40,7 @@ import {
   ResourceReminders,
   ResourceSquawks,
 } from "@/components/aircraft/detail/resource-maintenance";
+import { ResourcePapers } from "@/components/aircraft/detail/resource-papers";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
 import {
   CardEmpty,
@@ -174,13 +176,19 @@ function AircraftDetailPage() {
   return <ResourceBody resource={resource} />;
 }
 
-function sectionsFor(access: ResourceViewAccess): RailSection[] {
+function sectionsFor(
+  access: ResourceViewAccess,
+  opts: { hasBookerPapers: boolean; isPlane: boolean }
+): RailSection[] {
   const items = [
     { value: "overview", label: "Overview", icon: PlaneTakeoff },
     ...(access.metrics
       ? [{ value: "metrics", label: "Utilization", icon: Gauge }]
       : []),
     { value: "schedule", label: "Schedule", icon: CalendarClock },
+    ...(opts.isPlane && (access.managePapers || opts.hasBookerPapers)
+      ? [{ value: "papers", label: "Papers", icon: FileText }]
+      : []),
     ...(access.maintenance
       ? [{ value: "maintenance", label: "Maintenance", icon: Wrench }]
       : [{ value: "squawks", label: "Squawks", icon: AlertTriangle }]),
@@ -201,7 +209,14 @@ function ResourceBody({ resource }: { resource: Resource }) {
   const navigate = Route.useNavigate();
   const { tab } = Route.useSearch();
 
-  const sections = sectionsFor(access);
+  const plane = resource.type?.plane ?? null;
+  const status = plane ? planeStatus(plane) : null;
+  const rate = plane ? planeRate(plane) : null;
+
+  const sections = sectionsFor(access, {
+    hasBookerPapers: (resource.papers?.length ?? 0) > 0,
+    isPlane: !!plane,
+  });
   const allowed = sections.flatMap((s) => s.items.map((i) => i.value));
   const active = tab && allowed.includes(tab) ? tab : "overview";
   const pick = (next: string) => {
@@ -211,10 +226,6 @@ function ResourceBody({ resource }: { resource: Resource }) {
   const [editing, setEditing] = useState(false);
   const [grounding, setGrounding] = useState(false);
   const [approving, setApproving] = useState(false);
-
-  const plane = resource.type?.plane ?? null;
-  const status = plane ? planeStatus(plane) : null;
-  const rate = plane ? planeRate(plane) : null;
 
   // The dedicated grounding route, not the generic resource PATCH. That one is admin-only,
   // which is why a technician never saw this control: the server would have refused it.
@@ -450,6 +461,12 @@ function ResourceBody({ resource }: { resource: Resource }) {
 
           {active === "schedule" && (
             <ResourceSchedule resourceId={resource.id} range={window} canBook />
+          )}
+
+          {active === "papers" &&
+            plane &&
+            (access.managePapers || (resource.papers?.length ?? 0) > 0) && (
+            <ResourcePapers resource={resource} canManage={access.managePapers} />
           )}
 
           {active === "maintenance" && access.maintenance && (

@@ -662,6 +662,12 @@ export const DOCS_TOPICS = {
       "Attach up to five photos or PDFs when you report a squawk, or on a note. They stay with the thread and cannot be deleted afterwards.",
     href: "maintenance/report-a-squawk",
   },
+  "aircraft-papers": {
+    title: "Aircraft papers",
+    summary:
+      "The current POH and weight and balance for this tail. Members who can book it can open the ones marked for bookers. Staff can replace a stale file; unlike a squawk photo, papers can be deleted.",
+    href: "maintenance/aircraft-papers",
+  },
   "inspection-last-done": {
     title: "When was it last done?",
     summary:

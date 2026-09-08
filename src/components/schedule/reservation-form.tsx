@@ -67,6 +67,7 @@ import { useTimeZone } from "@/lib/use-timezone";
 import { DOT_CLASS, typeLabel } from "./meta";
 import { SmartTimeRange } from "./smart-time-range";
 import { OvernightMinimumNotice } from "./overnight-notice";
+import { ResourcePapersButton } from "@/components/aircraft/detail/resource-papers";
 import { BookingZoneBanner } from "./booking-zone-banner";
 import {
   RecurrenceField,
@@ -1398,6 +1399,9 @@ export function ReservationForm({
         {type !== "maintenance" && (
           <>
             <AirworthinessNotice resource={selectedResource} squawks={selectedSquawks} />
+            {selectedResource?.type?.plane ? (
+              <ResourcePapersButton resourceId={selectedResource.id} />
+            ) : null}
             {/* Said at the moment the dates are chosen, which is the only moment it can stop
                 somebody being surprised by the invoice. Inside the same maintenance guard as
                 the notice above: a maintenance booking is never invoiced. */}

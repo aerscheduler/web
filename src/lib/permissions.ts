@@ -201,6 +201,8 @@ export const canManageResources = isAdmin;
  * `PATCH /resources/:id/grounding`, admin or technician.
  */
 export const canGroundResources = (r: Role[]) => isAdmin(r) || isTechnician(r);
+/** Upload, replace, or delete papers on a tail. Server: admin, dispatcher, or technician. */
+export const canManageResourcePapers = (r: Role[]) => isStaff(r) || isTechnician(r);
 /** Create/void/mark-paid invoices; view the billing console. Server: admin. */
 export const canManageBilling = isAdmin;
 /** Billing settings + Stripe connect. Server: owner. */
@@ -307,6 +309,8 @@ export interface ResourceViewAccess {
   manage: boolean;
   /** Ground the aircraft or return it to service. Server: admin or technician. */
   ground: boolean;
+  /** Add or remove papers (POH, W&B). Server: admin, dispatcher, or technician. */
+  managePapers: boolean;
   /** File a squawk against this aircraft. Server: any member. */
   reportSquawk: boolean;
 }
@@ -329,6 +333,7 @@ export function resourceViewAccess(roles: Role[]): ResourceViewAccess {
     approvedPilots: isStaff(roles),
     manage: admin,
     ground: canGroundResources(roles),
+    managePapers: canManageResourcePapers(roles),
     reportSquawk: true,
   };
 }

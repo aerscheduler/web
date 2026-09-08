@@ -71,6 +71,7 @@ Defaults: `VITE_API_PROXY=http://127.0.0.1:5001`, Playwright starts Vite on
 | `e2e/people/invite.spec.ts` | People + invite sheet |
 | `e2e/operations/hide-announcement.spec.ts` | Got it hides a notice from Home; board still lists it |
 | `e2e/operations/squawk-files.spec.ts` | Photos/PDFs on squawk create and notes: API fileNames, real local upload POST, hasAttachments, role gates, junk types, 6-file toast; student can open the write-up |
+| `e2e/operations/resource-papers.spec.ts` | Aircraft papers locker: owner upload, student read, staff-only hidden, fileUrls refused, dispatcher/tech/renter roles, cap, Papers tab, sim has no tab, `/me/book` Papers only for bookers, iPhone HEIC name + JPEG-in-HEIC rename |
 | `e2e/access/route-matrix.spec.ts` | Owner can open first N `ROUTE_ACCESS` routes |
 | `e2e/onboarding/intent-logic.spec.ts` | Pure: landingPath→source, tracks, heard-from gate |
 | `e2e/onboarding/checklist-tracks.spec.ts` | Dashboard `?track=` + `?checklist=fresh` Start here leads |

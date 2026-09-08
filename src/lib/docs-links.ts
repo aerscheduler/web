@@ -555,6 +555,12 @@ export const DOCS_TOPICS = {
     href: "getting-started/add-a-simulator-or-classroom",
     linkLabel: "How to add a simulator or room",
   },
+  "location-airport": {
+    title: "Airport identifier",
+    summary:
+      "Pick the field from the list so we store its identifier (KAPA). Weather then comes from that airport, not a nearby reporter. Typing a private strip by hand is fine; that site has no weather unless you later pick it from the list.",
+    href: "scheduling/airport-time-and-time-zones",
+  },
   "invite-people": {
     title: "Invite people",
     summary:

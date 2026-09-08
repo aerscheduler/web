@@ -15,9 +15,9 @@
  *    whose terms require the service to be credited. The credit is surfaced in the UI.
  *    see SUN_ATTRIBUTION, rendered in the weather badge's tooltip.
  *
- * A Location has no ICAO identifier, only a geocoded address, so the nearest reporting
- * station is found by querying a small bounding box around the location's coordinates and
- * picking the closest station by great-circle distance.
+ * A Location may carry a published airport ident. When it does, METAR is fetched
+ * for that station. Otherwise the nearest reporting station is found by querying a
+ * small bounding box around the location's coordinates.
  *
  * Nothing in here ever throws or rejects. Weather is supplementary: every failure path
  * resolves to null and the UI renders nothing at all, no spinner, no error, no toast.
@@ -36,11 +36,11 @@
  *
  * WHY THE METAR GOES THROUGH OUR SERVER: aviationweather.gov serves no
  * `Access-Control-Allow-Origin` header (verified 2026-07-26), so a direct browser request
- * to it is blocked by CORS and would always resolve null. `fetchNearestObservation` below
- * therefore calls `GET /weather/metar` on the AerScheduler API, which does the bbox query,
- * the nearest-station pick and a 5-minute cache server-side. api.sunrise-sunset.org DOES
- * send `Access-Control-Allow-Origin: *`, so sun times are still fetched client-side.
- * (The Flutter app has no CORS and still calls aviationweather.gov directly.)
+ * to it is blocked by CORS and would always resolve null. `fetchMetar` below
+ * therefore calls `GET /weather/metar` on the AerScheduler API, which does ident-first,
+ * then bbox, and a 5-minute cache server-side. The Flutter app uses the same endpoint.
+ * api.sunrise-sunset.org DOES send `Access-Control-Allow-Origin: *`, so sun times are
+ * still fetched client-side.
  */
 import { format } from "date-fns";
 
@@ -211,13 +211,21 @@ export function parseObservation(raw: unknown): Observation | null {
 // ── locations ────────────────────────────────────────────────────────────────
 
 /**
- * The geocoded coordinates of a Location, narrowed at runtime.
+ * The published ident and geocoded coordinates of a Location, narrowed at runtime.
  *
- * Typed as `unknown` on purpose: the shared `Location` interface in types/api.ts doesn't
- * declare the address/coordinates the API actually returns on a reservation's resource,
- * and this feature isn't the place to widen a shared type. A location without coordinates
- * simply has no weather, that is not an error.
+ * Typed as `unknown` on purpose: a reservation's nested location is not always the
+ * shared `Location` type. A location without an ident or coordinates simply has no
+ * weather; that is not an error.
  */
+export function identFromLocation(location: unknown): string | null {
+  const record = asRecord(location);
+  if (!record) return null;
+  const parsed = parseWeatherString(record.ident);
+  if (!parsed) return null;
+  const key = parsed.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return key.length >= 2 && key.length <= 10 ? key : null;
+}
+
 export function coordinatesFromLocation(location: unknown): Coordinates | null {
   const record = asRecord(location);
   if (!record) return null;
@@ -279,33 +287,45 @@ export function distanceInKilometers(from: Coordinates, to: Coordinates): number
 
 // ── fetches ──────────────────────────────────────────────────────────────────
 
+export type MetarQuery = {
+  ident?: string | null;
+  coordinates?: Coordinates | null;
+};
+
+export function metarQueryKey(query: MetarQuery): string | null {
+  if (query.ident) return `ident:${query.ident}`;
+  if (query.coordinates) return coordinateKey(query.coordinates);
+  return null;
+}
+
 /**
- * The nearest reporting station to `coordinates`, or null when the lookup fails, the
- * bounding box is empty, or the browser blocks the request (see the CORS note above).
- *
- * A station that reports a flight category beats a closer one that doesn't, an
- * observation with no `fltCat` can't answer the only question the badge exists to answer.
+ * METAR for a known airport ident, or the nearest reporting station to `coordinates`.
+ * Ident wins when both are sent. Returns null when the lookup fails or the browser
+ * blocks the request (see the CORS note above).
  */
+export async function fetchMetar(query: MetarQuery, signal?: AbortSignal): Promise<Observation | null> {
+  const params = new URLSearchParams();
+  if (query.ident) params.set("airport", query.ident);
+  if (query.coordinates) {
+    params.set("lat", String(query.coordinates.lat));
+    params.set("lon", String(query.coordinates.lng));
+  }
+  if (![...params.keys()].length) return null;
+
+  try {
+    const raw = await api<unknown>(`/weather/metar?${params.toString()}`, { signal });
+    return parseObservation(raw);
+  } catch {
+    return null;
+  }
+}
+
+/** @deprecated Use fetchMetar. Kept so existing call sites compile during the swap. */
 export async function fetchNearestObservation(
   coordinates: Coordinates,
   signal?: AbortSignal
 ): Promise<Observation | null> {
-  try {
-    // Goes through OUR server, not aviationweather.gov directly. That host sends no
-    // Access-Control-Allow-Origin header (verified 2026-07-26), so a browser request to
-    // it is blocked by CORS and this would always resolve null. GET /weather/metar does
-    // the bbox query, the nearest-station pick and the caching server-side and returns a
-    // single observation (or null) in the usual { data } envelope.
-    const raw = await api<unknown>(
-      `/weather/metar?lat=${coordinates.lat}&lon=${coordinates.lng}`,
-      { signal }
-    );
-
-    return parseObservation(raw);
-  } catch {
-    // Weather never surfaces an error to the user.
-    return null;
-  }
+  return fetchMetar({ coordinates }, signal);
 }
 
 /**

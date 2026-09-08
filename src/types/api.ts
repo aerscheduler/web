@@ -987,15 +987,20 @@ export interface Location {
   id: number;
   name: string;
   /**
+   * Published airport identifier. ICAO when the field has one ("KAPA"), otherwise the
+   * FAA local code ("00A"). Null when the person typed a site by hand. Weather uses
+   * this when present instead of guessing the nearest reporting station.
+   */
+  ident?: string | null;
+  /**
    * The airport's IANA zone, e.g. "America/Boise", the operational truth a schedule is
    * pinned to. Null falls back to the organization's, then to the viewer's own, which is
    * exactly today's behaviour.
    */
   timeZone?: string | null;
   /**
-   * The airport's postal address. The server GEOCODES this on create and on every edit,
-   * and refuses the write when it cannot resolve the address, so it is effectively
-   * required on both even though the column is a separate optional relation.
+   * The airport's postal address, stored as entered. Optional. Picking a published
+   * airport fills city, state and country; coordinates are not derived from this address.
    */
   address?: UserAddress | null;
   showInDirectory?: boolean;
@@ -1004,15 +1009,19 @@ export interface Location {
 /**
  * Body for `PATCH /locations/:id`.
  *
- * Send the WHOLE address, never a diff: the server re-geocodes on every edit and writes
- * each address column from what it was handed, so an omitted city is written as an
- * omitted city. `timeZone: null` explicitly clears the zone (fall back to the org's);
- * omitting the key leaves it alone.
+ * Send the WHOLE address, never a diff: the server writes each address column from what
+ * it was handed, so an omitted city is written as an omitted city. `timeZone: null`
+ * explicitly clears the zone (fall back to the org's); omitting the key leaves it alone.
  */
 export interface UpdateLocationInput {
   name: string;
   address: Partial<UserAddress>;
   timeZone?: string | null;
+  /**
+   * Published airport identifier. Omit to leave whatever is stored alone; send null to
+   * clear it. Same three-way rule as `timeZone`.
+   */
+  ident?: string | null;
   /**
    * The airport's published position, when one was picked from the lookup. Omit to leave
    * whatever is stored alone; the server only overwrites what it is actually sent. The
@@ -1512,6 +1521,8 @@ export interface CreateLocationInput {
   showInDirectory?: boolean;
   /** The IANA zone. Honoured on create since August 2026; it used to need a follow-up PATCH. */
   timeZone?: string | null;
+  /** Published airport identifier, when one was picked from the lookup. */
+  ident?: string | null;
   /** The airport's published position, when one was picked from the lookup. */
   coordinates?: { lat: number; lng: number } | null;
 }

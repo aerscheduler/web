@@ -9,6 +9,7 @@ import {
   coordinatesFromLocation,
   dateKey,
   hasReportableConditions,
+  identFromLocation,
   isStaleObservation,
   observationAgeLabel,
   shouldIncludeObservation,
@@ -41,8 +42,8 @@ const categoryChip = cva("", {
  * WeatherBadge (app/lib/widgets/weather_badge.dart).
  *
  * Supplementary information, so it renders NOTHING at all while loading, when the
- * location has no geocoded coordinates, when the flight is in the past, or when either
- * lookup fails. A pilot never sees a spinner or an error here.
+ * location has neither an ident nor coordinates, when the flight is in the past, or when
+ * either lookup fails. A pilot never sees a spinner or an error here.
  *
  * A surface observation describes the weather right now, so the METAR half is only
  * requested for a flight inside the 12-hour window; sunset and civil twilight are
@@ -59,9 +60,9 @@ export function WeatherBadge({
   className,
 }: {
   /**
-   * The reservation's `resource.location`. Typed `unknown` on purpose: the shared
-   * `Location` interface doesn't declare the geocoded address the API actually returns,
-   * so the coordinates are narrowed at runtime (`coordinatesFromLocation`).
+   * The reservation's `location` (the full row plus address). `resource.location` is
+   * `{ id }` only and will not produce a badge. Ident is a scalar on Location;
+   * coordinates live on the address relation.
    */
   location: unknown;
   /** ISO start of the reservation. */
@@ -72,15 +73,20 @@ export function WeatherBadge({
   variant?: "inline" | "detail";
   className?: string;
 }) {
+  const ident = useMemo(() => identFromLocation(location), [location]);
   const coordinates = useMemo(() => coordinatesFromLocation(location), [location]);
   const startDate = parseDate(start);
   const now = new Date();
 
-  const applies = coordinates !== null && startDate !== null && weatherApplies(startDate, now);
+  const applies =
+    (ident !== null || coordinates !== null) && startDate !== null && weatherApplies(startDate, now);
   const withObservation = applies && startDate !== null && shouldIncludeObservation(startDate, now);
   const day = applies && startDate !== null ? dateKey(startDate, timeZone) : null;
 
-  const metarQ = useMetarObservation(coordinates, { enabled: withObservation });
+  const metarQ = useMetarObservation(
+    ident || coordinates ? { ident, coordinates } : null,
+    { enabled: withObservation }
+  );
   const sunQ = useSunTimes(coordinates, day, { enabled: applies });
 
   // Outside the 12-hour window the observation is dropped even if a sibling badge already

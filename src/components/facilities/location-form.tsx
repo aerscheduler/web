@@ -13,6 +13,7 @@ import { describeZone, timeZoneOptions } from "@/lib/timezone";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { AirportField, countryName, subdivisionOf } from "@/components/facilities/airport-field";
 import { Combobox, type ComboOption } from "@/components/combobox";
+import { DocsHint } from "@/components/docs-hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,6 +46,8 @@ type FormState = {
    * a hand-typed site simply has none, exactly as every onboarded org already did.
    */
   coordinates: { lat: number; lng: number } | null;
+  /** Same rule as coordinates: only a picked row sets it. Omit on save when null. */
+  ident: string | null;
 };
 
 /**
@@ -76,6 +79,7 @@ function emptyState(): FormState {
     country: "United States",
     timeZone: INHERIT_ZONE,
     coordinates: null,
+    ident: null,
   };
 }
 
@@ -93,6 +97,7 @@ function stateFromLocation(l: Location): FormState {
     //Editing does not re-pick an airport, and omitting coordinates on save leaves the
     //stored pair alone. Seeding this from the row would risk writing back a stale one.
     coordinates: null,
+    ident: null,
   };
 }
 
@@ -202,6 +207,7 @@ export function LocationFormModal({
       //it is a fine answer, not a failure.
       timeZone: match.timeZone ?? f.timeZone,
       coordinates: { lat: match.latitude, lng: match.longitude },
+      ident: match.ident || f.ident,
     }));
   }
 
@@ -237,21 +243,22 @@ export function LocationFormModal({
     };
     const timeZone = form.timeZone === INHERIT_ZONE ? null : form.timeZone;
     // Omitted rather than sent as null when nothing was picked, so an edit that only
-    // renames a field leaves whatever position is stored alone.
+    // renames a field leaves whatever position and ident are stored alone.
     const coordinates = form.coordinates ?? undefined;
+    const ident = form.ident ?? undefined;
 
     setBusy(true);
     setError(null);
     try {
       if (isEdit && location) {
-        await update.mutateAsync({ id: location.id, name, address, timeZone, coordinates });
+        await update.mutateAsync({ id: location.id, name, address, timeZone, coordinates, ident });
         toast.success(`${name} saved.`);
       } else {
         // One request. This used to be a POST followed by a PATCH, because create ignored
         // `timeZone` and only update read it, which meant a new location could half-save:
         // the row created, the zone lost. The server honours the zone on create now, so
         // the failure mode and the warning toast it needed are both gone.
-        const created = await create.mutateAsync({ name, address, timeZone, coordinates });
+        const created = await create.mutateAsync({ name, address, timeZone, coordinates, ident });
         toast.success(`${name} added.`);
         onCreated?.(created);
       }
@@ -296,7 +303,10 @@ export function LocationFormModal({
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="loc-name">Airport or site name</Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="loc-name">Airport or site name</Label>
+            <DocsHint topic="location-airport" />
+          </div>
           <AirportField
             id="loc-name"
             autoFocus
@@ -304,7 +314,16 @@ export function LocationFormModal({
             maxLength={60}
             placeholder="Search by identifier or name, e.g. KBOI or Boise"
             value={form.name}
-            onChange={(v) => set("name", v)}
+            onChange={(v) =>
+              setForm((f) => ({
+                ...f,
+                name: v,
+                // Typing over a pick is a new site, not a rename of KAPA. Clear ident
+                // and coordinates or "farm strip" still weathers as Centennial.
+                ident: null,
+                coordinates: null,
+              }))
+            }
             onPick={onPickAirport}
             invalid={showErrors && !!errors.name}
           />

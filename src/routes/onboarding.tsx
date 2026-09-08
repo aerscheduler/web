@@ -522,6 +522,10 @@ function OperationFlow({
           }
         : { ...EMPTY_ADDRESS },
       timeZone: airportPick?.timeZone ?? null,
+      ident: airportPick?.ident ?? null,
+      coordinates: airportPick
+        ? { lat: airportPick.latitude, lng: airportPick.longitude }
+        : undefined,
     };
   }
 
@@ -573,6 +577,7 @@ function OperationFlow({
               name: loc.name,
               address: loc.address,
               timeZone: loc.timeZone ?? null,
+              ident: loc.ident ?? null,
               coordinates: { lat: airportPick.latitude, lng: airportPick.longitude },
             });
             setLocationId(locId);

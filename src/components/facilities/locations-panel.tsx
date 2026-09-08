@@ -233,6 +233,11 @@ function LocationRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate font-medium">{location.name}</span>
+          {location.ident ? (
+            <Badge variant="outline" className="tnum">
+              {location.ident}
+            </Badge>
+          ) : null}
           {zone === null ? (
             <Badge variant="warning">
               <TriangleAlert className="size-3" /> No time zone

@@ -7,11 +7,13 @@ import { outstandingHolds } from "@/lib/outstanding-holds";
 import type { CurrencyRuleDetail, CurrencyRuleStanding } from "@/types/currency-rule";
 import {
   coordinateKey,
-  fetchNearestObservation,
+  fetchMetar,
   fetchSunTimes,
+  metarQueryKey,
   FAILURE_STALE_MS,
   METAR_STALE_MS,
   type Coordinates,
+  type MetarQuery,
   type Observation,
   type SunTimes,
 } from "@/lib/weather";
@@ -3810,7 +3812,6 @@ export function useDeleteMaintenanceReminderTemplate() {
  * neither and the reminder rolls forward exactly as it always has. An oil change should not
  * have to name a certificate holder.
  */
-
 export function useMaintenanceReminder(id: number | null) {
   return useQuery({
     queryKey: ["reminder", id],
@@ -4032,31 +4033,29 @@ export function useRotateCalendarFeed() {
   });
 }
 
-// ── Pre-flight weather (third-party, keyless) ────────────────────────────────
-// NOT AerScheduler API calls: these go straight to aviationweather.gov and
-// api.sunrise-sunset.org, so they use the plain fetches in lib/weather.ts rather than
-// api()/apiRaw(), those attach our Authorization header and unwrap a `{ data }`
-// envelope that neither service returns.
+// ── Pre-flight weather ───────────────────────────────────────────────────────
+// METAR goes through GET /weather/metar. aviationweather.gov sends no CORS header,
+// so the browser cannot call it directly. Sun times still hit api.sunrise-sunset.org
+// (that host does send `Access-Control-Allow-Origin: *`).
 //
 // React Query is this feature's entire cache; it replaces the hand-rolled maps in the
-// Flutter WeatherService. Keys are ROUNDED coordinates (plus the date, for sun times), so
-// every reservation at the same field shares one cache entry and one in-flight request.
-// which is what keeps a month-long board far under aviationweather.gov's ~100 req/min.
+// Flutter WeatherService. Keys prefer a stored airport ident, else rounded coordinates
+// (plus the date, for sun times), so every reservation at the same field shares one
+// cache entry and one in-flight request.
 // The fetches never reject: a failure resolves to null, is held for FAILURE_STALE_MS so an
 // offline browser doesn't re-request on every badge that mounts, and renders nothing.
 
 /**
- * The nearest METAR to a set of coordinates. Only worth asking for a flight inside the
- * 12-hour observation window (see `shouldIncludeObservation`): an observation says
- * nothing about a flight three weeks out.
+ * METAR for a location. Prefer a stored airport ident; coordinates are the fallback.
+ * Only worth asking for a flight inside the 12-hour observation window.
  */
-export function useMetarObservation(coordinates: Coordinates | null, opts?: QueryOpts) {
+export function useMetarObservation(query: MetarQuery | null, opts?: QueryOpts) {
+  const key = query ? metarQueryKey(query) : null;
   return useQuery({
-    queryKey: ["weather", "metar", coordinates ? coordinateKey(coordinates) : null],
+    queryKey: ["weather", "metar", key],
     queryFn: ({ signal }): Promise<Observation | null> =>
-      coordinates ? fetchNearestObservation(coordinates, signal) : Promise.resolve(null),
-    enabled: (opts?.enabled ?? true) && coordinates != null,
-    // Observations are hourly (SPECIs excepted); a failed lookup is held far shorter.
+      query && key ? fetchMetar(query, signal) : Promise.resolve(null),
+    enabled: (opts?.enabled ?? true) && key != null,
     staleTime: (query) => (query.state.data == null ? FAILURE_STALE_MS : METAR_STALE_MS),
     gcTime: 30 * 60_000,
     retry: false,

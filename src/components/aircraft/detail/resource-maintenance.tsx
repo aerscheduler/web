@@ -10,6 +10,7 @@ import { formatDate } from "@/lib/utils";
 import { DetailCard, CardEmpty, CardSkeleton } from "@/components/detail/detail-page";
 import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
 import { InspectionRow } from "@/components/maintenance/inspection-row";
+import { ReminderFilesButton, ReminderFilesSheet } from "@/components/maintenance/reminder-files-sheet";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
 import { ResolveReminderModal } from "@/components/maintenance/resolve-reminder-modal";
 import { ResolveSquawkModal } from "@/components/maintenance/resolve-squawk-modal";
@@ -204,6 +205,7 @@ export function ResourceReminders({
   const q = useMaintenanceReminders({ resourceId, resolved: false });
   const [adding, setAdding] = useState(false);
   const [resolving, setResolving] = useState<MaintenanceReminder | null>(null);
+  const [filesFor, setFilesFor] = useState<MaintenanceReminder | null>(null);
 
   // Already worst-first from the server. Re-deriving the order here is how this panel and
   // the Maintenance list end up disagreeing about which item matters most.
@@ -271,9 +273,12 @@ export function ResourceReminders({
                   reminder={m}
                   action={
                     canManage ? (
-                      <Button variant="ghost" size="sm" onClick={() => setResolving(m)}>
-                        Sign off
-                      </Button>
+                      <div className="flex items-center">
+                        <ReminderFilesButton reminder={m} onClick={() => setFilesFor(m)} />
+                        <Button variant="ghost" size="sm" onClick={() => setResolving(m)}>
+                          Sign off
+                        </Button>
+                      </div>
                     ) : undefined
                   }
                 />
@@ -308,6 +313,11 @@ export function ResourceReminders({
             reminder={resolving}
             open={resolving != null}
             onOpenChange={(o) => !o && setResolving(null)}
+          />
+          <ReminderFilesSheet
+            reminder={filesFor}
+            open={filesFor != null}
+            onOpenChange={(o) => !o && setFilesFor(null)}
           />
         </>
       )}

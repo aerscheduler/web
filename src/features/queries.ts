@@ -3810,6 +3810,45 @@ export function useDeleteMaintenanceReminderTemplate() {
  * neither and the reminder rolls forward exactly as it always has. An oil change should not
  * have to name a certificate holder.
  */
+
+export function useMaintenanceReminder(id: number | null) {
+  return useQuery({
+    queryKey: ["reminder", id],
+    queryFn: () => api<MaintenanceReminder>(`/maintenance/reminders/${id}`),
+    enabled: id != null,
+  });
+}
+
+export function useAddReminderFiles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, files }: { id: number; files: File[] }) => {
+      const res = await apiRaw<{ data: { fileUrls: string[] }; signedUrlData?: PresignedPost[] }>(
+        `/maintenance/reminders/${id}/files`,
+        { method: "POST", body: { fileNames: files.map((f) => f.name) } }
+      );
+      const uploadError = await uploadSquawkAttachments(res.signedUrlData, files);
+      return { ...res, uploadError };
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reminders"] });
+      void qc.invalidateQueries({ queryKey: ["reminder"] });
+    },
+  });
+}
+
+export function useRemoveReminderFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, fileName }: { id: number; fileName: string }) =>
+      api(`/maintenance/reminders/${id}/files`, { method: "DELETE", body: { fileName } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reminders"] });
+      void qc.invalidateQueries({ queryKey: ["reminder"] });
+    },
+  });
+}
+
 export function useResolveMaintenanceReminder() {
   const qc = useQueryClient();
   return useMutation({
@@ -3825,7 +3864,6 @@ export function useResolveMaintenanceReminder() {
       /** DECI-hours, both of them. */
       tachAtCompliance?: number;
       hobbsAtCompliance?: number;
-      fileUrls?: string[];
     }) => api<MaintenanceReminder>(`/maintenance/reminders/${id}`, { method: "POST", body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["reminders"] });

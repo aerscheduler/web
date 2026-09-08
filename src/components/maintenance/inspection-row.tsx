@@ -11,7 +11,7 @@
  * month is nearly due on its 100-hour even though the calendar has barely moved.
  */
 
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Paperclip } from "lucide-react";
 import type { MaintenanceReminder } from "@/types/api";
 import { alsoLabel, dueAmount, dueBadge, dueDetail, duePercent, dueTone, sourceBadge, sourceLabel } from "@/lib/maintenance";
 import { cn } from "@/lib/utils";
@@ -72,6 +72,12 @@ export function InspectionRow({
             >
               {sourceBadge(reminder.template ?? {})}
             </Badge>
+          )}
+          {reminder.hasAttachments && (
+            <Paperclip
+              className="size-3 shrink-0 text-muted-foreground"
+              aria-label="Has files"
+            />
           )}
           {/* Only worth saying on an item that is actually late, on a green row it is a
               rule, not news, and it would sit on every line of the card. */}

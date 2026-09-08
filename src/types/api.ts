@@ -1351,6 +1351,10 @@ export interface MaintenanceReminder {
   template?: MaintenanceReminderTemplate;
   resource?: Resource;
   resolvedBy?: OrganizationUser | null;
+  /** List rows. True when the open inspection has working files. */
+  hasAttachments?: boolean;
+  /** Signed GET URLs. On the single-reminder read only. */
+  fileUrls?: string[];
 }
 
 /**

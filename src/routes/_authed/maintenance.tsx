@@ -30,6 +30,7 @@ import { FleetStatus } from "@/components/maintenance/fleet-status";
 import { SquawkTable } from "@/components/maintenance/squawk-table";
 import { ComplianceLog } from "@/components/maintenance/compliance-log";
 import { InspectionRow } from "@/components/maintenance/inspection-row";
+import { ReminderFilesButton, ReminderFilesSheet } from "@/components/maintenance/reminder-files-sheet";
 import { InspectionTemplates } from "@/components/maintenance/inspection-templates";
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
 import { ResolveReminderModal } from "@/components/maintenance/resolve-reminder-modal";
@@ -326,6 +327,7 @@ function Reminders({
   const q = useMaintenanceRemindersPage(filter, paging);
   const { rows: reminders, total } = pageRows(q);
   const [resolving, setResolving] = React.useState<MaintenanceReminder | null>(null);
+  const [filesFor, setFilesFor] = React.useState<MaintenanceReminder | null>(null);
   const filtered = !!searchQ || hasResourceFilter(resourceId) || !!status?.length;
   const empty = total === 0 && !filtered;
   const noMatch = total === 0 && !empty;
@@ -366,9 +368,12 @@ function Reminders({
                     className="py-0"
                     action={
                       canManage ? (
-                        <Button variant="ghost" size="sm" onClick={() => setResolving(r)}>
-                          Sign off
-                        </Button>
+                        <div className="flex items-center">
+                          <ReminderFilesButton reminder={r} onClick={() => setFilesFor(r)} />
+                          <Button variant="ghost" size="sm" onClick={() => setResolving(r)}>
+                            Sign off
+                          </Button>
+                        </div>
                       ) : undefined
                     }
                   />
@@ -396,6 +401,11 @@ function Reminders({
         reminder={resolving}
         open={resolving != null}
         onOpenChange={(o) => !o && setResolving(null)}
+      />
+      <ReminderFilesSheet
+        reminder={filesFor}
+        open={filesFor != null}
+        onOpenChange={(o) => !o && setFilesFor(null)}
       />
     </Frame>
   );

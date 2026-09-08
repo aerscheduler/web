@@ -740,6 +740,12 @@ export const DOCS_TOPICS = {
       "A deadline on the meter rather than the calendar, for an AD that says to comply within the next so many hours. Enter the reading it comes due AT, not how many hours from now, and it does not come back once signed off.",
     href: "maintenance/track-airworthiness-directives",
   },
+  "inspection-files": {
+    title: "Files on an open inspection",
+    summary:
+      "Photos and PDFs sit on the open inspection until you sign off. If you keep a compliance record they copy onto it, then come off this cycle so they do not follow the next one.",
+    href: "maintenance/sign-off-an-inspection",
+  },
   "compliance-log-scope": {
     title: "The compliance log",
     summary:

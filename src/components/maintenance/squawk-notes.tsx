@@ -101,7 +101,7 @@ export function SquawkNotes({
                 >
                   {c.body}
                 </p>
-                <SquawkAttachments fileUrls={c.fileUrls} compact />
+                <SquawkAttachments fileUrls={c.fileUrls} />
               </div>
             </li>
           ))}

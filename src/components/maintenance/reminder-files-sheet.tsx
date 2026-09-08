@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Paperclip, X } from "lucide-react";
+import { Paperclip } from "lucide-react";
 import type { MaintenanceReminder } from "@/types/api";
 import {
   useAddReminderFiles,
@@ -8,18 +8,13 @@ import {
   useRemoveReminderFile,
 } from "@/features/queries";
 import { DocsHint } from "@/components/docs-hint";
+import { SquawkAttachments, attachmentName } from "@/components/maintenance/squawk-attachments";
 import { SquawkFileInput } from "@/components/maintenance/squawk-file-input";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 
 function fileLabel(url: string) {
-  const path = url.split("?")[0] ?? url;
-  const name = path.split("/").pop() ?? "file";
-  try {
-    return decodeURIComponent(name);
-  } catch {
-    return name;
-  }
+  return attachmentName(url);
 }
 
 /**
@@ -87,37 +82,21 @@ export function ReminderFilesSheet({
         <DocsHint topic="inspection-files" />
       </div>
       {urls.length > 0 && (
-        <ul className="mb-3 space-y-1">
-          {urls.map((url) => (
-            <li
-              key={url}
-              className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1 text-[12px]"
-            >
-              <a
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-w-0 truncate underline-offset-2 hover:underline"
-              >
-                {fileLabel(url)}
-              </a>
-              <button
-                type="button"
-                className="shrink-0 text-muted-foreground hover:text-foreground"
-                aria-label={`Remove ${fileLabel(url)}`}
-                disabled={remove.isPending}
-                onClick={() => {
-                  if (!id) return;
-                  void remove.mutateAsync({ id, fileName: fileLabel(url) }).catch((e) => {
-                    toast.error(e instanceof Error ? e.message : "Could not remove that file.");
-                  });
-                }}
-              >
-                <X className="size-3.5" />
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="mb-3">
+          <SquawkAttachments
+            fileUrls={urls}
+            onRemove={
+              remove.isPending
+                ? undefined
+                : (url) => {
+                    if (!id) return;
+                    void remove.mutateAsync({ id, fileName: fileLabel(url) }).catch((e) => {
+                      toast.error(e instanceof Error ? e.message : "Could not remove that file.");
+                    });
+                  }
+            }
+          />
+        </div>
       )}
       {remaining > 0 ? (
         <SquawkFileInput

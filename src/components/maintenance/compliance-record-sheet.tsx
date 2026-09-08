@@ -12,6 +12,7 @@ import { resourceLabel } from "@/types/api";
 import { formatDate } from "@/lib/utils";
 import { fromDeciHours, SOURCE_TYPE_LABELS, sourceLabel } from "@/lib/maintenance";
 import { DetailPanel } from "@/components/detail-panel";
+import { SquawkAttachments } from "@/components/maintenance/squawk-attachments";
 import { SheetDetailField, SheetDetailFields } from "@/components/sheet-detail-field";
 import { Badge } from "@/components/ui/badge";
 
@@ -123,20 +124,7 @@ export function ComplianceRecordSheet({
 
             {record.fileUrls.length > 0 && (
               <SheetDetailField icon={Paperclip} label="Attached">
-                <ul className="space-y-1">
-                  {record.fileUrls.map((url) => (
-                    <li key={url}>
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm underline-offset-2 hover:underline"
-                      >
-                        {url.split("/").pop() || "Attachment"}
-                      </a>
-                    </li>
-                  ))}
-                </ul>
+                <SquawkAttachments fileUrls={record.fileUrls} />
               </SheetDetailField>
             )}
           </SheetDetailFields>

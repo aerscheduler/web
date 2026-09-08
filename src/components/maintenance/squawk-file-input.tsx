@@ -1,8 +1,9 @@
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Paperclip, X } from "lucide-react";
+import { Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocsHint } from "@/components/docs-hint";
+import { PendingFilePreview } from "@/components/maintenance/squawk-attachments";
 import { normalizeUploadFile, UPLOAD_PHOTO_EXTS, looksLikeHeic } from "@/lib/normalize-upload-file";
 
 const ACCEPT =
@@ -110,22 +111,14 @@ export function SquawkFileInput({
         {hint ? <DocsHint topic="squawk-attach" /> : null}
       </div>
       {files.length > 0 && (
-        <ul className="space-y-1">
+        <ul className="space-y-2">
           {files.map((file, i) => (
-            <li
-              key={`${file.name}-${i}`}
-              className="flex items-center justify-between gap-2 rounded-md border border-border px-2 py-1 text-[12px]"
-            >
-              <span className="min-w-0 truncate">{file.name}</span>
-              <button
-                type="button"
-                className="shrink-0 text-muted-foreground hover:text-foreground"
-                aria-label={`Remove ${file.name}`}
-                onClick={() => onChange(files.filter((_, j) => j !== i))}
+            <li key={`${file.name}-${i}`}>
+              <PendingFilePreview
+                file={file}
                 disabled={disabled || adding}
-              >
-                <X className="size-3.5" />
-              </button>
+                onRemove={() => onChange(files.filter((_, j) => j !== i))}
+              />
             </li>
           ))}
         </ul>

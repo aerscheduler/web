@@ -11,6 +11,7 @@ import {
 import { useConfirm } from "@/components/confirm-dialog";
 import { DetailCard, CardEmpty, CardSkeleton } from "@/components/detail/detail-page";
 import { DocsHint } from "@/components/docs-hint";
+import { AttachmentPreview } from "@/components/maintenance/squawk-attachments";
 import { SquawkFileInput } from "@/components/maintenance/squawk-file-input";
 import { ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
@@ -43,10 +44,6 @@ const CATEGORY_ORDER: ResourceFileCategory[] = [
   "other",
 ];
 
-function openUrl(url: string) {
-  window.open(url, "_blank", "noopener,noreferrer");
-}
-
 function PaperRow({
   file,
   canManage,
@@ -62,24 +59,22 @@ function PaperRow({
   const href = file.fileUrls[0];
 
   return (
-    <li className="flex items-center gap-3 border-b border-border py-2.5 last:border-0">
-      <FileText className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-      <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          className="truncate text-left text-sm font-medium underline-offset-2 hover:underline disabled:no-underline"
-          disabled={!href}
-          onClick={() => href && openUrl(href)}
-        >
-          {file.label || PAPER_CATEGORY_LABEL[file.category]}
-        </button>
-        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-          <span>{PAPER_CATEGORY_LABEL[file.category]}</span>
-          <Badge variant="outline" className="font-normal">
-            {file.visibility === "bookers" ? "Bookers" : "Staff"}
-          </Badge>
+    <li className="border-b border-border py-3 last:border-0">
+      {href ? <AttachmentPreview url={href} name={file.label || PAPER_CATEGORY_LABEL[file.category]} /> : null}
+      <div className="mt-2 flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          {href ? null : (
+            <div className="truncate text-sm font-medium">
+              {file.label || PAPER_CATEGORY_LABEL[file.category]}
+            </div>
+          )}
+          <div className={`${href ? "" : "mt-0.5 "}flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground`}>
+            <span>{PAPER_CATEGORY_LABEL[file.category]}</span>
+            <Badge variant="outline" className="font-normal">
+              {file.visibility === "bookers" ? "Bookers" : "Staff"}
+            </Badge>
+          </div>
         </div>
-      </div>
       {canManage && (
         <div className="flex shrink-0 items-center gap-1">
           <Button
@@ -134,6 +129,7 @@ function PaperRow({
           </Button>
         </div>
       )}
+      </div>
     </li>
   );
 }

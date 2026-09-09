@@ -35,6 +35,24 @@ export const PAPER_CATEGORY_LABEL: Record<ResourceFileCategory, string> = {
   other: "Other",
 };
 
+function looksLikeMachineLabel(raw: string): boolean {
+  let stem = raw.trim().replace(/\.[^.]+$/, "");
+  if (!stem || stem.toLowerCase() === "file") return true;
+  stem = stem.replace(/^(scaled[_\s-]+)+/i, "");
+  if (!stem || stem.toLowerCase() === "file") return true;
+  if (/^image[_\s-]?picker/i.test(stem)) return true;
+  if (/^(IMG|DSC|PXL|MOV|VID|Screenshot)[-_\s]/i.test(stem)) return true;
+  const compact = stem.replace(/[-_\s]/g, "");
+  if (/^[0-9a-f]{32,}$/i.test(compact)) return true;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.test(stem);
+}
+
+function paperDisplayLabel(file: ResourceFile): string {
+  const text = file.label?.trim() ?? "";
+  if (text && !looksLikeMachineLabel(text)) return text;
+  return PAPER_CATEGORY_LABEL[file.category];
+}
+
 const CATEGORY_ORDER: ResourceFileCategory[] = [
   "poh",
   "weight_and_balance",
@@ -57,19 +75,19 @@ function PaperRow({
   const del = useDeleteResourceFile();
   const patch = useUpdateResourceFile();
   const href = file.fileUrls[0];
+  const title = paperDisplayLabel(file);
+  const category = PAPER_CATEGORY_LABEL[file.category];
 
   return (
     <li className="border-b border-border py-3 last:border-0">
-      {href ? <AttachmentPreview url={href} name={file.label || PAPER_CATEGORY_LABEL[file.category]} /> : null}
-      <div className="mt-2 flex items-start gap-3">
+      {href ? (
+        <AttachmentPreview url={href} name={title} showCaption={false} />
+      ) : null}
+      <div className={`${href ? "mt-2 " : ""}flex items-start gap-3`}>
         <div className="min-w-0 flex-1">
-          {href ? null : (
-            <div className="truncate text-sm font-medium">
-              {file.label || PAPER_CATEGORY_LABEL[file.category]}
-            </div>
-          )}
-          <div className={`${href ? "" : "mt-0.5 "}flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground`}>
-            <span>{PAPER_CATEGORY_LABEL[file.category]}</span>
+          <div className="truncate text-sm font-medium">{title}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+            {title !== category ? <span>{category}</span> : null}
             <Badge variant="outline" className="font-normal">
               {file.visibility === "bookers" ? "Bookers" : "Staff"}
             </Badge>

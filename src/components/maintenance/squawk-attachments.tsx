@@ -37,11 +37,13 @@ export function AttachmentPreview({
   url,
   name,
   compact = false,
+  showCaption = true,
   onRemove,
 }: {
   url: string;
   name?: string;
   compact?: boolean;
+  showCaption?: boolean;
   onRemove?: () => void;
 }) {
   const label = name ?? attachmentName(url);
@@ -81,19 +83,25 @@ export function AttachmentPreview({
           <span className="min-w-0 truncate text-sm font-medium">{label}</span>
         </a>
       )}
-      <div className="flex items-center gap-2 px-2.5 py-1.5">
-        <p className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">{label}</p>
-        {onRemove ? (
-          <button
-            type="button"
-            className="grid size-11 shrink-0 place-items-center text-muted-foreground hover:text-foreground"
-            aria-label={`Remove ${label}`}
-            onClick={onRemove}
-          >
-            <X className="size-3.5" />
-          </button>
-        ) : null}
-      </div>
+      {showCaption || onRemove ? (
+        <div className="flex items-center gap-2 px-2.5 py-1.5">
+          {showCaption ? (
+            <p className="min-w-0 flex-1 truncate text-[12px] text-muted-foreground">{label}</p>
+          ) : (
+            <span className="min-w-0 flex-1" />
+          )}
+          {onRemove ? (
+            <button
+              type="button"
+              className="grid size-11 shrink-0 place-items-center text-muted-foreground hover:text-foreground"
+              aria-label={`Remove ${label}`}
+              onClick={onRemove}
+            >
+              <X className="size-3.5" />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

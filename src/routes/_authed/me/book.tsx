@@ -1,10 +1,11 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Building2, CalendarPlus } from "lucide-react";
+import { Building2, CalendarPlus, PlaneTakeoff } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
-import { isStaff, isTechnician, selfBookableTypes } from "@/lib/permissions";
+import { isAdmin, isStaff, isTechnician, selfBookableTypes } from "@/lib/permissions";
+import { usePlanes, useRooms, useSimulators } from "@/features/queries";
 import { PageHeader } from "@/components/page-header";
-import { EmptyState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookingForm } from "@/components/book/booking-form";
@@ -15,6 +16,9 @@ export const Route = createFileRoute("/_authed/me/book")({
 
 function Book() {
   const { organization, roles, orgUserId, userId } = useAuth();
+  const planes = usePlanes();
+  const simulators = useSimulators();
+  const rooms = useRooms();
 
   // Staff-only accounts land here with nothing to book, and that is correct: this
   // page seats YOU on a flight, and billing, currency, approved aircraft and
@@ -34,6 +38,20 @@ function Book() {
   // Only the roles that seat you on a flight count here, see `selfBookableTypes`.
   const bookable = selfBookableTypes(roles);
   const canBook = bookable.length > 0;
+  const fleetCount =
+    (planes.data?.length ?? 0) +
+    (simulators.data?.length ?? 0) +
+    (rooms.data?.length ?? 0);
+  const hasFleet = fleetCount > 0;
+  const fleetFetching =
+    planes.isFetching || simulators.isFetching || rooms.isFetching;
+  const fleetPending =
+    !hasFleet &&
+    (fleetFetching || planes.isPending || simulators.isPending || rooms.isPending);
+  const fleetError = !hasFleet && (planes.isError || simulators.isError || rooms.isError);
+  const noFleet = !hasFleet && !fleetPending && !fleetError;
+  const fleetErrorObj = planes.error ?? simulators.error ?? rooms.error;
+  const admin = isAdmin(roles);
   // A technician's only booking is taking an aircraft off the line, so the page
   // shouldn't call it "reserving an aircraft for yourself".
   const maintenanceOnly = isTechnician(roles) && bookable.length === 1;
@@ -77,6 +95,42 @@ function Book() {
                 staffOnly ? (
                   <Button asChild>
                     <Link to="/people">Add a role to your account</Link>
+                  </Button>
+                ) : undefined
+              }
+            />
+          </CardContent>
+        </Card>
+      ) : fleetPending ? (
+        <Card>
+          <CardContent className="p-6 text-sm text-muted-foreground">Loading aircraft...</CardContent>
+        </Card>
+      ) : fleetError ? (
+        <Card>
+          <CardContent className="p-0">
+            <ErrorState error={fleetErrorObj} onRetry={() => {
+              void planes.refetch();
+              void simulators.refetch();
+              void rooms.refetch();
+            }} />
+          </CardContent>
+        </Card>
+      ) : noFleet ? (
+        <Card>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={PlaneTakeoff}
+              title="Add an aircraft first"
+              body={
+                admin
+                  ? "Nothing is bookable until a tail is on the fleet. Add one, then come back here."
+                  : "Nothing is bookable until your school adds an aircraft."
+              }
+              docs="add-an-aircraft"
+              action={
+                admin ? (
+                  <Button asChild>
+                    <Link to="/aircraft">Add aircraft</Link>
                   </Button>
                 ) : undefined
               }

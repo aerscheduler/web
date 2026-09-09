@@ -414,6 +414,23 @@ export function defaultReservationType(roles: Role[]): ReservationType | null {
 }
 
 /**
+ * Desk / dispatch default. Teach (dual) only when the roster has a student to
+ * put in the seat. An empty school, a private owner, and a CFI with no students
+ * yet all open on rental so the form does not ask "which student?".
+ */
+export function deskDefaultReservationType(
+  roles: Role[],
+  hasStudents: boolean
+): ReservationType {
+  const allowed = reservationTypesForRoles(roles);
+  if (isTechnician(roles) && allowed.length === 1) return "maintenance";
+  if (hasStudents && allowed.includes("dual")) return "dual";
+  if (allowed.includes("rental")) return "rental";
+  if (allowed.includes("solo")) return "solo";
+  return allowed[0] ?? "dual";
+}
+
+/**
  * Roles that put a person *on* a reservation rather than merely letting them
  * dispatch one. Staff grants (owner/admin/dispatcher) are deliberately excluded:
  * a dispatcher books other people from the board, and shouldn't be seated on a

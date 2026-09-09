@@ -9,6 +9,7 @@ import {
   readStickyStep,
   writeStickyStep,
 } from "@/lib/onboarding-sticky";
+import { typedAirportIdent } from "@/lib/airport-ident";
 import { AirportField, countryName, subdivisionOf } from "@/components/facilities/airport-field";
 import type { AirportMatch } from "@/types/api";
 import {
@@ -88,8 +89,8 @@ function useWizardRestart() {
 
 // ---------------------------------------------------------------- shared
 
-type Persona = "student" | "instructor" | "school";
-type OrgType = "flight_school" | "flying_club" | "rental" | "solo_instructor";
+type Persona = "student" | "instructor" | "school" | "owner";
+type OrgType = "flight_school" | "flying_club" | "rental" | "solo_instructor" | "aircraft_owner";
 
 const EMPTY_ADDRESS = {
   streetAddress1: "",
@@ -145,7 +146,11 @@ function Onboarding() {
   // so they cannot mint a second school; resume aircraft or billing from sticky.
   if (!restart && organization && !persona) {
     const resume: Exclude<Persona, "student"> =
-      organization.organizationType === "solo_instructor" ? "instructor" : "school";
+      organization.organizationType === "solo_instructor"
+        ? "instructor"
+        : organization.organizationType === "aircraft_owner"
+          ? "owner"
+          : "school";
     return <OperationFlow persona={resume} onBack={() => setPersona(null)} />;
   }
   if (!persona)
@@ -193,12 +198,18 @@ function PersonaRouter({ onPick }: { onPick: (p: Persona) => void }) {
         title="What brings you to AerScheduler?"
         sub="Join a school with a code, or start your own operation. This picks the path, not a preference you can flip later."
       >
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2">
           <PersonaCard
             graphic={PeopleGroupsEmptyGraphic}
             title="I'm joining an organization"
             blurb="A student or renter with a code from your school or club."
             onClick={() => onPick("student")}
+          />
+          <PersonaCard
+            graphic={AircraftEmptyGraphic}
+            title="I own an airplane"
+            blurb="Just the tail and a home airport. No students, no front desk."
+            onClick={() => onPick("owner")}
           />
           <PersonaCard
             graphic={InstructorsEmptyGraphic}
@@ -207,7 +218,7 @@ function PersonaRouter({ onPick }: { onPick: (p: Persona) => void }) {
             onClick={() => onPick("instructor")}
           />
           <PersonaCard
-            graphic={AircraftEmptyGraphic}
+            graphic={LocationsEmptyGraphic}
             title="I run a flight school, club, or FBO"
             blurb="Set up your fleet, team, and schedule."
             onClick={() => onPick("school")}
@@ -397,6 +408,8 @@ function OperationFlow({
   const updatePrefs = useUpdateOrgUserPreferences();
 
   const solo = persona === "instructor";
+  const owner = persona === "owner";
+  const skipType = solo || owner;
   const who = user?.name?.trim().split(" ")[0];
   const attribution = React.useMemo(() => readAttribution(), []);
 
@@ -415,14 +428,29 @@ function OperationFlow({
   const [showErrors, setShowErrors] = React.useState(false);
   const [subtype, setSubtype] = React.useState<OrgType>(() => {
     const t = organization?.organizationType;
-    if (t === "flight_school" || t === "flying_club" || t === "rental" || t === "solo_instructor") {
+    if (
+      t === "flight_school" ||
+      t === "flying_club" ||
+      t === "rental" ||
+      t === "solo_instructor" ||
+      t === "aircraft_owner"
+    ) {
       return t;
     }
+    if (owner) return "aircraft_owner";
     return solo ? "solo_instructor" : "flight_school";
   });
   const [orgName, setOrgName] = React.useState(
     organization?.name?.trim() ||
-      (solo ? (who ? `${who}'s Flight Instruction` : "My Flight Instruction") : "")
+      (owner
+        ? who
+          ? `${who}'s Airplane`
+          : "My Airplane"
+        : solo
+          ? who
+            ? `${who}'s Flight Instruction`
+            : "My Flight Instruction"
+          : "")
   );
   const [airport, setAirport] = React.useState("");
   //Set only by choosing a row from the lookup. Everything derived from it (the address,
@@ -522,7 +550,7 @@ function OperationFlow({
           }
         : { ...EMPTY_ADDRESS },
       timeZone: airportPick?.timeZone ?? null,
-      ident: airportPick?.ident ?? null,
+      ident: airportPick?.ident ?? typedAirportIdent(airport),
       coordinates: airportPick
         ? { lat: airportPick.latitude, lng: airportPick.longitude }
         : undefined,
@@ -744,9 +772,9 @@ function OperationFlow({
   }
 
   const heardDetailLabel = HEARD_FROM_OPTIONS.find((o) => o.id === heardFrom)?.detailLabel;
-  // School: type → name+airport → intent. Solo skips type.
-  const namePage = solo ? 0 : 1;
-  const intentPage = solo ? 1 : 2;
+  // School: type → name+airport → intent. Solo CFI and private owner skip type.
+  const namePage = skipType ? 0 : 1;
+  const intentPage = skipType ? 1 : 2;
 
   function goOrgNext() {
     if (orgPage === namePage) {
@@ -776,8 +804,8 @@ function OperationFlow({
   }
 
   return (
-    <Shell stepKey={`${step}-${orgPage}`} wide={step === 0 && !solo && orgPage === 0}>
-      {step === 0 && !solo && orgPage === 0 && (
+    <Shell stepKey={`${step}-${orgPage}`} wide={step === 0 && !skipType && orgPage === 0}>
+      {step === 0 && !skipType && orgPage === 0 && (
         <Step
           title="What kind of operation?"
           sub="This just labels the school. You can change it later."
@@ -804,8 +832,18 @@ function OperationFlow({
 
       {step === 0 && orgPage === namePage && (
         <Step
-          title={solo ? "Name your operation" : "Tell us about your operation"}
-          sub="Just enough to hang a schedule on. You can change any of it later."
+          title={
+            owner
+              ? "Name your airplane"
+              : solo
+                ? "Name your operation"
+                : "Tell us about your operation"
+          }
+          sub={
+            owner
+              ? "A name and a home airport. That is enough to hang a schedule on the right clock."
+              : "Just enough to hang a schedule on. You can change any of it later."
+          }
         >
           <Field
             id="op-orgName"
@@ -816,11 +854,12 @@ function OperationFlow({
               id="op-orgName"
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
-              placeholder={solo ? undefined : "Blue Sky Aviation"}
+              placeholder={owner ? "N1624" : solo ? undefined : "Blue Sky Aviation"}
               autoFocus
               aria-invalid={showErrors && !orgName.trim()}
             />
           </Field>
+          {owner ? <DocsHint topic="own-an-airplane" /> : null}
           <Field
             id="op-airport"
             label="Home airport"
@@ -888,7 +927,7 @@ function OperationFlow({
           <Nav
             onBack={goOrgBack}
             onNext={goOrgNext}
-            nextLabel={solo || organization ? "Continue" : "Create operation"}
+            nextLabel={skipType || organization ? "Continue" : "Create operation"}
             busy={busy}
           />
         </Step>
@@ -896,16 +935,25 @@ function OperationFlow({
 
       {step === 1 && (
         <AircraftStep
-          title={solo ? "Add the aircraft you fly" : "Add your first aircraft"}
+          title={
+            owner
+              ? "Add your airplane"
+              : solo
+                ? "Add the aircraft you fly"
+                : "Add your first aircraft"
+          }
           sub={
-            solo
-              ? "Don't own an aircraft? Skip for now. You can add one anytime from the Aircraft page."
-              : "One tail is all we need to make the schedule real. Add the rest later."
+            owner
+              ? "One tail unlocks the board. Leave the rate at zero if you do not bill hours."
+              : solo
+                ? "Don't own an aircraft? Skip for now. You can add one anytime from the Aircraft page."
+                : "One tail is all we need to make the schedule real. Add the rest later."
           }
           locationId={locationId}
           fallbackLocationName={airport.trim() || orgName.trim() || organization?.name || "Home"}
+          rateOptional={owner}
           onBack={() => {
-            setOrgPage(solo ? 0 : 1);
+            setOrgPage(skipType ? 0 : 1);
             setStep(0);
           }}
           onSkip={toBilling}
@@ -1056,6 +1104,7 @@ function AircraftStep({
   onCreated,
   onSkip,
   onBack,
+  rateOptional = false,
 }: {
   title: string;
   sub: string;
@@ -1064,6 +1113,8 @@ function AircraftStep({
   onCreated: (resourceId: number, locationId: number, tail: string) => void;
   onSkip: () => void;
   onBack?: () => void;
+  /** Private owners often do not bill hours. Default the rate to zero and prefer dry. */
+  rateOptional?: boolean;
 }) {
   const createPlane = useCreatePlane();
   const createLocation = useCreateLocation();
@@ -1072,8 +1123,8 @@ function AircraftStep({
   const [year, setYear] = React.useState("");
   const [hobbs, setHobbs] = React.useState("0");
   const [tach, setTach] = React.useState("0");
-  const [rate, setRate] = React.useState(16500);
-  const [rateBasis, setRateBasis] = React.useState<"wet" | "dry">("wet");
+  const [rate, setRate] = React.useState(rateOptional ? 0 : 16500);
+  const [rateBasis, setRateBasis] = React.useState<"wet" | "dry">(rateOptional ? "dry" : "wet");
   const [billByHobbs, setBillByHobbs] = React.useState(true);
   const [make, setMake] = React.useState("");
   const [model, setModel] = React.useState("");
@@ -1351,7 +1402,13 @@ function AircraftStep({
           charges from Billing when you need them.
         </p>
       )}
-      <PerPlanePricingNote />
+      {rateOptional ? (
+        <p className="text-xs leading-relaxed text-muted-foreground">
+          Leave the rate at zero if you do not bill hours. You can change it later on Aircraft.
+        </p>
+      ) : (
+        <PerPlanePricingNote />
+      )}
       <p className="text-xs leading-relaxed text-muted-foreground">
         This is enough to put it on the schedule. On Aircraft you can add serial, fuel,
         seats, engine and gear, flying day, and inspections.

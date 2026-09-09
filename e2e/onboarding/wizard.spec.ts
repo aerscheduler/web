@@ -172,6 +172,7 @@ test.describe("Onboarding already complete", () => {
     }
     await expect(persona).toBeVisible();
     await expect(page.getByRole("button", { name: /I run a flight school/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /I own an airplane/i })).toBeVisible();
     await expect(page.getByTestId("onboarding-billing")).toHaveCount(0);
   });
 });
@@ -519,5 +520,58 @@ test.describe("Onboarding wizard", () => {
     expect(prefs.notificationPreferences?.emailNotificationPreferences?.onboardingTips).toBe(
       true,
     );
+  });
+
+  test("private owner save: type, no student role, skip aircraft", async ({
+    page,
+    request,
+  }) => {
+    const stamp = Date.now();
+    const orgName = `E2E Owner ${stamp}`;
+    await signupFresh(page, "E2E Airplane Owner");
+
+    await page.getByRole("button", { name: /I own an airplane/i }).click();
+    await expect(page.getByRole("heading", { name: "Name your airplane" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /kind of operation/i })).toHaveCount(0);
+    await page.getByLabel("Operation name").fill(orgName);
+    await pickAirport(page, "KAPA", /KAPA Centennial Airport/i);
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await expect(page.getByRole("heading", { name: /What do you want working first/i })).toBeVisible();
+    await page.getByRole("button", { name: "Continue" }).click();
+
+    await expect(page.getByRole("heading", { name: /Add your airplane/i })).toBeVisible({
+      timeout: 30_000,
+    });
+    await page.getByRole("button", { name: "Skip for now" }).click();
+    await expect(page.getByTestId("onboarding-billing")).toBeVisible();
+    await page.getByRole("button", { name: "Skip for now" }).click();
+    await finishWizard(page);
+
+    const token = await bearerToken(page);
+    const org = await apiAuthOrg(request, token);
+    expect(org.name).toBe(orgName);
+    expect(org.organizationType).toBe("aircraft_owner");
+    expect(org.preferences?.newOrgOnboardingComplete).toBe(true);
+
+    const members = await apiGet<
+      {
+        ownerRole?: unknown;
+        adminRole?: unknown;
+        studentRole?: unknown;
+        instructorRole?: unknown;
+        renterRole?: unknown;
+        technicianRole?: unknown;
+        dispatcherRole?: unknown;
+      }[]
+    >(request, token, "/orgUsers");
+    expect(members).toHaveLength(1);
+    expect(members[0].ownerRole).toBeTruthy();
+    expect(members[0].adminRole).toBeTruthy();
+    expect(members[0].renterRole).toBeTruthy();
+    expect(members[0].studentRole).toBeFalsy();
+    expect(members[0].instructorRole).toBeFalsy();
+    expect(members[0].technicianRole).toBeFalsy();
+    expect(members[0].dispatcherRole).toBeFalsy();
   });
 });

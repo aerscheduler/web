@@ -34,7 +34,7 @@ import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
   canViewSquawks,
-  defaultReservationType,
+  deskDefaultReservationType,
   isInstructor as hasInstructorRole,
   isStudent as hasStudentRole,
   isRenter,
@@ -496,19 +496,18 @@ export function ReservationForm({
     () => (isSelf ? selfBookableTypes(roles) : reservationTypesForRoles(roles)),
     [roles, isSelf]
   );
-  // Dispatch mostly books training flights, so the board keeps defaulting to
-  // dual. A member gets what their own roles imply, a renter+student defaults
-  // to a rental, not a solo.
+  const studentsQ = useMembers({ student: true }, { enabled: open });
+  const hasStudents = (studentsQ.data?.length ?? 0) > 0;
+  // Dispatch books training when there is a student to seat. Until the roster
+  // lands, prefer rental so an empty school does not open Dual.
   const initialType = React.useMemo<ReservationType>(() => {
     if (isSelf) {
       if (isRenter(roles) && typeOptions.includes("rental")) return "rental";
       if (isTechnician(roles) && typeOptions.length === 1) return "maintenance";
       return typeOptions.includes("solo") ? "solo" : typeOptions[0] ?? "solo";
     }
-    return typeOptions.includes("dual")
-      ? "dual"
-      : defaultReservationType(roles) ?? typeOptions[0] ?? "dual";
-  }, [roles, typeOptions, isSelf]);
+    return deskDefaultReservationType(roles, hasStudents);
+  }, [roles, typeOptions, isSelf, hasStudents]);
 
   /**
    * What a fresh form opens on. The lane that was clicked wins where it says anything.
@@ -569,7 +568,6 @@ export function ReservationForm({
   const billingQ = useBilling({ enabled: open });
   const squawksQ = useSquawks({ resolved: false }, { enabled: open && canSeeSquawks });
   const instructorsQ = useMembers({ instructor: true }, { enabled: open });
-  const studentsQ = useMembers({ student: true }, { enabled: open });
   const rentersQ = useMembers({ renter: true }, { enabled: open });
   const ratingsQ = useRatings({ enabled: open });
   const locationsQ = useLocations({ enabled: open });
@@ -612,6 +610,13 @@ export function ReservationForm({
 
   const [title, setTitle] = React.useState("");
   const [type, setType] = React.useState<ReservationType>(initialType);
+  const typeTouched = React.useRef(false);
+  React.useEffect(() => {
+    if (isSelf || isEditing || draft.type || typeTouched.current) return;
+    if (!studentsQ.isSuccess) return;
+    const next = deskDefaultReservationType(roles, (studentsQ.data?.length ?? 0) > 0);
+    if (next !== type) setType(next);
+  }, [isSelf, isEditing, draft.type, studentsQ.isSuccess, studentsQ.data, roles, type]);
   const [resourceId, setResourceId] = React.useState("");
   /**
    * The aircraft the calendar seeded that this member may not book, the name, so it can
@@ -1293,6 +1298,7 @@ export function ReservationForm({
               id="res-title"
               aria-invalid={errorField === "res-title"}
               value={title}
+              maxLength={50}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Pattern work in N12345"
               autoFocus
@@ -1314,6 +1320,7 @@ export function ReservationForm({
                 setError(null);
                 setErrorField(null);
                 setType(v as ReservationType);
+                typeTouched.current = true;
               }}
             >
               <SelectTrigger id="res-type" className="w-full">

@@ -34,7 +34,7 @@ import type { Organization, OrganizationUser } from "@/types/api";
 import { rolesOf } from "@/types/api";
 
 /** The org shapes the wizard can create. Anything else is treated as a school. */
-export type OrgType = "flight_school" | "flying_club" | "rental" | "solo_instructor" | null;
+export type OrgType = "flight_school" | "flying_club" | "rental" | "solo_instructor" | "aircraft_owner" | null;
 
 /** Everything the items need to decide whether they're done. Gathered once, by
  *  `useChecklist`, so an item can never fire a request of its own. */
@@ -83,9 +83,11 @@ export const resolveCopy = (copy: Copy, orgType: OrgType): string =>
   typeof copy === "function" ? copy(orgType) : copy;
 
 const isClubLike = (t: OrgType) => t === "flying_club" || t === "rental";
+const isPrivateOwner = (t: OrgType) => t === "aircraft_owner";
+const isSoloish = (t: OrgType) => t === "solo_instructor" || isPrivateOwner(t);
 
-/** Members holding a role, ignoring the founder, who is created holding every role
- *  and would otherwise mark "invite your instructors" done on day one. */
+/** Members holding a role, ignoring the founder (always the owner), who would
+ *  otherwise mark "invite your instructors" done on day one. */
 function othersWithRole(members: OrganizationUser[], role: "instructor" | "student" | "renter"): number {
   return members.filter((m) => !m.ownerRole && rolesOf(m).includes(role)).length;
 }
@@ -136,6 +138,7 @@ export const CHECKLIST: ChecklistItem[] = [
     search: { tab: "cost-splitting" },
     cta: "Set your rules",
     isDone: (f) => f.splitRulesConfigured,
+    appliesTo: (t) => !isPrivateOwner(t),
     //Placed after billing on purpose: the rules decide how invoices divide, so it reads
     //oddly before there is any way to send one. It is NOT gated on Stripe though, a
     //school can set its rules before connecting, and the wizard shouldn't hide the item
@@ -150,18 +153,26 @@ export const CHECKLIST: ChecklistItem[] = [
     cta: "Invite instructors",
     isDone: (f) => othersWithRole(f.members, "instructor") > 0,
     // A solo CFI is the instructor. Nothing to invite.
-    appliesTo: (t) => t !== "solo_instructor",
+    appliesTo: (t) => !isSoloish(t),
   },
   {
     id: "students",
-    title: (t) => (isClubLike(t) ? "Invite your members" : "Invite your students"),
+    title: (t) =>
+      isPrivateOwner(t)
+        ? "Invite people who fly with you"
+        : isClubLike(t)
+          ? "Invite your members"
+          : "Invite your students",
     blurb: (t) =>
-      isClubLike(t)
-        ? "Members book themselves within the rules you set, and pay their own invoices."
-        : "Students book within your rules, see their currency, and pay their own invoices.",
+      isPrivateOwner(t)
+        ? "A partner or another renter books against the same tail, within the rules you set."
+        : isClubLike(t)
+          ? "Members book themselves within the rules you set, and pay their own invoices."
+          : "Students book within your rules, see their currency, and pay their own invoices.",
     icon: Users,
     to: "/people",
-    cta: (t) => (isClubLike(t) ? "Invite members" : "Invite students"),
+    cta: (t) =>
+      isPrivateOwner(t) ? "Invite someone" : isClubLike(t) ? "Invite members" : "Invite students",
     isDone: (f) => othersWithRole(f.members, "student") + othersWithRole(f.members, "renter") > 0,
   },
   {
@@ -173,6 +184,7 @@ export const CHECKLIST: ChecklistItem[] = [
     search: { tab: "rates" },
     cta: "Set rates",
     isDone: (f) => f.ratings > 0,
+    appliesTo: (t) => !isPrivateOwner(t),
   },
   {
     id: "rules",
@@ -211,7 +223,7 @@ export const CHECKLIST: ChecklistItem[] = [
     to: "/training",
     cta: "Open training",
     isDone: (f) => f.courses > 0,
-    appliesTo: (t) => t !== "solo_instructor" && t !== "rental",
+    appliesTo: (t) => !isSoloish(t) && t !== "rental",
   },
   {
     id: "facilities",
@@ -221,7 +233,7 @@ export const CHECKLIST: ChecklistItem[] = [
     to: "/facilities",
     cta: "Add facilities",
     isDone: (f) => f.facilities > 0,
-    appliesTo: (t) => t !== "solo_instructor",
+    appliesTo: (t) => !isSoloish(t),
   },
   {
     id: "invoice",
@@ -251,7 +263,7 @@ export const CHECKLIST: ChecklistItem[] = [
     search: { tab: "groups" },
     cta: "Create groups",
     isDone: (f) => f.groups > 0,
-    appliesTo: (t) => t !== "solo_instructor",
+    appliesTo: (t) => !isSoloish(t),
   },
   {
     id: "profile",

@@ -806,6 +806,12 @@ export const DOCS_TOPICS = {
       "Google gets a live push to your primary calendar. Apple Calendar and Outlook subscribe with a private link. Both are one-way from AerScheduler; regenerate the link if it ever leaks.",
     href: "scheduling/sync-your-personal-calendar",
   },
+  "own-an-airplane": {
+    title: "I own an airplane",
+    summary:
+      "This path is for a tail you already have. You become owner, admin and renter, not a student, and the hourly rate can stay at zero.",
+    href: "getting-started/set-up-a-privately-owned-airplane",
+  },
 } satisfies Record<string, DocsTopic>;
 
 export type DocsTopicKey = keyof typeof DOCS_TOPICS;

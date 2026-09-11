@@ -56,7 +56,7 @@ test.describe("Training API lifecycle", () => {
     expect(unsignedRecords(progress, course.lessonId)).toHaveLength(1);
   });
 
-  test("signed passing lesson refuses a second pass without amend", async ({
+  test("signed passing lesson allows extra dual and 409s a leftover unsigned", async ({
     request,
   }) => {
     const { owner, course } = await seedCourse(request);
@@ -86,15 +86,29 @@ test.describe("Training API lifecycle", () => {
     );
     expect(dualHours?.deciHours).toBe(10);
 
-    const again = await saveRecord(request, instructor, {
+    const extra = await saveRecord(request, instructor, {
       enrollmentId,
       lessonId: course.lessonId,
       grade: "S",
       flightDeciHours: 11,
     });
-    expect(again.status()).toBe(409);
-    const body = await readJson(again);
-    expect(body.message).toMatch(/already signed/i);
+    expect(extra.status(), await extra.text()).toBe(200);
+    const extraId = dataOf(await extra.json()).id as number;
+    expect(extraId).not.toBe(recordId);
+
+    const leftover = await saveRecord(request, instructor, {
+      enrollmentId,
+      lessonId: course.lessonId,
+      grade: "S",
+      flightDeciHours: 12,
+    });
+    expect(leftover.status()).toBe(409);
+    const body = await readJson(leftover);
+    expect(body.message).toMatch(/open draft/i);
+
+    const after = await getProgress(request, owner, enrollmentId);
+    expect(liveRecords(after, course.lessonId)).toHaveLength(2);
+    expect(unsignedRecords(after, course.lessonId)).toHaveLength(1);
   });
 
   test("signed U allows a retake row", async ({ request }) => {

@@ -36,6 +36,9 @@ test.describe("Training grading UI (instructor)", () => {
 
     await page.getByRole("button", { name: /^Grade$/ }).click();
     await expect(page.getByRole("button", { name: /Save and sign/i })).toBeVisible();
+    await expect(page.getByLabel(/When it was flown/i)).toBeVisible();
+    await expect(page.getByLabel(/simulator hours/i)).toBeVisible();
+    await page.locator("#lesson-date").fill("2026-08-15");
     const saveReq = page.waitForResponse(
       (r) =>
         r.url().includes("/training/records") &&
@@ -61,6 +64,7 @@ test.describe("Training grading UI (instructor)", () => {
     const rec = liveRecords(progress, course.lessonId)[0];
     expect(rec.instructorSignedAt).toBeTruthy();
     expect(rec.grade).toBe("S");
+    expect(String(rec.occurredAt ?? "")).toMatch(/^2026-08-15T12:00:00/);
   });
 
   test("close-out Grade this lesson signs one record and does not double-create", async ({
@@ -133,7 +137,7 @@ test.describe("Training grading UI (instructor)", () => {
     expect(rec.reservationId).toBe(dual!.id);
   });
 
-  test("close-out does not offer Grade this lesson when the syllabus is already finished", async ({
+  test("close-out Grade another dual signs a second record after a live pass", async ({
     page,
     request,
   }) => {
@@ -164,14 +168,135 @@ test.describe("Training grading UI (instructor)", () => {
       studentOrgUserId,
       instructorId,
     );
-    expect(dual, "could not book a dual slot for a finished syllabus").toBeTruthy();
+    expect(dual, "could not book a dual slot for extra dual").toBeTruthy();
 
     await page.goto(`/schedule/reservations/${dual!.id}`);
     await dismissCookieBanner(page);
     await expect(page.getByText("Training record")).toBeVisible({ timeout: 25_000 });
     await page.getByText("Grade the lesson").click();
-    await expect(page.getByText("Syllabus complete").first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("button", { name: /Grade this lesson/i })).toHaveCount(0);
+    const grader = page
+      .locator("div.rounded-md.border")
+      .filter({ hasText: course.name })
+      .filter({ has: page.getByRole("button", { name: /Grade another dual/i }) });
+    await expect(grader.getByText("Syllabus complete")).toBeVisible({ timeout: 15_000 });
+    await grader.getByRole("button", { name: /Grade another dual/i }).click();
+    await expect(
+      page.getByText(/Signing again records another dual/i),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /Sign lesson/i })).toBeVisible();
+
+    const saveReq = page.waitForResponse(
+      (r) =>
+        r.url().includes("/training/records") &&
+        r.request().method() === "POST" &&
+        !r.url().includes("/sign"),
+    );
+    const signReq = page.waitForResponse(
+      (r) =>
+        r.url().includes("/training/records/") &&
+        r.url().includes("/sign") &&
+        r.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: /Sign lesson/i }).click();
+    const extraSaved = await saveReq;
+    expect(extraSaved.ok(), await extraSaved.text()).toBeTruthy();
+    expect(dataOf(await extraSaved.json()).id).not.toBe(recordId);
+    const extraSigned = await signReq;
+    expect(extraSigned.ok(), await extraSigned.text()).toBeTruthy();
+
+    await expect(page.getByText(/signed and credited/i)).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const progress = await getProgress(request, instructor, enrollmentId);
+    const recs = liveRecords(progress, course.lessonId);
+    expect(recs).toHaveLength(2);
+    expect(recs.every((r: { instructorSignedAt?: string }) => r.instructorSignedAt)).toBeTruthy();
+    expect(recs.some((r: { reservationId?: number }) => r.reservationId === dual!.id)).toBeTruthy();
+  });
+
+  test("close-out Sign takes over an unsigned draft from another booking", async ({
+    page,
+    request,
+  }) => {
+    const { owner, course } = await seedCourse(request);
+    const { enrollmentId, studentOrgUserId } = await enrollTestStudent(
+      request,
+      owner,
+      course.versionId,
+    );
+    const instructorId = await orgUserIdFor(owner, request, ACCOUNTS.instructor);
+    const dualA = await createDualReservation(
+      request,
+      owner,
+      studentOrgUserId,
+      instructorId,
+    );
+    const dualB = await createDualReservation(
+      request,
+      owner,
+      studentOrgUserId,
+      instructorId,
+    );
+    expect(dualA, "need booking A for the leftover draft").toBeTruthy();
+    expect(dualB, "need booking B to take the draft over").toBeTruthy();
+    expect(dualA!.id).not.toBe(dualB!.id);
+
+    const instructor = await loginAs(request, ACCOUNTS.instructor);
+    const draft = await saveRecord(request, instructor, {
+      enrollmentId,
+      lessonId: course.lessonId,
+      grade: "S",
+      flightDeciHours: 10,
+      instructionDeciHours: 5,
+      reservationId: dualA!.id,
+    });
+    expect(draft.ok(), await draft.text()).toBeTruthy();
+    const draftId = dataOf(await draft.json()).id as number;
+
+    await page.goto(`/schedule/reservations/${dualB!.id}`);
+    await dismissCookieBanner(page);
+    await expect(page.getByText("Training record")).toBeVisible({ timeout: 25_000 });
+    await page.getByText("Grade the lesson").click();
+    const grader = page
+      .locator("div.rounded-md.border")
+      .filter({ hasText: course.name })
+      .filter({ has: page.getByRole("button", { name: /Grade this lesson/i }) });
+    await grader.getByRole("button", { name: /Grade this lesson/i }).click();
+    await expect(
+      page.getByText(/unsigned draft for this lesson is on another flight/i),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /Sign lesson/i })).toBeVisible();
+
+    const saveReq = page.waitForResponse(
+      (r) =>
+        r.url().includes("/training/records") &&
+        r.request().method() === "POST" &&
+        !r.url().includes("/sign"),
+    );
+    const signReq = page.waitForResponse(
+      (r) =>
+        r.url().includes("/training/records/") &&
+        r.url().includes("/sign") &&
+        r.request().method() === "POST",
+    );
+    await page.getByRole("button", { name: /Sign lesson/i }).click();
+    const saved = await saveReq;
+    expect(saved.ok(), await saved.text()).toBeTruthy();
+    expect(dataOf(await saved.json()).id).toBe(draftId);
+    const signed = await signReq;
+    expect(signed.ok(), await signed.text()).toBeTruthy();
+
+    await expect(page.getByText(/signed and credited/i)).toBeVisible({
+      timeout: 15_000,
+    });
+
+    const progress = await getProgress(request, instructor, enrollmentId);
+    const recs = liveRecords(progress, course.lessonId);
+    expect(recs).toHaveLength(1);
+    expect(recs[0].id).toBe(draftId);
+    expect(recs[0].reservationId).toBe(dualB!.id);
+    expect(recs[0].instructorSignedAt).toBeTruthy();
   });
 
   test("close-out Sign lesson reuses the unsigned draft already on the booking", async ({

@@ -425,6 +425,7 @@ test.describe("Training API edges", () => {
         deciHours: 10,
         source: "transfer_61",
         notes: "prior school",
+        occurredAt: "2026-08-15T12:00:00.000Z",
       },
     });
     expect(posted.status()).toBe(409);

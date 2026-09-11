@@ -211,12 +211,11 @@ test.describe("Training console (instructor)", () => {
 test.describe("Training console (dispatcher)", () => {
   test.use({ storageState: ".auth/dispatcher.json" });
 
-  test("can open /training (web allows staff) and does not see Enroll", async ({
+  test("without a training grant, /training bounces away from the course library", async ({
     page,
   }) => {
     await page.goto("/training");
     await dismissCookieBanner(page);
-    await expect(page).toHaveURL(/\/training($|\/|\?)/);
-    await expect(page.getByRole("button", { name: /Enroll a student/i })).toHaveCount(0);
+    await expect(page).toHaveURL(/\/me/, { timeout: 20_000 });
   });
 });

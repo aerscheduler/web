@@ -26,16 +26,23 @@ function LessonRow({
   done,
   total,
 }: {
-  name: string;
+  name: string | null;
   done: number;
   total: number;
 }) {
+  const complete = total > 0 && done === total;
   return (
     <div className="flex min-w-0 items-center gap-2 text-sm">
       <GraduationCap className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate">
-        <span className="text-muted-foreground">Next up · </span>
-        <span className="font-medium">{name}</span>
+        {complete ? (
+          <span className="font-medium">Syllabus complete</span>
+        ) : (
+          <>
+            <span className="text-muted-foreground">Next up · </span>
+            <span className="font-medium">{name}</span>
+          </>
+        )}
       </span>
       <Badge variant="outline" className="shrink-0 text-[11px]">
         {done} of {total} done
@@ -67,7 +74,7 @@ export function NextLessonHint({
   if (q.isPending || withLessons.length === 0) return null;
 
   const primary = withLessons[0]!;
-  const primaryNext = primary.lessons.find((l) => !l.complete) ?? primary.lessons[0];
+  const primaryNext = primary.lessons.find((l) => !l.complete) ?? null;
   const primaryDone = primary.lessons.filter((l) => l.complete).length;
   const moreCount = withLessons.length - 1;
 
@@ -77,18 +84,18 @@ export function NextLessonHint({
       className={cn("space-y-1.5 rounded-md border bg-muted/40 px-3 py-2.5", className)}
     >
       <LessonRow
-        name={primaryNext?.name ?? ""}
+        name={primaryNext?.name ?? null}
         done={primaryDone}
         total={primary.lessons.length}
       />
       {expanded &&
         withLessons.slice(1).map((e) => {
-          const next = e.lessons.find((l) => !l.complete) ?? e.lessons[0];
+          const next = e.lessons.find((l) => !l.complete) ?? null;
           const done = e.lessons.filter((l) => l.complete).length;
           return (
             <LessonRow
               key={e.enrollmentId}
-              name={next?.name ?? ""}
+              name={next?.name ?? null}
               done={done}
               total={e.lessons.length}
             />

@@ -96,19 +96,52 @@ export const STATUS_LABEL: Record<EnrollmentStatus, string> = {
   transferred: "Transferred",
 };
 
+/**
+ * Same rule as the server's `needsSignoff`. Off means the grade (and the
+ * instructor's signature, if they gave one) finishes the lesson; the student
+ * is not asked to countersign a self-study module or a written quiz.
+ */
+export function lessonNeedsSignoff(requiresSignoff: boolean | null | undefined): boolean {
+  return requiresSignoff !== false;
+}
+
 /** Where a record is in its lifecycle, in the words a school uses. */
 export function recordState(r: {
   instructorSignedAt: string | null;
   studentSignedAt: string | null;
   supersedesId: number | null;
+  requiresSignoff?: boolean | null;
 }): { label: string; tone: "draft" | "signed" | "complete" | "amended" } {
   if (!r.instructorSignedAt) {
     return r.supersedesId != null
       ? { label: "Correction, not signed", tone: "amended" }
       : { label: "Grading", tone: "draft" };
   }
-  if (!r.studentSignedAt) return { label: "Awaiting student", tone: "signed" };
+  if (lessonNeedsSignoff(r.requiresSignoff) && !r.studentSignedAt) {
+    return { label: "Awaiting student", tone: "signed" };
+  }
   return { label: "Signed", tone: "complete" };
+}
+
+/**
+ * Records the student is actually asked to countersign.
+ *
+ * Instructor-signed and not yet student-signed is not enough: a lesson the
+ * syllabus marked sign-off optional is already complete, and prompting for a
+ * signature on it is a lie.
+ */
+export function awaitingStudentSignature<
+  R extends { id: number; lessonId: number; instructorSignedAt: string | null; studentSignedAt: string | null },
+>(
+  records: R[],
+  lessons: { id: number; requiresSignoff: boolean }[],
+  superseded: Set<number>
+): R[] {
+  const byId = new Map(lessons.map((l) => [l.id, l]));
+  return records.filter((r) => {
+    if (!r.instructorSignedAt || r.studentSignedAt || superseded.has(r.id)) return false;
+    return lessonNeedsSignoff(byId.get(r.lessonId)?.requiresSignoff);
+  });
 }
 
 /**
@@ -140,6 +173,47 @@ export function nextLessonId(
 }
 
 /**
+ * The day a ledger row is about.
+ *
+ * Hand-posted transfers store UTC midnight of the logbook date; those have to render
+ * in UTC or a US school sees the previous calendar day. Lesson credits are real
+ * instants (booking start, captured grade). A 5pm Pacific dual serializes as
+ * `T00:00:00.000Z` and must stay on the local flying day, not jump to tomorrow.
+ */
+/** Prefill the grade date picker from a stored instant. */
+export function logbookDayFromIso(iso: string | null | undefined, fallback: string): string {
+  if (!iso || iso.length < 10) return fallback;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return fallback;
+  const utcMidnight =
+    d.getUTCHours() === 0 &&
+    d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 &&
+    d.getUTCMilliseconds() === 0;
+  if (utcMidnight) return iso.slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Persist a picker calendar day as noon UTC so US local ledger labels stay on that day. */
+export function logbookDayToOccurredAt(day: string): string {
+  return `${day}T12:00:00.000Z`;
+}
+
+export function ledgerDateLabel(iso: string, fromLesson: boolean): string {
+  const d = new Date(iso);
+  if (fromLesson) return d.toLocaleDateString();
+  const dateOnly =
+    d.getUTCHours() === 0 &&
+    d.getUTCMinutes() === 0 &&
+    d.getUTCSeconds() === 0 &&
+    d.getUTCMilliseconds() === 0;
+  return d.toLocaleDateString(undefined, dateOnly ? { timeZone: "UTC" } : undefined);
+}
+
+/**
  * Does the caller hold a training grant?
  *
  * `implied` is what their ROLE already gives them (an admin holds all four without a row),
@@ -153,8 +227,13 @@ export function nextLessonId(
  */
 export function holdsTrainingGrant(
   mine: { grants: { grant: string; courseId: number | null }[]; implied: string[] } | undefined,
-  grant: string
+  grant: string,
+  courseId?: number
 ): boolean {
   if (!mine) return false;
-  return mine.implied.includes(grant) || mine.grants.some((g) => g.grant === grant);
+  if (mine.implied.includes(grant)) return true;
+  return mine.grants.some((g) => {
+    if (g.grant !== grant) return false;
+    return g.courseId == null || courseId == null || g.courseId === courseId;
+  });
 }

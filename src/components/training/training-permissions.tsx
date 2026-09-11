@@ -14,6 +14,7 @@ import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import {
   Select,
   SelectContent,
@@ -81,7 +82,18 @@ export function TrainingPermissions() {
               {held.length ? (
                 <ul className="mt-2.5 space-y-1">
                   {held.map((g) => (
-                    <GrantRow key={g.id} grant={g} onRevoke={() => revoke.mutate(g.id)} />
+                    <GrantRow
+                      key={g.id}
+                      grant={g}
+                      onRevoke={() =>
+                        revoke.mutate(g.id, {
+                          onError: (err) =>
+                            toast.error(
+                              err instanceof Error ? err.message : "Couldn't revoke that grant"
+                            ),
+                        })
+                      }
+                    />
                   ))}
                 </ul>
               ) : (

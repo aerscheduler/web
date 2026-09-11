@@ -60,12 +60,12 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
   //and the "give this to an FAA inspector" auditor grant handed the inspector a page
   //they could not load.
   //
-  //Staff or instructor, then, and the PAGE degrades: the course library only renders if
-  //the courses call succeeds, so somebody with `manageEnrollment` and no
-  //`configureTraining` gets the roster they are entitled to instead of an error card.
-  //Same reasoning as /reports directly above, gate the route on who might legitimately
-  //be here, and let the server decide what they actually see.
-  "/training": (r) => isStaff(r) || isInstructor(r),
+  //Admin or instructor, matching the phone: a dispatcher with no training grant cannot
+  //enroll or grade, and the page was a dead end. Grants still WIDEN it below for an
+  //auditor, a chief instructor, and anyone handed manageEnrollment. The PAGE degrades:
+  //the course library only renders if the courses call succeeds, so somebody with
+  //`manageEnrollment` and no `configureTraining` gets the roster they are entitled to.
+  "/training": (r) => isAdmin(r) || isInstructor(r),
   //A student's training RECORD is not the course library. The server serves this to any
   //member and scopes it per viewer (`canReadEnrollment`), and the person detail page.
   //open to any member, links straight to it. Guarding it on admin made that link a
@@ -97,12 +97,10 @@ export const ROUTE_ACCESS: Record<string, (roles: Role[]) => boolean> = {
  *
  * TWO ROUTES ARE DELIBERATELY ABSENT, and they are absent for opposite reasons.
  *
- * `/training` is an IDENTITY question, not an authority one. It admits staff or
+ * `/training` is an IDENTITY question, not an authority one. It admits admins or
  * instructors, and no grant identifies an instructor: instructing is something a person
- * IS, which is why `BASELINE_GRANTS.instructor` is a single lock-window override. A
- * dispatcher can also reach the page today while holding no training grant at all.
- * Rewriting this as a grant check would narrow it, and narrowing is the one thing this
- * migration must not do.
+ * IS, which is why `BASELINE_GRANTS.instructor` is a single lock-window override.
+ * Dispatchers are out unless they hold a training grant, matching the phone nav.
  *
  * The `anyMember` routes are absent because there is nothing to express: everybody
  * already passes, and a grant rule could only take that away.
@@ -149,7 +147,14 @@ export function canAccess(
   if (!key) return true;
   const byGrant = ROUTE_GRANTS[key];
   if (byGrant && grants) return byGrant(grants);
-  return ROUTE_ACCESS[key]!(roles);
+  if (ROUTE_ACCESS[key]!(roles)) return true;
+  // /training is deliberately not in ROUTE_GRANTS: no grant identifies an instructor.
+  // These three grants WIDEN it for people the API already serves: an FAA auditor, a
+  // chief instructor who is not in a staff role, and anyone handed manageEnrollment.
+  if (key === "/training" && grants) {
+    return grants.has("auditor") || grants.has("configureTraining") || grants.has("manageEnrollment");
+  }
+  return false;
 }
 
 /**

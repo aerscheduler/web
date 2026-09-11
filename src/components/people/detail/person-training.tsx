@@ -14,24 +14,28 @@ import { formatDate } from "@/lib/utils";
  * page that cannot answer the question the front desk is actually asking when
  * they open it.
  *
- * Reads through `GET /training/enrollments`, which the server already scopes: a
- * student asking sees only their own whatever they pass, and staff see anyone's.
- * So the SAME call is correct for both the self and the staff view, and there is
- * no second endpoint to pick wrongly between, unlike currencies, where choosing
- * the wrong one 403s a member on their own page.
+ * Reads through `GET /training/enrollments?orgUserId=`, even on the self view. Staff
+ * asking with no subject get the whole school, and this card is always one person.
  *
  * Renders nothing at all when the person has no enrollments. Most members of most
  * schools are not on a syllabus, and an empty "Training" card on every renter's
  * page is clutter that makes the ones that matter easier to miss.
  */
 export function PersonTraining({ ou, isSelf }: { ou: OrganizationUser; isSelf: boolean }) {
-  const q = useEnrollments(isSelf ? undefined : { orgUserId: ou.id });
+  const q = useEnrollments({ orgUserId: ou.id });
   const rows = q.data ?? [];
 
   if (q.isPending) return <CardSkeleton />;
-  //A failure here is not worth a red card on somebody's profile, training is one
-  //section of many, and the rest of the page is still useful.
-  if (q.isError || rows.length === 0) return null;
+  if (q.isError) {
+    return (
+      <DetailCard title="Training">
+        <p className="text-sm text-destructive">
+          {(q.error as Error).message || "Could not load training."}
+        </p>
+      </DetailCard>
+    );
+  }
+  if (rows.length === 0) return null;
 
   //In training first, then most recently enrolled. A graduated Private above an
   //in-progress Instrument buries the thing somebody opened this page to check.
@@ -67,7 +71,10 @@ export function PersonTraining({ ou, isSelf }: { ou: OrganizationUser; isSelf: b
                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                   {course ? <span>{PART_LABEL[course.regulatoryPart]}</span> : null}
                   {e.courseVersion?.label ? <span>· {e.courseVersion.label}</span> : null}
-                  <span>· {e._count?.lessonRecords ?? 0} lessons recorded</span>
+                  <span>
+                    · {e.lessonsComplete ?? e._count?.lessonRecords ?? 0}
+                    {e.lessonsTotal != null ? ` of ${e.lessonsTotal}` : ""} lessons complete
+                  </span>
                   <span>· since {formatDate(e.enrolledAt, "MMM d, yyyy")}</span>
                 </div>
               </>

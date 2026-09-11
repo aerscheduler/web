@@ -4511,8 +4511,9 @@ export function useSaveLessonRecord() {
       instructionDeciHours?: number | null;
       simulatorDeciHours?: number | null;
       reservationId?: number | null;
+      occurredAt?: string;
       taskGrades?: { lessonTaskId: number; grade: string; notes?: string }[];
-    }) => api<{ id: number; warning: string | null }>("/training/records", { method: "POST", body: input }),
+    }) => api<{ id: number; warning: string | null; signed?: boolean }>("/training/records", { method: "POST", body: input }),
     onSuccess: () => invalidateTraining(qc),
   });
 }
@@ -4520,10 +4521,10 @@ export function useSaveLessonRecord() {
 export function useSignLessonRecord() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ recordId, credits }: { recordId: number; credits?: { requirementId: number; deciHours?: number; count?: number }[] }) =>
+    mutationFn: ({ recordId, credits, occurredAt }: { recordId: number; credits?: { requirementId: number; deciHours?: number; count?: number }[]; occurredAt?: string }) =>
       api<{ id: number; creditsPosted: number }>(`/training/records/${recordId}/sign`, {
         method: "POST",
-        body: { credits },
+        body: { credits, occurredAt },
       }),
     onSuccess: () => invalidateTraining(qc),
   });

@@ -10,11 +10,23 @@ import { gradeCodesOf } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import {
   useCandidateLessonsFor,
+  useMyTrainingGrants,
   useSaveLessonRecord,
   useSignLessonRecord,
 } from "@/features/queries";
 import { deciHours } from "@/lib/training";
+import { billsOnHobbs } from "./close-out";
 import { CloseOutCard } from "./close-out-card";
+import {
+  closeOutCardCounts,
+  closeOutDraftForBooking,
+  closeOutSummary,
+  lessonHeldOnOtherBooking,
+  seedCloseOutGrader,
+  signedOnReservation,
+  suggestedCloseableLesson,
+  syllabusHasWorkLeft,
+} from "./lesson-section.state";
 import { TaskGradeList, taskGradePayload } from "@/components/training/task-grades";
 import { DocsHint } from "@/components/docs-hint";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 
 /**
  * Grade the lesson from inside the close-out.
@@ -50,12 +63,15 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
   //are, and grading only the first would leave the second one's record silently blank.
   const students = r.personnel?.students ?? [];
   const isInstructional = ["dual", "ground", "sim", "solo"].includes(r.type);
-  //The SERVER's rule, verbatim (curriculum.routes canGrade): any instructor in the school,
-  //or an owner/admin. Not `isStaff`, which also takes in dispatchers, and not "an instructor
-  //ON THIS BOOKING", which was two wrongs at once: a dispatcher was shown a form the server
-  //then refused, and an instructor grading a student's SOLO, a booking that by definition
-  //carries no instructor, was shown nothing to grade it with.
-  const canGrade = isAdmin || roles.includes("instructor");
+  //Same source as the enrollment Grade button: GET /training/grants/mine.canGrade.
+  //Roles are a fallback only when that request never answers, matching the phone.
+  const mine = useMyTrainingGrants({ enabled: isInstructional });
+  const canGrade =
+    mine.data != null
+      ? mine.data.canGrade
+      : mine.isError
+        ? isAdmin || roles.includes("instructor")
+        : false;
   const eligible = isInstructional && canGrade;
 
   //Asked for the WHOLE booking up here, not per student down in `StudentLessons`.
@@ -91,13 +107,16 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
     .filter((row) => row.enrollments.length > 0);
   if (rows.length === 0) return null;
 
-  //One grader per course per student, counted from the data rather than from the graders
-  //that have reported in. `CollapsibleContent` unmounts its children while shut, which is
-  //every grader, so counting reports made the summary read 0 and hide itself at exactly the
-  //moment it was supposed to be earning the fold: "0 of 5 graded" is the whole reason to
-  //open a class of six.
-  const total = rows.reduce((n, row) => n + row.enrollments.length, 0);
-  const signed = Object.values(graders).filter(Boolean).length;
+  //One grader per course per student. Counted from the candidate payload (which bookings
+  //already have a signed record, which syllabi are finished) plus any Sign that has not
+  //been refetched yet. `CollapsibleContent` unmounts its children while shut, so counting
+  //only those reports made the summary read 0 of N on reload, and on a class of six that
+  //is the whole reason to open the fold.
+  const { total, signed, remaining } = closeOutCardCounts(
+    rows.map((row) => ({ studentId: row.student.id, enrollments: row.enrollments })),
+    r.id,
+    graders
+  );
 
   return (
     <>
@@ -110,13 +129,7 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
         <CloseOutCard
           title="Grade the lesson"
           icon={GraduationCap}
-          summary={
-            signed === total
-              ? total === 1
-                ? "signed"
-                : `all ${total} signed`
-              : `${signed} of ${total} graded`
-          }
+          summary={closeOutSummary({ total, signed, remaining })}
           //Shut, always. This was the single longest thing on the sheet: one form per
           //course per student, so a two-student booking opened five of them and pushed the
           //close-out itself off the screen. "0 of 5 graded" in the header says there is
@@ -129,6 +142,7 @@ export function LessonSection({ reservation }: { reservation: Reservation }) {
                 student={student}
                 enrollments={enrollments}
                 reservation={r}
+                signedByKey={graders}
                 onReport={report}
               />
             ))}
@@ -148,12 +162,14 @@ function StudentLessons({
   student,
   enrollments,
   reservation,
+  signedByKey,
   onReport,
 }: {
   student: { id: number; user?: { name?: string } | null };
   /** This student's enrollments that carry lessons. Never empty. */
   enrollments: CandidateEnrollment[];
   reservation: Reservation;
+  signedByKey: Record<string, boolean>;
   /** Tells the section a grader exists, and whether it has been signed. */
   onReport: (key: string, signed: boolean) => void;
 }) {
@@ -182,6 +198,15 @@ function StudentLessons({
           lessons={e.lessons}
           reservation={reservation}
           reportKey={`${student.id}:${e.enrollmentId}`}
+          alreadySigned={signedOnReservation(
+            e,
+            reservation.id,
+            !!signedByKey[`${student.id}:${e.enrollmentId}`]
+          )}
+          signedLessonName={
+            (e.gradedOn ?? []).find((g) => g.reservationId === reservation.id)?.lessonName ??
+            null
+          }
           onReport={onReport}
         />
       ))}
@@ -197,6 +222,8 @@ function LessonGrader({
   lessons,
   reservation,
   reportKey,
+  alreadySigned,
+  signedLessonName,
   onReport,
 }: {
   enrollmentId: number;
@@ -208,47 +235,44 @@ function LessonGrader({
   lessons: CandidateLesson[];
   reservation: Reservation;
   reportKey: string;
+  alreadySigned: boolean;
+  /** Lesson signed on THIS booking, when the payload already knows. */
+  signedLessonName: string | null;
   onReport: (key: string, signed: boolean) => void;
 }) {
   const r = reservation;
 
-  //The first unfinished lesson, which is the right answer almost every time.
-  const suggested = lessons.find((l) => !l.complete) ?? lessons[0];
-  const [lessonId, setLessonId] = React.useState<number>(suggested?.id ?? 0);
+  //The first unfinished lesson. A leftover unsigned row already tied to another
+  //flight is still next-up: Sign takes that draft over for this booking.
+  const suggested = suggestedCloseableLesson(lessons, r.id);
+  const syllabusDone = !syllabusHasWorkLeft(lessons);
+  const [lessonId, setLessonId] = React.useState<number>(suggested?.id ?? lessons[0]?.id ?? 0);
   const [open, setOpen] = React.useState(false);
 
-  //Straight off the close-out. `briefing` is what the instruction line is billed from, and
-  //the Hobbs delta is what the aircraft line is billed from: the same two numbers the
-  //invoice uses, so the record and the bill can never disagree about what was flown.
-  const hobbsDelta =
-    r.review?.hobbsTimeIn != null && r.review?.hobbsTimeOut != null
+  //Straight off the close-out, using the SAME meter the invoice prices from. Hobbs is the
+  //usual case; a tach-billed tail must seed from tach or the record and the bill disagree.
+  const onHobbs = billsOnHobbs(r);
+  const meterDelta = onHobbs
+    ? r.review?.hobbsTimeIn != null && r.review?.hobbsTimeOut != null
       ? Math.max(0, r.review.hobbsTimeIn - r.review.hobbsTimeOut)
+      : null
+    : r.review?.tachTimeIn != null && r.review?.tachTimeOut != null
+      ? Math.max(0, r.review.tachTimeIn - r.review.tachTimeOut)
       : null;
 
-  //THIS person's own hours, when the close-out recorded them, in preference to the
-  //airframe's.
-  //
-  //On a `measured` split the operator has already typed each payer's meters and instruction
-  //time, and the engine refuses the split unless they reconcile to what the aircraft ran, so
-  //these are the truest per-person numbers in the system. Seeding every student from the
-  //whole-booking figure instead meant a safety pilot or an observer was prefilled the full
-  //dual time and was one click from signing it into a record an examiner reads, and into the
-  //§61.109 counters that decide whether somebody may test.
-  //
-  //Falls back to the booking's figure whenever there is no stake for this person, which is
-  //every ordinary single-student lesson, so the common case is unchanged. Deliberately does
-  //NOT consult `pilotRole`: a safety pilot logging SIC still flew the time, what their
-  //training record should say about it is a records question, not a prefill.
-  const payerHobbsDelta =
-    payer?.hobbsIn != null && payer?.hobbsOut != null
+  const payerMeterDelta = onHobbs
+    ? payer?.hobbsIn != null && payer?.hobbsOut != null
       ? Math.max(0, payer.hobbsIn - payer.hobbsOut)
+      : null
+    : payer?.tachIn != null && payer?.tachOut != null
+      ? Math.max(0, payer.tachIn - payer.tachOut)
       : null;
   //Minutes on the stake, tenths of an hour everywhere in training. Same conversion Who pays
   //what uses to render the field the operator typed it into.
   const payerGround =
     payer?.instructionMinutes != null ? Math.round(payer.instructionMinutes / 6) : null;
 
-  const flightSeed = payerHobbsDelta ?? hobbsDelta;
+  const flightSeed = payerMeterDelta ?? meterDelta;
   const groundSeed = payerGround ?? r.review?.briefing ?? null;
 
   const [flight, setFlight] = React.useState(() => (flightSeed ? deciHours(flightSeed) : ""));
@@ -259,27 +283,49 @@ function LessonGrader({
   const [grade, setGrade] = React.useState(() => scale[0] ?? "S");
   const [notes, setNotes] = React.useState("");
   const [warning, setWarning] = React.useState<string | null>(null);
-  const [done, setDone] = React.useState(false);
+  const [done, setDone] = React.useState(alreadySigned);
   //Device time, on a lesson flown in one. Part of the flight figure rather than extra, which
   //is what makes the course's simulator ceiling apply to it.
   const [sim, setSim] = React.useState("");
   const [taskMarks, setTaskMarks] = React.useState<Record<number, string>>({});
 
-  //A different lesson has different tasks, so marks entered against the old one cannot
-  //carry over: they would be written against task ids belonging to another lesson.
   React.useEffect(() => {
-    setTaskMarks({});
-  }, [lessonId]);
+    if (alreadySigned) setDone(true);
+  }, [alreadySigned]);
 
   //Tell the section this grader is here, and whether it has been signed yet.
+  const finished = done || alreadySigned;
   React.useEffect(() => {
-    onReport(reportKey, done);
-  }, [onReport, reportKey, done]);
+    onReport(reportKey, finished);
+  }, [onReport, reportKey, finished]);
 
   const save = useSaveLessonRecord();
   const sign = useSignLessonRecord();
 
+  //Seed before paint. A useEffect hydrate ran after the first frame, so Sign could
+  //fire with meter seeds and empty notes and wipe a phone draft.
+  const applyLessonSeed = (id: number) => {
+    save.reset();
+    sign.reset();
+    setWarning(null);
+    const current = lessons.find((l) => l.id === id) ?? suggested;
+    const seeded = seedCloseOutGrader({
+      draft: closeOutDraftForBooking(current?.draft, r.id),
+      scale,
+      flightSeed,
+      groundSeed,
+    });
+    setGrade(seeded.grade);
+    setNotes(seeded.notes);
+    setFlight(seeded.flight);
+    setGround(seeded.ground);
+    setSim(seeded.sim);
+    setTaskMarks(seeded.taskMarks);
+    setLessonId(id);
+  };
+
   const lesson = lessons.find((l) => l.id === lessonId) ?? suggested;
+  const heldElsewhere = lessonHeldOnOtherBooking(lesson, r.id);
   const showSim = lesson?.kind === "sim" || r.type === "sim" || r.resource?.type?.simulator != null;
   //The tasks this lesson is made of. Absent on a school that writes lessons without them,
   //and on a console talking to a server that predates them being sent here.
@@ -290,14 +336,32 @@ function LessonGrader({
     return v.trim() === "" || Number.isNaN(n) ? null : Math.round(n * 10);
   };
 
-  if (done) {
+  if (finished) {
     return (
       <div className="flex items-start gap-2 rounded-md border border-success/40 bg-success/5 p-3 text-sm">
         <FileSignature className="mt-0.5 size-4 shrink-0 text-success" />
         <span>
-          <span className="font-medium">{lesson?.name}</span> signed and credited to{" "}
+          <span className="font-medium">{signedLessonName ?? lesson?.name}</span> signed and credited to{" "}
           {courseName}.
         </span>
+      </div>
+    );
+  }
+
+  if (syllabusDone && !open) {
+    return (
+      <div className="space-y-2 rounded-md border p-3">
+        <div className="text-sm">
+          <span className="text-muted-foreground">{courseName}</span>
+          <div className="font-medium">Syllabus complete</div>
+          <p className="mt-1 text-muted-foreground">
+            Every matching lesson is already signed. Sign another dual on one of them if this
+            flight was a retake.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" className="w-full" onClick={() => { applyLessonSeed(lessonId); setOpen(true); }}>
+          <PenLine className="size-4" /> Grade another dual
+        </Button>
       </div>
     );
   }
@@ -307,9 +371,11 @@ function LessonGrader({
       <div className="space-y-2 rounded-md border p-3">
         <div className="text-sm">
           <span className="text-muted-foreground">{courseName} · next up</span>
-          <div className="font-medium">{suggested?.name}</div>
+          <div className="font-medium">
+            {(lessons.find((l) => l.id === lessonId) ?? suggested)?.name}
+          </div>
         </div>
-        <Button size="sm" variant="outline" className="w-full" onClick={() => setOpen(true)}>
+        <Button size="sm" variant="outline" className="w-full" onClick={() => { applyLessonSeed(lessonId); setOpen(true); }}>
           <PenLine className="size-4" /> Grade this lesson
         </Button>
       </div>
@@ -330,12 +396,13 @@ function LessonGrader({
           id={`lesson-${enrollmentId}`}
           className="h-9 w-full rounded-md border bg-background px-2 text-sm"
           value={lessonId}
-          onChange={(e) => setLessonId(Number(e.target.value))}
+          onChange={(e) => applyLessonSeed(Number(e.target.value))}
         >
           {lessons.map((l) => (
             <option key={l.id} value={l.id}>
               {l.complete ? "✓ " : ""}
               {l.stageName} · {l.name}
+              {lessonHeldOnOtherBooking(l, r.id) ? " (takes over other flight draft)" : ""}
             </option>
           ))}
         </select>
@@ -420,15 +487,39 @@ function LessonGrader({
 
       {warning ? <p className="text-sm text-amber-600">{warning}</p> : null}
       {error ? <p className="text-sm text-destructive">{error.message}</p> : null}
+      {lesson?.complete ? (
+        <p className="text-sm text-muted-foreground">
+          This lesson is already signed. Signing again records another dual for this flight.
+        </p>
+      ) : null}
+      {heldElsewhere ? (
+        <p className="text-sm text-muted-foreground">
+          An unsigned draft for this lesson is on another flight. Sign takes it over for this
+          booking and uses these hours.
+        </p>
+      ) : null}
 
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" className="flex-1" disabled={busy} onClick={() => setOpen(false)}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          disabled={busy}
+          onClick={() => {
+            setOpen(false);
+            if (suggested) setLessonId(suggested.id);
+          }}
+        >
           Cancel
         </Button>
         <Button
           size="sm"
           className="flex-1"
-          disabled={busy || !lessonId || (needsNotes && !notes.trim())}
+          disabled={
+            busy ||
+            !lessonId ||
+            (needsNotes && !notes.trim())
+          }
           onClick={async () => {
             const saved = await save.mutateAsync({
               enrollmentId,
@@ -438,16 +529,11 @@ function LessonGrader({
               flightDeciHours: toDeci(flight),
               instructionDeciHours: toDeci(ground),
               simulatorDeciHours: showSim ? toDeci(sim) : undefined,
-              //Omitted when the lesson has no tasks: an empty array means "clear them all"
-              //server-side, and a form that never showed a task list must not wipe grades
-              //somebody entered on the phone.
               ...(tasks.length ? { taskGrades: taskGradePayload(taskMarks) } : {}),
-              //The link back to the booking this came from. It is what makes the record
-              //traceable to the flight, and what lets the record survive the booking
-              //being deleted later.
               reservationId: r.id,
+              ...(lesson?.recordId ? { recordId: lesson.recordId } : {}),
             });
-            if (saved.warning) setWarning(saved.warning);
+            if (saved.warning) toast.message(saved.warning);
             await sign.mutateAsync({ recordId: saved.id });
             setDone(true);
           }}

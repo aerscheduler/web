@@ -153,7 +153,11 @@ function TrainingPage() {
                   }
                   icon={Lock}
                 />
-                <StatCard label="Students in training" value={active.length} icon={GraduationCap} />
+                <StatCard
+                  label="Students in training"
+                  value={enrollments.isError ? "-" : active.length}
+                  icon={GraduationCap}
+                />
                 <StatCard
                   label="Part 141 courses"
                   value={teaching.filter((c) => c.regulatoryPart === "part141").length}
@@ -413,6 +417,7 @@ function ActiveStudents({ loading }: { loading: boolean }) {
   const enrollments = useEnrollments({ status: "enrolled" });
   const rows = enrollments.data ?? [];
   if (loading || enrollments.isLoading) return <CardGridSkeleton count={1} />;
+  if (enrollments.isError) return <ErrorState error={enrollments.error} />;
 
   // Its own section now, so "nobody is on a course" has to be stated rather than
   // rendering nothing, an empty pane reads as a page that failed to load.
@@ -447,7 +452,10 @@ function ActiveStudents({ loading }: { loading: boolean }) {
               <span className="ml-2 text-xs">{e.courseVersion?.label}</span>
             </span>
             <Badge variant="outline">{STATUS_LABEL[e.status]}</Badge>
-            <span className="text-xs text-muted-foreground">{e._count?.lessonRecords ?? 0} lessons</span>
+            <span className="text-xs text-muted-foreground">
+              {e.lessonsComplete ?? e._count?.lessonRecords ?? 0}
+              {e.lessonsTotal != null ? ` of ${e.lessonsTotal}` : ""} complete
+            </span>
           </Link>
         ))}
       </div>

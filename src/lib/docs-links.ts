@@ -81,7 +81,7 @@ export const DOCS_TOPICS = {
   "grading-scale": {
     title: "Grading scale",
     summary:
-      "The marks this course uses, and which of them count a lesson as complete. Grading from a flight close-out only ever offers S, U and I, so a custom scale has to be graded from the training record or the iOS app.",
+      "The marks this course uses, and which of them count a lesson as complete. Close-out, the training record, and the iOS app all offer this same scale.",
     href: "training/set-the-grading-scale",
   },
   "enrollment-fee": {

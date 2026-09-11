@@ -9,6 +9,7 @@ import {
   Target,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 import type { CourseRequirement, CourseStage, CourseVersion, GradeOption, SyllabusLesson } from "@/types/api";
 import { gradeCodesOf } from "@/types/api";
 import {
@@ -98,7 +99,13 @@ export function SyllabusEditor({ version }: { version: CourseVersion }) {
                   ) {
                     return;
                   }
-                  deleteStage.mutate({ versionId: version.id, stageId: stage.id });
+                  deleteStage.mutate(
+                    { versionId: version.id, stageId: stage.id },
+                    {
+                      onError: (err) =>
+                        toast.error(err instanceof Error ? err.message : "Couldn't delete that stage"),
+                    }
+                  );
                 }}
               >
                 <Trash2 className="size-3.5" />
@@ -117,7 +124,15 @@ export function SyllabusEditor({ version }: { version: CourseVersion }) {
                   requirements={version.requirements}
                   onEdit={() => setLessonDialog({ stageId: stage.id, lesson })}
                   onTasks={() => setTaskDialog(lesson)}
-                  onDelete={() => deleteLesson.mutate({ versionId: version.id, lessonId: lesson.id })}
+                  onDelete={() =>
+                    deleteLesson.mutate(
+                      { versionId: version.id, lessonId: lesson.id },
+                      {
+                        onError: (err) =>
+                          toast.error(err instanceof Error ? err.message : "Couldn't delete that lesson"),
+                      }
+                    )
+                  }
                 />
               ))}
               <button
@@ -391,22 +406,26 @@ function LessonDialog({
       footer={<><Button
             disabled={!name.trim() || save.isPending || !state}
             onClick={async () => {
-              await save.mutateAsync({
-                versionId: version.id,
-                lessonId: lesson?.id,
-                stageId: state!.stageId,
-                name: name.trim(),
-                position: lesson?.position ?? (stage?.lessons.length ?? 0) + 1,
-                kind,
-                objectives: objectives.trim() || null,
-                completionStandards: standards.trim() || null,
-                minFlightDeciHours: toDeci(flight),
-                minGroundDeciHours: toDeci(ground),
-                requiresSignoff: signoff,
-                requiresNotes: notes,
-                isStageCheck: stage?.requiresStageCheck ? stageCheck : false,
-                credits,
-              });
+              try {
+                await save.mutateAsync({
+                  versionId: version.id,
+                  lessonId: lesson?.id,
+                  stageId: state!.stageId,
+                  name: name.trim(),
+                  position: lesson?.position ?? (stage?.lessons.length ?? 0) + 1,
+                  kind,
+                  objectives: objectives.trim() || null,
+                  completionStandards: standards.trim() || null,
+                  minFlightDeciHours: toDeci(flight),
+                  minGroundDeciHours: toDeci(ground),
+                  requiresSignoff: signoff,
+                  requiresNotes: notes,
+                  isStageCheck: stage?.requiresStageCheck ? stageCheck : false,
+                  credits,
+                });
+              } catch {
+                return;
+              }
               setSeeded(null);
               onClose();
             }}
@@ -677,7 +696,15 @@ export function RequirementsEditor({ version }: { version: CourseVersion }) {
                   size="sm"
                   variant="ghost"
                   className="text-destructive hover:text-destructive"
-                  onClick={() => remove.mutate({ versionId: version.id, requirementId: r.id })}
+                  onClick={() =>
+                    remove.mutate(
+                      { versionId: version.id, requirementId: r.id },
+                      {
+                        onError: (err) =>
+                          toast.error(err instanceof Error ? err.message : "Couldn't delete that requirement"),
+                      }
+                    )
+                  }
                 >
                   <Trash2 className="size-3.5" />
                 </Button>
@@ -829,31 +856,38 @@ function RequirementDialog({
     return v.trim() === "" || !Number.isFinite(n) || n <= 0 ? null : Math.round(n);
   };
 
+  const amountN = Number(amount);
+  const amountDeci = measure === "hours" ? Math.round(amountN * 10) : Math.round(amountN);
+  const amountOk = amount.trim() !== "" && Number.isFinite(amountN) && amountDeci > 0;
+
   return (
     <ResponsiveModal
       open={!!state} onOpenChange={(o) => !o && (setSeeded(null), onClose())}
       title={req ? "Edit requirement" : "Add requirement"}
       description="Something the student has to build up: 40 hours total, 3 hours night, 10 towered landings."
       footer={<><Button
-            disabled={!code.trim() || !label.trim() || save.isPending}
+            disabled={!code.trim() || !label.trim() || !amountOk || save.isPending}
             onClick={async () => {
-              const n = Number(amount);
-              await save.mutateAsync({
-                versionId,
-                requirementId: req?.id,
-                code: code.trim(),
-                label: label.trim(),
-                minDeciHours: measure === "hours" && amount.trim() ? Math.round(n * 10) : null,
-                minCount: measure === "count" && amount.trim() ? Math.round(n) : null,
-                source,
-                maxSimulatorBps: measure === "hours" ? pct(simCap) : null,
-                maxTransferBps: measure === "hours" ? pct(transferCap) : null,
-                //Sent unconditionally. The server writes this field whether or not it
-                //arrives, so leaving it out of the body does not mean "leave it alone".
-                //it means "clear it". Editing a requirement's label used to silently
-                //delete its recency window, and nothing said the value had ever existed.
-                recencyCalendarMonths: whole(recency),
-              });
+              try {
+                await save.mutateAsync({
+                  versionId,
+                  requirementId: req?.id,
+                  code: code.trim(),
+                  label: label.trim(),
+                  minDeciHours: measure === "hours" ? amountDeci : null,
+                  minCount: measure === "count" ? amountDeci : null,
+                  source,
+                  maxSimulatorBps: measure === "hours" ? pct(simCap) : null,
+                  maxTransferBps: measure === "hours" ? pct(transferCap) : null,
+                  //Sent unconditionally. The server writes this field whether or not it
+                  //arrives, so leaving it out of the body does not mean "leave it alone".
+                  //it means "clear it". Editing a requirement's label used to silently
+                  //delete its recency window, and nothing said the value had ever existed.
+                  recencyCalendarMonths: whole(recency),
+                });
+              } catch {
+                return;
+              }
               setSeeded(null);
               onClose();
             }}

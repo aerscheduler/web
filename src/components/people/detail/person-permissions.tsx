@@ -95,11 +95,19 @@ function PermissionsBody({
   const scopedFor = (g: string) => permissions.scoped.filter((s) => s.grant === g);
   const impliedFor = (option: GrantOption) =>
     option.impliedBy.filter((r) => permissions.roles.includes(r));
+  const staff = permissions.roles.some(
+    (r) => r === "owner" || r === "admin" || r === "instructor" || r === "dispatcher"
+  );
+  const staffOnlyGrant = (grant: string) =>
+    grant === "configureTraining" || grant === "manageEnrollment" || grant === "checkInstructor";
 
   /** The row's state, decided once so the badge and the control cannot disagree. */
-  function stateOf(option: GrantOption): "given" | "fromRole" | "notYet" {
+  function stateOf(option: GrantOption): "given" | "fromRole" | "notYet" | "staffOnly" {
     if (impliedFor(option).length > 0) return "fromRole";
     if (!option.enforced) return "notYet";
+    if (!staff && staffOnlyGrant(option.grant) && !held.has(option.grant) && scopedFor(option.grant).length === 0) {
+      return "staffOnly";
+    }
     return "given";
   }
 
@@ -130,7 +138,7 @@ function PermissionsBody({
       // Rows that neither apply to this person nor can be given to them are hidden
       // unless asked for. A search reaches them regardless: somebody typing the name of
       // a permission is asking about that permission, not about this filter.
-      if (!showOthers && !q && stateOf(o) === "notYet") return false;
+      if (!showOthers && !q && (stateOf(o) === "notYet" || stateOf(o) === "staffOnly")) return false;
       if (wantDomains.length && !wantDomains.includes(o.domain)) return false;
       if (filters.held === true && !held.has(o.grant)) return false;
       if (filters.held === false && held.has(o.grant)) return false;
@@ -149,7 +157,7 @@ function PermissionsBody({
 
   /** How many the default view is holding back, so the toggle can say so plainly. */
   const hiddenCount = useMemo(
-    () => catalog.filter((o) => stateOf(o) === "notYet").length,
+    () => catalog.filter((o) => stateOf(o) === "notYet" || stateOf(o) === "staffOnly").length,
     [catalog, permissions]
   );
 
@@ -260,9 +268,13 @@ function PermissionsBody({
 
                     {state === "fromRole" ? (
                       <Switch checked disabled aria-label={`${option.label}, from their role`} />
-                    ) : state === "notYet" ? (
+                    ) : state === "notYet" || state === "staffOnly" ? (
                       <div className="flex shrink-0 flex-wrap justify-end gap-1 pt-0.5">
-                        {option.impliedBy.length === 0 ? (
+                        {state === "staffOnly" ? (
+                          <Badge variant="outline" className="text-[10px]">
+                            Staff only
+                          </Badge>
+                        ) : option.impliedBy.length === 0 ? (
                           <Badge variant="outline" className="text-[10px]">
                             Not yet available
                           </Badge>
@@ -276,8 +288,8 @@ function PermissionsBody({
                       </div>
                     ) : (
                       <Switch
-                        checked={held.has(option.grant)}
-                        disabled={busy}
+                        checked={held.has(option.grant) || scoped.length > 0}
+                        disabled={busy || (scoped.length > 0 && !held.has(option.grant))}
                         aria-label={option.label}
                         onCheckedChange={(next) => {
                           if (next && needsConfirming(option)) setConfirming(option);

@@ -22,9 +22,10 @@ import {
   useMembers,
   usePublishCourseVersion,
   useRetireCourseVersion,
+  useMyTrainingGrants,
 } from "@/features/queries";
 import { guardRoute } from "@/lib/permissions";
-import { LESSON_KIND_LABEL, PART_LABEL, deciHoursLabel } from "@/lib/training";
+import { LESSON_KIND_LABEL, PART_LABEL, deciHoursLabel, holdsTrainingGrant } from "@/lib/training";
 import { rolesOf } from "@/types/api";
 import type { CourseRequirement, CourseVersion, SyllabusLesson } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
@@ -54,6 +55,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 
 //A top-level route (`training_.` breaks the nesting) rather than a child of /training,
 //so Back from here goes to wherever the user came from and never materialises a list
@@ -126,7 +128,7 @@ function CourseDetailPage() {
           subtitle={c.description ?? undefined}
           actions={
             <div className="flex flex-wrap gap-2">
-              {selected ? <EnrollDialog versionId={selected} courseName={c.name} /> : null}
+              {selected && !c.archivedAt ? <EnrollDialog versionId={selected} courseName={c.name} /> : null}
               {selected && version.data && !version.data.publishedAt ? (
                 <>
                   <PublishDialog version={version.data} />
@@ -200,14 +202,14 @@ function CourseDetailPage() {
                 (version.data.publishedAt ? (
                   <SyllabusView version={version.data} />
                 ) : (
-                  <SyllabusEditor version={version.data} />
+                  <SyllabusEditor key={version.data.id} version={version.data} />
                 ))}
 
               {active === "requirements" &&
                 (version.data.publishedAt ? (
                   <RequirementsView version={version.data} />
                 ) : (
-                  <RequirementsEditor version={version.data} />
+                  <RequirementsEditor key={version.data.id} version={version.data} />
                 ))}
 
               {active === "students" && (
@@ -410,6 +412,7 @@ function StudentsView({ courseId }: { courseId: number }) {
   const rows = enrollments.data ?? [];
 
   if (enrollments.isLoading) return <Skeleton className="h-32 w-full" />;
+  if (enrollments.isError) return <ErrorState error={enrollments.error} />;
   if (rows.length === 0) {
     return (
       <EmptyState
@@ -433,7 +436,10 @@ function StudentsView({ courseId }: { courseId: number }) {
           <span className="min-w-0 flex-1 truncate font-medium">{e.student?.user?.name ?? "Unknown"}</span>
           <span className="text-xs text-muted-foreground">{e.courseVersion?.label}</span>
           <Badge variant={e.status === "graduated" ? "secondary" : "outline"}>{e.status}</Badge>
-          <span className="text-xs text-muted-foreground">{e._count?.lessonRecords ?? 0} lessons</span>
+          <span className="text-xs text-muted-foreground">
+            {e.lessonsComplete ?? e._count?.lessonRecords ?? 0}
+            {e.lessonsTotal != null ? ` of ${e.lessonsTotal}` : ""} complete
+          </span>
         </Link>
       ))}
     </Card>
@@ -550,6 +556,10 @@ function EnrollDialog({ versionId, courseName }: { versionId: number; courseName
   const [orgUserId, setOrgUserId] = useState<string>("");
   const members = useMembers(undefined, { enabled: open });
   const enroll = useEnrollStudent();
+  //POST /training/enrollments is manageEnrollment. Fail closed while grants load so a
+  //syllabus editor is not offered a button the API will 403.
+  const mine = useMyTrainingGrants();
+  if (!holdsTrainingGrant(mine.data, "manageEnrollment")) return null;
 
   //Students first (they are who gets enrolled) but not students ONLY: schools put
   //instructors through their own courses (a CFI adding an instrument rating), and a roster
@@ -634,7 +644,13 @@ function RetireButton({ version }: { version: CourseVersion }) {
         ) {
           return;
         }
-        retire.mutate({ versionId: version.id, retired: !retired });
+        retire.mutate(
+          { versionId: version.id, retired: !retired },
+          {
+            onError: (err) =>
+              toast.error(err instanceof Error ? err.message : "Couldn't update that version"),
+          }
+        );
       }}
     >
       <Archive className="size-4" /> {retired ? "Un-retire" : "Retire"}

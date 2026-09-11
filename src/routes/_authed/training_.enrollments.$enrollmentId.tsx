@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   AlertTriangle,
@@ -27,7 +27,9 @@ import {
   useMyTrainingGrants,
   useReverseRequirementCredit,
 } from "@/features/queries";
-import { guardRoute } from "@/lib/permissions";
+import { toast } from "sonner";
+import { canAccess, guardRoute } from "@/lib/permissions";
+import { rolesFromSession, useAuth } from "@/lib/auth";
 import { holdsTrainingGrant } from "@/lib/training";
 import { AddCreditDialog } from "@/components/training/credit-dialog";
 import { TaskGradeList, taskGradeMap, taskGradePayload } from "@/components/training/task-grades";
@@ -40,6 +42,9 @@ import {
   creditedLabel,
   deciHours,
   deciHoursLabel,
+  ledgerDateLabel,
+  logbookDayFromIso,
+  logbookDayToOccurredAt,
   nextLessonId,
   recordState,
   requiredLabel,
@@ -55,6 +60,7 @@ import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-ra
 import { EmptyState, ErrorState } from "@/components/states";
 import { EndorsementsCard } from "@/components/training/endorsements-card";
 import { EnrollmentFeeCard } from "@/components/training/enrollment-fee-card";
+import { ToCountersign } from "@/components/training/to-countersign";
 import { PaceBadge } from "@/components/training/pace-badge";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -108,6 +114,7 @@ function EnrollmentPage() {
   const { enrollmentId } = Route.useParams();
   const { tab } = Route.useSearch();
   const navigate = Route.useNavigate();
+  const { orgUserId } = useAuth();
   const progress = useEnrollmentProgress(Number(enrollmentId));
 
   const active = SECTIONS[0]!.items.some((i) => i.value === tab) ? tab! : "overview";
@@ -127,7 +134,7 @@ function EnrollmentPage() {
     <TableView className="gap-5">
       <TableView.Header>
         <Button asChild variant="ghost" size="sm" className="-ml-2">
-          <Link to="/training">
+          <Link to={canAccess("/training", rolesFromSession()) ? "/training" : "/me/training"}>
             <ArrowLeft className="size-4" /> Training
           </Link>
         </Button>
@@ -161,6 +168,8 @@ function EnrollmentPage() {
           className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto"
           data-doc-shot={active === "overview" ? "enrollment-overview" : undefined}
         >
+          {orgUserId === e.studentOrgUserId ? <ToCountersign progress={p} /> : null}
+
           {active === "overview" && (
             <>
               <Card className="p-4">
@@ -216,11 +225,11 @@ function EnrollmentPage() {
 
           {active === "requirements" && (
             <>
-              {/* Recording prior training is the first thing a switching school needs to do
-                  and there was no way to do it in this console at all. */}
-              <div className="flex justify-end">
-                <AddCreditDialog enrollmentId={p.enrollment.id} standings={p.standings} />
-              </div>
+              {p.enrollment.status === "enrolled" && (
+                <div className="flex justify-end">
+                  <AddCreditDialog enrollmentId={p.enrollment.id} standings={p.standings} />
+                </div>
+              )}
               <RequirementsProgress standings={p.standings} />
             </>
           )}
@@ -343,7 +352,7 @@ function LessonsTab({ progress }: { progress: EnrollmentProgress }) {
                     <Badge variant="outline" className="hidden sm:inline-flex">
                       {LESSON_KIND_LABEL[lesson.kind]}
                     </Badge>
-                    {editable ? (
+                    {editable && !complete ? (
                       <GradeDialog
                         progress={p}
                         lesson={lesson}
@@ -360,6 +369,9 @@ function LessonsTab({ progress }: { progress: EnrollmentProgress }) {
                           record={r}
                           superseded={superseded.has(r.id)}
                           editable={editable}
+                          lessonComplete={complete}
+                          requiresSignoff={lesson.requiresSignoff}
+                          requiresNotes={lesson.requiresNotes === true}
                         />
                       ))}
                     </div>
@@ -378,12 +390,18 @@ function RecordRow({
   record,
   superseded,
   editable,
+  lessonComplete: _lessonComplete,
+  requiresSignoff,
+  requiresNotes,
 }: {
   record: LessonRecord;
   superseded: boolean;
   editable: boolean;
+  lessonComplete: boolean;
+  requiresSignoff: boolean;
+  requiresNotes: boolean;
 }) {
-  const state = recordState(record);
+  const state = recordState({ ...record, requiresSignoff });
   const sign = useSignLessonRecord();
 
   return (
@@ -412,8 +430,16 @@ function RecordRow({
           size="sm"
           variant="outline"
           className="h-6 px-2 text-xs"
-          disabled={!record.grade || sign.isPending}
-          onClick={() => sign.mutate({ recordId: record.id })}
+          disabled={!record.grade || sign.isPending || (requiresNotes && !record.notes?.trim())}
+          onClick={() =>
+            sign.mutate(
+              { recordId: record.id },
+              {
+                onError: (err) =>
+                  toast.error(err instanceof Error ? err.message : "Couldn't sign that lesson"),
+              }
+            )
+          }
         >
           <FileSignature className="size-3" /> Sign
         </Button>
@@ -463,13 +489,38 @@ function GradeDialog({
   const [sim, setSim] = useState(
     existing?.simulatorDeciHours != null ? (existing.simulatorDeciHours / 10).toFixed(1) : ""
   );
-  const showSim = lesson.kind === "sim" || existing?.simulatorDeciHours != null;
+  const showSim = lesson.kind === "sim" || lesson.kind === "flight" || existing?.simulatorDeciHours != null;
   const needsNotes = lesson.requiresNotes === true;
   const tasks = lesson.tasks ?? [];
   const [taskMarks, setTaskMarks] = useState(() => taskGradeMap(existing?.taskGrades));
+  const todayLocal = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const dayFromIso = (iso?: string | null) => logbookDayFromIso(iso, todayLocal);
+  const [occurredOn, setOccurredOn] = useState(() => dayFromIso(existing?.occurredAt));
 
   const save = useSaveLessonRecord();
   const sign = useSignLessonRecord();
+
+  const seedForm = () => {
+    setGrade(existing?.grade ?? scale[0] ?? "S");
+    setFlight(
+      deciHours(existing?.flightDeciHours ?? lesson.minFlightDeciHours ?? null).replace("–", "")
+    );
+    setGround(
+      deciHours(existing?.instructionDeciHours ?? lesson.minGroundDeciHours ?? null).replace("–", "")
+    );
+    setNotes(existing?.notes ?? "");
+    setSim(
+      existing?.simulatorDeciHours != null ? (existing.simulatorDeciHours / 10).toFixed(1) : ""
+    );
+    setTaskMarks(taskGradeMap(existing?.taskGrades));
+    setOccurredOn(dayFromIso(existing?.occurredAt));
+    setWarning(null);
+    save.reset();
+    sign.reset();
+  };
 
   const toDeci = (v: string): number | null => {
     const n = Number(v);
@@ -477,6 +528,9 @@ function GradeDialog({
   };
 
   const submit = async (thenSign: boolean) => {
+    if (needsNotes && !notes.trim() && (thenSign || lesson.requiresSignoff === false)) {
+      return;
+    }
     const saved = await save.mutateAsync({
       enrollmentId: progress.enrollment.id,
       lessonId: lesson.id,
@@ -486,16 +540,27 @@ function GradeDialog({
       flightDeciHours: toDeci(flight),
       instructionDeciHours: toDeci(ground),
       simulatorDeciHours: showSim ? toDeci(sim) : undefined,
+      occurredAt: occurredOn ? logbookDayToOccurredAt(occurredOn) : undefined,
       //Absent when the lesson has no tasks, because an empty array MEANS "clear them all"
       //server-side. Sending one from a form that never showed a task list would wipe grades
       //the phone had written.
       ...(tasks.length ? { taskGrades: taskGradePayload(taskMarks) } : {}),
     });
-    if (saved.warning && !thenSign) {
+    //A sign-off-optional passing save stamps the instructor and posts hours, so staying
+    //open for the Part 141 warning would 409 the next Save. Surface the warning and close.
+    if (saved.warning && !thenSign && !saved.signed) {
       setWarning(saved.warning);
       return;
     }
-    if (thenSign) await sign.mutateAsync({ recordId: saved.id });
+    if (saved.warning && saved.signed && !thenSign) {
+      toast.message(saved.warning);
+    }
+    if (thenSign) {
+      await sign.mutateAsync({
+        recordId: saved.id,
+        occurredAt: occurredOn ? logbookDayToOccurredAt(occurredOn) : undefined,
+      });
+    }
     setOpen(false);
     setWarning(null);
   };
@@ -505,19 +570,25 @@ function GradeDialog({
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} size="sm" variant="ghost" className="h-7 px-2">
+      <Button onClick={() => { seedForm(); setOpen(true); }} size="sm" variant="ghost" className="h-7 px-2">
           <PenLine className="size-3.5" /> {existing ? "Continue" : "Grade"}
         </Button>
       <ResponsiveModal
-      open={open} onOpenChange={setOpen}
+      open={open} onOpenChange={(o) => { setOpen(o); if (o) seedForm(); }}
       title={lesson.name}
       description={lesson.completionStandards ?? "Record what happened and sign it."}
-      footer={<><Button variant="outline" disabled={busy} onClick={() => submit(false)}>
+      footer={<>          <Button
+            type="button"
+            variant="outline"
+            disabled={busy || (needsNotes && !notes.trim() && lesson.requiresSignoff === false)}
+            onClick={() => submit(false)}
+          >
             Save draft
           </Button>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
+                type="button"
                 disabled={busy || (needsNotes && !notes.trim())}
                 onClick={() => submit(true)}
               >
@@ -577,6 +648,20 @@ function GradeDialog({
               aircraft time and the ceiling never sees them. Saying so here is the
               difference between a Part 141 course that stays inside Appendix B and one
               that quietly does not. */}
+          <div className="space-y-1">
+            <Label htmlFor="lesson-date">When it was flown</Label>
+            <Input
+              id="lesson-date"
+              type="date"
+              value={occurredOn}
+              max={todayLocal}
+              onChange={(e) => setOccurredOn(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Recency is judged on this day, not on when you press Sign.
+            </p>
+          </div>
+
           {showSim && (
             <div className="space-y-1">
               <Label htmlFor="sim-hrs">Of which, simulator hours</Label>
@@ -599,8 +684,9 @@ function GradeDialog({
           <div className="space-y-1">
             {/* A lesson can be marked "Notes required" in the syllabus. The server refuses
                 to sign one without them, so a Save and sign that could only fail is worth
-                disabling rather than leaving to be discovered. Save draft stays open: a
-                half-written record is exactly what a draft is for. */}
+                disabling rather than leaving to be discovered. Save draft stays open on a
+                lesson that still requires sign-off. On a sign-off-optional lesson a passing
+                Save draft is the signature, so notes are required there too. */}
             <Label htmlFor="record-notes">
               Notes{needsNotes && <span className="ml-1 text-muted-foreground">(required)</span>}
             </Label>
@@ -748,7 +834,9 @@ function LedgerTab({ progress }: { progress: EnrollmentProgress }) {
               </span>
             ) : null}
             <span className="text-xs text-muted-foreground">
-              {new Date(c.createdAt).toLocaleDateString()}
+              {c.occurredAt
+                ? ledgerDateLabel(c.occurredAt, c.lessonRecordId != null)
+                : new Date(c.createdAt).toLocaleDateString()}
             </span>
             {/* Only entries posted BY HAND get the button. A credit that came from a signed
                 lesson is taken back by amending the lesson, which reverses it for you and
@@ -784,6 +872,7 @@ function ReverseCreditDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
+  const reversing = useRef(false);
   const reverse = useReverseRequirementCredit();
 
   return (
@@ -803,9 +892,15 @@ function ReverseCreditDialog({
           <Button
             disabled={reason.trim().length < 3 || reverse.isPending}
             onClick={async () => {
-              await reverse.mutateAsync({ creditId, reason: reason.trim() });
-              setOpen(false);
-              setReason("");
+              if (reversing.current) return;
+              reversing.current = true;
+              try {
+                await reverse.mutateAsync({ creditId, reason: reason.trim() });
+                setOpen(false);
+                setReason("");
+              } finally {
+                reversing.current = false;
+              }
             }}
           >
             Reverse
@@ -860,10 +955,14 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
       footer={<><Button
             disabled={graduate.isPending}
             onClick={async () => {
-              await graduate.mutateAsync({
-                enrollmentId: progress.enrollment.id,
-                graduationCertificateNumber: certificate.trim() || undefined,
-              });
+              try {
+                await graduate.mutateAsync({
+                  enrollmentId: progress.enrollment.id,
+                  graduationCertificateNumber: certificate.trim() || undefined,
+                });
+              } catch {
+                return;
+              }
               setOpen(false);
             }}
           >
@@ -908,28 +1007,44 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
   const mine = useMyTrainingGrants();
 
   const e = progress.enrollment;
+  const { isAdmin } = useAuth();
   if (e.status !== "enrolled") return null;
 
-  //Every action below is `hasTrainingGrant("manageEnrollment")` on the server. This page
-  //is open to any member, a student reads their own record here, and their instructor
-  //reads it too, so offering these unconditionally put a "Graduate" button in front of
-  //the student it would graduate. Fails closed while the grants load.
-  if (!holdsTrainingGrant(mine.data, "manageEnrollment")) return null;
-
   const is141 = e.courseVersion.course.regulatoryPart === "part141";
+  const courseId = e.courseVersion.course.id;
+  //Graduate / end stay on manageEnrollment. Certify is checkInstructor or admin, matching
+  //POST /training/enrollments/:id/certify. Fails closed while grants load.
+  const canManage = holdsTrainingGrant(mine.data, "manageEnrollment");
+  const canCertify = isAdmin || holdsTrainingGrant(mine.data, "checkInstructor", courseId);
+  if (!canManage && !(is141 && !e.certifiedAt && canCertify)) return null;
 
   return (
     <div className="flex flex-wrap gap-2">
       {/* §141.85, the chief instructor certifying the record. Only shown for Part 141,
           because under Part 61 nobody is asking for it and a button that means nothing is
           a button somebody will press anyway. */}
-      {is141 && !e.certifiedAt ? (
-        <Button variant="outline" disabled={certify.isPending} onClick={() => certify.mutate(e.id)}>
+      {is141 && !e.certifiedAt && canCertify ? (
+        <Button
+          variant="outline"
+          disabled={certify.isPending}
+          onClick={() =>
+            certify.mutate(e.id, {
+              onError: (err) =>
+                toast.error(err instanceof Error ? err.message : "Couldn't certify that record"),
+            })
+          }
+        >
           <FileSignature className="size-4" /> Certify record
         </Button>
       ) : null}
 
+      {canManage ? (
+        <>
       <GraduateButton progress={progress} />
+
+      <Button variant="outline" onClick={() => setEnding("terminated")}>
+        End enrollment
+      </Button>
 
       <ResponsiveModal
       open={!!ending} onOpenChange={(o) => !o && setEnding(null)}
@@ -939,7 +1054,11 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
       footer={<><Button
               disabled={end.isPending || !ending}
               onClick={async () => {
-                await end.mutateAsync({ enrollmentId: e.id, status: ending!, reason: reason.trim() || undefined });
+                try {
+                  await end.mutateAsync({ enrollmentId: e.id, status: ending!, reason: reason.trim() || undefined });
+                } catch {
+                  return;
+                }
                 setEnding(null);
                 setReason("");
               }}
@@ -983,6 +1102,8 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
 
           {end.error ? <p className="text-sm text-destructive">{(end.error as Error).message}</p> : null}
     </ResponsiveModal>
+        </>
+      ) : null}
     </div>
   );
 }

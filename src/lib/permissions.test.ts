@@ -138,11 +138,22 @@ describe("routes deliberately left on roles", () => {
     expect(canAccess("/training", ["instructor"], grantsFor(["instructor"]))).toBe(true);
   });
 
-  it("keeps /training open to a dispatcher holding no training grant", () => {
+  it("hides /training from a dispatcher holding no training grant", () => {
     const roles: Role[] = ["dispatcher"];
     expect(isStaff(roles)).toBe(true);
     expect(grantsFor(roles).has("configureTraining")).toBe(false);
-    expect(canAccess("/training", roles, grantsFor(roles))).toBe(true);
+    expect(canAccess("/training", roles, grantsFor(roles))).toBe(false);
+  });
+
+  it("lets a dispatcher with manageEnrollment open /training", () => {
+    expect(canAccess("/training", ["dispatcher"], new Set(["manageEnrollment"]))).toBe(true);
+  });
+
+  it("lets training grants open /training without a staff or instructor role", () => {
+    expect(canAccess("/training", ["student"], new Set(["auditor"]))).toBe(true);
+    expect(canAccess("/training", ["student"], new Set(["configureTraining"]))).toBe(true);
+    expect(canAccess("/training", ["student"], new Set(["manageEnrollment"]))).toBe(true);
+    expect(canAccess("/training", ["student"], new Set())).toBe(false);
   });
 
   it("leaves the open pages open to everybody", () => {

@@ -1,7 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, FileSignature, Info } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { CheckCircle2, Info } from "lucide-react";
 import {
-  useCountersignLessonRecord,
   useEndorsements,
   useEnrollmentProgress,
   useEnrollments,
@@ -12,13 +11,10 @@ import {
   cappedExplanation,
   staleExplanation,
   creditedLabel,
-  deciHours,
   deciHoursLabel,
   requiredLabel,
   standingFraction,
-  supersededIds,
 } from "@/lib/training";
-import type { EnrollmentProgress } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { MY_TRAINING_RAIL } from "@/lib/my-training-sections";
 import { PageHeader } from "@/components/page-header";
@@ -26,9 +22,9 @@ import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { EmptyState, ErrorState } from "@/components/states";
 import { EndorsementsCard } from "@/components/training/endorsements-card";
+import { ToCountersign } from "@/components/training/to-countersign";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -40,8 +36,8 @@ import { Skeleton } from "@/components/ui/skeleton";
  * school sees rather than a simplified version. The one thing they can DO here is
  * countersign, which is their signature on what their instructor recorded.
  *
- * No route guard: the server already returns only this caller's own enrollments, and a
- * guard would be a second place for the rule to drift from.
+ * Staff can list every enrollment. This page always asks for THIS caller's orgUserId so
+ * an instructor who is also a student does not see classmates under My training.
  */
 export const Route = createFileRoute("/_authed/me/training")({
   validateSearch: (s: Record<string, unknown>): { tab?: string } => ({
@@ -67,7 +63,10 @@ function MyTrainingPage() {
   const navigate = Route.useNavigate();
   const { tab } = Route.useSearch();
   const { orgUserId } = useAuth();
-  const enrollments = useEnrollments();
+  const enrollments = useEnrollments(
+    orgUserId != null ? { orgUserId } : undefined,
+    { enabled: orgUserId != null },
+  );
 
   const active = tab === "endorsements" ? "endorsements" : "progress";
   const pick = (next: string) => {
@@ -125,10 +124,14 @@ function MyTrainingPage() {
 function MyEndorsements({ orgUserId }: { orgUserId: number | null }) {
   const { isStaff, roles } = useAuth();
   const canSign = isStaff || roles.includes("instructor");
-  const q = useEndorsements();
+  const q = useEndorsements(
+    orgUserId != null ? { orgUserId } : undefined,
+    { enabled: orgUserId != null },
+  );
 
   if (q.isPending) return <Skeleton className="h-40 w-full" />;
-  if (orgUserId == null || q.isError || ((q.data ?? []).length === 0 && !canSign)) {
+  if (q.isError) return <ErrorState error={q.error} />;
+  if (orgUserId == null || ((q.data ?? []).length === 0 && !canSign)) {
     return (
       <EmptyState
         graphic="endorsements"
@@ -145,6 +148,15 @@ function MyEndorsements({ orgUserId }: { orgUserId: number | null }) {
 function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
   const progress = useEnrollmentProgress(enrollmentId);
   if (progress.isLoading) return <Skeleton className="h-48 w-full" />;
+  if (progress.error) {
+    return (
+      <Card className="p-4">
+        <p className="text-sm text-destructive">
+          {(progress.error as Error).message || "Could not load this course."}
+        </p>
+      </Card>
+    );
+  }
   if (!progress.data) return null;
 
   const p = progress.data;
@@ -154,7 +166,15 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
     <Card data-doc-shot="me-training-progress" className="space-y-4 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <h2 className="font-medium">{course.name}</h2>
+          <h2 className="font-medium">
+            <Link
+              to="/training/enrollments/$enrollmentId"
+              params={{ enrollmentId: String(enrollmentId) }}
+              className="hover:underline"
+            >
+              {course.name}
+            </Link>
+          </h2>
           <p className="text-sm text-muted-foreground">
             {p.enrollment.courseVersion.label} · enrolled{" "}
             {new Date(p.enrollment.enrolledAt).toLocaleDateString()}
@@ -214,60 +234,5 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
 
       <ToCountersign progress={p} />
     </Card>
-  );
-}
-
-/**
- * The student's one write.
- *
- * Only records the instructor has signed and the student has not, and never a superseded
- * one, countersigning a record that has already been replaced would be signing something
- * that no longer counts.
- */
-function ToCountersign({ progress }: { progress: EnrollmentProgress }) {
-  const countersign = useCountersignLessonRecord();
-  const superseded = supersededIds(progress.enrollment.lessonRecords);
-
-  const lessonName = (lessonId: number) =>
-    progress.enrollment.courseVersion.stages
-      .flatMap((s) => s.lessons)
-      .find((l) => l.id === lessonId)?.name ?? "Lesson";
-
-  const waiting = progress.enrollment.lessonRecords.filter(
-    (r) => r.instructorSignedAt && !r.studentSignedAt && !superseded.has(r.id)
-  );
-
-  if (waiting.length === 0) return null;
-
-  return (
-    <div className="rounded-md border border-primary/30 bg-primary/5 p-3">
-      <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-        <FileSignature className="size-4" />
-        {waiting.length === 1 ? "A lesson needs your signature" : `${waiting.length} lessons need your signature`}
-      </div>
-      <div className="space-y-1.5">
-        {waiting.map((r) => (
-          <div key={r.id} className="flex flex-wrap items-center gap-2 text-sm">
-            <span className="min-w-0 flex-1 truncate">{lessonName(r.lessonId)}</span>
-            {r.grade ? <Badge variant="outline">{r.grade}</Badge> : null}
-            {r.flightDeciHours ? (
-              <span className="text-xs text-muted-foreground">{deciHours(r.flightDeciHours)} hrs</span>
-            ) : null}
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-7"
-              disabled={countersign.isPending}
-              onClick={() => countersign.mutate(r.id)}
-            >
-              Sign
-            </Button>
-          </div>
-        ))}
-      </div>
-      {countersign.error ? (
-        <p className="mt-2 text-sm text-destructive">{(countersign.error as Error).message}</p>
-      ) : null}
-    </div>
   );
 }

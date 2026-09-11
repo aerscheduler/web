@@ -2689,6 +2689,10 @@ export type EnrollmentSummary = {
   feeStatus?: "none" | "owed" | "invoiced";
   /** Re-exposed under a plain name; `FK_feeInvoiceId` is stripped at the response boundary. */
   feeInvoiceId?: number | null;
+  /** Ledger-mode bill of the same fee. Also stripped unless re-exposed. */
+  feeLedgerEntryId?: number | null;
+  studentOrgUserId?: number;
+  courseVersionId?: number;
   student?: { id: number; user?: { id: number; name: string; email: string } | null } | null;
   courseVersion?: {
     id: number;
@@ -2696,6 +2700,10 @@ export type EnrollmentSummary = {
     publishedAt: string | null;
     course: { id: number; name: string; regulatoryPart: RegulatoryPart; certificateSought: string | null; enrollmentFeeCents?: number | null; enrollmentFeeLabel?: string | null };
   } | null;
+  /** Distinct lessons complete. Same rule as the training record, not a count of records. */
+  lessonsComplete?: number;
+  /** Lessons on the enrolled version. Same number getProgress reports as lessonsTotal. */
+  lessonsTotal?: number;
   _count?: { lessonRecords: number };
 };
 
@@ -2708,6 +2716,8 @@ export type LessonRecord = {
   flightDeciHours: number | null;
   instructionDeciHours: number | null;
   simulatorDeciHours: number | null;
+  /** Calendar day the flying happened, when the instructor typed one. */
+  occurredAt?: string | null;
   instructorSignedAt: string | null;
   studentSignedAt: string | null;
   createdAt: string;
@@ -2722,6 +2732,8 @@ export type LessonRecord = {
 export type RequirementCredit = {
   id: number;
   createdAt: string;
+  /** When the training happened. Recency and the ledger date use this, not createdAt. */
+  occurredAt?: string | null;
   deciHours: number | null;
   count: number | null;
   source: "lesson" | "transfer_141" | "transfer_61" | "simulator" | "manual" | "reversal";
@@ -2845,6 +2857,25 @@ export type CandidateLesson = Pick<
   stagePosition: number;
   complete: boolean;
   /**
+   * Unsigned draft for this lesson, when one already exists. The close-out grader
+   * sends this as recordId so a second Sign does not create a second row.
+   */
+  recordId?: number | null;
+  /**
+   * Body of that unsigned draft. Close-out hydrates the form from this so Sign
+   * cannot wipe notes, hours or task marks written on the phone.
+   */
+  draft?: {
+    grade?: string | null;
+    notes?: string | null;
+    flightDeciHours?: number | null;
+    instructionDeciHours?: number | null;
+    simulatorDeciHours?: number | null;
+    /** Booking this unsigned row is already linked to, if any. */
+    reservationId?: number | null;
+    taskGrades?: { lessonTaskId: number; grade: string }[];
+  } | null;
+  /**
    * The ACS tasks this lesson is made of, in syllabus order. Each one can carry its own
    * grade on the record, which is what `taskGrades` refers to.
    *
@@ -2876,6 +2907,13 @@ export type CandidateEnrollment = {
   gradingScale?: string[] | null;
   gradeOptions?: GradeOption[] | null;
   lessons: CandidateLesson[];
+  /**
+   * Bookings that already have a signed lesson record on this enrollment. The close-out
+   * matches these against the sheet it is on so a reload still counts the flight as graded.
+   */
+  gradedReservationIds?: number[];
+  /** Same bookings, with the lesson that was signed, so the folded card can name it. */
+  gradedOn?: { reservationId: number; lessonId: number; lessonName: string }[];
 };
 
 /** One of the four grants, as the server describes it. */

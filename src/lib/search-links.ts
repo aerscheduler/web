@@ -201,6 +201,9 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
     case "endorsement":
       // No page of its own, it's a card on a person, exactly like a currency or a
       // document, so it follows the same self-vs-someone-else rule those two do.
-      return isMine ? { to: "/me/training" } : memberPage;
+      // My training is two tabs; without `tab=endorsements` the hit opens Progress.
+      return isMine
+        ? { to: "/me/training", search: { tab: "endorsements" } }
+        : memberPage;
   }
 }

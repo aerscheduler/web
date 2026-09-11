@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePostRequirementCredit } from "@/features/queries";
 import { holdsTrainingGrant } from "@/lib/training";
@@ -68,6 +68,7 @@ export function AddCreditDialog({
   const [amount, setAmount] = useState("");
   const [occurredAt, setOccurredAt] = useState("");
   const [notes, setNotes] = useState("");
+  const posting = useRef(false);
   const post = usePostRequirementCredit();
 
   //Server: hasTrainingGrant("manageEnrollment"). Fails closed while the grants load.
@@ -88,13 +89,22 @@ export function AddCreditDialog({
   };
 
   const submit = async () => {
-    if (!requirement) return;
+    if (!requirement || posting.current) return;
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) {
       toast.error("Enter how much to credit.");
       return;
     }
+    if (source === "manual" && notes.trim().length < 3) {
+      toast.error("A correction by hand needs a note saying where the time came from.");
+      return;
+    }
+    if ((source === "transfer_61" || source === "transfer_141") && !occurredAt) {
+      toast.error("Say when that training was flown.");
+      return;
+    }
     try {
+      posting.current = true;
       await post.mutateAsync({
         enrollmentId,
         requirementId: requirement.requirementId,
@@ -102,19 +112,28 @@ export function AddCreditDialog({
         ...(measuresHours ? { deciHours: Math.round(value * 10) } : { count: Math.round(value) }),
         source,
         notes: notes.trim() || undefined,
-        //Sent as a plain date. Omitted means "today", which is right for a simulator
-        //session logged this afternoon and wrong for a logbook.
-        occurredAt: occurredAt ? new Date(occurredAt).toISOString() : undefined,
+        //Date inputs are YYYY-MM-DD. Parsing that through `new Date()` is UTC midnight
+        //in most browsers and local midnight in others, so a US school could post
+        //the previous calendar day. Send the calendar day the picker named.
+        occurredAt: occurredAt ? `${occurredAt}T00:00:00.000Z` : undefined,
       });
       toast.success("Credit posted to the ledger.");
       reset();
       setOpen(false);
     } catch (err) {
       toast.error((err as Error).message);
+    } finally {
+      posting.current = false;
     }
   };
 
+  const todayLocal = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
   const chosenSource = SOURCES.find((s) => s.value === source);
+  const isTransfer = source === "transfer_61" || source === "transfer_141";
+  const amountOk = Number.isFinite(Number(amount)) && Number(amount) > 0;
 
   return (
     <>
@@ -133,7 +152,16 @@ export function AddCreditDialog({
       footer={<><Button variant="outline" onClick={() => setOpen(false)}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={!requirement || post.isPending}>
+          <Button
+            onClick={submit}
+            disabled={
+              !requirement ||
+              post.isPending ||
+              !amountOk ||
+              (source === "manual" && notes.trim().length < 3) ||
+              (isTransfer && !occurredAt)
+            }
+          >
             {post.isPending ? "Posting…" : "Post credit"}
           </Button></>}
       data-doc-shot="add-credit-dialog"
@@ -144,7 +172,13 @@ export function AddCreditDialog({
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label>Requirement</Label>
-            <Select value={requirementId} onValueChange={setRequirementId}>
+            <Select
+              value={requirementId}
+              onValueChange={(id) => {
+                setRequirementId(id);
+                setAmount("");
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Which requirement does this count toward?" />
               </SelectTrigger>
@@ -191,13 +225,18 @@ export function AddCreditDialog({
             </div>
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
-                <Label>When it was flown</Label>
+                <Label>
+                  When it was flown
+                  {isTransfer ? (
+                    <span className="ml-1 text-muted-foreground">(required)</span>
+                  ) : null}
+                </Label>
                 <DocsHint topic="prior-training-credit" />
               </div>
               <Input
                 type="date"
                 value={occurredAt}
-                max={new Date().toISOString().slice(0, 10)}
+                max={todayLocal}
                 onChange={(e) => setOccurredAt(e.target.value)}
               />
             </div>
@@ -216,7 +255,7 @@ export function AddCreditDialog({
 
           <div className="space-y-1.5">
             <Label>
-              Note {source === "manual" ? "" : <span className="text-muted-foreground">(optional)</span>}
+              Note {source === "manual" ? <span className="text-muted-foreground">(required)</span> : <span className="text-muted-foreground">(optional)</span>}
             </Label>
             <Input
               value={notes}

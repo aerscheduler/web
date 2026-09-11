@@ -43,7 +43,6 @@ function expiryState(e: Endorsement): { label: string; tone: "danger" | "warning
  */
 export function EndorsementsCard({
   orgUserId,
-  isSelf,
   enrollmentId,
 }: {
   orgUserId: number;
@@ -59,13 +58,22 @@ export function EndorsementsCard({
   const [open, setOpen] = useState(false);
   const [replacing, setReplacing] = useState<Endorsement | null>(null);
 
-  const q = useEndorsements(isSelf ? undefined : { orgUserId });
+  const q = useEndorsements({ orgUserId });
   const rows = q.data ?? [];
 
   if (q.isPending) return null;
+  if (q.isError) {
+    return (
+      <Card className="p-4">
+        <p className="text-sm text-destructive">
+          {(q.error as Error).message || "Could not load endorsements."}
+        </p>
+      </Card>
+    );
+  }
   //Nothing signed and nobody here who could sign one: a card that can only ever say "none"
   //is noise on a page that already has plenty.
-  if (q.isError || (rows.length === 0 && !canSign)) return null;
+  if (rows.length === 0 && !canSign) return null;
 
   return (
     <Card className="p-4">

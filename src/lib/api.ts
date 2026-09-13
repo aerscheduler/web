@@ -282,7 +282,10 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
     ...(opts.withCredentials ? { credentials: "include" as const } : {}),
   });
 
-  if (res.status === 204) return { status: 204, body: undefined };
+  if (res.status === 204) {
+    trackAction(opts.method, path, res.status, true);
+    return { status: 204, body: undefined };
+  }
 
   const text = await res.text();
   let parsed: unknown = undefined;
@@ -300,6 +303,7 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
   // a sandbox to replace, and the two need different offers.
   if (res.status === 410 && errorCode(parsed) === "DEMO_ENDED") {
     onDemoEnded?.();
+    trackAction(opts.method, path, res.status, false, actionErrorMessage(parsed));
     throw new ApiError(410, "This demo has ended. Start a new one to keep exploring.", parsed);
   }
 
@@ -314,11 +318,12 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
   // valid, so signing them out would strand them at the login screen with the
   // same problem and no way to reach the fix.
   if (res.status === 403 && errorCode(parsed) === "email_not_verified") {
-    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    trackAction(opts.method, path, res.status, false, actionErrorMessage(parsed));
+    const here = typeof window !== "undefined" ? window.location.pathname : "";
     if (
       typeof window !== "undefined" &&
-      !path.startsWith("/verify-email") &&
-      !path.startsWith("/book")
+      !here.startsWith("/verify-email") &&
+      !here.startsWith("/book")
     ) {
       window.location.assign("/verify-email");
     }
@@ -329,6 +334,7 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
   // An unauthenticated 401 (a wrong password on login) must fall through so the
   // server's real message ("Invalid email or password") is what gets shown.
   if (res.status === 401 && token && (await tokenIsDead(token))) {
+    trackAction(opts.method, path, res.status, false, actionErrorMessage(parsed));
     expireSession(token);
     throw new ApiError(401, "Your session has expired. Please sign in again.");
   }
@@ -341,12 +347,41 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
     } else if (typeof parsed === "string" && parsed) {
       msg = parsed;
     }
-    trackAction(opts.method, path, res.status, false);
+    trackAction(opts.method, path, res.status, false, actionErrorMessage(parsed));
     throw new ApiError(res.status, msg, parsed);
   }
 
   trackAction(opts.method, path, res.status, true);
   return { status: res.status, body: parsed };
+}
+
+/**
+ * Writes that belong on the `action` chart. Realtime tickets do not: they are
+ * reconnect plumbing, and counting them drowned every other mutation (~15k of
+ * ~16k console actions in 30 days).
+ */
+export function shouldTrackAction(method: string | undefined, path: string): boolean {
+  const verb = (method ?? "GET").toUpperCase();
+  if (verb === "GET" || verb === "HEAD") return false;
+  const resource = path.split("?")[0];
+  if (resource === "/realtime/ticket" || resource.endsWith("/realtime/ticket")) return false;
+  return true;
+}
+
+/** Server `message` from a JSON error body, truncated. Bare HTML is ignored.
+ * Tails, emails and phones are replaced in place. Person names in the same
+ * strings are a remaining policy gap.
+ */
+export function actionErrorMessage(parsed: unknown): string | undefined {
+  if (!parsed || typeof parsed !== "object") return undefined;
+  const record = parsed as Record<string, unknown>;
+  const raw = typeof record.code === "string" && record.code.trim() ? record.code : record.message;
+  if (typeof raw !== "string" || !raw.trim()) return undefined;
+  let message = raw.trim();
+  message = message.replace(/\S+@\S+/g, "<redacted>");
+  message = message.replace(/\(?\d{3}\)?[ .-]?\d{3}[ .-]?\d{4}/g, "<redacted>");
+  message = message.replace(/\bN(?:\d{2,5}[A-Z]{0,2}|\d[A-Z]{1,2})\b/g, "<redacted>");
+  return message.slice(0, 200);
 }
 
 /**
@@ -363,11 +398,20 @@ export async function raw(path: string, opts: ApiOptions): Promise<{ status: num
  * Pageviews already cover "where did they go".
  *
  * Failures are tracked too, and are arguably the more useful half: a `resource` with a
- * high failure rate is a feature people are trying to use and cannot.
+ * high failure rate is a feature people are trying to use and cannot. Failed writes
+ * carry `error` when the server sent a `message`, so a 400 on `POST /reservations`
+ * is "Aircraft is already booked" rather than a bare status code.
  */
-function trackAction(method: string | undefined, path: string, status: number, ok: boolean): void {
+function trackAction(
+  method: string | undefined,
+  path: string,
+  status: number,
+  ok: boolean,
+  error?: string,
+): void {
+  if (!shouldTrackAction(method, path)) return;
+
   const verb = (method ?? "GET").toUpperCase();
-  if (verb === "GET" || verb === "HEAD") return;
 
   // Collapse ids so "cancelled a booking" is one row rather than one row per booking.
   const resource = path
@@ -376,7 +420,14 @@ function trackAction(method: string | undefined, path: string, status: number, o
     .map((segment) => (/^\d+$/.test(segment) ? ":id" : segment))
     .join("/");
 
-  track("action", { action: `${verb} ${resource}`, method: verb, resource, status, ok });
+  track("action", {
+    action: `${verb} ${resource}`,
+    method: verb,
+    resource,
+    status,
+    ok,
+    ...(error ? { error } : {}),
+  });
 }
 
 /** Request that unwraps the `{ data }` envelope and returns the payload. */

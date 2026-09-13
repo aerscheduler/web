@@ -110,9 +110,10 @@ describe("fieldName", () => {
 });
 
 describe("events", () => {
-  it("reports a click with label, kind and context", () => {
+  it("reports a click with label, kind and context", async () => {
     const el = mount(`<button aria-label="Ramp out">go</button>`);
     el.click();
+    await Promise.resolve();
     const click = captured.find((e) => e.event === "ui_click");
     expect(click?.props).toMatchObject({ label: "Ramp out", control: "button", context: "page" });
   });

@@ -1,7 +1,7 @@
 import * as React from "react";
-import { addDays, format, isToday } from "date-fns";
+import { addDays, format } from "date-fns";
 import { resourceLabel, type Reservation } from "@/types/api";
-import { dateKeyInZone, daysBetweenDateKeys, minutesFromMidnightInZone } from "@/lib/timezone";
+import { dateKeyInZone, daysBetweenDateKeys, isCivilToday, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
@@ -196,7 +196,7 @@ export function WeekTimeGrid({
             onClick={() => onSelectDay(d)}
             className={cn(
               "sticky top-0 z-20 flex items-baseline justify-center gap-1.5 border-b border-l border-border bg-card px-2 py-1.5 text-xs transition-colors hover:bg-accent/50",
-              isToday(d) && "bg-accent/40"
+              isCivilToday(d, tz.zone) && "bg-accent/40"
             )}
           >
             <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -206,7 +206,7 @@ export function WeekTimeGrid({
                 extra weight. It used to be printed in the brand blue, which read as a link
                 rather than as today. */}
             <span
-              className={cn("tabular-nums text-foreground", isToday(d) && "font-semibold")}
+              className={cn("tabular-nums text-foreground", isCivilToday(d, tz.zone) && "font-semibold")}
             >
               {format(d, "d")}
             </span>
@@ -257,7 +257,7 @@ export function WeekTimeGrid({
           //away for the weekend reads as unavailable on the Saturday too.
           const items = drawn.filter((r) => occupiesDay(r, tz.zone, startHour, totalMin, dayKey));
           const { placed, tracks } = packTracks(items);
-          const today = isToday(d);
+          const today = isCivilToday(d, tz.zone);
           const isDropColumn = heldDayKey === dayKey;
           return (
             <div

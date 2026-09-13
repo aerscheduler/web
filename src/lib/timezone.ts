@@ -214,6 +214,32 @@ export function dateKeyInZone(instant: Date | string, timeZone: string): string 
 }
 
 /**
+ * A `Date` whose local Y-M-D is the civil date in `timeZone`.
+ *
+ * The ramp's `day` state is a picked calendar date, not an instant: grids read
+ * `day.getFullYear()` / `.getMonth()` / `.getDate()`. Seeding that from
+ * `new Date()` uses the browser's calendar, so a dispatcher in Tokyo looking at
+ * a Honolulu field opens Saturday while the airport is still Friday. Pair with
+ * `dateKeyInZone` for "is this the field's today".
+ */
+export function civilDateInZone(instant: Date | string, timeZone: string): Date {
+  const { year, month, day } = wallClockInZone(instant, timeZone);
+  return new Date(year, month - 1, day);
+}
+
+/**
+ * Is this picked calendar date the field's today?
+ *
+ * `date-fns` `isToday` answers on the browser's clock; every schedule today
+ * marker must answer on the board's zone instead, or the day view says Friday
+ * while month/week say Saturday on a split date.
+ */
+export function isCivilToday(day: Date, timeZone: string): boolean {
+  const key = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
+  return key === dateKeyInZone(new Date(), timeZone);
+}
+
+/**
  * Whole calendar days from date key `from` to date key `to`. Negative when `to` is earlier.
  *
  * Both keys are read as UTC midnights, which is what makes the answer an exact integer

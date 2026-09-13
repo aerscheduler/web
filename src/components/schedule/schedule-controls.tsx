@@ -1,11 +1,12 @@
 import * as React from "react";
-import { addDays, addMonths, endOfWeek, format, isToday, startOfWeek } from "date-fns";
+import { addDays, addMonths, endOfWeek, format, startOfWeek } from "date-fns";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { civilDateInZone, isCivilToday } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 export type ScheduleView = "month" | "week" | "day";
@@ -25,6 +26,7 @@ export function ScheduleControls({
   onDayChange,
   view,
   onViewChange,
+  zone,
   count,
   matchCount,
 }: {
@@ -32,6 +34,8 @@ export function ScheduleControls({
   onDayChange: (d: Date) => void;
   view: ScheduleView;
   onViewChange: (v: ScheduleView) => void;
+  /** Airport (or viewer) zone the board is pinned to. Today and the day label use this, not the browser. */
+  zone: string;
   count: number | null;
   /**
    * How many of `count` match the active block filters, or null when none are active.
@@ -48,7 +52,7 @@ export function ScheduleControls({
       ? format(day, "MMMM yyyy")
       : view === "week"
         ? `${format(startOfWeek(day), "MMM d")}, ${format(endOfWeek(day), "MMM d")}`
-        : isToday(day)
+        : isCivilToday(day, zone)
           ? "Today"
           : format(day, "EEE, MMM d");
 
@@ -105,7 +109,7 @@ export function ScheduleControls({
         </Tooltip>
       </div>
 
-      <Button variant="outline" size="sm" onClick={() => onDayChange(new Date())}>
+      <Button variant="outline" size="sm" onClick={() => onDayChange(civilDateInZone(new Date(), zone))}>
         Today
       </Button>
 

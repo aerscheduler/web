@@ -31,7 +31,16 @@ export type AircraftActions = {
   onDetails: (r: Resource) => void;
 };
 
-export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftActions }) {
+export function AircraftCard({
+  r,
+  actions,
+  priority = false,
+}: {
+  r: Resource;
+  actions: AircraftActions;
+  /** The grid's LCP candidate: the first card that actually has a photo. */
+  priority?: boolean;
+}) {
   const { roles } = useAuth();
   const p = r.type?.plane;
   if (!p) return null;
@@ -59,6 +68,11 @@ export function AircraftCard({ r, actions }: { r: Resource; actions: AircraftAct
           <img
             src={r.featuredImage}
             alt={p.tailNumber}
+            width={600}
+            height={168}
+            decoding="async"
+            loading={priority ? "eager" : "lazy"}
+            fetchPriority={priority ? "high" : "auto"}
             className="h-full w-full object-cover"
           />
         ) : (

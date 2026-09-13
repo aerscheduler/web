@@ -1,5 +1,5 @@
-import { format, isToday, parseISO } from "date-fns";
-import { dateKeyInZone } from "@/lib/timezone";
+import { parseISO } from "date-fns";
+import { dateKeyInZone, formatDateInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import type { Reservation } from "@/types/api";
 import { AgendaRow } from "./agenda-row";
@@ -30,6 +30,7 @@ export function MonthAgenda({
   query?: string;
 }) {
   const tz = useTimeZone();
+  const todayKey = dateKeyInZone(new Date(), tz.zone);
   const marks: BoardMarks = { matchedIds: matchedIds ?? null, query: query ?? "", selectedId };
   const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
   const groups = new Map<string, DayGroup>();
@@ -58,8 +59,8 @@ export function MonthAgenda({
       {[...groups.values()].map(({ date, items }) => (
         <div key={date.toISOString()} className="py-3">
           <div className="sticky top-0 z-10 flex items-center gap-2 bg-card px-4 pb-2 pt-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-            <span>{format(date, "EEE, MMM d")}</span>
-            {isToday(date) && <span className="text-foreground">Today</span>}
+            <span>{formatDateInZone(date, tz.zone)}</span>
+            {dateKeyInZone(date, tz.zone) === todayKey && <span className="text-foreground">Today</span>}
           </div>
           <ul className="space-y-2 px-3">
             {items.map((r) => (

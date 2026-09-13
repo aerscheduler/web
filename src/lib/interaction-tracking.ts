@@ -432,18 +432,20 @@ function onClick(event: Event): void {
   const target = event.target;
   if (!(target instanceof Element)) return;
 
-  const control = target.closest(CONTROL_SELECTOR);
-  if (!control) return;
-  // Typing in a field is not clicking a control, even though a field can match
-  // `[role=combobox]`.
-  if (control.matches(FIELD_SELECTOR)) return;
+  // Capture-phase label work must not sit on the INP path. /schedule's p75 was
+  // 272ms; walking the control for a label is our work, not the board's.
+  queueMicrotask(() => {
+    const control = target.closest(CONTROL_SELECTOR);
+    if (!control) return;
+    if (control.matches(FIELD_SELECTOR)) return;
 
-  track("ui_click", {
-    path: currentPath(),
-    label: controlLabel(control),
-    control: controlKind(control),
-    context: controlContext(control),
-    disabled: control.hasAttribute("disabled") || control.getAttribute("aria-disabled") === "true",
+    track("ui_click", {
+      path: currentPath(),
+      label: controlLabel(control),
+      control: controlKind(control),
+      context: controlContext(control),
+      disabled: control.hasAttribute("disabled") || control.getAttribute("aria-disabled") === "true",
+    });
   });
 }
 

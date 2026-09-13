@@ -4,13 +4,12 @@ import {
   endOfWeek,
   format,
   isSameMonth,
-  isToday,
   startOfMonth,
   startOfWeek,
 } from "date-fns";
 import { resourceLabel, type Reservation } from "@/types/api";
 import { cn } from "@/lib/utils";
-import { dateKeyInZone, formatCompactTimeInZone, minutesFromMidnightInZone } from "@/lib/timezone";
+import { dateKeyInZone, formatCompactTimeInZone, isCivilToday, minutesFromMidnightInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { highlightMatch } from "@/lib/highlight-match";
 import { BORDER_L_CLASS, CHIP_CLASS } from "./meta";
@@ -125,7 +124,7 @@ export function MonthGrid({
         {days.map((d) => {
           const items = byDay.get(format(d, "yyyy-MM-dd")) ?? [];
           const inMonth = isSameMonth(d, month);
-          const today = isToday(d);
+          const today = isCivilToday(d, tz.zone);
           const shown = items.slice(0, MAX_CHIPS);
           const extra = items.length - shown.length;
 

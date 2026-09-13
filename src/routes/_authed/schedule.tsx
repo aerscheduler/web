@@ -8,7 +8,7 @@ import {
 } from "date-fns";
 import { ClipboardList, Plus, RefreshCw } from "lucide-react";
 import { useLocations, useOrgUsers, useReservations, useResources } from "@/features/queries";
-import { zonedStartOfDay, zonedEndOfDay } from "@/lib/timezone";
+import { zonedStartOfDay, zonedEndOfDay, civilDateInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { resourceLabel, rolesOf, type Reservation, type Resource, type Role } from "@/types/api";
 import { useAuth } from "@/lib/auth";
@@ -165,6 +165,10 @@ function SchedulePage() {
   // `replace`, always: stepping through bookings with ↑/↓ would otherwise stack a
   // history entry per record, and Back would walk the panel backwards one booking
   // at a time instead of leaving the board.
+  //
+  // Do not wrap this in startTransition. `selectedId` is the URL, and ↑/↓
+  // (`useReservationDetail.step`) does findIndex on that id. A deferred write
+  // leaves two keydowns on the same booking, so the second step is a no-op.
   const setOpenReservationId = React.useCallback(
     (id: number | null) => {
       navigateSearch({
@@ -175,7 +179,23 @@ function SchedulePage() {
     },
     [navigateSearch]
   );
-  const [day, setDay] = React.useState<Date>(() => new Date());
+  const [day, setDayState] = React.useState<Date>(() => civilDateInZone(new Date(), tz.zone));
+  // `tz.zone` resolves after auth + prefs load; the state above may have seeded
+  // on the device fallback. Re-seed on every zone transition until the
+  // dispatcher picks a day (then it is theirs, not today's). A boolean would
+  // burn the one re-seed on the fallback before the field zone arrives, and
+  // prefs load flips the zone twice (org, then scheduleTimeZoneMode).
+  const dayTouched = React.useRef(false);
+  const seededZone = React.useRef<string | null>(null);
+  const setDay = React.useCallback((d: Date) => {
+    dayTouched.current = true;
+    setDayState(d);
+  }, []);
+  React.useEffect(() => {
+    if (dayTouched.current || seededZone.current === tz.zone) return;
+    seededZone.current = tz.zone;
+    setDayState(civilDateInZone(new Date(), tz.zone));
+  }, [tz.zone]);
   const [view, setView] = usePersistedState<ScheduleView>("view:schedule-range", "day");
   const isDesktop = useMediaQuery("(min-width: 768px)");
   // The desktop schedule is always the dispatch board. Narrow browser widths keep
@@ -451,10 +471,13 @@ function SchedulePage() {
     setDraft(d);
     setFormOpen(true);
   };
-  const selectDay = (d: Date) => {
-    setDay(d);
-    setView("day");
-  };
+  const selectDay = React.useCallback(
+    (d: Date) => {
+      setDay(d);
+      setView("day");
+    },
+    [setDay, setView]
+  );
   //Anyone who can't book at all still gets no click-to-create regions, rather than ones
   //that silently do nothing.
   const onCreate = canBook ? openCreate : undefined;
@@ -524,6 +547,7 @@ function SchedulePage() {
           onDayChange={setDay}
           view={view}
           onViewChange={setView}
+          zone={tz.zone}
           count={count}
           matchCount={matchedIds ? matchedIds.size : null}
         />

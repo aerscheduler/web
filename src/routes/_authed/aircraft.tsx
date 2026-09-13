@@ -76,6 +76,7 @@ function AircraftPage() {
   const paging = usePaging({ resetKey: fleetFilter });
   const q = usePlanesPage(fleetFilter, paging);
   const { rows: planes, total } = pageRows(q);
+  const lcpIndex = planes.findIndex((p) => p.featuredImage);
 
   const filtersActive =
     !!debouncedQ ||
@@ -226,8 +227,13 @@ function AircraftPage() {
           <TableView.Body>
             {view === "grid" ? (
               <div className={cn("grid gap-4 sm:grid-cols-2 lg:grid-cols-3", q.isFetching && "opacity-60")}>
-                {planes.map((r) => (
-                  <AircraftCard key={r.id} r={r} actions={actions} />
+                {planes.map((r, i) => (
+                  <AircraftCard
+                    key={r.id}
+                    r={r}
+                    actions={actions}
+                    priority={i === lcpIndex}
+                  />
                 ))}
               </div>
             ) : (

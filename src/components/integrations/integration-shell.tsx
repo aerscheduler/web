@@ -182,10 +182,12 @@ export function IntegrationCatalogCard({
 }
 
 const STATUS_TOOLTIPS: Record<string, string> = {
-  connected:
-    "QuickBooks is connected, an income item is mapped, and sync can run when enabled.",
+  connected: "QuickBooks is connected, set up, and posting paid invoices.",
+  needs_setup:
+    "QuickBooks is connected, but setup isn’t finished. Nothing is sent to QuickBooks until it is.",
+  paused: "Setup is finished and sync is paused. Anything paid meanwhile posts when you turn it back on.",
   needs_mapping:
-    "QuickBooks is connected, but setup isn’t finished, pick an income item below, then turn sync on.",
+    "QuickBooks is connected, but setup isn’t finished. Nothing is sent to QuickBooks until it is.",
   needs_reconnect:
     "The QuickBooks connection expired or was revoked. Reconnect to resume syncing.",
   error: "Something went wrong with this connection. Check the last error or reconnect.",
@@ -193,15 +195,19 @@ const STATUS_TOOLTIPS: Record<string, string> = {
 };
 
 export function integrationStatusBadge(
-  status: "disconnected" | "connected" | "needs_mapping" | "needs_reconnect" | "error" | string
+  status: "disconnected" | "connected" | "needs_setup" | "paused" | "needs_mapping" | "needs_reconnect" | "error" | string
 ) {
   let badge: ReactNode;
   switch (status) {
     case "connected":
       badge = <Badge>Connected</Badge>;
       break;
+    case "needs_setup":
     case "needs_mapping":
       badge = <Badge variant="secondary">Needs setup</Badge>;
+      break;
+    case "paused":
+      badge = <Badge variant="secondary">Paused</Badge>;
       break;
     case "needs_reconnect":
       badge = <Badge variant="danger">Reconnect</Badge>;

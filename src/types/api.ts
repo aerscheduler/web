@@ -1048,6 +1048,13 @@ export interface Invoice {
   qboSalesReceiptId?: string | null;
   qboSyncedAt?: string | null;
   qboSyncError?: string | null;
+  /** pending | in_flight | deferred | blocked | synced | unposting | handled */
+  qboSyncState?: string | null;
+  qboBlockedReason?: string | null;
+  /** "manual" when marked paid in the school's own Stripe dashboard (cash or check). */
+  paymentMethod?: string | null;
+  /** Who at the desk marked it paid, when a person did. */
+  markedAsPaidBy?: { id: number } | null;
   items?: InvoiceItem[];
   customer?: OrganizationUser;
   reservation?: Reservation;

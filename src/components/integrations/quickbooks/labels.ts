@@ -1,0 +1,120 @@
+import type {
+  QuickBooksBooksOwnership,
+  QuickBooksLineCategory,
+  QuickBooksSetupStep,
+} from "@/features/queries";
+
+/**
+ * The question no API can answer: is this revenue already in their books some other
+ * way? Options are NAMED on purpose. Asked abstractly ("any other integrations?") an
+ * owner confidently says no while a bank-feed rule has been booking their Stripe
+ * deposits for years. Order matters: the safe, common answers first.
+ */
+export const OWNERSHIP_OPTIONS: Array<{
+  value: QuickBooksBooksOwnership;
+  label: string;
+  hint: string;
+  /** "refuse" keeps sync off; "forward" allows today onward only. */
+  effect: "allow" | "forward" | "refuse";
+}> = [
+  {
+    value: "nothing_yet",
+    label: "Nothing yet. AerScheduler will be the only thing recording flight revenue.",
+    hint: "You can choose how far back to start, and see exactly what would post first.",
+    effect: "allow",
+  },
+  {
+    value: "bank_feed",
+    label: "A bank feed rule books our Stripe deposits as income.",
+    hint: "AerScheduler can take over from today onward. Turn that bank rule off, or you will count the same money twice.",
+    effect: "forward",
+  },
+  {
+    value: "manual",
+    label: "Our bookkeeper enters it by hand.",
+    hint: "AerScheduler can take over from today onward. Let your bookkeeper know to stop entering flight revenue.",
+    effect: "forward",
+  },
+  {
+    value: "stripe_connector",
+    label: "Stripe's own QuickBooks app, or a tool like Synder or PayTraQer.",
+    hint: "Sync stays off: both would record every payment. Turn that app off first if you want AerScheduler to do it instead.",
+    effect: "refuse",
+  },
+  {
+    value: "other_app",
+    label: "Another flight-school or accounting tool.",
+    hint: "Sync stays off so the same revenue is not recorded twice. Turn the other tool off first.",
+    effect: "refuse",
+  },
+  {
+    value: "unsure",
+    label: "I'm not sure.",
+    hint: "Sync stays off until you know. Easiest check: in QuickBooks, run Profit and Loss for last month. If your flight revenue already shows there, something is recording it.",
+    effect: "refuse",
+  },
+];
+
+export const CATEGORY_LABELS: Record<QuickBooksLineCategory, string> = {
+  rental: "Aircraft & simulator rental",
+  instruction: "Instruction and ground school",
+  fees: "Fees (late, cancellation, card, service)",
+  membership: "Membership dues & join fees",
+  other: "Everything else (parts, supplies, custom lines)",
+};
+
+export const CATEGORY_ORDER: QuickBooksLineCategory[] = ["rental", "instruction", "fees", "membership", "other"];
+
+export const STEP_LABELS: Record<QuickBooksSetupStep, string> = {
+  confirm_company: "Confirm the company",
+  books_ownership: "What else records this revenue",
+  start_date: "Start date",
+  income_item: "Income items",
+  deposit_account: "Where card payments land",
+  desk_payments: "Front-desk payments",
+  enable: "Turn on",
+};
+
+export const BLOCK_REASON_LABELS: Record<string, string> = {
+  refunded: "Partially refunded",
+  has_tax: "Carries sales tax",
+  zero_total: "Nothing collected",
+  amount_mismatch: "Lines don't add up",
+  negative_line: "Negative line",
+  no_party: "No member or guest",
+  no_email: "No email address",
+  bad_email: "Unusable email address",
+  customer_inactive: "Customer inactive in QuickBooks",
+  customer_ambiguous: "Several QuickBooks customers match",
+  customer_name_conflict: "Name already used in QuickBooks",
+  qbo_rejected: "QuickBooks rejected it",
+  qbo_total_mismatch: "QuickBooks changed the total",
+  duplicate_doc_number: "Document number already used",
+  retries_exhausted: "Kept failing",
+  remove_failed: "Could not be removed",
+  payment_unverified: "Couldn't confirm how it was paid",
+  repaid_after_partial_refund: "Refunded, then paid again",
+};
+
+export function blockReasonLabel(reason: string | null | undefined): string {
+  return (reason && BLOCK_REASON_LABELS[reason]) || "Needs attention";
+}
+
+/** YYYY-MM-DD, one day later. Date keys are calendar days, never instants. */
+export function addDaysToKey(key: string, days: number): string {
+  const d = new Date(`${key}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/** "Mar 4, 2026" for a YYYY-MM-DD key, without a timezone shift. */
+export function formatDateKey(key: string | null | undefined): string {
+  if (!key) return "";
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}

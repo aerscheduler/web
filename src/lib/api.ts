@@ -93,8 +93,10 @@ export interface ApiOptions {
    * Off by default, and per-call rather than global on purpose. The console talks
    * to api.aerscheduler.com cross-origin, so turning credentials on everywhere
    * would change what the browser demands of CORS for every endpoint at once.
-   * Exactly one call needs it: the OAuth handoff exchange, whose verifier cookie
-   * is the half of the handoff that deliberately does not travel in the URL.
+   * Two calls need it: the OAuth handoff exchange, whose verifier cookie is the
+   * half of the handoff that deliberately does not travel in the URL, and the
+   * QuickBooks connect, whose response sets the cookie that binds the Intuit
+   * callback to this browser.
    */
   withCredentials?: boolean;
   /**

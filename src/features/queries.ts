@@ -1868,6 +1868,34 @@ export function useConnectStripe() {
 
 // ---------------------------------------------------------------- QuickBooks / org integrations
 
+export type QuickBooksStatus =
+  | "disconnected"
+  | "connected"
+  | "needs_setup"
+  | "paused"
+  | "needs_mapping"
+  | "needs_reconnect"
+  | "error";
+
+export type QuickBooksSetupStep =
+  | "confirm_company"
+  | "books_ownership"
+  | "start_date"
+  | "income_item"
+  | "deposit_account"
+  | "desk_payments"
+  | "enable";
+
+export type QuickBooksBooksOwnership =
+  | "nothing_yet"
+  | "bank_feed"
+  | "manual"
+  | "stripe_connector"
+  | "other_app"
+  | "unsure";
+
+export type QuickBooksLineCategory = "rental" | "instruction" | "fees" | "membership" | "other";
+
 export type QuickBooksSettings = {
   id: number;
   enabled: boolean;
@@ -1877,21 +1905,54 @@ export type QuickBooksSettings = {
   companyName: string | null;
   incomeItemId: string | null;
   incomeItemName: string | null;
+  incomeItemMap: Partial<Record<QuickBooksLineCategory, { id: string; name: string }>>;
+  confirmedRealmId: string | null;
+  companyConfirmed: boolean;
+  booksOwnershipAnswer: QuickBooksBooksOwnership | null;
+  syncStartDateKey: string | null;
+  /** The first day that will actually post: the start date, never inside a closed period. */
+  effectiveStartDateKey: string | null;
+  depositAccountId: string | null;
+  depositAccountName: string | null;
+  syncDeskPayments: boolean | null;
+  deskDepositAccountId: string | null;
+  deskDepositAccountName: string | null;
+  bookCloseDateKey: string | null;
+  homeCurrency: string | null;
+  usingSalesTax: boolean | null;
+  customTxnNumbers: boolean | null;
+  booksPrefsCheckedAt: string | null;
   lastSyncAt: string | null;
   lastError: string | null;
   lastErrorAt: string | null;
   connectedAt: string | null;
-  status: "disconnected" | "connected" | "needs_mapping" | "needs_reconnect" | "error";
+  status: QuickBooksStatus;
+  missingSetup: QuickBooksSetupStep[];
+  blocker: { code: string; message: string } | null;
+  /** Today in the school's own zone. */
+  todayKey: string;
   mappingComplete: boolean;
   /** True while Intuit sandbox keys / INTUIT_USE_SANDBOX are in use. */
   useSandbox: boolean;
 };
 
-export type QuickBooksItem = { id: string; name: string; type?: string };
+export type QuickBooksItem = { id: string; name: string; type?: string; incomeAccountName?: string | null };
+export type QuickBooksAccount = { id: string; name: string; accountType: string; accountSubType?: string | null };
+export type QuickBooksCompany = {
+  realmId: string;
+  companyName: string | null;
+  legalName: string | null;
+  country: string | null;
+  location: string | null;
+  companyStartDate: string | null;
+  fileCreatedAt: string | null;
+};
+
+const qboKey = ["integrations", "quickbooks"] as const;
 
 export function useQuickBooksSettings(opts?: QueryOpts) {
   return useQuery({
-    queryKey: ["integrations", "quickbooks", "settings"],
+    queryKey: [...qboKey, "settings"],
     queryFn: () => api<QuickBooksSettings | null>("/intuit/quickbooks/settings"),
     ...opts,
   });
@@ -1899,32 +1960,69 @@ export function useQuickBooksSettings(opts?: QueryOpts) {
 
 export function useQuickBooksItems(opts?: QueryOpts) {
   return useQuery({
-    queryKey: ["integrations", "quickbooks", "items"],
+    queryKey: [...qboKey, "items"],
     queryFn: () => api<QuickBooksItem[]>("/intuit/quickbooks/items"),
     ...opts,
   });
 }
 
-export function useQuickBooksAuthorize() {
-  return useMutation({
-    mutationFn: () => api<string>("/oauth2/intuit/authorize"),
+export function useQuickBooksAccounts(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: [...qboKey, "accounts"],
+    queryFn: () => api<QuickBooksAccount[]>("/intuit/quickbooks/accounts"),
+    ...opts,
   });
 }
+
+export function useQuickBooksCompany(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: [...qboKey, "company"],
+    queryFn: () => api<QuickBooksCompany>("/intuit/quickbooks/company"),
+    ...opts,
+  });
+}
+
+export function useConfirmQuickBooksCompany() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (realmId: string) =>
+      api<QuickBooksSettings>("/intuit/quickbooks/company/confirm", { method: "POST", body: { realmId } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qboKey });
+    },
+  });
+}
+
+export function useQuickBooksAuthorize() {
+  return useMutation({
+    // With credentials: the response sets the cookie that ties this connect to this
+    // browser, and the server refuses a callback that arrives without it.
+    mutationFn: () => api<string>("/oauth2/intuit/authorize", { withCredentials: true }),
+  });
+}
+
+export type QuickBooksSettingsPatch = {
+  enabled?: boolean;
+  incomeItemId?: string | null;
+  /** Category to item id; null or "" clears that override. */
+  incomeItemMap?: Partial<Record<QuickBooksLineCategory, string | null>> | null;
+  depositAccountId?: string | null;
+  deskDepositAccountId?: string | null;
+  syncDeskPayments?: boolean | null;
+  booksOwnershipAnswer?: QuickBooksBooksOwnership | null;
+  syncStartDateKey?: string | null;
+};
 
 export function useUpdateQuickBooksSettings() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: {
-      enabled?: boolean;
-      incomeItemId?: string | null;
-      incomeItemName?: string | null;
-    }) =>
+    mutationFn: (body: QuickBooksSettingsPatch) =>
       api<QuickBooksSettings>("/intuit/quickbooks/settings", {
         method: "PATCH",
         body,
       }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["integrations", "quickbooks"] });
+      void qc.invalidateQueries({ queryKey: qboKey });
     },
   });
 }
@@ -1935,7 +2033,7 @@ export function useDisconnectQuickBooks() {
     mutationFn: () =>
       api<void>("/intuit/quickbooks/settings", { method: "DELETE" }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["integrations", "quickbooks"] });
+      void qc.invalidateQueries({ queryKey: qboKey });
     },
   });
 }
@@ -1952,22 +2050,118 @@ export type QuickBooksSyncEvent = {
 
 export function useQuickBooksActivity(opts?: QueryOpts) {
   return useQuery({
-    queryKey: ["integrations", "quickbooks", "activity"],
+    queryKey: [...qboKey, "activity"],
     queryFn: () => api<QuickBooksSyncEvent[]>("/intuit/quickbooks/activity"),
     ...opts,
   });
 }
 
-export function useQuickBooksBackfill() {
+export type QuickBooksMoney = { count: number; totalCents: number };
+
+export type QuickBooksBlockedInvoice = {
+  invoiceId: number;
+  totalCents: number;
+  paidAt: string | null;
+  invoiceNumber: string;
+  reason: string | null;
+  message: string | null;
+  /** True when this is a receipt we could not REMOVE, rather than one we could not post. */
+  isRemoval: boolean;
+  /** An earlier post never answered: Handled checks QuickBooks for that receipt first. */
+  lostPost?: boolean;
+  /** Handled can check QuickBooks for that receipt right now (live connection, same company). */
+  handledSearches?: boolean;
+  /** The lost post went to the QuickBooks company connected before. */
+  lostPostElsewhere?: boolean;
+  payerName: string | null;
+};
+
+export type QuickBooksOverview = {
+  counts: Record<string, number>;
+  toPost: (QuickBooksMoney & { oldestPaidAt: string | null }) | null;
+  beforeStartDate: QuickBooksMoney;
+  deskExcluded: QuickBooksMoney | null;
+  syncedHere: QuickBooksMoney;
+  removing: number;
+  /** All blocked invoices; `blocked` lists at most 100 of them. */
+  blockedCount?: number;
+  blocked: QuickBooksBlockedInvoice[];
+};
+
+export function useQuickBooksOverview(opts?: QueryOpts & { refetchInterval?: number | false }) {
+  return useQuery({
+    queryKey: [...qboKey, "overview"],
+    queryFn: () => api<QuickBooksOverview | null>("/intuit/quickbooks/overview"),
+    ...opts,
+  });
+}
+
+export type QuickBooksStartDatePreview = {
+  requestedStartDateKey: string;
+  effectiveStartDateKey: string;
+  bookCloseDateKey: string | null;
+  stripe: QuickBooksMoney;
+  desk: QuickBooksMoney;
+  /** Per year: count/totalCents are card and ACH, deskCount/deskCents are front-desk. */
+  byYear: Array<QuickBooksMoney & { year: string; deskCount: number; deskCents: number }>;
+  alreadyPostedBefore: QuickBooksMoney;
+};
+
+export function useQuickBooksStartDatePreview(startDate: string | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: [...qboKey, "preview", startDate],
+    queryFn: () =>
+      api<QuickBooksStartDatePreview>(`/intuit/quickbooks/preview?startDate=${encodeURIComponent(startDate ?? "")}`),
+    enabled: !!startDate && /^\d{4}-\d{2}-\d{2}$/.test(startDate) && (opts?.enabled ?? true),
+  });
+}
+
+export function useRemoveQuickBooksReceipts() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (limit?: number) =>
-      api<{ attempted: number; synced: number; failed: number; skipped: number }>(
-        "/intuit/quickbooks/backfill",
-        { method: "POST", body: { limit: limit ?? 25 } }
-      ),
+    mutationFn: (body: { beforeDateKey: string } | { all: true }) =>
+      api<{ queued: number }>("/intuit/quickbooks/remove", { method: "POST", body }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["integrations", "quickbooks"] });
+      void qc.invalidateQueries({ queryKey: qboKey });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+/** Stop queued removals that cannot run; those receipts stay in QuickBooks. */
+export function useCancelQuickBooksRemovals() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api<{ cancelled: number; needsAttention?: number }>("/intuit/quickbooks/remove/cancel", { method: "POST" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qboKey });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+/** The owner settled a needs-attention invoice in QuickBooks by hand. */
+export function useMarkQuickBooksHandled() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (invoiceId: number) =>
+      api<{ searching: boolean }>(`/intuit/quickbooks/invoices/${invoiceId}/handled`, { method: "POST" }),
+    onSettled: (_data, _err, invoiceId) => {
+      void qc.invalidateQueries({ queryKey: qboKey });
+      void qc.invalidateQueries({ queryKey: ["invoice", invoiceId] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
+    },
+  });
+}
+
+export function useRetryBlockedQuickBooks() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (reason?: string) =>
+      api<{ requeued: number }>("/intuit/quickbooks/retry-blocked", { method: "POST", body: reason ? { reason } : {} }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qboKey });
       void qc.invalidateQueries({ queryKey: ["invoices"] });
     },
   });
@@ -1977,14 +2171,14 @@ export function useSyncInvoiceToQuickBooks() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (invoiceId: number) =>
-      api<{ qboSalesReceiptId: string }>(
+      api<{ queued?: boolean; qboSalesReceiptId: string | null; message?: string | null }>(
         `/intuit/quickbooks/invoices/${invoiceId}/sync`,
         { method: "POST" }
       ),
-    onSuccess: (_data, invoiceId) => {
+    onSettled: (_data, _err, invoiceId) => {
       void qc.invalidateQueries({ queryKey: ["invoice", invoiceId] });
       void qc.invalidateQueries({ queryKey: ["invoices"] });
-      void qc.invalidateQueries({ queryKey: ["integrations", "quickbooks", "activity"] });
+      void qc.invalidateQueries({ queryKey: qboKey });
     },
   });
 }

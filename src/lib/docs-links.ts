@@ -137,6 +137,18 @@ export const DOCS_TOPICS = {
 
   /* ── Billing and payments ─────────────────────────────────────────────── */
 
+  "quickbooks-books-ownership": {
+    title: "What else records this revenue",
+    summary:
+      "If a bank feed rule, Stripe's own QuickBooks app, another tool or your bookkeeper already puts flight revenue into QuickBooks, AerScheduler posting it too counts every payment twice. QuickBooks can't tell which tool made an entry, so this is asked, not detected.",
+    href: "billing/send-paid-invoices-to-quickbooks#what-setup-asks",
+  },
+  "quickbooks-start-date": {
+    title: "QuickBooks start date",
+    summary:
+      "Invoices paid on or after this day post, and nothing before it ever does. Pick today to start fresh, or an earlier day to bring history in after seeing exactly what would post.",
+    href: "billing/send-paid-invoices-to-quickbooks#what-setup-asks",
+  },
   "service-fee": {
     title: "Service fee",
     summary:

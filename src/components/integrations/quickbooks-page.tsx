@@ -1,24 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect } from "react";
 import { formatDistanceToNow, parseISO } from "date-fns";
-import {
-  BookOpenCheck,
-  CheckCircle2,
-  ExternalLink,
-  Loader2,
-  RefreshCw,
-  Unplug,
-} from "lucide-react";
+import { BookOpenCheck, ExternalLink, Loader2, Unplug } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { useAuth } from "@/lib/auth";
 import { canManageBillingSettings } from "@/lib/permissions";
 import { ApiError } from "@/lib/api";
@@ -28,36 +12,56 @@ import {
   integrationStatusBadge,
 } from "@/components/integrations/integration-shell";
 import {
+  useCancelQuickBooksRemovals,
   useDisconnectQuickBooks,
   useQuickBooksActivity,
   useQuickBooksAuthorize,
-  useQuickBooksBackfill,
-  useQuickBooksItems,
+  useQuickBooksOverview,
   useQuickBooksSettings,
-  useUpdateQuickBooksSettings,
-  type QuickBooksSettings,
-  type QuickBooksSyncEvent,
 } from "@/features/queries";
+import { QuickBooksSetup } from "@/components/integrations/quickbooks/setup";
+import {
+  QuickBooksActivity,
+  QuickBooksNeedsAttention,
+  QuickBooksRemoveReceipts,
+  QuickBooksSyncStatus,
+} from "@/components/integrations/quickbooks/status";
 
 /**
  * Dedicated QuickBooks Online setup page.
  * Follows the shared IntegrationPageShell section pattern used by future providers.
+ *
+ * Connecting only READS the company. Nothing is written to QuickBooks until every setup
+ * question is answered, because the costly failure is posting revenue a school already
+ * records some other way. The server enforces the same rule (integrations/quickbooks/policy.ts).
  */
+/** Why the server refused a connect (its CallbackRefusal codes), in words. */
+const CONNECT_REFUSALS: Record<string, string> = {
+  browser:
+    "That QuickBooks approval was started in a different browser, so it was not accepted. Click Connect QuickBooks here and approve it in this browser.",
+  removing:
+    "Receipts are still being removed from the company that is connected now. Let that finish, or stop it, before connecting a different company.",
+  demo: "Connecting a real QuickBooks company isn't available in the demo.",
+  denied: "QuickBooks connection was cancelled at Intuit.",
+};
+
 export function QuickBooksIntegrationPage({
   oauthResult,
+  oauthReason,
 }: {
   oauthResult?: string | null;
+  oauthReason?: string | null;
 }) {
   const { roles } = useAuth();
   const isOwner = canManageBillingSettings(roles);
 
   useEffect(() => {
     if (oauthResult === "connected") {
-      toast.success("QuickBooks connected, choose an income item to finish setup");
+      toast.success("QuickBooks connected. Nothing is sent until you finish the steps below.");
     } else if (oauthResult === "error") {
-      toast.error("QuickBooks connection did not complete");
+      toast.error((oauthReason && CONNECT_REFUSALS[oauthReason]) || "QuickBooks connection did not complete");
     }
-  }, [oauthResult]);
+  }, [oauthResult, oauthReason]);
 
   if (!isOwner) {
     return (
@@ -70,8 +74,8 @@ export function QuickBooksIntegrationPage({
       >
         <IntegrationSection title="Owner required">
           <p className="text-sm text-muted-foreground">
-            Only the organization owner can connect accounting integrations, same as Stripe
-            Connect. Ask an owner if you need this wired up.
+            Only the organization owner can connect accounting integrations, same as Stripe Connect. Ask an owner if you
+            need this wired up.
           </p>
         </IntegrationSection>
       </IntegrationPageShell>
@@ -81,65 +85,44 @@ export function QuickBooksIntegrationPage({
   return <QuickBooksOwnerPage />;
 }
 
-function SetupSteps({ row }: { row: QuickBooksSettings | null }) {
-  const connected =
-    !!row && row.status !== "disconnected" && row.status !== "needs_reconnect";
-  const mapped = !!row?.incomeItemId;
-  const syncing = !!row?.enabled;
-
-  const steps = [
-    { key: "connect", label: "Connect", done: connected },
-    { key: "map", label: "Map income", done: mapped },
-    { key: "sync", label: "Sync on", done: syncing },
-  ] as const;
-
-  return (
-    <ol className="flex flex-wrap items-center gap-2 text-xs">
-      {steps.map((step, i) => (
-        <li key={step.key} className="flex items-center gap-2">
-          {i > 0 && <span className="text-muted-foreground/50">→</span>}
-          <span
-            className={
-              step.done
-                ? "inline-flex items-center gap-1 font-medium text-foreground"
-                : "inline-flex items-center gap-1 text-muted-foreground"
-            }
-          >
-            {step.done ? (
-              <CheckCircle2 className="size-3.5 text-emerald-600 dark:text-emerald-400" />
-            ) : (
-              <span className="grid size-3.5 place-items-center rounded-full border border-muted-foreground/40 text-[9px] leading-none">
-                {i + 1}
-              </span>
-            )}
-            {step.label}
-          </span>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
 function QuickBooksOwnerPage() {
   const { isDemo } = useAuth();
   const settings = useQuickBooksSettings();
-  const items = useQuickBooksItems({
-    enabled:
-      !!settings.data &&
-      settings.data.status !== "needs_reconnect" &&
-      settings.data.status !== "disconnected",
+  const row = settings.data ?? null;
+  const connected = !!row && row.status !== "disconnected";
+  const live = connected && row.status !== "needs_reconnect";
+
+  const overview = useQuickBooksOverview({
+    // Also while the connection has lapsed: queued removals must stay visible (and
+    // stoppable) then, since they cannot run until it is reconnected.
+    enabled: connected,
+    // Poll while the background worker has something to do, so progress moves on its own.
+    refetchInterval: 15_000,
   });
-  const activity = useQuickBooksActivity({ enabled: !!settings.data });
+  const activity = useQuickBooksActivity({ enabled: connected });
   const authorize = useQuickBooksAuthorize();
   const disconnect = useDisconnectQuickBooks();
-  const update = useUpdateQuickBooksSettings();
-  const backfill = useQuickBooksBackfill();
-  const [pendingItemId, setPendingItemId] = useState<string | null>(null);
+  const cancelRemovals = useCancelQuickBooksRemovals();
 
-  const row = settings.data;
-  const connected = !!row && row.status !== "disconnected";
-  const itemOptions = useMemo(() => items.data ?? [], [items.data]);
-  const events = activity.data ?? [];
+  async function onStopRemoving() {
+    if (
+      !confirm(
+        "Stop removing? Receipts you asked to remove stay in QuickBooks, recorded as posted. Refunded ones, and any an unanswered try may have left, move to Needs attention to finish by hand.",
+      )
+    ) {
+      return;
+    }
+    try {
+      const r = await cancelRemovals.mutateAsync();
+      toast.success(
+        `Stopped ${r.cancelled} removal${r.cancelled === 1 ? "" : "s"}.${
+          r.needsAttention ? ` ${r.needsAttention} moved to Needs attention.` : ""
+        }`,
+      );
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Could not stop the removals");
+    }
+  }
 
   async function onConnect() {
     try {
@@ -150,35 +133,10 @@ function QuickBooksOwnerPage() {
     }
   }
 
-  async function onSaveItem(itemId: string) {
-    const item = itemOptions.find((i) => i.id === itemId);
-    setPendingItemId(itemId);
-    try {
-      await update.mutateAsync({
-        incomeItemId: itemId,
-        incomeItemName: item?.name ?? null,
-      });
-      toast.success("Income item saved");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Could not save mapping");
-    } finally {
-      setPendingItemId(null);
-    }
-  }
-
-  async function onToggleSync(enabled: boolean) {
-    try {
-      await update.mutateAsync({ enabled });
-      toast.success(enabled ? "Paid invoices will sync to QuickBooks" : "Sync paused");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Could not update sync");
-    }
-  }
-
   async function onDisconnect() {
     if (
       !confirm(
-        "Disconnect QuickBooks? Tokens are revoked at Intuit and local credentials are deleted. Paid invoices stop syncing until you reconnect."
+        "Disconnect QuickBooks? Access is revoked at Intuit and new payments stop syncing. Receipts already in QuickBooks stay there.",
       )
     ) {
       return;
@@ -191,16 +149,8 @@ function QuickBooksOwnerPage() {
     }
   }
 
-  async function onBackfill() {
-    try {
-      const result = await backfill.mutateAsync(25);
-      toast.success(
-        `Backfill finished: ${result.synced} synced, ${result.failed} failed, ${result.skipped} skipped (${result.attempted} attempted)`
-      );
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Backfill failed");
-    }
-  }
+  const setupDone = !!row && (row.missingSetup ?? []).length === 0;
+  const removing = overview.data?.removing ?? 0;
 
   return (
     <IntegrationPageShell
@@ -208,7 +158,7 @@ function QuickBooksOwnerPage() {
       icon={BookOpenCheck}
       iconClassName="bg-emerald-600"
       title="QuickBooks Online"
-      subtitle="Paid AerScheduler invoices land in your books as Sales Receipts, matched to customers by email, once, with a clear trail here."
+      subtitle="Paid AerScheduler invoices land in your books as Sales Receipts, matched to customers by email, with a clear trail here."
       status={
         settings.isLoading ? (
           <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
@@ -216,45 +166,22 @@ function QuickBooksOwnerPage() {
           integrationStatusBadge(row?.status ?? "disconnected")
         )
       }
-      accountLabel={
-        row?.companyName
-          ? `${row.companyName}${row.useSandbox ? " (sandbox)" : ""}`
-          : null
-      }
-      actions={
-        connected && row?.status !== "needs_reconnect" ? (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void onConnect()}
-            disabled={authorize.isPending || isDemo}
-          >
-            Reauthorize
-          </Button>
-        ) : null
-      }
+      accountLabel={row?.companyName ? `${row.companyName}${row.useSandbox ? " (sandbox)" : ""}` : null}
     >
-      <IntegrationSection
-        title="Setup"
-        description="Connect, map an income item, then turn sync on."
-      >
-        <SetupSteps row={row ?? null} />
-      </IntegrationSection>
-
-      <IntegrationSection
-        title="Connection"
-        description={
-          row?.status === "needs_reconnect"
-            ? "Your QuickBooks connection expired. Reconnect to resume syncing."
-            : "Link your Intuit company. Owner-only: same bar as Stripe Connect."
-        }
-      >
-        {!connected || row?.status === "needs_reconnect" ? (
+      {!live ? (
+        <IntegrationSection
+          title="Connection"
+          description={
+            row?.status === "needs_reconnect"
+              ? "Your QuickBooks connection expired. Reconnect to resume syncing."
+              : "Link your Intuit company. Owner-only: same bar as Stripe Connect."
+          }
+        >
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-muted-foreground">
               {row?.status === "needs_reconnect"
-                ? "Reconnect to finish setup and resume Sales Receipt sync."
-                : "Connect your Intuit company to start syncing paid flights."}
+                ? "Reconnect to the same company to pick up where you left off."
+                : "Connecting only reads your company. Nothing is sent to QuickBooks until you finish setup."}
             </p>
             <Button
               onClick={() => void onConnect()}
@@ -270,128 +197,136 @@ function QuickBooksOwnerPage() {
               {row?.status === "needs_reconnect" ? "Reconnect QuickBooks" : "Connect QuickBooks"}
             </Button>
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Connected{row?.connectedAt ? ` · since ${formatDistanceToNow(parseISO(row.connectedAt), { addSuffix: true })}` : ""}.
-            Paid invoices sync when the toggle below is on.
-          </p>
-        )}
-      </IntegrationSection>
+        </IntegrationSection>
+      ) : null}
 
-      {connected && row?.status !== "needs_reconnect" ? (
+      {live && row ? (
         <>
           <IntegrationSection
-            title="Configuration"
-            description="Income items are your QuickBooks Products & Services. We load them live from the connected company. Every Sales Receipt line posts to the one you pick."
-          >
-            <div className="space-y-2">
-              <Label className="text-sm">Income item (from QuickBooks)</Label>
-              <Select
-                value={row?.incomeItemId ?? undefined}
-                onValueChange={(v) => void onSaveItem(v)}
-                disabled={items.isLoading || update.isPending || pendingItemId !== null}
-              >
-                <SelectTrigger className="max-w-lg">
-                  <SelectValue
-                    placeholder={
-                      items.isLoading
-                        ? "Loading Products & Services from QuickBooks…"
-                        : itemOptions.length === 0
-                          ? "No active items in QuickBooks: create one there first"
-                          : "Select a Product/Service"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {itemOptions.map((item) => (
-                    <SelectItem key={item.id} value={item.id}>
-                      {item.name}
-                      {item.type ? ` · ${item.type}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex max-w-lg items-center justify-between gap-4 rounded-xl border border-border bg-muted/30 px-4 py-3">
-              <div>
-                <p className="text-sm font-medium">Sync paid invoices</p>
-                <p className="text-xs text-muted-foreground">
-                  Soft-fails if QuickBooks is down. Stripe payments still succeed.
-                </p>
-              </div>
-              <Switch
-                checked={!!row?.enabled}
-                disabled={!row?.incomeItemId || update.isPending}
-                onCheckedChange={(v) => void onToggleSync(v)}
-              />
-            </div>
-
-            {row?.lastError && (
-              <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-                Last error: {row.lastError}
-                {row.lastErrorAt && (
-                  <span className="text-destructive/80">
-                    {" "}
-                    · {formatDistanceToNow(parseISO(row.lastErrorAt), { addSuffix: true })}
-                  </span>
-                )}
-              </div>
-            )}
-          </IntegrationSection>
-
-          <IntegrationSection
-            title="Activity"
-            description="Every sync attempt lands here, success, skip, or failure."
-            footer={
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => void onBackfill()}
-                  disabled={!row?.enabled || backfill.isPending}
-                >
-                  {backfill.isPending ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <RefreshCw className="size-3.5" />
-                  )}
-                  Sync past paid invoices
-                </Button>
-                {row?.lastSyncAt && (
-                  <span className="self-center text-xs text-muted-foreground">
-                    Last success{" "}
-                    {formatDistanceToNow(parseISO(row.lastSyncAt), { addSuffix: true })}
-                  </span>
-                )}
-              </div>
+            title={setupDone ? "Settings" : "Finish setup"}
+            description={
+              setupDone
+                ? "Change any answer at any time. Changes apply to receipts posted from now on."
+                : "Seven questions only you can answer. Nothing is sent to QuickBooks until every one is done."
             }
           >
-            {activity.isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading activity…</p>
-            ) : events.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No sync activity yet. Pay an invoice or run a backfill to see events here.
-              </p>
-            ) : (
-              <ul className="divide-y divide-border rounded-xl border border-border">
-                {events.map((ev) => (
-                  <ActivityRow key={ev.id} event={ev} />
-                ))}
-              </ul>
-            )}
+            {removing > 0 ? (
+              <div className="flex flex-col gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:bg-amber-950/40 dark:text-amber-200">
+                <p>
+                  {removing.toLocaleString()} receipt
+                  {removing === 1 ? " is" : "s are"} still being removed from {row.companyName ?? "QuickBooks"}.
+                  Connecting a different company or disconnecting waits until that finishes, or until you stop it.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={cancelRemovals.isPending}
+                  onClick={() => void onStopRemoving()}
+                >
+                  Stop removing
+                </Button>
+              </div>
+            ) : null}
+            <QuickBooksSetup
+              row={row}
+              onReconnect={() => void onConnect()}
+              reconnectDisabled={authorize.isPending || isDemo || removing > 0}
+            />
           </IntegrationSection>
+
+          {overview.data ? (
+            <>
+              <IntegrationSection
+                title="Sync status"
+                description={
+                  row.connectedAt
+                    ? `Connected ${formatDistanceToNow(parseISO(row.connectedAt), { addSuffix: true })}.${
+                        row.lastSyncAt
+                          ? ` Last posted ${formatDistanceToNow(parseISO(row.lastSyncAt), { addSuffix: true })}.`
+                          : ""
+                      }`
+                    : undefined
+                }
+              >
+                <QuickBooksSyncStatus row={row} overview={overview.data} />
+              </IntegrationSection>
+
+              <IntegrationSection
+                title="Needs attention"
+                description="Invoices that can't be posted until something is fixed. Each one says what."
+              >
+                <QuickBooksNeedsAttention overview={overview.data} />
+              </IntegrationSection>
+            </>
+          ) : null}
+
+          <IntegrationSection title="Activity" description="Every post, removal, and problem, newest first.">
+            <QuickBooksActivity events={activity.data ?? []} loading={activity.isLoading} />
+          </IntegrationSection>
+
+          {overview.data ? (
+            <IntegrationSection title="Undo" description="Take receipts AerScheduler posted back out of QuickBooks.">
+              <QuickBooksRemoveReceipts row={row} overview={overview.data} />
+            </IntegrationSection>
+          ) : null}
 
           <IntegrationSection
             title="Disconnect"
-            description="Revokes tokens at Intuit and clears local credentials."
+            description="Revokes access at Intuit. Receipts already posted stay in QuickBooks."
           >
             <Button
               variant="outline"
               className="gap-1.5 text-destructive"
               onClick={() => void onDisconnect()}
-              disabled={disconnect.isPending}
+              disabled={disconnect.isPending || removing > 0}
+            >
+              <Unplug className="size-3.5" />
+              Disconnect QuickBooks
+            </Button>
+          </IntegrationSection>
+        </>
+      ) : null}
+
+      {connected && row?.status === "needs_reconnect" ? (
+        <>
+          {removing > 0 ? (
+            <IntegrationSection title="Removals waiting" description="These can't run until QuickBooks is reconnected.">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-muted-foreground">
+                  {removing.toLocaleString()} receipt
+                  {removing === 1 ? " is" : "s are"} queued for removal from {row.companyName ?? "QuickBooks"}.
+                  Reconnect to finish, or stop them to disconnect instead.
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={cancelRemovals.isPending}
+                  onClick={() => void onStopRemoving()}
+                >
+                  Stop removing
+                </Button>
+              </div>
+            </IntegrationSection>
+          ) : null}
+          {overview.data && overview.data.blocked.length > 0 ? (
+            <IntegrationSection
+              title="Needs attention"
+              description="Invoices that can't be posted until something is fixed. Each one says what."
+            >
+              <QuickBooksNeedsAttention overview={overview.data} />
+            </IntegrationSection>
+          ) : null}
+          <IntegrationSection title="Activity" description="Every post, removal, and problem, newest first.">
+            <QuickBooksActivity events={activity.data ?? []} loading={activity.isLoading} />
+          </IntegrationSection>
+          <IntegrationSection title="Disconnect" description="Receipts already posted stay in QuickBooks.">
+            <Button
+              variant="outline"
+              className="gap-1.5 text-destructive"
+              onClick={() => void onDisconnect()}
+              disabled={disconnect.isPending || removing > 0}
             >
               <Unplug className="size-3.5" />
               Disconnect QuickBooks
@@ -400,32 +335,5 @@ function QuickBooksOwnerPage() {
         </>
       ) : null}
     </IntegrationPageShell>
-  );
-}
-
-function ActivityRow({ event }: { event: QuickBooksSyncEvent }) {
-  const tone =
-    event.status === "success"
-      ? "text-emerald-700 dark:text-emerald-400"
-      : event.status === "error"
-        ? "text-destructive"
-        : "text-muted-foreground";
-
-  return (
-    <li className="flex items-start justify-between gap-3 px-3 py-2.5 text-sm">
-      <div className="min-w-0">
-        <p className={`font-medium capitalize ${tone}`}>{event.status}</p>
-        <p className="truncate text-muted-foreground">
-          {event.message || "–"}
-          {event.invoiceId != null && (
-            <span className="text-foreground/80"> · Invoice #{event.invoiceId}</span>
-          )}
-        </p>
-      </div>
-      <div className="shrink-0 text-right text-xs text-muted-foreground">
-        <div>{formatDistanceToNow(parseISO(event.createdAt), { addSuffix: true })}</div>
-        <div className="capitalize">{event.triggeredBy}</div>
-      </div>
-    </li>
   );
 }

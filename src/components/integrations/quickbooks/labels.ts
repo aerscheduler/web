@@ -122,3 +122,50 @@ export function formatDateKey(key: string | null | undefined): string {
     year: "numeric",
   });
 }
+
+/** The order the questions are asked in. The server enforces the same list (policy.ts). */
+export const SETUP_ORDER: QuickBooksSetupStep[] = [
+  "confirm_company",
+  "books_ownership",
+  "start_date",
+  "income_item",
+  "deposit_account",
+  "desk_payments",
+  "enable",
+];
+
+/** Each step asked as the question it is, with the one line of why. */
+export const STEP_QUESTIONS: Record<QuickBooksSetupStep, { title: string; description: string }> = {
+  confirm_company: {
+    title: "Is this the right company?",
+    description: "Intuit lets you pick any company your login can see. Check it's the one your flight revenue belongs in.",
+  },
+  books_ownership: {
+    title: "What already records your flight revenue?",
+    description: "If something else already puts it in QuickBooks, every payment would be counted twice.",
+  },
+  start_date: {
+    title: "Where should posting start?",
+    description: "Invoices paid on or after this day post. Nothing before it ever does.",
+  },
+  income_item: {
+    title: "Which item should sales post to?",
+    description: "The QuickBooks product or service each line uses. Its income account is what shows on your Profit and Loss.",
+  },
+  deposit_account: {
+    title: "Where do card payments land?",
+    description: "The account card and ACH payments collected through Stripe are recorded to.",
+  },
+  desk_payments: {
+    title: "Post front-desk payments too?",
+    description: "Cash and check payments the desk marks as paid, including ones marked paid in your Stripe dashboard.",
+  },
+  enable: {
+    title: "Turn on sync",
+    description: "Paid invoices post in the background, oldest first. You can pause any time.",
+  },
+};
+
+/** The QuickBooks page's sections, in the Settings rail's shape. `?tab=` keys; don't rename them. */
+export const QBO_TABS = ["overview", "attention", "activity", "settings", "connection"] as const;
+export type QuickBooksTab = (typeof QBO_TABS)[number];

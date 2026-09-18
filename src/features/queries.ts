@@ -2048,12 +2048,15 @@ export type QuickBooksSyncEvent = {
   triggeredBy: string;
 };
 
-export function useQuickBooksActivity(opts?: QueryOpts) {
-  return useQuery({
-    queryKey: [...qboKey, "activity"],
-    queryFn: () => api<QuickBooksSyncEvent[]>("/intuit/quickbooks/activity"),
-    ...opts,
-  });
+/** The activity feed, paged by the server. `problems` keeps only errors. */
+export function useQuickBooksActivityPage(paging: PagingState, filter: { problems?: boolean } = {}, opts?: QueryOpts) {
+  return usePagedList<QuickBooksSyncEvent>(
+    [...qboKey, "activity"],
+    "/intuit/quickbooks/activity",
+    paging,
+    filter.problems ? { problems: true } : undefined,
+    opts
+  );
 }
 
 export type QuickBooksMoney = { count: number; totalCents: number };
@@ -2075,6 +2078,11 @@ export type QuickBooksBlockedInvoice = {
   lostPostElsewhere?: boolean;
   payerName: string | null;
 };
+
+/** Invoices waiting on a person, paged by the server. */
+export function useQuickBooksNeedsAttentionPage(paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<QuickBooksBlockedInvoice>([...qboKey, "attention"], "/intuit/quickbooks/needs-attention", paging, undefined, opts);
+}
 
 export type QuickBooksOverview = {
   counts: Record<string, number>;

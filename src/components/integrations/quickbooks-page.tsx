@@ -1,40 +1,38 @@
-import { useEffect } from "react";
-import { formatDistanceToNow, parseISO } from "date-fns";
-import { BookOpenCheck, ExternalLink, Loader2, Unplug } from "lucide-react";
+import { useEffect, useState } from "react";
+import {
+  AlertCircle,
+  BookOpenCheck,
+  ExternalLink,
+  History,
+  LayoutDashboard,
+  Link2,
+  Loader2,
+  Settings2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
 import { canManageBillingSettings } from "@/lib/permissions";
 import { ApiError } from "@/lib/api";
-import {
-  IntegrationPageShell,
-  IntegrationSection,
-  integrationStatusBadge,
-} from "@/components/integrations/integration-shell";
+import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
+import { FlowBenefits } from "@/components/onboarding/flows/flow-shell";
+import { IntegrationPageShell, integrationStatusBadge } from "@/components/integrations/integration-shell";
 import {
   useCancelQuickBooksRemovals,
-  useDisconnectQuickBooks,
-  useQuickBooksActivity,
   useQuickBooksAuthorize,
   useQuickBooksOverview,
   useQuickBooksSettings,
+  type QuickBooksSetupStep,
 } from "@/features/queries";
-import { QuickBooksSetup } from "@/components/integrations/quickbooks/setup";
-import {
-  QuickBooksActivity,
-  QuickBooksNeedsAttention,
-  QuickBooksRemoveReceipts,
-  QuickBooksSyncStatus,
-} from "@/components/integrations/quickbooks/status";
+import { QuickBooksSetupFlow } from "@/components/integrations/quickbooks/setup-flow";
+import { QuickBooksOverviewPane } from "@/components/integrations/quickbooks/overview";
+import { QuickBooksNeedsAttentionPane } from "@/components/integrations/quickbooks/attention";
+import { QuickBooksActivityPane } from "@/components/integrations/quickbooks/activity";
+import { QuickBooksAnswersPane } from "@/components/integrations/quickbooks/answers";
+import { QuickBooksConnectionPane } from "@/components/integrations/quickbooks/connection";
+import { QBO_TABS, type QuickBooksTab } from "@/components/integrations/quickbooks/labels";
 
-/**
- * Dedicated QuickBooks Online setup page.
- * Follows the shared IntegrationPageShell section pattern used by future providers.
- *
- * Connecting only READS the company. Nothing is written to QuickBooks until every setup
- * question is answered, because the costly failure is posting revenue a school already
- * records some other way. The server enforces the same rule (integrations/quickbooks/policy.ts).
- */
 /** Why the server refused a connect (its CallbackRefusal codes), in words. */
 const CONNECT_REFUSALS: Record<string, string> = {
   browser:
@@ -45,19 +43,50 @@ const CONNECT_REFUSALS: Record<string, string> = {
   denied: "QuickBooks connection was cancelled at Intuit.",
 };
 
+function sections(attention: number): RailSection[] {
+  return [
+    {
+      items: [
+        { value: "overview", label: "Overview", icon: LayoutDashboard },
+        {
+          value: "attention",
+          label: attention > 0 ? `Needs attention (${attention.toLocaleString()})` : "Needs attention",
+          icon: AlertCircle,
+        },
+        { value: "activity", label: "Activity", icon: History },
+        { value: "settings", label: "Settings", icon: Settings2 },
+        { value: "connection", label: "Connection", icon: Link2 },
+      ],
+    },
+  ];
+}
+
+/**
+ * QuickBooks Online, owner-only. Not connected: one card and a Connect button.
+ * Connected: the Settings rail's layout, one section at a time, with setup as a
+ * guided flow rather than a page of open forms.
+ *
+ * Connecting only READS the company. Nothing is written to QuickBooks until every
+ * setup answer is given, because the costly failure is posting revenue a school already
+ * records some other way. The server enforces the same rule (integrations/quickbooks/policy.ts).
+ */
 export function QuickBooksIntegrationPage({
   oauthResult,
   oauthReason,
+  tab,
+  onTab,
 }: {
   oauthResult?: string | null;
   oauthReason?: string | null;
+  tab?: string;
+  onTab: (tab: QuickBooksTab) => void;
 }) {
   const { roles } = useAuth();
   const isOwner = canManageBillingSettings(roles);
 
   useEffect(() => {
     if (oauthResult === "connected") {
-      toast.success("QuickBooks connected. Nothing is sent until you finish the steps below.");
+      toast.success("QuickBooks connected. Answer a few questions to finish setting it up.");
     } else if (oauthResult === "error") {
       toast.error((oauthReason && CONNECT_REFUSALS[oauthReason]) || "QuickBooks connection did not complete");
     }
@@ -69,49 +98,51 @@ export function QuickBooksIntegrationPage({
         icon={BookOpenCheck}
         iconClassName="bg-emerald-600"
         title="QuickBooks Online"
-        subtitle="Paid AerScheduler invoices land in your books as Sales Receipts."
+        subtitle="Paid invoices post to your books as Sales Receipts."
         status={integrationStatusBadge("disconnected")}
       >
-        <IntegrationSection title="Owner required">
-          <p className="text-sm text-muted-foreground">
-            Only the organization owner can connect accounting integrations, same as Stripe Connect. Ask an owner if you
-            need this wired up.
-          </p>
-        </IntegrationSection>
+        <Card>
+          <CardHeader>
+            <CardTitle>Owner only</CardTitle>
+            <CardDescription>
+              Only the organization owner can connect accounting integrations, same as Stripe. Ask an owner to set this
+              up.
+            </CardDescription>
+          </CardHeader>
+        </Card>
       </IntegrationPageShell>
     );
   }
 
-  return <QuickBooksOwnerPage />;
+  return <OwnerPage tab={tab} onTab={onTab} />;
 }
 
-function QuickBooksOwnerPage() {
+function OwnerPage({ tab, onTab }: { tab?: string; onTab: (tab: QuickBooksTab) => void }) {
   const { isDemo } = useAuth();
   const settings = useQuickBooksSettings();
   const row = settings.data ?? null;
   const connected = !!row && row.status !== "disconnected";
-  const live = connected && row.status !== "needs_reconnect";
-
-  const overview = useQuickBooksOverview({
-    // Also while the connection has lapsed: queued removals must stay visible (and
-    // stoppable) then, since they cannot run until it is reconnected.
-    enabled: connected,
-    // Poll while the background worker has something to do, so progress moves on its own.
-    refetchInterval: 15_000,
-  });
-  const activity = useQuickBooksActivity({ enabled: connected });
+  const overview = useQuickBooksOverview({ enabled: connected, refetchInterval: 15_000 });
   const authorize = useQuickBooksAuthorize();
-  const disconnect = useDisconnectQuickBooks();
   const cancelRemovals = useCancelQuickBooksRemovals();
+  const [flow, setFlow] = useState<{ open: boolean; only: QuickBooksSetupStep | null }>({ open: false, only: null });
+
+  const removing = overview.data?.removing ?? 0;
+  const attention = overview.data?.blockedCount ?? 0;
+  const active: QuickBooksTab = (QBO_TABS as readonly string[]).includes(tab ?? "")
+    ? (tab as QuickBooksTab)
+    : "overview";
+
+  async function onConnect() {
+    try {
+      const url = await authorize.mutateAsync();
+      window.location.assign(url);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Could not start QuickBooks connect");
+    }
+  }
 
   async function onStopRemoving() {
-    if (
-      !confirm(
-        "Stop removing? Receipts you asked to remove stay in QuickBooks, recorded as posted. Refunded ones, and any an unanswered try may have left, move to Needs attention to finish by hand.",
-      )
-    ) {
-      return;
-    }
     try {
       const r = await cancelRemovals.mutateAsync();
       toast.success(
@@ -124,216 +155,114 @@ function QuickBooksOwnerPage() {
     }
   }
 
-  async function onConnect() {
-    try {
-      const url = await authorize.mutateAsync();
-      window.location.assign(url);
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Could not start QuickBooks connect");
-    }
-  }
+  const shellProps = {
+    icon: BookOpenCheck,
+    iconClassName: "bg-emerald-600",
+    title: "QuickBooks Online",
+    subtitle: "Paid invoices post to your books as Sales Receipts, matched to customers by email.",
+    status: settings.isLoading ? (
+      <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+    ) : (
+      integrationStatusBadge(row?.status ?? "disconnected")
+    ),
+    accountLabel: row?.companyName ? `${row.companyName}${row.useSandbox ? " (sandbox)" : ""}` : null,
+  };
 
-  async function onDisconnect() {
-    if (
-      !confirm(
-        "Disconnect QuickBooks? Access is revoked at Intuit and new payments stop syncing. Receipts already in QuickBooks stay there.",
-      )
-    ) {
-      return;
-    }
-    try {
-      await disconnect.mutateAsync();
-      toast.success("QuickBooks disconnected");
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Could not disconnect");
-    }
-  }
-
-  const setupDone = !!row && (row.missingSetup ?? []).length === 0;
-  const removing = overview.data?.removing ?? 0;
-
-  return (
-    <IntegrationPageShell
-      data-doc-shot="quickbooks-setup"
-      icon={BookOpenCheck}
-      iconClassName="bg-emerald-600"
-      title="QuickBooks Online"
-      subtitle="Paid AerScheduler invoices land in your books as Sales Receipts, matched to customers by email, with a clear trail here."
-      status={
-        settings.isLoading ? (
-          <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-        ) : (
-          integrationStatusBadge(row?.status ?? "disconnected")
-        )
-      }
-      accountLabel={row?.companyName ? `${row.companyName}${row.useSandbox ? " (sandbox)" : ""}` : null}
-    >
-      {!live ? (
-        <IntegrationSection
-          title="Connection"
-          description={
-            row?.status === "needs_reconnect"
-              ? "Your QuickBooks connection expired. Reconnect to resume syncing."
-              : "Link your Intuit company. Owner-only: same bar as Stripe Connect."
-          }
-        >
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-muted-foreground">
-              {row?.status === "needs_reconnect"
-                ? "Reconnect to the same company to pick up where you left off."
-                : "Connecting only reads your company. Nothing is sent to QuickBooks until you finish setup."}
-            </p>
+  if (!row || !connected) {
+    return (
+      <IntegrationPageShell {...shellProps} data-doc-shot="quickbooks-setup">
+        <Card className="max-w-2xl">
+          <CardHeader>
+            <CardTitle>Connect QuickBooks</CardTitle>
+            <CardDescription>
+              Sign in with Intuit and pick your company. It takes a few minutes, start to finish.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <FlowBenefits
+              items={[
+                "Connecting only reads your company. Nothing is sent to QuickBooks yet.",
+                "A few questions set where posting starts and where money lands, so nothing is counted twice.",
+                "Once you turn it on, every paid invoice becomes a Sales Receipt on its own.",
+              ]}
+            />
             <Button
               onClick={() => void onConnect()}
               disabled={authorize.isPending || isDemo}
-              className="gap-2"
               title={isDemo ? "Connecting a real account isn't available in the demo" : undefined}
             >
-              {authorize.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <ExternalLink className="size-4 opacity-80" />
-              )}
-              {row?.status === "needs_reconnect" ? "Reconnect QuickBooks" : "Connect QuickBooks"}
+              {authorize.isPending ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
+              Connect QuickBooks
             </Button>
-          </div>
-        </IntegrationSection>
+          </CardContent>
+        </Card>
+      </IntegrationPageShell>
+    );
+  }
+
+  return (
+    <IntegrationPageShell {...shellProps} data-doc-shot="quickbooks-setup">
+      {row.status === "needs_reconnect" ? (
+        <Card>
+          <CardHeader className="flex-row flex-wrap items-center gap-3">
+            <div className="min-w-[14rem] flex-1">
+              <CardTitle>Reconnect QuickBooks</CardTitle>
+              <CardDescription>
+                Intuit's authorization lapsed, so nothing posts until you reconnect. Reconnecting the same company keeps
+                every answer.
+              </CardDescription>
+            </div>
+            <Button size="sm" onClick={() => void onConnect()} disabled={authorize.isPending || isDemo}>
+              {authorize.isPending ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
+              Reconnect
+            </Button>
+          </CardHeader>
+        </Card>
       ) : null}
 
-      {live && row ? (
-        <>
-          <IntegrationSection
-            title={setupDone ? "Settings" : "Finish setup"}
-            description={
-              setupDone
-                ? "Change any answer at any time. Changes apply to receipts posted from now on."
-                : "Seven questions only you can answer. Nothing is sent to QuickBooks until every one is done."
-            }
-          >
-            {removing > 0 ? (
-              <div className="flex flex-col gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:bg-amber-950/40 dark:text-amber-200">
-                <p>
-                  {removing.toLocaleString()} receipt
-                  {removing === 1 ? " is" : "s are"} still being removed from {row.companyName ?? "QuickBooks"}.
-                  Connecting a different company or disconnecting waits until that finishes, or until you stop it.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0"
-                  disabled={cancelRemovals.isPending}
-                  onClick={() => void onStopRemoving()}
-                >
-                  Stop removing
-                </Button>
-              </div>
-            ) : null}
-            <QuickBooksSetup
+      <div className={RAIL_ROW}>
+        <SectionRail
+          label="QuickBooks"
+          sections={sections(attention)}
+          value={active}
+          onChange={(v) => onTab(v as QuickBooksTab)}
+        />
+        <div className="min-w-0 flex-1">
+          {active === "overview" && (
+            <QuickBooksOverviewPane
               row={row}
-              onReconnect={() => void onConnect()}
-              reconnectDisabled={authorize.isPending || isDemo || removing > 0}
+              overview={overview.data ?? undefined}
+              onContinueSetup={() => setFlow({ open: true, only: null })}
+              onStopRemoving={() => void onStopRemoving()}
+              stopping={cancelRemovals.isPending}
             />
-          </IntegrationSection>
+          )}
+          {active === "attention" && <QuickBooksNeedsAttentionPane />}
+          {active === "activity" && <QuickBooksActivityPane />}
+          {active === "settings" && (
+            <QuickBooksAnswersPane row={row} onChange={(step) => setFlow({ open: true, only: step })} />
+          )}
+          {active === "connection" && (
+            <QuickBooksConnectionPane
+              row={row}
+              overview={overview.data ?? undefined}
+              onReconnect={() => void onConnect()}
+              reconnecting={authorize.isPending || isDemo}
+              onStopRemoving={() => void onStopRemoving()}
+              stopping={cancelRemovals.isPending}
+            />
+          )}
+        </div>
+      </div>
 
-          {overview.data ? (
-            <>
-              <IntegrationSection
-                title="Sync status"
-                description={
-                  row.connectedAt
-                    ? `Connected ${formatDistanceToNow(parseISO(row.connectedAt), { addSuffix: true })}.${
-                        row.lastSyncAt
-                          ? ` Last posted ${formatDistanceToNow(parseISO(row.lastSyncAt), { addSuffix: true })}.`
-                          : ""
-                      }`
-                    : undefined
-                }
-              >
-                <QuickBooksSyncStatus row={row} overview={overview.data} />
-              </IntegrationSection>
-
-              <IntegrationSection
-                title="Needs attention"
-                description="Invoices that can't be posted until something is fixed. Each one says what."
-              >
-                <QuickBooksNeedsAttention overview={overview.data} />
-              </IntegrationSection>
-            </>
-          ) : null}
-
-          <IntegrationSection title="Activity" description="Every post, removal, and problem, newest first.">
-            <QuickBooksActivity events={activity.data ?? []} loading={activity.isLoading} />
-          </IntegrationSection>
-
-          {overview.data ? (
-            <IntegrationSection title="Undo" description="Take receipts AerScheduler posted back out of QuickBooks.">
-              <QuickBooksRemoveReceipts row={row} overview={overview.data} />
-            </IntegrationSection>
-          ) : null}
-
-          <IntegrationSection
-            title="Disconnect"
-            description="Revokes access at Intuit. Receipts already posted stay in QuickBooks."
-          >
-            <Button
-              variant="outline"
-              className="gap-1.5 text-destructive"
-              onClick={() => void onDisconnect()}
-              disabled={disconnect.isPending || removing > 0}
-            >
-              <Unplug className="size-3.5" />
-              Disconnect QuickBooks
-            </Button>
-          </IntegrationSection>
-        </>
-      ) : null}
-
-      {connected && row?.status === "needs_reconnect" ? (
-        <>
-          {removing > 0 ? (
-            <IntegrationSection title="Removals waiting" description="These can't run until QuickBooks is reconnected.">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">
-                  {removing.toLocaleString()} receipt
-                  {removing === 1 ? " is" : "s are"} queued for removal from {row.companyName ?? "QuickBooks"}.
-                  Reconnect to finish, or stop them to disconnect instead.
-                </p>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0"
-                  disabled={cancelRemovals.isPending}
-                  onClick={() => void onStopRemoving()}
-                >
-                  Stop removing
-                </Button>
-              </div>
-            </IntegrationSection>
-          ) : null}
-          {overview.data && overview.data.blocked.length > 0 ? (
-            <IntegrationSection
-              title="Needs attention"
-              description="Invoices that can't be posted until something is fixed. Each one says what."
-            >
-              <QuickBooksNeedsAttention overview={overview.data} />
-            </IntegrationSection>
-          ) : null}
-          <IntegrationSection title="Activity" description="Every post, removal, and problem, newest first.">
-            <QuickBooksActivity events={activity.data ?? []} loading={activity.isLoading} />
-          </IntegrationSection>
-          <IntegrationSection title="Disconnect" description="Receipts already posted stay in QuickBooks.">
-            <Button
-              variant="outline"
-              className="gap-1.5 text-destructive"
-              onClick={() => void onDisconnect()}
-              disabled={disconnect.isPending || removing > 0}
-            >
-              <Unplug className="size-3.5" />
-              Disconnect QuickBooks
-            </Button>
-          </IntegrationSection>
-        </>
-      ) : null}
+      <QuickBooksSetupFlow
+        row={row}
+        open={flow.open}
+        only={flow.only}
+        onOpenChange={(open) => setFlow((f) => ({ ...f, open }))}
+        onReconnect={() => void onConnect()}
+        reconnectDisabled={authorize.isPending || isDemo || removing > 0}
+      />
     </IntegrationPageShell>
   );
 }

@@ -149,6 +149,12 @@ export const DOCS_TOPICS = {
       "Invoices paid on or after this day post, and nothing before it ever does. Pick today to start fresh, or an earlier day to bring history in after seeing exactly what would post.",
     href: "billing/send-paid-invoices-to-quickbooks#what-setup-asks",
   },
+  "quickbooks-needs-attention": {
+    title: "When an invoice can't post to QuickBooks",
+    summary:
+      "An invoice that needs a person lands under Needs attention with a sentence saying what to fix. Retry once it's fixed, or mark it Handled once you've dealt with it in QuickBooks yourself.",
+    href: "billing/send-paid-invoices-to-quickbooks#when-something-cant-post",
+  },
   "service-fee": {
     title: "Service fee",
     summary:

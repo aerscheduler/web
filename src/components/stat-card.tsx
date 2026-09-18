@@ -64,7 +64,8 @@ export function StatCard({
     | "/training"
     | "/aircraft"
     | "/schedule"
-    | "/settings";
+    | "/settings"
+    | "/settings/integrations/quickbooks";
   /** Search params for `to`, so a tile can land on the filtered list it counts. */
   search?: Record<string, string | boolean>;
 }) {

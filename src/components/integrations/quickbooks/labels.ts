@@ -94,7 +94,11 @@ export const BLOCK_REASON_LABELS: Record<string, string> = {
   remove_failed: "Could not be removed",
   payment_unverified: "Couldn't confirm how it was paid",
   repaid_after_partial_refund: "Refunded, then paid again",
+  dispute_won_closed: "Dispute won, period closed",
 };
+
+/** Holds only a person can end (Handled); Retry would just hide them. Mirrors the server. */
+export const PERSON_ONLY_REASONS = ["repaid_after_partial_refund", "dispute_won_closed"];
 
 export function blockReasonLabel(reason: string | null | undefined): string {
   return (reason && BLOCK_REASON_LABELS[reason]) || "Needs attention";

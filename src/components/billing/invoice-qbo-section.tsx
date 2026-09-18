@@ -10,7 +10,7 @@ import { ApiError } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useQuickBooksSettings, useSyncInvoiceToQuickBooks } from "@/features/queries";
-import { blockReasonLabel } from "@/components/integrations/quickbooks/labels";
+import { blockReasonLabel, PERSON_ONLY_REASONS } from "@/components/integrations/quickbooks/labels";
 
 /** Deep-link into a Sales Receipt: must match sandbox vs production Intuit company. */
 export function qboSalesReceiptUrl(receiptId: string, useSandbox: boolean): string {
@@ -153,7 +153,7 @@ export function InvoiceQuickBooksSection({ invoice }: { invoice: Invoice }) {
               </a>
             </Button>
           )}
-          {isOwner && blocked && invoice.qboBlockedReason !== "repaid_after_partial_refund" && (
+          {isOwner && blocked && !PERSON_ONLY_REASONS.includes(invoice.qboBlockedReason ?? "") && (
             <Button
               size="sm"
               variant="outline"

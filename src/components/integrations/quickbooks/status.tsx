@@ -30,7 +30,7 @@ import {
   type QuickBooksSettings,
   type QuickBooksSyncEvent,
 } from "@/features/queries";
-import { blockReasonLabel, formatDateKey } from "./labels";
+import { blockReasonLabel, formatDateKey, PERSON_ONLY_REASONS } from "./labels";
 
 function errMessage(err: unknown, fallback: string) {
   return err instanceof ApiError ? err.message : fallback;
@@ -216,7 +216,7 @@ export function QuickBooksNeedsAttention({ overview }: { overview: QuickBooksOve
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5 sm:flex-row">
               {/* A person's to record: Retry cannot do anything for it. */}
-              {b.reason !== "repaid_after_partial_refund" ? (
+              {!PERSON_ONLY_REASONS.includes(b.reason ?? "") ? (
                 <Button
                   size="sm"
                   variant="outline"

@@ -26,7 +26,7 @@ import {
   useSyncInvoiceToQuickBooks,
   type QuickBooksBlockedInvoice,
 } from "@/features/queries";
-import { blockReasonLabel, PERSON_ONLY_REASONS } from "./labels";
+import { blockReasonLabel, canRetry } from "./labels";
 
 function errMessage(err: unknown, fallback: string) {
   return err instanceof ApiError ? err.message : fallback;
@@ -113,9 +113,7 @@ export function QuickBooksNeedsAttentionPane() {
             <Badge variant={row.original.isRemoval ? "secondary" : "outline"}>
               {blockReasonLabel(row.original.reason)}
             </Badge>
-            {row.original.message ? (
-              <p className="line-clamp-2 text-xs text-muted-foreground">{row.original.message}</p>
-            ) : null}
+            {row.original.message ? <p className="text-xs text-muted-foreground">{row.original.message}</p> : null}
           </div>
         ),
       },
@@ -201,7 +199,7 @@ function RowActions({
   onRetry: (r: QuickBooksBlockedInvoice) => void;
   onHandled: (r: QuickBooksBlockedInvoice) => void;
 }) {
-  const personOnly = PERSON_ONLY_REASONS.includes(row.reason ?? "");
+  const retryable = canRetry(row.reason);
   return (
     <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
       <DropdownMenu>
@@ -211,7 +209,7 @@ function RowActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
-          {!personOnly ? (
+          {retryable ? (
             <DropdownMenuItem onSelect={() => void onRetry(row)}>
               <RefreshCw /> {row.isRemoval ? "Try removing again" : "Retry"}
             </DropdownMenuItem>

@@ -11,23 +11,78 @@ import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { pageRows, useQuickBooksActivityPage, type QuickBooksSyncEvent } from "@/features/queries";
+import { blockReasonLabel } from "./labels";
 
-/** Who or what caused an event, in words. The raw values are internal names. */
-const SOURCE_LABELS: Record<string, string> = {
+/** What set each row off, in words. The stored values are internal names. */
+const STARTED_BY: Record<string, string> = {
   drain: "Background sync",
-  auto: "New payment",
-  retry: "Retry",
-  owner: "Owner",
-  remove: "Removal",
-  refund: "Refund",
-  connect: "Connection",
-  backfill: "Start date",
+  auto: "Payment received",
+  retry: "Retry button",
+  owner: "Handled button",
+  remove: "Receipt removal",
+  refund: "Refund in Stripe",
+  connect: "Connecting QuickBooks",
+  backfill: "Start date change",
 };
 
+function startedBy(e: QuickBooksSyncEvent): string {
+  return STARTED_BY[e.triggeredBy] ?? "AerScheduler";
+}
+
+/** Older rows logged a post as a bare "Sales Receipt #218". */
+function describe(e: QuickBooksSyncEvent): string {
+  const m = e.message ?? "";
+  if (e.status === "success" && /^Sales Receipt #\S+$/.test(m)) return `Posted as ${m}`;
+  return m || "–";
+}
+
 /**
- * Everything the sync did, newest first. Paged by the server: a school posting its
- * history writes thousands of these.
+ * One row in words. A problem says what went wrong, the message says why and what to
+ * do, and the last line says where that invoice stands now, because a problem from last
+ * week may have been sorted out since.
  */
+function WhatHappened({ e }: { e: QuickBooksSyncEvent }) {
+  if (e.status !== "error") {
+    return <span className={e.status === "skipped" ? "text-muted-foreground" : undefined}>{describe(e)}</span>;
+  }
+  return (
+    <div className="min-w-0 space-y-1 py-0.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="danger">Problem</Badge>
+        {e.reason ? <span className="font-medium">{blockReasonLabel(e.reason)}</span> : null}
+      </div>
+      <p>{describe(e)}</p>
+      {e.followUp === "waiting" ? (
+        <Link
+          to="/settings/integrations/quickbooks"
+          search={{ tab: "attention" }}
+          className="inline-block text-xs font-medium text-primary hover:underline"
+        >
+          Still waiting on you in Needs attention
+        </Link>
+      ) : e.followUp === "resolved" ? (
+        <p className="text-xs text-muted-foreground">Sorted out since</p>
+      ) : e.followUp === "retrying" ? (
+        <p className="text-xs text-muted-foreground">Being tried again automatically</p>
+      ) : null}
+    </div>
+  );
+}
+
+function InvoiceCell({ e }: { e: QuickBooksSyncEvent }) {
+  if (e.invoiceId == null) return <span className="text-muted-foreground">–</span>;
+  return (
+    <Link
+      to="/billing"
+      search={{ invoice: e.invoiceId } as never}
+      className="block min-w-0 underline-offset-2 hover:underline"
+    >
+      <div className="truncate font-medium">{e.invoiceNumber ?? `Invoice ${e.invoiceId}`}</div>
+      {e.payerName ? <div className="truncate text-xs text-muted-foreground">{e.payerName}</div> : null}
+    </Link>
+  );
+}
+
 export function QuickBooksActivityPane() {
   const [show, setShow] = useState<"all" | "problems">("all");
   const paging = usePaging({ resetKey: show });
@@ -55,45 +110,21 @@ export function QuickBooksActivityPane() {
         },
       },
       {
-        id: "what",
-        header: "What happened",
-        cell: ({ row }) => (
-          <div className="flex min-w-0 items-start gap-2">
-            {row.original.status === "error" ? (
-              <Badge variant="danger" className="shrink-0">
-                Problem
-              </Badge>
-            ) : null}
-            <span className="min-w-0">{row.original.message || "–"}</span>
-          </div>
-        ),
-      },
-      {
         id: "invoice",
         header: "Invoice",
-        meta: { width: "7rem" },
-        cell: ({ row }) =>
-          row.original.invoiceId != null ? (
-            <Link
-              to="/billing"
-              search={{ invoice: row.original.invoiceId } as never}
-              className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-            >
-              #{row.original.invoiceId}
-            </Link>
-          ) : (
-            <span className="text-muted-foreground">–</span>
-          ),
+        meta: { width: "12rem" },
+        cell: ({ row }) => <InvoiceCell e={row.original} />,
       },
       {
-        id: "source",
-        header: "Source",
-        meta: { width: "9.5rem" },
-        cell: ({ row }) => (
-          <span className="whitespace-nowrap text-muted-foreground">
-            {SOURCE_LABELS[row.original.triggeredBy] ?? row.original.triggeredBy}
-          </span>
-        ),
+        id: "what",
+        header: "What happened",
+        cell: ({ row }) => <WhatHappened e={row.original} />,
+      },
+      {
+        id: "startedBy",
+        header: "Started by",
+        meta: { width: "11rem" },
+        cell: ({ row }) => <span className="whitespace-nowrap text-muted-foreground">{startedBy(row.original)}</span>,
       },
     ],
     [],
@@ -141,15 +172,13 @@ export function QuickBooksActivityPane() {
         </div>
       }
       mobileCard={(e) => (
-        <div className="space-y-1 p-4">
+        <div className="space-y-1.5 p-4 text-sm">
           <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span>{formatDistanceToNow(parseISO(e.createdAt), { addSuffix: true })}</span>
-            <span>{SOURCE_LABELS[e.triggeredBy] ?? e.triggeredBy}</span>
+            <span>{startedBy(e)}</span>
           </div>
-          <div className="flex items-start gap-2 text-sm">
-            {e.status === "error" ? <Badge variant="danger">Problem</Badge> : null}
-            <span>{e.message || "–"}</span>
-          </div>
+          {e.invoiceId != null ? <InvoiceCell e={e} /> : null}
+          <WhatHappened e={e} />
         </div>
       )}
     />

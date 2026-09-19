@@ -2046,6 +2046,12 @@ export type QuickBooksSyncEvent = {
   externalId: string | null;
   invoiceId: number | null;
   triggeredBy: string;
+  invoiceNumber?: string | null;
+  payerName?: string | null;
+  /** Problem rows only: where that invoice is now. */
+  followUp?: "waiting" | "resolved" | "retrying" | null;
+  /** Set while this row is the invoice's current problem. */
+  reason?: string | null;
 };
 
 /** The activity feed, paged by the server. `problems` keeps only errors. */

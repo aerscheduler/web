@@ -104,6 +104,17 @@ export const BLOCK_REASON_LABELS: Record<string, string> = {
 /** Holds only a person can end (Handled); Retry would just hide them. Mirrors the server. */
 export const PERSON_ONLY_REASONS = ["repaid_after_partial_refund", "dispute_won_closed"];
 
+/**
+ * Problems no Retry can change: the refund, the sales tax or the $0 total is a fact of
+ * the invoice, so it only ever re-blocks the same way. These are recorded by hand and
+ * marked handled, so Retry isn't offered for them.
+ */
+const RECORD_BY_HAND_REASONS = [...PERSON_ONLY_REASONS, "refunded", "has_tax", "zero_total"];
+
+export function canRetry(reason: string | null | undefined): boolean {
+  return !RECORD_BY_HAND_REASONS.includes(reason ?? "");
+}
+
 export function blockReasonLabel(reason: string | null | undefined): string {
   return (reason && BLOCK_REASON_LABELS[reason]) || "Needs attention";
 }

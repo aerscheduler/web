@@ -17,7 +17,12 @@ import { canManageBillingSettings } from "@/lib/permissions";
 import { ApiError } from "@/lib/api";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { FlowBenefits } from "@/components/onboarding/flows/flow-shell";
-import { IntegrationPageShell, integrationStatusBadge } from "@/components/integrations/integration-shell";
+import {
+  IntegrationPageHeader,
+  IntegrationPageShell,
+  integrationStatusBadge,
+} from "@/components/integrations/integration-shell";
+import { TableView } from "@/components/table-view";
 import {
   useCancelQuickBooksRemovals,
   useQuickBooksAuthorize,
@@ -104,10 +109,7 @@ export function QuickBooksIntegrationPage({
         <Card>
           <CardHeader>
             <CardTitle>Owner only</CardTitle>
-            <CardDescription>
-              Only the organization owner can connect accounting integrations, same as Stripe. Ask an owner to set this
-              up.
-            </CardDescription>
+            <CardDescription>Only an owner can connect QuickBooks. Ask an owner to set it up.</CardDescription>
           </CardHeader>
         </Card>
       </IntegrationPageShell>
@@ -182,7 +184,7 @@ function OwnerPage({ tab, onTab }: { tab?: string; onTab: (tab: QuickBooksTab) =
             <FlowBenefits
               items={[
                 "Connecting only reads your company. Nothing is sent to QuickBooks yet.",
-                "A few questions set where posting starts and where money lands, so nothing is counted twice.",
+                "A few questions set which invoices are posted and where the money lands, so nothing is counted twice.",
                 "Once you turn it on, every paid invoice becomes a Sales Receipt on its own.",
               ]}
             />
@@ -200,25 +202,35 @@ function OwnerPage({ tab, onTab }: { tab?: string; onTab: (tab: QuickBooksTab) =
     );
   }
 
+  // Laid out like Maintenance: header pinned, the rail beside one pane, and the two
+  // tables (Needs attention, Activity) filling the height and scrolling their own rows.
+  // The other sections scroll inside a TableView.Body the same way.
   return (
-    <IntegrationPageShell {...shellProps} data-doc-shot="quickbooks-setup">
-      {row.status === "needs_reconnect" ? (
-        <Card>
-          <CardHeader className="flex-row flex-wrap items-center gap-3">
-            <div className="min-w-[14rem] flex-1">
-              <CardTitle>Reconnect QuickBooks</CardTitle>
-              <CardDescription>
-                Intuit's authorization lapsed, so nothing posts until you reconnect. Reconnecting the same company keeps
-                every answer.
-              </CardDescription>
-            </div>
-            <Button size="sm" onClick={() => void onConnect()} disabled={authorize.isPending || isDemo}>
-              {authorize.isPending ? <Loader2 className="size-4 animate-spin" /> : <ExternalLink className="size-4" />}
-              Reconnect
-            </Button>
-          </CardHeader>
-        </Card>
-      ) : null}
+    <TableView className="gap-5" data-doc-shot="quickbooks-setup">
+      <TableView.Header>
+        <IntegrationPageHeader {...shellProps} />
+        {row.status === "needs_reconnect" ? (
+          <Card>
+            <CardHeader className="flex-row flex-wrap items-center gap-3">
+              <div className="min-w-[14rem] flex-1">
+                <CardTitle>Reconnect QuickBooks</CardTitle>
+                <CardDescription>
+                  Your QuickBooks connection expired, so nothing is posted until you reconnect. Reconnecting the same
+                  company keeps your setup answers.
+                </CardDescription>
+              </div>
+              <Button size="sm" onClick={() => void onConnect()} disabled={authorize.isPending || isDemo}>
+                {authorize.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="size-4" />
+                )}
+                Reconnect
+              </Button>
+            </CardHeader>
+          </Card>
+        ) : null}
+      </TableView.Header>
 
       <div className={RAIL_ROW}>
         <SectionRail
@@ -227,30 +239,36 @@ function OwnerPage({ tab, onTab }: { tab?: string; onTab: (tab: QuickBooksTab) =
           value={active}
           onChange={(v) => onTab(v as QuickBooksTab)}
         />
-        <div className="min-w-0 flex-1">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
           {active === "overview" && (
-            <QuickBooksOverviewPane
-              row={row}
-              overview={overview.data ?? undefined}
-              onContinueSetup={() => setFlow({ open: true, only: null })}
-              onStopRemoving={() => void onStopRemoving()}
-              stopping={cancelRemovals.isPending}
-            />
+            <TableView.Body>
+              <QuickBooksOverviewPane
+                row={row}
+                overview={overview.data ?? undefined}
+                onContinueSetup={() => setFlow({ open: true, only: null })}
+                onStopRemoving={() => void onStopRemoving()}
+                stopping={cancelRemovals.isPending}
+              />
+            </TableView.Body>
           )}
           {active === "attention" && <QuickBooksNeedsAttentionPane />}
           {active === "activity" && <QuickBooksActivityPane />}
           {active === "settings" && (
-            <QuickBooksAnswersPane row={row} onChange={(step) => setFlow({ open: true, only: step })} />
+            <TableView.Body>
+              <QuickBooksAnswersPane row={row} onChange={(step) => setFlow({ open: true, only: step })} />
+            </TableView.Body>
           )}
           {active === "connection" && (
-            <QuickBooksConnectionPane
-              row={row}
-              overview={overview.data ?? undefined}
-              onReconnect={() => void onConnect()}
-              reconnecting={authorize.isPending || isDemo}
-              onStopRemoving={() => void onStopRemoving()}
-              stopping={cancelRemovals.isPending}
-            />
+            <TableView.Body>
+              <QuickBooksConnectionPane
+                row={row}
+                overview={overview.data ?? undefined}
+                onReconnect={() => void onConnect()}
+                reconnecting={authorize.isPending || isDemo}
+                onStopRemoving={() => void onStopRemoving()}
+                stopping={cancelRemovals.isPending}
+              />
+            </TableView.Body>
           )}
         </div>
       </div>
@@ -263,6 +281,6 @@ function OwnerPage({ tab, onTab }: { tab?: string; onTab: (tab: QuickBooksTab) =
         onReconnect={() => void onConnect()}
         reconnectDisabled={authorize.isPending || isDemo || removing > 0}
       />
-    </IntegrationPageShell>
+    </TableView>
   );
 }

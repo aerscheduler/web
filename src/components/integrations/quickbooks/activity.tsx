@@ -14,14 +14,14 @@ import { pageRows, useQuickBooksActivityPage, type QuickBooksSyncEvent } from "@
 
 /** Who or what caused an event, in words. The raw values are internal names. */
 const SOURCE_LABELS: Record<string, string> = {
-  drain: "Automatic",
-  auto: "Payment",
+  drain: "Background sync",
+  auto: "New payment",
   retry: "Retry",
-  owner: "You",
+  owner: "Owner",
   remove: "Removal",
   refund: "Refund",
   connect: "Connection",
-  backfill: "History",
+  backfill: "Start date",
 };
 
 /**
@@ -87,10 +87,10 @@ export function QuickBooksActivityPane() {
       },
       {
         id: "source",
-        header: "From",
-        meta: { width: "7rem" },
+        header: "Source",
+        meta: { width: "9.5rem" },
         cell: ({ row }) => (
-          <span className="text-muted-foreground">
+          <span className="whitespace-nowrap text-muted-foreground">
             {SOURCE_LABELS[row.original.triggeredBy] ?? row.original.triggeredBy}
           </span>
         ),
@@ -119,7 +119,7 @@ export function QuickBooksActivityPane() {
         <EmptyState
           icon={History}
           title="No activity yet"
-          body="Every post, removal and problem shows up here once sync starts."
+          body="Receipts posted and removed, and any problems, show up here once sync starts."
         />
       </Card>
     );
@@ -127,6 +127,7 @@ export function QuickBooksActivityPane() {
 
   return (
     <DataTable
+      fill
       columns={columns}
       data={rows}
       paging={paging}
@@ -135,7 +136,7 @@ export function QuickBooksActivityPane() {
       emptyMessage="No problems. Everything recent went through."
       toolbar={
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-muted-foreground">Every post, removal and problem, newest first.</p>
+          <p className="text-sm text-muted-foreground">Receipts posted and removed, and every problem, newest first.</p>
           {filter}
         </div>
       }

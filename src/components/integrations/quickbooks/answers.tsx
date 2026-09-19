@@ -20,22 +20,22 @@ export function QuickBooksAnswersPane({
     { step: "confirm_company", label: "Company", value: row.companyConfirmed ? row.companyName : null },
     {
       step: "books_ownership",
-      label: "What else records this revenue",
-      value: OWNERSHIP_OPTIONS.find((o) => o.value === row.booksOwnershipAnswer)?.label,
+      label: "What else records flight revenue",
+      value: OWNERSHIP_OPTIONS.find((o) => o.value === row.booksOwnershipAnswer)?.short,
     },
     {
       step: "start_date",
-      label: "Posting from",
+      label: "Start date",
       value: row.effectiveStartDateKey ? formatDateKey(row.effectiveStartDateKey) : null,
     },
     {
       step: "income_item",
       label: "Income item",
       value: row.incomeItemName
-        ? `${row.incomeItemName}${splitCount ? `, plus ${splitCount} per kind of charge` : ""}`
+        ? `${row.incomeItemName}${splitCount ? `, with separate items for ${splitCount} kind${splitCount === 1 ? "" : "s"} of charge` : ""}`
         : null,
     },
-    { step: "deposit_account", label: "Card payments land in", value: row.depositAccountName },
+    { step: "deposit_account", label: "Card payments deposit to", value: row.depositAccountName },
     {
       step: "desk_payments",
       label: "Front-desk payments",
@@ -43,15 +43,15 @@ export function QuickBooksAnswersPane({
         row.syncDeskPayments == null
           ? null
           : row.syncDeskPayments
-            ? `Posted, to ${row.deskDepositAccountName ?? "…"}`
-            : "Not posted",
+            ? `Yes, to ${row.deskDepositAccountName ?? "…"}`
+            : "No",
     },
   ];
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Setup</CardTitle>
+        <CardTitle>Setup answers</CardTitle>
         <CardDescription>
           Changes apply to receipts posted from now on. Receipts already posted stay as they are.
         </CardDescription>

@@ -45,8 +45,7 @@ export function QuickBooksOverviewPane({
               <CardTitle>Removing receipts</CardTitle>
               <CardDescription>
                 {removing.toLocaleString()} receipt{removing === 1 ? " is" : "s are"} still being removed from{" "}
-                {row.companyName ?? "QuickBooks"}. Connecting a different company or disconnecting waits until this
-                finishes.
+                {row.companyName ?? "QuickBooks"}. You can connect a different company or disconnect once this finishes.
               </CardDescription>
             </div>
             <Button variant="outline" size="sm" onClick={onStopRemoving} disabled={stopping}>
@@ -128,15 +127,17 @@ function SyncCard({ row, overview }: { row: QuickBooksSettings; overview: QuickB
     <Card>
       <CardHeader>
         <CardTitle>Sync</CardTitle>
-        <CardDescription>Paid invoices post to {row.companyName ?? "QuickBooks"} as Sales Receipts.</CardDescription>
+        <CardDescription>
+          Invoices paid on or after the start date post to {row.companyName ?? "QuickBooks"} as Sales Receipts.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <PreferenceToggle
           label="Sync paid invoices"
           description={
             refused
-              ? "Off, because another tool already records this revenue. Change that answer in Settings."
-              : "Pausing is safe: anything paid while it's off posts when you turn it back on."
+              ? "Off because of your answer about what else records flight revenue. Change it in Settings."
+              : "Pausing is safe. Invoices paid while sync is off are posted when you turn it back on."
           }
           checked={row.enabled}
           disabled={update.isPending || refused}
@@ -156,7 +157,7 @@ function SyncCard({ row, overview }: { row: QuickBooksSettings; overview: QuickB
           </p>
         ) : null}
         <div className="divide-y divide-border">
-          <ReadOnlyRow label="Posting from">
+          <ReadOnlyRow label="Start date">
             {row.effectiveStartDateKey ? formatDateKey(row.effectiveStartDateKey) : "Not set"}
           </ReadOnlyRow>
           <ReadOnlyRow label="Last posted">
@@ -167,9 +168,9 @@ function SyncCard({ row, overview }: { row: QuickBooksSettings; overview: QuickB
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">
-                Posting history, oldest first
+                Posting invoices, oldest first
                 {overview?.toPost?.oldestPaidAt
-                  ? `, now at ${new Date(overview.toPost.oldestPaidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
+                  ? `. Now on invoices paid ${new Date(overview.toPost.oldestPaidAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}`
                   : ""}
               </span>
               <span className="tabular-nums text-muted-foreground">{pct}%</span>
@@ -202,9 +203,9 @@ function Stats({ row, overview }: { row: QuickBooksSettings; overview: QuickBook
         icon={Clock}
       />
       <StatCard
-        label="Before the start date"
+        label="Paid before start date"
         value={overview.beforeStartDate.count.toLocaleString()}
-        hint={row.effectiveStartDateKey ? `Before ${formatDateKey(row.effectiveStartDateKey)}` : "Not posted"}
+        hint={row.effectiveStartDateKey ? "Not posted to QuickBooks" : "No start date yet"}
         icon={CalendarClock}
       />
       <StatCard

@@ -1,8 +1,4 @@
-import type {
-  QuickBooksBooksOwnership,
-  QuickBooksLineCategory,
-  QuickBooksSetupStep,
-} from "@/features/queries";
+import type { QuickBooksBooksOwnership, QuickBooksLineCategory, QuickBooksSetupStep } from "@/features/queries";
 
 /**
  * The question no API can answer: is this revenue already in their books some other
@@ -13,6 +9,8 @@ import type {
 export const OWNERSHIP_OPTIONS: Array<{
   value: QuickBooksBooksOwnership;
   label: string;
+  /** The answer in a few words, for the Settings row. */
+  short: string;
   hint: string;
   /** "refuse" keeps sync off; "forward" allows today onward only. */
   effect: "allow" | "forward" | "refuse";
@@ -20,37 +18,43 @@ export const OWNERSHIP_OPTIONS: Array<{
   {
     value: "nothing_yet",
     label: "Nothing yet. AerScheduler will be the only thing recording flight revenue.",
+    short: "Nothing else",
     hint: "You can choose how far back to start, and see exactly what would post first.",
     effect: "allow",
   },
   {
     value: "bank_feed",
     label: "A bank feed rule books our Stripe deposits as income.",
+    short: "A bank feed rule",
     hint: "AerScheduler can take over from today onward. Turn that bank rule off, or you will count the same money twice.",
     effect: "forward",
   },
   {
     value: "manual",
     label: "Our bookkeeper enters it by hand.",
+    short: "Our bookkeeper, by hand",
     hint: "AerScheduler can take over from today onward. Let your bookkeeper know to stop entering flight revenue.",
     effect: "forward",
   },
   {
     value: "stripe_connector",
     label: "Stripe's own QuickBooks app, or a tool like Synder or PayTraQer.",
-    hint: "Sync stays off: both would record every payment. Turn that app off first if you want AerScheduler to do it instead.",
+    short: "Stripe's QuickBooks app or similar",
+    hint: "Sync stays off, or every payment would be recorded twice. Turn that app off first if you want AerScheduler to take over.",
     effect: "refuse",
   },
   {
     value: "other_app",
     label: "Another flight-school or accounting tool.",
+    short: "Another tool",
     hint: "Sync stays off so the same revenue is not recorded twice. Turn the other tool off first.",
     effect: "refuse",
   },
   {
     value: "unsure",
     label: "I'm not sure.",
-    hint: "Sync stays off until you know. Easiest check: in QuickBooks, run Profit and Loss for last month. If your flight revenue already shows there, something is recording it.",
+    short: "Not sure",
+    hint: "Sync stays off until you know.",
     effect: "refuse",
   },
 ];
@@ -67,9 +71,9 @@ export const CATEGORY_ORDER: QuickBooksLineCategory[] = ["rental", "instruction"
 
 export const STEP_LABELS: Record<QuickBooksSetupStep, string> = {
   confirm_company: "Confirm the company",
-  books_ownership: "What else records this revenue",
+  books_ownership: "What else records flight revenue",
   start_date: "Start date",
-  income_item: "Income items",
+  income_item: "Income item",
   deposit_account: "Where card payments land",
   desk_payments: "Front-desk payments",
   enable: "Turn on",
@@ -80,7 +84,7 @@ export const BLOCK_REASON_LABELS: Record<string, string> = {
   has_tax: "Carries sales tax",
   zero_total: "Nothing collected",
   amount_mismatch: "Lines don't add up",
-  negative_line: "Negative line",
+  negative_line: "Line with a negative amount",
   no_party: "No member or guest",
   no_email: "No email address",
   bad_email: "Unusable email address",
@@ -89,12 +93,12 @@ export const BLOCK_REASON_LABELS: Record<string, string> = {
   customer_name_conflict: "Name already used in QuickBooks",
   qbo_rejected: "QuickBooks rejected it",
   qbo_total_mismatch: "QuickBooks changed the total",
-  duplicate_doc_number: "Document number already used",
+  duplicate_doc_number: "Receipt number already used in QuickBooks",
   retries_exhausted: "Kept failing",
   remove_failed: "Could not be removed",
   payment_unverified: "Couldn't confirm how it was paid",
   repaid_after_partial_refund: "Refunded, then paid again",
-  dispute_won_closed: "Dispute won, period closed",
+  dispute_won_closed: "Dispute won after books closed",
 };
 
 /** Holds only a person can end (Handled); Retry would just hide them. Mirrors the server. */
@@ -138,27 +142,29 @@ export const SETUP_ORDER: QuickBooksSetupStep[] = [
 export const STEP_QUESTIONS: Record<QuickBooksSetupStep, { title: string; description: string }> = {
   confirm_company: {
     title: "Is this the right company?",
-    description: "Intuit lets you pick any company your login can see. Check it's the one your flight revenue belongs in.",
+    description:
+      "Intuit lets you pick any company your login can see. Check it's the one your flight revenue belongs in.",
   },
   books_ownership: {
     title: "What already records your flight revenue?",
     description: "If something else already puts it in QuickBooks, every payment would be counted twice.",
   },
   start_date: {
-    title: "Where should posting start?",
-    description: "Invoices paid on or after this day post. Nothing before it ever does.",
+    title: "Which invoices should go to QuickBooks?",
+    description: "Invoices paid on or after this date are posted to QuickBooks. Earlier ones never are.",
   },
   income_item: {
-    title: "Which item should sales post to?",
-    description: "The QuickBooks product or service each line uses. Its income account is what shows on your Profit and Loss.",
+    title: "Which QuickBooks item should invoices use?",
+    description:
+      "The QuickBooks product or service each line uses. Its income account is what shows on your Profit and Loss.",
   },
   deposit_account: {
     title: "Where do card payments land?",
-    description: "The account card and ACH payments collected through Stripe are recorded to.",
+    description: "Card and ACH payments collected through Stripe are recorded in this account.",
   },
   desk_payments: {
     title: "Post front-desk payments too?",
-    description: "Cash and check payments the desk marks as paid, including ones marked paid in your Stripe dashboard.",
+    description: "Cash and check payments marked paid by hand, here or in your Stripe dashboard.",
   },
   enable: {
     title: "Turn on sync",

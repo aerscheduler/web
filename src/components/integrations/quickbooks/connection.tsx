@@ -6,7 +6,16 @@ import { ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
 import { ReadOnlyRow } from "@/components/settings/parts";
-import { ResponsiveModal } from "@/components/responsive-modal";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -67,7 +76,7 @@ export function QuickBooksConnectionPane({
         <CardHeader className="flex-row flex-wrap items-center gap-3">
           <div className="min-w-[14rem] flex-1">
             <CardTitle>Company</CardTitle>
-            <CardDescription>The QuickBooks company paid invoices post to.</CardDescription>
+            <CardDescription>Paid invoices are posted to this QuickBooks company.</CardDescription>
           </div>
           <Button
             variant="outline"
@@ -129,13 +138,16 @@ function UndoCard({
   const posted = overview?.syncedHere ?? { count: 0, totalCents: 0 };
   const removing = overview?.removing ?? 0;
   const company = row.companyName ?? "QuickBooks";
-  const WORD = "REMOVE";
+  // Typing the company's name, like deleting or leaving an organization: it can't be
+  // done by accident, and it names which books are about to lose every receipt.
+  const word = row.companyName?.trim() || "REMOVE";
+  const matches = typed.trim().toLowerCase() === word.toLowerCase();
 
   async function removeBefore() {
     if (!row.syncStartDateKey) return;
     const ok = await confirm({
       title: `Remove ${before.count.toLocaleString()} receipt${before.count === 1 ? "" : "s"}?`,
-      description: `The receipts AerScheduler posted before your start date, ${formatDateKey(row.syncStartDateKey)} (${formatMoney(before.totalCents)}), are deleted from QuickBooks. They don't post again.`,
+      description: `Deletes the receipts for invoices paid before ${formatDateKey(row.syncStartDateKey)} (${formatMoney(before.totalCents)}) from QuickBooks. They won't be posted again.`,
       confirmLabel: "Remove them",
       destructive: true,
     });
@@ -189,7 +201,7 @@ function UndoCard({
           {removing > 0 ? (
             <ActionRow
               title="Removing receipts"
-              description={`${removing.toLocaleString()} still to go. Connecting a different company or disconnecting waits until this finishes.`}
+              description={`${removing.toLocaleString()} still to go. You can connect a different company or disconnect once this finishes.`}
             >
               <Button variant="outline" size="sm" onClick={onStopRemoving} disabled={stopping}>
                 {stopping ? <Loader2 className="size-4 animate-spin" /> : null}
@@ -199,8 +211,8 @@ function UndoCard({
           ) : null}
           {before.count > 0 && row.syncStartDateKey ? (
             <ActionRow
-              title="Receipts before the start date"
-              description={`${before.count.toLocaleString()} posted before ${formatDateKey(row.syncStartDateKey)}, ${formatMoney(before.totalCents)}.`}
+              title="Receipts from before the start date"
+              description={`${before.count.toLocaleString()} receipt${before.count === 1 ? "" : "s"} (${formatMoney(before.totalCents)}) for invoices paid before ${formatDateKey(row.syncStartDateKey)}.`}
             >
               <Button variant="outline" size="sm" onClick={() => void removeBefore()} disabled={remove.isPending}>
                 Remove
@@ -211,7 +223,7 @@ function UndoCard({
             title="All receipts"
             description={
               posted.count > 0
-                ? `Turns sync off and deletes all ${posted.count.toLocaleString()} from ${company}, ${formatMoney(posted.totalCents)}.`
+                ? `Turns sync off and deletes all ${posted.count.toLocaleString()} receipts (${formatMoney(posted.totalCents)}) from ${company}.`
                 : `Nothing AerScheduler posted is in ${company} right now.`
             }
           >
@@ -229,7 +241,7 @@ function UndoCard({
             title="Disconnect"
             description={
               removing > 0
-                ? "Waits until the receipts being removed are done, or stopped."
+                ? "Available once the removal finishes or you stop it."
                 : "Revokes access at Intuit. Receipts already posted stay in QuickBooks."
             }
           >
@@ -246,35 +258,52 @@ function UndoCard({
         </ul>
       </CardContent>
 
-      <ResponsiveModal
+      <AlertDialog
         open={allOpen}
         onOpenChange={(o) => {
           setAllOpen(o);
           if (!o) setTyped("");
         }}
-        title={`Remove all ${posted.count.toLocaleString()} receipts?`}
-        description={`Sync turns off, and every Sales Receipt AerScheduler posted to ${company} (${formatMoney(posted.totalCents)}) is deleted there. Customers AerScheduler created stay: QuickBooks doesn't allow deleting a customer that has ever had a transaction.`}
-        footer={
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setAllOpen(false)}>
-              Cancel
-            </Button>
-            <Button
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove all {posted.count.toLocaleString()} receipts?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {`Sync turns off and every Sales Receipt AerScheduler posted to ${company} (${formatMoney(posted.totalCents)}) is deleted. Customers AerScheduler added stay, because QuickBooks won't delete a customer with past transactions.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="qbo-remove-confirm">
+              Type <span className="font-medium text-foreground">{word}</span> to confirm
+            </Label>
+            <Input
+              id="qbo-remove-confirm"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoComplete="off"
+              placeholder={word}
+            />
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={remove.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!matches || remove.isPending}
               variant="destructive"
-              disabled={typed !== WORD || remove.isPending}
-              onClick={() => void removeAll()}
+              onClick={(e) => {
+                // The dialog closes itself on action, which would unmount this before the
+                // request finished and lose the server's error.
+                e.preventDefault();
+                void removeAll();
+              }}
             >
               {remove.isPending ? <Loader2 className="size-4 animate-spin" /> : null}
               Remove all
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-1.5">
-          <Label htmlFor="qbo-remove-word">Type {WORD} to confirm</Label>
-          <Input id="qbo-remove-word" className="w-40" value={typed} onChange={(e) => setTyped(e.target.value)} />
-        </div>
-      </ResponsiveModal>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

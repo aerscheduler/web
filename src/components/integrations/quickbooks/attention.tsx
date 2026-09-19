@@ -53,7 +53,7 @@ export function QuickBooksNeedsAttentionPane() {
   async function onRetry(row: QuickBooksBlockedInvoice) {
     try {
       const r = await retryOne.mutateAsync(row.invoiceId);
-      toast.success(r.qboSalesReceiptId ? "Posted to QuickBooks" : (r.message ?? "Queued"));
+      toast.success(r.qboSalesReceiptId ? "Posted to QuickBooks" : (r.message ?? "Retrying"));
     } catch (err) {
       toast.error(errMessage(err, "Still can't post it"));
     }
@@ -63,14 +63,14 @@ export function QuickBooksNeedsAttentionPane() {
     const description = !row.lostPost
       ? "Use this once you've recorded (or removed) it in QuickBooks yourself. AerScheduler leaves it alone from then on."
       : row.handledSearches
-        ? "An earlier try to post it never got an answer, so AerScheduler first checks QuickBooks for the receipt that try may have made. One for the right amount is kept and the invoice counts as posted; any other copy is removed."
+        ? "AerScheduler first checks QuickBooks for a receipt from an earlier attempt. If one matches the amount, it's kept and the invoice counts as posted. Any other copy is deleted."
         : row.lostPostElsewhere
-          ? `An earlier try went to the QuickBooks company you were connected to before. Search that company for "AerScheduler #${row.invoiceId}" and remove the receipt if it shouldn't be there.`
-          : `An earlier try never got an answer, and QuickBooks can't be checked right now. Search it for "AerScheduler #${row.invoiceId}" and remove that receipt if it shouldn't be there.`;
+          ? `An earlier attempt went to the QuickBooks company you were connected to before. Search that company for "AerScheduler #${row.invoiceId}" and delete the receipt if it shouldn't be there.`
+          : `An earlier attempt may have created a receipt, and QuickBooks can't be checked right now. Search QuickBooks for "AerScheduler #${row.invoiceId}" and delete it if it shouldn't be there.`;
     const ok = await confirm({
       title: `Mark invoice ${row.invoiceNumber} handled?`,
       description,
-      confirmLabel: "Mark handled",
+      confirmLabel: row.lostPost && row.handledSearches ? "Check and mark handled" : "Mark handled",
     });
     if (!ok) return;
     try {
@@ -84,7 +84,7 @@ export function QuickBooksNeedsAttentionPane() {
   async function onRetryAll() {
     try {
       const r = await retryAll.mutateAsync(undefined);
-      toast.success(`${r.requeued} put back in the queue`);
+      toast.success(`Retrying ${r.requeued} invoice${r.requeued === 1 ? "" : "s"}`);
     } catch (err) {
       toast.error(errMessage(err, "Could not retry"));
     }
@@ -149,7 +149,7 @@ export function QuickBooksNeedsAttentionPane() {
       <Card>
         <EmptyState
           icon={Check}
-          title="Nothing needs you"
+          title="Nothing needs attention"
           body="When an invoice can't be posted, it shows up here with what to fix."
           docs="quickbooks-needs-attention"
         />
@@ -159,6 +159,7 @@ export function QuickBooksNeedsAttentionPane() {
 
   return (
     <DataTable
+      fill
       columns={columns}
       data={rows}
       paging={paging}
@@ -168,7 +169,7 @@ export function QuickBooksNeedsAttentionPane() {
       toolbar={
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            Invoices that can't post until something is fixed. Open one to see it, or use its menu.
+            Invoices that can't be posted or removed until something is fixed.
           </p>
           <Button variant="outline" size="sm" onClick={() => void onRetryAll()} disabled={retryAll.isPending}>
             <RefreshCw className="size-3.5" /> Retry all

@@ -11,12 +11,22 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
+type IntegrationHeaderProps = {
+  icon: LucideIcon;
+  iconClassName?: string;
+  title: string;
+  subtitle: string;
+  status?: ReactNode;
+  accountLabel?: string | null;
+  actions?: ReactNode;
+};
+
 /**
  * Shared shell for every org integration detail page.
  * Catalog cards live on Settings → Integrations; each provider gets its own route.
  */
 export function IntegrationPageShell({
-  icon: Icon,
+  icon,
   iconClassName,
   title,
   subtitle,
@@ -25,61 +35,78 @@ export function IntegrationPageShell({
   actions,
   children,
   ...rest
-}: {
-  icon: LucideIcon;
-  iconClassName?: string;
-  title: string;
-  subtitle: string;
-  status?: ReactNode;
-  accountLabel?: string | null;
-  actions?: ReactNode;
+}: IntegrationHeaderProps & {
   children: ReactNode;
   // Carries the help docs' `data-doc-shot` crop id through to this page's content
   // column, for the provider pages whose screenshot is the page rather than one card.
 } & Omit<ComponentProps<"div">, "children" | "title">) {
   return (
     <div className="flex w-full flex-col gap-6" {...rest}>
-      <div>
-        <Link
-          to="/settings"
-          search={{ tab: "integrations", qbo: undefined }}
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ArrowLeft className="size-3.5" />
-          Integrations
-        </Link>
-
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <span
-              className={cn(
-                "grid size-12 shrink-0 place-items-center rounded-xl text-white shadow-sm",
-                iconClassName ?? "bg-primary"
-              )}
-            >
-              <Icon className="size-6" />
-            </span>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.01em]">
-                  {title}
-                </h1>
-                {status}
-              </div>
-              <p className="mt-0.5 max-w-2xl text-[13px] text-muted-foreground">{subtitle}</p>
-              {accountLabel ? (
-                <p className="mt-2 text-sm">
-                  <span className="text-muted-foreground">Connected as</span>{" "}
-                  <span className="font-medium">{accountLabel}</span>
-                </p>
-              ) : null}
-            </div>
-          </div>
-          {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-        </div>
-      </div>
+      <IntegrationPageHeader
+        icon={icon}
+        iconClassName={iconClassName}
+        title={title}
+        subtitle={subtitle}
+        status={status}
+        accountLabel={accountLabel}
+        actions={actions}
+      />
 
       <div className="flex w-full flex-col gap-4">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * The back link, logo tile, title and status on their own, for a provider page that
+ * lays out its body itself (a <TableView> whose tables scroll inside the page).
+ */
+export function IntegrationPageHeader({
+  icon: Icon,
+  iconClassName,
+  title,
+  subtitle,
+  status,
+  accountLabel,
+  actions,
+}: IntegrationHeaderProps) {
+  return (
+    <div>
+      <Link
+        to="/settings"
+        search={{ tab: "integrations", qbo: undefined }}
+        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <ArrowLeft className="size-3.5" />
+        Integrations
+      </Link>
+
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <span
+            className={cn(
+              "grid size-12 shrink-0 place-items-center rounded-xl text-white shadow-sm",
+              iconClassName ?? "bg-primary",
+            )}
+          >
+            <Icon className="size-6" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-[22px] font-semibold leading-tight tracking-[-0.01em]">{title}</h1>
+              {status}
+            </div>
+            <p className="mt-0.5 max-w-2xl text-[13px] text-muted-foreground">{subtitle}</p>
+            {accountLabel ? (
+              <p className="mt-2 text-sm">
+                <span className="text-muted-foreground">Connected as</span>{" "}
+                <span className="font-medium">{accountLabel}</span>
+              </p>
+            ) : null}
+          </div>
+        </div>
+        {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+      </div>
     </div>
   );
 }

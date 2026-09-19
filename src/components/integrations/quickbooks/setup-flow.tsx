@@ -130,7 +130,7 @@ export function QuickBooksSetupFlow({
       footer={footer}
     >
       {step === "confirm_company" && (
-        <CompanyStep row={row} onReconnect={onReconnect} reconnectDisabled={reconnectDisabled} />
+        <CompanyStep row={row} inFlow={!only} onReconnect={onReconnect} reconnectDisabled={reconnectDisabled} />
       )}
       {step === "books_ownership" && <OwnershipStep row={row} />}
       {step === "start_date" && <StartDateStep row={row} />}
@@ -164,10 +164,12 @@ export function Note({ tone = "muted", children }: { tone?: "muted" | "warning";
 
 function CompanyStep({
   row,
+  inFlow,
   onReconnect,
   reconnectDisabled,
 }: {
   row: QuickBooksSettings;
+  inFlow: boolean;
   onReconnect: () => void;
   reconnectDisabled?: boolean;
 }) {
@@ -214,7 +216,11 @@ function CompanyStep({
       ) : null}
 
       {row.companyConfirmed ? (
-        <Note>Confirmed. Continue to the next question.</Note>
+        <Note>
+          {inFlow
+            ? "Confirmed. Continue to the next question."
+            : "This company is confirmed. To use a different one, go to Connection."}
+        </Note>
       ) : (
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => void onConfirm()} disabled={!company.data || confirm.isPending}>
@@ -302,7 +308,7 @@ function StartDateStep({ row }: { row: QuickBooksSettings }) {
     <div className="space-y-4">
       <div className="space-y-1.5">
         <Label htmlFor="qbo-start" className="flex items-center gap-1.5">
-          Start posting from <DocsHint topic="quickbooks-start-date" />
+          Start date <DocsHint topic="quickbooks-start-date" />
         </Label>
         <Input
           id="qbo-start"
@@ -316,7 +322,7 @@ function StartDateStep({ row }: { row: QuickBooksSettings }) {
         <p className="text-xs text-muted-foreground">
           {forwardOnly
             ? "Your books already record this revenue, so this can only be today or later."
-            : "Today starts fresh. An earlier day brings history in."}
+            : "Pick today to start fresh, or an earlier date to include past invoices."}
           {row.bookCloseDateKey ? ` Your books are closed through ${formatDateKey(row.bookCloseDateKey)}.` : ""}
         </p>
         {!valid && minKey ? <p className="text-sm text-destructive">Pick {formatDateKey(minKey)} or later.</p> : null}
@@ -364,11 +370,14 @@ function StartDateStep({ row }: { row: QuickBooksSettings }) {
                 bookkeeper first.
               </Note>
               <div className="space-y-1.5">
-                <Label htmlFor="qbo-type-year">Type {earliestYear} to confirm</Label>
+                <Label htmlFor="qbo-type-year">
+                  Type <span className="font-medium text-foreground">{earliestYear}</span> to confirm
+                </Label>
                 <Input
                   id="qbo-type-year"
                   inputMode="numeric"
-                  className="w-28"
+                  autoComplete="off"
+                  placeholder={earliestYear ?? undefined}
                   value={typedYear}
                   onChange={(e) => setTypedYear(e.target.value.trim())}
                 />
@@ -383,9 +392,7 @@ function StartDateStep({ row }: { row: QuickBooksSettings }) {
                 className="mt-0.5"
               />
               <span className="text-sm">
-                Also remove the {p.alreadyPostedBefore.count.toLocaleString()} receipt
-                {p.alreadyPostedBefore.count === 1 ? "" : "s"} AerScheduler already posted before this date (
-                {formatMoney(p.alreadyPostedBefore.totalCents)})
+                {`Also remove the ${p.alreadyPostedBefore.count.toLocaleString()} receipt${p.alreadyPostedBefore.count === 1 ? "" : "s"} (${formatMoney(p.alreadyPostedBefore.totalCents)}) AerScheduler already posted for invoices paid before this date`}
               </span>
             </Label>
           ) : null}
@@ -428,7 +435,7 @@ function IncomeStep({ row }: { row: QuickBooksSettings }) {
                 items.isLoading
                   ? "Loading items from QuickBooks…"
                   : options.length === 0
-                    ? "No Service items in QuickBooks yet: create one there first"
+                    ? "No usable items in QuickBooks yet. Create a Service item there first."
                     : "Choose an item"
               }
             />
@@ -461,8 +468,8 @@ function IncomeStep({ row }: { row: QuickBooksSettings }) {
         {showSplit ? (
           <div className="mt-3 space-y-2">
             <p className="text-xs text-muted-foreground">
-              Rental, instruction and fees then show as separate lines on your Profit and Loss. Decide before bringing
-              in history: changing it later does not re-file receipts already posted.
+              Rental, instruction and fees then show as separate lines on your Profit and Loss. Set this before posting
+              past invoices. Changing it later won't update receipts already in QuickBooks.
             </p>
             {CATEGORY_ORDER.map((c) => (
               <div key={c} className="grid grid-cols-1 items-center gap-1 sm:grid-cols-[1fr_15rem] sm:gap-3">
@@ -587,19 +594,21 @@ function DeskStep({ row }: { row: QuickBooksSettings }) {
       {confirming ? (
         <div className="space-y-3">
           <Note tone={priorYear ? "warning" : "muted"}>
-            {deskCount.toLocaleString()} front-desk payment{deskCount === 1 ? "" : "s"} (
-            {formatMoney(preview.data?.desk.totalCents ?? 0)}) since {formatDateKey(row.syncStartDateKey)} would post.
+            {`This posts ${deskCount.toLocaleString()} front-desk payment${deskCount === 1 ? "" : "s"} (${formatMoney(preview.data?.desk.totalCents ?? 0)}) received since ${formatDateKey(row.syncStartDateKey)}.`}
             {priorYear
-              ? ` Some are from ${priorYear}: if your bookkeeper already recorded them at deposit, choose No.`
+              ? ` Some are from ${priorYear}. If your bookkeeper already recorded them at deposit, choose No.`
               : ""}
           </Note>
           {priorYear ? (
             <div className="space-y-1.5">
-              <Label htmlFor="qbo-desk-type-year">Type {priorYear} to confirm</Label>
+              <Label htmlFor="qbo-desk-type-year">
+                Type <span className="font-medium text-foreground">{priorYear}</span> to confirm
+              </Label>
               <Input
                 id="qbo-desk-type-year"
                 inputMode="numeric"
-                className="w-28"
+                autoComplete="off"
+                placeholder={priorYear ?? undefined}
                 value={typedYear}
                 onChange={(e) => setTypedYear(e.target.value.trim())}
               />
@@ -640,17 +649,17 @@ function EnableStep({ row, refused }: { row: QuickBooksSettings; refused: boolea
   if (refused) {
     return (
       <Note tone="warning">
-        You said another tool already records this revenue, so sync stays off. Turn that tool off first, then change
-        your answer in Settings.
+        Sync stays off because of your answer about what else records flight revenue. Once nothing else records it,
+        change that answer in Settings.
       </Note>
     );
   }
   const rows: Array<[string, string]> = [
     ["Company", row.companyName ?? "…"],
-    ["Posting from", row.effectiveStartDateKey ? formatDateKey(row.effectiveStartDateKey) : "…"],
-    ["Item", row.incomeItemName ?? "…"],
-    ["Card payments to", row.depositAccountName ?? "…"],
-    ["Front-desk payments", row.syncDeskPayments ? `To ${row.deskDepositAccountName ?? "…"}` : "Not posted"],
+    ["Start date", row.effectiveStartDateKey ? formatDateKey(row.effectiveStartDateKey) : "…"],
+    ["Income item", row.incomeItemName ?? "…"],
+    ["Card payments deposit to", row.depositAccountName ?? "…"],
+    ["Front-desk payments", row.syncDeskPayments ? `Yes, to ${row.deskDepositAccountName ?? "…"}` : "No"],
   ];
   return (
     <dl className="divide-y divide-border rounded-md border border-border text-sm">

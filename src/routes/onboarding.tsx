@@ -11,6 +11,8 @@ import {
 } from "@/lib/onboarding-sticky";
 import { typedAirportIdent } from "@/lib/airport-ident";
 import { AirportField, countryName, subdivisionOf } from "@/components/facilities/airport-field";
+import { Combobox } from "@/components/combobox";
+import { DEVICE_TIME_ZONE, isValidTimeZone, timeZoneOptions } from "@/lib/timezone";
 import type { AirportMatch } from "@/types/api";
 import {
   useConnectStripe,
@@ -457,6 +459,24 @@ function OperationFlow({
   //and the time zone every booking here will be read in) is absent for a typed-out field,
   //which is exactly what onboarding has always sent.
   const [airportPick, setAirportPick] = React.useState<AirportMatch | null>(null);
+  //The school's time zone, asked for here because it is REQUIRED: hours and booking rules
+  //are read on the airport's clock, so a school without one has its members refused when
+  //they book (Holmes Aviation and S&S Aircraft, September 2026). It used to be set only as
+  //a side effect of picking the airport from the lookup; typing it by hand left none.
+  //Starts on this computer's zone, follows a picked airport, and stops following once the
+  //person chooses one themselves. Always visible, so it is confirmed rather than guessed.
+  const [zone, setZone] = React.useState<string>(() =>
+    isValidTimeZone(organization?.timeZone)
+      ? organization.timeZone
+      : isValidTimeZone(DEVICE_TIME_ZONE)
+        ? DEVICE_TIME_ZONE
+        : ""
+  );
+  const [zoneFrom, setZoneFrom] = React.useState<"saved" | "airport" | "device" | "chosen">(() =>
+    isValidTimeZone(organization?.timeZone) ? "saved" : "device"
+  );
+  const zoneTouched = React.useRef(false);
+  const zoneOptions = React.useMemo(() => timeZoneOptions(), []);
   const [locationId, setLocationId] = React.useState<number | null>(null);
   const [homeLocation, setHomeLocation] = React.useState<{
     id: number;
@@ -588,6 +608,7 @@ function OperationFlow({
         await updateOrg.mutateAsync({
           name: orgName.trim(),
           organizationType: subtype,
+          ...(zone ? { timeZone: zone } : {}),
         });
         if (intentTouched.current && intent) {
           await api("/organizations/onboarding", {
@@ -604,7 +625,8 @@ function OperationFlow({
               id: locId,
               name: loc.name,
               address: loc.address,
-              timeZone: loc.timeZone ?? null,
+              //What they confirmed on this page, like the school's.
+              timeZone: zone || loc.timeZone || null,
               ident: loc.ident ?? null,
               coordinates: { lat: airportPick.latitude, lng: airportPick.longitude },
             });
@@ -615,7 +637,9 @@ function OperationFlow({
             locationWriteFailed = true;
           }
         } else if (locId) {
-          // Typed without a lookup row: rename the site, keep city/state/zone.
+          // Typed without a lookup row: rename the site, keep city/state, and carry the
+          // zone they confirmed on this page. The airport's zone wins over the school's for
+          // every booking there, so leaving the old one here would quietly ignore a change.
           // Sending an empty address here would wipe the airport we already saved.
           setLocationId(locId);
           type LocRow = {
@@ -640,12 +664,15 @@ function OperationFlow({
             }
           }
           const newName = (airport.trim() || orgName.trim()).slice(0, 60);
-          if (saved && newName && newName !== saved.name) {
+          //`organization` is still the school as it was before the PATCH above.
+          const zoneChanged = Boolean(zone) && zone !== (organization.timeZone ?? "");
+          if (saved && ((newName && newName !== saved.name) || zoneChanged)) {
             const existing = saved.address ?? {};
+            const name = newName || saved.name;
             try {
               await updateLocation.mutateAsync({
                 id: locId,
-                name: newName,
+                name,
                 address: {
                   streetAddress1: existing.streetAddress1 ?? "",
                   streetAddress2: existing.streetAddress2 ?? "",
@@ -654,8 +681,9 @@ function OperationFlow({
                   zipCode: existing.zipCode ?? "",
                   country: existing.country ?? "",
                 },
+                ...(zoneChanged ? { timeZone: zone } : {}),
               });
-              setHomeLocation({ id: locId, name: newName, address: existing });
+              setHomeLocation({ id: locId, name, address: existing });
             } catch (e) {
               if (!(e instanceof ApiError && (e.status === 403 || e.status === 404))) throw e;
               locationWriteFailed = true;
@@ -691,6 +719,9 @@ function OperationFlow({
         //matters: without it every booking at this school renders in whatever zone the
         //reader's device is in, rather than the field's.
         location: loc,
+        //The zone they confirmed on the form. The server stamps it on the school and the
+        //home airport, over whatever the airport lookup would have said.
+        timeZone: zone || undefined,
         // Intent (or inferred campaign) orders the dashboard checklist.
         source,
         // Campaign tuple for spend reporting, plus optional human "how did you hear".
@@ -781,6 +812,11 @@ function OperationFlow({
       if (!orgName.trim()) {
         setShowErrors(true);
         document.getElementById("op-orgName")?.focus();
+        return;
+      }
+      if (!zone) {
+        setShowErrors(true);
+        document.getElementById("op-timezone")?.focus();
         return;
       }
       setShowErrors(false);
@@ -874,15 +910,56 @@ function OperationFlow({
               onChange={(v) => {
                 setAirportPick(null);
                 setAirport(v.toUpperCase());
+                //A zone that came from the airport they just un-picked no longer has a source.
+                if (!zoneTouched.current && zoneFrom === "airport" && isValidTimeZone(DEVICE_TIME_ZONE)) {
+                  setZone(DEVICE_TIME_ZONE);
+                  setZoneFrom("device");
+                }
               }}
               onPick={(m) => {
                 setAirportPick(m);
                 setAirport(`${m.ident} ${m.name}`.slice(0, 60));
+                if (!zoneTouched.current && isValidTimeZone(m.timeZone)) {
+                  setZone(m.timeZone);
+                  setZoneFrom("airport");
+                }
               }}
               //VarChar(60) on the server, which does not truncate.
               maxLength={60}
               placeholder="KAPA"
             />
+          </Field>
+          <Field
+            id="op-timezone"
+            label="Time zone"
+            hint={
+              zoneFrom === "airport" && airportPick
+                ? `${airportPick.ident}'s time zone`
+                : zoneFrom === "device"
+                  ? "This computer's time zone"
+                  : undefined
+            }
+            error={showErrors && !zone ? "Pick the time zone your airport is in." : ""}
+          >
+            <Combobox
+              id="op-timezone"
+              options={zoneOptions}
+              value={zone}
+              onChange={(v) => {
+                zoneTouched.current = true;
+                setZone(v);
+                setZoneFrom("chosen");
+              }}
+              placeholder="Pick your airport's time zone"
+              searchPlaceholder="Search time zones…"
+              emptyText="No matching zone."
+              className="h-11"
+              invalid={showErrors && !zone}
+            />
+            <p className="text-xs text-muted-foreground">
+              Lessons, flying hours and booking rules all run on this clock, wherever someone
+              is reading the schedule from.
+            </p>
           </Field>
           <Nav
             onBack={organization && orgPage === 0 ? undefined : goOrgBack}

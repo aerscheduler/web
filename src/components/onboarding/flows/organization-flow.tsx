@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { useUpdateOrganization, useUpdateOrgLogo, useUpdateOrganizationTimeZone } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
-import { timeZoneOptions } from "@/lib/timezone";
+import { DEVICE_TIME_ZONE, isValidTimeZone, timeZoneOptions } from "@/lib/timezone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -36,7 +36,11 @@ export function OrganizationFlow({ onClose }: FlowProps) {
   const [name, setName] = React.useState(organization?.name ?? "");
   const [phone, setPhone] = React.useState(organization?.details?.phone ?? "");
   const [email, setEmail] = React.useState(organization?.details?.email ?? "");
-  const [zone, setZone] = React.useState(organization?.timeZone ?? "");
+  // A school without a zone starts on this computer's, visibly: saving here is how most
+  // schools set it, and an empty picker was how they skipped it.
+  const [zone, setZone] = React.useState(
+    organization?.timeZone ?? (isValidTimeZone(DEVICE_TIME_ZONE) ? DEVICE_TIME_ZONE : "")
+  );
   const [logo, setLogo] = React.useState(organization?.profileImage ?? null);
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -66,8 +70,8 @@ export function OrganizationFlow({ onClose }: FlowProps) {
         details: { phone: phone.trim(), email: email.trim() },
       });
       // Separate endpoint, it validates the zone rather than trusting it.
-      if (zone !== (organization?.timeZone ?? "")) {
-        await updateZone.mutateAsync(zone || null);
+      if (zone && zone !== (organization?.timeZone ?? "")) {
+        await updateZone.mutateAsync(zone);
       }
       await rehydrate();
       setDone(true);

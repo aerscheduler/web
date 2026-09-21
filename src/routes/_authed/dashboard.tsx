@@ -25,6 +25,7 @@ import { format } from "date-fns";
 import { ArrowUpRight, PlaneTakeoff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SetupChecklist } from "@/components/onboarding/setup-checklist";
+import { BookingZoneBanner } from "@/components/schedule/booking-zone-banner";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,6 +70,10 @@ function DashboardPage() {
         title={`Good ${daypart()}, ${firstName(user?.name)}`}
         subtitle={`${organization?.name ?? "Your organization"} · ${format(new Date(), "EEEE, MMM d")}`}
       />
+
+      {/* Ahead of the checklist: a school with no time zone has members being refused
+          right now, which outranks anything still to set up. Owners and admins only. */}
+      <BookingZoneBanner />
 
       {/* The dashboard IS the rest of onboarding. While setup is unfinished this
           leads the page; it retires itself for good once everything's done. */}

@@ -9,9 +9,9 @@
  * - **My zone** is about the person reading the screen. It never moves anyone's booking; at
  *   most it adds "…and that's 8am where you are."
  *
- * Both are quiet by default. If the org has no zone set, the schedule keeps rendering in the
- * viewer's zone exactly as it does today, so this is opt-in, and unsetting it is a real
- * choice rather than a broken state.
+ * The school's zone is required, not optional. Without one, hours and booking rules have no
+ * clock to be read on, so members are refused when they try to book; onboarding now asks for
+ * it, and it can be changed here but not cleared (the server ignores a null).
  */
 
 import * as React from "react";
@@ -51,9 +51,10 @@ export function OrganizationTimeZoneCard() {
   const current = organization?.timeZone ?? "";
 
   const save = (value: string) => {
-    update.mutate(value || null, {
+    if (!value || value === current) return;
+    update.mutate(value, {
       onSuccess: async () => {
-        toast.success(value ? `Schedule now shows ${describeZone(value)}` : "Time zone cleared");
+        toast.success(`Schedule now shows ${describeZone(value)}`);
         await rehydrate();
       },
       onError: (err) =>
@@ -89,9 +90,12 @@ export function OrganizationTimeZoneCard() {
         </p>
 
         {!current && (
-          <p className="text-xs text-muted-foreground">
-            Not set, so times currently show in each person&apos;s own zone, which is what
-            makes the schedule look different when someone travels.
+          <p
+            className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+            role="status"
+          >
+            Not set, so members can&apos;t book online: there is no clock to check their
+            bookings against. Choose where you fly from and they can book straight away.
           </p>
         )}
       </CardContent>

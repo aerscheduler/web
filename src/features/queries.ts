@@ -4425,7 +4425,9 @@ export function useSmsOptOut() {
 export function useUpdateOrganizationTimeZone() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (timeZone: string | null) =>
+    //A zone, never null: a school's zone can be changed but not cleared, since without one
+    //members are refused when they book. The server ignores null for the same reason.
+    mutationFn: (timeZone: string) =>
       api<Organization>("/organizations/", { method: "PATCH", body: { timeZone } }),
     onSuccess: () => {
       void qc.invalidateQueries();

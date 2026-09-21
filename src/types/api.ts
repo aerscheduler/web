@@ -432,6 +432,12 @@ export interface MultiDayReadiness {
   locationsMissingZone: string[];
   /** Prose naming what to fix. Present only when not ready. */
   problem?: string;
+  /**
+   * The school's airport's zone, offered to an admin whose school has none, and the airport
+   * identifier it came from ("KCUH"). Present only when not ready and the airport was found.
+   */
+  suggestedTimeZone?: string;
+  suggestedFrom?: string;
 }
 
 export interface OrganizationBillingSettings {

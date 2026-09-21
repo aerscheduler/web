@@ -59,6 +59,9 @@ const EXACT: Record<string, NotificationHref | undefined> = {
   "/currencies": "/me/currencies",
   //Owner-only notification, and console Settings is admin-gated, so the audiences match.
   "/organization-settings/billing": "/settings?tab=billing",
+  //QuickBooks: the app has no screen of its own, only a handoff, so the stored app link
+  //is the accounting page and the console opens the page every answer lives on.
+  "/organization-settings/accounting-integrations": "/settings/integrations/quickbooks",
   //Deletion countdown notices go to admins and owners; console Settings is admin-gated.
   "/organization-settings/security": "/settings?tab=security",
   "/organization-settings": "/settings?tab=organization",

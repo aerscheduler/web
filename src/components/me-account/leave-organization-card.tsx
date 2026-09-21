@@ -119,7 +119,7 @@ export function LeaveOrganizationCard() {
             <AlertDialogCancel disabled={leave.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={!matches || leave.isPending}
-              className="bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/30"
+              variant="destructive"
               onClick={(e) => {
                 e.preventDefault();
                 void confirm();

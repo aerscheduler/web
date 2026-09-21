@@ -23,3 +23,11 @@ describe("booking request notification links", () => {
     expect(notificationHref("/booking-requests/42")).toBe("/me/schedule?tab=requests");
   });
 });
+
+describe("quickbooks notification links", () => {
+  it("opens the QuickBooks page from the app's accounting link", () => {
+    expect(notificationHref("/organization-settings/accounting-integrations")).toBe(
+      "/settings/integrations/quickbooks"
+    );
+  });
+});

@@ -195,6 +195,7 @@ export function DeleteOrganizationCard() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={schedule.isPending}>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              variant="destructive"
               disabled={!matches || schedule.isPending}
               onClick={(e) => {
                 //The dialog closes itself on action, which would unmount this before the

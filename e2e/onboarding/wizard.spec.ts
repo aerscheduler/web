@@ -575,3 +575,64 @@ test.describe("Onboarding wizard", () => {
     expect(members[0].dispatcherRole).toBeFalsy();
   });
 });
+
+// Every school needs a zone: without one, members are refused when they book (Holmes Aviation
+// and S&S Aircraft, September 2026). The browser sits in Los Angeles so each assertion can tell
+// "this computer's zone" apart from the airport's and from the one the person chose.
+test.describe("Onboarding asks for the school's time zone", () => {
+  test.use({ storageState: { cookies: [], origins: [] }, timezoneId: "America/Los_Angeles" });
+
+  test("a picked airport sets it, on the school and on the airport", async ({ page, request }) => {
+    await signupFresh(page, "E2E Zone Owner");
+    await startSchoolOperation(page, `E2E Zone ${Date.now()}`);
+
+    const zone = page.getByRole("combobox", { name: "Time zone" });
+    await expect(zone).toContainText("Pacific (Los Angeles)");
+    await expect(page.getByText("This computer's time zone")).toBeVisible();
+
+    await pickAirport(page, "KAPA", /KAPA Centennial Airport/i);
+    await expect(zone).toContainText("Mountain (Denver)");
+    await expect(page.getByText("KAPA's time zone")).toBeVisible();
+
+    await finishOperationDetails(page, "Create operation");
+    await expect(page.getByRole("heading", { name: /Add your first aircraft/i })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    const token = await bearerToken(page);
+    const org = (await apiAuthOrg(request, token)) as { timeZone?: string | null };
+    expect(org.timeZone).toBe("America/Denver");
+    const locations = await apiGet<{ id: number }[]>(request, token, "/locations");
+    const home = await apiGet<{ timeZone?: string | null }>(request, token, `/locations/${locations[0].id}`);
+    expect(home.timeZone).toBe("America/Denver");
+  });
+
+  test("a hand-typed airport takes the zone you choose", async ({ page, request }) => {
+    await signupFresh(page, "E2E Zone Owner");
+    await startSchoolOperation(page, `E2E Zone Typed ${Date.now()}`);
+
+    // Typed, not picked: no identifier and no published zone, which used to save no zone at all.
+    await page.getByLabel("Home airport").fill("PASTURE STRIP");
+    await page.keyboard.press("Escape");
+    const zone = page.getByRole("combobox", { name: "Time zone" });
+    await expect(zone).toContainText("Pacific (Los Angeles)");
+
+    await zone.click();
+    await page.getByPlaceholder(/Search time zones/).fill("Chicago");
+    await page.getByRole("option", { name: /Central \(Chicago\)/ }).click();
+    await expect(zone).toContainText("Central (Chicago)");
+
+    await finishOperationDetails(page, "Create operation");
+    await expect(page.getByRole("heading", { name: /Add your first aircraft/i })).toBeVisible({
+      timeout: 30_000,
+    });
+
+    const token = await bearerToken(page);
+    const org = (await apiAuthOrg(request, token)) as { timeZone?: string | null };
+    expect(org.timeZone).toBe("America/Chicago");
+    const locations = await apiGet<{ id: number; name: string }[]>(request, token, "/locations");
+    expect(locations[0].name).toBe("PASTURE STRIP");
+    const home = await apiGet<{ timeZone?: string | null }>(request, token, `/locations/${locations[0].id}`);
+    expect(home.timeZone).toBe("America/Chicago");
+  });
+});

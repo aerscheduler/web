@@ -3,7 +3,7 @@ import { RefreshCw, X } from "lucide-react";
 import { toast } from "sonner";
 import { usePendingSlotOffers, useWithdrawSlotOffer } from "@/features/slot-offers";
 import { ApiError } from "@/lib/api";
-import type { SlotOffer } from "@/types/slot-offers";
+import { isSuggestedOffer, type SlotOffer } from "@/types/slot-offers";
 import { resourceLabel, type Resource } from "@/types/api";
 import { DetailPanel } from "@/components/detail-panel";
 import { DocsHint } from "@/components/docs-hint";
@@ -81,7 +81,9 @@ export function PendingOffersSheet({
                   {offer.purpose === "instructor_confirm" && (
                     <Badge variant="secondary">Instructor confirm</Badge>
                   )}
-                  <Badge variant="outline">{triggerLabel(offer.trigger)}</Badge>
+                  <Badge variant="outline">
+                    {isSuggestedOffer(offer) ? "Suggested" : triggerLabel(offer.trigger)}
+                  </Badge>
                   <Badge variant="outline">{offer.reservationType}</Badge>
                   {offer.notificationDelivery?.anyChannelEnabled === false && (
                     <Badge variant="outline">Notifications off</Badge>

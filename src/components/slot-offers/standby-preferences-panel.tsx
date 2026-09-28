@@ -1,111 +1,67 @@
 import * as React from "react";
 import { format, parseISO } from "date-fns";
-import { CalendarRange, RefreshCw, X } from "lucide-react";
+import { CalendarClock, CalendarRange, Plus, Repeat } from "lucide-react";
 import { toast } from "sonner";
 import {
-  useCreateStandbyInterest,
   useMyStandbyInterest,
+  useSetSlotSuggestions,
+  useSlotSuggestions,
   useWithdrawStandbyInterest,
 } from "@/features/slot-offers";
-import {
-  useApprovedResources,
-  useMembers,
-  useMyInstructionPartners,
-  useOrgUserPreferences,
-  useResources,
-} from "@/features/queries";
+import { useMembers, useOrgUserPreferences, useResources } from "@/features/queries";
 import { ApiError } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
-import { isInstructor, isStaff, selfBookableTypes } from "@/lib/permissions";
-import { zonedWallClockToUtc } from "@/lib/timezone";
-import { useTimeZone } from "@/lib/use-timezone";
-import { resourceLabel, type ReservationType, type Role } from "@/types/api";
-import type { StandingCriteria, StandbyInterest } from "@/types/slot-offers";
+import { resourceLabel, type ReservationType } from "@/types/api";
+import type { StandbyInterest } from "@/types/slot-offers";
 import { TYPE_LABEL } from "@/components/schedule/meta";
 import { SlotOfferNotificationWarning } from "@/components/slot-offers/notification-warning";
+import {
+  OpenWindowModal,
+  StandingPreferenceModal,
+  formatClockLabel,
+} from "@/components/slot-offers/standby-forms";
+import { PreferenceToggle } from "@/components/settings/parts";
 import { DocsHint } from "@/components/docs-hint";
 import { EmptyState, ErrorState } from "@/components/states";
-import { DatePickerField } from "@/components/date-picker";
-import { MultiCombobox, type ComboOption } from "@/components/combobox";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 
-/** API weekday: 0 = Sunday … 6 = Saturday */
-const DAYS: { value: number; label: string }[] = [
-  { value: 1, label: "Mon" },
-  { value: 2, label: "Tue" },
-  { value: 3, label: "Wed" },
-  { value: 4, label: "Thu" },
-  { value: 5, label: "Fri" },
-  { value: 6, label: "Sat" },
-  { value: 0, label: "Sun" },
-];
-
-const DAY_NAME: Record<number, string> = {
-  0: "Sun",
-  1: "Mon",
-  2: "Tue",
-  3: "Wed",
-  4: "Thu",
-  5: "Fri",
-  6: "Sat",
-};
-
-/** Same 15-minute grid the booking form uses for start/end selects. */
-const CLOCK_OPTIONS: string[] = (() => {
-  const out: string[] = [];
-  for (let h = 0; h < 24; h++) {
-    for (const m of [0, 15, 30, 45]) {
-      out.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    }
-  }
-  return out;
-})();
-
-function formatClockLabel(hm: string): string {
-  const [hs, ms] = hm.split(":").map(Number);
-  const d = new Date(2000, 0, 1, hs, ms);
-  return new Intl.DateTimeFormat(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(d);
-}
-
-function wallToUtc(dateKey: string, hm: string, timeZone: string): Date | null {
-  const parts = dateKey.split("-").map(Number);
-  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(hm);
-  if (parts.length !== 3 || !m) return null;
-  const [year, month, day] = parts;
-  if (!year || !month || !day) return null;
-  return zonedWallClockToUtc(year, month, day, Number(m[1]), Number(m[2]), timeZone);
-}
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /**
- * Standing preferences and one-off open windows for slot offers.
- * Per-reservation "stand by" stays on the booking detail panel.
+ * Profile > Standby: the suggestions switch, the preferences you have, and buttons that
+ * open the Standby and Open window modals. Per-reservation "stand by" stays on the
+ * booking detail panel.
  */
 export function StandbyPreferencesPanel() {
-  const { roles } = useAuth();
   const interestsQuery = useMyStandbyInterest();
   const preferencesQuery = useOrgUserPreferences();
   const withdraw = useWithdrawStandbyInterest();
+  const resourcesQ = useResources();
+  const instructorsQ = useMembers({ instructor: true });
+  const [adding, setAdding] = React.useState<"standing" | "open_window" | null>(null);
 
-  const active = (interestsQuery.data ?? []).filter(
-    (interest) =>
-      interest.status === "active" &&
-      (interest.kind === "standing" || interest.kind === "open_window")
-  );
+  const active = (interestsQuery.data ?? [])
+    .filter(
+      (interest) =>
+        interest.status === "active" &&
+        (interest.kind === "standing" || interest.kind === "open_window")
+    )
+    // Weekly patterns first, Monday to Sunday, then one-off windows in date order.
+    .sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "standing" ? -1 : 1;
+      if (a.kind === "open_window") return (a.start ?? "").localeCompare(b.start ?? "");
+      return weekOrder(a) - weekOrder(b) || (a.criteria?.localTimeStart ?? "").localeCompare(b.criteria?.localTimeStart ?? "");
+    });
+
+  const names = React.useMemo(() => {
+    const resources = new Map<number, string>();
+    for (const r of resourcesQ.data ?? []) resources.set(r.id, resourceLabel(r).name);
+    const instructors = new Map<number, string>();
+    for (const ou of instructorsQ.data ?? []) {
+      instructors.set(ou.id, ou.user?.name ?? ou.identifier ?? `Member #${ou.id}`);
+    }
+    return { resources, instructors };
+  }, [resourcesQ.data, instructorsQ.data]);
 
   const notificationPreferences = preferencesQuery.data?.notificationPreferences;
   const notificationsOff =
@@ -124,9 +80,7 @@ export function StandbyPreferencesPanel() {
       await withdraw.mutateAsync(interest.id);
       toast.success("Standby preference withdrawn");
     } catch (error) {
-      toast.error(
-        error instanceof ApiError ? error.message : "Couldn't withdraw this preference"
-      );
+      toast.error(error instanceof ApiError ? error.message : "Couldn't withdraw this preference");
     }
   };
 
@@ -134,484 +88,163 @@ export function StandbyPreferencesPanel() {
     <div className="space-y-5">
       {notificationsOff && <SlotOfferNotificationWarning />}
 
+      <SuggestionsSetting />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
-            Your standby preferences
+            Your preferences
             <DocsHint topic="standing-preferences" />
           </CardTitle>
           <CardDescription>
-            When a matching slot opens, you get a time-limited offer instead of a silent
-            rebook. Leave a field blank to mean any.
+            When someone cancels a time that matches, you&rsquo;re offered it before anyone
+            else. Add as many as you like.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           {interestsQuery.isPending ? (
             <p className="text-sm text-muted-foreground">Loading preferences…</p>
           ) : interestsQuery.isError ? (
-            <ErrorState
-              error={interestsQuery.error}
-              onRetry={() => void interestsQuery.refetch()}
-            />
+            <ErrorState error={interestsQuery.error} onRetry={() => void interestsQuery.refetch()} />
           ) : active.length === 0 ? (
             <EmptyState
-              icon={RefreshCw}
-              title="No standing preferences yet"
-              body="Add a weekly pattern or a specific open window below."
+              icon={CalendarClock}
+              title="No preferences yet"
+              body="Add the days and times you're usually free, or one specific window."
               docs="standing-preferences"
               compact
             />
           ) : (
-            <ul className="space-y-2">
-              {active.map((interest) => (
-                <li
-                  key={interest.id}
-                  className="flex items-start justify-between gap-3 rounded-lg border p-3"
-                >
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline">
-                        {interest.kind === "standing" ? "Standing" : "Open window"}
-                      </Badge>
+            <ul className="divide-y rounded-lg border" data-testid="standby-preferences">
+              {active.map((interest) => {
+                const Icon = interest.kind === "standing" ? Repeat : CalendarRange;
+                const what = describeWhat(interest, names);
+                return (
+                  <li key={interest.id} className="flex items-center gap-3 px-3 py-2.5">
+                    <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{describeWhen(interest)}</p>
+                      <p className="truncate text-xs text-muted-foreground">{what}</p>
                     </div>
-                    <p className="mt-1 text-sm">{describeInterest(interest)}</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={withdraw.isPending}
-                    onClick={() => void leave(interest)}
-                  >
-                    <X className="size-4" /> Withdraw
-                  </Button>
-                </li>
-              ))}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      disabled={withdraw.isPending}
+                      onClick={() => void leave(interest)}
+                    >
+                      Withdraw
+                    </Button>
+                  </li>
+                );
+              })}
             </ul>
           )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setAdding("standing")}>
+              <Plus className="size-4" /> Add preference
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => setAdding("open_window")}>
+              <Plus className="size-4" /> Add open window
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
-      <StandingPreferenceForm roles={roles} />
-      <OpenWindowForm />
+      <StandingPreferenceModal
+        open={adding === "standing"}
+        onOpenChange={(open) => setAdding(open ? "standing" : null)}
+      />
+      <OpenWindowModal
+        open={adding === "open_window"}
+        onOpenChange={(open) => setAdding(open ? "open_window" : null)}
+      />
     </div>
   );
 }
 
-function StandingPreferenceForm({ roles }: { roles: Role[] }) {
-  const { user, organization } = useAuth();
-  const create = useCreateStandbyInterest();
-  const resourcesQ = useResources();
-  const approvedQ = useApprovedResources(user?.id ?? 0, { enabled: user != null });
-  const instructorsQ = useMembers({ instructor: true });
-  const partners = useMyInstructionPartners(user?.id ?? 0, { enabled: user != null });
-  const typeOptions = selfBookableTypes(roles);
+/**
+ * The opt-out for suggested offers: slots offered because of how you fly, when you did
+ * not stand by for them. Standby you set up yourself is unaffected either way.
+ */
+function SuggestionsSetting() {
+  const suggestions = useSlotSuggestions();
+  const setSuggestions = useSetSlotSuggestions();
+  const enabled = suggestions.data?.enabled ?? true;
 
-  // Same two facts the booking form and ReservationService.create use for the fleet
-  // picker: org checkout setting, and whether this member would sit as student/renter
-  // (instructors and staff keep the whole fleet).
-  const restrictToApproved =
-    organization?.preferences?.personnelCanOnlyUseApprovedResources === true &&
-    !isStaff(roles) &&
-    !isInstructor(roles);
-
-  const resources = restrictToApproved ? (approvedQ.data ?? []) : (resourcesQ.data ?? []);
-  const fleetPending = restrictToApproved ? approvedQ.isPending : resourcesQ.isPending;
-
-  const partnerIds = React.useMemo(() => {
-    return new Set(
-      (partners.data?.instructors ?? [])
-        .map((p) => p.orgUser?.id)
-        .filter((id): id is number => id != null)
-    );
-  }, [partners.data]);
-
-  const resourceOptions: ComboOption[] = resources.map((r) => {
-    const l = resourceLabel(r);
-    return { value: String(r.id), label: l.name, hint: l.kind };
-  });
-
-  const instructorOptions: ComboOption[] = React.useMemo(() => {
-    return (instructorsQ.data ?? [])
-      .map((ou) => ({
-        value: String(ou.id),
-        label: ou.user?.name ?? ou.identifier ?? `Member #${ou.id}`,
-        hint: partnerIds.has(ou.id) ? "Your instructor" : (ou.identifier ?? undefined),
-        mine: partnerIds.has(ou.id),
-      }))
-      .sort((a, b) => Number(b.mine) - Number(a.mine) || a.label.localeCompare(b.label))
-      .map(({ mine: _mine, ...opt }) => opt);
-  }, [instructorsQ.data, partnerIds]);
-
-  const [days, setDays] = React.useState<number[]>([]);
-  const [types, setTypes] = React.useState<string[]>([]);
-  const [timeStart, setTimeStart] = React.useState("");
-  const [timeEnd, setTimeEnd] = React.useState("");
-  const [resourceIds, setResourceIds] = React.useState<string[]>([]);
-  const [instructorIds, setInstructorIds] = React.useState<string[]>([]);
-
-  const toggleNum = (list: number[], value: number, set: (next: number[]) => void) => {
-    set(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
-  };
-  const toggleStr = (list: string[], value: string, set: (next: string[]) => void) => {
-    set(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
-  };
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (timeStart && !timeEnd) {
-      toast.error("Add an end time, or clear the start time.");
-      return;
-    }
-    if (timeEnd && !timeStart) {
-      toast.error("Add a start time, or clear the end time.");
-      return;
-    }
-    if (timeStart && timeEnd && timeStart >= timeEnd) {
-      toast.error("End time must be after start time.");
-      return;
-    }
-
-    const criteria: StandingCriteria = {};
-    if (days.length) criteria.daysOfWeek = [...days].sort((a, b) => a - b);
-    if (types.length) criteria.reservationTypes = types;
-    if (timeStart && timeEnd) {
-      criteria.localTimeStart = timeStart;
-      criteria.localTimeEnd = timeEnd;
-    }
-    if (resourceIds.length) criteria.resourceIds = resourceIds.map(Number);
-    if (instructorIds.length) criteria.instructorOrgUserIds = instructorIds.map(Number);
-
-    if (Object.keys(criteria).length === 0) {
-      toast.error("Pick at least one day, type, time window, aircraft, or instructor.");
-      return;
-    }
-
+  const toggle = async (next: boolean) => {
     try {
-      const interest = await create.mutateAsync({ kind: "standing", criteria });
-      toast.success("Standing preference saved");
-      if (interest.notificationDelivery?.anyChannelEnabled === false) {
-        toast.warning("Turn on offer notifications so you do not miss an opening.");
-      }
-      setDays([]);
-      setTypes([]);
-      setTimeStart("");
-      setTimeEnd("");
-      setResourceIds([]);
-      setInstructorIds([]);
+      await setSuggestions.mutateAsync(next);
+      toast.success(next ? "Suggested slots are on" : "Suggested slots are off");
     } catch (error) {
-      toast.error(
-        error instanceof ApiError ? error.message : "Couldn't save this preference"
-      );
+      toast.error(error instanceof ApiError ? error.message : "Couldn't update your setting");
     }
   };
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          Add a standing preference
-          <DocsHint topic="standing-preferences" />
-        </CardTitle>
-        <CardDescription>
-          Example: dual on Tue to Thu mornings. Matches any cancel recovery or desk offer that
-          fits.
-          {restrictToApproved
-            ? " Aircraft are limited to what you are checked out on, same as booking."
-            : null}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-5" onSubmit={(e) => void submit(e)}>
-          <fieldset className="space-y-2">
-            <Legend>Days</Legend>
-            <div className="flex flex-wrap gap-2">
-              {DAYS.map((day) => {
-                const on = days.includes(day.value);
-                return (
-                  <button
-                    key={day.value}
-                    type="button"
-                    aria-pressed={on}
-                    onClick={() => toggleNum(days, day.value, setDays)}
-                    className={cn(
-                      "rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
-                      on
-                        ? "border-primary bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {day.label}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
-
-          {typeOptions.length > 0 && (
-            <fieldset className="space-y-2">
-              <Legend>Reservation types</Legend>
-              <div className="flex flex-wrap gap-3">
-                {typeOptions.map((type) => (
-                  <label key={type} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={types.includes(type)}
-                      onCheckedChange={() => toggleStr(types, type, setTypes)}
-                    />
-                    {TYPE_LABEL[type as ReservationType] ?? type}
-                  </label>
-                ))}
-              </div>
-            </fieldset>
-          )}
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="standby-time-start">Local start</Label>
-              <Select
-                value={timeStart || undefined}
-                onValueChange={(v) => setTimeStart(v === "__any__" ? "" : v)}
-              >
-                <SelectTrigger id="standby-time-start" className="w-full">
-                  <SelectValue placeholder="Any" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  <SelectItem value="__any__">Any</SelectItem>
-                  {CLOCK_OPTIONS.map((hm) => (
-                    <SelectItem key={hm} value={hm}>
-                      {formatClockLabel(hm)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="standby-time-end">Local end</Label>
-              <Select
-                value={timeEnd || undefined}
-                onValueChange={(v) => setTimeEnd(v === "__any__" ? "" : v)}
-              >
-                <SelectTrigger id="standby-time-end" className="w-full">
-                  <SelectValue placeholder="Any" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  <SelectItem value="__any__">Any</SelectItem>
-                  {CLOCK_OPTIONS.map((hm) => (
-                    <SelectItem key={hm} value={hm}>
-                      {formatClockLabel(hm)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Aircraft / resources (optional)</Label>
-            <MultiCombobox
-              options={resourceOptions}
-              values={resourceIds}
-              onChange={setResourceIds}
-              placeholder={
-                fleetPending
-                  ? "Loading…"
-                  : restrictToApproved
-                    ? "Checked-out fleet…"
-                    : "Any aircraft…"
-              }
-              searchPlaceholder="Search aircraft…"
-              emptyText={
-                restrictToApproved
-                  ? "No checked-out aircraft yet. Ask for a checkout, or leave this blank."
-                  : "No resources."
-              }
-              disabled={fleetPending}
-              className="h-9 w-full max-w-none"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Instructors (optional)</Label>
-            <MultiCombobox
-              options={instructorOptions}
-              values={instructorIds}
-              onChange={setInstructorIds}
-              placeholder="Any instructor…"
-              searchPlaceholder="Search instructors…"
-              emptyText="No instructors."
-              disabled={instructorsQ.isPending}
-              className="h-9 w-full max-w-none"
-            />
-            <p className="text-xs text-muted-foreground">
-              Your assigned instructors sort first. You can still prefer any instructor the
-              school lists, same as booking.
-            </p>
-          </div>
-
-          <Button type="submit" disabled={create.isPending}>
-            Save standing preference
-          </Button>
-        </form>
+      <CardContent className="p-4 sm:p-5">
+        <PreferenceToggle
+          label="Suggest open slots to me"
+          docs="suggested-slots"
+          description="Cancelled slots that fit how you usually fly, even without a preference. At most a few a week, and they stop after you pass on three in a row."
+          checked={enabled}
+          disabled={suggestions.isPending}
+          saving={setSuggestions.isPending}
+          onCheckedChange={(v) => void toggle(v)}
+        />
       </CardContent>
     </Card>
   );
 }
 
-function OpenWindowForm() {
-  const create = useCreateStandbyInterest();
-  const tz = useTimeZone();
-  const [startDate, setStartDate] = React.useState("");
-  const [startTime, setStartTime] = React.useState("");
-  const [endDate, setEndDate] = React.useState("");
-  const [endTime, setEndTime] = React.useState("");
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!startDate || !startTime || !endDate || !endTime) {
-      toast.error("Pick a start and end date and time for the open window.");
-      return;
-    }
-    const start = wallToUtc(startDate, startTime, tz.zone);
-    const end = wallToUtc(endDate, endTime, tz.zone);
-    if (!start || !end) {
-      toast.error("Couldn't read that date and time.");
-      return;
-    }
-    if (!(start.getTime() < end.getTime())) {
-      toast.error("End must be after start.");
-      return;
-    }
-
-    try {
-      const interest = await create.mutateAsync({
-        kind: "open_window",
-        start: start.toISOString(),
-        end: end.toISOString(),
-      });
-      toast.success("Open window saved");
-      if (interest.notificationDelivery?.anyChannelEnabled === false) {
-        toast.warning("Turn on offer notifications so you do not miss an opening.");
-      }
-      setStartDate("");
-      setStartTime("");
-      setEndDate("");
-      setEndTime("");
-    } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Couldn't save this window");
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <CalendarRange className="size-4 text-muted-foreground" />
-          Add an open window
-        </CardTitle>
-        <CardDescription>
-          A one-off range you are free. Any opening that overlaps this window can be offered
-          to you. Times use the schedule zone ({tz.zone}).
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form className="space-y-4" onSubmit={(e) => void submit(e)}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="open-window-start-date">Starts on</Label>
-              <DatePickerField
-                id="open-window-start-date"
-                value={startDate}
-                onChange={setStartDate}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="open-window-start-time">Start time</Label>
-              <Select value={startTime || undefined} onValueChange={setStartTime}>
-                <SelectTrigger id="open-window-start-time" className="w-full">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {CLOCK_OPTIONS.map((hm) => (
-                    <SelectItem key={hm} value={hm}>
-                      {formatClockLabel(hm)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="open-window-end-date">Ends on</Label>
-              <DatePickerField
-                id="open-window-end-date"
-                value={endDate}
-                min={startDate || undefined}
-                onChange={setEndDate}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="open-window-end-time">End time</Label>
-              <Select value={endTime || undefined} onValueChange={setEndTime}>
-                <SelectTrigger id="open-window-end-time" className="w-full">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent className="max-h-64">
-                  {CLOCK_OPTIONS.map((hm) => (
-                    <SelectItem key={hm} value={hm}>
-                      {formatClockLabel(hm)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <Button type="submit" variant="outline" disabled={create.isPending}>
-            Save open window
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  );
+/** Earliest day in a Monday-first week; "any day" sorts first. */
+function weekOrder(interest: StandbyInterest): number {
+  const days = interest.criteria?.daysOfWeek ?? [];
+  return days.length ? Math.min(...days.map((d) => (d + 6) % 7)) : -1;
 }
 
-function Legend({ children }: { children: React.ReactNode }) {
-  return (
-    <legend className="text-sm font-medium text-foreground">{children}</legend>
-  );
-}
-
-function describeInterest(interest: StandbyInterest): string {
+function describeWhen(interest: StandbyInterest): string {
   if (interest.kind === "open_window" && interest.start && interest.end) {
-    return `${format(parseISO(interest.start), "EEE MMM d, h:mm a")} to ${format(
-      parseISO(interest.end),
-      "EEE MMM d, h:mm a"
-    )}`;
+    const s = parseISO(interest.start);
+    const e = parseISO(interest.end);
+    const sameDay = format(s, "yyyy-MM-dd") === format(e, "yyyy-MM-dd");
+    return sameDay
+      ? `${format(s, "EEE, MMM d")} · ${format(s, "h:mm a")} to ${format(e, "h:mm a")}`
+      : `${format(s, "EEE, MMM d, h:mm a")} to ${format(e, "EEE, MMM d, h:mm a")}`;
   }
-
   const c = interest.criteria ?? {};
-  const parts: string[] = [];
-  if (c.daysOfWeek?.length) {
-    parts.push(c.daysOfWeek.map((d) => DAY_NAME[d] ?? String(d)).join(", "));
-  }
-  if (c.reservationTypes?.length) {
-    parts.push(
-      c.reservationTypes
-        .map((t) => TYPE_LABEL[t as ReservationType] ?? t)
-        .join(", ")
-    );
-  }
-  if (c.localTimeStart && c.localTimeEnd) {
-    parts.push(
-      `${formatClockLabel(c.localTimeStart)} to ${formatClockLabel(c.localTimeEnd)}`
-    );
-  }
+  const days = c.daysOfWeek?.length
+    ? c.daysOfWeek.length === 7
+      ? "Every day"
+      : c.daysOfWeek.map((d) => DAY_SHORT[d] ?? String(d)).join(", ")
+    : "Any day";
+  const time =
+    c.localTimeStart && c.localTimeEnd
+      ? `${formatClockLabel(c.localTimeStart)} to ${formatClockLabel(c.localTimeEnd)}`
+      : "Any time";
+  return `${days} · ${time}`;
+}
+
+function describeWhat(
+  interest: StandbyInterest,
+  names: { resources: Map<number, string>; instructors: Map<number, string> }
+): string {
+  if (interest.kind === "open_window") return "Open window";
+  const c = interest.criteria ?? {};
+  const parts: string[] = [
+    c.reservationTypes?.length
+      ? `Standing · ${c.reservationTypes.map((t) => TYPE_LABEL[t as ReservationType] ?? t).join(", ")}`
+      : "Standing preference",
+  ];
   if (c.resourceIds?.length) {
-    parts.push(`${c.resourceIds.length} resource${c.resourceIds.length === 1 ? "" : "s"}`);
+    parts.push(c.resourceIds.map((id) => names.resources.get(id) ?? `Aircraft #${id}`).join(", "));
   }
   if (c.instructorOrgUserIds?.length) {
     parts.push(
-      `${c.instructorOrgUserIds.length} instructor${
-        c.instructorOrgUserIds.length === 1 ? "" : "s"
-      }`
+      `with ${c.instructorOrgUserIds.map((id) => names.instructors.get(id) ?? "an instructor").join(" or ")}`
     );
   }
-  return parts.length > 0 ? parts.join(" · ") : "Any matching slot";
+  return parts.join(" · ");
 }

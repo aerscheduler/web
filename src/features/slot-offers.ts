@@ -103,3 +103,21 @@ export function useCreateSlotOffer() {
     },
   });
 }
+
+/** "Suggest open slots to me": whether cancel recovery may offer this member a slot they did not stand by for. */
+export function useSlotSuggestions() {
+  return useQuery({
+    queryKey: ["standby", "suggestions"],
+    queryFn: () => api<{ enabled: boolean }>("/standby/suggestions"),
+  });
+}
+
+export function useSetSlotSuggestions() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (enabled: boolean) =>
+      api<{ enabled: boolean }>("/standby/suggestions", { method: "PUT", body: { enabled } }),
+    onSuccess: (data) => queryClient.setQueryData(["standby", "suggestions"], data),
+  });
+}
+

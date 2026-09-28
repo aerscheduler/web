@@ -85,7 +85,15 @@ export type SlotOffer = {
   sourceReservation?: Pick<Reservation, "id" | "cancelledAt"> | null;
   resultingReservation?: Pick<Reservation, "id" | "start" | "end" | "type"> | null;
   notificationDelivery?: NotificationDelivery;
+  /**
+   * How the recipient was chosen. `source: "inferred"` means they never stood by for it
+   * and were suggested from how they fly; `reason` is the one line that says why.
+   */
+  rankSnapshot?: { source?: string; ranker?: string; reason?: string } | null;
 };
+
+export const isSuggestedOffer = (offer: Pick<SlotOffer, "rankSnapshot" | "purpose">) =>
+  offer.purpose === "claim" && offer.rankSnapshot?.source === "inferred";
 
 export type CreateDeskSlotOfferInput =
   | { sourceReservationId: number }

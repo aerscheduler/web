@@ -64,6 +64,7 @@ Defaults: `VITE_API_PROXY=http://127.0.0.1:5001`, Playwright starts Vite on
 | `e2e/schedule/api-lifecycle.spec.ts` | Create / patch / cancel reservation via API |
 | `e2e/schedule/slot-offer-cancel-recovery.spec.ts` | API: Standby → cancel → offer → accept; desk withdraw; Pending offers opens |
 | `e2e/schedule/slot-offer-cancel-recovery-ui.spec.ts` | UI clicks: stand by → cancel dialog → Pending offers → Accept on Offers tab; Withdraw |
+| `e2e/schedule/standby-preferences.spec.ts` | Student: "first dibs" callout on My schedule links to Profile → Standby; Standby modal refuses no day, saves exact criteria (Sat afternoons, Tue 2 to 5 PM custom); rows sort Monday first in 12-hour time; callout gone once configured; Withdraw from rows; "Suggest open slots to me" PUTs both ways; the X hides the callout after reload |
 | `e2e/billing/invoices.spec.ts` | Billing / invoices reachable |
 | `e2e/billing/prepaid-package-flow.spec.ts` | Prepaid guest: invoice at confirm, Collect payment, ramp, close-out, no second Hobbs invoice (skips without Stripe Connect) |
 | `e2e/billing/invoice-privacy-and-offline.spec.ts` | Calendar GET hides other people's rates/invoices; missing-invoice banner; Record check; wedged-approve toast |

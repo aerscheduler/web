@@ -37,6 +37,7 @@ import { CancelReservationDialog } from "@/components/schedule/cancel-reservatio
 import { ReservationForm } from "@/components/schedule/reservation-form";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 import { MySlotOffersPanel } from "@/components/slot-offers/my-slot-offers-panel";
+import { FirstDibsCallout } from "@/components/slot-offers/quick-standby";
 import { MyBookingRequestsPanel } from "@/components/booking-requests/my-booking-requests-panel";
 import { resourceLabel } from "@/types/api";
 
@@ -272,6 +273,7 @@ function MySchedulePage() {
             <MyBookingRequestsPanel />
           ) : (
             <>
+              <FirstDibsCallout />
               <div
                 role="group"
                 aria-label="Schedule range"

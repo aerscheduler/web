@@ -341,8 +341,14 @@ export const DOCS_TOPICS = {
   "standing-preferences": {
     title: "Standing preferences",
     summary:
-      "Days, reservation types, local hours, aircraft, and instructors you want. Leave a field blank to mean any, and pick at least one constraint. When the school requires checkouts, aircraft are limited to what you are approved on. Matching openings become time-limited offers.",
+      "Days, times, lesson types, aircraft, and instructors you want. Pick at least one day and leave the rest blank to mean any. When the school requires checkouts, aircraft are limited to what you are approved on. Matching openings become time-limited offers.",
     href: "scheduling/standby-and-slot-offers",
+  },
+  "suggested-slots": {
+    title: "Suggested slots",
+    summary:
+      "When nobody on standby can take a cancelled slot, it can be offered to the member whose flying fits it best: same aircraft, instructor, weekday and time. At most 3 a week, paused for 30 days after you pass on 3 in a row. Turning this off does not affect slots you stand by for yourself.",
+    href: "scheduling/standby-and-slot-offers#suggested-slots",
   },
   "slot-offers": {
     title: "Offers",

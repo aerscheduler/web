@@ -68,6 +68,12 @@ import { InstructorsEmptyGraphic } from "@/components/empty-graphics/instructors
 import { AircraftEmptyGraphic } from "@/components/empty-graphics/aircraft";
 import { LocationsEmptyGraphic } from "@/components/empty-graphics/locations";
 import { DocsHint } from "@/components/docs-hint";
+import {
+  StandingPreferenceFields,
+  useStandingPreferenceForm,
+} from "@/components/slot-offers/standby-forms";
+import { orgSlotOffersEnabled } from "@/lib/slot-offers-enabled";
+import { canStandBy } from "@/lib/permissions";
 import { PerPlanePricingNote } from "@/components/subscription/plan";
 import { toast } from "sonner";
 
@@ -131,6 +137,11 @@ function Onboarding() {
     if (restart) clearOnboardingSticky();
   }, [restart]);
 
+  // A student who just joined HAS an organization now, and every branch below reads that
+  // as "an operator mid-setup" or "a member done here". Keep them in their own flow, which
+  // asks when they fly and then sends them to book.
+  if (persona === "student") return <StudentFlow onBack={() => setPersona(null)} />;
+
   // Complete, and this tab is not mid-wizard. sticky 2 keeps billing; sticky 1
   // keeps aircraft after Back. A new tab has no sticky, so complete → AllSet.
   // `?restart=1` on the local dev server ignores that so the wizard can be walked
@@ -167,7 +178,6 @@ function Onboarding() {
         }}
       />
     );
-  if (persona === "student") return <StudentFlow onBack={() => setPersona(null)} />;
   return <OperationFlow persona={persona} replay={restart} onBack={() => setPersona(null)} />;
 }
 
@@ -273,6 +283,17 @@ function StudentFlow({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [requested, setRequested] = React.useState(false);
+  const [askStandby, setAskStandby] = React.useState(false);
+  const { organization, roles } = useAuth();
+
+  const goBook = React.useCallback(() => void navigate({ to: "/me/book" }), [navigate]);
+  // Right after joining, the session may not have the new school yet. Wait for it rather
+  // than skipping the question on a blank; then skip only where it cannot apply.
+  const standbyStep =
+    askStandby && organization != null && orgSlotOffersEnabled(organization) && canStandBy(roles);
+  React.useEffect(() => {
+    if (askStandby && organization != null && !standbyStep) goBook();
+  }, [askStandby, organization, standbyStep, goBook]);
 
   async function submit() {
     if (!code.trim()) return setError("Enter the code your school gave you.");
@@ -282,8 +303,10 @@ function StudentFlow({ onBack }: { onBack: () => void }) {
       const outcome = await joinByCode(code);
       if (outcome === "joined") {
         await qc.invalidateQueries();
-        toast.success("You're in! Let's book your first lesson.");
-        void navigate({ to: "/me/book" });
+        toast.success("You're in!");
+        // One question before the first booking: when they usually fly, so a cancelled
+        // slot that fits reaches them. Skipped where offers are off or they can't be seated.
+        setAskStandby(true);
       } else {
         setRequested(true);
       }
@@ -292,6 +315,28 @@ function StudentFlow({ onBack }: { onBack: () => void }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (standbyStep) {
+    return (
+      <Shell>
+        <Step
+          title="When are you usually free to fly?"
+          sub="When someone cancels a time that fits you, we'll offer it to you first. You can always say no, and change this later on your profile."
+        >
+          <StandbyStep onDone={goBook} />
+        </Step>
+      </Shell>
+    );
+  }
+  if (askStandby) {
+    return (
+      <Shell>
+        <div className="grid place-items-center py-10">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      </Shell>
+    );
   }
 
   return (
@@ -1540,6 +1585,25 @@ function Shell({
         {children}
       </div>
     </AuthShell>
+  );
+}
+
+/** The one question after joining: days and time, saved as a standing standby preference. */
+function StandbyStep({ onDone }: { onDone: () => void }) {
+  const form = useStandingPreferenceForm();
+  return (
+    <>
+      <StandingPreferenceFields draft={form.draft} onChange={form.update} whenOnly />
+      <Nav
+        onNext={async () => {
+          if (await form.save()) onDone();
+        }}
+        nextLabel="Save and book a lesson"
+        nextDisabled={!form.draft.days.length}
+        busy={form.saving}
+        onSkip={onDone}
+      />
+    </>
   );
 }
 

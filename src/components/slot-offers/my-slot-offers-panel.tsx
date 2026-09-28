@@ -1,16 +1,26 @@
+import * as React from "react";
 import { Link } from "@tanstack/react-router";
 import { formatDistanceToNowStrict } from "date-fns";
-import { CalendarClock, Check, Settings2, X } from "lucide-react";
+import { CalendarClock, Check, Settings2, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   useAcceptSlotOffer,
   useDeclineSlotOffer,
   useMySlotOffers,
+  useMyStandbyInterest,
+  useSetSlotSuggestions,
 } from "@/features/slot-offers";
 import { useOrgUserPreferences } from "@/features/queries";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { resourceLabel, type ReservationType, type Resource } from "@/types/api";
-import type { SlotOffer } from "@/types/slot-offers";
+import { isSuggestedOffer, type SlotOffer } from "@/types/slot-offers";
+import {
+  FirstDibsDialog,
+  firstDibsDismissed,
+  initialFromSlot,
+  type QuickStandbyInitial,
+} from "@/components/slot-offers/quick-standby";
 import { SlotOfferNotificationWarning } from "@/components/slot-offers/notification-warning";
 import { DocsHint } from "@/components/docs-hint";
 import { typeLabel } from "@/components/schedule/meta";
@@ -25,6 +35,13 @@ export function MySlotOffersPanel() {
   const preferencesQuery = useOrgUserPreferences();
   const accept = useAcceptSlotOffer();
   const decline = useDeclineSlotOffer();
+  const { orgUserId } = useAuth();
+  const interests = useMyStandbyInterest();
+  const setSuggestions = useSetSlotSuggestions();
+  const [firstDibs, setFirstDibs] = React.useState<QuickStandbyInitial | null>(null);
+  const hasPreference = (interests.data ?? []).some(
+    (i) => i.status === "active" && (i.kind === "standing" || i.kind === "open_window")
+  );
 
   const pending = (offersQuery.data ?? []).filter((offer) => offer.status === "pending");
   const notificationPreferences = preferencesQuery.data?.notificationPreferences;
@@ -49,6 +66,11 @@ export function MySlotOffersPanel() {
             ? "Confirmed. Eligible members can now be offered this slot."
             : "Slot accepted. Your reservation is booked."
         );
+        if (offer.purpose === "claim" && !hasPreference && interests.isSuccess && !firstDibsDismissed(orgUserId)) {
+          setFirstDibs(
+            initialFromSlot({ start: offer.start, timeZoneName: offer.timeZoneName })
+          );
+        }
       } else {
         await decline.mutateAsync(offer.id);
         toast.success(
@@ -66,9 +88,25 @@ export function MySlotOffersPanel() {
     }
   };
 
+  // Decline, and never pick me by inference again. Their own standby keeps working.
+  const stopSuggesting = async (offer: SlotOffer) => {
+    try {
+      await setSuggestions.mutateAsync(false);
+      await decline.mutateAsync(offer.id);
+      toast.success("We won't suggest slots to you. Turn it back on under Standby.");
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : "Couldn't update your setting");
+    }
+  };
+
   return (
     <div className="space-y-4">
       {notificationsOff && <SlotOfferNotificationWarning />}
+      <FirstDibsDialog
+        initial={firstDibs}
+        open={firstDibs != null}
+        onOpenChange={(open) => !open && setFirstDibs(null)}
+      />
 
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-4">
         <div>
@@ -109,9 +147,10 @@ export function MySlotOffersPanel() {
             <OfferCard
               key={offer.id}
               offer={offer}
-              busy={accept.isPending || decline.isPending}
+              busy={accept.isPending || decline.isPending || setSuggestions.isPending}
               onAccept={() => void act(offer, "accept")}
               onDecline={() => void act(offer, "decline")}
+              onStopSuggesting={() => void stopSuggesting(offer)}
             />
           ))}
         </div>
@@ -125,12 +164,15 @@ function OfferCard({
   busy,
   onAccept,
   onDecline,
+  onStopSuggesting,
 }: {
   offer: SlotOffer;
   busy: boolean;
   onAccept: () => void;
   onDecline: () => void;
+  onStopSuggesting: () => void;
 }) {
+  const suggested = isSuggestedOffer(offer);
   const expired = new Date(offer.holdUntil).getTime() <= Date.now();
   const resource = offer.resource
     ? resourceLabel(offer.resource as Resource).name
@@ -155,11 +197,23 @@ function OfferCard({
         </div>
         <div className="flex flex-wrap gap-2">
           {instructorConfirm && <Badge variant="secondary">Instructor confirm</Badge>}
+          {suggested && <Badge variant="secondary">Suggested for you</Badge>}
           <Badge variant="outline">
             {typeLabel(offer.reservationType as ReservationType)}
           </Badge>
         </div>
       </CardHeader>
+      {suggested ? (
+        <CardContent className="pt-0">
+          <div className="flex items-start gap-2 rounded-md bg-primary/5 p-3 text-sm" data-testid="suggestion-reason">
+            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
+            <p>
+              <span className="font-medium">Why you: </span>
+              {offer.rankSnapshot?.reason ?? "It fits how you usually fly."}
+            </p>
+          </div>
+        </CardContent>
+      ) : null}
       <CardContent className="flex flex-col gap-3 pt-0 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted-foreground">
           {expired
@@ -177,6 +231,18 @@ function OfferCard({
           </Button>
         </div>
       </CardContent>
+      {suggested ? (
+        <CardContent className="pt-0">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onStopSuggesting}
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline disabled:opacity-50"
+          >
+            Not for me? Stop suggesting slots
+          </button>
+        </CardContent>
+      ) : null}
     </Card>
   );
 }

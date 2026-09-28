@@ -119,7 +119,12 @@ function SchedulePage() {
   //another page and re-enter the slot by hand.
   const staff = isStaff(roles);
   const slotOffersOn = orgSlotOffersEnabled(organization);
-  const pendingOffersQ = usePendingSlotOffers(staff && slotOffersOn);
+  //Instructors too: the server returns them only the offers holding their own time, so a
+  //cancel that put their slot on hold shows on the board with its Withdraw button, instead
+  //of the time silently vanishing from the picker.
+  const pendingOffersQ = usePendingSlotOffers(
+    (staff || roles.includes("instructor")) && slotOffersOn
+  );
   const pendingBookingRequestsQ = usePendingBookingRequests(staff);
   const [bookingRequestsOpen, setBookingRequestsOpenState] = React.useState(false);
   const tz = useTimeZone();
@@ -701,7 +706,8 @@ function SchedulePage() {
         />
       )}
 
-      {staff && slotOffersOn && (
+      {/* Instructors too, for the holds on their own time (the only ones they are sent). */}
+      {(staff || roles.includes("instructor")) && slotOffersOn && (
         <SlotOfferDetailSheet
           offer={offerDetail}
           open={offerDetail != null}

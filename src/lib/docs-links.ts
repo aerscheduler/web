@@ -419,8 +419,8 @@ export const DOCS_TOPICS = {
   "pending-slot-offers": {
     title: "Pending offers",
     summary:
-      "Offers currently open after a cancel, desk send, or AerScheduler AI. They also appear as dashed pending offers on the day and week boards. Instructor confirms appear first on duals. Withdraw frees the window and stops the chain so the desk can book by hand.",
-    href: "scheduling/standby-and-slot-offers",
+      "Offers currently open after a cancel, desk send, or AerScheduler AI. They also appear as dashed pending offers on the day and week boards. Instructor confirms appear first on duals. Withdraw frees the window and stops the chain so it can be booked by hand. Instructors see and can withdraw the offers holding their own time.",
+    href: "scheduling/standby-and-slot-offers#rebook-a-slot-you-just-cancelled",
   },
   "aircraft-category-class": {
     title: "Category and class",

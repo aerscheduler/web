@@ -168,6 +168,9 @@ export function readsMeters(r: Reservation): boolean {
  * that has no instruction to bill, and no figure would ever arrive.
  */
 export function hasInstruction(r: Reservation): boolean {
+  //A solo never carries instruction: the student is the sole occupant. Mirrors the server,
+  //which added this for the solos an edit from dual used to leave with an instructor on.
+  if (r.type === "solo") return false;
   if ((r.personnel?.instructors?.length ?? 0) === 0) return false;
   return (r.personnel?.students?.length ?? 0) > 0 || r.type === "guest";
 }

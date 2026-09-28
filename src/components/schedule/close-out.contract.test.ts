@@ -97,6 +97,10 @@ describe("hasInstruction mirrors the server's payment.ts rule", () => {
   it("an instructor alone is renting, not teaching", () => {
     expect(hasInstruction(booking({ type: "solo", resource: "plane", instructors: 1 }))).toBe(false);
   });
+
+  it("a solo never bills instruction, even carrying an instructor and a student", () => {
+    expect(hasInstruction(booking({ type: "solo", resource: "plane", instructors: 1, students: 1 }))).toBe(false);
+  });
 });
 
 describe("usesBriefingNotMeters: nothing to read", () => {

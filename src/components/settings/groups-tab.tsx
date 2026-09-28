@@ -621,7 +621,7 @@ export function ResourceGroupForm({
   const update = useUpdateResourceGroup();
   const pending = create.isPending || update.isPending;
 
-  const resources = useResources({ enabled: open });
+  const resources = useResources(undefined, { enabled: open });
   // Membership and the auto-join flags live only on the detail endpoint.
   const detail = useResourceGroup(open && group ? group.id : null);
   // Which group the detail has already been folded into the form for, so a

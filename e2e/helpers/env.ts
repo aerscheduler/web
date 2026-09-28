@@ -52,4 +52,17 @@ export const ACCOUNTS = {
     process.env.E2E_TECHNICIAN_EMAIL ?? "test-technician@aerscheduler.com",
 } as const;
 
+/**
+ * A SECOND RENTER, deliberately NOT in `ACCOUNTS`.
+ *
+ * Slot-offer recovery needs a candidate who can be seated on the booking's TYPE and is not
+ * already on it; for a `rental` only a renter qualifies, so one renter in the school makes
+ * the flow untestable. But `auth.setup.ts` performs one UI login per entry in `ACCOUNTS`,
+ * serially, and that is the slowest thing in the suite: adding an eighth made EVERY run pay
+ * for an account one spec needs, and pushed the setup past its budget.
+ *
+ * So it lives here, and the one spec that needs a browser session for it logs in itself.
+ */
+export const RENTER2_EMAIL = process.env.E2E_RENTER2_EMAIL ?? "test-renter2@aerscheduler.com";
+
 export type AccountRole = keyof typeof ACCOUNTS;

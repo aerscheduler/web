@@ -29,7 +29,7 @@ import { AdminAssignPairDialog } from "@/components/people/admin-assign-pair-dia
 import { MemberCard } from "@/components/people/member-card";
 import { MemberRowActions } from "@/components/people/member-row-actions";
 import { GuestsTable } from "@/components/people/guests-table";
-import { memberName } from "@/components/people/util";
+import { memberEmail, memberName } from "@/components/people/util";
 import { useAuth } from "@/lib/auth";
 import { asFacetInts, asFacetStrings, useListQueryState, validateListSearch } from "@/lib/list-query-state";
 import { canManageMembers, isInstructor, isStaff } from "@/lib/permissions";
@@ -313,11 +313,11 @@ function PeoplePage() {
         // string (name + email) that exists only to render, and there is no
         // field behind it to sort on.
         meta: { sortKey: "user.name" },
-        accessorFn: (r) => `${memberName(r)} ${r.user?.email ?? ""}`,
+        accessorFn: (r) => `${memberName(r)} ${memberEmail(r) ?? ""}`,
         cell: ({ row }) => {
           const ou = row.original;
           const name = memberName(ou);
-          const email = ou.user?.email;
+          const email = memberEmail(ou);
           return (
             // A real link, not just a clickable row: middle-click, ⌘-click and
             // "copy link address" all have to work on a roster people share.
@@ -343,7 +343,16 @@ function PeoplePage() {
       {
         id: "roles",
         header: "Roles",
-        cell: ({ row }) => <RoleBadges roles={rolesOf(row.original)} />,
+        cell: ({ row }) => {
+          // AN AIRCRAFT OWNER HOLDS NO ROLE ON PURPOSE, so this cell was empty and they sat
+          // in the "No role yet" facet looking exactly like a member waiting to be given
+          // one. An admin tidying that list then hit a refusal they could not explain.
+          // Saying what they are is the whole fix.
+          if (row.original.external) {
+            return <Badge variant="secondary">Aircraft owner</Badge>;
+          }
+          return <RoleBadges roles={rolesOf(row.original)} />;
+        },
       },
       {
         id: "identifier",
@@ -365,11 +374,12 @@ function PeoplePage() {
           // "Grounded" on somebody the school has already filed away invites
           // exactly the pointless ungrounding this feature exists to avoid.
           if (ou.archivedAt) return <Badge variant="secondary">Archived</Badge>;
-          return ou.grounded ? (
-            <Badge variant="danger">Grounded</Badge>
-          ) : (
-            <Badge variant="outline">Active</Badge>
-          );
+          if (ou.grounded) return <Badge variant="danger">Grounded</Badge>;
+          // "Active" is a lie for somebody the school typed in who has never confirmed
+          // anything: they cannot sign in and AerScheduler sends them nothing. The Owners panel on
+          // an aircraft says the same thing in the same words.
+          if (!ou.claimedAt) return <Badge variant="outline">Not signed up</Badge>;
+          return <Badge variant="outline">Active</Badge>;
         },
       },
       {

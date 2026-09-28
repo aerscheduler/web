@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { RoleBadges } from "@/components/role-badges";
 import { initials } from "@/lib/utils";
 import { MemberRowActions } from "./member-row-actions";
-import { memberName } from "./util";
+import { memberEmail, memberName } from "./util";
 
 export function MemberCard({
   ou,
@@ -17,7 +17,7 @@ export function MemberCard({
   onEditRoles: (ou: OrganizationUser) => void;
 }) {
   const name = memberName(ou);
-  const email = ou.user?.email;
+  const email = memberEmail(ou);
 
   return (
     <Card className="p-4">

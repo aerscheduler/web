@@ -45,10 +45,11 @@ export function AircraftCard({
   const p = r.type?.plane;
   if (!p) return null;
 
-  const status = planeStatus(p);
+  const status = planeStatus(p, r.use);
   const rate = planeRate(p);
   //Nothing meters this airframe, so nothing charges it by the hour. See the footer below.
   const meterless = p.meterMode === "none";
+  const isShop = r.use === "shop";
 
   return (
     <Card className="relative flex flex-col overflow-hidden pt-0 transition-colors hover:bg-accent/30 focus-within:ring-2 focus-within:ring-ring">
@@ -148,7 +149,9 @@ export function AircraftCard({
                   )}
                 </DropdownMenuItem>
               )}
-              {canManageResources(roles) && (
+              {/* Not on a customer's aeroplane: nobody can be checked out on an aircraft
+                  that cannot be flown, and the sheet saves each switch immediately. */}
+              {canManageResources(roles) && !isShop && (
                 <DropdownMenuItem onSelect={() => actions.onApprove(r)}>
                   <ShieldCheck className="size-4" /> Approve members
                 </DropdownMenuItem>
@@ -204,7 +207,9 @@ export function AircraftCard({
               </Tooltip>
             </div>
           )}
-          {rate && !meterless && (
+          {/* A customer's aircraft has no rate: the school is not renting it out, it is
+              working on it, and "$0.00 wet/Hobbs" is a price nobody is charging. */}
+          {rate && !meterless && !isShop && (
             <div className="text-right text-sm">
               <span className="tnum font-semibold">{formatMoney(rate.cents)}</span>
               <span className="text-xs text-muted-foreground">

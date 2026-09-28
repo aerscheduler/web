@@ -190,7 +190,15 @@ export const TYPE_REQUIREMENTS: Record<ReservationType, TypeRequirement> = {
 
 /** Does this resource match the kind the given type books against? */
 export function resourceMatchesType(resource: Resource, type: ReservationType): boolean {
-  return resourceLabel(resource).kind === TYPE_REQUIREMENTS[type].resource;
+  if (resourceLabel(resource).kind !== TYPE_REQUIREMENTS[type].resource) return false;
+
+  // A customer's aircraft in the shop belongs to somebody else. It takes maintenance and
+  // nothing else, which is exactly what the server enforces, so offering it for a rental
+  // would only ever produce a refusal the person could not have predicted. Offering it FOR
+  // maintenance is the point of the aeroplane being in the system at all.
+  if (resource.use === "shop") return type === "maintenance";
+
+  return true;
 }
 
 /**

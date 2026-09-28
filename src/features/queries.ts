@@ -110,6 +110,7 @@ import type {
   ReservationPayerInput,
   ReservationPaymentOverridesInput,
   Resource,
+  ResourceOwner,
   ResourceFile,
   ResourceGroup,
   ResourceGroupInput,
@@ -175,9 +176,53 @@ function usePagedList<T>(
       });
       return { rows: data, total: pagination.total, hasMore: pagination.hasMore };
     },
-    placeholderData: (prev) => prev,
+    /**
+     * Keep the rows on screen while the NEXT PAGE of the same list loads, so paging does
+     * not flash an empty table. But only for the same list.
+     *
+     * The scope switch on the aircraft page taught this the hard way: clicking "In the
+     * shop" left the school's own twelve aeroplanes on screen under the new tab, with the
+     * subtitle already reading "12 customer aircraft in the shop". It settles a few
+     * hundred milliseconds later, which is exactly long enough for somebody to believe it
+     * and exactly short enough to be hard to catch. Holding rows from a different query is
+     * not a smoother load, it is the wrong answer rendered confidently.
+     */
+    placeholderData: (prev, prevQuery) => {
+      const prevParams = prevQuery?.queryKey?.[prevQuery.queryKey.length - 1];
+      return sameList(prevParams, { ...(filter ?? {}), ...paging.query }) ? prev : undefined;
+    },
     ...opts,
   });
+}
+
+/**
+ * The params that make it a DIFFERENT LIST rather than a narrower view of the same one.
+ *
+ * This started as the inverse: everything that was not a paging key counted as identity,
+ * so any facet click or search keystroke blanked the table. That is a worse product than
+ * the bug it fixed, and it is a bug of its own, because every paged table in the console
+ * hung off this helper.
+ *
+ * `scope` is the only param today that swaps one population for another: the school's own
+ * aeroplanes for a customer's. Narrowing a list (grounded, archived, a group, a search) is
+ * a refinement, and holding the rows while it lands is what a table should do.
+ *
+ * This does NOT fix the general shape of the problem, which is that a count rendered
+ * beside a held page can assert the new filter over the old rows. That belongs to the
+ * table shell rather than to the cache, and it is written up in the report.
+ */
+const LIST_IDENTITY_KEYS = new Set(["scope"]);
+
+export function sameList(a: unknown, b: unknown): boolean {
+  const identity = (v: unknown) =>
+    JSON.stringify(
+      Object.fromEntries(
+        Object.entries((v ?? {}) as Record<string, unknown>)
+          .filter(([k, value]) => LIST_IDENTITY_KEYS.has(k) && value !== undefined)
+          .sort(([x], [y]) => x.localeCompare(y))
+      )
+    );
+  return identity(a) === identity(b);
 }
 
 /** What a table reads off a paged query, safe before the first response lands. */
@@ -215,6 +260,14 @@ export type ResourceListFilter = {
   grounded?: boolean;
   /** One or more location IDs (OR). */
   locationId?: number | number[];
+  /**
+   * Which aircraft to list: the school's own (`fleet`, the default), the customer
+   * aircraft in its shop (`shop`), or both (`all`).
+   *
+   * The server defaults to `fleet` when this is missing, so every existing caller keeps
+   * getting exactly what it got before, and a screen that wants the shop has to say so.
+   */
+  scope?: "fleet" | "shop" | "all";
 };
 
 export type InvoiceListFilter = {
@@ -368,10 +421,10 @@ export function usePlanesPage(filter: ResourceListFilter | undefined, paging: Pa
   return usePagedList<Resource>(["resources", "planes"], "/resources/planes", paging, filter, opts);
 }
 
-export function useResources(opts?: QueryOpts) {
+export function useResources(filter?: ResourceListFilter, opts?: QueryOpts) {
   return useQuery({
-    queryKey: ["resources", "all"],
-    queryFn: () => api<Resource[]>("/resources"),
+    queryKey: ["resources", "all", filter ?? {}],
+    queryFn: () => api<Resource[]>("/resources", { query: filter }),
     ...opts,
   });
 }
@@ -439,6 +492,12 @@ export function useReservationsPage(
          * query, so narrowing `endDate` does NOT exclude a flight that is still out.
          */
         endedBefore?: string;
+        /**
+         * Reservation types to leave out, sent as CSV. Billing's "unbilled flights"
+         * excludes `maintenance`: a shop visit is not a bill waiting to be raised, so
+         * without this it sits in that list forever.
+         */
+        excludeType?: string[];
       })
     | undefined,
   paging: PagingState,
@@ -1296,6 +1355,83 @@ export function useSetResourceGrounding(id: number) {
     mutationFn: (input: { grounded: boolean; reason?: string }) =>
       api<Resource>(`/resources/${id}/grounding`, { method: "PATCH", body: input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["resources"] }),
+  });
+}
+
+/**
+ * Who owns an aircraft.
+ *
+ * Its own query rather than a field on the resource: owners are only ever wanted on the
+ * one aircraft you are looking at, and folding them into the list would put a person's
+ * contact details on a screen that shows twenty aeroplanes at once.
+ */
+export function useResourceOwners(resourceId: number | undefined, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["resources", "owners", resourceId],
+    queryFn: () => api<ResourceOwner[]>(`/resources/${resourceId}/owners`),
+    enabled: !!resourceId && opts?.enabled !== false,
+    ...opts,
+  });
+}
+
+/**
+ * Add an owner: either somebody already here (`orgUserId`), or a person the school has
+ * never met (`name`, and optionally how to reach them).
+ *
+ * The second form creates a membership for them, marked external and left unclaimed. That
+ * is deliberately not a user-facing concept: the form asks for a name and a phone number,
+ * and the server decides what kind of record that has to be.
+ */
+export function useAddResourceOwner(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      orgUserId?: number;
+      name?: string;
+      email?: string;
+      phone?: string;
+      title?: string;
+      isPrimary?: boolean;
+      /** The desk saw the 409 and says this really is a different person. */
+      createAnyway?: boolean;
+    }) => api<ResourceOwner>(`/resources/${resourceId}/owners`, { method: "POST", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["resources", "owners", resourceId] });
+      // A new owner can be a brand-new member, so the roster is stale too.
+      void qc.invalidateQueries({ queryKey: ["members"] });
+    },
+  });
+}
+
+export function useUpdateResourceOwner(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      ownerId,
+      ...body
+    }: {
+      ownerId: number;
+      title?: string | null;
+      isPrimary?: boolean;
+      /** Outside parties only; the server refuses these for a member. */
+      name?: string;
+      email?: string | null;
+      phone?: string | null;
+    }) => api<ResourceOwner>(`/resources/${resourceId}/owners/${ownerId}`, { method: "PATCH", body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["resources", "owners", resourceId] });
+      // A corrected name shows on the roster and on every other aeroplane they own.
+      void qc.invalidateQueries({ queryKey: ["members"] });
+      void qc.invalidateQueries({ queryKey: ["resources", "owners"] });
+    },
+  });
+}
+
+export function useRemoveResourceOwner(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (ownerId: number) => api(`/resources/${resourceId}/owners/${ownerId}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["resources", "owners", resourceId] }),
   });
 }
 
@@ -3515,6 +3651,30 @@ export function useDeleteResourceFile() {
  * it would otherwise be found in is paged and filtered, so resolving the person
  * out of a list read would 404 anyone who happens to be on page 2.
  */
+/** One owner's aircraft at this school, primary first. See GET /orgUsers/:id/ownedAircraft. */
+export interface OwnedAircraft {
+  id: number;
+  isPrimary: boolean;
+  title: string | null;
+  resource: {
+    id: number;
+    use: "fleet" | "shop";
+    type: { plane: { tailNumber: string; make: string | null; model: string | null; year: number | null } | null } | null;
+  };
+}
+
+/**
+ * The aircraft this person owns. Shop-gated on the server (404 for anybody who may not see
+ * the shop), so callers pass `enabled` only for a viewer who may.
+ */
+export function useOwnedAircraft(orgUserId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["resources", "owners", "byMember", orgUserId],
+    queryFn: () => apiList<OwnedAircraft>(`/orgUsers/${orgUserId}/ownedAircraft`).then((r) => r.data),
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
+  });
+}
+
 export function useMember(orgUserId: number | null, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["members", "one", orgUserId],

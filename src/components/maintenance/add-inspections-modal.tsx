@@ -71,7 +71,8 @@ export function AddInspectionsModal({
   fixedResource?: Resource | null;
 }) {
   const presetsQ = useInspectionPresets({ enabled: open });
-  const planesQ = usePlanes({}, { enabled: open && !fixedResource });
+  //Customer aircraft included: tracking an inspection on one is the whole point.
+  const planesQ = usePlanes({ scope: "all" }, { enabled: open && !fixedResource });
   const create = useCreateMaintenanceReminderTemplate();
 
   const [mode, setMode] = React.useState<Mode>("standard");

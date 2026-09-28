@@ -35,8 +35,12 @@ export function AircraftListRow({
   const p = r.type?.plane;
   if (!p) return null;
 
-  const status = planeStatus(p);
+  const status = planeStatus(p, r.use);
   const rate = planeRate(p);
+  //Nothing meters a glider, and nobody rents a customer's aeroplane. Both mean there is no
+  //hourly price to print. The card learned this first; the row is the copy that was missed.
+  const meterless = p.meterMode === "none";
+  const isShop = r.use === "shop";
 
   return (
     <div className="relative flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-accent/40 focus-within:ring-2 focus-within:ring-ring focus-within:ring-inset">
@@ -95,7 +99,10 @@ export function AircraftListRow({
         </Tooltip>
       </div>
 
-      {rate && (
+      {/* Same rule as the card: a customer's aircraft has no rate because nobody rents it,
+          and a glider has no meters to charge by. "$0.00 wet/Hobbs" is a price nobody is
+          charging, printed next to somebody else's registration. */}
+      {rate && !meterless && !isShop && (
         <div className="pointer-events-none w-24 shrink-0 text-right text-sm">
           <span className="tnum font-semibold">{formatMoney(rate.cents)}</span>
           <span className="text-xs text-muted-foreground">
@@ -146,7 +153,10 @@ export function AircraftListRow({
               )}
             </DropdownMenuItem>
           )}
-          {canManageResources(roles) && (
+          {/* Nobody is checked out on a customer's aeroplane: it cannot be flown at all,
+              and the sheet behind this saves immediately, so offering it means an admin can
+              check a dozen students out on somebody else's aircraft. */}
+          {canManageResources(roles) && !isShop && (
             <DropdownMenuItem onSelect={() => actions.onApprove(r)}>
               <ShieldCheck className="size-4" /> Approve members
             </DropdownMenuItem>

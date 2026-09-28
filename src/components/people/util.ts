@@ -20,6 +20,19 @@ export function memberName(ou: OrganizationUser): string {
   return ou.user?.name?.trim() || `Member #${ou.id}`;
 }
 
+/**
+ * The address to SHOW for somebody on the roster.
+ *
+ * An aircraft owner the shop typed in has a placeholder login
+ * (`owner.<uuid>@unclaimed.aerscheduler.internal`), so `user.email` is the one field that
+ * must never be printed for them: the People list and the invoice picker both did. Their
+ * real address is `contactEmail`, or nothing if the shop did not record one.
+ */
+export function memberEmail(ou: Pick<OrganizationUser, "external" | "claimedAt" | "contactEmail" | "user">): string | null {
+  if (ou.external && !ou.claimedAt) return ou.contactEmail ?? null;
+  return ou.user?.email ?? null;
+}
+
 /** Build a full `RolesUpdate` payload from a membership's active role relations. */
 export function rolesUpdateFrom(ou: OrganizationUser): RolesUpdate {
   return {

@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { useCreatePlane, useUpdateResource } from "@/features/queries";
-import type { CreatePlaneResourceInput, Location, Resource } from "@/types/api";
+import type { AircraftUse, CreatePlaneResourceInput, Location, Resource } from "@/types/api";
 import { fuelToDisplay, fuelToStored } from "@/components/aircraft/lib";
 import { TailNumberField } from "@/components/aircraft/tail-number-field";
 import type { RegistryMatch } from "@/features/queries";
@@ -49,6 +49,11 @@ type FormState = {
   gearType: string;
   seats: string;
   meterMode: string;
+  /**
+   * Whose aeroplane this is. `shop` means a customer brought it in: it takes maintenance
+   * and nothing else, and it is not counted toward the per-aircraft price.
+   */
+  use: AircraftUse;
   hobbs: string;
   tach: string;
   fuelCapacity: string;
@@ -107,6 +112,7 @@ function emptyState(): FormState {
     gearType: "",
     seats: "",
     meterMode: "hobbs_and_tach",
+    use: "fleet",
     hobbs: "",
     tach: "",
     fuelCapacity: "",
@@ -136,6 +142,7 @@ function stateFromResource(r: Resource): FormState {
     gearType: p?.gearType ?? "",
     seats: p?.seats != null ? String(p.seats) : "",
     meterMode: p?.meterMode ?? "hobbs_and_tach",
+    use: r.use ?? "fleet",
     hobbs: p ? (p.hobbsTime / 10).toFixed(1) : "",
     tach: p ? (p.tachTime / 10).toFixed(1) : "",
     //Stored in hundredths, shown in whole units. See fuelToDisplay.
@@ -161,11 +168,17 @@ export function AircraftFormModal({
   resource,
   locations,
   focus = "tailNumber",
+  defaultUse = "fleet",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   resource?: Resource | null;
   locations: Location[];
+  /**
+   * What a NEW aircraft starts as. The page passes `shop` when the person is looking at
+   * the shop list, because that is plainly what they are adding.
+   */
+  defaultUse?: AircraftUse;
   /**
    * WHICH FIELD THE FORM OPENS ON.
    *
@@ -193,10 +206,10 @@ export function AircraftFormModal({
   // Reset the form whenever the modal opens (fresh add, or prefilled edit).
   React.useEffect(() => {
     if (!open) return;
-    setForm(resource ? stateFromResource(resource) : emptyState());
+    setForm(resource ? stateFromResource(resource) : { ...emptyState(), use: defaultUse });
     setRateKey((k) => k + 1);
     setShowErrors(false);
-  }, [open, resource]);
+  }, [open, resource, defaultUse]);
 
   /**
    * Put the caret on the field the caller asked for, instead of the first one in the form.
@@ -300,6 +313,13 @@ export function AircraftFormModal({
    * restores a rate somebody typed months ago instead of losing it.
    */
   const meterless = form.meterMode === "none";
+  /**
+   * A customer's aircraft in the shop has no rate, because nobody rents it: the school is
+   * working on it, and the work is billed on the invoice, not by the hour on the plane. So
+   * the pricing fields are hidden rather than asked for and ignored.
+   */
+  const isShop = form.use === "shop";
+  const hidePricing = meterless || isShop;
 
   const errors: Record<string, string> = {
     tailNumber: tail.length === 0 ? "Enter a tail number." : "",
@@ -345,12 +365,17 @@ export function AircraftFormModal({
     // Meters are stored as integer deci-hours (server divides by 10 for billing).
     const hobbsTime = Math.round((Number(form.hobbs) || 0) * 10);
     const tachTime = Math.round((Number(form.tach) || 0) * 10);
-    const cost = {
-      billByHobbsTime: form.billByHobbs,
-      ...(form.rateBasis === "wet"
-        ? { wetRate: form.rateCents }
-        : { dryRate: form.rateCents }),
-    };
+    //A customer's aircraft has no rate at all, rather than a rate of zero. Sending a
+    //hidden `wetRate: 0` is what printed "$0.00 wet/Hobbs" next to somebody else's
+    //registration on the list; the server no longer asks for one.
+    const cost = isShop
+      ? undefined
+      : {
+          billByHobbsTime: form.billByHobbs,
+          ...(form.rateBasis === "wet"
+            ? { wetRate: form.rateCents }
+            : { dryRate: form.rateCents }),
+        };
 
     if (isEdit && resource) {
       update.mutate(
@@ -397,6 +422,7 @@ export function AircraftFormModal({
 
     const input: CreatePlaneResourceInput = {
       location: { id: Number(form.locationId) },
+      use: form.use,
       type: {
         plane: {
           tailNumber: tail,
@@ -425,7 +451,7 @@ export function AircraftFormModal({
     };
     create.mutate(input, {
       onSuccess: () => {
-        toast.success(`${tail} added to the fleet`);
+        toast.success(form.use === "shop" ? `${tail} added to the shop` : `${tail} added to the fleet`);
         onOpenChange(false);
       },
       onError: (err) =>
@@ -450,11 +476,21 @@ export function AircraftFormModal({
       open={open}
       onOpenChange={onOpenChange}
       className="sm:max-w-lg"
-      title={isEdit ? `Edit ${resource?.type?.plane?.tailNumber ?? "aircraft"}` : "Add aircraft"}
+      //The title carries which kind this is, because the form no longer asks. Without it,
+      //the only difference between the two is a line of description nobody reads.
+      title={
+        isEdit
+          ? `Edit ${resource?.type?.plane?.tailNumber ?? "aircraft"}`
+          : isShop
+            ? "Add a customer's aircraft"
+            : "Add aircraft"
+      }
       description={
         isEdit
           ? "Update this aircraft's details, times, and rate."
-          : "Add a tail to your fleet so it can be scheduled and billed."
+          : isShop
+            ? "Record a customer's aircraft so you can track its inspections and bill the work. It cannot be scheduled to fly."
+            : "Add a tail to your fleet so it can be scheduled and billed."
       }
     >
       {/* autoComplete off for the whole form. None of these are personal details the
@@ -468,6 +504,12 @@ export function AircraftFormModal({
         className="space-y-4"
         autoComplete="off"
       >
+        {/* NO TOGGLE HERE ANY MORE. Which kind of aeroplane this is comes from where you
+            clicked: "Add aircraft" on the Aircraft page adds one of the school's own, and
+            "A customer's aircraft" in the menu beside it adds one you are only looking
+            after. Asking again, at the top of the form, put a question in front of every
+            school for a thing almost none of them do, and made the rare case look like the
+            main one. The dialog's own description says which you are adding. */}
         <div className="space-y-1.5">
           <div className="space-y-1.5">
             <Label htmlFor="ac-tail">Tail number</Label>
@@ -775,7 +817,7 @@ export function AircraftFormModal({
           </div>
         </div>
 
-        {!meterless && (
+        {!hidePricing && (
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="ac-rate">Rate (per hour)</Label>
@@ -807,7 +849,7 @@ export function AircraftFormModal({
         </div>
         )}
 
-        {!meterless && (
+        {!hidePricing && (
         <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
           <div>
             <Label htmlFor="ac-bill" className="cursor-pointer">
@@ -854,6 +896,9 @@ export function AircraftFormModal({
           </p>
         </div>
 
+        {/* Not on a customer's aircraft: "override when this aircraft can be booked" is a
+            question about an aeroplane that can be booked. */}
+        {!isShop && (
         <div className="space-y-1.5">
           <div className="flex items-center gap-1.5">
             <Label htmlFor="ac-flying-day">Flying day</Label>
@@ -880,6 +925,7 @@ export function AircraftFormModal({
             tail really runs a different day.
           </p>
         </div>
+        )}
 
         <div className="space-y-1.5" id="ac-home-base">
           <Label htmlFor="ac-location">Home base</Label>
@@ -924,7 +970,7 @@ export function AircraftFormModal({
           )}
         </div>
 
-        {!isEdit && <PerPlanePricingNote className="pt-1" />}
+        {!isEdit && !isShop && <PerPlanePricingNote className="pt-1" />}
 
       </form>
     </ResponsiveModal>

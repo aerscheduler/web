@@ -5,11 +5,20 @@ import type { Plane } from "@/types/api";
  *  plane is on the ramp (parked/available); it's only actually flying once it's been
  *  ramped OUT (`rampedIn === false`). Only show "In flight" then, so a resting plane
  *  isn't mislabeled as airborne. */
-export function planeStatus(p: Plane): {
+export function planeStatus(
+  p: Plane,
+  /**
+   * Whose aeroplane this is. A customer's is never "Available": available to whom, on an
+   * aircraft nobody at this school can book? It says "In the shop", which is both what it
+   * is and what a mechanic wants the chip to say.
+   */
+  use?: "fleet" | "shop"
+): {
   label: string;
   variant: "success" | "warning" | "danger";
 } {
   if (p.grounded) return { label: "Grounded", variant: "danger" };
+  if (use === "shop") return { label: "In the shop", variant: "warning" };
   if (p.rampedIn === false) return { label: "In flight", variant: "warning" };
   return { label: "Available", variant: "success" };
 }

@@ -13,6 +13,7 @@ import {
   PlaneTakeoff,
   Undo2,
   UserCheck,
+  UserRound,
   Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -27,7 +28,7 @@ import {
 } from "@/features/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
+import { canSeeShop, resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
 import { outstandingHolds, outstandingSentence, returnToServiceDescription } from "@/lib/outstanding-holds";
 import { formatDate, formatMoney, initials } from "@/lib/utils";
 import { fuelToDisplay, planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
@@ -41,6 +42,7 @@ import {
   ResourceSquawks,
 } from "@/components/aircraft/detail/resource-maintenance";
 import { ResourcePapers } from "@/components/aircraft/detail/resource-papers";
+import { ResourceOwners } from "@/components/aircraft/detail/resource-owners";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
 import {
   CardEmpty,
@@ -178,7 +180,7 @@ function AircraftDetailPage() {
 
 function sectionsFor(
   access: ResourceViewAccess,
-  opts: { hasBookerPapers: boolean; isPlane: boolean }
+  opts: { hasBookerPapers: boolean; isPlane: boolean; isShop: boolean; maySeeShop: boolean }
 ): RailSection[] {
   const items = [
     { value: "overview", label: "Overview", icon: PlaneTakeoff },
@@ -192,8 +194,14 @@ function sectionsFor(
     ...(access.maintenance
       ? [{ value: "maintenance", label: "Maintenance", icon: Wrench }]
       : [{ value: "squawks", label: "Squawks", icon: AlertTriangle }]),
-    ...(access.approvedPilots
+    ...(access.approvedPilots && !opts.isShop
       ? [{ value: "approved-renters", label: "Approved members", icon: UserCheck }]
+      : []),
+    //Owners carry a person's private phone number and email, so this follows the same set
+    //the server serves the endpoint to: staff and technicians. A pilot has no business in
+    //a customer's contact details, and a tab that answers 403 is worse than no tab.
+    ...(opts.isPlane && opts.maySeeShop && (opts.isShop || access.manage)
+      ? [{ value: "owners", label: "Owners", icon: UserRound }]
       : []),
   ];
   return [{ items }];
@@ -210,12 +218,20 @@ function ResourceBody({ resource }: { resource: Resource }) {
   const { tab } = Route.useSearch();
 
   const plane = resource.type?.plane ?? null;
-  const status = plane ? planeStatus(plane) : null;
+  const status = plane ? planeStatus(plane, resource.use) : null;
   const rate = plane ? planeRate(plane) : null;
+  /**
+   * A customer's aircraft in the shop. Nobody rents it, so it has no rate and nobody is
+   * checked out on it: showing "$0.00 wet/Hobbs" and an Approve members button is the page
+   * describing a fleet aeroplane that this is not.
+   */
+  const isShop = resource.use === "shop";
 
   const sections = sectionsFor(access, {
     hasBookerPapers: (resource.papers?.length ?? 0) > 0,
     isPlane: !!plane,
+    isShop: resource.use === "shop",
+    maySeeShop: canSeeShop(roles),
   });
   const allowed = sections.flatMap((s) => s.items.map((i) => i.value));
   const active = tab && allowed.includes(tab) ? tab : "overview";
@@ -309,12 +325,13 @@ function ResourceBody({ resource }: { resource: Resource }) {
           meta={
             <>
               <MetaItem icon={MapPin}>{resource.location?.name ?? "No home base"}</MetaItem>
-              {rate && (
+              {rate && !isShop && (
                 <MetaItem icon={PlaneTakeoff}>
                   {formatMoney(rate.cents)} {rate.basis}
                   {rate.per}
                 </MetaItem>
               )}
+              {isShop && <MetaItem icon={Wrench}>Customer&apos;s aircraft</MetaItem>}
               {plane?.fuelCapacity != null && (
                 <MetaItem icon={Fuel}>
                   {fuelToDisplay(plane.fuelCapacity)} {plane.fuelMeasurement ?? "gallons"}
@@ -330,9 +347,11 @@ function ResourceBody({ resource }: { resource: Resource }) {
                     <Button variant="outline" onClick={() => setEditing(true)}>
                       <Pencil className="size-4" /> Edit
                     </Button>
-                    <Button variant="outline" onClick={() => setApproving(true)}>
-                      <UserCheck className="size-4" /> Approve members
-                    </Button>
+                    {!isShop && (
+                      <Button variant="outline" onClick={() => setApproving(true)}>
+                        <UserCheck className="size-4" /> Approve members
+                      </Button>
+                    )}
                   </>
                 )}
                 {/* Only the Ground direction lives up here. Returning to service belongs on
@@ -419,6 +438,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
                     <KeyValue label="Tach" mono>
                       {(plane.tachTime / 10).toFixed(1)}
                     </KeyValue>
+                    {!isShop && (
                     <KeyValue label="Rate">
                       {rate ? (
                         <span className="tabular-nums">
@@ -432,9 +452,12 @@ function ResourceBody({ resource }: { resource: Resource }) {
                         <span className="text-muted-foreground">Not set</span>
                       )}
                     </KeyValue>
+                    )}
+                    {!isShop && (
                     <KeyValue label="Billed on">
                       {plane.cost?.billByHobbsTime ? "Hobbs time" : "Tach time"}
                     </KeyValue>
+                    )}
                     <KeyValue label="Category & class">{plane.categoryClass || "–"}</KeyValue>
                     {/* An auditor reading this page is checking the aircraft against a list of
                         Airworthiness Directives, and an AD names a serial range rather than a
@@ -462,6 +485,8 @@ function ResourceBody({ resource }: { resource: Resource }) {
           {active === "schedule" && (
             <ResourceSchedule resourceId={resource.id} range={window} canBook />
           )}
+
+          {active === "owners" && <ResourceOwners resource={resource} canManage={access.manage} />}
 
           {active === "papers" &&
             plane &&

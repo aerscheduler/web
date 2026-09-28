@@ -12,6 +12,7 @@ import { usePaging } from "@/lib/paging";
 import { cn } from "@/lib/utils";
 import { resourceLabel, type MaintenanceReminder } from "@/types/api";
 import { useAuth } from "@/lib/auth";
+import { canSeeShop } from "@/lib/permissions";
 import { canResolveSquawk, guardRoute } from "@/lib/permissions";
 import { MAINTENANCE_RAIL, MAINTENANCE_VIEWS } from "@/lib/maintenance-sections";
 import { PageHeader } from "@/components/page-header";
@@ -77,7 +78,11 @@ function MaintenancePage() {
   const canManage = canResolveSquawk(roles);
   const [squawkOpen, setSquawkOpen] = React.useState(false);
   const [addOpen, setAddOpen] = React.useState(false);
-  const planesQ = usePlanes();
+  // EVERY aeroplane this shop is responsible for, its own and its customers'. This page is
+  // the one place the two genuinely belong in the same list: an annual is an annual, and a
+  // mechanic working through what is due does not care whose name is on the registration.
+  // Only staff and technicians are served the shop at all.
+  const planesQ = usePlanes(canSeeShop(roles) ? { scope: "all" } : undefined);
 
   const view: ViewKey = isView(facets.view) ? facets.view : "aircraft";
   const resourceIds = asFacetInts(facets.resourceId);

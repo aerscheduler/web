@@ -185,7 +185,12 @@ test.describe("Ledger API (owner / student)", () => {
     const studentOther = await request.get(`${base}/orgUsers/${owner.orgUserId}/ledger`, {
       headers: student.headers,
     });
-    expect(studentOther.status()).toBe(400);
+    // 403, not 400. Reading somebody else's ledger is a permission refusal, and the route
+    // has answered 403 since "Ship ledger L6 and fix the audit findings across the money
+    // paths" moved it there on purpose. This line still said 400 from the commit before
+    // that one, which is the product's own 401/403 contract: 401 means the session is dead
+    // and the web signs you out, 403 means you are signed in and not allowed.
+    expect(studentOther.status()).toBe(403);
 
     const adminRead = await request.get(`${base}/orgUsers/${studentId}/ledger`, {
       headers: owner.headers,
@@ -219,7 +224,10 @@ test.describe("Ledger API (owner / student)", () => {
         data: { amountCents: 1000, type: "cash", memo: "E2E student credit" },
       },
     );
-    expect(studentCredit.status()).toBe(400);
+    // 403: desk credits are admin-only (`POST .../ledger/entries` refuses a non-admin
+    // before it looks at the body at all), and "you are not allowed" is a 403 under this
+    // product's own contract. The 400 this used to expect predates the money-path audit.
+    expect(studentCredit.status()).toBe(403);
 
     const studentRefund = await request.post(
       `${base}/orgUsers/${student.orgUserId}/ledger/refunds`,
@@ -228,7 +236,8 @@ test.describe("Ledger API (owner / student)", () => {
         data: { amountCents: 100, method: "check_cash", memo: "E2E student refund" },
       },
     );
-    expect(studentRefund.status()).toBe(400);
+    // 403 for the same reason as the credit above: refunds are admin-only.
+    expect(studentRefund.status()).toBe(403);
 
     const tinyTopup = await request.post(
       `${base}/orgUsers/${owner.orgUserId}/ledger/topups`,
@@ -237,6 +246,10 @@ test.describe("Ledger API (owner / student)", () => {
         data: { amountCents: 50 },
       },
     );
+    // 400 here is CORRECT and stays: the owner may top up their own ledger, so this is not
+    // an authorization refusal, it is fifty cents failing the minimum. The two assertions
+    // above and this one look identical and mean opposite things, which is how they came to
+    // be wrong together.
     expect(tinyTopup.status()).toBe(400);
 
     const adminCredit = await request.post(`${base}/orgUsers/${studentId}/ledger/entries`, {

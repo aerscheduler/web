@@ -533,7 +533,12 @@ export function ReservationForm({
   const [asInstructor, setAsInstructor] = React.useState(meIsInstructor);
   const selfIsInstructor = seatIsAmbiguous ? asInstructor : meIsInstructor;
 
-  const resourcesQ = useResources({ enabled: open });
+  // `scope: all` so a MAINTENANCE booking can name a customer's aircraft in the shop,
+  // which is the entire reason those aircraft are in the system. The picker below narrows
+  // by type, so a shop aircraft is only ever offered for maintenance; the server refuses
+  // anything else on one regardless. Staff and technicians are the only people the server
+  // serves the shop to, and the only people who can create a maintenance booking.
+  const resourcesQ = useResources({ scope: "all" }, { enabled: open });
   /**
    * NARROWED TO THE CHECKED-OUT FLEET ON EXACTLY THE TERMS THE SERVER REFUSES ON.
    *

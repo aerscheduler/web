@@ -38,7 +38,10 @@ export function LedgerReassignDialog({
 
   const options = useMemo(() => {
     const list = (members.data ?? [])
-      .filter((m) => m.id !== orgUserId)
+      //A flight charge moves between people who flew. The shop's customers are on the
+      //roster for an admin, so they arrived here, unbadged, with their synthetic login as
+      //the subtitle. The server refuses them as a destination now; so does the picker.
+      .filter((m) => m.id !== orgUserId && !(m as { external?: boolean }).external)
       .map((m) => ({
         id: m.id,
         label: m.user?.name ?? m.identifier ?? `Member #${m.id}`,

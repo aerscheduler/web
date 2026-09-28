@@ -193,6 +193,16 @@ export const canManageMembers = isAdmin;
  * phone. Grounding is an operational decision made at six in the morning. Archiving and
  * removal are records management, and stay where they are.
  */
+/**
+ * Who sees the shop at all: the customer aircraft list and an aircraft's owners.
+ *
+ * Staff plus technicians, and nobody else. A student or a renter has no business in
+ * somebody else's aeroplane, and the owners panel carries a customer's private phone
+ * number and email. The server enforces the same set; this keeps the UI from offering a
+ * door that answers 403.
+ */
+export const canSeeShop = (r: Role[]) => isStaff(r) || isTechnician(r);
+
 export const canGroundMembers = isStaff;
 /** Create/edit/approve aircraft & facilities. Server: admin. */
 export const canManageResources = isAdmin;

@@ -17,6 +17,7 @@ import {
   canSeeRoomLanes,
   canSeeSimulatorLanes,
   canSelfBook,
+  canSeeShop,
   isStaff,
 } from "@/lib/permissions";
 import { orgSlotOffersEnabled } from "@/lib/slot-offers-enabled";
@@ -236,7 +237,11 @@ function SchedulePage() {
     resourceId: resourceIds,
     locationId: locationIds,
   });
-  const resourcesQ = useResources();
+  // Staff and technicians get the customer aircraft as rows too, because a shop's work has
+  // to be somewhere on the board: a maintenance booking on one is how "N4521J is in for an
+  // annual, Tuesday to Friday" gets written down. Pilots never see those rows, and the
+  // server serves the shop only to the same set.
+  const resourcesQ = useResources(canSeeShop(roles) ? { scope: "all" } : undefined);
   const locationsQ = useLocations();
   const peopleQ = useOrgUsers();
 

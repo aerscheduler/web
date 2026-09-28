@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { ACCOUNTS } from "../helpers/env";
+import { ACCOUNTS, RENTER2_EMAIL } from "../helpers/env";
 import { cleanupE2eReservations } from "../helpers/api";
 import {
   apiBase,
@@ -51,11 +51,21 @@ test.describe("Slot offer cancel recovery", () => {
       owner.headers,
       ACCOUNTS.renter,
     );
-    // Admin can book rental, so they are a valid recovery candidate.
-    const adminId = await orgUserIdForEmail(
+    // THE SECOND RENTER. A recovery candidate has to be SEATABLE (`canHoldStandby`:
+    // instructor, student or renter), allowed to book the booking's TYPE
+    // (`roleCanCreateReservationType`, which for `rental` means renter), and not already on
+    // the booking. This used to be the admin, noted as "Admin can book rental, so they are a
+    // valid recovery candidate", which was true until `canHoldStandby` landed: standby ends
+    // with the member ON the booking and a desk role is never crew, so an owner, admin or
+    // dispatcher is refused, and `ReservationStandby` hides the card for the same set.
+    //
+    // With one renter in the school no candidate could exist at all, so the seed grew a
+    // second one (`test-renter2`) rather than bending the booking into a type that does not
+    // exercise the same path.
+    const standbyCandidateId = await orgUserIdForEmail(
       request,
       owner.headers,
-      ACCOUNTS.admin,
+      RENTER2_EMAIL,
     );
 
     const { start, end } = await findFreeHourSlot(
@@ -85,7 +95,7 @@ test.describe("Slot offer cancel recovery", () => {
       headers: owner.headers,
       data: {
         kind: "on_reservation",
-        orgUserId: adminId,
+        orgUserId: standbyCandidateId,
         watchedReservationId: reservationId,
       },
     });
@@ -111,20 +121,22 @@ test.describe("Slot offer cancel recovery", () => {
         (o: any) =>
           o.status === "pending" &&
           o.trigger === "cancel_recovery" &&
-          o.offeredTo?.id === adminId,
+          o.offeredTo?.id === standbyCandidateId,
       );
       if (offer) break;
       await new Promise((r) => setTimeout(r, 400));
     }
     expect(
       offer,
-      "expected cancel_recovery offer to the standby admin",
+      "expected cancel_recovery offer to the standby candidate",
     ).toBeTruthy();
     expect(offer.FK_sourceReservationId ?? offer.sourceReservation?.id).toBeTruthy();
 
-    const admin = await authAs(request, ACCOUNTS.admin);
+    // ACCEPTED BY WHOEVER IT WAS OFFERED TO. An offer belongs to one member, so this only
+    // ever worked because the admin used to be the standby candidate as well.
+    const candidate = await authAs(request, RENTER2_EMAIL);
     const accept = await request.post(`${base}/slot-offers/${offer.id}/accept`, {
-      headers: admin.headers,
+      headers: candidate.headers,
     });
     expect(accept.ok(), await accept.text()).toBeTruthy();
     const acceptBody = await accept.json();
@@ -168,10 +180,11 @@ test.describe("Slot offer cancel recovery", () => {
       owner.headers,
       ACCOUNTS.renter,
     );
-    const adminId = await orgUserIdForEmail(
+    //Seatable and rental-capable, for the reason in the first test.
+    const standbyCandidateId = await orgUserIdForEmail(
       request,
       owner.headers,
-      ACCOUNTS.admin,
+      RENTER2_EMAIL,
     );
     const { start, end } = await findFreeHourSlot(
       request,
@@ -200,7 +213,7 @@ test.describe("Slot offer cancel recovery", () => {
       headers: owner.headers,
       data: {
         kind: "on_reservation",
-        orgUserId: adminId,
+        orgUserId: standbyCandidateId,
         watchedReservationId: reservationId,
       },
     });
@@ -221,8 +234,8 @@ test.describe("Slot offer cancel recovery", () => {
         (o: any) =>
           o.status === "pending" &&
           o.trigger === "cancel_recovery" &&
-          (o.offeredTo?.id === adminId ||
-            o.FK_offeredToOrgUserId === adminId),
+          (o.offeredTo?.id === standbyCandidateId ||
+            o.FK_offeredToOrgUserId === standbyCandidateId),
       );
       if (hit) {
         offerId = hit.id;
@@ -247,7 +260,64 @@ test.describe("Slot offer cancel recovery", () => {
     expect(stillPending).toBeFalsy();
   });
 
-  test("Pending offers sheet opens on schedule", async ({ page }) => {
+  test("Pending offers sheet opens on schedule", async ({ page, request }) => {
+    // ITS OWN PENDING OFFER. The button only renders when one exists
+    // (`routes/_authed/schedule.tsx`: `(pendingOffersQ.data?.length ?? 0) > 0`), and this
+    // test used to rely on one left behind by the tests above. They clean up after
+    // themselves, so it was asserting a button that nothing had arranged to be there.
+    const base = apiBase();
+    const owner = await authAs(request, ACCOUNTS.owner);
+    priorPolicy = await ensureOfferPolicyForE2e(request, owner.headers);
+
+    const plane = await findBookablePlane(request, owner.headers);
+    const renterId = await orgUserIdForEmail(request, owner.headers, ACCOUNTS.renter);
+    const standbyCandidateId = await orgUserIdForEmail(request, owner.headers, RENTER2_EMAIL);
+    const { start, end } = await findFreeHourSlot(request, owner.headers, plane.id);
+
+    const created = await request.post(`${base}/reservations/`, {
+      headers: owner.headers,
+      data: {
+        title: "E2E Slot Pending Source",
+        type: "rental",
+        start: start.toISOString(),
+        end: end.toISOString(),
+        timeZoneName: "America/Denver",
+        notes: `${marker}-pending`,
+        resource: { id: plane.id },
+        location: plane.location?.id ? { id: plane.location.id } : undefined,
+        personnel: { renters: [{ id: renterId }] },
+      },
+    });
+    expect(created.status(), await created.text()).toBeLessThan(300);
+    const reservationId = ((await created.json()).data ?? {}).id as number;
+
+    const standby = await request.post(`${base}/standby`, {
+      headers: owner.headers,
+      data: { kind: "on_reservation", orgUserId: standbyCandidateId, watchedReservationId: reservationId },
+    });
+    expect(standby.status(), await standby.text()).toBe(201);
+
+    const cancelled = await request.delete(`${base}/reservations/${reservationId}`, {
+      headers: owner.headers,
+      data: { reason: "E2E pending offers sheet", category: "booked_in_error" },
+    });
+    expect([200, 204]).toContain(cancelled.status());
+
+    // The cancel hook is fire-and-forget, so wait for the offer before loading the page.
+    let offerId: number | null = null;
+    for (let i = 0; i < 20; i++) {
+      const list = await request.get(`${base}/slot-offers`, { headers: owner.headers });
+      const body = await list.json();
+      const items = Array.isArray(body) ? body : (body.data ?? []);
+      const found = items.find((o: any) => o.status === "pending" && o.offeredTo?.id === standbyCandidateId);
+      if (found) {
+        offerId = found.id as number;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 400));
+    }
+    expect(offerId, "expected a pending offer before opening the sheet").toBeTruthy();
+
     await page.goto("/schedule");
     await expect(page).not.toHaveURL(/\/login/);
     const pending = page.getByRole("button", { name: /Pending offers/i });

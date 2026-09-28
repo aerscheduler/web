@@ -255,7 +255,7 @@ export function AddFundsDialog({
       }}
       title="Add funds"
       description="Put money on your account. It stays as credit until flights or fees draw it down."
-      data-doc-shot="add-funds-dialog"
+      dataDocShot="add-funds-dialog"
     >
 
         

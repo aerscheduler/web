@@ -1,15 +1,15 @@
 import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { PlaneTakeoff, Plus } from "lucide-react";
+import { ChevronDown, PlaneTakeoff, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { fetchResourceHolds, pageRows, usePlanesPage, useLocations } from "@/features/queries";
+import { fetchResourceHolds, pageRows, usePlanesPage, useLocations, useResources } from "@/features/queries";
 import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { canManageResources } from "@/lib/permissions";
+import { canManageResources, canSeeShop } from "@/lib/permissions";
 import { returnToServiceDescription } from "@/lib/outstanding-holds";
 import type { Resource } from "@/types/api";
 import { AircraftCard, type AircraftActions } from "@/components/aircraft/aircraft-card";
@@ -23,16 +23,48 @@ import { ViewModeToggle, type ViewMode } from "@/components/view-mode-toggle";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
 import { AIRCRAFT_CATEGORIES, label as vocabLabel } from "@/components/aircraft/vocabulary";
 import { usePersistedState } from "@/hooks/use-persisted-state";
-import { useListQueryState, asFacetInts, asFacetStrings, validateListSearch } from "@/lib/list-query-state";
+import {
+  useListQueryState,
+  asFacetInts,
+  asFacetStrings,
+  validateListSearch,
+  type ListQueryState,
+} from "@/lib/list-query-state";
 import { CardGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const FACET_KEYS = ["grounded", "locationId"] as const;
 
+/**
+ * The school's own aeroplanes, or the customers' aeroplanes it is working on.
+ *
+ * A switch rather than a filter, because these are two different lists of two different
+ * things: one is the fleet you fly and bill for, the other is work in the hangar that
+ * belongs to somebody else. Filters narrow a list; this changes which list you are on.
+ * It lives in the URL so a shop can keep the tab open on the work.
+ */
+type Scope = "fleet" | "shop";
+
 export const Route = createFileRoute("/_authed/aircraft")({
-  validateSearch: (s) => validateListSearch(s, [...FACET_KEYS]),
+  //`scope` is carried alongside the list state rather than inside it: it is not a facet,
+  //and the list-state helpers would drop any key they do not recognise. Undefined for the
+  //fleet so the ordinary case has a clean URL.
+  validateSearch: (s): ListQueryState & { scope?: "shop" } => ({
+    ...validateListSearch(s, [...FACET_KEYS]),
+    //Only present when it is the shop, so `scope` stays OPTIONAL in the route's search
+    //type. Returning `scope: undefined` makes the key required, and every existing
+    //`<Link to="/aircraft">` in the product stops compiling.
+    ...(s.scope === "shop" ? { scope: "shop" as const } : {}),
+  }),
   component: AircraftPage,
 });
 
@@ -55,7 +87,23 @@ function AircraftPage() {
   const goTo = useNavigate();
 
   const [view, setView] = usePersistedState<ViewMode>("view:aircraft", "grid");
+  //A pilot never sees the shop, and never sees its tab. The server refuses the scope for
+  //them too, so a hand-typed ?scope=shop lands on the fleet rather than on an error.
+  const maySeeShop = canSeeShop(roles);
+  const scope: Scope = maySeeShop && routeSearch.scope === "shop" ? "shop" : "fleet";
+  const setScope = (next: Scope) =>
+    void navigate({ search: (prev: Record<string, unknown>) => ({ ...prev, scope: next === "fleet" ? undefined : next }) });
+  // DOES THIS SCHOOL DO SHOP WORK AT ALL? Almost none of them do, and a tab for a thing you
+  // have never had is a question you have to answer every time you open the page. So the
+  // second list appears once there is something in it, and until then the only trace of the
+  // feature is one item in the Add menu.
+  const shopProbe = useResources({ scope: "shop" }, { enabled: maySeeShop });
+  const hasShopAircraft = (shopProbe.data?.length ?? 0) > 0;
+  const showScopeTabs = maySeeShop && (hasShopAircraft || scope === "shop");
+
   const [addOpen, setAddOpen] = React.useState(false);
+  //Which KIND the add form opens on. Set by where you clicked, not by a toggle inside it.
+  const [addUse, setAddUse] = React.useState<"fleet" | "shop">("fleet");
   const [editing, setEditing] = React.useState<Resource | null>(null);
   const [grounding, setGrounding] = React.useState<Resource | null>(null);
   const [approving, setApproving] = React.useState<Resource | null>(null);
@@ -66,6 +114,7 @@ function AircraftPage() {
   const categories = asFacetStrings(facets.category);
 
   const fleetFilter = {
+    scope,
     q: debouncedQ,
     grounded: typeof facets.grounded === "boolean" ? facets.grounded : undefined,
     locationId: locationIds,
@@ -159,12 +208,45 @@ function AircraftPage() {
     },
   };
 
+  const openAdd = (use: "fleet" | "shop") => {
+    setAddUse(use);
+    setAddOpen(true);
+  };
+
   // Creating aircraft is admin-only on the server; hide the trigger otherwise.
-  const addButton = canManageResources(roles) ? (
-    <Button onClick={() => setAddOpen(true)}>
+  //
+  // THE BUTTON ADDS WHAT YOU ARE LOOKING AT. Adding one of the school's own aeroplanes is
+  // the overwhelming case, so it is the click; a customer's aircraft is one item in a menu
+  // beside it. The form no longer asks: it opens on the kind you chose here, which is also
+  // how a school that has never done shop work never meets the idea at all.
+  const addButton = !canManageResources(roles) ? null : !maySeeShop ? (
+    <Button onClick={() => openAdd("fleet")}>
       <Plus className="size-4" /> Add aircraft
     </Button>
-  ) : null;
+  ) : (
+    <div className="flex items-center">
+      <Button className="rounded-r-none" onClick={() => openAdd(scope === "shop" ? "shop" : "fleet")}>
+        <Plus className="size-4" /> {scope === "shop" ? "Add customer aircraft" : "Add aircraft"}
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button className="rounded-l-none border-l border-primary-foreground/25 px-2" aria-label="More ways to add an aircraft">
+            <ChevronDown className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onSelect={() => openAdd("fleet")}>
+            One of yours
+            <span className="block text-xs text-muted-foreground">Schedulable, and counted on your plan.</span>
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => openAdd("shop")}>
+            A customer&rsquo;s aircraft
+            <span className="block text-xs text-muted-foreground">In your shop for maintenance. Not scheduled, not billed.</span>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
 
   return (
     <TableView>
@@ -173,8 +255,12 @@ function AircraftPage() {
           title="Aircraft"
           subtitle={
             q.data
-              ? `${total.toLocaleString()} ${total === 1 ? "tail" : "tails"} in the fleet`
-              : "Your fleet"
+              ? scope === "shop"
+                ? `${total.toLocaleString()} customer ${total === 1 ? "aircraft" : "aircraft"}`
+                : `${total.toLocaleString()} ${total === 1 ? "tail" : "tails"} in the fleet`
+              : scope === "shop"
+                ? "Aeroplanes you look after for somebody else"
+                : "Your fleet"
           }
           actions={
             <>
@@ -185,6 +271,18 @@ function AircraftPage() {
             </>
           }
         />
+        {/* Two lists, not one list with a filter: the fleet is what the school flies and
+            bills for, the other is work in the hangar that belongs to somebody else.
+            "Customer aircraft" rather than "In the shop", which is trade language for a
+            place and says nothing about whose aeroplanes are in it. */}
+        {showScopeTabs && (
+          <Tabs value={scope} onValueChange={(v) => setScope(v as Scope)}>
+            <TabsList>
+              <TabsTrigger value="fleet">Fleet</TabsTrigger>
+              <TabsTrigger value="shop">Customer aircraft</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
         <ListSearchBar
           value={search}
           onChange={setSearch}
@@ -208,9 +306,13 @@ function AircraftPage() {
         <Card className="flex flex-col min-h-0 flex-1">
           <EmptyState
             graphic="aircraft"
-            title="No aircraft yet"
-            body="Add your first tail so the schedule, inspections, and checkouts have something to hang off. Meters on the aircraft are what billing reads at close-out."
-            docs="add-an-aircraft"
+            title={scope === "shop" ? "No customer aircraft" : "No aircraft yet"}
+            body={
+              scope === "shop"
+                ? "Aircraft you are working on for somebody else live here. They keep their own inspections and history, they cannot be booked to fly, and they are not counted toward your plan."
+                : "Add your first tail so the schedule, inspections, and checkouts have something to hang off. Meters on the aircraft are what billing reads at close-out."
+            }
+            docs={scope === "shop" ? "work-on-a-customers-aircraft" : "add-an-aircraft"}
             action={addButton}
           />
         </Card>
@@ -252,6 +354,8 @@ function AircraftPage() {
         open={addOpen}
         onOpenChange={setAddOpen}
         locations={locations}
+        //Adding while looking at the shop means adding a customer's aircraft.
+        defaultUse={addUse}
       />
       <AircraftFormModal
         open={!!editing}

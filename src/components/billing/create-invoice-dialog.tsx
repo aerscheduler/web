@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useCreateInvoice, useMembers } from "@/features/queries";
+import { useBilling, useCreateInvoice, useMembers } from "@/features/queries";
+import { memberEmail } from "@/components/people/util";
 import type { CreateInvoiceInput } from "@/types/api";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
@@ -20,6 +21,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { priceWithServiceFee } from "@/lib/service-fee";
 import { formatMoney, cn } from "@/lib/utils";
 
 type LineRow = { key: number; name: string; qty: string; unitPrice: number };
@@ -59,6 +61,10 @@ export function CreateInvoiceDialog({
 }) {
   const members = useMembers();
   const create = useCreateInvoice();
+  // `GET /organizations/billing` is isOrgUser(), so every role that can reach this dialog
+  // can read the fee. While it loads there is no fee line and the total is the subtotal,
+  // which is the old behaviour rather than a wrong new one.
+  const billing = useBilling();
 
   const [guestMode, setGuestMode] = useState(false);
   const [customerId, setCustomerId] = useState<string>("");
@@ -100,18 +106,21 @@ export function CreateInvoiceDialog({
         .map((ou) => ({
           value: String(ou.id),
           label: ou.user?.name ?? `Member #${ou.id}`,
-          hint: ou.user?.email,
+          //An aircraft owner's login is a placeholder; show where the invoice will go.
+          hint: memberEmail(ou) ?? (ou.external ? "Aircraft owner, no email recorded" : undefined),
         }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     [members.data]
   );
 
-  const total = rows.reduce((sum, r) => {
-    const qty = Number(r.qty);
-    return sum + (Number.isFinite(qty) ? qty : 0) * r.unitPrice;
-  }, 0);
-
   const validRows = rows.filter((r) => r.name.trim() && Number(r.qty) > 0);
+
+  // Priced off `validRows` rather than every row, because `validRows` is exactly what
+  // submit() sends. A half-typed line is not on the bill, so it must not be in the total.
+  const { subtotal, fee, total } = priceWithServiceFee(
+    validRows.map((r) => ({ name: r.name, qty: Number(r.qty), unitPrice: r.unitPrice })),
+    billing.data
+  );
   const lastRowIsDescribed = (rows[rows.length - 1]?.name ?? "").trim().length > 0;
 
   const customerError = !guestMode && !customerId;
@@ -411,10 +420,35 @@ export function CreateInvoiceDialog({
 
         <Separator />
 
+        {/*
+          The fee is appended SERVER-side to every custom charge, so a dialog that totals
+          only the typed lines shows the desk one number and bills the customer another.
+          Previewed here from the same rule the server applies. See lib/service-fee.ts.
+        */}
+        {fee ? (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">Subtotal</span>
+              <span className="tnum">{formatMoney(subtotal)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{fee.name}</span>
+              <span className="tnum">{formatMoney(fee.unitPrice)}</span>
+            </div>
+          </div>
+        ) : null}
+
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Total</span>
           <span className="text-lg font-semibold tnum">{formatMoney(total)}</span>
         </div>
+
+        {fee ? (
+          <p className="text-xs text-muted-foreground">
+            Your school adds {fee.name.toLowerCase()} to every invoice. Change it in
+            Settings, Billing.
+          </p>
+        ) : null}
 
       </div>
     </ResponsiveModal>

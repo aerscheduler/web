@@ -92,7 +92,7 @@ export function LocationsPanel({
 }) {
   const { organization } = useAuth();
   const locationsQ = useLocations({ enabled: organization != null });
-  const resourcesQ = useResources({ enabled: organization != null });
+  const resourcesQ = useResources(undefined, { enabled: organization != null });
   const del = useDeleteLocation();
   const confirm = useConfirm();
 

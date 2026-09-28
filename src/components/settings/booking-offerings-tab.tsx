@@ -803,7 +803,7 @@ export function BookingOfferingFormModal({
   const create = useCreateBookingOffering();
   const update = useUpdateBookingOffering();
   const locations = useLocations({ enabled: open });
-  const resources = useResources({ enabled: open });
+  const resources = useResources(undefined, { enabled: open });
   const instructors = useMembers({ instructor: true }, { enabled: open });
 
   const [form, setForm] = React.useState<FormState>(emptyForm);

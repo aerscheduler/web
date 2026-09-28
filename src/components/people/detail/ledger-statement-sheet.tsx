@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
-import { useEmailLedgerStatement, useMemberLedgerStatement } from "@/features/queries";
+import { useEmailLedgerStatement, useMember, useMemberLedgerStatement } from "@/features/queries";
+import { useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/utils";
 import { dateKeyInZone } from "@/lib/timezone";
@@ -37,6 +38,12 @@ export function LedgerStatementSheet({
 }) {
   const tz = useTimeZone();
   const schoolZone = tz.orgZone ?? tz.zone;
+  //The letterhead. A statement is a document somebody is HANDED, and the printed one said
+  //"Account statement", a date range and some numbers: no school, no name, nothing to say
+  //whose money it was or who to call about it.
+  const { organization } = useAuth();
+  const member = useMember(orgUserId, { enabled: open });
+  const memberName = member.data?.user?.name?.trim() || member.data?.identifier?.trim() || null;
   const todayKey = dateKeyInZone(new Date(), schoolZone);
   const [fromDay, setFromDay] = useState(() => shiftDayKey(todayKey, -30));
   const [toDay, setToDay] = useState(() => todayKey);
@@ -141,12 +148,21 @@ export function LedgerStatementSheet({
 
         {stmt && (
           <div className="space-y-4" data-print-receipt>
-            <div>
-              <div className="font-medium">Account statement</div>
-              <div className="text-muted-foreground">
-                {fromDay} to {toDay}
-                {tz.differs(new Date()) ? ` · ${tz.label(new Date())}` : ""}
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                {organization?.name && <div className="text-base font-semibold">{organization.name}</div>}
+                <div className="font-medium">Account statement</div>
+                <div className="text-muted-foreground">
+                  {fromDay} to {toDay}
+                  {tz.differs(new Date()) ? ` · ${tz.label(new Date())}` : ""}
+                </div>
               </div>
+              {memberName && (
+                <div className="text-right">
+                  <div className="text-xs text-muted-foreground">Account of</div>
+                  <div className="font-medium">{memberName}</div>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <div>

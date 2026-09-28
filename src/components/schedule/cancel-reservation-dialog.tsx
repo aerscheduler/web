@@ -115,7 +115,7 @@ export function CancelReservationDialog({
                   : "Cancel reservation"}
             </Button>
           )}</>}
-      data-doc-shot="cancel-reservation-dialog"
+      dataDocShot="cancel-reservation-dialog"
     >
 
         

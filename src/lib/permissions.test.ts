@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   canAccess,
   canGroundResources,
+  canSeeShop,
   canManageResources,
   canSelfBook,
   isStaff,
@@ -239,5 +240,35 @@ describe("grounding an aircraft is not the same permission as managing one", () 
     // An instructor who is also the shop's technician gets it; one who is not, does not.
     expect(canGroundResources(["instructor", "technician"])).toBe(true);
     expect(canGroundResources(["instructor", "dispatcher"])).toBe(false);
+  });
+});
+
+
+// Who sees a customer's aeroplane and the private contact details of the person who owns
+// it. The server enforces the same set; this is the console half, and it was pinned by
+// nothing until an adversarial review opened the Owners tab as a student.
+describe("canSeeShop", () => {
+  it("lets the people who run the shop see it", () => {
+    for (const role of ["owner", "admin", "dispatcher", "technician"] as Role[]) {
+      expect(canSeeShop([role])).toBe(true);
+    }
+  });
+
+  it("keeps pilots out, because it carries somebody else's phone number", () => {
+    for (const role of ["instructor", "student", "renter"] as Role[]) {
+      expect(canSeeShop([role])).toBe(false);
+    }
+  });
+
+  it("holds for the multi-role members who actually exist", () => {
+    // An instructor who also turns wrenches sees the shop; one who does not, does not.
+    expect(canSeeShop(["instructor", "technician"])).toBe(true);
+    expect(canSeeShop(["student", "renter"])).toBe(false);
+  });
+
+  it("gives nobody the shop by holding no roles at all", () => {
+    // A membership with no roles is an ordinary state here: it is what joining with a code
+    // produces, and it must not be a way into the shop.
+    expect(canSeeShop([])).toBe(false);
   });
 });

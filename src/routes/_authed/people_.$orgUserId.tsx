@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   CalendarClock,
   FileCheck2,
   GraduationCap,
   KeyRound,
   Hash,
+  Plane,
   Mail,
   Phone,
   Receipt,
@@ -13,10 +14,10 @@ import {
   Wallet,
 } from "lucide-react";
 import { rolesOf, type OrganizationUser } from "@/types/api";
-import { useMember, useOrgLedgerSettings } from "@/features/queries";
+import { useMember, useOrgLedgerSettings, useOwnedAircraft } from "@/features/queries";
 import { PersonApprovedAircraft } from "@/components/people/detail/person-approved-aircraft";
 import { useAuth } from "@/lib/auth";
-import { personViewAccess, type PersonViewAccess } from "@/lib/permissions";
+import { canSeeShop, personViewAccess, type PersonViewAccess } from "@/lib/permissions";
 import { PersonPermissions } from "@/components/people/detail/person-permissions";
 import { cn, formatDate, initials } from "@/lib/utils";
 import { formatPhone } from "@/lib/phone";
@@ -55,7 +56,7 @@ import {
   PersonCurrencies,
   PersonDocuments,
 } from "@/components/people/detail/person-compliance";
-import { memberName } from "@/components/people/util";
+import { memberEmail, memberName } from "@/components/people/util";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 
@@ -167,6 +168,24 @@ function PersonPage() {
   return <PersonBody ou={ou} isSelf={isSelf} access={access} />;
 }
 
+/**
+ * An aircraft owner the shop wrote down gets TWO rails, not a member's seven.
+ *
+ * The mechanic reviewing this page put it plainly: an owner needs their phone, their
+ * email, which tails are theirs, and what they owe. It showed Activity (they do not fly
+ * here), a Ledger that can never hold anything (a charge to an outside party is always an
+ * invoice), Training, Compliance and Permissions. Every one of those was empty for them,
+ * and several offered actions the server refuses.
+ */
+function sectionsForOwner(access: PersonViewAccess, ledgerOn: boolean): RailSection[] {
+  return [
+    { items: [{ value: "overview", label: "Overview", icon: UserRound }] },
+    ...(access.money
+      ? [{ items: [{ value: ledgerOn ? "invoices" : "billing", label: "Invoices", icon: Receipt }] }]
+      : []),
+  ];
+}
+
 function sectionsFor(access: PersonViewAccess, ledgerOn: boolean): RailSection[] {
   const top = [
     { value: "overview", label: "Overview", icon: UserRound },
@@ -225,7 +244,9 @@ function PersonBody({
   const [editingRoles, setEditingRoles] = useState<OrganizationUser | null>(null);
   const ledgerOn = useOrgLedgerSettings().data?.enabled === true;
 
-  const sections = sectionsFor(access, ledgerOn);
+  //An aircraft owner the shop wrote down has never signed up. See sectionsForOwner.
+  const outsideParty = !!(ou as { external?: boolean }).external && !(ou as { claimedAt?: string | null }).claimedAt;
+  const sections = outsideParty ? sectionsForOwner(access, ledgerOn) : sectionsFor(access, ledgerOn);
   const allowed = sections.flatMap((s) => s.items.map((i) => i.value));
   let active = tab && allowed.includes(tab) ? tab : "overview";
   // Accounts roster and older links still use ?tab=billing. Ledger orgs land on
@@ -251,7 +272,11 @@ function PersonBody({
   const name = memberName(ou);
   useDetailTitle(name);
   const subjectRoles = rolesOf(ou);
-  const email = ou.user?.email;
+  //An owner's login is a synthetic `@…internal` placeholder, so the address to show is the
+  //one the shop typed; and they hold no roles and cannot be given one until they join, so
+  //the roles editor would only offer a change the server refuses. This page used to show
+  //them "Active" with the placeholder address, while the People list had been fixed.
+  const email = memberEmail(ou);
   const phone = formatPhone(ou.user?.details?.phone, ou.user?.details?.phoneCountry);
 
   return (
@@ -271,17 +296,24 @@ function PersonBody({
             <>
               {ou.archivedAt ? (
                 <Badge variant="secondary">Archived</Badge>
+              ) : outsideParty ? (
+                <Badge variant="outline" title="On your roster so you can bill them. They cannot sign in.">
+                  Not signed up
+                </Badge>
               ) : ou.grounded ? (
                 <Badge variant="danger">Grounded</Badge>
               ) : (
                 <Badge variant="outline">Active</Badge>
               )}
+              {outsideParty && <Badge variant="secondary">Aircraft owner</Badge>}
               {isSelf && <Badge variant="secondary">You</Badge>}
-              <RolesMenuBadge
-                roles={subjectRoles}
-                canEdit={access.manage}
-                onEdit={() => setEditingRoles(ou)}
-              />
+              {!outsideParty && (
+                <RolesMenuBadge
+                  roles={subjectRoles}
+                  canEdit={access.manage}
+                  onEdit={() => setEditingRoles(ou)}
+                />
+              )}
             </>
           }
           meta={
@@ -340,7 +372,11 @@ function PersonBody({
               : "space-y-4 overflow-y-auto"
           )}
         >
-          {active === "overview" && (
+          {active === "overview" && outsideParty && (
+            <OwnerOverview ou={ou} email={email ?? null} phone={phone} />
+          )}
+
+          {active === "overview" && !outsideParty && (
             <>
               <DetailCard title="Details">
                 <KeyValueList>
@@ -413,13 +449,20 @@ function PersonBody({
                   record is usually here for "are they paid up as a member", and the dues they
                   owe are the reason half the invoices below exist. Renders nothing at an
                   organization with no membership plans. */}
-              {access.membership && (
+              {/*
+                Not for an aircraft owner the shop wrote down. A membership plan is a monthly
+                charge on a member's own card, and the server refuses to put an outside party
+                on one ("That person is an aircraft owner, not a member"). Offering "Add to a
+                plan" here only led to that refusal.
+              */}
+              {access.membership && !outsideParty && (
                 <div className="shrink-0">
                   <PersonMembership orgUserId={ou.id} canManage={access.membership} />
                 </div>
               )}
               {access.money && active === "ledger" && (
                 <PersonLedger
+                  outsideParty={outsideParty}
                   orgUserId={ou.id}
                   isSelf={isSelf}
                   canManage={access.manage}
@@ -479,5 +522,76 @@ function PageFrame({ children }: { children: React.ReactNode }) {
       <DetailBack to="/people" label="People" />
       {children}
     </div>
+  );
+}
+
+/**
+ * What a shop customer's record is for: how to reach them, and which aeroplanes are theirs.
+ * What they owe is the Invoices rail.
+ */
+function OwnerOverview({ ou, email, phone }: { ou: OrganizationUser; email: string | null; phone: string | null }) {
+  const { roles } = useAuth();
+  const owned = useOwnedAircraft(ou.id, { enabled: canSeeShop(roles) });
+  const aircraft = owned.data ?? [];
+
+  return (
+    <>
+      <DetailCard title="Contact" description="The details you recorded for them. They have not signed up.">
+        {email || phone ? (
+          <KeyValueList>
+            {email && (
+              <KeyValue label="Email">
+                <a href={`mailto:${email}`} className="hover:underline">
+                  {email}
+                </a>
+              </KeyValue>
+            )}
+            {phone && (
+              <KeyValue label="Phone">
+                <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="hover:underline">
+                  {phone}
+                </a>
+              </KeyValue>
+            )}
+            <KeyValue label="Added">{formatDate(ou.createdAt, "MMMM d, yyyy")}</KeyValue>
+          </KeyValueList>
+        ) : (
+          <CardEmpty>No email or phone recorded. Add them from the aircraft&apos;s Owners panel.</CardEmpty>
+        )}
+      </DetailCard>
+
+      <DetailCard title="Aircraft" description="The aeroplanes they own here.">
+        {owned.isPending ? (
+          <Skeleton className="h-10 w-full" />
+        ) : aircraft.length === 0 ? (
+          <CardEmpty>Not listed as the owner of any aircraft.</CardEmpty>
+        ) : (
+          <ul className="divide-y divide-border">
+            {aircraft.map((row) => {
+              const plane = row.resource.type?.plane;
+              return (
+                <li key={row.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <Link
+                    to="/aircraft/$resourceId"
+                    params={{ resourceId: String(row.resource.id) }}
+                    className="flex min-w-0 items-center gap-3 hover:underline"
+                  >
+                    <Plane className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="font-medium">{plane?.tailNumber ?? `Aircraft #${row.resource.id}`}</span>
+                    <span className="truncate text-sm text-muted-foreground">
+                      {[plane?.year, plane?.make, plane?.model].filter(Boolean).join(" ")}
+                    </span>
+                  </Link>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {row.title && <span className="text-xs text-muted-foreground">{row.title}</span>}
+                    {row.isPrimary && <Badge variant="secondary">Billed</Badge>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </DetailCard>
+    </>
   );
 }

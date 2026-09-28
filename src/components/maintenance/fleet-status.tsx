@@ -60,7 +60,8 @@ export function FleetStatus({
   // The tail whose empty card was clicked. The modal takes a `fixedResource`, so opening it
   // from a card answers "which aircraft" before it is asked.
   const [addingFor, setAddingFor] = useState<Resource | null>(null);
-  const planesQ = usePlanes();
+  //Customer aircraft included: what is due on them is the shop's actual workload.
+  const planesQ = usePlanes({ scope: "all" });
   // Unresolved only: a signed-off item is history, and counting it here would leave a card
   // reading "3 tracked" forever while the shop closed all three out.
   const remindersQ = useMaintenanceReminders({ resolved: false });

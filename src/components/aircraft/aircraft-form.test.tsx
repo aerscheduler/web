@@ -76,15 +76,24 @@ vi.mock("@/components/subscription/plan", () => ({ PerPlanePricingNote: () => nu
 
 //A dialog behind a media query, and jsdom has no matchMedia. The wrapper keeps the test
 //about the fields rather than about where they are mounted.
+//`title` and `description` are rendered here on purpose. Since the customer's-aircraft
+//switch was removed from the top of the form, the title is the ONLY thing that says which
+//kind you are adding, so a stub that dropped it would leave that untestable.
 vi.mock("@/components/responsive-modal", () => ({
   ResponsiveModal: ({
     children,
     footer,
+    title,
+    description,
   }: {
     children?: React.ReactNode;
     footer?: React.ReactNode;
+    title?: React.ReactNode;
+    description?: React.ReactNode;
   }) => (
     <div>
+      <h2>{title}</h2>
+      <p>{description}</p>
       {children}
       {footer}
     </div>
@@ -122,12 +131,13 @@ function match(over: Partial<RegistryMatch> = {}): RegistryMatch {
   };
 }
 
-function openForm() {
+function openForm(defaultUse?: "fleet" | "shop") {
   render(
     <AircraftFormModal
       open
       onOpenChange={() => {}}
       locations={[{ id: 1, name: "Home base" } satisfies Location]}
+      defaultUse={defaultUse}
     />
   );
 }
@@ -194,5 +204,47 @@ describe("choosing a registry suggestion", () => {
     const payload = created.mutate.mock.calls[0]?.[0];
     expect(payload?.type?.plane?.cost?.wetRate).toBe(16500);
     expect(payload?.type?.plane?.serialNumber).toBe("172S10648");
+  });
+});
+
+
+// A customer's aircraft has no rate, because nobody rents it. The form has to STOP ASKING,
+// not ask and discard: the version that asked sent a hidden zero, and that zero is what
+// printed "$0.00 wet/Hobbs" next to somebody else's registration on the aircraft list.
+describe("the customer's aircraft switch", () => {
+  it("hides the money questions when it is on", () => {
+    openForm("shop");
+
+    expect(screen.queryByLabelText("Rate (per hour)")).toBeNull();
+    expect(screen.queryByLabelText("Bill by Hobbs time")).toBeNull();
+    // And the question about when it can be booked, on an aeroplane that cannot be.
+    expect(screen.queryByLabelText("Flying day")).toBeNull();
+  });
+
+  it("asks them for one of the school's own", () => {
+    openForm("fleet");
+
+    expect(screen.queryByLabelText("Rate (per hour)")).not.toBeNull();
+    expect(screen.queryByLabelText("Flying day")).not.toBeNull();
+  });
+
+  // The switch these two used to read is gone. It sat at the top of a form that 90% of
+  // schools open to add one of their own aeroplanes, shouting about a case they will
+  // never use. What kind you are adding is now decided BEFORE the form opens, by which
+  // half of the split Add button you pressed, and the title is what tells you.
+  it("says whose aeroplane it is when you chose a customer's", () => {
+    openForm("shop");
+
+    // The heading, not any text: the submit button still reads "Add aircraft" in both
+    // modes, which is correct, since that is what the button does either way.
+    expect(screen.getByRole("heading").textContent).toBe("Add a customer's aircraft");
+  });
+
+  it("opens on the fleet by default", () => {
+    openForm();
+
+    expect(screen.getByRole("heading").textContent).toBe("Add aircraft");
+    // The money questions are the behavioural half of the same fact.
+    expect(screen.queryByLabelText("Rate (per hour)")).not.toBeNull();
   });
 });

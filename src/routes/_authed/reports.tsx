@@ -241,8 +241,17 @@ function ReportsPage() {
     );
   }
 
+  // A DEEP LINK WINS OVER THE WELCOME SCREEN. `?report=` is how a tile click, the command
+  // palette, a docs link and a notification all reach one report, and this gate used to
+  // swallow every one of them at a school without much flying yet: you asked for the
+  // airworthiness report and silently got the onboarding page instead, with nothing saying
+  // your request had been dropped. Worse for that report than most, because it is about AD
+  // compliance, which a school can have plenty of with no flights at all, while
+  // `hasEnoughData` measures flights.
+  //
+  // The welcome screen is still what the bare /reports page shows.
   const showWelcome =
-    !skippedWelcome && !readiness.loading && !catalog.isLoading && !hasEnoughData(readiness);
+    !requested && !skippedWelcome && !readiness.loading && !catalog.isLoading && !hasEnoughData(readiness);
 
   if (showWelcome) {
     return (

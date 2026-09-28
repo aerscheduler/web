@@ -26,7 +26,8 @@ export function LogSquawkModal({
    */
   fixedResource?: Resource | null;
 }) {
-  const planesQ = usePlanes({}, { enabled: open && !fixedResource });
+  //Customer aircraft included: a squawk on one is how the shop records what it found.
+  const planesQ = usePlanes({ scope: "all" }, { enabled: open && !fixedResource });
   const create = useCreateSquawk();
 
   const [title, setTitle] = React.useState("");

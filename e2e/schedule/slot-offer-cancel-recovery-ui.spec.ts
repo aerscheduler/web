@@ -1,7 +1,7 @@
 import path from "node:path";
 import { test, expect, type Browser, type Page } from "@playwright/test";
-import { ACCOUNTS } from "../helpers/env";
-import { cleanupE2eReservations } from "../helpers/api";
+import { ACCOUNTS, RENTER2_EMAIL } from "../helpers/env";
+import { cleanupE2eReservations, uiLogin } from "../helpers/api";
 import {
   apiBase,
   authAs,
@@ -76,28 +76,27 @@ test.describe("Slot offer cancel recovery (UI)", () => {
     const reservationId = ((await created.json()).data ?? {}).id as number;
     expect(reservationId).toBeTruthy();
 
-    const adminPage = await pageAs(browser, "admin");
+    const standbyPage = await pageAsRenter2(browser);
     const ownerPage = await pageAs(browser, "owner");
-    await dismissCookieBanner(adminPage);
+    await dismissCookieBanner(standbyPage);
     await dismissCookieBanner(ownerPage);
 
-    // 1) Admin joins standby from the reservation detail.
-    await openReservation(adminPage, reservationId);
+    // 1) The second renter joins standby from the reservation detail. Not the admin: a
+    // desk role cannot be seated, so `canHoldStandby` refuses it and the console hides the card.
+    await openReservation(standbyPage, reservationId);
     await expect(
-      adminPage.getByRole("button", { name: /Stand by for this booking/i }),
+      standbyPage.getByRole("button", { name: /Stand by for this booking/i }),
     ).toBeVisible({ timeout: 20_000 });
-    await adminPage
+    await standbyPage
       .getByRole("button", { name: /Stand by for this booking/i })
       .click();
-    await expect(adminPage.getByText(/You are standing by/i)).toBeVisible({
+    await expect(standbyPage.getByText(/You are standing by/i)).toBeVisible({
       timeout: 15_000,
     });
 
     // 2) Owner cancels from the same detail sheet.
     await openReservation(ownerPage, reservationId);
-    await ownerPage
-      .getByRole("button", { name: /Cancel reservation/i })
-      .click();
+    await openCancelFromPanel(ownerPage);
     await fillCancelDialog(ownerPage);
 
     // Cancel fires recovery async. Prefer the auto offer; if quiet/caps deferred,
@@ -125,23 +124,24 @@ test.describe("Slot offer cancel recovery (UI)", () => {
       timeout: 15_000,
     });
 
-    // 4) Admin accepts from My Schedule → Offers.
+    // 4) The standby member accepts from My Schedule -> Offers.
     // Cookie banner also has an Accept button — dismiss it first or we click that.
-    await adminPage.goto("/me/schedule?tab=offers");
-    await dismissCookieBanner(adminPage);
-    const acceptBtn = adminPage
+    await standbyPage.goto("/me/schedule?tab=offers");
+    await dismissCookieBanner(standbyPage);
+    const acceptBtn = standbyPage
       .getByRole("button", { name: /^Accept$/i })
-      .filter({ has: adminPage.locator("svg") });
+      .filter({ has: standbyPage.locator("svg") });
     await expect(acceptBtn.first()).toBeVisible({ timeout: 20_000 });
     await acceptBtn.first().click();
 
     // Prefer API confirmation: toast copy is easy to miss under cookie/banner races.
-    const adminApi = await authAs(request, ACCOUNTS.admin);
+    //`/slot-offers/me` is per-caller, so it has to be asked as the member holding the offer.
+    const candidateApi = await authAs(request, RENTER2_EMAIL);
     await expect
       .poll(
         async () => {
           const mine = await request.get(`${base}/slot-offers/me`, {
-            headers: adminApi.headers,
+            headers: candidateApi.headers,
           });
           if (!mine.ok()) return -1;
           const body = await mine.json();
@@ -152,7 +152,7 @@ test.describe("Slot offer cancel recovery (UI)", () => {
       )
       .toBe(0);
     await expect(
-      adminPage.getByText(/Slot accepted|reservation is booked|No pending offers/i).first(),
+      standbyPage.getByText(/Slot accepted|reservation is booked|No pending offers/i).first(),
     ).toBeVisible({ timeout: 10_000 });
 
     // API: resulting booking exists and is not cancelled.
@@ -167,7 +167,7 @@ test.describe("Slot offer cancel recovery (UI)", () => {
       pendingItems.filter((o: any) => o.status === "pending").length,
     ).toBe(0);
 
-    await adminPage.context().close();
+    await standbyPage.context().close();
     await ownerPage.context().close();
   });
 
@@ -187,10 +187,11 @@ test.describe("Slot offer cancel recovery (UI)", () => {
       ownerApi.headers,
       ACCOUNTS.renter,
     );
-    const adminId = await orgUserIdForEmail(
+    //Seatable and rental-capable, for the reason in the first test.
+    const standbyCandidateId = await orgUserIdForEmail(
       request,
       ownerApi.headers,
-      ACCOUNTS.admin,
+      RENTER2_EMAIL,
     );
     const { start, end } = await findFreeHourSlot(
       request,
@@ -219,7 +220,7 @@ test.describe("Slot offer cancel recovery (UI)", () => {
       headers: ownerApi.headers,
       data: {
         kind: "on_reservation",
-        orgUserId: adminId,
+        orgUserId: standbyCandidateId,
         watchedReservationId: reservationId,
       },
     });
@@ -233,11 +234,29 @@ test.describe("Slot offer cancel recovery (UI)", () => {
 
     const ownerPage = await pageAs(browser, "owner");
     await ownerPage.goto("/schedule");
-    await ownerPage.getByRole("button", { name: /Pending offers/i }).click();
-    await expect(
-      ownerPage.getByRole("button", { name: /^Withdraw$/i }).first(),
-    ).toBeVisible({ timeout: 15_000 });
-    await ownerPage.getByRole("button", { name: /^Withdraw$/i }).first().click();
+    await openPendingOffersSheet(ownerPage);
+    // THE LIST RE-RENDERS UNDER THE CLICK. Pending offers are polled, so the row this
+    // button lives in is replaced every few seconds, and a single click races that: Playwright
+    // resolves the element, waits for it to be stable, and the refetch detaches it
+    // ("element was detached from the DOM, retrying") until the test times out.
+    //
+    // So retry the click until the offer is actually gone, and let the SERVER be the
+    // assertion. Clicking twice is harmless: the second lands on nothing, because by then
+    // there is no pending offer left to withdraw.
+    const withdraw = ownerPage.getByRole("button", { name: /^Withdraw$/i }).first();
+    await expect(withdraw).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(
+        async () => {
+          await withdraw.click({ timeout: 5_000 }).catch(() => undefined);
+          const list = await request.get(`${base}/slot-offers`, { headers: ownerApi.headers });
+          const body = await list.json();
+          const items = Array.isArray(body) ? body : (body.data ?? []);
+          return items.filter((o: { status?: string }) => o.status === "pending").length;
+        },
+        { timeout: 30_000, intervals: [500, 1_000, 2_000] },
+      )
+      .toBe(0);
     await expect(ownerPage.getByText(/Offer withdrawn|No pending offers/i).first()).toBeVisible({
       timeout: 15_000,
     });
@@ -252,6 +271,44 @@ test.describe("Slot offer cancel recovery (UI)", () => {
     await ownerPage.context().close();
   });
 });
+
+/**
+ * Open the Pending offers sheet, tolerating the toolbar re-rendering under the click.
+ *
+ * The button only exists while `pendingOffersQ` has rows, and that query polls, so the
+ * element Playwright resolved is replaced every few seconds: it waits for the element to be
+ * stable, the refetch detaches it, and the click never lands ("element was detached from the
+ * DOM, retrying") until the test times out. Retrying until the sheet is actually open is the
+ * assertion that matters; a click that lands on a replaced button is harmless.
+ */
+async function openPendingOffersSheet(page: Page) {
+  const trigger = page.getByRole("button", { name: /Pending offers/i });
+  await expect(trigger).toBeVisible({ timeout: 30_000 });
+  const withdrawInSheet = page.getByRole("button", { name: /^Withdraw$/i }).first();
+  await expect
+    .poll(
+      async () => {
+        if (await withdrawInSheet.isVisible().catch(() => false)) return true;
+        await trigger.first().click({ timeout: 5_000 }).catch(() => undefined);
+        return withdrawInSheet.isVisible().catch(() => false);
+      },
+      { timeout: 60_000, intervals: [500, 1_000, 2_000] },
+    )
+    .toBe(true);
+}
+
+/**
+ * A browser session for the second renter, logged in here rather than in `auth.setup.ts`.
+ *
+ * The setup does one UI login per entry in ACCOUNTS, serially, and it is the slowest thing
+ * in the suite. This account exists for this one spec, so this one spec pays for it.
+ */
+async function pageAsRenter2(browser: Browser): Promise<Page> {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await uiLogin(page, RENTER2_EMAIL);
+  return page;
+}
 
 async function pageAs(browser: Browser, role: "owner" | "admin"): Promise<Page> {
   const context = await browser.newContext({
@@ -272,14 +329,31 @@ async function openReservation(page: Page, reservationId: number) {
   await page.goto(`/schedule?reservation=${reservationId}`);
   await expect(page).not.toHaveURL(/\/login/);
   await dismissCookieBanner(page);
-  // Detail panel / sheet should show cancel or standby affordances.
-  await expect(
-    page
-      .getByRole("button", {
-        name: /Cancel reservation|Stand by for this booking|Offer this slot|Withdraw/i,
-      })
-      .first(),
-  ).toBeVisible({ timeout: 25_000 });
+  // THE PANEL ITSELF, not an action inside it. This waited for one of Cancel reservation /
+  // Stand by / Offer this slot / Withdraw, and none is reliably there any more: "Make the
+  // detail panels a peek, and give a booking its own page" put Edit and Cancel behind the
+  // "Reservation actions" menu, and the standby card only renders for a member who can be
+  // seated. It was asserting a role-dependent action to prove a role-independent thing.
+  await expect(page.locator('[data-doc-shot="reservation-detail-panel"]')).toBeVisible({
+    timeout: 25_000,
+  });
+}
+
+/**
+ * Cancel moved into the panel's "Reservation actions" menu in the peek redesign.
+ *
+ * Waits for each step rather than firing two clicks blind: the panel's header renders a
+ * moment after the panel itself, and a menu click that lands early opens nothing and leaves
+ * the failure to surface later as "the cancel dialog never appeared".
+ */
+async function openCancelFromPanel(page: Page) {
+  await dismissCookieBanner(page);
+  const actions = page.getByRole("button", { name: "Reservation actions" });
+  await expect(actions).toBeVisible({ timeout: 20_000 });
+  await actions.click();
+  const cancelItem = page.getByRole("menuitem", { name: /Cancel reservation/i });
+  await expect(cancelItem).toBeVisible({ timeout: 10_000 });
+  await cancelItem.click();
 }
 
 async function fillCancelDialog(page: Page) {

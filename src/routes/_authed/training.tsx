@@ -291,7 +291,7 @@ function TemplateDialog({ primary }: { primary: boolean }) {
       open={open} onOpenChange={setOpen}
       title="Start from a template"
       description="A complete syllabus you can edit. It arrives as a draft, nothing is published until you say so."
-      data-doc-shot="training-template-picker"
+      dataDocShot="training-template-picker"
     >
 
         
@@ -360,7 +360,7 @@ function BlankCourseDialog() {
           >
             Create course
           </Button></>}
-      data-doc-shot="training-new-course-dialog"
+      dataDocShot="training-new-course-dialog"
     >
 
         

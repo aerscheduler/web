@@ -225,6 +225,12 @@ test.describe("inspection files", () => {
     await expect(page.getByRole("button", { name: "Inspection files" })).toBeVisible();
     await page.getByRole("button", { name: "Inspection files" }).click();
     await expect(page.getByRole("heading", { name: "Inspection files" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "rib-photo.jpg" })).toBeVisible();
+    // THE CAPTION, NOT THE THUMBNAIL'S LINK. `AttachmentPreview` wraps a photo in an <a>
+    // only while the image decodes; on an error it swaps in "Could not load that photo."
+    // and there is no link at all. `tinyJpeg()` is a 1x1 stub that uploads fine and that no
+    // browser will render, so this assertion could only ever pass by accident. The caption
+    // is what the feature actually promises: the file is on the inspection, by name.
+    const sheet = page.getByRole("dialog");
+    await expect(sheet.getByText("rib-photo.jpg")).toBeVisible();
   });
 });

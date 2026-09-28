@@ -82,6 +82,7 @@ function actionLabel(action: string): string {
     "orgUser.resourceApproved": "Checked out",
     "orgUser.resourceUnapproved": "Checkout removed",
     "orgUser.contactUpdated": "Contact details changed",
+    "orgUser.shopRecordMerged": "Shop record merged",
     "orgUser.emergencyContactAdded": "Emergency contact added",
     "orgUser.emergencyContactUpdated": "Emergency contact changed",
     "orgUser.emergencyContactRemoved": "Emergency contact removed",

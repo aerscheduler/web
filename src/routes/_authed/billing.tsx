@@ -492,7 +492,11 @@ function BillingPage() {
   const reservationsQ = useReservationsPage(
     startISO ?? "",
     endISO ?? "",
-    { uninvoiced: true, endedBefore: nowISO },
+    // Maintenance blocks are not a bill anybody is waiting to raise, so they must not
+    // sit in "unbilled" forever accusing the desk of forgetting them. The server has
+    // supported this filter all along; no client was passing it. It stops being a
+    // cosmetic problem the moment every shop visit is a maintenance booking.
+    { uninvoiced: true, endedBefore: nowISO, excludeType: ["maintenance"] },
     unbilledPaging,
     { enabled: !!startISO && !!endISO && showUnbilled && !accountsPane }
   );

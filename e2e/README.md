@@ -74,7 +74,9 @@ Defaults: `VITE_API_PROXY=http://127.0.0.1:5001`, Playwright starts Vite on
 | `e2e/operations/squawk-files.spec.ts` | Photos/PDFs on squawk create and notes: API fileNames, real local upload POST, hasAttachments, role gates, junk types, 6-file toast; student can open the write-up |
 | `e2e/operations/resource-papers.spec.ts` | Aircraft papers locker: owner upload, student read, staff-only hidden, fileUrls refused, dispatcher/tech/renter roles, cap, Papers tab, sim has no tab, `/me/book` Papers only for bookers, iPhone HEIC name + JPEG-in-HEIC rename |
 | `e2e/operations/reminder-files.spec.ts` | Files on an open inspection: owner JPEG, list `hasAttachments` without keys, sign-off copies onto the compliance record and clears the next cycle, fileUrls refused, junk types, sixth file, student/dispatcher 403, technician can attach, Files sheet on All inspections |
-| `e2e/access/route-matrix.spec.ts` | Owner can open first N `ROUTE_ACCESS` routes |
+| `e2e/access/route-matrix.spec.ts` | Every guarded top-level route opened as all 7 seeded roles: loads, or bounces to `/me`. Expectations live in `e2e/access/route-access.expected.ts`, and `src/lib/route-matrix-agrees.test.ts` (vitest) fails in a second if they stop matching the real `canAccess`, or if a new `ROUTE_ACCESS` key is added with no row here |
+| `e2e/access/shop-visibility-matrix.spec.ts` | The shop's customer and aircraft as each of the 7 roles sees them, through every door that returns a person or the aircraft (roster, member by id, person by id, `/users`, the sign-in payload, the aircraft record and both lists). Staff see all of it; pilots see none, and each refusal must equal the answer for an id nobody has |
+| `e2e/aircraft/shop-aircraft.spec.ts` | A customer's aircraft in the shop: absent from the fleet list, the plain `/resources` list the app reads and the org payload sign-in returns; every non-maintenance booking refused; maintenance allowed; not counted on the plan; Fleet / Customer aircraft tabs. Its owner: external + unclaimed, real address shown (never the placeholder login) on People, the Owners panel and the invoice picker, cannot sign in, in no booking picker, name links to their page. **Every hidden-record refusal (~30 doors: bookings, side doors, person routes, standby, squawks) is compared byte for byte with the same request for an id nobody has** |
 | `e2e/training/api-lifecycle.spec.ts` | Curriculum HTTP: unsigned reuse, extra dual after a live pass, leftover unsigned 409, U retake, concurrent save/sign, archived enroll, student 403, dispatcher empty list, candidates `recordId`/rental empty, taskGrades omit vs wipe |
 | `e2e/training/edges.spec.ts` | Closed enrollment cannot be signed/amended/certified; concurrent end+sign; concurrent graduate vs terminate; countersign after amend 409; countersign + amend authz; admin/renter/technician roles; requiresNotes; reservationId omit vs null; mixed sim+aircraft credits |
 | `e2e/training/journeys.spec.ts` | Owner enroll + End enrollment modal (Grade/Add credit gone after terminate); student `/me/training` Back + countersign; student bounce from `/training`; instructor hub; dispatcher without a training grant bounced from `/training`; instructor My training does not list classmates; no Grade for student; archived course hides Enroll |
@@ -97,7 +99,28 @@ Local wizard replay (`npm run dev` only; ignored in production builds):
   rather than minting a second one. To wipe the org and start truly fresh, re-run
   `server/prisma/seed-onboarding-preview.sql` and sign in as `preview-1@`…`preview-6@`.
 
-Cleanup cancels only E2E-tagged reservations (same markers as Flutter).
+Cleanup cancels only E2E-tagged reservations (same markers as Flutter). A spec that creates a
+PERSON cleans up by ARCHIVING them, not deleting: the product has no hard delete for a member,
+because a membership carries invoices and history.
+
+## Screenshot capture (`e2e/capture/`)
+
+Not tests. They write image files for a document, they build their own fixtures, and they are
+excluded from the ordinary run. Opt in deliberately:
+
+```bash
+CAPTURE=1 VITE_API_PROXY=http://127.0.0.1:5011 PLAYWRIGHT_BASE_URL=http://localhost:5179 \
+  PLAYWRIGHT_SKIP_WEBSERVER=1 npx playwright test e2e/capture/maintenance-shop
+```
+
+| Spec | Writes |
+|------|--------|
+| `e2e/capture/ad-walkthrough.spec.ts` | Airworthiness Directive walkthrough shots |
+| `e2e/capture/booking-phases.spec.ts` | Booking lifecycle shots |
+| `e2e/capture/maintenance-shop.spec.ts` | Customer aircraft + owners, into `_local/maintenance-shop/shots/` |
+
+They still assert at every step: a screenshot of the wrong screen is a picture of something
+that does not exist.
 
 ## Next (high value)
 

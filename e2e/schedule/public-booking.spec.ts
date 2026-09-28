@@ -782,7 +782,9 @@ test.describe("public booking settings", () => {
     } finally {
       await setPublicBookingEmbedHosts(request, []);
     }
-    await expect(page.getByRole("link", { name: /configure booking offerings/i })).toBeVisible();
+    // "Configure booking LINKS". Renamed from "booking offerings" by "…rename More Offerings
+    // to Booking links"; this assertion kept the old wording and has been red since.
+    await expect(page.getByRole("link", { name: /configure booking links/i })).toBeVisible();
     await openOfferingsPage(page);
     await page.getByRole("button", { name: /actions for e2e discovery/i }).click();
     await expect(page.getByRole("menuitem", { name: /copy public link/i })).toBeVisible();

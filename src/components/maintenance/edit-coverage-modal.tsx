@@ -83,7 +83,8 @@ export function EditCoverageModal({
 }) {
   const confirm = useConfirm();
   const update = useUpdateMaintenanceReminderTemplate();
-  const planesQ = usePlanes({}, { enabled: open });
+  //Customer aircraft included, so an inspection rule can cover one.
+  const planesQ = usePlanes({ scope: "all" }, { enabled: open });
   // The row handed in comes off the templates LIST, which carries `resources` but not the
   // reminders. Re-read the template so an already-attached tail can show what it is really
   // counting from rather than a blank.

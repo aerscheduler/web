@@ -544,6 +544,23 @@ export interface OrganizationUser {
    */
   archivedAt?: string | null;
   /**
+   * An outside party rather than one of the school's own people: an aircraft owner whose
+   * aeroplane the maintenance shop is looking after. They are on the roster so the work can
+   * be invoiced to them; they hold no flying role and almost every route refuses them.
+   */
+  external?: boolean;
+  /**
+   * When this person confirmed the membership themselves. Null means the school typed them
+   * in and nobody has confirmed: they cannot sign in and get no notifications.
+   */
+  claimedAt?: string | null;
+  /**
+   * Where to reach an outside party who has not claimed their membership: an aircraft
+   * owner's real address, since their `user.email` is a placeholder login. Null for every
+   * member. Read it through `memberEmail`, never `user.email`, when showing an address.
+   */
+  contactEmail?: string | null;
+  /**
    * The mechanic's FAA certificate, so signing an inspection off can prefill it.
    *
    * On the MEMBERSHIP rather than the person: somebody can be a mechanic at one school and
@@ -871,12 +888,60 @@ export interface Resource {
   id: number;
   createdAt: string;
   featuredImage: string | null;
+  /**
+   * `fleet` is one of the school's own: it can be scheduled, and it counts toward the
+   * per-aircraft price. `shop` is a customer's aeroplane in for maintenance: it takes
+   * maintenance events and nothing else, and it is not billed.
+   *
+   * Optional because older responses and older mobile builds do not carry it. Absent
+   * reads as `fleet`, which is what every aircraft was before the shop existed.
+   */
+  use?: AircraftUse;
   type?: ResourceType;
   location?: Location;
   /** Open squawks on this tail. List shape: flag, no keys, no thread. */
   squawks?: Squawk[];
   /** Booker-visible papers. No keys. Staff-only files are omitted. */
   papers?: ResourceFileSummary[];
+}
+
+export type AircraftUse = "fleet" | "shop";
+
+/**
+ * Somebody who owns an aircraft: a leaseback owner who also rents here, a partner in a
+ * co-owned plane, or the customer whose aeroplane is in the shop.
+ *
+ * `orgUser.external` says whether they are one of the school's people or an outside party,
+ * and `claimedAt` whether anybody has confirmed the membership. An owner the shop typed in
+ * is external and unclaimed: on the roster, invoiceable (Stripe emails the invoices), sent nothing by AerScheduler, cannot sign in.
+ */
+export interface ResourceOwner {
+  id: number;
+  isPrimary: boolean;
+  title: string | null;
+  createdAt: string;
+  orgUser: {
+    id: number;
+    external: boolean;
+    claimedAt: string | null;
+    /** Where to actually reach an owner who has not claimed their membership. */
+    contactEmail: string | null;
+    /**
+     * The number the shop typed in to be able to ring this owner. Only ever set for an
+     * outside party: a member who owns an aeroplane keeps their number behind the People
+     * page's contact rules, and this is null for them.
+     */
+    phone: string | null;
+    profileImage: string | null;
+    user: { id: number; name: string | null; email: string };
+  };
+}
+
+/** Somebody already holds the address typed into "Add an owner". See the 409 on that route. */
+export interface OwnerConflict {
+  kind: "member" | "outside" | "archived";
+  orgUserId: number;
+  name: string;
 }
 
 export interface ResourceFileSummary {
@@ -1568,6 +1633,11 @@ export interface AirportMatch {
 
 export interface CreatePlaneResourceInput {
   location: { id: number };
+  /**
+   * `shop` marks a customer's aircraft: maintenance only, and not billed on the plan.
+   * Omitted means `fleet`, which is what the server defaults to.
+   */
+  use?: AircraftUse;
   type: {
     plane: {
       tailNumber: string;
@@ -1592,7 +1662,11 @@ export interface CreatePlaneResourceInput {
       fuelCapacity: number;
       /** REQUIRED by the server, "gallons" or "liters". */
       fuelMeasurement: "gallons" | "liters";
-      cost: { wetRate?: number; dryRate?: number; billByHobbsTime: boolean };
+      /**
+       * Optional for a customer's aircraft in the shop (`use: "shop"`), which has no
+       * hourly rate at all because nobody rents it. Required for a fleet aeroplane.
+       */
+      cost?: { wetRate?: number; dryRate?: number; billByHobbsTime: boolean };
     };
   };
 }

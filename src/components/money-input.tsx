@@ -40,8 +40,22 @@ export function MoneyInput({
         placeholder={placeholder}
         disabled={disabled}
         value={text}
+        // A price field is almost always pre-filled "0.00", and clicking into it used to
+        // drop the caret inside that text. Typing "95.00" then produced "0.0095.00", which
+        // parseFloat reads as 0.0095, so a $95/hr line billed as ONE CENT with nothing on
+        // screen to say so. Selecting on focus means the first keystroke replaces the
+        // placeholder value, which is what every other money field in the world does.
+        onFocus={(e) => e.currentTarget.select()}
         onChange={(e) => {
-          const raw = e.target.value.replace(/[^0-9.]/g, "");
+          // Keep only the FIRST decimal point. Without this, a stray second point makes
+          // parseFloat silently truncate at it ("95.000.00" reads as 95) instead of
+          // refusing, so the field can still disagree with what the person typed.
+          const cleaned = e.target.value.replace(/[^0-9.]/g, "");
+          const firstDot = cleaned.indexOf(".");
+          const raw =
+            firstDot === -1
+              ? cleaned
+              : cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, "");
           setText(raw);
           const dollars = parseFloat(raw);
           if (!Number.isNaN(dollars)) onCentsChange(Math.round(dollars * 100));

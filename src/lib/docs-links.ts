@@ -572,6 +572,20 @@ export const DOCS_TOPICS = {
     href: "getting-started/add-an-aircraft",
     linkLabel: "How to add an aircraft",
   },
+  "work-on-a-customers-aircraft": {
+    title: "Customer aircraft",
+    summary:
+      "An aeroplane somebody else owns, in your shop. It keeps its own inspections and history, it can never be booked to fly, and it is not counted on your plan.",
+    href: "maintenance/work-on-a-customers-aircraft",
+    linkLabel: "Working on a customer's aircraft",
+  },
+  "customer-aircraft-owners": {
+    title: "Owners",
+    summary:
+      "The owner marked Billed is who this aircraft's work is invoiced to. AerScheduler never messages them and they cannot sign in; if they later sign up with the email and name you recorded, the record becomes theirs.",
+    href: "maintenance/work-on-a-customers-aircraft#add-the-owner",
+    linkLabel: "Adding and billing an owner",
+  },
   "add-a-simulator-or-classroom": {
     title: "Simulators and rooms",
     summary:

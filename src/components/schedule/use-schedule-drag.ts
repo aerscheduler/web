@@ -136,8 +136,8 @@ export function useScheduleDrag(args: {
   const sessionRef = React.useRef<PointerSession | null>(null);
   const activeRef = React.useRef<ActiveDrag | null>(null);
   activeRef.current = active;
-  const dataRef = React.useRef({ reservations, resources, zone, groundedCrew, slotOfferHolds });
-  dataRef.current = { reservations, resources, zone, groundedCrew, slotOfferHolds };
+  const dataRef = React.useRef({ reservations, resources, zone, groundedCrew, slotOfferHolds, orgUserId });
+  dataRef.current = { reservations, resources, zone, groundedCrew, slotOfferHolds, orgUserId };
   const edgeRef = React.useRef(0);
   const rafRef = React.useRef(0);
   /** Tears down the current gesture's window listeners. Null when no drag is in progress. */
@@ -297,6 +297,7 @@ export function useScheduleDrag(args: {
         overLeftoverRow: overLeftover && targetResourceId !== currentResourceId,
         others: d.reservations,
         slotOfferHolds: d.slotOfferHolds,
+        viewerOrgUserId: d.orgUserId,
         zone: d.zone,
         groundedCrew: d.groundedCrew,
       });

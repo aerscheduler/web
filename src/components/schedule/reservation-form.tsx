@@ -411,6 +411,9 @@ export function AirworthinessNotice({
  * dispatch lacked. Everything below is written once so that can't happen again;
  * every genuine difference between the two is a `isSelf` branch you can grep for.
  */
+/** The aircraft field's "no aircraft" choice, for the types that allow one. */
+const NOT_LISTED = "__not_listed__";
+
 export function ReservationForm({
   open = true,
   onOpenChange,
@@ -1021,6 +1024,16 @@ export function ReservationForm({
     return { value: String(r.id), label: l.name, hint: air || l.kind };
   });
 
+  //A dual may fly an aircraft the school doesn't own, so the field needs a way to say "no
+  //aircraft" and to go back to it. It had neither: a resourceless dual opened on edit with
+  //"Select resource" in the field, which reads as a required choice (a school reported that
+  //rescheduling one "asks to put a resource in"), and once a tail was picked it could not
+  //be cleared. Same words as the app's plane picker.
+  const resourceOptional = !TYPE_REQUIREMENTS[type].resourceRequired;
+  const resourceChoices: ComboOption[] = resourceOptional
+    ? [...resourceOptions, { value: NOT_LISTED, label: "Not listed", hint: "No aircraft" }]
+    : resourceOptions;
+
   const selectedResource = eligibleResources.find((r) => String(r.id) === resourceId);
   const bookingLocationId = resolveLocationId(selectedResource, locationsQ.data);
 
@@ -1080,8 +1093,15 @@ export function ReservationForm({
       if (!/.+@.+\..+/.test(guestEmail.trim()))
         return fail("Enter a valid email. The guest's invoice is sent there.", "guest-email");
       if (!resourceId) return fail("Guest flights need an aircraft.", "res-resource");
+      //The guest already on this booking keeps its id. Without it the server reads the
+      //save as adding a SECOND guest and refuses ("A guest already exists on this
+      //reservation"), so no edit to a guest flight could be saved from the console. Drag
+      //(reservationToInput) always sent the id; only this form dropped it.
+      const existingGuestId =
+        editing?.type === "guest" ? editing.personnel?.guests?.[0]?.id : undefined;
       personnel.guests = [
         {
+          ...(existingGuestId != null ? { id: existingGuestId } : {}),
           name: guestName.trim(),
           email: guestEmail.trim(),
           ...(guestPhone.trim() ? { phone: guestPhone.trim() } : {}),
@@ -1348,10 +1368,10 @@ export function ReservationForm({
             <Combobox
               id="res-resource"
               invalid={errorField === "res-resource"}
-              options={resourceOptions}
-              value={resourceId}
+              options={resourceChoices}
+              value={resourceId || (resourceOptional ? NOT_LISTED : "")}
               onChange={(v) => {
-                setResourceId(v);
+                setResourceId(v === NOT_LISTED ? "" : v);
                 setUnapprovedResource(null);
               }}
               placeholder={resourcesQ.isLoading ? "Loading…" : "Select resource"}

@@ -349,6 +349,8 @@ export function validateDrop(args: {
   others: Reservation[];
   /** Pending slot-offer soft holds (same busy windows the server counts). */
   slotOfferHolds?: SlotOfferHold[];
+  /** Who is dragging. A hold on a slot they gave up does not block them (server rule). */
+  viewerOrgUserId?: number | null;
   zone: string;
   groundedCrew?: GroundedLookup;
 }): DropCheck {
@@ -360,6 +362,7 @@ export function validateDrop(args: {
     overLeftoverRow,
     others,
     slotOfferHolds,
+    viewerOrgUserId,
     zone,
     groundedCrew,
   } = args;
@@ -471,6 +474,16 @@ export function validateDrop(args: {
     for (const hold of slotOfferHolds) {
       if (hold.resourceId !== effectiveHoldResourceId) continue;
       if (!holdOverlaps(hold, startMs, endMs)) continue;
+      //Somebody on this booking, or the person moving it, gave that slot up, so the server
+      //lets them take it back (utils/slotOfferReclaim on the server). Refusing here would
+      //block a move the server allows.
+      const reclaimers = hold.reclaimableBy ?? [];
+      if (
+        (viewerOrgUserId != null && reclaimers.includes(viewerOrgUserId)) ||
+        personnelIds(r).some((id) => reclaimers.includes(id))
+      ) {
+        continue;
+      }
       const who =
         hold.purpose === "instructor_confirm"
           ? `${hold.offeredToName} (instructor confirm)`

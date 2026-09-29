@@ -64,6 +64,8 @@ export type CreateStandbyInterestInput = {
 
 export type SlotOffer = {
   id: number;
+  /** GET /slot-offers only: org users this hold does not block (they were on, or cancelled, its source booking). */
+  reclaimableBy?: number[];
   createdAt: string;
   updatedAt?: string;
   status: "pending" | "accepted" | "declined" | "expired" | "withdrawn" | "superseded";

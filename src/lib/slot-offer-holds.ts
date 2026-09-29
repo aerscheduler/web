@@ -12,6 +12,8 @@ export type SlotOfferHold = {
   offeredToName: string;
   purpose?: SlotOffer["purpose"];
   trigger?: SlotOffer["trigger"];
+  /** Org users this hold does not block: the people on the booking it came from. */
+  reclaimableBy?: number[];
 };
 
 /** Pending offers whose hold has not expired and that pin a resource lane. */
@@ -36,6 +38,7 @@ export function liveSlotOfferHolds(
       offeredToName: offer.offeredTo?.user?.name?.trim() || "a member",
       purpose: offer.purpose,
       trigger: offer.trigger,
+      reclaimableBy: offer.reclaimableBy ?? [],
     });
   }
   return out;

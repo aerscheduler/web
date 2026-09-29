@@ -271,7 +271,7 @@ export function StandingPreferenceFields({
       {whenOnly ? null : (
         <>
       {typeOptions.length > 1 && (
-        <Field label="Lesson types">
+        <Field label="Reservation types">
           <MultiCombobox
             options={typeOptions}
             values={draft.types}

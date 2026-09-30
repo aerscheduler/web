@@ -91,7 +91,12 @@ export type SlotOffer = {
    * How the recipient was chosen. `source: "inferred"` means they never stood by for it
    * and were suggested from how they fly; `reason` is the one line that says why.
    */
-  rankSnapshot?: { source?: string; ranker?: string; reason?: string } | null;
+  rankSnapshot?: { source?: string; ranker?: string; reason?: string; roundSize?: number | null } | null;
+  /**
+   * False for a suggested slot sent to a few members at once: it holds nothing, and the
+   * first to accept books it if it is still free. Absent from older servers, meaning true.
+   */
+  holdsSlot?: boolean;
 };
 
 export const isSuggestedOffer = (offer: Pick<SlotOffer, "rankSnapshot" | "purpose">) =>

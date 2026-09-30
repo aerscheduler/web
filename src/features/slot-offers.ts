@@ -78,6 +78,11 @@ function useSlotOfferTransition(action: "accept" | "decline" | "withdraw") {
         void queryClient.invalidateQueries({ queryKey: ["reservations"] });
       }
     },
+    // A refused accept often means the offer changed under you (someone else booked a
+    // suggested slot, or it expired): refetch so the card shows that, not a dead button.
+    onError: () => {
+      void queryClient.invalidateQueries({ queryKey: ["slot-offers"] });
+    },
   });
 }
 

@@ -347,7 +347,7 @@ export const DOCS_TOPICS = {
   "suggested-slots": {
     title: "Suggested slots",
     summary:
-      "When nobody on standby can take a cancelled slot, it can be offered to the member whose flying fits it best: same aircraft, instructor, weekday and time. At most 3 a week, paused for 30 days after you pass on 3 in a row. Turning this off does not affect slots you stand by for yourself.",
+      "When nobody on standby can take a cancelled slot, it can be suggested to up to three members whose flying fits it best (same aircraft, instructor, weekday and time), and the first to accept books it. At most 3 a week, paused for 30 days after you pass on 3 in a row. Turning this off does not affect slots you stand by for yourself.",
     href: "scheduling/standby-and-slot-offers#suggested-slots",
   },
   "slot-offers": {

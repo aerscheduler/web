@@ -220,7 +220,9 @@ function OfferCard({
             ? "This offer has expired."
             : instructorConfirm
               ? `Confirm within ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`
-              : `Accept within ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`}
+              : offer.holdsSlot === false && (offer.rankSnapshot?.roundSize ?? 0) > 1
+                ? `Offered to a few members. The first to accept books it. Open for ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`
+                : `Accept within ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`}
         </p>
         <div className="flex gap-2">
           <Button variant="outline" disabled={busy || expired} onClick={onDecline}>

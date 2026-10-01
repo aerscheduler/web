@@ -13,6 +13,8 @@ export type RailItem = {
   value: string;
   label: string;
   icon?: LucideIcon;
+  /** How many things the section holds, muted after the label ("Aircraft 2"). */
+  count?: number;
 };
 
 /** A run of items under an optional heading. Omit `label` for an ungrouped run. */
@@ -124,6 +126,7 @@ export function SectionRail({
                     >
                       {Icon && <Icon className="size-4 shrink-0" />}
                       <span className="truncate">{item.label}</span>
+                      {item.count != null && <span className="ml-auto pl-2 text-xs text-muted-foreground tnum">{item.count}</span>}
                     </button>
                   );
                 })}

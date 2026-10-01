@@ -559,8 +559,10 @@ test("each detail is changed where it is shown: the meters, the promised day, an
 test("the customer's own record lists the jobs billed to them", async ({ page }) => {
   await page.goto(`/people/${ownerOrgUserId}`);
   await settled(page, "h1");
-  const card = page.locator('[data-doc-shot="person-work-orders"]');
-  await expect(card.getByText("E2E-Pitot-static check")).toBeVisible();
+  // An owner the shop wrote down has their jobs on a tab of their own.
+  await page.getByRole("button", { name: /^Work orders/ }).click();
+  const list = page.locator('[data-doc-shot="owner-work-orders"]');
+  await expect(list.getByText("E2E-Pitot-static check")).toBeVisible();
 });
 
 test("an admin takes 10% off a line, and the line and the total say so", async ({ page, request }) => {

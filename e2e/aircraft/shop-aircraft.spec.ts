@@ -737,8 +737,9 @@ test.describe("an owner the shop writes down", () => {
 
     await expect(page).toHaveURL(/\/people\/\d+/);
     await expect(page.getByText("Aircraft owner").first()).toBeVisible();
-    // The aircraft they own here, which is the reason the page exists.
-    await expect(page.getByText(TAIL).first()).toBeVisible();
     await expect(page.getByText(OWNER_EMAIL).first()).toBeVisible();
+    // The aircraft they own here, which is the reason the page exists, on its own tab.
+    await page.getByRole("button", { name: /^Aircraft/ }).click();
+    await expect(page.locator('[data-doc-shot="owner-aircraft"]').getByText(TAIL).first()).toBeVisible();
   });
 });

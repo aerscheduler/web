@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   CalendarClock,
   FileCheck2,
@@ -12,12 +12,13 @@ import {
   Receipt,
   UserRound,
   Wallet,
+  Wrench,
 } from "lucide-react";
 import { rolesOf, type OrganizationUser } from "@/types/api";
 import { useMember, useOrgLedgerSettings, useOwnedAircraft } from "@/features/queries";
 import { PersonApprovedAircraft } from "@/components/people/detail/person-approved-aircraft";
 import { useAuth } from "@/lib/auth";
-import { canSeeShop, isAdmin, personViewAccess, type PersonViewAccess } from "@/lib/permissions";
+import { canOpenWorkOrders, canSeeShop, isAdmin, personViewAccess, type PersonViewAccess } from "@/lib/permissions";
 import { TaxExemptionCard } from "@/components/people/detail/tax-exemption-card";
 import { PersonPermissions } from "@/components/people/detail/person-permissions";
 import { cn, formatDate, initials } from "@/lib/utils";
@@ -52,6 +53,7 @@ import { PersonContact } from "@/components/people/detail/person-contact";
 import { PersonFlights } from "@/components/people/detail/person-flights";
 import { PersonInvoices } from "@/components/people/detail/person-invoices";
 import { PersonWorkOrders } from "@/components/people/detail/person-work-orders";
+import { OwnerAircraftList, OwnerContactCard, OwnerWorkOrdersList, useOwnerJobs } from "@/components/people/detail/owner-record";
 import { PersonLedger } from "@/components/people/detail/person-ledger";
 import { PersonMembership } from "@/components/people/detail/person-membership";
 import {
@@ -179,9 +181,25 @@ function PersonPage() {
  * invoice), Training, Compliance and Permissions. Every one of those was empty for them,
  * and several offered actions the server refuses.
  */
-function sectionsForOwner(access: PersonViewAccess, ledgerOn: boolean): RailSection[] {
+function sectionsForOwner(
+  access: PersonViewAccess,
+  ledgerOn: boolean,
+  shop: { aircraft: number | undefined; jobs: number | undefined; mayOpenJobs: boolean } | null
+): RailSection[] {
   return [
-    { items: [{ value: "overview", label: "Overview", icon: UserRound }] },
+    {
+      items: [
+        { value: "overview", label: "Overview", icon: UserRound },
+        // Their aeroplanes and their jobs, each a tab of its own (Tony, 2026-09-30), for the
+        // people who may see the shop.
+        ...(shop
+          ? [
+              { value: "aircraft", label: "Aircraft", icon: Plane, count: shop.aircraft },
+              ...(shop.mayOpenJobs ? [{ value: "work-orders", label: "Work orders", icon: Wrench, count: shop.jobs }] : []),
+            ]
+          : []),
+      ],
+    },
     ...(access.money
       ? [{ items: [{ value: ledgerOn ? "invoices" : "billing", label: "Invoices", icon: Receipt }] }]
       : []),
@@ -249,7 +267,12 @@ function PersonBody({
 
   //An aircraft owner the shop wrote down has never signed up. See sectionsForOwner.
   const outsideParty = !!(ou as { external?: boolean }).external && !(ou as { claimedAt?: string | null }).claimedAt;
-  const sections = outsideParty ? sectionsForOwner(access, ledgerOn) : sectionsFor(access, ledgerOn);
+  const seesShop = canSeeShop(roles);
+  const owned = useOwnedAircraft(ou.id, { enabled: outsideParty && seesShop });
+  const ownerJobs = useOwnerJobs(ou.id);
+  const sections = outsideParty
+    ? sectionsForOwner(access, ledgerOn, seesShop ? { aircraft: owned.data?.length, jobs: ownerJobs.data?.length, mayOpenJobs: canOpenWorkOrders(roles) } : null)
+    : sectionsFor(access, ledgerOn);
   const allowed = sections.flatMap((s) => s.items.map((i) => i.value));
   let active = tab && allowed.includes(tab) ? tab : "overview";
   // Accounts roster and older links still use ?tab=billing. Ledger orgs land on
@@ -270,7 +293,7 @@ function PersonBody({
    * Facilities is this exact shape, a non-scrolling flex child for the controls and a
    * `min-h-0 flex-1 overflow-y-auto` child for the rows.
    */
-  const scrollingPane = moneyPane || active === "permissions";
+  const scrollingPane = moneyPane || active === "permissions" || active === "aircraft" || active === "work-orders";
 
   const name = memberName(ou);
   useDetailTitle(name);
@@ -375,12 +398,9 @@ function PersonBody({
               : "space-y-4 overflow-y-auto"
           )}
         >
-          {active === "overview" && outsideParty && (
-            <>
-              <OwnerOverview ou={ou} email={email ?? null} phone={phone} />
-              <PersonWorkOrders orgUserId={ou.id} />
-            </>
-          )}
+          {active === "overview" && outsideParty && <OwnerContactCard ou={ou} owned={owned.data} />}
+          {active === "aircraft" && outsideParty && <OwnerAircraftList owned={owned.data ?? []} loading={owned.isPending} />}
+          {active === "work-orders" && outsideParty && <OwnerWorkOrdersList rows={ownerJobs.data ?? []} loading={ownerJobs.isPending} />}
 
           {active === "overview" && !outsideParty && (
             <>
@@ -534,76 +554,5 @@ function PageFrame({ children }: { children: React.ReactNode }) {
       <DetailBack to="/people" label="People" />
       {children}
     </div>
-  );
-}
-
-/**
- * What a shop customer's record is for: how to reach them, and which aeroplanes are theirs.
- * What they owe is the Invoices rail.
- */
-function OwnerOverview({ ou, email, phone }: { ou: OrganizationUser; email: string | null; phone: string | null }) {
-  const { roles } = useAuth();
-  const owned = useOwnedAircraft(ou.id, { enabled: canSeeShop(roles) });
-  const aircraft = owned.data ?? [];
-
-  return (
-    <>
-      <DetailCard title="Contact" description="The details you recorded for them. They have not signed up.">
-        {email || phone ? (
-          <KeyValueList>
-            {email && (
-              <KeyValue label="Email">
-                <a href={`mailto:${email}`} className="hover:underline">
-                  {email}
-                </a>
-              </KeyValue>
-            )}
-            {phone && (
-              <KeyValue label="Phone">
-                <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} className="hover:underline">
-                  {phone}
-                </a>
-              </KeyValue>
-            )}
-            <KeyValue label="Added">{formatDate(ou.createdAt, "MMMM d, yyyy")}</KeyValue>
-          </KeyValueList>
-        ) : (
-          <CardEmpty>No email or phone recorded. Add them from the aircraft&apos;s Owners panel.</CardEmpty>
-        )}
-      </DetailCard>
-
-      <DetailCard title="Aircraft" description="The aeroplanes they own here.">
-        {owned.isPending ? (
-          <Skeleton className="h-10 w-full" />
-        ) : aircraft.length === 0 ? (
-          <CardEmpty>Not listed as the owner of any aircraft.</CardEmpty>
-        ) : (
-          <ul className="divide-y divide-border">
-            {aircraft.map((row) => {
-              const plane = row.resource.type?.plane;
-              return (
-                <li key={row.id} className="flex items-center justify-between gap-3 py-2.5">
-                  <Link
-                    to="/aircraft/$resourceId"
-                    params={{ resourceId: String(row.resource.id) }}
-                    className="flex min-w-0 items-center gap-3 hover:underline"
-                  >
-                    <Plane className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="font-medium">{plane?.tailNumber ?? `Aircraft #${row.resource.id}`}</span>
-                    <span className="truncate text-sm text-muted-foreground">
-                      {[plane?.year, plane?.make, plane?.model].filter(Boolean).join(" ")}
-                    </span>
-                  </Link>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {row.title && <span className="text-xs text-muted-foreground">{row.title}</span>}
-                    {row.isPrimary && <Badge variant="secondary">Billed</Badge>}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </DetailCard>
-    </>
   );
 }

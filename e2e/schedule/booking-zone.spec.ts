@@ -16,8 +16,8 @@ import { TEST_PASSWORD, apiProxyTarget } from "../helpers/env";
 import { TERMS_VERSION } from "../../src/lib/legal";
 
 const MEMBER_MESSAGE =
-  "Your school hasn't set its time zone yet, so members can't book online. We've let your school's admins know. Until it's set, an instructor or the front desk can book this for you.";
-const ALERT_TITLE = "Set your school's time zone";
+  "Your organization hasn't set its time zone yet, so members can't book online. We've let your organization's admins know. Until it's set, an instructor or the front desk can book this for you.";
+const ALERT_TITLE = "Set your organization's time zone";
 
 const base = () => apiProxyTarget().replace(/\/$/, "");
 const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
@@ -219,7 +219,7 @@ test.describe("A school with no time zone", () => {
     await signInAs(page, request, ownerToken);
     await page.goto("/dashboard");
     await declineCookies(page);
-    const banner = page.getByRole("status").filter({ hasText: "Members can't book online until your school has a time zone." });
+    const banner = page.getByRole("status").filter({ hasText: "Members can't book online until your organization has a time zone." });
     await expect(banner).toBeVisible({ timeout: 30_000 });
     await expect(banner.getByText("This computer's time zone")).toBeVisible();
     await banner.getByRole("button", { name: /Use Central \(Chicago\)/ }).click();
@@ -281,7 +281,7 @@ test.describe("A school whose airport we can place", () => {
     await signInAs(page, request, ownerToken);
     await page.goto("/schedule");
     await declineCookies(page);
-    const banner = page.getByRole("status").filter({ hasText: "Members can't book online until your school has a time zone." });
+    const banner = page.getByRole("status").filter({ hasText: "Members can't book online until your organization has a time zone." });
     await expect(banner).toBeVisible({ timeout: 30_000 });
     await expect(banner.getByText("The time zone at KCUH")).toBeVisible();
     await expect(banner.getByRole("button", { name: /Use Central \(Chicago\)/ })).toBeVisible();
@@ -297,7 +297,7 @@ test.describe("The shared test school", () => {
 
   test("a school with a zone shows no banner, and the Settings card says where it flies", async ({ page }) => {
     await page.goto("/dashboard");
-    await expect(page.getByText("Members can't book online until your school has a time zone.")).toHaveCount(0);
+    await expect(page.getByText("Members can't book online until your organization has a time zone.")).toHaveCount(0);
     await page.goto("/settings?tab=organization");
     const card = page.locator('[data-doc-shot="settings-org-timezone"]');
     await expect(card).toBeVisible({ timeout: 30_000 });

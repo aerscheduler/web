@@ -20,10 +20,11 @@ import { cn } from "@/lib/utils";
  * worse than no back button at all.
  */
 
-export function DetailBack({ to, label }: { to: string; label: string }) {
+export function DetailBack({ to, label, search }: { to: string; label: string; search?: Record<string, unknown> }) {
   return (
     <Link
       to={to}
+      {...(search ? { search: search as never } : {})}
       className="-ml-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <ChevronLeft className="size-4" />
@@ -133,8 +134,9 @@ export function DetailCard({
 }) {
   return (
     <Card className={cn("flex flex-col", className)} data-doc-shot={docShot}>
-      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0">
+      <CardHeader className="flex-row flex-wrap items-start justify-between gap-3 space-y-0">
+        {/* Wraps on a phone: two action buttons used to squeeze the title into one word a line. */}
+        <div className="min-w-[10rem] flex-1">
           <CardTitle>{title}</CardTitle>
           {description && (
             <p className="mt-1 text-[13px] text-muted-foreground">{description}</p>

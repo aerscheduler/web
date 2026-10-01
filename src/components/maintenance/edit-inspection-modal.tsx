@@ -116,7 +116,7 @@ export function EditInspectionModal({
       <div className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="edit-insp-name">Name</Label>
-          <Input
+          <Input placeholder="Annual inspection"
             id="edit-insp-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -126,7 +126,7 @@ export function EditInspectionModal({
 
         <div className="space-y-1.5">
           <Label htmlFor="edit-insp-notes">Notes</Label>
-          <Textarea
+          <Textarea placeholder="What whoever signs it off should know"
             id="edit-insp-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

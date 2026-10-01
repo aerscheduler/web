@@ -15,6 +15,8 @@ import { BookingPreferencesTab } from "@/components/settings/booking-preferences
 import { AdTrackingTab } from "@/components/settings/ad-tracking-tab";
 import { PlanTab } from "@/components/settings/plan-tab";
 import { BillingTab } from "@/components/settings/billing-tab";
+import { SalesTaxTab } from "@/components/settings/sales-tax-tab";
+import { ShopRatesTab } from "@/components/settings/shop-rates-tab";
 import { RatesTab } from "@/components/settings/rates-tab";
 import { DocumentTypesTab } from "@/components/settings/document-types-tab";
 import { GroupsTab } from "@/components/settings/groups-tab";
@@ -103,6 +105,8 @@ function SettingsPage() {
           {active === "plan" && <PlanTab />}
           {active === "memberships" && <MembershipsTab />}
           {active === "billing" && <BillingTab />}
+          {active === "sales-tax" && <SalesTaxTab />}
+          {active === "shop-rates" && <ShopRatesTab />}
           {active === "cost-splitting" && <CostSplittingTab />}
           {active === "rates" && <RatesTab />}
           {active === "documents" && <DocumentTypesTab />}

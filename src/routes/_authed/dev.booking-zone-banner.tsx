@@ -20,7 +20,7 @@ function BookingZoneBannerPreviewPage() {
         <h1 className="text-lg font-semibold">Booking zone banner preview</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Shown to owners and admins on the dashboard, the schedule and the booking form while
-          the school has no time zone. Members never see it; their booking refusal says their
+          the organization has no time zone. Members never see it; their booking refusal says their
           admins have been told.
         </p>
       </div>

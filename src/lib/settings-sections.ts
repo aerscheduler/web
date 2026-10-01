@@ -1,4 +1,4 @@
-import { BadgeCheck, BadgeDollarSign, Building2, CalendarRange, CreditCard, FileCog, GraduationCap, KeyRound, Layers, Puzzle, ShieldCheck, SlidersHorizontal, Split, type LucideIcon } from "lucide-react";
+import { BadgeCheck, BadgeDollarSign, Building2, CalendarRange, CreditCard, FileCog, GraduationCap, KeyRound, Layers, Percent, Puzzle, ShieldCheck, SlidersHorizontal, Split, Wrench, type LucideIcon } from "lucide-react";
 
 /**
  * Every section of Settings, in the order the page's left rail shows them.
@@ -39,7 +39,7 @@ export type SettingsTab = {
 
 export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
   {
-    label: "School",
+    label: "Organization",
     tabs: [
       { value: "organization", label: "Organization", icon: Building2, keywords: ["school", "name", "logo", "address", "time zone"] },
       {
@@ -79,6 +79,23 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
         adminOnly: true,
       },
       { value: "billing", label: "Billing", icon: CreditCard, keywords: ["stripe", "connect", "payouts", "fees", "ledger", "invoice"] },
+      {
+        value: "sales-tax",
+        label: "Sales tax",
+        icon: Percent,
+        keywords: ["tax", "sales tax", "tax rate", "taxable", "exempt", "resale certificate", "parts", "labor"],
+        //Admins read it; only the owner changes it, like the billing settings beside it.
+        adminOnly: true,
+      },
+      {
+        value: "shop-rates",
+        label: "Shop rates",
+        icon: Wrench,
+        keywords: ["labor rate", "shop rate", "markup", "parts markup", "work orders", "shop", "maintenance"],
+        //The shop reads them to price lines (the server serves them to the shop roles); only an
+        //admin changes what every later job is charged.
+        adminOnly: true,
+      },
       {
         value: "memberships",
         label: "Memberships",

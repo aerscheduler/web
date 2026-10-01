@@ -52,6 +52,7 @@ const ENTITY_TYPES: { value: string; label: string }[] = [
   { value: "apiKey", label: "API keys" },
   { value: "standbyInterest", label: "Standby" },
   { value: "ledgerEntry", label: "Ledger" },
+  { value: "workOrder", label: "Work orders" },
 ];
 
 const ENTITY_LABEL = new Map(ENTITY_TYPES.map((e) => [e.value, e.label]));
@@ -74,6 +75,20 @@ function actionLabel(action: string): string {
     "reservation.reviewConfirmed": "Signed off",
     "reservation.invoiced": "Invoiced",
     "invoice.created": "Invoice raised",
+    "workOrder.opened": "Work order opened",
+    "workOrder.updated": "Work order edited",
+    "workOrder.statusChanged": "Stage changed",
+    "workOrder.itemAdded": "Item added",
+    "workOrder.itemChanged": "Item changed",
+    "workOrder.itemRemoved": "Item removed",
+    "workOrder.itemCompleted": "Item done",
+    "workOrder.ownerAnswered": "Owner's answer recorded",
+    "workOrder.lineAdded": "Line added",
+    "workOrder.lineChanged": "Line changed",
+    "workOrder.lineRemoved": "Line removed",
+    "workOrder.invoiced": "Work order invoiced",
+    "workOrder.deleted": "Work order deleted",
+    "organization.workOrderSettingsChanged": "Shop rates changed",
     "invoice.voided": "Invoice voided",
     "invoice.markedPaid": "Marked paid",
     "orgUser.rolesChanged": "Roles changed",

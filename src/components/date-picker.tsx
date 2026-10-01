@@ -23,6 +23,7 @@ export function DatePickerField({
   id,
   className,
   invalid,
+  clearable,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -34,6 +35,8 @@ export function DatePickerField({
   className?: string;
   /** Marks the trigger `aria-invalid` for validate-on-submit forms. */
   invalid?: boolean;
+  /** Offers Clear under the calendar, for a date that may be taken back ("Not promised"). */
+  clearable?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
 
@@ -90,6 +93,22 @@ export function DatePickerField({
           }}
           autoFocus
         />
+        {clearable && value && (
+          <div className="border-t p-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                onChange("");
+                setOpen(false);
+              }}
+            >
+              Clear
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

@@ -128,7 +128,7 @@ function GrantRow({ grant, onRevoke }: { grant: TrainingGrant; onRevoke: () => v
       <Button
         size="sm"
         variant="ghost"
-        className="h-6 px-1.5 text-muted-foreground hover:text-destructive"
+        className="h-6 px-1.5 text-muted-foreground"
         onClick={onRevoke}
         aria-label={`Revoke ${name}`}
       >

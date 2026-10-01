@@ -42,6 +42,7 @@ export function AgendaRow({
     >
       <button
         type="button"
+        data-reservation-id={r.id}
         onClick={() => onView(r)}
         className="min-w-0 flex-1 text-left focus:outline-none"
       >

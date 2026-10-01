@@ -11,6 +11,7 @@ import {
   Users,
   Wrench,
   BookOpen,
+  Hammer,
   type LucideIcon,
 } from "lucide-react";
 import type { SearchEntityType, SearchResult } from "@/types/api";
@@ -54,6 +55,7 @@ export const SEARCH_TYPE_LABEL: Record<SearchEntityType, string> = {
   //what somebody is actually looking for when they search a student's name.
   enrollment: "Training records",
   endorsement: "Endorsements",
+  workorder: "Work orders",
 };
 
 export const SEARCH_TYPE_ICON: Record<SearchEntityType, LucideIcon> = {
@@ -69,6 +71,7 @@ export const SEARCH_TYPE_ICON: Record<SearchEntityType, LucideIcon> = {
   course: GraduationCap,
   enrollment: ClipboardList,
   endorsement: FileSignature,
+  workorder: Hammer,
 };
 
 /**
@@ -83,6 +86,8 @@ export const SEARCH_TYPE_ORDER: SearchEntityType[] = [
   "person",
   "resource",
   "reservation",
+  // Next to squawks: both are the shop's, and a tail search wants its job beside its faults.
+  "workorder",
   "squawk",
   "enrollment",
   "currency",
@@ -179,6 +184,13 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
               view: result.badge === "Open" ? "open" : "resolved",
             },
           };
+    }
+
+    case "workorder": {
+      const workOrderId = asInt(result.params.workOrderId);
+      return workOrderId != null
+        ? { to: "/maintenance/work-orders/$workOrderId", params: { workOrderId: String(workOrderId) } }
+        : { to: "/maintenance", search: { view: "work-orders", q: result.title } };
     }
 
     case "course": {

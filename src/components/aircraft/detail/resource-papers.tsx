@@ -339,7 +339,7 @@ export function ResourcePapers({
         <CardEmpty>
           {canManage
             ? "Add the POH and the current weight and balance."
-            : "The school has not added papers for this aircraft yet."}
+            : "The organization has not added papers for this aircraft yet."}
         </CardEmpty>
       ) : (
         <ul className="divide-y-0">

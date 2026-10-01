@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import type { Squawk } from "@/types/api";
@@ -57,6 +58,7 @@ export function SquawkTable({
   const { roles } = useAuth();
   const canResolve = canResolveSquawk(roles);
   const filter = { resolved, q: searchQ, resourceId };
+  const navigate = useNavigate();
   const paging = usePaging({
     resetKey: filter,
     defaultSort: { key: resolved ? "resolvedAt" : "createdAt", dir: "desc" },
@@ -138,6 +140,7 @@ export function SquawkTable({
         // Cards on a phone, where five columns would be a horizontal scroll nobody wants.
         mobileCard={(s) => <SquawkCard squawk={s} onOpen={() => onOpenId(s.id)} />}
         onRowClick={(s) => onOpenId(s.id)}
+        onRowDoubleClick={(s) => void navigate({ to: "/maintenance/squawks/$squawkId", params: { squawkId: String(s.id) } })}
         isRowSelected={(s) => s.id === openId}
       />
     );

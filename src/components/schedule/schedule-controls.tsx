@@ -1,6 +1,6 @@
 import * as React from "react";
 import { addDays, addMonths, endOfWeek, format, startOfWeek } from "date-fns";
-import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -10,6 +10,9 @@ import { civilDateInZone, isCivilToday } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 export type ScheduleView = "month" | "week" | "day";
+
+/** How the range is drawn: the board and its time grids, or a list of the same bookings. */
+export type ScheduleLayout = "calendar" | "list";
 
 const NOUN: Record<ScheduleView, string> = { month: "month", week: "week", day: "day" };
 
@@ -29,6 +32,8 @@ export function ScheduleControls({
   zone,
   count,
   matchCount,
+  layout,
+  onLayoutChange,
 }: {
   day: Date;
   onDayChange: (d: Date) => void;
@@ -44,6 +49,8 @@ export function ScheduleControls({
    * read "47 reservations" while only 12 are lit and give no hint that anything is filtered.
    */
   matchCount?: number | null;
+  layout?: ScheduleLayout;
+  onLayoutChange?: (l: ScheduleLayout) => void;
 }) {
   const [calOpen, setCalOpen] = React.useState(false);
 
@@ -120,6 +127,19 @@ export function ScheduleControls({
           <TabsTrigger value="day">Day</TabsTrigger>
         </TabsList>
       </Tabs>
+
+      {layout && onLayoutChange && (
+        <Tabs value={layout} onValueChange={(v) => onLayoutChange(v === "list" ? "list" : "calendar")}>
+          <TabsList aria-label="Layout">
+            <TabsTrigger value="calendar" className="gap-1.5">
+              <CalendarDays className="size-4" /> Calendar
+            </TabsTrigger>
+            <TabsTrigger value="list" className="gap-1.5">
+              <List className="size-4" /> List
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      )}
 
       <div className={cn("ml-auto text-sm tabular-nums text-muted-foreground", count == null && "opacity-0")}>
         {matchCount != null ? (

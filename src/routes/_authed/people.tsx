@@ -131,7 +131,7 @@ const EMPTY_BY_ROLE: Record<RoleKey | "all", { title: string; body: string }> = 
   },
   admin: {
     title: "No admins yet",
-    body: "Grant admin to trusted staff so they can help run the school.",
+    body: "Grant admin to trusted staff so they can help run the organization.",
   },
   noRoles: {
     title: "Everyone has a role",

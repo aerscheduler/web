@@ -161,7 +161,7 @@ export function LedgerAdjustmentDialog({
     <ResponsiveModal
       open={open} onOpenChange={onOpenChange}
       title="Adjustment"
-      description={<>Correct the balance with a signed amount. Use Refund when money is leaving the school.
+      description={<>Correct the balance with a signed amount. Use Refund when money is leaving the organization.
             Adjustments are for true corrections, not payouts.</>}
       footer={<><Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -422,7 +422,7 @@ export function LedgerRefundDialog({
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
                   $
                 </span>
-                <Input
+                <Input placeholder="25.00"
                   id="refund-amount"
                   inputMode="decimal"
                   value={dollars}

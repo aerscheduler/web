@@ -139,7 +139,7 @@ export function OrganizationFlow({ onClose }: FlowProps) {
 
           <div className="space-y-1.5">
             <Label htmlFor="of-name">Name</Label>
-            <Input id="of-name" value={name} onChange={(e) => setName(e.target.value)} />
+            <Input placeholder="Blue Sky Aviation" id="of-name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">

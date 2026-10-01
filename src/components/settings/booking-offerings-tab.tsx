@@ -345,7 +345,7 @@ function PublicBookingCard() {
                   if (!next || next === (organization.publicBookingSlug ?? "")) return;
                   save({ publicBookingSlug: next });
                 }}
-                placeholder="your-school"
+                placeholder="your-organization"
                 autoComplete="off"
               />
             </Field>
@@ -353,7 +353,7 @@ function PublicBookingCard() {
               label="Websites that may embed"
               htmlFor="public-booking-embed-hosts"
               docs="public-booking-embed-hosts"
-              hint="One host per line, like www.yourschool.com. If both www and the bare domain serve your site, list both. Leave empty to keep the share link only. AerScheduler can still open the page in its own tab."
+              hint="One host per line, like www.yoursite.com. If both www and the bare domain serve your site, list both. Leave empty to keep the share link only. AerScheduler can still open the page in its own tab."
             >
               <Textarea
                 id="public-booking-embed-hosts"
@@ -390,7 +390,7 @@ function PublicBookingCard() {
                     embedDirtyRef.current = false;
                   });
                 }}
-                placeholder={"www.yourschool.com"}
+                placeholder={"www.yoursite.com"}
                 autoComplete="off"
               />
             </Field>

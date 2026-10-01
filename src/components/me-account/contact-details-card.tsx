@@ -123,7 +123,7 @@ export function ContactDetailsCard() {
           <div>
             <CardTitle>Contact details</CardTitle>
             <CardDescription>
-              How your school reaches you. Staff can see these; other members can&apos;t.
+              How your organization reaches you. Staff can see these; other members can&apos;t.
             </CardDescription>
           </div>
         </CardHeader>

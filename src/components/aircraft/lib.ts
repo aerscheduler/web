@@ -1,4 +1,5 @@
-import type { Plane } from "@/types/api";
+import type { Plane, WorkOrderStatus } from "@/types/api";
+import { IN_SHOP_STATUSES } from "@/lib/work-orders";
 
 /** Status chip descriptor for a plane, grounded > in-flight > available.
  *  NOTE: `Plane.rampedIn` is inverted vs. its name, `rampedIn === true` means the
@@ -9,16 +10,29 @@ export function planeStatus(
   p: Plane,
   /**
    * Whose aeroplane this is. A customer's is never "Available": available to whom, on an
-   * aircraft nobody at this school can book? It says "In the shop", which is both what it
-   * is and what a mechanic wants the chip to say.
+   * aircraft nobody at this school can book?
    */
-  use?: "fleet" | "shop"
+  use?: "fleet" | "shop",
+  /**
+   * A customer's aircraft's current job, which is what decides whether it is actually here.
+   * It used to read "In the shop" from the day it was added, forever. `undefined` means the
+   * jobs are not loaded (or the viewer cannot see them), and the chip says only what it is.
+   */
+  job?: { status: WorkOrderStatus } | null
 ): {
   label: string;
-  variant: "success" | "warning" | "danger";
+  variant: "success" | "warning" | "danger" | "default" | "outline";
 } {
   if (p.grounded) return { label: "Grounded", variant: "danger" };
-  if (use === "shop") return { label: "In the shop", variant: "warning" };
+  if (use === "shop") {
+    // Tinted, not grey: the card draws the chip over a grey photo placeholder, where a grey
+    // chip reads as loose text.
+    if (job === undefined) return { label: "Customer aircraft", variant: "outline" };
+    if (job === null) return { label: "Not in the shop", variant: "outline" };
+    return IN_SHOP_STATUSES.includes(job.status)
+      ? { label: "In the shop", variant: "warning" }
+      : { label: "Expected in", variant: "default" };
+  }
   if (p.rampedIn === false) return { label: "In flight", variant: "warning" };
   return { label: "Available", variant: "success" };
 }

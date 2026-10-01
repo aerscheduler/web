@@ -88,7 +88,7 @@ function Book() {
               body={
                 staffOnly
                   ? "Booking yourself puts you in the seat, which needs a flying role. Add renter, student or instructor to your own account, then book here. Until then you can book other people from the schedule board."
-                  : "Your account doesn't have a role that can book. Ask your school to add one so you can book yourself."
+                  : "Your account doesn't have a role that can book. Ask your organization to add one so you can book yourself."
               }
               docs="what-you-can-book"
               action={
@@ -124,7 +124,7 @@ function Book() {
               body={
                 admin
                   ? "Nothing is bookable until a tail is on the fleet. Add one, then come back here."
-                  : "Nothing is bookable until your school adds an aircraft."
+                  : "Nothing is bookable until your organization adds an aircraft."
               }
               docs="add-an-aircraft"
               action={

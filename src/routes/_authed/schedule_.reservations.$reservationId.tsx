@@ -206,7 +206,6 @@ function ReservationBody({ reservation: r }: { reservation: Reservation }) {
               {canCancel && (
                 <Button
                   variant="outline"
-                  className="text-destructive hover:text-destructive"
                   onClick={() => void actions.cancelReservation(r)}
                 >
                   <Ban className="size-4" /> Cancel reservation

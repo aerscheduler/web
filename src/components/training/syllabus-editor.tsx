@@ -90,7 +90,6 @@ export function SyllabusEditor({ version }: { version: CourseVersion }) {
               <Button
                 size="sm"
                 variant="ghost"
-                className="text-destructive hover:text-destructive"
                 disabled={deleteStage.isPending}
                 onClick={() => {
                   if (
@@ -210,7 +209,6 @@ function EditableLessonRow({
         <Button
           size="sm"
           variant="ghost"
-          className="text-destructive hover:text-destructive"
           onClick={onDelete}
         >
           <Trash2 className="size-3.5" />
@@ -329,7 +327,7 @@ function StageDialog({
           </div>
           <div className="space-y-1">
             <Label htmlFor="stage-obj">Objective</Label>
-            <Textarea id="stage-obj" rows={2} value={objective} onChange={(e) => setObjective(e.target.value)} />
+            <Textarea placeholder="What the student can do by the end of this stage" id="stage-obj" rows={2} value={objective} onChange={(e) => setObjective(e.target.value)} />
           </div>
           <label className="flex items-center gap-2 text-sm">
             <Checkbox checked={check} onCheckedChange={(v) => setCheck(!!v)} />
@@ -468,7 +466,7 @@ function LessonDialog({
 
           <div className="space-y-1">
             <Label htmlFor="lesson-obj">Objectives</Label>
-            <Textarea id="lesson-obj" rows={2} value={objectives} onChange={(e) => setObjectives(e.target.value)} />
+            <Textarea placeholder="What this lesson covers" id="lesson-obj" rows={2} value={objectives} onChange={(e) => setObjectives(e.target.value)} />
           </div>
           <div className="space-y-1">
             <Label htmlFor="lesson-std">Completion standards</Label>
@@ -628,7 +626,6 @@ function TasksDialog({
               <Button
                 size="sm"
                 variant="ghost"
-                className="text-destructive hover:text-destructive"
                 onClick={() => setRows((r) => r.filter((_, j) => j !== i))}
               >
                 <Trash2 className="size-3.5" />
@@ -687,7 +684,7 @@ export function RequirementsEditor({ version }: { version: CourseVersion }) {
                   {r.minDeciHours != null ? `${deciHours(r.minDeciHours)} hrs` : `${r.minCount ?? "–"}`}
                 </div>
                 <Badge variant={r.source === "school" ? "outline" : "secondary"}>
-                  {r.source === "school" ? "School" : PART_LABEL[r.source as "part61" | "part141"]}
+                  {r.source === "school" ? "Organization" : PART_LABEL[r.source as "part61" | "part141"]}
                 </Badge>
                 <Button size="sm" variant="ghost" onClick={() => setDialog({ requirement: r })}>
                   <Pencil className="size-3.5" />
@@ -695,7 +692,6 @@ export function RequirementsEditor({ version }: { version: CourseVersion }) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="text-destructive hover:text-destructive"
                   onClick={() =>
                     remove.mutate(
                       { versionId: version.id, requirementId: r.id },
@@ -766,7 +762,6 @@ function GradingScaleCard({ version }: { version: CourseVersion }) {
             <Button
               size="sm"
               variant="ghost"
-              className="text-destructive hover:text-destructive"
               onClick={() => {
                 setDirty(true);
                 setRows((r) => r.filter((_, j) => j !== i));
@@ -948,7 +943,7 @@ function RequirementDialog({
             </div>
             <div className="space-y-1">
               <Label htmlFor="req-amount">{measure === "hours" ? "Hours needed" : "How many"}</Label>
-              <Input id="req-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
+              <Input placeholder="10" id="req-amount" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
           </div>
 

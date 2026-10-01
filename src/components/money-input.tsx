@@ -13,6 +13,7 @@ export function MoneyInput({
   id,
   placeholder = "0.00",
   disabled,
+  onClear,
 }: {
   cents: number | undefined;
   onCentsChange: (cents: number) => void;
@@ -20,12 +21,21 @@ export function MoneyInput({
   id?: string;
   placeholder?: string;
   disabled?: boolean;
+  /**
+   * Called when the field is emptied. Without it an empty field reports 0, right for a price;
+   * wrong where empty means "none" (no labor rate, no spend limit), which then saved as $0.00.
+   */
+  onClear?: () => void;
 }) {
   const [text, setText] = React.useState(cents != null ? (cents / 100).toFixed(2) : "");
 
-  // Keep the field in sync when the value is reset externally (e.g. form reset).
+  // Keep the field in sync when the value is reset externally (e.g. form reset). A change the
+  // typing itself caused (an empty field's first digit turns undefined into a number) is left
+  // alone: rewriting "4" as "4.00" put the caret after the decimals, so typing 450 saved $4.01.
   React.useEffect(() => {
-    setText(cents != null ? (cents / 100).toFixed(2) : "");
+    setText((t) =>
+      cents != null && t !== "" && Math.round(parseFloat(t) * 100) === cents ? t : cents != null ? (cents / 100).toFixed(2) : ""
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cents === undefined]);
 
@@ -59,6 +69,7 @@ export function MoneyInput({
           setText(raw);
           const dollars = parseFloat(raw);
           if (!Number.isNaN(dollars)) onCentsChange(Math.round(dollars * 100));
+          else if (raw === "" && onClear) onClear();
           else onCentsChange(0);
         }}
         onBlur={() => {

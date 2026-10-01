@@ -58,7 +58,8 @@ function MyDayPage() {
   const endISO = endOfDay(addDays(now, HORIZON_DAYS)).toISOString();
 
   const reservationsQ = useUserReservations(userId, startISO, endISO);
-  const invoicesQ = useMemberInvoices(orgUserId, { paid: false });
+  // Voided bills are not owed: the unpaid list includes them unless told otherwise.
+  const invoicesQ = useMemberInvoices(orgUserId, { paid: false, voided: false });
   const billingQ = useMyBillingSettings();
   const currenciesQ = useMyCurrencies();
   const announcementsQ = useAnnouncements();
@@ -92,7 +93,7 @@ function MyDayPage() {
           <EmptyState
             icon={UserRound}
             title="You're not in an organization yet"
-            body="Accept an invite or ask your school's admin to add you, and your schedule, invoices and currencies will show up here."
+            body="Accept an invite or ask your organization's admin to add you, and your schedule, invoices and currencies will show up here."
             docs="join-a-school"
           />
         </Card>
@@ -143,7 +144,9 @@ function MyDayPage() {
           loading={reservationsQ.isLoading}
           to="/me/schedule"
         />
-        {ledgerOn ? (
+        {/* An unpaid bill comes first, account or not: a shop work order is billed outside the
+            account, and a card reading "Credit on account" while it sat unpaid hid it. */}
+        {ledgerOn && (invoicesQ.data?.length ?? 0) === 0 ? (
           <StatCard
             label="Account balance"
             value={formatMoney(accountBalance)}
@@ -160,14 +163,23 @@ function MyDayPage() {
         ) : (
           <StatCard
             label="Outstanding balance"
-            value={formatMoney(outstanding)}
+            // Everything owed: the unpaid bills, and at an account school what the account owes
+            // too, so the headline is never less than the member owes.
+            value={formatMoney(outstanding + (ledgerOn && accountBalance < 0 ? -accountBalance : 0))}
             hint={`${invoicesQ.data?.length ?? 0} unpaid ${
               (invoicesQ.data?.length ?? 0) === 1 ? "invoice" : "invoices"
+            }${
+              ledgerOn && accountBalance !== 0
+                ? accountBalance > 0
+                  ? ` · ${formatMoney(accountBalance)} on account`
+                  : ` + ${formatMoney(-accountBalance)} owed on account`
+                : ""
             }`}
             icon={Receipt}
-            accent={outstanding > 0 ? "warning" : "success"}
+            accent={outstanding > 0 || (ledgerOn && accountBalance < 0) ? "warning" : "success"}
             loading={invoicesQ.isLoading}
             to="/me/invoices"
+            search={ledgerOn ? { tab: "invoices" } : undefined}
           />
         )}
         <StatCard

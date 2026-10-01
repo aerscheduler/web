@@ -106,7 +106,7 @@ export function AdminAssignPairDialog({
             onChange={setInstructorRoleId}
             placeholder="Select instructor…"
             searchPlaceholder="Search instructors…"
-            emptyText="No instructors in this school yet."
+            emptyText="No instructors in this organization yet."
             disabled={assign.isPending}
           />
         </div>
@@ -118,7 +118,7 @@ export function AdminAssignPairDialog({
             onChange={setStudentRoleId}
             placeholder="Select student…"
             searchPlaceholder="Search students…"
-            emptyText="No students in this school yet."
+            emptyText="No students in this organization yet."
             disabled={assign.isPending}
           />
         </div>

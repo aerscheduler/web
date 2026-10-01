@@ -54,7 +54,7 @@ const MODES: { value: AdTrackingMode; label: string; blurb: string; detail: stri
     label: "Watch for new ones",
     blurb: "Not available yet. Keep watching for new ADs the way you do now.",
     detail:
-      "This is not built. When it is, it will read newly published Airworthiness Directives and flag the ones naming your make, model or serial, and somebody at your school will decide for each one whether it applies. Until then nothing here watches for new directives, so whatever you use today to find out about them, keep using it.",
+      "This is not built. When it is, it will read newly published Airworthiness Directives and flag the ones naming your make, model or serial, and somebody at your organization will decide for each one whether it applies. Until then nothing here watches for new directives, so whatever you use today to find out about them, keep using it.",
   },
   {
     value: "external",

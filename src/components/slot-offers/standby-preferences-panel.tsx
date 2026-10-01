@@ -129,7 +129,7 @@ export function StandbyPreferencesPanel() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="shrink-0 text-muted-foreground hover:text-destructive"
+                      className="shrink-0 text-muted-foreground"
                       disabled={withdraw.isPending}
                       onClick={() => void leave(interest)}
                     >

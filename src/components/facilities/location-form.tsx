@@ -26,7 +26,7 @@ function zoneOptions(orgZone: string | null): ComboOption[] {
   return timeZoneOptions([
     {
       value: INHERIT_ZONE,
-      label: orgZone ? `Same as the school (${describeZone(orgZone)})` : "Same as the school",
+      label: orgZone ? `Same as the organization (${describeZone(orgZone)})` : "Same as the organization",
     },
   ]);
 }
@@ -405,7 +405,7 @@ export function LocationFormModal({
               zoneTouched.current = true;
               set("timeZone", v);
             }}
-            placeholder="Same as the school"
+            placeholder="Same as the organization"
             searchPlaceholder="Search time zones…"
             emptyText="No matching zone."
           />

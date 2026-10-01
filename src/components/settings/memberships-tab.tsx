@@ -394,7 +394,7 @@ function PlanEditor({ plan, onClose }: { plan: MembershipPlan | null; onClose: (
                     1 to 28, so every month has one.
                   </p>
                 </div>
-                <Input
+                <Input placeholder="1"
                   id="plan-billing-day"
                   className="w-20"
                   inputMode="numeric"

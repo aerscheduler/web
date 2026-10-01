@@ -193,7 +193,7 @@ export function MyTimeZoneCard() {
 
         {travelling && orgZone && (
           <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-            You&apos;re currently {zoneAbbreviation(new Date(), effective)}, and your school
+            You&apos;re currently {zoneAbbreviation(new Date(), effective)}, and your organization
             flies {zoneAbbreviation(new Date(), orgZone)}. Times on the schedule are labelled
             so you can tell them apart.
           </p>

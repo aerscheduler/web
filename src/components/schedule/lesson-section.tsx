@@ -426,7 +426,7 @@ function LessonGrader({
         </div>
         <div className="space-y-1">
           <Label htmlFor={`flight-${enrollmentId}`}>Flight</Label>
-          <Input
+          <Input placeholder="1.5"
             id={`flight-${enrollmentId}`}
             inputMode="decimal"
             value={flight}
@@ -435,7 +435,7 @@ function LessonGrader({
         </div>
         <div className="space-y-1">
           <Label htmlFor={`ground-${enrollmentId}`}>Ground</Label>
-          <Input
+          <Input placeholder="0.5"
             id={`ground-${enrollmentId}`}
             inputMode="decimal"
             value={ground}

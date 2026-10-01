@@ -1,0 +1,570 @@
+import * as React from "react";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { Check, MoreHorizontal, Pencil, Phone, Plus, Receipt, ScanSearch, Trash2, UserRound } from "lucide-react";
+import {
+  useRecordOwnerAnswer,
+  useRemoveWorkOrderItem,
+  useRemoveWorkOrderLine,
+  useUpdateWorkOrderItem,
+  useWorkOrderItems,
+  useWorkOrderLines,
+  useWorkOrderSettings,
+} from "@/features/queries";
+import type { WorkOrder, WorkOrderItem, WorkOrderLine, WorkOrderLineCategory } from "@/types/api";
+import { useAuth } from "@/lib/auth";
+import { canManageBilling, canResolveSquawk } from "@/lib/permissions";
+import { formatDate, formatMoney } from "@/lib/utils";
+import { useConfirm } from "@/components/confirm-dialog";
+import { DocsHint } from "@/components/docs-hint";
+import { ErrorState } from "@/components/states";
+import { LIST_TAG_BUTTON_CLASS, LIST_TAG_CLASS, ListTable, ListTag, type ListTableColumn, type ListTableGroup, type ListTableRow } from "@/components/list-table";
+import { cn } from "@/lib/utils";
+import { STICKY_GROUP_CLASS, TALL_LIST_CLASS } from "@/components/combobox";
+import { WorkspaceUserAvatar } from "@/components/workspace-user-avatar";
+import { WorkStatusIcon, type WorkStatus } from "@/components/maintenance/work-status-icon";
+import { WorkOrderItemModal } from "@/components/maintenance/work-order-item-modal";
+import { RecordOwnerAnswerModal } from "@/components/maintenance/record-owner-answer-modal";
+import { SignOffLinked } from "@/components/maintenance/work-order-work";
+import { eachLabel, RaiseInvoiceModal } from "@/components/maintenance/work-order-lines";
+import { LINE_KIND_ICON, LINE_KINDS, WorkOrderLineModal } from "@/components/maintenance/work-order-line-modal";
+import { Button } from "@/components/ui/button";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+
+/**
+ * The work on a job and what it charges, in one list (Tony picked the layout, 2026-09-30): what
+ * the owner asked for and what the shop found, each item with the labor and parts done for it
+ * underneath, and every row sharing the Qty, Each and Total columns. It replaced two cards, "The
+ * work" and "Labor and parts", where a line said which item it was for in small print and the
+ * desk matched them by eye.
+ *
+ * The rules are the cards' rules, unchanged: anyone in the shop adds items and lines; a line is
+ * changed only by an admin or the person who entered it; signing off an attached inspection or
+ * resolving a squawk is an admin's or a technician's; raising the invoice is an admin's; an
+ * invoiced job's lines are frozen until the invoice is voided.
+ */
+
+const COLUMNS: ListTableColumn[] = [
+  { id: "who", header: "Who", width: "9rem" },
+  { id: "qty", header: "Qty", width: "4rem", align: "end" },
+  { id: "each", header: "Each", width: "6rem", align: "end" },
+  { id: "total", header: "Total", width: "6.5rem", align: "end", narrow: "keep" },
+];
+
+const KIND_ICON = LINE_KIND_ICON;
+
+const DECISION_TAG: Record<NonNullable<WorkOrderItem["decision"]>, { label: string; dot: string }> = {
+  approved: { label: "Approved", dot: "var(--primary)" },
+  declined: { label: "Declined", dot: "var(--muted-foreground)" },
+  deferred: { label: "Deferred", dot: "var(--muted-foreground)" },
+};
+
+/** Where an item stands, as the ring before it says. */
+function itemStatus(i: WorkOrderItem): WorkStatus {
+  if (i.done) return "done";
+  if (i.decision === "declined") return "declined";
+  if (i.decision === "deferred") return "deferred";
+  if (i.inspection || i.squawk) return "progress";
+  if (i.decision === "approved") return "approved";
+  if (i.source === "found") return "notAsked";
+  return "todo";
+}
+
+/** The small print under a line: how it was priced and what the shop knows about it. */
+function lineFacts(l: WorkOrderLine): string {
+  if (l.category === "labor") {
+    const atRate = l.minutes != null && l.rateCents != null && Math.round((l.minutes * l.rateCents) / 60) === l.unitPriceCents;
+    return [atRate ? null : "Flat price", l.workedOn ? formatDate(`${l.workedOn}T12:00:00`, "MMM d", "") : null].filter(Boolean).join(" · ");
+  }
+  const priced = l.costCents != null && l.markupBps != null ? `cost ${formatMoney(l.costCents)} + ${l.markupBps / 100}%` : null;
+  return [l.partNumber ? `P/N ${l.partNumber}` : null, l.serialNumber ? `S/N ${l.serialNumber}` : null, l.vendor, priced, l.partStatus].filter(Boolean).join(" · ");
+}
+
+export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
+  const itemsQ = useWorkOrderItems(w.id);
+  const linesQ = useWorkOrderLines(w.id);
+  const settingsQ = useWorkOrderSettings();
+  const items = React.useMemo(() => itemsQ.data ?? [], [itemsQ.data]);
+  const lines = React.useMemo(() => linesQ.data ?? [], [linesQ.data]);
+  const { roles, orgUserId } = useAuth();
+  const canInvoice = canManageBilling(roles);
+  // Signing off an inspection or resolving a squawk is an admin's or a technician's (the server's
+  // rule for both), so nobody is offered a button the server then refuses.
+  const maySignOff = canResolveSquawk(roles);
+  // An admin changes any line; anyone else only the lines they entered (the server's rule).
+  const mayChange = (l: WorkOrderLine) => canInvoice || (orgUserId != null && l.createdByOrgUserId === orgUserId);
+  const frozen = w.invoice != null;
+
+  const [addingItem, setAddingItem] = React.useState<WorkOrderItem["source"] | null>(null);
+  const [editingItem, setEditingItem] = React.useState<WorkOrderItem | null>(null);
+  const [answering, setAnswering] = React.useState(false);
+  const [signing, setSigning] = React.useState<WorkOrderItem | null>(null);
+  const [addingLine, setAddingLine] = React.useState<{ kind: WorkOrderLineCategory; itemId: number | null } | null>(null);
+  const [editingLine, setEditingLine] = React.useState<WorkOrderLine | null>(null);
+  const [raising, setRaising] = React.useState(false);
+  const updateItem = useUpdateWorkOrderItem();
+  const removeItem = useRemoveWorkOrderItem();
+  const removeLine = useRemoveWorkOrderLine();
+  const confirm = useConfirm();
+
+  const subtotal = lines.reduce((sum, l) => sum + l.totalCents, 0);
+  const waiting = items.filter((i) => i.source === "found" && !i.decision).length;
+
+  async function toggleDone(item: WorkOrderItem) {
+    try {
+      await updateItem.mutateAsync({ workOrderId: w.id, itemId: item.id, done: !item.done });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't change the item");
+    }
+  }
+
+  // The owner's answer for one item, picked from its tag (Linear's status menu). An answer is a
+  // record of a call, so it is recorded as one, from the person billed, now; it shows under
+  // Owner's answers like any other. "Record a call with notes" is there for the full story.
+  const recordAnswer = useRecordOwnerAnswer();
+  const qc = useQueryClient();
+  async function decide(item: WorkOrderItem, decision: NonNullable<WorkOrderItem["decision"]>) {
+    if (item.decision === decision) return;
+    const key = ["workOrders", "items", w.id];
+    const before = qc.getQueryData<WorkOrderItem[]>(key);
+    if (before) qc.setQueryData<WorkOrderItem[]>(key, before.map((i) => (i.id === item.id ? { ...i, decision } : i)));
+    try {
+      await recordAnswer.mutateAsync({ workOrderId: w.id, contactName: w.billTo?.name ?? "The owner", decisions: [{ itemId: item.id, decision }] });
+    } catch (e) {
+      if (before) qc.setQueryData(key, before);
+      toast.error(e instanceof Error ? e.message : "Couldn't record the answer");
+    }
+  }
+
+  async function dropItem(item: WorkOrderItem) {
+    const ok = await confirm({
+      title: "Remove this item?",
+      description: `"${item.description}" comes off ${w.label}. Its inspection or squawk is not touched, and its lines stay on the job.`,
+      confirmLabel: "Remove item",
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await removeItem.mutateAsync({ workOrderId: w.id, itemId: item.id });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't remove the item");
+    }
+  }
+
+  async function dropLine(l: WorkOrderLine) {
+    const ok = await confirm({ title: "Remove this line?", description: `"${l.description}" comes off ${w.label}.`, confirmLabel: "Remove line", destructive: true });
+    if (!ok) return;
+    try {
+      await removeLine.mutateAsync({ workOrderId: w.id, lineId: l.id });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't remove the line");
+    }
+  }
+
+  const lineRow = (l: WorkOrderLine): ListTableRow => {
+    const Icon = KIND_ICON[l.category];
+    const facts = lineFacts(l);
+    const editable = !frozen && mayChange(l);
+    return {
+      id: `line-${l.id}`,
+      label: l.description,
+      leading: <Icon className="size-3.5 text-muted-foreground" />,
+      title: l.description,
+      tags: (l.discountBps || !l.billable || l.taxable != null) && (
+        <>
+          {l.discountBps ? <ListTag>{l.discountBps / 100}% off</ListTag> : null}
+          {!l.billable && <ListTag>Not billed</ListTag>}
+          {l.taxable === true && <ListTag>Taxable</ListTag>}
+          {l.taxable === false && <ListTag>Not taxable</ListTag>}
+        </>
+      ),
+      subtitle: facts || undefined,
+      dim: !l.billable,
+      cells: {
+        who: l.technician ? <WorkspaceUserAvatar person={l.technician} showName nameClassName="text-muted-foreground" /> : null,
+        qty: l.category === "labor" ? l.hours : String(l.qty),
+        each: eachLabel(l),
+        total: l.billable ? <span className="font-medium text-foreground">{formatMoney(l.totalCents)}</span> : "–",
+      },
+      onOpen: editable ? () => setEditingLine(l) : undefined,
+      actions: editable ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-7" aria-label={`More for "${l.description}"`}>
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => setEditingLine(l)}>
+              <Pencil className="size-4" /> Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void dropLine(l)}>
+              <Trash2 className="size-4" /> Remove
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : undefined,
+    };
+  };
+
+  const itemIds = new Set(items.map((i) => i.id));
+  const itemRow = (item: WorkOrderItem): ListTableRow => {
+    const own = lines.filter((l) => l.itemId === item.id);
+    const charged = own.reduce((sum, l) => sum + l.totalCents, 0);
+    const linked = item.inspection ?? item.squawk;
+    const status = <WorkStatusIcon status={itemStatus(item)} />;
+    return {
+      id: `item-${item.id}`,
+      label: item.description,
+      emphasis: true,
+      span: true,
+      // A plain item is ticked done from its ring; one tied to an inspection or a squawk is done
+      // when that is signed off or resolved.
+      leading:
+        item.doneVia === "item" ? (
+          <button
+            type="button"
+            onClick={() => void toggleDone(item)}
+            className="grid place-items-center rounded-full hover:opacity-80"
+            aria-label={item.done ? `Mark "${item.description}" not done` : `Mark "${item.description}" done`}
+          >
+            {status}
+          </button>
+        ) : (
+          status
+        ),
+      title: item.description,
+      tags: (
+        <>
+          {(item.decision || item.source === "found") && (
+            <DecisionMenu item={item} onPick={(d) => void decide(item, d)} onFullCall={() => setAnswering(true)} />
+          )}
+          {item.inspection && <ListTag>{item.inspection.name ?? "Inspection"}</ListTag>}
+          {item.squawk && <ListTag>Squawk</ListTag>}
+          {linked && !item.done && maySignOff && (
+            <Button size="sm" variant="outline" className="h-6 px-2 text-[12px]" onClick={() => setSigning(item)}>
+              <Check className="size-3" /> {item.inspection ? "Sign off" : "Resolve"}
+            </Button>
+          )}
+        </>
+      ),
+      subtitle:
+        item.done && item.doneAt
+          ? `Done ${formatDate(item.doneAt, "MMM d", "")}${item.doneBy?.name ? ` by ${item.doneBy.name}` : ""}${
+              item.doneVia === "inspection" ? ", signed off" : item.doneVia === "squawk" ? ", squawk resolved" : ""
+            }`
+          : item.squawk
+            ? item.squawk.title
+            : undefined,
+      cells: {
+        total: own.length ? <span className="font-medium text-foreground">{formatMoney(charged)}</span> : <span className="text-muted-foreground">No charges</span>,
+      },
+      children: own.map(lineRow),
+      actions: (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="size-7" aria-label={`More for "${item.description}"`}>
+              <MoreHorizontal className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {!frozen && (
+              <>
+                <DropdownMenuItem onSelect={() => setAddingLine({ kind: "labor", itemId: item.id })}>
+                  <Plus className="size-4" /> Add labor or a part for it
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            {item.doneVia === "item" && (
+              <DropdownMenuItem onSelect={() => void toggleDone(item)}>
+                <Check className="size-4" /> {item.done ? "Mark not done" : "Mark done"}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onSelect={() => setEditingItem(item)}>
+              <Pencil className="size-4" /> Rename
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void dropItem(item)}>
+              <Trash2 className="size-4" /> Remove
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    };
+  };
+
+  const sum = (ls: WorkOrderLine[]) => ls.reduce((s, l) => s + l.totalCents, 0);
+  const requested = items.filter((i) => i.source === "requested");
+  const found = items.filter((i) => i.source === "found");
+  // A line for no item, or for an item since removed, still charges: it is listed on its own.
+  const loose = lines.filter((l) => l.itemId == null || !itemIds.has(l.itemId));
+  const groups: ListTableGroup[] = [
+    {
+      id: "requested",
+      label: "Requested by the owner",
+      count: requested.length,
+      summary: formatMoney(sum(lines.filter((l) => requested.some((i) => i.id === l.itemId)))),
+      rows: requested.map(itemRow),
+      onAdd: () => setAddingItem("requested"),
+      addLabel: "Add an owner's request",
+    },
+    {
+      id: "found",
+      label: "Found by the shop",
+      count: found.length,
+      summary: formatMoney(sum(lines.filter((l) => found.some((i) => i.id === l.itemId)))),
+      rows: found.map(itemRow),
+      onAdd: () => setAddingItem("found"),
+      addLabel: "Add a finding",
+    },
+    {
+      id: "loose",
+      label: "Not for a specific item",
+      count: loose.length,
+      summary: formatMoney(sum(loose)),
+      rows: loose.map(lineRow),
+      // Once invoiced the lines are frozen, so only work can still be added.
+      onAdd: frozen ? undefined : () => setAddingLine({ kind: "labor", itemId: null }),
+      addLabel: "Add a charge not for an item",
+    },
+  ];
+
+  // One Add menu, not four buttons (Tony, 2026-09-30): the work first, each with a plain name
+  // and what it means under it, then the kinds of charge. Recording the owner's answer sits by
+  // the count of findings waiting for it; raising the invoice sits by the total it bills.
+  const LINE_HINT: Partial<Record<WorkOrderLineCategory, string>> = {
+    labor: "Hours at the shop rate",
+    part: "Cost plus the markup",
+    outside_service: "Work sent out, cost plus the markup",
+  };
+  const toolbar = (
+    <>
+      <div className="min-w-0 flex-1 basis-48">
+        <div className="flex items-center gap-1 text-sm font-semibold">
+          Work and charges
+          <DocsHint topic="work-order-lines" />
+        </div>
+        <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">
+          <span className="truncate">
+            {frozen
+              ? "Invoiced: these are the bill's lines. Void the invoice to change them."
+              : waiting
+                ? `${waiting} finding${waiting === 1 ? "" : "s"} waiting for the owner's answer.`
+                : "What the owner asked for, what the shop found, and what each one charges."}
+          </span>
+          {items.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setAnswering(true)}
+              className="inline-flex shrink-0 items-center gap-1 font-medium text-foreground underline-offset-2 hover:underline"
+            >
+              <Phone className="size-3" /> Record owner's answer
+            </button>
+          )}
+        </p>
+      </div>
+      <AddMenu
+        frozen={frozen}
+        lineHint={LINE_HINT}
+        onItem={(source) => setAddingItem(source)}
+        onLine={(kind) => setAddingLine({ kind, itemId: null })}
+      />
+    </>
+  );
+  const mayRaise = canInvoice && !frozen && !!w.billTo && subtotal > 0 && w.status !== "cancelled";
+
+  const loading = itemsQ.isLoading || linesQ.isLoading;
+  const failed = itemsQ.isError ? itemsQ : linesQ.isError ? linesQ : null;
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
+      {loading ? (
+        <Skeleton className="h-40 w-full rounded-lg" />
+      ) : failed ? (
+        <div className="rounded-lg border border-border bg-card">
+          <ErrorState error={failed.error} onRetry={() => void failed.refetch()} />
+        </div>
+      ) : (
+        <ListTable
+          fill
+          label={`Work and charges on ${w.label}`}
+          docShot="work-order-work"
+          columns={COLUMNS}
+          groups={groups}
+          titleHeader="Item or line"
+          showHeader
+          toolbar={toolbar}
+          footer={
+            lines.length
+              ? {
+                  label: "Billed before tax and fees",
+                  value: formatMoney(subtotal),
+                  action: mayRaise ? (
+                    <Button size="sm" onClick={() => setRaising(true)}>
+                      <Receipt className="size-4" /> Raise invoice
+                    </Button>
+                  ) : undefined,
+                }
+              : undefined
+          }
+          empty={
+            <p className="px-4 py-6 text-[13px] text-muted-foreground">
+              Nothing on the job yet. Add what the owner asked for and anything you find, then the labor and parts as the work is done: the invoice is built from them.
+            </p>
+          }
+        />
+      )}
+
+      {/* The missing-setting rule: until a labor rate is set, only an admin can enter labor, so
+          the admin is told where to set it. */}
+      {canInvoice && !frozen && settingsQ.data && settingsQ.data.laborRateCents == null && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          Set a labor rate so technicians can log their hours.{" "}
+          <Link to="/settings" search={{ tab: "shop-rates" } as never} className="font-medium underline-offset-2 hover:underline">
+            Settings, Shop rates
+          </Link>
+        </div>
+      )}
+      {canInvoice && !frozen && w.status === "cancelled" && subtotal > 0 && (
+        <p className="text-xs text-muted-foreground">This job was cancelled. Reopen it to raise its invoice.</p>
+      )}
+      {canInvoice && !frozen && !w.billTo && subtotal > 0 && (
+        <p className="text-xs text-muted-foreground">Nobody is billed for this job. Edit the job and choose who pays to raise its invoice.</p>
+      )}
+      {canInvoice && !frozen && subtotal === 0 && lines.some((l) => l.billable && l.unitPriceCents * l.qty > 0) && (
+        <p className="text-xs text-muted-foreground">Every line is discounted to nothing, so there is no invoice to raise.</p>
+      )}
+
+      <WorkOrderItemModal workOrder={w} open={addingItem != null} onOpenChange={(o) => !o && setAddingItem(null)} defaultSource={addingItem ?? "requested"} />
+      <WorkOrderItemModal workOrder={w} open={editingItem != null} onOpenChange={(o) => !o && setEditingItem(null)} editing={editingItem} />
+      <RecordOwnerAnswerModal workOrder={w} items={items} open={answering} onOpenChange={setAnswering} />
+      <SignOffLinked workOrder={w} item={signing} onDone={() => setSigning(null)} />
+      <WorkOrderLineModal
+        workOrder={w}
+        open={addingLine != null}
+        onOpenChange={(o) => !o && setAddingLine(null)}
+        defaultKind={addingLine?.kind ?? "labor"}
+        defaultItemId={addingLine?.itemId ?? null}
+      />
+      <WorkOrderLineModal workOrder={w} open={editingLine != null} onOpenChange={(o) => !o && setEditingLine(null)} editing={editingLine} />
+      {canInvoice && <RaiseInvoiceModal workOrder={w} open={raising} onOpenChange={setRaising} />}
+    </div>
+  );
+}
+
+/** A menu choice with its plain name first and what it means under it, so the names scan. */
+function MenuChoice({ icon: Icon, title, hint }: { icon?: React.ComponentType<{ className?: string }>; title: string; hint?: string }) {
+  return (
+    <>
+      {Icon && <Icon className="size-4 text-muted-foreground" />}
+      <span className="shrink-0">{title}</span>
+      {hint && <span className="ml-auto truncate pl-3 text-xs text-muted-foreground">{hint}</span>}
+    </>
+  );
+}
+
+const DECISIONS: NonNullable<WorkOrderItem["decision"]>[] = ["approved", "declined", "deferred"];
+
+/** The owner's answer as a tag that opens to change it, like a status in Linear. */
+function DecisionMenu({
+  item,
+  onPick,
+  onFullCall,
+}: {
+  item: WorkOrderItem;
+  onPick: (d: NonNullable<WorkOrderItem["decision"]>) => void;
+  onFullCall: () => void;
+}) {
+  const tag = item.decision ? DECISION_TAG[item.decision] : { label: "Owner not asked yet", dot: "var(--warning)" };
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Owner's answer on "${item.description}": ${tag.label}`}
+          className={cn(LIST_TAG_CLASS, LIST_TAG_BUTTON_CLASS)}
+        >
+          <span className="size-1.5 rounded-full" style={{ background: tag.dot }} aria-hidden />
+          {tag.label}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuLabel className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">The owner said</DropdownMenuLabel>
+        {DECISIONS.map((d) => (
+          <DropdownMenuItem key={d} onSelect={() => onPick(d)}>
+            <span className="size-1.5 rounded-full" style={{ background: DECISION_TAG[d].dot }} aria-hidden />
+            <span className="flex-1">{DECISION_TAG[d].label}</span>
+            {item.decision === d && <Check className="size-3.5" />}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={onFullCall}>
+          <Phone className="size-4" /> Record a call with notes…
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/**
+ * What to add, as a searchable list like the console's other pickers (Tony, 2026-09-30): type
+ * "part" or "lab" and Enter. The work first, then the kinds of charge; a frozen (invoiced) job
+ * takes no new charges.
+ */
+function AddMenu({
+  frozen,
+  lineHint,
+  onItem,
+  onLine,
+}: {
+  frozen: boolean;
+  lineHint: Partial<Record<WorkOrderLineCategory, string>>;
+  onItem: (source: WorkOrderItem["source"]) => void;
+  onLine: (kind: WorkOrderLineCategory) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const pick = (fn: () => void) => {
+    setOpen(false);
+    fn();
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button size="sm" variant="outline">
+          <Plus className="size-4" /> Add
+        </Button>
+      </PopoverTrigger>
+      {/* Read like the shared Combobox (Tony, 2026-09-30): one row each, an icon, the name, what
+          it means beside it, headings pinned as the list scrolls, taller on a taller screen. */}
+      <PopoverContent align="end" className="w-[22rem] max-w-[calc(100vw-2rem)] p-0">
+        <Command>
+          <CommandInput placeholder="Add a finding, labor, a part…" />
+          <CommandList className={TALL_LIST_CLASS}>
+            <CommandEmpty>Nothing called that.</CommandEmpty>
+            <CommandGroup heading="Work" className={STICKY_GROUP_CLASS}>
+              <CommandItem value="owner's request something the owner asked for requested" onSelect={() => pick(() => onItem("requested"))}>
+                <MenuChoice icon={UserRound} title="Owner's request" hint="Something the owner asked for" />
+              </CommandItem>
+              <CommandItem value="finding something the shop found found" onSelect={() => pick(() => onItem("found"))}>
+                <MenuChoice icon={ScanSearch} title="Finding" hint="Something the shop found" />
+              </CommandItem>
+            </CommandGroup>
+            {!frozen && (
+              <CommandGroup heading="Charges" className={STICKY_GROUP_CLASS}>
+                {LINE_KINDS.map((k) => (
+                  <CommandItem key={k.value} value={`${k.label} ${lineHint[k.value] ?? ""} ${k.value}`} onSelect={() => pick(() => onLine(k.value))}>
+                    <MenuChoice icon={LINE_KIND_ICON[k.value]} title={k.label} hint={lineHint[k.value]} />
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}

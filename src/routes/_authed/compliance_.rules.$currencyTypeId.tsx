@@ -97,7 +97,7 @@ function CurrencyRuleDetailPage() {
       <RecordNotFound
         icon={ShieldCheck}
         title="Currency rule not found"
-        body="This rule may have been removed, or it belongs to another school."
+        body="This rule may have been removed, or it belongs to another organization."
         backTo="/compliance"
         backLabel="Back to Go / No-Go"
       />

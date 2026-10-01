@@ -44,7 +44,7 @@ function parseOneEmbedHost(raw: string): { origin: string } | { error: string } 
     return { error: `Each website must be on its own line (${trimmed}).` };
   }
   if (trimmed.includes("*")) {
-    return { error: "Wildcards are not allowed. Use the exact host, like www.yourschool.com." };
+    return { error: "Wildcards are not allowed. Use the exact host, like www.yoursite.com." };
   }
   if (trimmed.startsWith("//")) {
     return { error: `"${trimmed}" is not a website host.` };
@@ -104,7 +104,7 @@ function parseOneEmbedHost(raw: string): { origin: string } | { error: string } 
     return { error: "Do not include a username or password in the website." };
   }
   if ((url.pathname && url.pathname !== "/") || url.search || url.hash) {
-    return { error: "Use the site host only, like www.yourschool.com, not a full page URL." };
+    return { error: "Use the site host only, like www.yoursite.com, not a full page URL." };
   }
   if (!local && url.protocol !== "https:") {
     return { error: "Public websites must use https." };

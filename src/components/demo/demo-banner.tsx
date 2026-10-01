@@ -98,7 +98,7 @@ export function DemoBanner() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>View the school as…</DropdownMenuLabel>
+            <DropdownMenuLabel>View the organization as…</DropdownMenuLabel>
             <DropdownMenuSeparator />
             {demo.identities.map((identity) => (
               <DropdownMenuItem

@@ -1292,9 +1292,9 @@ function DetailsStep({
     if (name.trim().length < 2) return setError("Enter your name.");
     if (!email.trim()) return setError("Enter your email.");
     if (!/^\d{7,15}$/.test(phone.replace(/\D/g, ""))) {
-      return setError("Enter a phone number so the school can call you.");
+      return setError("Enter a phone number so the organization can call you.");
     }
-    if (!consent) return setError("Please confirm you want the school to review this request.");
+    if (!consent) return setError("Please confirm you want the organization to review this request.");
     if (page.offering.allowResourceChoice && !(typeof slot.resourceId === "number" && slot.resourceId > 0)) {
       return setError("Choose an aircraft.");
     }
@@ -1360,7 +1360,7 @@ function DetailsStep({
         />
         <div className="space-y-1.5">
           <Label htmlFor="guest-name">Name</Label>
-          <Input
+          <Input placeholder="Your name"
             id="guest-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -1371,7 +1371,7 @@ function DetailsStep({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="guest-email">Email</Label>
-          <Input
+          <Input placeholder="you@example.com"
             id="guest-email"
             type="email"
             value={email}
@@ -1383,7 +1383,7 @@ function DetailsStep({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="guest-phone">Phone</Label>
-          <Input
+          <Input placeholder="(208) 555-0142"
             id="guest-phone"
             type="tel"
             value={phone}
@@ -1401,7 +1401,7 @@ function DetailsStep({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            placeholder="What you would like to fly, or any questions for the school."
+            placeholder="What you would like to fly, or any questions for the organization."
           />
         </div>
         <label className="flex items-start gap-3 text-sm leading-snug">
@@ -1412,7 +1412,7 @@ function DetailsStep({
             {page.offering.allowResourceChoice
               ? " The aircraft I pick is held until they approve, decline, or the request expires."
               : " The aircraft is not held until they approve."}{" "}
-            I agree that the school may use my name, email, and phone to contact me about this
+            I agree that the organization may use my name, email, and phone to contact me about this
             request, under{" "}
             <a
               href={page.organization.privacyUrl || "https://www.aerscheduler.com/privacy"}

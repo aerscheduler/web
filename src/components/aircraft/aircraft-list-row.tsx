@@ -7,7 +7,7 @@ import {
   TowerControl,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import type { Resource } from "@/types/api";
+import type { Resource, WorkOrder } from "@/types/api";
 import type { AircraftActions } from "@/components/aircraft/aircraft-card";
 import { planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
 import { Badge } from "@/components/ui/badge";
@@ -27,15 +27,18 @@ import { formatMoney } from "@/lib/utils";
 export function AircraftListRow({
   r,
   actions,
+  job,
 }: {
   r: Resource;
   actions: AircraftActions;
+  /** A customer's aircraft's current job, when the viewer can see jobs. See `planeStatus`. */
+  job?: WorkOrder | null;
 }) {
   const { roles } = useAuth();
   const p = r.type?.plane;
   if (!p) return null;
 
-  const status = planeStatus(p, r.use);
+  const status = planeStatus(p, r.use, job);
   const rate = planeRate(p);
   //Nothing meters a glider, and nobody rents a customer's aeroplane. Both mean there is no
   //hourly price to print. The card learned this first; the row is the copy that was missed.

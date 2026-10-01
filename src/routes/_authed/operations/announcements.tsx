@@ -89,7 +89,7 @@ function AnnouncementsPage() {
           title="Announcements"
           subtitle={
             <span className="inline-flex items-center gap-1.5">
-              Notices posted to the school.
+              Notices posted to the organization.
               <DocsHint topic="hide-announcement" />
             </span>
           }
@@ -264,7 +264,6 @@ function AnnouncementCard({
                   <Pencil className="size-4" /> Edit
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
                   onClick={() => void onDelete()}
                   disabled={remove.isPending}
                 >

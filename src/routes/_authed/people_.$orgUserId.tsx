@@ -17,7 +17,8 @@ import { rolesOf, type OrganizationUser } from "@/types/api";
 import { useMember, useOrgLedgerSettings, useOwnedAircraft } from "@/features/queries";
 import { PersonApprovedAircraft } from "@/components/people/detail/person-approved-aircraft";
 import { useAuth } from "@/lib/auth";
-import { canSeeShop, personViewAccess, type PersonViewAccess } from "@/lib/permissions";
+import { canSeeShop, isAdmin, personViewAccess, type PersonViewAccess } from "@/lib/permissions";
+import { TaxExemptionCard } from "@/components/people/detail/tax-exemption-card";
 import { PersonPermissions } from "@/components/people/detail/person-permissions";
 import { cn, formatDate, initials } from "@/lib/utils";
 import { formatPhone } from "@/lib/phone";
@@ -50,6 +51,7 @@ import { EndorsementsCard } from "@/components/training/endorsements-card";
 import { PersonContact } from "@/components/people/detail/person-contact";
 import { PersonFlights } from "@/components/people/detail/person-flights";
 import { PersonInvoices } from "@/components/people/detail/person-invoices";
+import { PersonWorkOrders } from "@/components/people/detail/person-work-orders";
 import { PersonLedger } from "@/components/people/detail/person-ledger";
 import { PersonMembership } from "@/components/people/detail/person-membership";
 import {
@@ -239,6 +241,7 @@ function PersonBody({
 }) {
   const navigate = useNavigate();
   const routeNavigate = Route.useNavigate();
+  const { roles } = useAuth();
   const { tab } = Route.useSearch();
   const { range, setRange, window } = useDetailRange(90);
   const [editingRoles, setEditingRoles] = useState<OrganizationUser | null>(null);
@@ -373,7 +376,10 @@ function PersonBody({
           )}
         >
           {active === "overview" && outsideParty && (
-            <OwnerOverview ou={ou} email={email ?? null} phone={phone} />
+            <>
+              <OwnerOverview ou={ou} email={email ?? null} phone={phone} />
+              <PersonWorkOrders orgUserId={ou.id} />
+            </>
           )}
 
           {active === "overview" && !outsideParty && (
@@ -397,8 +403,14 @@ function PersonBody({
                   instructor-of-that-student rule can't be evaluated client-side, so
                   the payload IS the permission answer. See PersonContact. */}
               <PersonContact ou={ou} isSelf={isSelf} />
+              {/* A member who owns an aircraft is billed for shop work too. */}
+              <PersonWorkOrders orgUserId={ou.id} onlyIfAny />
             </>
           )}
+
+          {/* Admin-only on the server too. Not for the person themselves: whether a
+              customer is exempt is the school's decision, backed by a certificate it holds. */}
+          {active === "overview" && isAdmin(roles) && <TaxExemptionCard orgUserId={ou.id} />}
 
           {active === "activity" && (access.metrics || access.flights) && (
             <>

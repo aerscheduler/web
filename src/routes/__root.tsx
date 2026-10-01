@@ -42,7 +42,7 @@ const TITLES: Array<[string, string]> = [
   ["/settings/integrations/quickbooks", "QuickBooks"],
   ["/settings", "Settings"],
   ["/onboarding", "Get started"],
-  ["/join", "Join a school"],
+  ["/join", "Join an organization"],
   ["/book/confirm", "Confirm request"],
   ["/book", "Request a flight"],
   ["/demo", "Demo"],

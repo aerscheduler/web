@@ -1,29 +1,26 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  addDays,
-  endOfDay,
-  endOfWeek,
-  format,
-  isToday,
-  isTomorrow,
-  parseISO,
-  startOfDay,
-  startOfWeek,
-} from "date-fns";
+import { addDays, endOfDay, endOfWeek, startOfDay, startOfWeek } from "date-fns";
 import { CalendarClock, CalendarPlus, UserRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { bookActionLabel, bookingNouns } from "@/lib/permissions";
 import { useLocations, useResources, useUserReservations } from "@/features/queries";
-import type { Reservation } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
-import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RAIL_ROW, SectionRail } from "@/components/section-rail";
-import { cn } from "@/lib/utils";
+import type { ListTableSort } from "@/components/list-table";
+import { usePersistedState } from "@/hooks/use-persisted-state";
+import {
+  ReservationListSkeleton,
+  ReservationListTable,
+  asGroupBy,
+  useReservationGroups,
+  type ReservationGroupBy,
+} from "@/components/schedule/reservation-list-table";
 import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-query-state";
 import {
   ME_SCHEDULE_TAB_VALUES,
@@ -31,7 +28,6 @@ import {
   type MeScheduleTab,
 } from "@/lib/me-schedule-sections";
 import { orgSlotOffersEnabled } from "@/lib/slot-offers-enabled";
-import { ReservationCard } from "@/components/me/reservation-card";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
 import { CancelReservationDialog } from "@/components/schedule/cancel-reservation-dialog";
 import { ReservationForm } from "@/components/schedule/reservation-form";
@@ -41,7 +37,8 @@ import { FirstDibsCallout } from "@/components/slot-offers/quick-standby";
 import { MyBookingRequestsPanel } from "@/components/booking-requests/my-booking-requests-panel";
 import { resourceLabel } from "@/types/api";
 
-export const FACET_KEYS = ["resourceId", "locationId"] as const;
+/** `when` is the date window: the three ranges that used to be buttons above the list. */
+export const FACET_KEYS = ["when", "resourceId", "locationId"] as const;
 
 export const Route = createFileRoute("/_authed/me/schedule")({
   /** `reservation` = which booking the detail panel shows. Outside the facet list
@@ -68,11 +65,17 @@ export const Route = createFileRoute("/_authed/me/schedule")({
 
 type Range = "upcoming" | "week" | "past";
 
+// The first is the default: a required facet shows no chip while it holds the first option.
 const RANGES: { value: Range; label: string }[] = [
   { value: "upcoming", label: "Upcoming 30 days" },
   { value: "week", label: "This week" },
   { value: "past", label: "Past 30 days" },
 ];
+
+function asRange(v: unknown): Range {
+  return RANGES.some((r) => r.value === v) ? (v as Range) : "upcoming";
+}
+
 
 function rangeBounds(range: Range, now: Date): [string, string] {
   switch (range) {
@@ -86,11 +89,6 @@ function rangeBounds(range: Range, now: Date): [string, string] {
   }
 }
 
-function dayHeading(d: Date): string {
-  if (isToday(d)) return "Today";
-  if (isTomorrow(d)) return "Tomorrow";
-  return format(d, "EEEE, MMMM d");
-}
 
 function MySchedulePage() {
   const { organization, userId, roles } = useAuth();
@@ -118,6 +116,7 @@ function MySchedulePage() {
     search: listSearch,
     navigate: navigateSearch,
     facetKeys: [...FACET_KEYS],
+    defaults: { when: "upcoming" },
   });
 
   // `replace`, so ↑/↓ doesn't stack one history entry per booking.
@@ -131,7 +130,10 @@ function MySchedulePage() {
     },
     [navigateSearch]
   );
-  const [range, setRange] = React.useState<Range>("upcoming");
+  const range = asRange(facets.when);
+  const [groupByRaw, setGroupBy] = usePersistedState<ReservationGroupBy>("view:me-schedule-group", "date");
+  const groupBy = asGroupBy(groupByRaw);
+  const [sort, setSort] = React.useState<ListTableSort | null>(null);
 
   const now = React.useMemo(() => new Date(), []);
   const [startISO, endISO] = rangeBounds(range, now);
@@ -147,13 +149,25 @@ function MySchedulePage() {
     locationId: locationIds,
   });
 
-  const reservations = q.data ?? [];
+  const reservations = React.useMemo(() => q.data ?? [], [q.data]);
   const filtersActive =
     !!debouncedQ || (resourceIds?.length ?? 0) > 0 || (locationIds?.length ?? 0) > 0;
-  const groups = React.useMemo(() => groupByDay(reservations), [reservations]);
+  // The window filters what is fetched; only the other filters count as "nothing matches".
+  const { groups: days, ordered } = useReservationGroups(reservations, {
+    groupBy,
+    sort,
+    newestFirst: range === "past",
+  });
 
   const facetDefs = React.useMemo<FacetDef[]>(
     () => [
+      {
+        kind: "select",
+        key: "when",
+        label: "When",
+        required: true,
+        options: RANGES.map((r) => ({ value: r.value, label: r.label })),
+      },
       {
         kind: "select",
         key: "resourceId",
@@ -194,7 +208,7 @@ function MySchedulePage() {
     cancelDialog,
     selectedId,
     step,
-  } = useReservationDetail(reservations, {
+  } = useReservationDetail(ordered, {
     selectedId: openReservationId ?? null,
     setSelectedId: setOpenReservationId,
   });
@@ -230,7 +244,7 @@ function MySchedulePage() {
           <EmptyState
             icon={UserRound}
             title="You're not in an organization yet"
-            body="Accept an invite or ask your school's admin to add you, and your schedule will show up here."
+            body="Accept an invite or ask your organization's admin to add you, and your schedule will show up here."
             docs="join-a-school"
           />
         </Card>
@@ -274,28 +288,6 @@ function MySchedulePage() {
           ) : (
             <>
               <FirstDibsCallout />
-              <div
-                role="group"
-                aria-label="Schedule range"
-                className="inline-flex rounded-lg border border-border bg-card p-1"
-              >
-                {RANGES.map((r) => (
-                  <button
-                    key={r.value}
-                    type="button"
-                    aria-pressed={range === r.value}
-                    onClick={() => setRange(r.value)}
-                    className={cn(
-                      "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
-                      range === r.value
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
               <ListSearchBar
                 value={search}
                 onChange={setSearch}
@@ -307,14 +299,12 @@ function MySchedulePage() {
               />
 
               {q.isPending ? (
-                <Card className="flex flex-col min-h-0 flex-1 overflow-hidden p-0">
-                  <CalendarGridSkeleton />
-                </Card>
+                <ReservationListSkeleton groupBy={groupBy} hideColumns={["billing"]} className="min-h-0 flex-1" />
               ) : q.isError ? (
                 <Card className="flex flex-col min-h-0 flex-1 p-0">
                   <ErrorState error={q.error} onRetry={() => q.refetch()} />
                 </Card>
-              ) : groups.length === 0 && !filtersActive ? (
+              ) : days.length === 0 && !filtersActive && range === "upcoming" ? (
                 <Card className="flex flex-col min-h-0 flex-1 p-0">
                   <EmptyState
                     graphic="my-schedule"
@@ -330,37 +320,34 @@ function MySchedulePage() {
                     }
                   />
                 </Card>
-              ) : groups.length === 0 ? (
+              ) : days.length === 0 ? (
                 <Card className="flex flex-col min-h-0 flex-1 p-0">
                   <EmptyState
                     icon={CalendarClock}
                     title="No matches"
-                    body="Nothing matches that search."
+                    body={
+                      filtersActive
+                        ? "Nothing matches that search."
+                        : `No ${bookings.many} ${range === "past" ? "in the past 30 days" : "this week"}.`
+                    }
                   />
                 </Card>
               ) : (
-                <Card data-doc-shot="my-schedule-list" className="overflow-hidden p-0">
-                  <div data-doc-shot="me-schedule-list" className="divide-y divide-border">
-                    {groups.map(([key, items]) => (
-                      <section key={key} className="p-4">
-                        <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                          {dayHeading(parseISO(key))}
-                        </h2>
-                        <ul className="space-y-2">
-                          {items.map((r) => (
-                            <li key={r.id}>
-                              <ReservationCard
-                                r={r}
-                                onOpen={openDetail}
-                                selected={r.id === selectedId}
-                              />
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
-                    ))}
-                  </div>
-                </Card>
+                <div data-doc-shot="my-schedule-list" className="flex min-h-0 flex-1 flex-col">
+                  <ReservationListTable
+                    label="Your schedule"
+                    docShot="me-schedule-list"
+                    className="min-h-0"
+                    groups={days}
+                    groupBy={groupBy}
+                    onGroupByChange={setGroupBy}
+                    sort={sort}
+                    onSortChange={setSort}
+                    selectedId={selectedId}
+                    onOpen={openDetail}
+                    hideColumns={["billing"]}
+                  />
+                </div>
               )}
             </>
           )}
@@ -388,17 +375,4 @@ function MySchedulePage() {
       />
     </TableView>
   );
-}
-
-/** Group reservations into `[dayKeyISO, items]` buckets, ascending by time. */
-function groupByDay(reservations: Reservation[]): [string, Reservation[]][] {
-  const sorted = [...reservations].sort((a, b) => a.start.localeCompare(b.start));
-  const map = new Map<string, Reservation[]>();
-  for (const r of sorted) {
-    const key = startOfDay(parseISO(r.start)).toISOString();
-    const bucket = map.get(key);
-    if (bucket) bucket.push(r);
-    else map.set(key, [r]);
-  }
-  return [...map.entries()];
 }

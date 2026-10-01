@@ -99,7 +99,7 @@ function OfferingsPage() {
           title="Booking links"
           subtitle={
             <span className="inline-flex flex-wrap items-center gap-1.5">
-              Public pages guests can request from. School slug, embed hosts, and guest
+              Public pages guests can request from. Organization slug, embed hosts, and guest
               calendar visibility stay under{" "}
               <Link
                 to="/settings"

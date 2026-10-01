@@ -33,8 +33,17 @@ import { useListQueryState, asFacetInts, validateListSearch } from "@/lib/list-q
 import { useRealtime } from "@/lib/realtime";
 import {
   ScheduleControls,
+  type ScheduleLayout,
   type ScheduleView,
 } from "@/components/schedule/schedule-controls";
+import type { ListTableSort } from "@/components/list-table";
+import {
+  ReservationListSkeleton,
+  ReservationListTable,
+  asGroupBy,
+  useReservationGroups,
+  type ReservationGroupBy,
+} from "@/components/schedule/reservation-list-table";
 import { LaneGrid } from "@/components/schedule/lane-grid";
 import { flyingDayFrameFromPolicy } from "@/components/schedule/hours";
 import { WeekTimeGrid } from "@/components/schedule/week-time-grid";
@@ -203,6 +212,12 @@ function SchedulePage() {
     setDayState(civilDateInZone(new Date(), tz.zone));
   }, [tz.zone]);
   const [view, setView] = usePersistedState<ScheduleView>("view:schedule-range", "day");
+  // Calendar or List. The range (Day, Week, Month), the search and the filters are shared.
+  const [layoutRaw, setLayout] = usePersistedState<ScheduleLayout>("view:schedule-layout", "calendar");
+  const layout: ScheduleLayout = layoutRaw === "list" ? "list" : "calendar";
+  const [groupByRaw, setGroupBy] = usePersistedState<ReservationGroupBy>("view:schedule-group", "date");
+  const groupBy = asGroupBy(groupByRaw);
+  const [listSort, setListSort] = React.useState<ListTableSort | null>(null);
   const isDesktop = useMediaQuery("(min-width: 768px)");
   // The desktop schedule is always the dispatch board. Narrow browser widths keep
   // the agenda because the time grids need room for their lanes and drag targets.
@@ -338,6 +353,28 @@ function SchedulePage() {
     return ids;
   }, [dimming, reservations, facets, queryText]);
 
+  //The list drops what the filters don't match: unlike the board, it makes no claim about
+  //the time between its rows, so leaving a non-match out can't make a slot look free.
+  //The month grid fetches whole weeks, so its edges hold the neighbouring months' days; a
+  //list titled September stops at September.
+  const monthStart = view === "month" ? zonedStartOfDay(startOfMonth(day), tz.zone).getTime() : null;
+  const monthEnd = view === "month" ? zonedEndOfDay(endOfMonth(day), tz.zone).getTime() : null;
+  const inRange = React.useMemo(
+    () =>
+      monthStart == null || monthEnd == null
+        ? reservations
+        : reservations.filter((r) => Date.parse(r.end) > monthStart && Date.parse(r.start) < monthEnd),
+    [reservations, monthStart, monthEnd]
+  );
+  const listed = React.useMemo(
+    () => (matchedIds ? inRange.filter((r) => matchedIds.has(r.id)) : inRange),
+    [inRange, matchedIds]
+  );
+  const { groups: listGroups, ordered: listOrdered } = useReservationGroups(listed, {
+    groupBy,
+    sort: listSort,
+  });
+
   const locationNames = React.useMemo(
     () => new Map((locationsQ.data ?? []).map((l) => [l.id, l.name])),
     [locationsQ.data]
@@ -441,7 +478,7 @@ function SchedulePage() {
     cancelDialog,
     selectedId,
     step,
-  } = useReservationDetail(reservations, {
+  } = useReservationDetail(layout === "list" ? listOrdered : reservations, {
     selectedId: openReservationId ?? null,
     setSelectedId: setOpenReservationId,
   });
@@ -558,8 +595,10 @@ function SchedulePage() {
           view={view}
           onViewChange={setView}
           zone={tz.zone}
-          count={count}
-          matchCount={matchedIds ? matchedIds.size : null}
+          count={layout === "list" && count != null ? inRange.length : count}
+          matchCount={matchedIds ? (layout === "list" ? listed.length : matchedIds.size) : null}
+          layout={layout}
+          onLayoutChange={setLayout}
         />
         <ListSearchBar
           value={search}
@@ -573,6 +612,22 @@ function SchedulePage() {
       </TableView.Header>
 
       <TableView.Body className="flex flex-col overflow-hidden">
+        {layout === "list" && q.isPending ? (
+          <ReservationListSkeleton groupBy={groupBy} className="min-h-0 flex-1" />
+        ) : layout === "list" && !q.isError && reservations.length > 0 ? (
+          <ReservationListTable
+            label="Reservations"
+            docShot="schedule-list"
+            className="min-h-0 flex-1"
+            groups={listGroups}
+            groupBy={groupBy}
+            onGroupByChange={setGroupBy}
+            sort={listSort}
+            onSortChange={setListSort}
+            selectedId={selectedId}
+            onOpen={openReservationDetail}
+          />
+        ) : (
         <Card
           data-doc-shot="board-filters-dimmed"
           className="flex min-h-0 flex-1 flex-col overflow-hidden p-0"
@@ -581,7 +636,7 @@ function SchedulePage() {
             showBoard ? <ScheduleCalendarSkeleton view={view} /> : <CalendarGridSkeleton />
           ) : q.isError ? (
             <ErrorState error={q.error} onRetry={() => q.refetch()} />
-          ) : view === "day" && reservations.length === 0 ? (
+          ) : (view === "day" || layout === "list") && reservations.length === 0 ? (
             <EmptyState
               graphic="dispatch"
               title="Your dispatch board is clear"
@@ -662,6 +717,7 @@ function SchedulePage() {
             />
           )}
         </Card>
+        )}
       </TableView.Body>
 
       {/* One form, two audiences. See ReservationForm. A member gets the SAME component

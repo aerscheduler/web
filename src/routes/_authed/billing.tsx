@@ -59,7 +59,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { asFacetStrings, useListQueryState, validateListSearch } from "@/lib/list-query-state";
-import { formatDate, formatMoney } from "@/lib/utils";
+import { formatDate, formatMoney, visibleEmail } from "@/lib/utils";
 
 export const FACET_KEYS = ["status", "startDate", "endDate"] as const;
 
@@ -140,13 +140,13 @@ function invoiceColumns(actions: InvoiceActions): ColumnDef<Invoice, unknown>[] 
       id: "customer",
       meta: { sortKey: "customer.user.name" },
       header: "Customer",
-      accessorFn: (r) => r.customer?.user?.name ?? r.customer?.user?.email ?? "",
+      accessorFn: (r) => r.customer?.user?.name ?? visibleEmail(r.customer?.user?.email) ?? "",
       cell: ({ row }) => {
         const c = row.original.customer?.user;
         return (
           <div className="min-w-0">
             <div className="truncate text-sm font-medium">{c?.name ?? "–"}</div>
-            {c?.email && <div className="truncate text-xs text-muted-foreground">{c.email}</div>}
+            {visibleEmail(c?.email) && <div className="truncate text-xs text-muted-foreground">{visibleEmail(c?.email)}</div>}
           </div>
         );
       },
@@ -763,7 +763,7 @@ function BillingPage() {
             value={formatMoney(stats.revenue, { cents: false })}
             icon={TrendingUp}
             accent="success"
-            hint="Paid invoices in range"
+            hint="Paid invoices in range, before sales tax"
           />
           <StatCard
             label="Outstanding"

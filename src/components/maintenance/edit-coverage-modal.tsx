@@ -446,7 +446,7 @@ function TailChip({
       className={cn(
         "rounded-full border px-2.5 py-1 font-mono text-xs font-medium transition-colors",
         on && "border-primary bg-primary/10 text-primary",
-        !on && wasOn && "border-destructive/40 text-destructive line-through",
+        !on && wasOn && "border-destructive/40 line-through",
         !on && !wasOn && "text-muted-foreground hover:bg-accent"
       )}
     >

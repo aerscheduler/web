@@ -37,9 +37,9 @@ const FACETS: FacetDef[] = [
     kind: "select",
     key: "kind",
     label: "Type",
-    allLabel: "All schools",
+    allLabel: "All organizations",
     options: [
-      { value: "real", label: "Real schools" },
+      { value: "real", label: "Real organizations" },
       { value: "demo", label: "Demo sandboxes" },
     ],
   },
@@ -80,7 +80,7 @@ function Comped() {
         <div className="text-lg font-medium tabular-nums">{comped.units}</div>
       </div>
       <div>
-        <div className="text-muted-foreground">Schools</div>
+        <div className="text-muted-foreground">Organizations</div>
         <div className="text-lg font-medium tabular-nums">{comped.orgs}</div>
       </div>
     </div>
@@ -119,7 +119,7 @@ export function OrganizationsTable() {
     () => [
       {
         id: "name",
-        header: "School",
+        header: "Organization",
         cell: ({ row }) => (
           <div className="min-w-0">
             <div className="flex items-center gap-2 font-medium">
@@ -223,8 +223,8 @@ export function OrganizationsTable() {
           emptyMessage={
             <EmptyState
               icon={Building2}
-              title="No schools match"
-              body="Search by name, join code, organization id, or the email of anybody in the school."
+              title="No organizations match"
+              body="Search by name, join code, organization id, or the email of anybody in the organization."
               compact
             />
           }

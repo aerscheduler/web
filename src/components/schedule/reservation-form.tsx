@@ -1291,8 +1291,8 @@ export function ReservationForm({
       }
       body={
         restrictToApproved
-          ? "Ask your school to approve you on the fleet you can fly."
-          : `Your school hasn't set up any ${TYPE_REQUIREMENTS[
+          ? "Ask your organization to approve you on the fleet you can fly."
+          : `Your organization hasn't set up any ${TYPE_REQUIREMENTS[
               type
             ].resource.toLowerCase()}s yet.`
       }
@@ -1381,7 +1381,7 @@ export function ReservationForm({
             {unapprovedResource && (
               <p className="text-xs text-muted-foreground">
                 You're not checked out on {unapprovedResource}, pick one you're approved
-                to fly, or ask your school.
+                to fly, or ask your organization.
               </p>
             )}
           </div>

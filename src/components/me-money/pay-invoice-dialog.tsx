@@ -97,7 +97,7 @@ export function PayInvoiceDialog({
             <div className="space-y-1">
               <p className="text-foreground">{errMessage(intentQ.error)}</p>
               <p className="text-muted-foreground">
-                If this keeps happening, your school may not have online payments enabled yet.
+                If this keeps happening, your organization may not have online payments enabled yet.
                 reach out to them to settle up.
               </p>
             </div>

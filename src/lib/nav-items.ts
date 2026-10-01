@@ -23,10 +23,10 @@ import {
   Wrench,
 } from "lucide-react";
 import type { Role } from "@/types/api";
-import { canAccess, canSelfBook, isAdmin, isInstructor, isStaff } from "@/lib/permissions";
+import { canAccess, canOpenWorkOrders, canSelfBook, isAdmin, isInstructor, isStaff } from "@/lib/permissions";
 import { settingsSectionsFor } from "@/lib/settings-sections";
 import { TRAINING_TABS } from "@/lib/training-sections";
-import { MAINTENANCE_SECTIONS } from "@/lib/maintenance-sections";
+import { MAINTENANCE_SECTIONS, WORK_ORDER_VIEWS } from "@/lib/maintenance-sections";
 import { FACILITIES_TABS } from "@/lib/facilities-sections";
 import { PROFILE_TABS } from "@/lib/profile-sections";
 import { MY_TRAINING_TABS } from "@/lib/my-training-sections";
@@ -309,6 +309,7 @@ function nestedCommandPages(roles: Role[], slotOffersOn: boolean, enterprise: bo
   if (canAccess("/maintenance", roles)) {
     for (const section of MAINTENANCE_SECTIONS) {
       for (const view of section.items) {
+        if (WORK_ORDER_VIEWS.includes(view.value) && !canOpenWorkOrders(roles)) continue;
         out.push({
           to: "/maintenance",
           label: view.label,

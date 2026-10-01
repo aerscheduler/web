@@ -66,7 +66,7 @@ function MyCurrenciesPage() {
         <Card className={`${emptyFillClass} p-0`}>
           <EmptyState
             icon={Building2}
-            title="No active school"
+            title="No active organization"
             body="Join or pick a flight school and the currencies they track for you will show up here."
             docs="join-a-school"
           />
@@ -113,8 +113,8 @@ function MyCurrenciesPage() {
           <EmptyState
             graphic="currencies"
             title="Nothing tracked yet"
-            body="Your school adds these (medicals, flight reviews, checkouts) so you always know you are legal to fly. A lapsed one can stop you booking until it is signed off again."
-            hint="Ask an admin to set up currency rules under Settings, School, Currencies. Once a rule covers you, it appears here."
+            body="Your organization adds these (medicals, flight reviews, checkouts) so you always know you are legal to fly. A lapsed one can stop you booking until it is signed off again."
+            hint="Ask an admin to set up currency rules under Settings, Organization, Currencies. Once a rule covers you, it appears here."
             docs="check-your-currency"
           />
         </Card>

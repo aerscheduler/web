@@ -3,7 +3,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { PlaneTakeoff, Plus, Wrench } from "lucide-react";
 import {
   pageRows,
+  useLocations,
   useMaintenanceRemindersPage,
+  useMembers,
   usePlanes,
   type MaintenanceDueStatus,
 } from "@/features/queries";
@@ -12,9 +14,9 @@ import { usePaging } from "@/lib/paging";
 import { cn } from "@/lib/utils";
 import { resourceLabel, type MaintenanceReminder } from "@/types/api";
 import { useAuth } from "@/lib/auth";
-import { canSeeShop } from "@/lib/permissions";
+import { canOpenWorkOrders, canSeeShop } from "@/lib/permissions";
 import { canResolveSquawk, guardRoute } from "@/lib/permissions";
-import { MAINTENANCE_RAIL, MAINTENANCE_VIEWS } from "@/lib/maintenance-sections";
+import { MAINTENANCE_VIEWS, WORK_ORDER_VIEWS, maintenanceRailFor } from "@/lib/maintenance-sections";
 import { PageHeader } from "@/components/page-header";
 import { TableView } from "@/components/table-view";
 import { ListSearchBar, type FacetDef } from "@/components/list-filters";
@@ -29,6 +31,8 @@ import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
 import { FleetStatus } from "@/components/maintenance/fleet-status";
 import { SquawkTable } from "@/components/maintenance/squawk-table";
+import { WorkOrderTable } from "@/components/maintenance/work-order-table";
+import { WorkOrderFormModal } from "@/components/maintenance/work-order-form-modal";
 import { ComplianceLog } from "@/components/maintenance/compliance-log";
 import { InspectionRow } from "@/components/maintenance/inspection-row";
 import { ReminderFilesButton, ReminderFilesSheet } from "@/components/maintenance/reminder-files-sheet";
@@ -78,18 +82,26 @@ function MaintenancePage() {
   const canManage = canResolveSquawk(roles);
   const [squawkOpen, setSquawkOpen] = React.useState(false);
   const [addOpen, setAddOpen] = React.useState(false);
+  const [workOrderOpen, setWorkOrderOpen] = React.useState(false);
   // EVERY aeroplane this shop is responsible for, its own and its customers'. This page is
   // the one place the two genuinely belong in the same list: an annual is an annual, and a
   // mechanic working through what is due does not care whose name is on the registration.
   // Only staff and technicians are served the shop at all.
   const planesQ = usePlanes(canSeeShop(roles) ? { scope: "all" } : undefined);
 
-  const view: ViewKey = isView(facets.view) ? facets.view : "aircraft";
+  const workOrders = canOpenWorkOrders(roles);
+  // The people and places the job boards filter by, read only when a job board shows.
+  const jobBoard = workOrders && (facets.view === "work-orders" || facets.view === "work-orders-closed");
+  const membersQ = useMembers(undefined, { enabled: jobBoard });
+  const locationsQ = useLocations({ enabled: jobBoard });
+  // A dispatcher typing ?view=work-orders lands on the aircraft list, not on a board of 403s.
+  const view: ViewKey = isView(facets.view) && (workOrders || !WORK_ORDER_VIEWS.includes(facets.view)) ? facets.view : "aircraft";
   const resourceIds = asFacetInts(facets.resourceId);
   const q = debouncedQ;
   const statuses = asFacetStrings(facets.status);
 
   const showsSquawks = view === "open" || view === "resolved";
+  const showsWorkOrders = view === "work-orders" || view === "work-orders-closed";
   // Which record the inbox has open. In the URL rather than in state: a notification links
   // straight to one, and closing it has to be an ordinary Back.
   // A number, not a string: it goes into the URL bare (`open=2251`) rather than JSON
@@ -165,8 +177,41 @@ function MaintenancePage() {
       });
     }
 
+    // The job boards: where the aircraft is based, who owns it, who pays, who is on it
+    // (Tony, 2026-09-30). People are offered by name, an owner the shop wrote down marked so.
+    if (showsWorkOrders) {
+      const people = (membersQ.data ?? [])
+        .map((m) => ({ value: String(m.id), label: m.user?.name ?? `Member #${m.id}`, hint: m.external && !m.claimedAt ? "Owner, not a member" : undefined }))
+        .sort((a, b) => a.label.localeCompare(b.label));
+      if ((locationsQ.data ?? []).length > 1) {
+        defs.push({
+          kind: "select",
+          key: "locationId",
+          label: "Location",
+          allLabel: "Every location",
+          multiple: true,
+          options: (locationsQ.data ?? []).map((l) => ({ value: String(l.id), label: l.name })),
+        });
+      }
+      defs.push(
+        { kind: "select", key: "ownerOrgUserId", label: "Owner", allLabel: "Any owner", multiple: true, options: people },
+        { kind: "select", key: "billToOrgUserId", label: "Billed to", allLabel: "Anybody", multiple: true, options: people },
+        {
+          kind: "select",
+          key: "technicianOrgUserId",
+          label: "Technician",
+          allLabel: "Any technician",
+          multiple: true,
+          options: (membersQ.data ?? [])
+            .filter((m) => m.technicianRole)
+            .map((m) => ({ value: String(m.id), label: m.user?.name ?? `Member #${m.id}` }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+        }
+      );
+    }
+
     return defs;
-  }, [planesQ.data, view]);
+  }, [planesQ.data, view, showsWorkOrders, membersQ.data, locationsQ.data]);
 
   const searchBar = (
     <ListSearchBar
@@ -175,7 +220,9 @@ function MaintenancePage() {
       placeholder={
         showsSquawks
           ? "Search squawks…"
-          : view === "compliance"
+          : showsWorkOrders
+            ? "Search jobs, tails, owners…"
+            : view === "compliance"
             ? "Search records, AD numbers, mechanics…"
             : "Search aircraft or inspections…"
       }
@@ -198,14 +245,20 @@ function MaintenancePage() {
                   squawk queue was an action for a different screen sitting directly above
                   that screen's own buttons, which is most of why the two rows read as a
                   pile rather than a hierarchy. */}
-              {canManage && !showsSquawks && (
+              {canManage && !showsSquawks && !showsWorkOrders && (
                 <Button variant="outline" onClick={() => setAddOpen(true)}>
                   <Wrench className="size-4" /> Add inspections
                 </Button>
               )}
-              <Button onClick={() => setSquawkOpen(true)}>
-                <Plus className="size-4" /> Log a squawk
-              </Button>
+              {showsWorkOrders ? (
+                <Button onClick={() => setWorkOrderOpen(true)}>
+                  <Plus className="size-4" /> Open a work order
+                </Button>
+              ) : (
+                <Button onClick={() => setSquawkOpen(true)}>
+                  <Plus className="size-4" /> Log a squawk
+                </Button>
+              )}
             </>
           }
         />
@@ -214,7 +267,7 @@ function MaintenancePage() {
       <div className={RAIL_ROW}>
         <SectionRail
           label="Maintenance"
-          sections={MAINTENANCE_RAIL}
+          sections={maintenanceRailFor(workOrders)}
           value={view}
           //`open` is dropped on the way out. It names a record in the view that set it,
           //and the same number is a different record, or no record, in the next one:
@@ -261,6 +314,24 @@ function MaintenancePage() {
               onLog={view === "open" ? () => setSquawkOpen(true) : undefined}
             />
           )}
+          {showsWorkOrders && (
+            <WorkOrderTable
+              // Open and finished are different queues, like the squawk boards.
+              key={view}
+              closed={view === "work-orders-closed"}
+              q={q}
+              resourceId={resourceIds}
+              filters={{
+                locationId: asFacetInts(facets.locationId),
+                ownerOrgUserId: asFacetInts(facets.ownerOrgUserId),
+                billToOrgUserId: asFacetInts(facets.billToOrgUserId),
+                technicianOrgUserId: asFacetInts(facets.technicianOrgUserId),
+              }}
+              openId={openId}
+              onOpenId={setOpenId}
+              onNew={() => setWorkOrderOpen(true)}
+            />
+          )}
           {view === "reminders" && (
             <Reminders
               q={q}
@@ -274,6 +345,7 @@ function MaintenancePage() {
       </div>
 
       <LogSquawkModal open={squawkOpen} onOpenChange={setSquawkOpen} />
+      <WorkOrderFormModal open={workOrderOpen} onOpenChange={setWorkOrderOpen} />
       {canManage && <AddInspectionsModal open={addOpen} onOpenChange={setAddOpen} />}
     </TableView>
   );

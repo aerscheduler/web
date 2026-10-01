@@ -7,7 +7,7 @@ import {
   TowerControl,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
-import type { Resource } from "@/types/api";
+import type { Resource, WorkOrder } from "@/types/api";
 import { planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,9 +35,12 @@ export function AircraftCard({
   r,
   actions,
   priority = false,
+  job,
 }: {
   r: Resource;
   actions: AircraftActions;
+  /** A customer's aircraft's current job, when the viewer can see jobs. See `planeStatus`. */
+  job?: WorkOrder | null;
   /** The grid's LCP candidate: the first card that actually has a photo. */
   priority?: boolean;
 }) {
@@ -45,7 +48,7 @@ export function AircraftCard({
   const p = r.type?.plane;
   if (!p) return null;
 
-  const status = planeStatus(p, r.use);
+  const status = planeStatus(p, r.use, job);
   const rate = planeRate(p);
   //Nothing meters this airframe, so nothing charges it by the hour. See the footer below.
   const meterless = p.meterMode === "none";
@@ -95,7 +98,11 @@ export function AircraftCard({
               <TooltipContent>{p.groundedReason}</TooltipContent>
             </Tooltip>
           ) : (
-            <Badge variant={status.variant}>{status.label}</Badge>
+            // An opaque base under the tinted chip: over a photo, or the grey placeholder, a
+            // translucent or outline chip otherwise reads as loose text.
+            <span className="inline-flex rounded-full bg-background">
+              <Badge variant={status.variant}>{status.label}</Badge>
+            </span>
           )}
         </div>
       </div>

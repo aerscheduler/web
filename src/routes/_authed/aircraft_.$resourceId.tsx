@@ -28,7 +28,7 @@ import {
 } from "@/features/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { canSeeShop, resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
+import { canOpenWorkOrders, canSeeShop, resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
 import { outstandingHolds, outstandingSentence, returnToServiceDescription } from "@/lib/outstanding-holds";
 import { formatDate, formatMoney, initials } from "@/lib/utils";
 import { fuelToDisplay, planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
@@ -43,6 +43,8 @@ import {
 } from "@/components/aircraft/detail/resource-maintenance";
 import { ResourcePapers } from "@/components/aircraft/detail/resource-papers";
 import { ResourceOwners } from "@/components/aircraft/detail/resource-owners";
+import { ResourceWorkOrders, WorkOrdersIcon } from "@/components/aircraft/detail/resource-work-orders";
+import { useCurrentJobs } from "@/features/queries";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
 import {
   CardEmpty,
@@ -180,7 +182,7 @@ function AircraftDetailPage() {
 
 function sectionsFor(
   access: ResourceViewAccess,
-  opts: { hasBookerPapers: boolean; isPlane: boolean; isShop: boolean; maySeeShop: boolean }
+  opts: { hasBookerPapers: boolean; isPlane: boolean; isShop: boolean; maySeeShop: boolean; mayOpenWorkOrders: boolean }
 ): RailSection[] {
   const items = [
     { value: "overview", label: "Overview", icon: PlaneTakeoff },
@@ -203,6 +205,8 @@ function sectionsFor(
     ...(opts.isPlane && opts.maySeeShop && (opts.isShop || access.manage)
       ? [{ value: "owners", label: "Owners", icon: UserRound }]
       : []),
+    //Jobs carry the owner and money, so the shop roles only, on fleet aircraft too.
+    ...(opts.isPlane && opts.mayOpenWorkOrders ? [{ value: "work-orders", label: "Work orders", icon: WorkOrdersIcon }] : []),
   ];
   return [{ items }];
 }
@@ -218,7 +222,10 @@ function ResourceBody({ resource }: { resource: Resource }) {
   const { tab } = Route.useSearch();
 
   const plane = resource.type?.plane ?? null;
-  const status = plane ? planeStatus(plane, resource.use) : null;
+  const jobs = useCurrentJobs({ enabled: resource.use === "shop" && canOpenWorkOrders(roles) });
+  const status = plane
+    ? planeStatus(plane, resource.use, resource.use === "shop" && jobs ? (jobs.get(resource.id) ?? null) : undefined)
+    : null;
   const rate = plane ? planeRate(plane) : null;
   /**
    * A customer's aircraft in the shop. Nobody rents it, so it has no rate and nobody is
@@ -232,6 +239,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
     isPlane: !!plane,
     isShop: resource.use === "shop",
     maySeeShop: canSeeShop(roles),
+    mayOpenWorkOrders: canOpenWorkOrders(roles),
   });
   const allowed = sections.flatMap((s) => s.items.map((i) => i.value));
   const active = tab && allowed.includes(tab) ? tab : "overview";
@@ -487,6 +495,8 @@ function ResourceBody({ resource }: { resource: Resource }) {
           )}
 
           {active === "owners" && <ResourceOwners resource={resource} canManage={access.manage} />}
+
+          {active === "work-orders" && <ResourceWorkOrders resource={resource} />}
 
           {active === "papers" &&
             plane &&

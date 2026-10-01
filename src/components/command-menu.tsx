@@ -107,6 +107,13 @@ const TYPE_FILTERS: {
     keywords: ["flight", "flights", "reservation", "booking", "schedule", "dual", "solo", "instruction"],
   },
   {
+    type: "workorder",
+    syntax: "jobs:",
+    description: "search work orders only",
+    // Lower case: the typed prefix is lower-cased before it is compared.
+    keywords: ["work order", "work orders", "job", "jobs", "wo", "shop"],
+  },
+  {
     type: "squawk",
     syntax: "squawks:",
     description: "search squawks only",

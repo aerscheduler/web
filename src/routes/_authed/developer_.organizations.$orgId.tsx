@@ -42,7 +42,7 @@ const SECTIONS: RailSection[] = [
     items: [{ value: "billing-terms", label: "Billing terms", icon: BadgeDollarSign }],
   },
   {
-    label: "The school",
+    label: "The organization",
     items: [{ value: "members", label: "People", icon: Users }],
   },
 ];
@@ -95,7 +95,7 @@ function DeveloperOrgPage() {
         <RecordNotFound
           icon={Building2}
           title="Organization not found"
-          body="That link doesn't point at a school. It may have been deleted."
+          body="That link doesn't point at an organization. It may have been deleted."
           backTo="/developer"
           backLabel="Back to Developer"
         />

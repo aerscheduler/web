@@ -1,5 +1,7 @@
 import { format, parseISO } from "date-fns";
-import { Ban, Bell, Check, FileText, Plane, User } from "lucide-react";
+import { LINE_CATEGORY_LABEL, percentLabel } from "@/lib/sales-tax";
+import { Ban, Bell, Check, FileText, Plane, User, Wrench } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import type { Invoice } from "@/types/api";
 import { useInvoice } from "@/features/queries";
 import { resourceLabel } from "@/types/api";
@@ -10,7 +12,9 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { InvoiceStatusBadge } from "@/components/billing/invoice-status";
 import { InvoiceQuickBooksSection } from "@/components/billing/invoice-qbo-section";
-import { formatMoney } from "@/lib/utils";
+import { formatMoney, visibleEmail } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
+import { canOpenWorkOrders } from "@/lib/permissions";
 
 function fmt(iso: string | null | undefined) {
   return iso ? format(parseISO(iso), "MMM d, yyyy 'at' h:mm a") : null;
@@ -59,6 +63,7 @@ export function InvoiceDetailSheet({
   busy?: boolean;
 }) {
   const id = invoiceId ?? invoice?.id ?? null;
+  const { roles } = useAuth();
   //The LIST endpoint doesn't select line items (only GET /invoices/:id does) so the
   //row handed in from the table always has `items` undefined and the panel rendered
   //"No line items on this invoice." for every invoice. Hydrate from the single-invoice
@@ -72,9 +77,17 @@ export function InvoiceDetailSheet({
   const inv: Invoice | null =
     full.data?.id === id ? { ...(invoice ?? ({} as Invoice)), ...full.data } : invoice;
   const display = inv;
-  const customerName = inv?.customer?.user?.name ?? inv?.customer?.user?.email ?? "No customer";
+  const customerName = inv?.customer?.user?.name ?? visibleEmail(inv?.customer?.user?.email) ?? "No customer";
   const items = display?.items ?? [];
   const subtotal = display?.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
+  // Sales tax per rate, from what each line was charged when the invoice was raised (frozen,
+  // Stripe's own figures). An invoice from before per-line tax has only the invoice total.
+  const taxByRate = new Map<string, number>();
+  for (const it of items) {
+    if (!it.taxable || !it.taxCents) continue;
+    const key = [it.taxRateName, it.taxRatePpm != null ? percentLabel(it.taxRatePpm) : null].filter(Boolean).join(" ") || "Sales tax";
+    taxByRate.set(key, (taxByRate.get(key) ?? 0) + it.taxCents);
+  }
 
   const events: Event[] = [];
   if (inv?.createdAt) {
@@ -164,7 +177,16 @@ export function InvoiceDetailSheet({
                       // fall back to the index rather than keying every row `undefined`.
                       items.map((it, i) => (
                         <TR key={it.id ?? i}>
-                          <TD className="font-medium">{it.name}</TD>
+                          <TD className="font-medium">
+                            {it.name}
+                            {(it.category || it.taxable) && (
+                              <span className="block text-xs font-normal text-muted-foreground">
+                                {[it.category ? LINE_CATEGORY_LABEL[it.category] : null, it.taxable ? `Taxed, ${formatMoney(it.taxCents ?? 0)}` : null]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </span>
+                            )}
+                          </TD>
                           <TD className="text-right tnum">{it.qty}</TD>
                           <TD className="text-right tnum">{formatMoney(it.unitPrice)}</TD>
                           <TD className="text-right tnum font-medium">
@@ -182,19 +204,57 @@ export function InvoiceDetailSheet({
                   <dt className="text-muted-foreground">Subtotal</dt>
                   <dd className="tnum">{formatMoney(subtotal)}</dd>
                 </div>
-                {display.tax != null && display.tax > 0 && (
-                  <div className="flex justify-between">
-                    <dt className="text-muted-foreground">Tax</dt>
-                    <dd className="tnum">{formatMoney(display.tax)}</dd>
-                  </div>
-                )}
+                {taxByRate.size > 0
+                  ? [...taxByRate.entries()].map(([label, cents]) => (
+                      <div key={label} className="flex justify-between">
+                        <dt className="text-muted-foreground">{label}</dt>
+                        <dd className="tnum">{formatMoney(cents)}</dd>
+                      </div>
+                    ))
+                  : display.tax != null &&
+                    display.tax > 0 && (
+                      <div className="flex justify-between">
+                        <dt className="text-muted-foreground">Tax</dt>
+                        <dd className="tnum">{formatMoney(display.tax)}</dd>
+                      </div>
+                    )}
                 <Separator className="my-2" />
                 <div className="flex justify-between text-base font-semibold">
                   <dt>Total</dt>
                   <dd className="tnum">{formatMoney(display.total)}</dd>
                 </div>
               </dl>
+              {display.taxExemptNote && (
+                <p className="mt-2 text-xs text-muted-foreground" data-testid="invoice-tax-exempt-note">
+                  {display.taxExemptNote}
+                </p>
+              )}
             </section>
+
+            {display.workOrder && (
+              <section>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Work order
+                </h3>
+                {/* The number is printed on the bill; the job itself is the shop's to open. */}
+                {canOpenWorkOrders(roles) ? (
+                  <Link
+                    to="/maintenance/work-orders/$workOrderId"
+                    params={{ workOrderId: String(display.workOrder.id) }}
+                    className="flex items-center gap-2 rounded-lg border p-3 text-sm font-medium hover:bg-accent/30"
+                  >
+                    <Wrench className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="font-mono">WO-{display.workOrder.number}</span>
+                    <span className="font-normal text-muted-foreground">Open the job</span>
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-2 rounded-lg border p-3 text-sm font-medium">
+                    <Wrench className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="font-mono">WO-{display.workOrder.number}</span>
+                  </div>
+                )}
+              </section>
+            )}
 
             {display.reservation && (
               <section>

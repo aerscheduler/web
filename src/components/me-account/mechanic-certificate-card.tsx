@@ -88,7 +88,7 @@ export function MechanicCertificateCard() {
         <CardContent className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="mech-cert-number">Certificate number</Label>
-            <Input
+            <Input placeholder="3421887"
               id="mech-cert-number"
               value={number}
               onChange={(e) => setNumber(e.target.value)}

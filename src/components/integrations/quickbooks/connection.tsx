@@ -230,7 +230,6 @@ function UndoCard({
             <Button
               variant="outline"
               size="sm"
-              className="text-destructive"
               onClick={() => setAllOpen(true)}
               disabled={posted.count === 0 || remove.isPending}
             >
@@ -248,7 +247,6 @@ function UndoCard({
             <Button
               variant="outline"
               size="sm"
-              className="text-destructive"
               onClick={() => void onDisconnect()}
               disabled={disconnect.isPending || removing > 0}
             >

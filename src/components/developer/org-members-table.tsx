@@ -93,7 +93,7 @@ export function OrgMembersTable({ orgId }: { orgId: number }) {
       <ListSearchBar
         value={search}
         onChange={setSearch}
-        placeholder="Search this school's people by name or email…"
+        placeholder="Search this organization's people by name or email…"
         aria-label="Search members"
       />
 
@@ -113,7 +113,7 @@ export function OrgMembersTable({ orgId }: { orgId: number }) {
             <EmptyState
               icon={UserRound}
               title="Nobody matches"
-              body="Search this school's members by name or email address."
+              body="Search this organization's members by name or email address."
               compact
             />
           }

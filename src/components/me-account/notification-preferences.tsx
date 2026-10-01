@@ -136,7 +136,7 @@ const ANNOUNCEMENT_ROWS: PrefRow[] = [
   {
     key: "announcements",
     label: "Organization announcements",
-    hint: "School-wide messages from admins.",
+    hint: "Organization-wide messages from admins.",
   },
 ];
 
@@ -149,7 +149,7 @@ const ONBOARDING_ROWS: PrefRow[] = [
   {
     key: "onboardingTips",
     label: "Getting started tips",
-    hint: "Occasional setup suggestions from AerScheduler while your school is new.",
+    hint: "Occasional setup suggestions from AerScheduler while your organization is new.",
   },
 ];
 
@@ -307,7 +307,7 @@ export function NotificationPreferencesPanel() {
           ) : !smsVerified ? (
             <div className="space-y-2">
               <p className="text-xs text-muted-foreground">
-                Verify {smsStatus.phone} to turn on text alerts for this school.
+                Verify {smsStatus.phone} to turn on text alerts for this organization.
               </p>
               {!awaitingCode ? (
                 <Button
@@ -330,7 +330,7 @@ export function NotificationPreferencesPanel() {
                 <div className="flex flex-wrap items-end gap-2">
                   <div className="space-y-1">
                     <Label htmlFor="sms-otp">6-digit code</Label>
-                    <Input
+                    <Input placeholder="123456"
                       id="sms-otp"
                       inputMode="numeric"
                       autoComplete="one-time-code"
@@ -367,7 +367,7 @@ export function NotificationPreferencesPanel() {
                 label="SMS notifications"
                 hint={
                   smsEligible
-                    ? "Master switch for transactional texts for this school."
+                    ? "Master switch for transactional texts for this organization."
                     : smsStatus.reason === "opted_out" || smsStatus.smsDisabledReason === "user_stop"
                       ? "You opted out. Reply START to your last AerScheduler text, then verify again here."
                       : "SMS is paused for this number. Re-verify or update your mobile on your profile."
@@ -727,7 +727,7 @@ export function NotificationPreferencesPage() {
           <EmptyState
             icon={Bell}
             title="Join an organization first"
-            body="Notification preferences are per school. Accept an invite, then you can choose what email, push, and SMS you get."
+            body="Notification preferences are per organization. Accept an invite, then you can choose what email, push, and SMS you get."
           />
         </Card>
       </div>

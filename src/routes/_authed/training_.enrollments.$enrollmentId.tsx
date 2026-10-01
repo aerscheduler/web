@@ -947,7 +947,7 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
       open={open} onOpenChange={setOpen}
       title="Graduate this student"
       description={<>{/* "Issues" promised a document. Nothing is generated, the number below is
-                typed in and stored against the record, which is what a school needs for the
+                typed in and stored against the record, which is what an organization needs for the
                 audit trail and is not the same as producing the certificate. */}
             {is141
               ? "Records the §141.95 graduation certificate number against this student and closes the enrollment. Their record stays exactly as it is."
@@ -976,7 +976,7 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
         {is141 ? (
           <div className="space-y-1">
             <Label htmlFor="grad-cert">Graduation certificate number</Label>
-            <Input
+            <Input placeholder="Certificate number"
               id="grad-cert"
               value={certificate}
               onChange={(e) => setCertificate(e.target.value)}
@@ -1095,7 +1095,7 @@ function EnrollmentActions({ progress }: { progress: EnrollmentProgress }) {
                 rows={2}
                 value={reason}
                 onChange={(ev) => setReason(ev.target.value)}
-                placeholder="Moved away; transferring to another school."
+                placeholder="Moved away; transferring to another organization."
               />
             </div>
           </div>

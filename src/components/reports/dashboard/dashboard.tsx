@@ -170,7 +170,7 @@ export function Dashboard({
     const ok = await confirm({
       title: "Reset the dashboard?",
       description: toSchool
-        ? "Your tiles and layout are replaced by the school's dashboard. This can't be undone."
+        ? "Your tiles and layout are replaced by the organization's dashboard. This can't be undone."
         : "Your tiles and layout are replaced by the default ones. This can't be undone.",
       confirmLabel: "Reset",
       destructive: true,
@@ -180,7 +180,7 @@ export function Dashboard({
       const fresh = await reset.mutateAsync();
       setDraft(fresh.config);
       setEditing(false);
-      toast.success(toSchool ? "Back to the school's dashboard" : "Back to the default dashboard");
+      toast.success(toSchool ? "Back to the organization's dashboard" : "Back to the default dashboard");
     } catch (err: any) {
       toast.error(err?.message ?? "Could not reset the dashboard");
     }
@@ -190,16 +190,16 @@ export function Dashboard({
     if (!config) return;
     const replacing = !!stored.data?.sharedExists;
     const ok = await confirm({
-      title: replacing ? "Replace the school's dashboard?" : "Set this as the school's dashboard?",
+      title: replacing ? "Replace the organization's dashboard?" : "Set this as the organization's dashboard?",
       description: replacing
-        ? "Everyone who hasn't built their own board sees this layout instead of the current school one. Anyone with their own dashboard keeps it."
+        ? "Everyone who hasn't built their own board sees this layout instead of the current organization one. Anyone with their own dashboard keeps it."
         : "Everyone who hasn't built their own board sees this layout. Anyone with their own keeps it, and so do you: this publishes a copy, so you can go on changing yours without changing theirs.",
       confirmLabel: replacing ? "Replace it" : "Publish it",
     });
     if (!ok) return;
     try {
       await share.mutateAsync(config);
-      toast.success("Published as the school's dashboard");
+      toast.success("Published as the organization's dashboard");
     } catch (err: any) {
       toast.error(err?.message ?? "Could not publish this dashboard");
     }
@@ -207,7 +207,7 @@ export function Dashboard({
 
   const withdraw = async () => {
     const ok = await confirm({
-      title: "Withdraw the school's dashboard?",
+      title: "Withdraw the organization's dashboard?",
       description:
         "Anyone following it goes back to the built-in layout. Nobody's own saved dashboard is affected.",
       confirmLabel: "Withdraw",
@@ -216,7 +216,7 @@ export function Dashboard({
     if (!ok) return;
     try {
       await unshare.mutateAsync();
-      toast.success("The school's dashboard has been withdrawn");
+      toast.success("The organization's dashboard has been withdrawn");
     } catch (err: any) {
       toast.error(err?.message ?? "Could not withdraw it");
     }
@@ -298,7 +298,7 @@ export function Dashboard({
                 ? // Said plainly, because the next thing this person is likely to
                   // do is move a tile, and they should know that doing so makes
                   // the board theirs rather than changing everybody's.
-                  "Your school's dashboard. Customise it and you'll get your own copy."
+                  "Your organization's dashboard. Customise it and you'll get your own copy."
                 : "Every figure opens the report behind it."}
           </p>
         </div>
@@ -346,12 +346,12 @@ export function Dashboard({
                 {canPublish && (
                   <Button variant="ghost" size="sm" onClick={publish} disabled={share.isPending}>
                     <Building2 className="size-4" />
-                    {stored.data?.sharedExists ? "Replace school's" : "Set as school's"}
+                    {stored.data?.sharedExists ? "Replace organization's" : "Set as organization's"}
                   </Button>
                 )}
                 {canPublish && stored.data?.sharedExists && (
                   <Button variant="ghost" size="sm" onClick={withdraw} disabled={unshare.isPending}>
-                    <X className="size-4" /> Withdraw school's
+                    <X className="size-4" /> Withdraw organization's
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" onClick={resetAll}>

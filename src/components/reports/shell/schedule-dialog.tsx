@@ -237,7 +237,7 @@ export function ScheduleDialog({
           {/* The zone is stated, not converted: the schedule belongs to the
               school, and silently rendering it in the reader's clock is how a
               7am report looks like it is set for 6am. */}
-          Times are {zoneLabel ? `${zoneLabel} ` : ""}at your school.
+          Times are {zoneLabel ? `${zoneLabel} ` : ""}at your organization.
         </>
       }
       // One right-aligned pair, like every other form in the console. The
@@ -406,7 +406,7 @@ export function ScheduleDialog({
               onChange={(next) => setRecipients(next.map(Number))}
               placeholder={members.isLoading ? "Loading…" : "Choose who gets it…"}
               searchPlaceholder="Search by name or email"
-              emptyText="Nobody at this school has an email address on file."
+              emptyText="Nobody at this organization has an email address on file."
               disabled={locked || members.isLoading}
               className="h-9 w-full max-w-none"
             />
@@ -447,7 +447,7 @@ export function ScheduleDialog({
 
           {isAdmin && (
             <div className="space-y-2">
-              <Label htmlFor="external-email">Also send outside the school</Label>
+              <Label htmlFor="external-email">Also send outside the organization</Label>
               <div className="flex gap-2">
                 <Input
                   id="external-email"
@@ -561,7 +561,7 @@ export function ScheduleDialog({
                     variant="outline"
                     size="sm"
                     onClick={destroy}
-                    className="text-muted-foreground hover:text-destructive"
+                    className="text-muted-foreground"
                   >
                     Stop sending
                   </Button>

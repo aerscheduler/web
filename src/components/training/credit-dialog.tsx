@@ -36,7 +36,7 @@ const SOURCES = [
   {
     value: "transfer_61",
     label: "Previous training (Part 61)",
-    hint: "Hours from another school or instructor, verified against their logbook.",
+    hint: "Hours from another organization or instructor, verified against their logbook.",
   },
   {
     value: "transfer_141",
@@ -260,7 +260,7 @@ export function AddCreditDialog({
             <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Logbook verified, previous school named…"
+              placeholder="Logbook verified, previous organization named…"
             />
           </div>
         </div>

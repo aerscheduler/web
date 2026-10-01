@@ -53,12 +53,12 @@ function MyInvoicesPage() {
     return (
       <TableView>
         <TableView.Header>
-          <PageHeader title="Billing" subtitle="What your school has charged you." />
+          <PageHeader title="Billing" subtitle="What your organization has charged you." />
         </TableView.Header>
         <Card className="flex flex-col min-h-0 flex-1 p-0">
           <EmptyState
             icon={Building2}
-            title="No active school"
+            title="No active organization"
             body="Join or pick a flight school and your invoices will show up here."
             docs="join-a-school"
           />
@@ -80,9 +80,9 @@ function MyInvoicesPage() {
           subtitle={
             ledgerOn
               ? pane === "invoices"
-                ? "Leftover invoices from before the account ledger, and guest bills."
+                ? "Bills raised outside your account: shop work orders, invoices from before the account ledger, and guest bills."
                 : "Your account balance, credits, and charges."
-              : "What your school has charged you, what you owe and what's settled."
+              : "What your organization has charged you, what you owe and what's settled."
           }
           actions={
             ledgerOn && orgUserId != null ? (

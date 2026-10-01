@@ -44,7 +44,7 @@ function pausedCopy(reason: string | null): string | null {
   // Neither of these is the member's card. Saying so stops a school-side outage from
   // sending everyone to check a card that is perfectly fine.
   if (reason === "org_not_connected") {
-    return "Paused: this school has not finished setting up card payments, so auto-refill could not run. Nothing to fix on your side.";
+    return "Paused: this organization has not finished setting up card payments, so auto-refill could not run. Nothing to fix on your side.";
   }
   if (reason === "stripe_unavailable") {
     return "Paused: card payments were unavailable, so auto-refill could not run. Turn it back on to try again.";
@@ -134,7 +134,7 @@ export function AutoRefillCard({
           </CardTitle>
           <CardDescription className="mt-1">
             Charge the default card to add credit on a schedule. Needs a default card.
-            {compact ? null : " Runs in the school's time zone, usually around 4am at the field."}
+            {compact ? null : " Runs in the organization's time zone, usually around 4am at the field."}
           </CardDescription>
         </div>
         <Switch
@@ -232,7 +232,7 @@ export function AutoRefillCard({
           {cadence === "monthly" && (
             <div className="space-y-2">
               <Label className="text-xs font-medium text-muted-foreground">Day of month</Label>
-              <Input
+              <Input placeholder="1"
                 type="number"
                 min={1}
                 max={28}

@@ -484,8 +484,8 @@ export function RampModal({
               <p className="text-xs text-destructive">{locationErr}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              Moves this aircraft&rsquo;s home base when you ramp in. Your school turned this on
-              under Settings → School.
+              Moves this aircraft&rsquo;s home base when you ramp in. Your organization turned this on
+              under Settings → Organization.
             </p>
           </div>
         )}
@@ -509,7 +509,7 @@ export function RampModal({
             <Moon className="mt-0.5 size-4 shrink-0" />
             <span>
               Away {billing.nights === 1 ? "one night" : `${billing.nights} nights`}, and your
-              school&rsquo;s minimum is {(billing.minimumTenthsPerNight / 10).toFixed(1)} hours a
+              organization&rsquo;s minimum is {(billing.minimumTenthsPerNight / 10).toFixed(1)} hours a
               night. This will bill{" "}
               <span className="tnum font-medium text-foreground">
                 {(billing.billedTenths / 10).toFixed(1)}

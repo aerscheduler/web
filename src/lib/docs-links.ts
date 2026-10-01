@@ -75,7 +75,7 @@ export const DOCS_TOPICS = {
   "requirement-source": {
     title: "Comes from",
     summary:
-      "Only a Part 61 or Part 141 requirement can block a Part 141 graduation. Choose Our own for a bar your school sets above the regulation: it is shown to the student but never stops them graduating.",
+      "Only a Part 61 or Part 141 requirement can block a Part 141 graduation. Choose Our own for a bar your organization sets above the regulation: it is shown to the student but never stops them graduating.",
     href: "training/add-hour-requirements",
   },
   "grading-scale": {
@@ -155,6 +155,24 @@ export const DOCS_TOPICS = {
       "An invoice that needs a person lands under Needs attention with a sentence saying what to fix. Retry once it's fixed, or mark it Handled once you've dealt with it in QuickBooks yourself.",
     href: "billing/send-paid-invoices-to-quickbooks#when-something-cant-post",
   },
+  "invoice-sales-tax": {
+    title: "Sales tax on a line",
+    summary:
+      "Each line is taxed by your organization's rule for what it is: in most states parts are taxed and labor listed separately is not. Untick or tick a line when it is the exception, like a warranty part.",
+    href: "billing/charge-sales-tax",
+  },
+  "sales-tax-settings": {
+    title: "Sales tax",
+    summary:
+      "Add your rate, then say which kinds of line it applies to; those lines are ticked Taxable for you. Flight bills from close-out are never taxed.",
+    href: "billing/charge-sales-tax",
+  },
+  "tax-exempt": {
+    title: "Tax exempt",
+    summary:
+      "Bills you raise by hand for this customer carry no sales tax and print the reason. Keep their certificate on file: the state holds your organization responsible for it.",
+    href: "billing/charge-sales-tax",
+  },
   "service-fee": {
     title: "Service fee",
     summary:
@@ -182,7 +200,7 @@ export const DOCS_TOPICS = {
   "ledger-accounts": {
     title: "Account balances",
     summary:
-      "Who has credit and who owes, for the whole school. Click a row to open that member's ledger. Guest invoices stay on the Invoices tab. Age and export live under Reports → Accounts receivable.",
+      "Who has credit and who owes, for the whole organization. Click a row to open that member's ledger. Guest invoices stay on the Invoices tab. Age and export live under Reports → Accounts receivable.",
     href: "billing/review-account-balances-and-who-owes",
   },
   "account-ledger": {
@@ -212,13 +230,13 @@ export const DOCS_TOPICS = {
   "ledger-booking-gates": {
     title: "Minimum credit and max owing",
     summary:
-      "When the school uses an account ledger, you can require prepaid credit before self-book, or stop members who already owe more than a cap. A shared flight checks every billed seat. Owners, admins, and dispatchers still book on someone's behalf. Invoice-mode schools ignore these.",
+      "When the organization uses an account ledger, you can require prepaid credit before self-book, or stop members who already owe more than a cap. A shared flight checks every billed seat. Owners, admins, and dispatchers still book on someone's behalf. Invoice-mode organizations ignore these.",
     href: "scheduling/booking-rules-and-settings#account-ledger-booking-gates",
   },
   "ledger-dispatch-gates": {
     title: "Minimum credit and max owing at dispatch",
     summary:
-      "Same idea as the self-book gates, checked when someone ramps out. Leave them blank and booking rules are not re-applied at dispatch. Owners, admins, and dispatchers still override. Invoice-mode schools ignore these.",
+      "Same idea as the self-book gates, checked when someone ramps out. Leave them blank and booking rules are not re-applied at dispatch. Owners, admins, and dispatchers still override. Invoice-mode organizations ignore these.",
     href: "scheduling/booking-rules-and-settings#account-ledger-dispatch-gates",
   },
   "ledger-auto-refill": {
@@ -260,7 +278,7 @@ export const DOCS_TOPICS = {
   "who-pays-what": {
     title: "Who pays what",
     summary:
-      "Fill in whichever fields your school's splitting rule uses: a Hobbs reading each when everyone pays their own time, shares when the split is set, nothing at all for an even split. Anything else is kept as a record of the flight but is not billed.",
+      "Fill in whichever fields your organization's splitting rule uses: a Hobbs reading each when everyone pays their own time, shares when the split is set, nothing at all for an even split. Anything else is kept as a record of the flight but is not billed.",
     href: "billing/who-pays-what-at-close-out",
   },
   "rate-basis": {
@@ -278,7 +296,7 @@ export const DOCS_TOPICS = {
   autopay: {
     title: "Autopay",
     summary:
-      "Autopay charges invoices raised from your flights to your default card. Invoices your school types up by hand are always sent for you to pay, and autopay switches off if your default card is removed.",
+      "Autopay charges invoices raised from your flights to your default card. Invoices your organization types up by hand are always sent for you to pay, and autopay switches off if your default card is removed.",
     href: "billing/pay-an-invoice-and-save-a-card",
   },
   "membership-dues": {
@@ -341,7 +359,7 @@ export const DOCS_TOPICS = {
   "standing-preferences": {
     title: "Standing preferences",
     summary:
-      "Days, times, reservation types, aircraft, and instructors you want. Pick at least one day and leave the rest blank to mean any. When the school requires checkouts, aircraft are limited to what you are approved on. Matching openings become time-limited offers.",
+      "Days, times, reservation types, aircraft, and instructors you want. Pick at least one day and leave the rest blank to mean any. When the organization requires checkouts, aircraft are limited to what you are approved on. Matching openings become time-limited offers.",
     href: "scheduling/standby-and-slot-offers",
   },
   "suggested-slots": {
@@ -353,13 +371,13 @@ export const DOCS_TOPICS = {
   "slot-offers": {
     title: "Offers",
     summary:
-      "Accept before the offer ends to book the time, or decline so the next eligible member can be offered. Dual recoveries ask the instructor to confirm first. Schools set offer window length, quiet hours, pending caps, and decline cooldown under Booking preferences. Turn on Offers & standby notifications so you do not miss the window.",
+      "Accept before the offer ends to book the time, or decline so the next eligible member can be offered. Dual recoveries ask the instructor to confirm first. Organizations set offer window length, quiet hours, pending caps, and decline cooldown under Booking preferences. Turn on Offers & standby notifications so you do not miss the window.",
     href: "scheduling/standby-and-slot-offers",
   },
   "slot-offer-quiet-hours": {
     title: "Quiet hours",
     summary:
-      "During this local window, cancel recovery waits before creating a new offer so a late-night cancel does not reserve the aircraft overnight. Uses the airport time zone, then the school zone. Desk offers still go out immediately.",
+      "During this local window, cancel recovery waits before creating a new offer so a late-night cancel does not reserve the aircraft overnight. Uses the airport time zone, then the organization zone. Desk offers still go out immediately.",
     href: "scheduling/standby-and-slot-offers#quiet-hours",
   },
   "slot-offer-decline-cooldown": {
@@ -371,7 +389,7 @@ export const DOCS_TOPICS = {
   "slot-offer-max-pending": {
     title: "Max pending offers",
     summary:
-      "A pending offer reserves the aircraft for the offered window. This school-wide cap limits how many can be open at once, so the board does not fill with locked time.",
+      "A pending offer reserves the aircraft for the offered window. This organization-wide cap limits how many can be open at once, so the board does not fill with locked time.",
     href: "scheduling/standby-and-slot-offers#max-pending-offers",
   },
   "slot-offer-max-pending-per-member": {
@@ -413,7 +431,7 @@ export const DOCS_TOPICS = {
   "slot-offer-scanner-max-day": {
     title: "Max AI offers per day",
     summary:
-      "Caps how many new AerScheduler AI offers the school can create in a local day, so reserved windows and notifications stay bounded.",
+      "Caps how many new AerScheduler AI offers the organization can create in a local day, so reserved windows and notifications stay bounded.",
     href: "scheduling/standby-and-slot-offers#max-ai-offers-per-day",
   },
   "pending-slot-offers": {
@@ -437,7 +455,7 @@ export const DOCS_TOPICS = {
   "flying-day-hours": {
     title: "Flying day",
     summary:
-      "The local hours when aircraft can be booked on a normal day. Same-day bookings must start and finish inside this window. Multi-day trips skip it. An aircraft can override the school default on its edit screen.",
+      "The local hours when aircraft can be booked on a normal day. Same-day bookings must start and finish inside this window. Multi-day trips skip it. An aircraft can override the organization default on its edit screen.",
     href: "scheduling/booking-rules-and-settings#flying-day",
   },
   "multi-day-bookings": {
@@ -485,7 +503,7 @@ export const DOCS_TOPICS = {
   "booking-offerings": {
     title: "Booking links",
     summary:
-      "Public pages for discovery flights and other guest requests. Every school starts with a Discovery flight. Active rows get a public link once you turn on Allow public requests under Settings → Booking links.",
+      "Public pages for discovery flights and other guest requests. Every organization starts with a Discovery flight. Active rows get a public link once you turn on Allow public requests under Settings → Booking links.",
     href: "scheduling/public-booking-requests",
   },
   "collection-style": {
@@ -497,7 +515,7 @@ export const DOCS_TOPICS = {
   "public-booking-branding": {
     title: "Guest page look",
     summary:
-      "Accent, light or dark, density, and corners on the public /book page. There is no custom CSS. The school logo is already the header mark.",
+      "Accent, light or dark, density, and corners on the public /book page. There is no custom CSS. The organization logo is already the header mark.",
     href: "scheduling/public-booking-requests",
   },
   "public-booking-embed-hosts": {
@@ -561,7 +579,7 @@ export const DOCS_TOPICS = {
   "member-documents": {
     title: "Documents",
     summary:
-      "Your school sets the types (medical, certificate, renter agreement). Upload your own from You, Documents, or an admin can file one on your People record.",
+      "Your organization sets the types (medical, certificate, renter agreement). Upload your own from You, Documents, or an admin can file one on your People record.",
     href: "getting-started/member-documents",
     linkLabel: "How documents work",
   },
@@ -571,6 +589,33 @@ export const DOCS_TOPICS = {
       "Add a tail from Aircraft, with its meters and category. Until one is on the list there is nothing to book, inspect, or check people out on.",
     href: "getting-started/add-an-aircraft",
     linkLabel: "How to add an aircraft",
+  },
+  "run-a-work-order": {
+    title: "Work orders",
+    summary:
+      "One work order per job on an aircraft: who pays, what the owner asked for, when it is promised back, and where it stands. Only owners, admins and technicians can see them.",
+    href: "maintenance/run-a-work-order",
+    linkLabel: "Running a work order",
+  },
+  "work-order-items": {
+    title: "The work on a job",
+    summary:
+      "Add what the owner asked for and what you found, and record what the owner said on the phone. An item tied to an inspection or a squawk is done when that is signed off or resolved, here or on the phone.",
+    href: "maintenance/run-a-work-order#the-work-on-the-job",
+    linkLabel: "The work on a job",
+  },
+  "work-order-lines": {
+    title: "Work and charges",
+    summary:
+      "What the owner asked for and what you found, each with the labor and parts done for it underneath. Labor is hours at the shop rate; a part is its cost plus your markup. An admin raises the invoice from these lines, then they are frozen until the invoice is voided.",
+    href: "maintenance/run-a-work-order#the-work-on-the-job",
+    linkLabel: "The work, labor and parts",
+  },
+  "shop-rates": {
+    title: "Shop rates",
+    summary: "The labor rate and markups that price new work order lines. Changing them never changes a line already on a job.",
+    href: "maintenance/run-a-work-order#shop-rates",
+    linkLabel: "Shop rates",
   },
   "work-on-a-customers-aircraft": {
     title: "Customer aircraft",
@@ -602,16 +647,16 @@ export const DOCS_TOPICS = {
   "invite-people": {
     title: "Invite people",
     summary:
-      "An invite email lets someone join this school with the roles you pick. Until they accept they are not on the roster and cannot book.",
+      "An invite email lets someone join this organization with the roles you pick. Until they accept they are not on the roster and cannot book.",
     href: "getting-started/invite-people",
     linkLabel: "How inviting works",
   },
   "join-a-school": {
-    title: "Join a school",
+    title: "Join an organization",
     summary:
-      "Ask an admin for the school code, then join from the join page. You can belong to more than one school and switch between them from the sidebar.",
+      "Ask an admin for the organization code, then join from the join page. You can belong to more than one organization and switch between them from the sidebar.",
     href: "getting-started/join-a-school",
-    linkLabel: "How to join a school",
+    linkLabel: "How to join an organization",
   },
   "book-a-reservation": {
     title: "Book a reservation",
@@ -623,7 +668,7 @@ export const DOCS_TOPICS = {
   "how-billing-works": {
     title: "Billing",
     summary:
-      "A flight invoices itself at close-out, or posts to the member's account ledger if that is how the school bills. Manual invoices cover everything else.",
+      "A flight invoices itself at close-out, or posts to the member's account ledger if that is how the organization bills. Manual invoices cover everything else.",
     href: "billing/how-billing-works",
     linkLabel: "How billing works",
   },
@@ -643,7 +688,7 @@ export const DOCS_TOPICS = {
   "check-your-currency": {
     title: "Currencies",
     summary:
-      "These are the medicals, flight reviews and checkouts your school tracks for you. A lapsed one can stop you booking until it is signed off again.",
+      "These are the medicals, flight reviews and checkouts your organization tracks for you. A lapsed one can stop you booking until it is signed off again.",
     href: "scheduling/check-your-currency-status",
     linkLabel: "How currency status works",
   },
@@ -668,9 +713,9 @@ export const DOCS_TOPICS = {
     href: "getting-started/post-an-announcement",
   },
   "delete-organization": {
-    title: "Delete this school",
+    title: "Delete this organization",
     summary:
-      "This schedules permanent deletion in 30 days. The school keeps working until then, and any admin or owner can cancel from this page. Every admin and owner is emailed when the countdown starts.",
+      "This schedules permanent deletion in 30 days. The organization keeps working until then, and any admin or owner can cancel from this page. Every admin and owner is emailed when the countdown starts.",
     href: "getting-started/delete-your-school",
   },
 

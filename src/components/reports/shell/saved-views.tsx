@@ -79,7 +79,7 @@ export function SavedViews({
     const ok = await confirm({
       title: `Delete "${view.name}"?`,
       description: view.isShared
-        ? "This view is shared, so it will disappear for everyone at the school."
+        ? "This view is shared, so it will disappear for everyone at the organization."
         : "This cannot be undone.",
       confirmLabel: "Delete",
       destructive: true,
@@ -173,7 +173,7 @@ export function SavedViews({
                         {view.isShared && (
                           <Users
                             className="size-3 shrink-0 text-muted-foreground"
-                            aria-label="Shared with the school"
+                            aria-label="Shared with the organization"
                           />
                         )}
                       </span>
@@ -232,7 +232,7 @@ export function SavedViews({
                         size="icon"
                         // Destructive, so it stays tucked away, but revealed on
                         // a touch screen, where there is no hover to reveal it.
-                        className="size-6 shrink-0 text-muted-foreground opacity-0 hover:text-destructive focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
+                        className="size-6 shrink-0 text-muted-foreground opacity-0 focus-visible:opacity-100 group-hover:opacity-100 pointer-coarse:opacity-100"
                         onClick={() => destroy(view)}
                         aria-label={`Delete ${view.name}`}
                       >
@@ -299,7 +299,7 @@ export function SavedViews({
             <label className="flex items-start gap-2.5">
               <Switch checked={shared} onCheckedChange={setShared} />
               <span>
-                <span className="block text-sm leading-tight">Share with the school</span>
+                <span className="block text-sm leading-tight">Share with the organization</span>
                 <span className="block text-xs leading-snug text-muted-foreground">
                   Everyone who can run this report sees it. Only you can change it.
                 </span>

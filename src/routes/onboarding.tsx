@@ -208,13 +208,13 @@ function PersonaRouter({ onPick }: { onPick: (p: Persona) => void }) {
     <Shell wide>
       <Step
         title="What brings you to AerScheduler?"
-        sub="Join a school with a code, or start your own operation. This picks the path, not a preference you can flip later."
+        sub="Join an organization with a code, or start your own operation. This picks the path, not a preference you can flip later."
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <PersonaCard
             graphic={PeopleGroupsEmptyGraphic}
             title="I'm joining an organization"
-            blurb="A student or renter with a code from your school or club."
+            blurb="A student or renter with a code from your organization or club."
             onClick={() => onPick("student")}
           />
           <PersonaCard
@@ -226,7 +226,7 @@ function PersonaRouter({ onPick }: { onPick: (p: Persona) => void }) {
           <PersonaCard
             graphic={InstructorsEmptyGraphic}
             title="I'm an independent instructor"
-            blurb="Just you. If you teach at a school, join with their code instead."
+            blurb="Just you. If you teach at an organization, join with their code instead."
             onClick={() => onPick("instructor")}
           />
           <PersonaCard
@@ -296,7 +296,7 @@ function StudentFlow({ onBack }: { onBack: () => void }) {
   }, [askStandby, organization, standbyStep, goBook]);
 
   async function submit() {
-    if (!code.trim()) return setError("Enter the code your school gave you.");
+    if (!code.trim()) return setError("Enter the code your organization gave you.");
     setBusy(true);
     setError(null);
     try {
@@ -889,7 +889,7 @@ function OperationFlow({
       {step === 0 && !skipType && orgPage === 0 && (
         <Step
           title="What kind of operation?"
-          sub="This just labels the school. You can change it later."
+          sub="This just labels the organization. You can change it later."
         >
           <div className="grid gap-3 lg:grid-cols-3">
             {SUBTYPES.map((s) => (
@@ -1467,7 +1467,7 @@ function AircraftStep({
 
       <div className="grid grid-cols-3 gap-3">
         <Field id="ac-year" label="Year (optional)" error={showErrors ? yearErr : ""}>
-          <Input
+          <Input placeholder="1978"
             id="ac-year"
             inputMode="numeric"
             maxLength={4}
@@ -1478,10 +1478,10 @@ function AircraftStep({
           />
         </Field>
         <Field id="ac-hobbs" label="Hobbs">
-          <Input id="ac-hobbs" inputMode="decimal" value={hobbs} onChange={(e) => setHobbs(e.target.value)} className="tnum" />
+          <Input placeholder="1234.5" id="ac-hobbs" inputMode="decimal" value={hobbs} onChange={(e) => setHobbs(e.target.value)} className="tnum" />
         </Field>
         <Field id="ac-tach" label="Tach">
-          <Input id="ac-tach" inputMode="decimal" value={tach} onChange={(e) => setTach(e.target.value)} className="tnum" />
+          <Input placeholder="1234.5" id="ac-tach" inputMode="decimal" value={tach} onChange={(e) => setTach(e.target.value)} className="tnum" />
         </Field>
       </div>
       {!meterless && (

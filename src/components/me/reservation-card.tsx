@@ -73,6 +73,7 @@ export function ReservationCard({
   return (
     <button
       type="button"
+      data-reservation-id={r.id}
       onClick={() => onOpen(r)}
       aria-label={`View ${r.title}`}
       className={cardClass}

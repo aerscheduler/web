@@ -294,7 +294,7 @@ function SignDialog({
 
             <div className="space-y-1">
               <Label htmlFor="end-title">Title</Label>
-              <Input id="end-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Input placeholder="Solo endorsement" id="end-title" value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
 
             <div className="space-y-1">
@@ -302,7 +302,7 @@ function SignDialog({
                 <Label htmlFor="end-text">Endorsement</Label>
                 <DocsHint topic="endorsement-blanks" />
               </div>
-              <Textarea
+              <Textarea placeholder="I certify that…"
                 id="end-text"
                 rows={6}
                 value={text}

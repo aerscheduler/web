@@ -260,7 +260,7 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
                 at once, and they keep themselves current as you add tails.
                 {size === "fleet"
                   ? " At ten or more, that difference adds up fast."
-                  : " Optional at your size, plenty of schools never bother."}
+                  : " Optional at your size, plenty of organizations never bother."}
               </p>
               {created.length > 0 && (
                 <p className="mt-1.5 text-xs text-success">
@@ -314,7 +314,7 @@ export function MaintenanceFlow({ onClose }: FlowProps) {
                 <Label htmlFor="mf-days" className="text-xs">
                   Every (days)
                 </Label>
-                <Input
+                <Input placeholder="365"
                   id="mf-days"
                   inputMode="numeric"
                   value={customDays}

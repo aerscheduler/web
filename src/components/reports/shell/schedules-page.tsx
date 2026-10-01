@@ -120,8 +120,8 @@ export function SchedulesPage() {
       <div>
         <h2 className="text-lg font-semibold">Scheduled reports</h2>
         <p className="text-sm text-muted-foreground">
-          What this school emails out, to whom, and when it last went.
-          {zoneLabel && ` Times are ${zoneLabel} at your school.`}
+          What this organization emails out, to whom, and when it last went.
+          {zoneLabel && ` Times are ${zoneLabel} at your organization.`}
         </p>
       </div>
 
@@ -218,7 +218,6 @@ export function SchedulesPage() {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => destroy(schedule)}
-                          className="text-destructive"
                         >
                           <Trash2 className="size-3.5" /> Stop sending
                         </DropdownMenuItem>

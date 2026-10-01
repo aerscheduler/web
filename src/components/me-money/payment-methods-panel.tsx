@@ -87,7 +87,7 @@ export function PaymentMethodsPanel() {
       <Card className="p-0">
         <EmptyState
           icon={Building2}
-          title="No active school"
+          title="No active organization"
           body="Join or pick a flight school to manage your cards and autopay here."
         />
       </Card>
@@ -134,7 +134,7 @@ export function PaymentMethodsPanel() {
       <EmptyState
         graphic="payments"
         title="Online payments aren't set up"
-        body="Your school hasn't enabled card payments yet. Once they do, you can save a card and pay invoices here."
+        body="Your organization hasn't enabled card payments yet. Once they do, you can save a card and pay invoices here."
         docs="autopay"
       />
     </Card>
@@ -259,7 +259,7 @@ export function PaymentMethodsPanel() {
                         variant="ghost"
                         size="icon-sm"
                         aria-label={`Remove ${cardLabel(m)}`}
-                        className="text-muted-foreground hover:text-destructive"
+                        className="text-muted-foreground"
                         onClick={() => onRemove(m)}
                         disabled={remove.isPending}
                       >

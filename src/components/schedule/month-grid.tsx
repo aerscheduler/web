@@ -180,6 +180,7 @@ export function MonthGrid({
                   <button
                     key={r.id}
                     type="button"
+                    data-reservation-id={r.id}
                     onClick={(e) => {
                       e.stopPropagation();
                       onView(r);

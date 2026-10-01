@@ -190,7 +190,7 @@ export function OverridePaymentModal({
       open={open}
       onOpenChange={onOpenChange}
       title="Override payment"
-      description="Bill this one booking at a rate of your own, in place of the school's rate card."
+      description="Bill this one booking at a rate of your own, in place of the organization's rate card."
     >
       <form id="modal-override-payment-modal"
         className="space-y-4"

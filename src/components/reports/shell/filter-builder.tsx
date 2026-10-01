@@ -162,7 +162,7 @@ function FilterRow({
 
       {needsValue && !def.options && !isBetween && (
         <span className="flex items-center gap-1">
-          <Input
+          <Input placeholder="Value"
             className="h-7 w-32 text-sm"
             type={def.type === "date" ? "date" : def.type === "string" ? "text" : "number"}
             value={fromWire(filter.value, def.type)}

@@ -107,7 +107,7 @@ export function SlotOfferDetailSheet({
           <div className="flex flex-col gap-2">
             <Button
               variant="outline"
-              className="w-full text-destructive hover:text-destructive"
+              className="w-full"
               disabled={withdraw.isPending}
               onClick={() => void withdrawOffer()}
             >

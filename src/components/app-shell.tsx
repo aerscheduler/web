@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -6,6 +6,9 @@ import {
   CircleHelp,
   CalendarPlus,
   Check,
+  ClipboardPlus,
+  FilePlus2,
+  PlaneTakeoff,
   ChevronsUpDown,
   LogOut,
   Menu,
@@ -17,12 +20,16 @@ import {
   TerminalSquare,
   User as UserIcon,
   UserPlus,
+  Wrench,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useRealtime } from "@/lib/realtime";
 import {
   canCreateReservation,
+  canManageBilling,
   canManageMembers,
+  canManageResources,
+  canOpenWorkOrders,
   canSelfBook,
   isAdmin,
   isStaff,
@@ -39,6 +46,7 @@ import { ImpersonationBanner } from "@/components/developer/impersonation-banner
 import { DemoBanner } from "@/components/demo/demo-banner";
 import { FeedbackModal } from "@/components/feedback/feedback-modal";
 import { initials } from "@/lib/utils";
+import { armSecondPress, ROW_CONTROLS } from "@/lib/use-second-press";
 import {
   Sidebar,
   SidebarContent,
@@ -64,6 +72,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { InviteModal } from "@/components/people/invite-modal";
+import { WorkOrderFormModal } from "@/components/maintenance/work-order-form-modal";
+import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
+import { AircraftFormModal } from "@/components/aircraft/aircraft-form";
+import { CreateInvoiceDialog } from "@/components/billing/create-invoice-dialog";
+import { useLocations } from "@/features/queries";
 import { useTheme } from "@/components/theme-provider";
 import type { Theme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
@@ -79,6 +92,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   useRecordRecentPage();
 
   const { organization } = useAuth();
+  useOpenBookingOnDoubleClick();
   useRealtime({
     enabled: organization?.id != null,
     channels: ["notifications", "billing"],
@@ -351,7 +365,7 @@ function OrgSwitcher() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link to="/join" onClick={dismiss}>
-                      Join another school
+                      Join another organization
                     </Link>
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
@@ -395,6 +409,21 @@ function Topbar() {
   const { toggleSidebar } = useSidebar();
   const { openNewReservation } = useQuickCreate();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  // The + makes anything the person can make, not only bookings (Tony, 2026-09-30): each form
+  // opens here over whatever page they are on, and mounts only while it is open.
+  const [creating, setCreating] = useState<"workOrder" | "squawk" | "aircraft" | "invite" | "invoice" | null>(null);
+  const locationsQ = useLocations({ enabled: creating === "aircraft" });
+  const close = (o: boolean) => !o && setCreating(null);
+  const make = {
+    reservation: isStaff(roles),
+    book: canSelfBook(roles),
+    workOrder: canOpenWorkOrders(roles),
+    // Anybody who flies can write up a squawk.
+    squawk: true,
+    aircraft: canManageResources(roles),
+    invite: canManageMembers(roles),
+    invoice: canManageBilling(roles),
+  };
 
   return (
     <header className="sticky top-0 z-50 shrink-0 bg-background">
@@ -438,41 +467,109 @@ function Topbar() {
           </Button>
         )}
 
-        {/* Stripe-style accent quick-create: opens a role-appropriate menu. */}
-        {canCreateReservation(roles) && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="icon" aria-label="Create" className="ml-1 rounded-full">
-                <Plus className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-48">
-              <DropdownMenuLabel className="text-xs text-muted-foreground">
-                Create
-              </DropdownMenuLabel>
-              {isStaff(roles) && (
-                <DropdownMenuItem onClick={openNewReservation}>
-                  <CalendarPlus />
-                  New reservation
-                </DropdownMenuItem>
-              )}
-              {canSelfBook(roles) && (
-                <DropdownMenuItem asChild>
-                  <Link to="/me/book">
+        {/* Stripe-style accent quick-create: everything this person can make, grouped. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button size="icon" aria-label="Create" className="ml-1 rounded-full">
+              <Plus className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-56">
+            {(make.reservation || (make.book && canCreateReservation(roles))) && (
+              <>
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Schedule</DropdownMenuLabel>
+                {make.reservation && (
+                  <DropdownMenuItem onClick={openNewReservation}>
                     <CalendarPlus />
-                    {/* A technician isn't booking a flight, they're pulling an
-                        aircraft off the line. */}
-                    {selfBookableTypes(roles).length === 1 && isTechnician(roles)
-                      ? "Schedule maintenance"
-                      : "Book a flight"}
-                  </Link>
-                </DropdownMenuItem>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+                    New reservation
+                  </DropdownMenuItem>
+                )}
+                {make.book && canCreateReservation(roles) && (
+                  <DropdownMenuItem asChild>
+                    <Link to="/me/book">
+                      <CalendarPlus />
+                      {/* A technician isn't booking a flight, they're pulling an
+                          aircraft off the line. */}
+                      {selfBookableTypes(roles).length === 1 && isTechnician(roles)
+                        ? "Schedule maintenance"
+                        : "Book a flight"}
+                    </Link>
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuLabel className="text-xs text-muted-foreground">Maintenance</DropdownMenuLabel>
+            {make.workOrder && (
+              <DropdownMenuItem onClick={() => setCreating("workOrder")}>
+                <Wrench />
+                Open a work order
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => setCreating("squawk")}>
+              <ClipboardPlus />
+              Log a squawk
+            </DropdownMenuItem>
+            {make.aircraft && (
+              <DropdownMenuItem onClick={() => setCreating("aircraft")}>
+                <PlaneTakeoff />
+                Add aircraft
+              </DropdownMenuItem>
+            )}
+            {(make.invite || make.invoice) && <DropdownMenuSeparator />}
+            {make.invite && (
+              <DropdownMenuItem onClick={() => setCreating("invite")}>
+                <UserPlus />
+                Invite people
+              </DropdownMenuItem>
+            )}
+            {make.invoice && (
+              <DropdownMenuItem onClick={() => setCreating("invoice")}>
+                <FilePlus2 />
+                New invoice
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+      {creating === "workOrder" && <WorkOrderFormModal open onOpenChange={close} />}
+      {creating === "squawk" && <LogSquawkModal open onOpenChange={close} />}
+      {creating === "aircraft" && <AircraftFormModal open onOpenChange={close} locations={locationsQ.data ?? []} />}
+      {creating === "invite" && <InviteModal open onOpenChange={close} />}
+      {creating === "invoice" && <CreateInvoiceDialog open onOpenChange={close} />}
       <FeedbackModal open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </header>
   );
+}
+
+/**
+ * A double click on a booking, wherever one is drawn (the schedule's lanes, week and month grids,
+ * an agenda row), opens the full booking, the page its panel links to: opening the panel only to
+ * click through it was the slow way (Tony, 2026-09-30). One listener for every view, keyed on the
+ * `data-reservation-id` the booking blocks carry. A double click on a control inside a block (its
+ * menu) is that control's.
+ */
+function useOpenBookingOnDoubleClick() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    // The FIRST press names the booking: the first click opens the panel and the schedule moves
+    // (or goes inert), so the second press may land anywhere (see use-second-press.ts).
+    let disarm: (() => void) | null = null;
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0 || e.detail > 1) return;
+      const target = e.target as Element | null;
+      const block = target?.closest<HTMLElement>("[data-reservation-id]");
+      const id = block?.dataset.reservationId;
+      if (!block || !id) return;
+      const control = target?.closest(ROW_CONTROLS);
+      if (control && control !== block && block.contains(control)) return;
+      disarm?.();
+      disarm = armSecondPress(() => void navigate({ to: "/schedule/reservations/$reservationId", params: { reservationId: id } }));
+    };
+    document.addEventListener("mousedown", onMouseDown, true);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown, true);
+      disarm?.();
+    };
+  }, [navigate]);
 }

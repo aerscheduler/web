@@ -195,7 +195,7 @@ function MyDocumentsPage() {
         <Card className="flex flex-col min-h-0 flex-1 p-0">
           <EmptyState
             icon={Building2}
-            title="No active school"
+            title="No active organization"
             body="Join or pick a flight school to manage your documents here."
             docs="join-a-school"
           />
@@ -232,7 +232,7 @@ function MyDocumentsPage() {
             graphic="documents"
             title="No documents yet"
             body="Upload your medical, pilot certificate, or renter agreement to keep them on file. Types with an expiry date warn you before they lapse."
-            hint="Your school chooses which types you can upload. An admin can also file one on your behalf from your People record."
+            hint="Your organization chooses which types you can upload. An admin can also file one on your behalf from your People record."
             docs="member-documents"
             action={
               <Button onClick={() => setUploadOpen(true)}>

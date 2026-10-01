@@ -260,7 +260,7 @@ function EmptyCourses() {
     <EmptyState
       graphic="courses"
       title="No courses yet"
-      body="Start from a ready-made Private Pilot syllabus: stages, lessons, ACS tasks and the §61.109 hour requirements, already wired up. Change whatever your school does differently."
+      body="Start from a ready-made Private Pilot syllabus: stages, lessons, ACS tasks and the §61.109 hour requirements, already wired up. Change whatever your organization does differently."
       docs="what-a-course-is"
       action={<NewCourseActions hasCourses={false} />}
     />
@@ -325,7 +325,7 @@ function TemplateDialog({ primary }: { primary: boolean }) {
         ) : null}
 
         <p className="text-xs text-muted-foreground">
-          Templates are Part 61. An approved Part 141 course has to be approved for your school by your
+          Templates are Part 61. An approved Part 141 course has to be approved for your organization by your
           FSDO, build it from this one and file it.
         </p>
     </ResponsiveModal>

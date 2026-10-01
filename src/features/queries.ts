@@ -23,6 +23,17 @@ import {
   type PresignedPost,
 } from "@/lib/upload";
 import type {
+  WorkOrder,
+  WorkOrderApproval,
+  WorkOrderInput,
+  WorkOrderItem,
+  WorkOrderLine,
+  WorkOrderLineInput,
+  WorkOrderSettings,
+  WorkOrderInvoiceDetails,
+  InvoicePreview,
+  SalesTaxSettings,
+  TaxExemptReason,
   AdReadiness,
   AdTrackingMode,
   AirportMatch,
@@ -967,6 +978,8 @@ export function useUpdateReservation() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["reservations"] });
       void qc.invalidateQueries({ queryKey: ["availability"] });
+      // A job shows the maintenance booking it is linked to.
+      void qc.invalidateQueries({ queryKey: ["workOrders"] });
     },
   });
 }
@@ -997,7 +1010,13 @@ export function useCancelReservation() {
           ...(acceptLateCancelFee ? { acceptLateCancelFee: true } : {}),
         },
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["reservations"] }),
+    onSuccess: () => {
+      // A job linked to this booking shows it as cancelled.
+      void qc.invalidateQueries({ queryKey: ["workOrders"] });
+      // Returned, so the cancel is not "done" (dialog closed, button live again) until the
+      // board has the booking as cancelled.
+      return qc.invalidateQueries({ queryKey: ["reservations"] });
+    },
   });
 }
 
@@ -1530,6 +1549,95 @@ export function useCreateInvoice() {
     mutationFn: (input: CreateInvoiceInput) =>
       api<Invoice>("/invoices", { method: "POST", body: input }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["invoices"] }),
+  });
+}
+
+/**
+ * `POST /invoices/preview`: the bill New invoice would raise, priced by the server (the
+ * school's service fee, its sales tax rules, the customer's exemption) without sending
+ * anything. One source of truth for tax, so the dialog never keeps its own copy of the
+ * rules. Null input means "nothing to price yet".
+ */
+export function useInvoicePreview(input: CreateInvoiceInput | null) {
+  return useQuery({
+    // Its own root, not under ["invoices"]: every invoice write invalidates that root, and
+    // re-pricing an open form on each of them is noise.
+    queryKey: ["invoicePreview", input],
+    queryFn: () => api<InvoicePreview>("/invoices/preview", { method: "POST", body: input! }),
+    enabled: input != null,
+    // Keep the last priced bill on screen while the next keystroke is priced.
+    placeholderData: (prev) => prev,
+    staleTime: 0,
+    retry: false,
+  });
+}
+
+/** The school's sales tax rates and which categories they tax. Admins read; the owner edits. */
+export function useSalesTaxSettings(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["salesTax"],
+    queryFn: () => api<SalesTaxSettings>("/organizations/salesTax"),
+    ...opts,
+  });
+}
+
+function useSalesTaxWrite<TInput>(fn: (input: TInput) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["salesTax"] });
+      // An open New invoice priced under the old rules is now wrong.
+      qc.invalidateQueries({ queryKey: ["invoicePreview"] });
+    },
+  });
+}
+
+export function useCreateSalesTaxRate() {
+  return useSalesTaxWrite((input: { name: string; ratePpm: number; country?: string; jurisdiction?: string | null }) =>
+    api<{ id: number }>("/organizations/salesTax/rates", { method: "POST", body: input })
+  );
+}
+
+export function useUpdateSalesTaxRate() {
+  return useSalesTaxWrite(
+    ({ id, ...patch }: { id: number; name?: string; ratePpm?: number; country?: string; jurisdiction?: string | null }) =>
+      api<{ id: number }>(`/organizations/salesTax/rates/${id}`, { method: "PATCH", body: patch })
+  );
+}
+
+export function useArchiveSalesTaxRate() {
+  return useSalesTaxWrite((id: number) =>
+    api<{ id: number }>(`/organizations/salesTax/rates/${id}/archive`, { method: "POST" })
+  );
+}
+
+export function useSetSalesTaxRules() {
+  return useSalesTaxWrite((rules: SalesTaxSettings["rules"] | Record<string, number | null>) =>
+    api<{ rules: SalesTaxSettings["rules"] }>("/organizations/salesTax/rules", { method: "PUT", body: { rules } })
+  );
+}
+
+export type TaxExemption = { reason: TaxExemptReason | null; note: string | null };
+
+/** A customer's sales tax exemption. Admin-only on the server. */
+export function useTaxExemption(orgUserId: number | null | undefined, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["taxExemption", orgUserId],
+    queryFn: () => api<TaxExemption>(`/orgUsers/${orgUserId}/taxExemption`),
+    enabled: orgUserId != null && (opts?.enabled ?? true),
+  });
+}
+
+export function useSetTaxExemption(orgUserId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: TaxExemption) =>
+      api<TaxExemption>(`/orgUsers/${orgUserId}/taxExemption`, { method: "PUT", body: input }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["taxExemption", orgUserId] });
+      qc.invalidateQueries({ queryKey: ["invoicePreview"] });
+    },
   });
 }
 
@@ -3966,6 +4074,8 @@ export function useResolveSquawk() {
       void qc.invalidateQueries({ queryKey: ["squawks"] });
       // A resolved squawk changes the airworthiness hints on the booking forms.
       void qc.invalidateQueries({ queryKey: ["resources"] });
+      // A work order item tied to this squawk reads "done" from it.
+      void qc.invalidateQueries({ queryKey: ["workOrders"] });
     },
   });
 }
@@ -4242,6 +4352,8 @@ export function useResolveMaintenanceReminder() {
       //The sign-off is the only thing that writes a record, so this is the only place the
       //log can go stale.
       void qc.invalidateQueries({ queryKey: ["compliance-records"] });
+      //A work order item tied to this inspection reads "done" from the sign-off.
+      void qc.invalidateQueries({ queryKey: ["workOrders"] });
     },
   });
 }
@@ -5504,6 +5616,255 @@ export function useSetAdTracking() {
       //Maintenance surfaces read the mode to decide what to show, so they go stale too.
       void qc.invalidateQueries({ queryKey: ["reminders"] });
       void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
+    },
+  });
+}
+
+// ---------------------------------------------------------------- work orders
+
+export type WorkOrderListFilter = {
+  /** open (the job board, the default), closed, or all. */
+  state?: "open" | "closed" | "all";
+  /** One aircraft, or several (sent comma-separated). */
+  resourceId?: number | number[];
+  /** Each of these takes one id or several, and matches a job on any of them. */
+  billToOrgUserId?: number | number[];
+  ownerOrgUserId?: number | number[];
+  technicianOrgUserId?: number | number[];
+  locationId?: number | number[];
+  q?: string;
+};
+
+/**
+ * One page of the shop's jobs. Keyed under ["workOrders"], the root the server's billing
+ * channel invalidates, so a job moved on another desk (or paid by webhook) refreshes here.
+ */
+export function useWorkOrdersPage(filter: WorkOrderListFilter | undefined, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<WorkOrder>(["workOrders"], "/work-orders", paging, filter, opts);
+}
+
+/** The whole (small) list, for an aircraft's panel and the In the shop chips. */
+export function useWorkOrders(filter?: WorkOrderListFilter, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["workOrders", "all", filter ?? {}],
+    queryFn: () => api<WorkOrder[]>("/work-orders", { query: filter as Record<string, string | number | boolean | undefined> }),
+    ...opts,
+  });
+}
+
+/**
+ * Each aircraft's current job, for the In the shop chip: the open job with the aircraft
+ * actually here wins over one merely expected. `undefined` until loaded, so a chip never
+ * claims "Not in the shop" before it knows.
+ */
+export function useCurrentJobs(opts?: QueryOpts): Map<number, WorkOrder> | undefined {
+  const q = useWorkOrders({ state: "open" }, opts);
+  return useMemo(() => {
+    if (!q.data) return undefined;
+    const here = new Set(["received", "in_progress", "waiting_owner", "waiting_parts", "ready"]);
+    const out = new Map<number, WorkOrder>();
+    for (const w of q.data) {
+      const prev = out.get(w.aircraft.id);
+      if (!prev || (here.has(w.status) && !here.has(prev.status))) out.set(w.aircraft.id, w);
+    }
+    return out;
+  }, [q.data]);
+}
+
+/** One job, in full. Under the same root, so every work order write reaches it by prefix. */
+export function useWorkOrder(id: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["workOrders", "one", id],
+    queryFn: () => api<WorkOrder>(`/work-orders/${id}`),
+    enabled: id != null,
+    ...opts,
+  });
+}
+
+export function useCreateWorkOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: WorkOrderInput & { resourceId: number }) =>
+      api<WorkOrder>("/work-orders", { method: "POST", body: input }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["workOrders"] }),
+  });
+}
+
+/** A job opened by mistake. Admins only, and never one that has been invoiced. */
+export function useDeleteWorkOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api(`/work-orders/${id}`, { method: "DELETE" }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["workOrders"] }),
+  });
+}
+
+export function useUpdateWorkOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...patch }: WorkOrderInput & { id: number }) =>
+      api<WorkOrder>(`/work-orders/${id}`, { method: "PATCH", body: patch }),
+    onSuccess: (job) => {
+      // The job page shows the saved value at once, before the refetch lands.
+      qc.setQueryData(["workOrders", "one", job.id], job);
+      void qc.invalidateQueries({ queryKey: ["workOrders"] });
+    },
+  });
+}
+
+/** A job's items, in order. Under the ["workOrders"] root, so every job write refreshes them. */
+export function useWorkOrderItems(workOrderId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["workOrders", "items", workOrderId],
+    queryFn: () => api<WorkOrderItem[]>(`/work-orders/${workOrderId}/items`),
+    enabled: workOrderId != null,
+    ...opts,
+  });
+}
+
+/** The phone calls recorded on a job, newest first. */
+export function useWorkOrderApprovals(workOrderId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["workOrders", "approvals", workOrderId],
+    queryFn: () => api<WorkOrderApproval[]>(`/work-orders/${workOrderId}/approvals`),
+    enabled: workOrderId != null,
+    ...opts,
+  });
+}
+
+function useWorkOrderWrite<I>(fn: (input: I) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: () => void qc.invalidateQueries({ queryKey: ["workOrders"] }) });
+}
+
+export function useAddWorkOrderItem() {
+  return useWorkOrderWrite(
+    ({ workOrderId, ...body }: { workOrderId: number; source: WorkOrderItem["source"]; description: string; maintenanceReminderId?: number; squawkId?: number }) =>
+      api<WorkOrderItem>(`/work-orders/${workOrderId}/items`, { method: "POST", body })
+  );
+}
+
+/**
+ * Optimistic: ticking an item done shows at once, and goes back with the server's error if the
+ * server says no. A tick that waited a round trip read as a click that had not landed.
+ */
+export function useUpdateWorkOrderItem() {
+  const qc = useQueryClient();
+  type Input = { workOrderId: number; itemId: number; description?: string; done?: boolean };
+  return useMutation({
+    mutationFn: ({ workOrderId, itemId, ...body }: Input) => api<WorkOrderItem>(`/work-orders/${workOrderId}/items/${itemId}`, { method: "PATCH", body }),
+    onMutate: async ({ workOrderId, itemId, done, description }: Input) => {
+      const key = ["workOrders", "items", workOrderId];
+      await qc.cancelQueries({ queryKey: key });
+      const before = qc.getQueryData<WorkOrderItem[]>(key);
+      if (before) {
+        qc.setQueryData<WorkOrderItem[]>(
+          key,
+          before.map((i) =>
+            i.id !== itemId
+              ? i
+              : {
+                  ...i,
+                  ...(description !== undefined ? { description } : {}),
+                  ...(done !== undefined ? { done, doneAt: done ? new Date().toISOString() : null, doneBy: done ? i.doneBy : null } : {}),
+                }
+          )
+        );
+      }
+      return { key, before };
+    },
+    onError: (_e, _input, ctx) => {
+      if (ctx?.before) qc.setQueryData(ctx.key, ctx.before);
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["workOrders"] }),
+  });
+}
+
+export function useRemoveWorkOrderItem() {
+  return useWorkOrderWrite(({ workOrderId, itemId }: { workOrderId: number; itemId: number }) =>
+    api(`/work-orders/${workOrderId}/items/${itemId}`, { method: "DELETE" })
+  );
+}
+
+export function useRecordOwnerAnswer() {
+  return useWorkOrderWrite(
+    ({
+      workOrderId,
+      ...body
+    }: {
+      workOrderId: number;
+      contactName: string;
+      contactedAt?: string;
+      spendLimitCents?: number | null;
+      notes?: string | null;
+      decisions: { itemId: number; decision: NonNullable<WorkOrderItem["decision"]> }[];
+    }) => api<{ id: number }>(`/work-orders/${workOrderId}/approvals`, { method: "POST", body })
+  );
+}
+
+/** A job's lines, in order. */
+export function useWorkOrderLines(workOrderId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["workOrders", "lines", workOrderId],
+    queryFn: () => api<WorkOrderLine[]>(`/work-orders/${workOrderId}/lines`),
+    enabled: workOrderId != null,
+    ...opts,
+  });
+}
+
+export function useAddWorkOrderLine() {
+  return useWorkOrderWrite(({ workOrderId, ...body }: WorkOrderLineInput & { workOrderId: number }) =>
+    api<WorkOrderLine>(`/work-orders/${workOrderId}/lines`, { method: "POST", body })
+  );
+}
+
+export function useUpdateWorkOrderLine() {
+  return useWorkOrderWrite(({ workOrderId, lineId, ...body }: WorkOrderLineInput & { workOrderId: number; lineId: number }) =>
+    api<WorkOrderLine>(`/work-orders/${workOrderId}/lines/${lineId}`, { method: "PATCH", body })
+  );
+}
+
+export function useRemoveWorkOrderLine() {
+  return useWorkOrderWrite(({ workOrderId, lineId }: { workOrderId: number; lineId: number }) =>
+    api(`/work-orders/${workOrderId}/lines/${lineId}`, { method: "DELETE" })
+  );
+}
+
+/** The shop's rates. Keyed apart from the jobs: a job write does not change them. */
+export function useWorkOrderSettings(opts?: QueryOpts) {
+  return useQuery({ queryKey: ["workOrderSettings"], queryFn: () => api<WorkOrderSettings>("/work-orders/settings"), ...opts });
+}
+
+export function useSetWorkOrderSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: Partial<WorkOrderSettings>) => api<WorkOrderSettings>("/work-orders/settings", { method: "PUT", body }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["workOrderSettings"] }),
+  });
+}
+
+/**
+ * The job's bill as the server would raise it now. Keyed under ["workOrders"] so a line added
+ * anywhere re-prices it; fetched only while the Raise invoice dialog is open.
+ */
+export function useWorkOrderInvoicePreview(workOrderId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["workOrders", "invoicePreview", workOrderId],
+    queryFn: () => api<InvoicePreview & { details?: WorkOrderInvoiceDetails | null }>(`/work-orders/${workOrderId}/invoice/preview`, { method: "POST" }),
+    enabled: workOrderId != null,
+    retry: false,
+    ...opts,
+  });
+}
+
+export function useRaiseWorkOrderInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workOrderId, ...body }: { workOrderId: number; expectedTotal?: number; expectedDetails?: string; dueIn?: number }) =>
+      api(`/work-orders/${workOrderId}/invoice`, { method: "POST", body }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["workOrders"] });
+      void qc.invalidateQueries({ queryKey: ["invoices"] });
     },
   });
 }

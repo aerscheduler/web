@@ -63,7 +63,7 @@ export function ResourceOwners({ resource, canManage }: { resource: Resource; ca
           <CardEmpty>
             {resource.use === "shop"
               ? "Nobody is listed as the owner of this aircraft yet. Add one so the work has somebody to bill."
-              : "This aircraft belongs to the school. Add an owner if it is a leaseback or somebody else's aeroplane."}
+              : "This aircraft belongs to the organization. Add an owner if it is a leaseback or somebody else's aeroplane."}
           </CardEmpty>
         ) : (
           owners.map((o) => <OwnerRow key={o.id} owner={o} resourceId={resource.id} canManage={canManage} />)
@@ -362,7 +362,7 @@ function AddOwnerDialog({
           )}
           <p className="text-xs text-muted-foreground">
             They go on your roster so you can invoice them and keep this aircraft&apos;s history together. They
-            won&apos;t get your school&apos;s notifications or be able to sign in, but invoices you send them go to
+            won&apos;t get your organization&apos;s notifications or be able to sign in, but invoices you send them go to
             this email address.
           </p>
         </form>
@@ -461,7 +461,7 @@ function EditOwnerDialog({
             <>
               <div className="space-y-1.5">
                 <Label htmlFor={`edit-owner-name-${owner.id}`}>Name</Label>
-                <Input
+                <Input placeholder="Walter Brenner"
                   id={`edit-owner-name-${owner.id}`}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
@@ -472,7 +472,7 @@ function EditOwnerDialog({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor={`edit-owner-email-${owner.id}`}>Email</Label>
-                  <Input
+                  <Input placeholder="owner@example.com"
                     id={`edit-owner-email-${owner.id}`}
                     type="email"
                     value={email}
@@ -483,13 +483,13 @@ function EditOwnerDialog({
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor={`edit-owner-phone-${owner.id}`}>Phone</Label>
-                  <Input id={`edit-owner-phone-${owner.id}`} value={phone} onChange={(e) => setPhone(e.target.value)} />
+                  <Input placeholder="(208) 555-0142" id={`edit-owner-phone-${owner.id}`} value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </div>
               </div>
             </>
           ) : (
             <p className="text-sm text-muted-foreground">
-              {owner.orgUser.user.name ?? "This owner"} is a member of your school, so their name and contact details
+              {owner.orgUser.user.name ?? "This owner"} is a member of your organization, so their name and contact details
               are changed from their own profile.
             </p>
           )}

@@ -494,7 +494,7 @@ export function CloseOutSection({
           {hasOverrides && (
             <p className="flex items-start gap-2 text-sm text-muted-foreground">
               <Tag className="mt-0.5 size-4 shrink-0" />
-              <span>Priced by hand. The school&rsquo;s rate card does not apply here.</span>
+              <span>Priced by hand. The organization&rsquo;s rate card does not apply here.</span>
             </p>
           )}
         </section>
@@ -714,7 +714,7 @@ export function CloseOutSection({
                       .filter(Boolean)
                       .join(", ")}
                   </span>
-                  . The school&rsquo;s rate card does not apply to this booking.
+                  . The organization&rsquo;s rate card does not apply to this booking.
                 </span>
               </div>
             )}

@@ -156,7 +156,7 @@ function JoinRequestRow({ request }: { request: JoinRequest }) {
           onClick={onDecline}
           disabled={busy}
           aria-label={`Decline ${request.user.name}`}
-          className="text-muted-foreground hover:text-destructive"
+          className="text-muted-foreground"
         >
           <X className="size-4" />
         </Button>

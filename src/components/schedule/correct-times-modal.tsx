@@ -278,7 +278,7 @@ export function CorrectTimesModal({
               <div className="space-y-1.5">
                 <p>{grounding}</p>
                 <p>
-                  The school is emailed, and the aircraft stays off the line until somebody
+                  The organization is emailed, and the aircraft stays off the line until somebody
                   returns it to service.
                 </p>
               </div>

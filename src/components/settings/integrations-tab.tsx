@@ -20,7 +20,7 @@ export function IntegrationsTab() {
   return (
     <div className="flex w-full flex-col gap-3">
       <p className="text-sm text-muted-foreground">
-        Connect accounting and other school-wide tools. Each integration has its own setup
+        Connect accounting and other organization-wide tools. Each integration has its own setup
         page.
       </p>
 

@@ -51,7 +51,7 @@ export function EmergencyContactsCard({
   userId,
   readOnly = false,
   title = "Emergency contacts",
-  description = "Who your school should call if something happens to you.",
+  description = "Who your organization should call if something happens to you.",
 }: {
   userId: number | null;
   readOnly?: boolean;
@@ -93,7 +93,7 @@ export function EmergencyContactsCard({
           <p className="text-sm text-muted-foreground">
             {readOnly
               ? "Nobody on file."
-              : "Nobody on file yet. Add the person your school should call."}
+              : "Nobody on file yet. Add the person your organization should call."}
           </p>
         ) : (
           <ul className="divide-y divide-border">
@@ -149,7 +149,7 @@ export function EmergencyContactsCard({
                       aria-label={`Remove ${c.name}`}
                       onClick={() => setConfirmDelete(c)}
                     >
-                      <Trash2 className="size-4 text-destructive" />
+                      <Trash2 className="size-4" />
                     </Button>
                   </div>
                 )}
@@ -283,7 +283,7 @@ function EmergencyContactModal({
       open={open}
       onOpenChange={onOpenChange}
       title={contact ? "Edit emergency contact" : "Add emergency contact"}
-      description="Someone your school can reach if there's an emergency."
+      description="Someone your organization can reach if there's an emergency."
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

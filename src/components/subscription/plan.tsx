@@ -198,7 +198,7 @@ export function PlanCard({ status }: { status: SubStatus }) {
           <div className="min-w-0 flex-1">
             <div className="font-medium">Your plan</div>
             <p className="mt-0.5 text-sm text-muted-foreground">
-              AerScheduler is <span className="font-medium text-foreground">free for your school</span>. No card, no
+              AerScheduler is <span className="font-medium text-foreground">free for your organization</span>. No card, no
               trial countdown, nothing to set up.
             </p>
           </div>

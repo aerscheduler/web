@@ -115,7 +115,7 @@ function OrganizationProfileCard({
           </span>
           <div>
             <CardTitle>Organization profile</CardTitle>
-            <CardDescription>Name and contact details for your school.</CardDescription>
+            <CardDescription>Name and contact details for your organization.</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -298,7 +298,7 @@ function IdentityCard({ organization }: { organization: Organization }) {
         <p className="text-xs text-muted-foreground">
           Share the join code with instructors and students so they can join your organization:
           on the web they enter it at <span className="font-medium">app.aerscheduler.com/join</span>,
-          or from the mobile app. Private schools review each request under People.
+          or from the mobile app. Private organizations review each request under People.
         </p>
       </CardContent>
     </Card>
@@ -339,7 +339,7 @@ function JoiningAndFleetCard({ organization }: { organization: Organization }) {
       {
         onSuccess: async () => {
           await rehydrate();
-          toast.success("School settings updated");
+          toast.success("Organization settings updated");
         },
         onError: (err) => {
           apply(previous);

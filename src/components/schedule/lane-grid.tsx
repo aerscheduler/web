@@ -719,6 +719,8 @@ function LaneBlock({
             }
           : undefined
       }
+      // A double click opens the full booking (app-shell's handler reads this).
+      data-reservation-id={floating ? undefined : r.id}
       onClick={(e) => {
         if (floating) return;
         e.stopPropagation();

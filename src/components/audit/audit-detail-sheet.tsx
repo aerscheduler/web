@@ -61,6 +61,9 @@ const TENTHS_FIELDS = new Set([
   "tach",
   "hobbsOut",
   "tachOut",
+  //A work order's meters at arrival; its `hobbsOut`/`tachOut` share the names above.
+  "hobbsIn",
+  "tachIn",
   "briefing",
   "hobbsTimeIn",
   "hobbsTimeOut",

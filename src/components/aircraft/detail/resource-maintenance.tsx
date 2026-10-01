@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { useSecondPress } from "@/lib/use-second-press";
 import { Plus } from "lucide-react";
 import type { MaintenanceReminder, Resource, Squawk } from "@/types/api";
 import { useMaintenanceReminders, useSquawks } from "@/features/queries";
@@ -50,6 +51,8 @@ export function ResourceSquawks({
   const [resolving, setResolving] = useState<Squawk | null>(null);
   const [verifying, setVerifying] = useState<Squawk | null>(null);
   const [viewing, setViewing] = useState<Squawk | null>(null);
+  const navigate = useNavigate();
+  const secondPress = useSecondPress<Squawk>((s) => void navigate({ to: "/maintenance/squawks/$squawkId", params: { squawkId: String(s.id) } }));
 
   const squawks = useMemo(() => {
     const source = canList ? (q.data ?? []) : (resource.squawks ?? []);
@@ -101,6 +104,8 @@ export function ResourceSquawks({
                 <button
                   type="button"
                   onClick={() => setViewing(s)}
+                  // A double click goes to the squawk's own page, past the panel.
+                  onMouseDown={(e) => secondPress.press(s, e)}
                   className="min-w-0 flex-1 text-left hover:opacity-80"
                 >
                   <div className="flex flex-wrap items-center gap-2">

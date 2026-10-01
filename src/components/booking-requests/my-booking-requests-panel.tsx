@@ -36,7 +36,7 @@ export function MyBookingRequestsPanel() {
         <ClipboardList className="mx-auto size-8 text-muted-foreground/60" />
         <p className="mt-3 font-medium">No booking requests</p>
         <p className="mt-1 text-sm text-muted-foreground">
-          When your school requires approval, submitted requests show up here until the desk decides.
+          When your organization requires approval, submitted requests show up here until the desk decides.
         </p>
       </div>
     );

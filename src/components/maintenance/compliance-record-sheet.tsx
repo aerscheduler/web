@@ -70,7 +70,7 @@ export function ComplianceRecordSheet({
       )}
       {!record && !loading && (
         <p className="p-1 text-sm text-muted-foreground">
-          That record could not be loaded. It may belong to another school.
+          That record could not be loaded. It may belong to another organization.
         </p>
       )}
       {record && (

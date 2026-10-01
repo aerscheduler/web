@@ -29,7 +29,7 @@ function JoinPage() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!code.trim()) return setError("Enter the code your school gave you.");
+    if (!code.trim()) return setError("Enter the code your organization gave you.");
     setBusy(true);
     setError(null);
     try {
@@ -76,7 +76,7 @@ function JoinPage() {
               <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
                 <Ticket className="size-6" />
               </div>
-              <h1 className="mt-4 text-xl font-semibold tracking-tight">Join your school</h1>
+              <h1 className="mt-4 text-xl font-semibold tracking-tight">Join your organization</h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Enter the code your flight school shared with you.
               </p>
@@ -84,7 +84,7 @@ function JoinPage() {
 
             <form onSubmit={submit} className="mt-5 space-y-4">
               <div className="space-y-1.5">
-                <Label htmlFor="join-code">School code</Label>
+                <Label htmlFor="join-code">Organization code</Label>
                 <Input
                   id="join-code"
                   value={code}
@@ -108,7 +108,7 @@ function JoinPage() {
                     <Loader2 className="size-4 animate-spin" /> Joining…
                   </>
                 ) : (
-                  "Join school"
+                  "Join organization"
                 )}
               </Button>
             </form>
@@ -116,7 +116,7 @@ function JoinPage() {
             <p className="mt-5 text-center text-sm text-muted-foreground">
               Starting your own?{" "}
               <Link to="/onboarding" className="font-medium text-primary hover:underline">
-                Set up a school
+                Set up an organization
               </Link>
             </p>
           </div>

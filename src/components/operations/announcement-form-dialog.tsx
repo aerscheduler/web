@@ -121,7 +121,7 @@ export function AnnouncementFormDialog({
       description={
         editing
           ? "Change the notice everyone sees on the board."
-          : "Post a notice to the school. Members are notified by email and push, if they have those on."
+          : "Post a notice to the organization. Members are notified by email and push, if they have those on."
       }
       className="sm:max-w-lg"
     >

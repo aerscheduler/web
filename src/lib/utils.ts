@@ -48,3 +48,13 @@ export function initials(name: string | null | undefined) {
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
 }
+
+/**
+ * A person's login address, or null when it is the placeholder minted for an aircraft owner the
+ * shop wrote down (`owner.<uuid>@unclaimed.aerscheduler.internal`). That address reaches nobody
+ * and is never shown; such an owner is reached at the address on the aircraft's Owners panel.
+ */
+export function visibleEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  return /@unclaimed\.aerscheduler\.internal$/i.test(email.trim()) ? null : email;
+}

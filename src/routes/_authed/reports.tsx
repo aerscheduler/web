@@ -228,12 +228,12 @@ function ReportsPage() {
   if (!organization) {
     return (
       <div>
-        <PageHeader title="Reports" subtitle="Operational and financial insights for your school." />
+        <PageHeader title="Reports" subtitle="Operational and financial insights for your organization." />
         <Card className="p-0">
           <EmptyState
             icon={Building2}
-            title="No active school"
-            body="Pick or join a school to see its reports."
+            title="No active organization"
+            body="Pick or join an organization to see its reports."
             docs="join-a-school"
           />
         </Card>

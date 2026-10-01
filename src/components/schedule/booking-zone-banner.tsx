@@ -34,7 +34,7 @@ export function BookingZoneBannerView({ suggestion, onUse, busy }: BookingZoneBa
       <Clock className="mt-0.5 size-4 shrink-0" aria-hidden />
       <div className="min-w-0 flex-1 space-y-2">
         <div className="space-y-0.5">
-          <p className="font-medium">Members can't book online until your school has a time zone.</p>
+          <p className="font-medium">Members can't book online until your organization has a time zone.</p>
           <p className="text-amber-800 dark:text-amber-200/90">
             Hours and booking rules are read on your airport's clock, so a member's booking has
             nothing to be checked against yet. You and the front desk can still book for them.

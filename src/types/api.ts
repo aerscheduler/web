@@ -1111,6 +1111,8 @@ export interface Invoice {
   subtotal: number;
   tax: number | null;
   memo: string | null;
+  /** Why this invoice carries no sales tax, as printed on it ("Tax exempt: Resale"). */
+  taxExemptNote?: string | null;
   /** Hosted Stripe pay link. Present on retrieve for prepaid_package invoices. */
   stripePaymentLink?: string | null;
   refundedAt?: string | null;
@@ -1129,6 +1131,8 @@ export interface Invoice {
   items?: InvoiceItem[];
   customer?: OrganizationUser;
   reservation?: Reservation;
+  /** The shop job this bill was raised for (purpose `work_order`). On the single invoice only. */
+  workOrder?: { id: number; number: number } | null;
 }
 
 export interface InvoiceItem {
@@ -1136,6 +1140,13 @@ export interface InvoiceItem {
   name: string;
   qty: number;
   unitPrice: number;
+  /** Null on lines written before sales tax and on lines close-out mints. */
+  category?: InvoiceLineCategory | null;
+  taxable?: boolean;
+  /** Stripe's tax on this line when the invoice was raised, frozen. */
+  taxCents?: number;
+  taxRateName?: string | null;
+  taxRatePpm?: number | null;
 }
 
 export interface OrganizationRating {
@@ -2233,7 +2244,284 @@ export interface CreateInvoiceInput {
   memo?: string;
   dueAt?: string;
   dueIn?: number;
-  items: { name: string; qty: number; unitPrice: number }[];
+  items: {
+    name: string;
+    qty: number;
+    unitPrice: number;
+    /** What the line is. Decides whether it is taxed by default (lib/sales-tax.ts). */
+    category?: InvoiceLineCategory;
+    /** Tax this line (or not) whatever the school's rule says. Absent follows the rule. */
+    taxable?: boolean;
+  }[];
+  /** The total the preview showed. The server refuses (409) if the bill moved since. */
+  expectedTotal?: number;
+  /** The Taxable tick on the school's service fee line. Absent follows the Fees rule. */
+  serviceFeeTaxable?: boolean;
+}
+
+/** What a line on a bill raised by hand is. Mirrors server utils/salesTax.ts ITEM_CATEGORIES. */
+export type InvoiceLineCategory =
+  | "labor"
+  | "part"
+  | "supply"
+  | "outside_service"
+  | "freight"
+  | "fee"
+  | "rental"
+  | "instruction"
+  | "other";
+
+export type TaxExemptReason =
+  | "resale"
+  | "government"
+  | "carrier"
+  | "nonresident"
+  | "agricultural"
+  | "nonprofit"
+  | "tribal"
+  | "other";
+
+/** `POST /invoices/preview`: the bill priced but not sent. */
+/** What a work order's invoice says beyond its lines (Murray §13). */
+export interface WorkOrderInvoiceDetails {
+  customFields: { name: string; value: string }[];
+  description: string;
+  /** Something was left out to fit Stripe's limit: the list ends "and N more", or the notes were cut. */
+  shortened?: boolean;
+  /** Identifies this text; sent back on the raise so a changed note is refused, not sent unread. */
+  hash?: string;
+}
+
+export interface InvoicePreview {
+  lines: {
+    name: string;
+    qty: number;
+    unitPrice: number;
+    category: InvoiceLineCategory;
+    taxable: boolean;
+    taxRateName: string | null;
+    taxRatePpm: number | null;
+    taxCents: number;
+    isServiceFee: boolean;
+  }[];
+  byRate: { name: string; ratePpm: number; base: number; tax: number }[];
+  subtotal: number;
+  tax: number;
+  total: number;
+  salesTaxConfigured: boolean;
+  exemption: { reason: TaxExemptReason; label: string; note: string | null; printed: string } | null;
+  /** Why POST /invoices would refuse this bill as it stands, or null. Lines are priced anyway. */
+  refusal: string | null;
+}
+
+export interface SalesTaxRate {
+  id: number;
+  name: string;
+  /** Parts per million of the amount taxed: 60000 is 6%, 81875 is 8.1875%. */
+  ratePpm: number;
+  /** ISO 3166-1 alpha-2. "US" unless the rate is charged abroad. */
+  country: string;
+  /** In the US, the state's code. Abroad, a region as typed. */
+  jurisdiction: string | null;
+  archivedAt: string | null;
+  /** Invoice lines ever charged at it. Once above zero, only the name can change. */
+  usedOnLines: number;
+}
+
+export interface UsState {
+  code: string;
+  name: string;
+  /** Statewide rate in parts per million (60000 is 6%); 0 where there is no statewide sales tax. */
+  ratePpm: number;
+}
+
+export interface SalesTaxSettings {
+  rates: SalesTaxRate[];
+  rules: Partial<Record<InvoiceLineCategory, number>>;
+  states: UsState[];
+  /** Every other country, by name, for a rate charged abroad. */
+  countries: { code: string; name: string }[];
+  statewideRatesAsOf: string;
+  statewideRatesSource: string;
+  /** The state every airport with an address is in, when there is exactly one. */
+  suggestion: { state: UsState; from: string } | null;
+  /** Every airport with an address is outside the US. */
+  outsideUs: boolean;
+}
+
+/* ── Work orders ─────────────────────────────────────────────────────────────── */
+
+/** The stage the shop sets. Invoiced and paid are read from the invoice (`billing`). */
+export type WorkOrderStatus =
+  | "requested"
+  | "scheduled"
+  | "received"
+  | "in_progress"
+  | "waiting_owner"
+  | "waiting_parts"
+  | "ready"
+  | "completed"
+  | "cancelled";
+
+export interface WorkOrder {
+  id: number;
+  /** The school's number, from 1001. */
+  number: number;
+  /** "WO-1042". */
+  label: string;
+  status: WorkOrderStatus;
+  statusLabel: string;
+  complaint: string | null;
+  openedAt: string;
+  receivedAt: string | null;
+  /** yyyy-mm-dd. */
+  promisedOn: string | null;
+  completedAt: string | null;
+  /** When it left the board, completed or cancelled. */
+  closedAt: string | null;
+  /** The stage's place in the order a job moves through, for sorting. */
+  stageRank: number;
+  /** What the job's billable lines charge so far, discounts taken, before tax and fees. */
+  chargesCents?: number;
+  updatedAt: string;
+  aircraft: {
+    id: number;
+    use: "fleet" | "shop";
+    archived: boolean;
+    tailNumber: string | null;
+    make: string | null;
+    model: string | null;
+    grounded: boolean;
+    meterMode: string | null;
+  };
+  billTo: { id: number; name: string | null; external: boolean; contactEmail: string | null } | null;
+  technicians: { id: number; name: string | null }[];
+  billing: "none" | "invoiced" | "paid";
+  invoice: { id: number; total: number; tax: number | null; paidAt: string | null; dueAt: string | null; number: string | null } | null;
+  /** On the single job only. Meters are TENTHS of an hour. */
+  hobbsIn?: number | null;
+  tachIn?: number | null;
+  hobbsOut?: number | null;
+  tachOut?: number | null;
+  customerNotes?: string | null;
+  internalNotes?: string | null;
+  createdAt?: string;
+  createdBy?: { id: number; name: string | null } | null;
+  booking?: { id: number; start: string; end: string; cancelled: boolean; moved?: boolean } | null;
+  /** Ever billed, voided bills included: such a job can be cancelled, never deleted. */
+  hasInvoices?: boolean;
+}
+
+export interface WorkOrderItem {
+  id: number;
+  /** Who raised it: the owner asked, or the shop found it. */
+  source: "requested" | "found";
+  /** What the owner said on the phone; null until asked. */
+  decision: "approved" | "declined" | "deferred" | null;
+  description: string;
+  position: number;
+  createdAt: string;
+  done: boolean;
+  doneAt: string | null;
+  doneBy: { id: number; name: string | null } | null;
+  /** Where done is read from: the item, its inspection's sign-off, or its squawk. */
+  doneVia: "item" | "inspection" | "squawk";
+  inspection: { id: number; name: string | null; signedOff: boolean } | null;
+  squawk: { id: number; title: string; resolved: boolean } | null;
+  approval: { id: number; contactName: string; contactedAt: string } | null;
+}
+
+export type WorkOrderLineCategory = "labor" | "part" | "supply" | "outside_service" | "freight" | "fee" | "other";
+
+/** One line on a job. `unitPriceCents` is the customer's price; cost and markup stay in the shop. */
+export interface WorkOrderLine {
+  id: number;
+  createdAt: string;
+  category: WorkOrderLineCategory;
+  description: string;
+  position: number;
+  qty: number;
+  costCents: number | null;
+  markupBps: number | null;
+  unitPriceCents: number;
+  /** An admin's discount in basis points (1000 is 10% off), or null. */
+  discountBps?: number | null;
+  /** What the line charges: qty x the price each, less the discount; zero when not billable. */
+  totalCents: number;
+  taxable: boolean | null;
+  billable: boolean;
+  minutes: number | null;
+  hours: string | null;
+  rateCents: number | null;
+  workedOn: string | null;
+  technician: { id: number; name: string | null } | null;
+  partNumber: string | null;
+  serialNumber: string | null;
+  vendor: string | null;
+  partStatus: "ordered" | "received" | "installed" | "returned" | "unused" | null;
+  expectedOn: string | null;
+  itemId: number | null;
+  /** Who entered it: somebody who may not set prices changes only their own lines. */
+  createdByOrgUserId?: number | null;
+}
+
+export interface WorkOrderLineInput {
+  category?: WorkOrderLineCategory;
+  description?: string;
+  qty?: number;
+  costCents?: number | null;
+  markupBps?: number | null;
+  unitPriceCents?: number;
+  discountBps?: number | null;
+  taxable?: boolean | null;
+  billable?: boolean;
+  minutes?: number;
+  rateCents?: number | null;
+  workedOn?: string | null;
+  technicianOrgUserId?: number | null;
+  partNumber?: string | null;
+  serialNumber?: string | null;
+  vendor?: string | null;
+  partStatus?: WorkOrderLine["partStatus"];
+  expectedOn?: string | null;
+  itemId?: number | null;
+}
+
+/** The shop's defaults for pricing new lines. */
+export interface WorkOrderSettings {
+  laborRateCents: number | null;
+  partsMarkupBps: number | null;
+  outsideWorkMarkupBps: number | null;
+}
+
+/** A record of a phone call with the owner, and the items it decided. */
+export interface WorkOrderApproval {
+  id: number;
+  contactName: string;
+  contactedAt: string;
+  spendLimitCents: number | null;
+  notes: string | null;
+  createdAt: string;
+  recordedBy: { id: number; name: string | null } | null;
+  items: { id: number; description: string; decision: WorkOrderItem["decision"] }[];
+}
+
+export interface WorkOrderInput {
+  resourceId?: number;
+  status?: WorkOrderStatus;
+  complaint?: string | null;
+  receivedAt?: string | null;
+  promisedOn?: string | null;
+  completedAt?: string | null;
+  hobbsIn?: number | null;
+  tachIn?: number | null;
+  hobbsOut?: number | null;
+  tachOut?: number | null;
+  customerNotes?: string | null;
+  internalNotes?: string | null;
+  billToOrgUserId?: number | null;
+  reservationId?: number | null;
+  technicianOrgUserIds?: number[];
 }
 
 export type DayBlocks = { start: string; end: string }[];
@@ -2444,7 +2732,9 @@ export type SearchEntityType =
   //they teach or administer, so never assume any of the three is in `types`.
   | "course"
   | "enrollment"
-  | "endorsement";
+  | "endorsement"
+  //The shop's jobs; the shop roles only (server utils/searchVisibility.ts).
+  | "workorder";
 
 export interface SearchResult {
   type: SearchEntityType;

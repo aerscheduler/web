@@ -102,7 +102,7 @@ function ProfilePage() {
                   <div>
                     <p className="text-sm font-medium">Notifications</p>
                     <p className="text-xs text-muted-foreground">
-                      Choose which booking, billing, and school emails and push alerts you receive.
+                      Choose which booking, billing, and organization emails and push alerts you receive.
                     </p>
                   </div>
                 </div>

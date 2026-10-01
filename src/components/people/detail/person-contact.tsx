@@ -36,7 +36,7 @@ export function PersonContact({ ou, isSelf }: { ou: OrganizationUser; isSelf: bo
     <>
       <DetailCard
         title="Contact"
-        description={isSelf ? "How your school reaches you." : "How to reach them."}
+        description={isSelf ? "How your organization reaches you." : "How to reach them."}
       >
         {!hasAnything ? (
           <CardEmpty>

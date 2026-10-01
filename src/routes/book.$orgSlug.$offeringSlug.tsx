@@ -73,7 +73,7 @@ function PublicBookPage() {
             <h1 className="text-lg font-semibold">This page is not available</h1>
             <p className="mt-2 text-sm text-muted-foreground">
               {loadError ??
-                "The school may have paused public requests, or this offering is no longer listed."}
+                "The organization may have paused public requests, or this offering is no longer listed."}
             </p>
           </div>
         </div>

@@ -203,6 +203,13 @@ export const canManageMembers = isAdmin;
  */
 export const canSeeShop = (r: Role[]) => isStaff(r) || isTechnician(r);
 
+/**
+ * Who opens WORK ORDERS: owners, admins and technicians (Murray's spec names the administrator
+ * and the technician). A dispatcher sees the customer aircraft and the hangar bookings, not the
+ * jobs, prices and bills behind them. The server enforces the same set (WORK_ORDER_ROLES).
+ */
+export const canOpenWorkOrders = (r: Role[]) => isAdmin(r) || isTechnician(r);
+
 export const canGroundMembers = isStaff;
 /** Create/edit/approve aircraft & facilities. Server: admin. */
 export const canManageResources = isAdmin;

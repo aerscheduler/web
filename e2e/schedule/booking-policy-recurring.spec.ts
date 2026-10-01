@@ -142,7 +142,7 @@ test.describe("Booking policy - recurring vs max upcoming", () => {
     await page.getByRole("option", { name: /Custom/i }).click();
 
     await expect(page.getByRole("heading", { name: /Custom repeat/i })).toBeVisible();
-    await expect(page.getByText(/school upcoming-booking limit/i)).toBeVisible();
+    await expect(page.getByText(/organization upcoming-booking limit/i)).toBeVisible();
 
     const countInput = page.getByLabel("Number of bookings");
     await expect(countInput).toBeVisible();

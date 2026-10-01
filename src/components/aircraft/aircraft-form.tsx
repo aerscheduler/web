@@ -169,9 +169,15 @@ export function AircraftFormModal({
   locations,
   focus = "tailNumber",
   defaultUse = "fleet",
+  defaultTail,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** A new aircraft's tail, typed already where the form was opened from (a search). */
+  defaultTail?: string;
+  /** A new aircraft was added: opened from another form (a work order), which picks it. */
+  onCreated?: (resource: Resource) => void;
   resource?: Resource | null;
   locations: Location[];
   /**
@@ -206,9 +212,10 @@ export function AircraftFormModal({
   // Reset the form whenever the modal opens (fresh add, or prefilled edit).
   React.useEffect(() => {
     if (!open) return;
-    setForm(resource ? stateFromResource(resource) : { ...emptyState(), use: defaultUse });
+    setForm(resource ? stateFromResource(resource) : { ...emptyState(), use: defaultUse, ...(defaultTail ? { tailNumber: defaultTail.toUpperCase() } : {}) });
     setRateKey((k) => k + 1);
     setShowErrors(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, resource, defaultUse]);
 
   /**
@@ -450,9 +457,10 @@ export function AircraftFormModal({
       },
     };
     create.mutate(input, {
-      onSuccess: () => {
+      onSuccess: (created) => {
         toast.success(form.use === "shop" ? `${tail} added to the shop` : `${tail} added to the fleet`);
         onOpenChange(false);
+        onCreated?.(created);
       },
       onError: (err) =>
         toast.error(err instanceof Error ? err.message : "Couldn't add aircraft"),
@@ -912,7 +920,7 @@ export function AircraftFormModal({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="inherit">Use school hours</SelectItem>
+              <SelectItem value="inherit">Use organization hours</SelectItem>
               {PLANE_FLYING_DAY_OPTIONS.map((o) => (
                 <SelectItem key={o.key} value={o.key}>
                   {o.label}
@@ -921,7 +929,7 @@ export function AircraftFormModal({
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Override when this aircraft can be booked. Leave as school hours unless this
+            Override when this aircraft can be booked. Leave as organization hours unless this
             tail really runs a different day.
           </p>
         </div>
@@ -950,7 +958,7 @@ export function AircraftFormModal({
             // the user on a page to go hunting.
             <div className="space-y-1.5">
               <p className="text-xs text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
-                Every aircraft needs a home base, and this school has no location yet.
+                Every aircraft needs a home base, and this organization has no location yet.
               </p>
               <Button
                 type="button"

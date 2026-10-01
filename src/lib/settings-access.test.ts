@@ -77,7 +77,7 @@ describe("the rest of Settings", () => {
     // and is admin-only, so that heading is supposed to disappear.
     const groups = settingsSectionsFor(false, false).map((s) => s.label);
     expect(groups).toContain("Billing");
-    expect(groups).toContain("School");
+    expect(groups).toContain("Organization");
     expect(groups).not.toContain("Security");
   });
 
@@ -112,7 +112,12 @@ describe("the registry itself", () => {
     //                school operates rather than a preference. A technician is deliberately
     //                NOT granted it either; see the role journey in
     //                e2e/operations/airworthiness-roles.spec.ts.
+    //   sales-tax    what every bill the school raises by hand charges on top, which it owes
+    //                the state. The server reads it to admins only and lets only the owner
+    //                change it, like the billing settings beside it.
+    //   shop-rates   the labor rate and markups every later work order is priced at. The shop
+    //                reads them on the job; only an admin changes them.
     const adminOnly = SETTINGS_TABS.filter((t) => t.adminOnly).map((t) => t.value);
-    expect(adminOnly).toEqual(["booking-offerings", "ad-tracking", "plan", "security"]);
+    expect(adminOnly).toEqual(["booking-offerings", "ad-tracking", "plan", "sales-tax", "shop-rates", "security"]);
   });
 });

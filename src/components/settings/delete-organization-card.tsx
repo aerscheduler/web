@@ -93,7 +93,7 @@ export function DeleteOrganizationCard() {
     try {
       await cancel.mutateAsync();
       await rehydrate();
-      toast.success("Deletion cancelled. Your school stays on AerScheduler.");
+      toast.success("Deletion cancelled. Your organization stays on AerScheduler.");
     } catch (e) {
       toast.error(
         e instanceof ApiError ? e.message : "Couldn't cancel organization deletion"
@@ -142,14 +142,14 @@ export function DeleteOrganizationCard() {
   return (
     <Card className="border-destructive/40">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-destructive">
+        <CardTitle className="flex items-center gap-2">
           <TriangleAlert className="size-4" /> Delete this organization
           <DocsHint topic="delete-organization" />
         </CardTitle>
         <CardDescription>
           Schedules {name || "this organization"} for permanent deletion in 30 days.
           Bookings, invoices, training records, documents and every member&rsquo;s access
-          are removed when the countdown ends. Until then the school keeps working, and
+          are removed when the countdown ends. Until then the organization keeps working, and
           any admin or owner can cancel.
         </CardDescription>
       </CardHeader>
@@ -173,7 +173,7 @@ export function DeleteOrganizationCard() {
           <AlertDialogHeader>
             <AlertDialogTitle>Schedule deletion of {name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              The school will be permanently deleted in 30 days. Until then everything
+              The organization will be permanently deleted in 30 days. Until then everything
               keeps working, and any admin or owner can cancel from this page. Every
               admin and owner will be emailed.
             </AlertDialogDescription>

@@ -583,7 +583,7 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Quiet hours use each airport&apos;s time zone (then the school zone). A
+              Quiet hours use each airport&apos;s time zone (then the organization's zone). A
               pending offer reserves the aircraft until someone accepts, declines, or
               the offer ends. Decline cooldown stops re-offering the same person an
               overlapping window on that aircraft after they decline or let an offer
@@ -880,7 +880,7 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            All off by default. Turn on only what your school needs. These are shared
+            All off by default. Turn on only what your organization needs. These are shared
             calendar rules: they apply to every booking on the schedule, including the
             ones the front desk makes, and members see a clear reason when a rule refuses
             a booking or cancel.
@@ -988,7 +988,7 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
             <PolicySelect
               label="Start time interval"
               docs="booking-policy-rules"
-              hint="Start times must land on this grid in the school's time zone, so the board does not fill with ragged times. The Start picker offers only these marks."
+              hint="Start times must land on this grid in the organization's time zone, so the board does not fill with ragged times. The Start picker offers only these marks."
               value={startIncrement === "" ? "off" : startIncrement}
               disabled={rulesDisabled}
               onValueChange={(value) => {

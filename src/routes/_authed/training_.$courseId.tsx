@@ -389,7 +389,7 @@ function RequirementsView({ version }: { version: CourseVersion }) {
             {r.minDeciHours != null ? deciHoursLabel(r.minDeciHours) : `${r.minCount ?? "–"}`}
           </div>
           <Badge variant={r.source === "school" ? "outline" : "secondary"}>
-            {r.source === "school" ? "School" : PART_LABEL[r.source]}
+            {r.source === "school" ? "Organization" : PART_LABEL[r.source]}
           </Badge>
           {r.maxSimulatorBps ? (
             <Badge variant="outline" className="text-xs">

@@ -17,10 +17,10 @@ describe("parsePublicBookingEmbedHosts", () => {
 
   it("rejects paths, wildcards, and http on public hosts", () => {
     expect(parsePublicBookingEmbedHosts("https://flynow.com/book")).toEqual({
-      error: "Use the site host only, like www.yourschool.com, not a full page URL.",
+      error: "Use the site host only, like www.yoursite.com, not a full page URL.",
     });
     expect(parsePublicBookingEmbedHosts("*.flynow.com")).toEqual({
-      error: "Wildcards are not allowed. Use the exact host, like www.yourschool.com.",
+      error: "Wildcards are not allowed. Use the exact host, like www.yoursite.com.",
     });
     expect(parsePublicBookingEmbedHosts("http://flynow.com")).toEqual({
       error: "Public websites must use https.",

@@ -234,7 +234,7 @@ export function FacilityFormModal({
             // at Settings, where locations have never lived.
             <div className="space-y-1.5">
               <p className="text-xs text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
-                Everything bookable is based at a location, and this school has none yet.
+                Everything bookable is based at a location, and this organization has none yet.
               </p>
               <Button
                 type="button"

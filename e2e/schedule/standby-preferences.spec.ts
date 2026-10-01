@@ -125,7 +125,7 @@ test.describe("Standby preferences (student)", () => {
 
     // With a preference in place the callout is gone.
     await page.goto("/me/schedule");
-    await expect(page.getByText("Upcoming 30 days")).toBeVisible();
+    await expect(page.getByLabel("Search calendar")).toBeVisible();
     await expect(page.getByTestId("first-dibs-callout")).toHaveCount(0);
 
     // Withdraw both from the rows.
@@ -171,7 +171,7 @@ test.describe("Standby preferences (student)", () => {
     await callout.getByRole("button", { name: "Dismiss" }).click();
     await expect(callout).toHaveCount(0);
     await page.reload();
-    await expect(page.getByText("Upcoming 30 days")).toBeVisible();
+    await expect(page.getByLabel("Search calendar")).toBeVisible();
     await expect(page.getByTestId("first-dibs-callout")).toHaveCount(0);
   });
 });

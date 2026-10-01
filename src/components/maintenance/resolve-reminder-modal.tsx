@@ -277,7 +277,7 @@ export function ResolveReminderModal({
                     Tach at compliance
                     <DocsHint topic="compliance-meters" />
                   </Label>
-                  <Input
+                  <Input placeholder="1234.5"
                     id="resolve-tach"
                     inputMode="decimal"
                     className="tnum"
@@ -287,7 +287,7 @@ export function ResolveReminderModal({
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="resolve-hobbs">Hobbs at compliance</Label>
-                  <Input
+                  <Input placeholder="1234.5"
                     id="resolve-hobbs"
                     inputMode="decimal"
                     className="tnum"
@@ -316,7 +316,7 @@ export function ResolveReminderModal({
                       filled field at a glance, which is exactly how the first version of
                       this shipped a record with no certificate on it while looking correct
                       on screen. If it is empty it should look empty. */}
-                  <Input
+                  <Input placeholder="3421887"
                     id="resolve-cert"
                     value={certNumber}
                     onChange={(e) => setCertNumber(e.target.value)}
@@ -362,7 +362,7 @@ export function ResolveReminderModal({
               )}
               <p className="text-xs text-muted-foreground">
                 Stored as typed, not as a link to an account: an outside IA has no login here,
-                and the record has to outlast anyone leaving the school.
+                and the record has to outlast anyone leaving the organization.
               </p>
             </div>
           )}

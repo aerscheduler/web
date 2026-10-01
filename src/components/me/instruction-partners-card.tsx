@@ -65,7 +65,7 @@ function PersonRow({
           size="icon-sm"
           disabled={removing}
           aria-label={`Remove ${user?.name ?? "partner"}`}
-          className="text-muted-foreground hover:text-destructive"
+          className="text-muted-foreground"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();

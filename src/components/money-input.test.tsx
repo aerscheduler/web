@@ -138,4 +138,26 @@ describe("MoneyInput", () => {
     fireEvent.blur(field());
     expect(field().value).toBe("");
   });
+
+  // 2026-09-29: a field that starts EMPTY (no rate yet, a new part's cost, a spend limit) used
+  // to rewrite "4" as "4.00" on the first keystroke, putting the caret after the decimals, so
+  // typing 450 key by key saved $4.01. fill() sets the whole value at once and never saw it.
+  it("keeps a value typed key by key into an empty field: 450 is $450.00, not $4.01", () => {
+    render(<Harness />);
+    const input = field();
+    fireEvent.focus(input);
+    for (const key of "450") {
+      input.setSelectionRange(input.value.length, input.value.length);
+      typeInto(input, key);
+    }
+    expect(field().value).toBe("450");
+    expect(cents()).toBe("45000");
+  });
+
+  it("still redraws when the owner of the value resets it from outside", () => {
+    const { rerender } = render(<MoneyInput cents={undefined} onCentsChange={() => undefined} id="price" />);
+    expect(field().value).toBe("");
+    rerender(<MoneyInput cents={12345} onCentsChange={() => undefined} id="price" />);
+    expect(field().value).toBe("123.45");
+  });
 });

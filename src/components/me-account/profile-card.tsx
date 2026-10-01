@@ -91,7 +91,7 @@ export function ProfileCard() {
 
           <div className="space-y-2">
             <Label htmlFor="profile-email">Email</Label>
-            <Input
+            <Input placeholder="you@example.com"
               id="profile-email"
               type="email"
               value={user?.email ?? ""}

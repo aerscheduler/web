@@ -35,7 +35,7 @@ export function OrgBillingTerms({ orgId }: { orgId: number }) {
     return (
       <Card>
         <CardContent className="py-6 text-sm text-destructive">
-          {q.error instanceof ApiError ? q.error.message : "Could not load that school."}
+          {q.error instanceof ApiError ? q.error.message : "Could not load that organization."}
         </CardContent>
       </Card>
     );
@@ -51,7 +51,7 @@ export function OrgBillingTerms({ orgId }: { orgId: number }) {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!reason.trim()) {
-      toast.error("Say why. It is recorded against this school and someone will read it later.");
+      toast.error("Say why. It is recorded against this organization and someone will read it later.");
       return;
     }
     try {
@@ -84,7 +84,7 @@ export function OrgBillingTerms({ orgId }: { orgId: number }) {
       <CardHeader>
         <CardTitle>Billing terms</CardTitle>
         <CardDescription>
-          What this school pays us, and on what terms. Every change is recorded with your name and
+          What this organization pays us, and on what terms. Every change is recorded with your name and
           your reason.
         </CardDescription>
       </CardHeader>
@@ -115,16 +115,16 @@ export function OrgBillingTerms({ orgId }: { orgId: number }) {
 
             <div className="grid gap-2">
               <Label htmlFor="freeUnits">Free aircraft</Label>
-              <Input id="freeUnits" inputMode="numeric" value={val("freeUnits", terms?.freeUnits ?? 0)} onChange={set("freeUnits")} />
+              <Input placeholder="0" id="freeUnits" inputMode="numeric" value={val("freeUnits", terms?.freeUnits ?? 0)} onChange={set("freeUnits")} />
               <p className="text-xs text-muted-foreground">
                 Billed on the tails beyond this. Set it at or above their fleet ({priced.unitCount}) to
-                make the school free while still showing them the real arithmetic.
+                make the organization free while still showing them the real arithmetic.
               </p>
             </div>
 
             <div className="grid gap-2">
               <Label htmlFor="discountPercent">Discount %</Label>
-              <Input
+              <Input placeholder="0"
                 id="discountPercent"
                 inputMode="numeric"
                 value={val("discountPercent", terms?.discountPercent ?? 0)}
@@ -168,7 +168,7 @@ export function OrgBillingTerms({ orgId }: { orgId: number }) {
                 onChange={set("feeRateBasis")}
               />
               <p className="text-xs text-muted-foreground">
-                50 is 0.5%. Only applies on the legacy model; a per-aircraft school is never charged
+                50 is 0.5%. Only applies on the legacy model; a per-aircraft organization is never charged
                 both.
               </p>
             </div>
@@ -224,7 +224,7 @@ export function OrgBillingTerms({ orgId }: { orgId: number }) {
               rows={2}
             />
             <p className="text-xs text-muted-foreground">
-              Required. Recorded against this school so the next person can tell what was agreed.
+              Required. Recorded against this organization so the next person can tell what was agreed.
             </p>
           </div>
 

@@ -596,7 +596,7 @@ function TopUpCardFeeCard({
           </CardTitle>
           <CardDescription>
             Recover Stripe processing when members add funds by card. Desk cash and check
-            credit stay dollar-for-dollar. Leave blank if the school absorbs card fees.
+            credit stay dollar-for-dollar. Leave blank if the organization absorbs card fees.
           </CardDescription>
         </div>
       </CardHeader>
@@ -1114,7 +1114,7 @@ function BillingModePicker({
             </CardTitle>
             <CardDescription>
               {canEdit
-                ? "Most schools keep invoices for each booking; ledger is for prepaid / house-account billing. Guests always get a pay-this-visit invoice."
+                ? "Most organizations keep invoices for each booking; ledger is for prepaid / house-account billing. Guests always get a pay-this-visit invoice."
                 : "Only the organization owner can change this."}
             </CardDescription>
           </div>

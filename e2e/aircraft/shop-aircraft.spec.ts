@@ -349,7 +349,9 @@ test.describe("an owner the shop writes down", () => {
 
   test.afterAll(async ({ request }) => {
     for (const id of [maintenanceBookingId, fleetBookingId]) {
-      if (id) await request.delete(`${base()}/reservations/${id}`, { headers: headers(ctx) }).catch(() => undefined);
+      // A cancellation needs its kind; without one the server refused and the fleet booking
+      // stayed, so the next run found its own hour taken.
+      if (id) await request.delete(`${base()}/reservations/${id}`, { headers: headers(ctx), data: { reason: "E2E test cleanup", category: "booked_in_error" } }).catch(() => undefined);
     }
     if (shopId) await deleteResource(request, ctx, shopId);
     //ARCHIVED, not deleted: there is no hard delete for a member and there should not be,
@@ -705,8 +707,12 @@ test.describe("an owner the shop writes down", () => {
 
   test("is offered on the invoice form under the address the invoice will go to", async ({ page }) => {
     await page.goto("/billing");
-    await page.getByRole("button", { name: "New invoice" }).click();
-    await page.getByLabel("Customer").click();
+    // The console remounts a second or two after a full load and can swallow the first click.
+    await expect(async () => {
+      await page.getByRole("button", { name: "New invoice" }).click();
+      await expect(page.getByRole("dialog")).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 20_000 });
+    await page.getByRole("dialog").getByLabel("Customer", { exact: true }).click();
     await page.getByPlaceholder("Search members…").fill(OWNER);
     const option = page.getByRole("option").filter({ hasText: OWNER });
     await expect(option).toBeVisible();

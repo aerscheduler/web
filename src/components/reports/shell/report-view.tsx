@@ -13,6 +13,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import type { DateRange } from "react-day-picker";
 import { ChevronDown, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -213,6 +214,7 @@ export function ReportView({
     }
   };
 
+  const navigate = useNavigate();
   const openRow = (row: ReportRow) => {
     if (typeof row.invoiceId === "number") {
       setReservationId(null);
@@ -385,6 +387,16 @@ export function ReportView({
             sort={sort}
             onSort={toggleSort}
             onRowClick={result?.groupBy ? undefined : openRow}
+            onRowDoubleClick={
+              result?.groupBy
+                ? undefined
+                : (row) => {
+                    // A booking has its own page; an invoice opens only in its panel.
+                    if (typeof row.reservationId === "number" && typeof row.invoiceId !== "number") {
+                      void navigate({ to: "/schedule/reservations/$reservationId", params: { reservationId: String(row.reservationId) } });
+                    }
+                  }
+            }
             loading={run.isFetching}
           />
         )}

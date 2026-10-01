@@ -205,6 +205,7 @@ function UpcomingRow({
     <li>
       <button
         type="button"
+        data-reservation-id={r.id}
         onClick={onOpen}
         disabled={!onOpen}
         className={cn(

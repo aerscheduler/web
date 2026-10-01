@@ -383,8 +383,8 @@ export function toRecurrenceInput(
       input: null,
       problem:
         state.endMode === "after"
-          ? `This repeat would create ${estimated} bookings, but the school limit is ${maxUpcoming} upcoming. Shorten the series, or ask an admin to raise the limit.`
-          : `This repeat would create about ${estimated} bookings, but the school limit is ${maxUpcoming} upcoming. Pick an earlier end date, or ask an admin to raise the limit.`,
+          ? `This repeat would create ${estimated} bookings, but the organization limit is ${maxUpcoming} upcoming. Shorten the series, or ask an admin to raise the limit.`
+          : `This repeat would create about ${estimated} bookings, but the organization limit is ${maxUpcoming} upcoming. Pick an earlier end date, or ask an admin to raise the limit.`,
     };
   }
 
@@ -626,7 +626,7 @@ function CustomRecurrenceDialog({
           <div className="space-y-2">
             <Label>Repeat every</Label>
             <div className="flex items-center gap-2">
-              <Input
+              <Input placeholder="1"
                 type="number"
                 min={1}
                 max={12}
@@ -733,7 +733,7 @@ function CustomRecurrenceDialog({
 
               {draft.endMode === "after" ? (
                 <div className="flex flex-1 items-center gap-2">
-                  <Input
+                  <Input placeholder="10"
                     type="number"
                     min={1}
                     max={countCap}
@@ -764,12 +764,12 @@ function CustomRecurrenceDialog({
               A repeat always has an end, each booking holds the aircraft, so there is no
               &ldquo;forever&rdquo;.{" "}
               {maxUpcomingBookings != null && maxUpcomingBookings > 0
-                ? `Up to ${countCap} at a time (school upcoming-booking limit).`
+                ? `Up to ${countCap} at a time (organization upcoming-booking limit).`
                 : `Up to ${MAX_SERIES_OCCURRENCES} at a time.`}
             </p>
             {untilOverCap && (
               <p className="text-xs text-destructive">
-                That end date would create about {untilEstimate} bookings, over the school
+                That end date would create about {untilEstimate} bookings, over the organization&apos;s
                 limit of {maxUpcomingBookings}. Pick an earlier date.
               </p>
             )}

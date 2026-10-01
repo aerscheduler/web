@@ -97,7 +97,7 @@ export function PersonCurrencies({
               .
             </>
           ) : isSelf ? (
-            "apply to you. Your school sets these up per group."
+            "apply to you. Your organization sets these up per group."
           ) : (
             "for this member."
           )}

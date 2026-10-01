@@ -53,7 +53,7 @@ function stateNote(status: SubStatus): string {
 
   switch (status.state) {
     case "free":
-      return "AerScheduler is free for your school. There's nothing to pay and nothing to set up.";
+      return "AerScheduler is free for your organization. There's nothing to pay and nothing to set up.";
     case "legacy":
       return "You're on your existing plan (billed through Stripe Connect). The new per-aircraft pricing doesn't apply to your account.";
     case "active":
@@ -102,7 +102,7 @@ export function PlanTab() {
           </span>
           <div>
             <CardTitle>Your plan</CardTitle>
-            <CardDescription>AerScheduler is free for your school.</CardDescription>
+            <CardDescription>AerScheduler is free for your organization.</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -616,7 +616,7 @@ export function SmartTimeRange({
           <span>
             No open times on this date for everyone selected
             {policyClauses.length > 0
-              ? " that fit your school's calendar rules."
+              ? " that fit your organization's calendar rules."
               : "."}
           </span>
           {next && (

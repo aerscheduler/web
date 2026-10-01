@@ -11,6 +11,7 @@
  */
 
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
+import { useSecondPress } from "@/lib/use-second-press";
 import { cn } from "@/lib/utils";
 import { EMPTY_CELL, formatReportValue, isNumericColumn, primaryMeasure } from "@/lib/report-format";
 import type { ReportColumn, ReportRow } from "@/types/reports";
@@ -23,6 +24,7 @@ export function ReportTable({
   sort,
   onSort,
   onRowClick,
+  onRowDoubleClick,
   loading,
 }: {
   columns: ReportColumn[];
@@ -37,8 +39,12 @@ export function ReportTable({
    * and the row becomes clickable.
    */
   onRowClick?: (row: ReportRow) => void;
+  /** A double click: the row's own page, where it has one (a booking). */
+  onRowDoubleClick?: (row: ReportRow) => void;
   loading?: boolean;
 }) {
+  // A double click opens the row's page even after the first click docked a panel.
+  const secondPress = useSecondPress<ReportRow>((row) => onRowDoubleClick?.(row));
   /**
    * The bar is drawn only when a share is a real fact about the data.
    *
@@ -124,6 +130,7 @@ export function ReportTable({
               <tr
                 key={i}
                 onClick={clickable ? () => onRowClick(row) : undefined}
+                onMouseDown={clickable && onRowDoubleClick ? (e) => secondPress.press(row, e) : undefined}
                 className={cn(
                   "border-b border-border/60 last:border-0 hover:bg-muted/40",
                   clickable && "cursor-pointer"

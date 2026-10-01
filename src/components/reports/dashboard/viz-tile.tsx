@@ -229,7 +229,7 @@ export function VizTile({
               <DropdownMenuItem onClick={onEdit}>
                 <Pencil className="size-3.5" /> Edit
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onRemove} className="text-destructive">
+              <DropdownMenuItem onClick={onRemove}>
                 <Trash2 className="size-3.5" /> Remove
               </DropdownMenuItem>
             </DropdownMenuContent>

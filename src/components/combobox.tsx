@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -65,6 +65,8 @@ export function MultiCombobox({
   emptyText = "No matches.",
   className,
   disabled,
+  trigger,
+  contentClassName,
 }: {
   options: ComboOption[];
   values: string[];
@@ -74,6 +76,10 @@ export function MultiCombobox({
   emptyText?: string;
   className?: string;
   disabled?: boolean;
+  /** Your own trigger in place of the button (a property row showing avatars). */
+  trigger?: React.ReactElement;
+  /** The list's width when the trigger is narrow or wide: "w-72". */
+  contentClassName?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const selected = new Set(values);
@@ -99,26 +105,28 @@ export function MultiCombobox({
     // without it, wheel events over the list are preventDefault'd and the roster won't scroll.
     <Popover open={open} onOpenChange={setOpen} modal>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          role="combobox"
-          aria-expanded={open}
-          disabled={disabled}
-          className={cn(
-            "h-7 max-w-[16rem] justify-start text-sm font-normal",
-            selected.size === 0 && "text-muted-foreground",
-            className
-          )}
-        >
-          <span className="truncate">{label}</span>
-        </Button>
+        {trigger ?? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            role="combobox"
+            aria-expanded={open}
+            disabled={disabled}
+            className={cn(
+              "h-7 max-w-[16rem] justify-start text-sm font-normal",
+              selected.size === 0 && "text-muted-foreground",
+              className
+            )}
+          >
+            <span className="truncate">{label}</span>
+          </Button>
+        )}
       </PopoverTrigger>
       {/* Matches the trigger, with a floor: a full-width form field gets a list wide
           enough to read a name and an address, while the narrow filter-bar trigger
           keeps the 16rem it has always had. */}
-      <PopoverContent align="start" className="w-(--radix-popover-trigger-width) min-w-64 p-0">
+      <PopoverContent align="start" className={cn("w-(--radix-popover-trigger-width) min-w-64 p-0", contentClassName)}>
         <Command>
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
@@ -149,6 +157,14 @@ export function MultiCombobox({
   );
 }
 
+/** A headed group whose heading stays pinned while its rows scroll under it. Shared with the
+ * other searchable menus (the job's Add menu) so they all read the same. */
+export const STICKY_GROUP_CLASS =
+  "overflow-visible [&_[cmdk-group-heading]]:sticky [&_[cmdk-group-heading]]:top-0 [&_[cmdk-group-heading]]:z-10 [&_[cmdk-group-heading]]:-mx-1 [&_[cmdk-group-heading]]:bg-popover [&_[cmdk-group-heading]]:px-3";
+
+/** A searchable menu's list: taller on a taller screen, never past the room the popover has. */
+export const TALL_LIST_CLASS = "max-h-[min(30rem,calc(var(--radix-popover-content-available-height)-3rem))]";
+
 /**
  * Searchable single-select (Popover + Command). Client-side fuzzy filter, the API has
  * no server search, so this is how large rosters/fleets stay usable.
@@ -164,10 +180,18 @@ export function Combobox({
   disabled,
   id,
   invalid,
+  trigger,
+  contentClassName,
+  action,
 }: {
   options: ComboOption[];
   value?: string;
   onChange: (value: string) => void;
+  /**
+   * A last row that makes the thing being looked for when it is not there ("Add a customer
+   * aircraft"). Always shown, whatever is typed; given the search text, to start the new one with.
+   */
+  action?: { label: string; onSelect: (search: string) => void };
   placeholder?: string;
   searchPlaceholder?: string;
   emptyText?: string;
@@ -177,37 +201,51 @@ export function Combobox({
   id?: string;
   /** Marks the trigger `aria-invalid` for validate-on-submit forms. */
   invalid?: boolean;
+  /** Your own trigger in place of the button (a property row showing the value its own way). */
+  trigger?: React.ReactElement;
+  /** The list's width when the trigger is narrow or wide: "w-72". */
+  contentClassName?: string;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
   const selected = options.find((o) => o.value === value);
   const groups = React.useMemo(() => groupOptions(options), [options]);
 
   return (
     // `modal` so Dialog's RemoveScroll treats this portaled list as a scroll shard;
     // without it, wheel events over the list are preventDefault'd and the roster won't scroll.
-    <Popover open={open} onOpenChange={setOpen} modal>
+    <Popover open={open} onOpenChange={(o) => (setOpen(o), o || setSearch(""))} modal>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          role="combobox"
-          id={id}
-          aria-expanded={open}
-          aria-invalid={invalid}
-          disabled={disabled}
-          className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground", className)}
-        >
-          <span className="truncate">{selected ? selected.label : placeholder}</span>
-          <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-        </Button>
+        {trigger ?? (
+          <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            id={id}
+            aria-expanded={open}
+            aria-invalid={invalid}
+            disabled={disabled}
+            className={cn("w-full justify-between font-normal", !selected && "text-muted-foreground", className)}
+          >
+            <span className="truncate">{selected ? selected.label : placeholder}</span>
+            <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+          </Button>
+        )}
       </PopoverTrigger>
-      <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
+      <PopoverContent className={cn("w-(--radix-popover-trigger-width) p-0", contentClassName)} align="start">
         <Command>
-          <CommandInput placeholder={searchPlaceholder} />
-          <CommandList>
+          <CommandInput placeholder={searchPlaceholder} value={search} onValueChange={setSearch} />
+          <CommandList className={TALL_LIST_CLASS}>
             <CommandEmpty>{emptyText}</CommandEmpty>
             {groups.map((group, i) => (
-              <CommandGroup key={group.heading ?? `ungrouped-${i}`} heading={group.heading}>
+              // Headed groups keep their heading pinned while their rows scroll under it, so a
+              // long list still says whose rows these are ("Owners of this aircraft"). The group
+              // must not clip (overflow-hidden would make it the sticky's scroller).
+              <CommandGroup
+                key={group.heading ?? `ungrouped-${i}`}
+                heading={group.heading}
+                className={STICKY_GROUP_CLASS}
+              >
                 {group.items.map((o) => (
                   <CommandItem
                     key={o.value}
@@ -232,6 +270,21 @@ export function Combobox({
                 ))}
               </CommandGroup>
             ))}
+          {action && (
+              <CommandGroup forceMount className="border-t border-border">
+                <CommandItem
+                  forceMount
+                  value="__combobox-action"
+                  onSelect={() => {
+                    setOpen(false);
+                    action.onSelect(search.trim());
+                  }}
+                >
+                  <Plus className="size-4" />
+                  <span className="truncate">{action.label}</span>
+                </CommandItem>
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>

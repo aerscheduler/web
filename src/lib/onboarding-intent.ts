@@ -58,7 +58,7 @@ export const HEARD_FROM_OPTIONS: {
   detailLabel?: string;
 }[] = [
   { id: "google", label: "Google search" },
-  { id: "friend", label: "Friend or another school", detailLabel: "Who should we thank?" },
+  { id: "friend", label: "Friend or another organization", detailLabel: "Who should we thank?" },
   { id: "social", label: "Facebook or Instagram" },
   { id: "forum", label: "Aviation forum or Facebook group" },
   {

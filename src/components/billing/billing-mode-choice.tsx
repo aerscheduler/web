@@ -25,7 +25,7 @@ const OPTIONS: Array<{
     points: [
       "A new invoice for each visit or fee (flights, sims, ground, and more)",
       "Member pays that invoice (card or desk)",
-      "Familiar pay-as-you-go for most schools",
+      "Familiar pay-as-you-go for most organizations",
     ],
   },
   {

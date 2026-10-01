@@ -127,7 +127,7 @@ function StudentRequestRow({ request }: { request: InstructionPairRequest }) {
           variant="ghost"
           disabled={busy}
           aria-label="Decline"
-          className="text-muted-foreground hover:text-destructive"
+          className="text-muted-foreground hover:text-foreground"
           onClick={async () => {
             try {
               await respond.mutateAsync({ id: request.id, action: "decline" });
@@ -187,7 +187,7 @@ function InstructorRequestRow({ request }: { request: InstructionPairRequest }) 
           variant="ghost"
           disabled={busy}
           aria-label="Decline"
-          className="text-muted-foreground hover:text-destructive"
+          className="text-muted-foreground hover:text-foreground"
           onClick={async () => {
             try {
               await respond.mutateAsync({ id: request.id, action: "decline" });

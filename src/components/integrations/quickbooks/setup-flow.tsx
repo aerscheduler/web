@@ -548,7 +548,7 @@ function DepositStep({ row }: { row: QuickBooksSettings }) {
         />
       </div>
       <Note>
-        Most schools use a Stripe clearing account, because Stripe pays out in batches with its fees taken off.
+        Most organizations use a Stripe clearing account, because Stripe pays out in batches with its fees taken off.
         Undeposited Funds works too, but then your bookkeeper groups receipts into deposits and subtracts Stripe's fees
         by hand.
       </Note>

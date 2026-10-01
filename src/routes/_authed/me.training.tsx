@@ -97,7 +97,7 @@ function MyTrainingPage() {
               <EmptyState
                 graphic="my-training"
                 title="You're not on a course"
-                body="When your school enrolls you on a syllabus, your lessons and hours appear here."
+                body="When your organization enrolls you on a syllabus, your lessons and hours appear here."
                 docs="my-training"
               />
             ) : (

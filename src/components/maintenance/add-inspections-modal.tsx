@@ -480,7 +480,7 @@ export function AddInspectionsModal({
                       {basis === "days" && <DocsHint topic="calendar-interval-unit" />}
                     </Label>
                     <div className="flex gap-2">
-                      <Input
+                      <Input placeholder="100"
                         id="insp-every"
                         inputMode="decimal"
                         value={every}
@@ -501,7 +501,7 @@ export function AddInspectionsModal({
                     <Label htmlFor="insp-warn" className="text-xs">
                       Warn me ({basis === "days" ? "days" : "hours"} out)
                     </Label>
-                    <Input
+                    <Input placeholder="10"
                       id="insp-warn"
                       inputMode="decimal"
                       value={warn}
@@ -524,7 +524,7 @@ export function AddInspectionsModal({
                         <DocsHint topic="calendar-interval-unit" />
                       </Label>
                       <div className="flex gap-2">
-                        <Input
+                        <Input placeholder="365"
                           id="insp-every-days"
                           inputMode="decimal"
                           value={everyDays}
@@ -538,7 +538,7 @@ export function AddInspectionsModal({
                       <Label htmlFor="insp-warn-days" className="text-xs">
                         Warn me (days out)
                       </Label>
-                      <Input
+                      <Input placeholder="30"
                         id="insp-warn-days"
                         inputMode="decimal"
                         value={warnDays}
@@ -596,7 +596,7 @@ export function AddInspectionsModal({
                       <Label htmlFor="insp-warn-once" className="text-xs">
                         Warn me (days out)
                       </Label>
-                      <Input
+                      <Input placeholder="30"
                         id="insp-warn-once"
                         inputMode="numeric"
                         value={warn}
@@ -632,7 +632,7 @@ export function AddInspectionsModal({
                       <Label htmlFor="insp-warn-at-hours" className="text-xs">
                         Warn me (hours out)
                       </Label>
-                      <Input
+                      <Input placeholder="10"
                         id="insp-warn-at-hours"
                         inputMode="decimal"
                         value={warn}

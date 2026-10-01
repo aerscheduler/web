@@ -3,13 +3,13 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, PlaneTakeoff, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { fetchResourceHolds, pageRows, usePlanesPage, useLocations, useResources } from "@/features/queries";
+import { fetchResourceHolds, pageRows, useCurrentJobs, usePlanesPage, useLocations, useResources } from "@/features/queries";
 import { TablePagination } from "@/components/table-pagination";
 import { usePaging } from "@/lib/paging";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { canManageResources, canSeeShop } from "@/lib/permissions";
+import { canManageResources, canOpenWorkOrders, canSeeShop } from "@/lib/permissions";
 import { returnToServiceDescription } from "@/lib/outstanding-holds";
 import type { Resource } from "@/types/api";
 import { AircraftCard, type AircraftActions } from "@/components/aircraft/aircraft-card";
@@ -124,6 +124,11 @@ function AircraftPage() {
   };
   const paging = usePaging({ resetKey: fleetFilter });
   const q = usePlanesPage(fleetFilter, paging);
+  // What each customer's aircraft is here for, if anything: the chip reads the job, not the
+  // fact that the aircraft is a customer's. Only fetched on that tab, and only for the shop.
+  // Jobs only for those who may open them; a dispatcher's chip then says "Customer aircraft".
+  const jobs = useCurrentJobs({ enabled: scope === "shop" && canOpenWorkOrders(roles) });
+  const jobFor = (id: number) => (scope === "shop" && jobs ? (jobs.get(id) ?? null) : undefined);
   const { rows: planes, total } = pageRows(q);
   const lcpIndex = planes.findIndex((p) => p.featuredImage);
 
@@ -335,13 +340,14 @@ function AircraftPage() {
                     r={r}
                     actions={actions}
                     priority={i === lcpIndex}
+                    job={jobFor(r.id)}
                   />
                 ))}
               </div>
             ) : (
               <Card className={cn("divide-y divide-border overflow-hidden", q.isFetching && "opacity-60")}>
                 {planes.map((r) => (
-                  <AircraftListRow key={r.id} r={r} actions={actions} />
+                  <AircraftListRow key={r.id} r={r} actions={actions} job={jobFor(r.id)} />
                 ))}
               </Card>
             )}

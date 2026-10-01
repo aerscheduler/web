@@ -64,7 +64,7 @@ export function MyMembershipCard() {
       {m.joinFeeStatus === "owed" ? (
         <p className="mt-3 rounded-lg border border-dashed p-2.5 text-xs text-muted-foreground">
           A one-time join fee of {formatMoney(m.joinFeeCents)} is on your account. It has not been
-          invoiced yet, you will get an invoice when the school raises it.
+          invoiced yet, you will get an invoice when the organization raises it.
         </p>
       ) : null}
 

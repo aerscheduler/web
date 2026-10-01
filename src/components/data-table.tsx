@@ -12,6 +12,7 @@ import { FILL_BODY_MIN } from "@/components/table-view";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { PagingState } from "@/lib/paging";
 import { cn } from "@/lib/utils";
+import { useSecondPress } from "@/lib/use-second-press";
 
 /**
  * Extra column facts this table understands.
@@ -75,6 +76,7 @@ export function DataTable<T>({
   emptyMessage = "Nothing here yet.",
   fill = false,
   onRowClick,
+  onRowDoubleClick,
   isRowSelected,
   showPageSize,
   docShot,
@@ -107,6 +109,11 @@ export function DataTable<T>({
   /** Opens a detail panel/sheet when a row is clicked. */
   onRowClick?: (row: T) => void;
   /**
+   * A double click goes straight to the record's own page, wherever a click opens a panel that
+   * links to one (Tony, 2026-09-30): opening the panel only to click through it was the slow way.
+   */
+  onRowDoubleClick?: (row: T) => void;
+  /**
    * Marks the row whose record is open in the detail panel. Worth passing
    * wherever `onRowClick` opens one: the panel docks BESIDE the table rather
    * than over it, so the list stays on screen, and without a highlight nothing
@@ -123,6 +130,8 @@ export function DataTable<T>({
    */
   docShot?: string;
 }) {
+  // A double click opens the record's page even after the first click docked a panel.
+  const secondPress = useSecondPress<T>((row) => onRowDoubleClick?.(row));
   const isMobile = useIsMobile();
 
   const table = useReactTable({
@@ -261,6 +270,7 @@ export function DataTable<T>({
                       selected && "bg-accent hover:bg-accent [box-shadow:inset_2px_0_0_0_var(--primary)]"
                     )}
                     onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+                    onMouseDown={onRowDoubleClick ? (e) => secondPress.press(row.original, e) : undefined}
                   >
                     {row.getVisibleCells().map((cell) => (
                       <TD

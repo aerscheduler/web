@@ -140,7 +140,7 @@ export function overnightDisclosure(args: {
     floorTenths,
     message:
       `This keeps ${what} out ${nights === 1 ? "overnight" : `for ${nights} nights`}. ` +
-      `Your school bills at least ${hours(minimumTenthsPerNight)} hours per night away, ` +
+      `Your organization bills at least ${hours(minimumTenthsPerNight)} hours per night away, ` +
       `so this booking will bill a minimum of ${hours(floorTenths)} hours even if you fly less.` +
       (grace
         ? ` Landing within ${grace} minutes after midnight doesn't count as another night.`

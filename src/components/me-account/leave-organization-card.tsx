@@ -68,12 +68,12 @@ export function LeaveOrganizationCard() {
   return (
     <Card className="border-destructive/40" data-doc-shot="leave-organization-card">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-destructive">
-          <LogOut className="size-4" /> Leave this school
+        <CardTitle className="flex items-center gap-2">
+          <LogOut className="size-4" /> Leave this organization
         </CardTitle>
         <CardDescription>
           Remove yourself from {name || "this organization"}. Your flight and billing
-          history stays with the school. You will need an invite or the join code to come
+          history stays with the organization. You will need an invite or the join code to come
           back.
         </CardDescription>
       </CardHeader>
@@ -98,7 +98,7 @@ export function LeaveOrganizationCard() {
             <AlertDialogTitle>Leave {name.trim()}?</AlertDialogTitle>
             <AlertDialogDescription>
               You lose access immediately. Bookings, invoices and training records that
-              mention you stay with the school.
+              mention you stay with the organization.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -130,7 +130,7 @@ export function LeaveOrganizationCard() {
                   <Loader2 className="size-4 animate-spin" /> Leaving…
                 </>
               ) : (
-                "Leave school"
+                "Leave organization"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

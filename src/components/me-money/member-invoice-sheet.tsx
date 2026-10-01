@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
 import { formatMoney } from "@/lib/utils";
+import { useInvoice } from "@/features/queries";
 
 function fmtDate(iso: string | null | undefined) {
   return iso ? format(parseISO(iso), "MMM d, yyyy") : "–";
@@ -31,7 +32,10 @@ export function MemberInvoiceSheet({
   /** ↑/↓ through the invoices on screen while the panel is docked. */
   onStep?: (delta: -1 | 1) => void;
 }) {
-  const inv = invoice;
+  // The list row carries no lines (only GET /invoices/:id selects them), so every bill showed
+  // "No line items". Read the whole invoice, and keep the row underneath while it loads.
+  const full = useInvoice(open ? invoice?.id ?? null : null);
+  const inv: Invoice | null = invoice && full.data?.id === invoice.id ? { ...invoice, ...full.data } : invoice;
   const items = inv?.items ?? [];
   const subtotal =
     inv?.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
@@ -75,7 +79,13 @@ export function MemberInvoiceSheet({
                   </TR>
                 </THead>
                 <TBody>
-                  {items.length === 0 ? (
+                  {items.length === 0 && full.isPending && open ? (
+                    <TR className="hover:bg-transparent">
+                      <TD colSpan={4} className="py-6 text-center text-sm text-muted-foreground">
+                        Loading…
+                      </TD>
+                    </TR>
+                  ) : items.length === 0 ? (
                     <TR className="hover:bg-transparent">
                       <TD
                         colSpan={4}
@@ -89,7 +99,13 @@ export function MemberInvoiceSheet({
                     // the index rather than keying every row `undefined`.
                     items.map((it, i) => (
                       <TR key={it.id ?? i}>
-                        <TD className="font-medium">{it.name}</TD>
+                        <TD className="font-medium">
+                          {it.name}
+                          {/* Which lines the tax below came from. */}
+                          {it.taxable && it.taxCents ? (
+                            <span className="block text-xs font-normal text-muted-foreground tnum">Taxed, {formatMoney(it.taxCents)}</span>
+                          ) : null}
+                        </TD>
                         <TD className="text-right tnum">{it.qty}</TD>
                         <TD className="text-right tnum">{formatMoney(it.unitPrice)}</TD>
                         <TD className="text-right tnum font-medium">
@@ -129,7 +145,7 @@ export function MemberInvoiceSheet({
                 </Button>
               )}
               <p className="text-center text-xs text-muted-foreground">
-                Pay securely by card, or contact your school to settle another way.
+                Pay securely by card, or contact your organization to settle another way.
               </p>
             </div>
           )}

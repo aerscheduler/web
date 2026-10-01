@@ -2,9 +2,9 @@ import * as React from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { addDays } from "date-fns";
 import { ChevronDown } from "lucide-react";
-import { resourceLabel, type Reservation } from "@/types/api";
+import { resourceLabel, type OrganizationUser, type Reservation, type ReservationType } from "@/types/api";
 import { ListTable, ListTableSkeleton, ListTag, LIST_TAG_BUTTON_CLASS, LIST_TAG_CLASS, type ListTableColumn, type ListTableGroup, type ListTableSort } from "@/components/list-table";
-import { WorkspaceUserAvatars, type WorkspacePerson } from "@/components/workspace-user-avatar";
+import { WorkspaceUserAvatar, WorkspaceUserAvatars, type WorkspacePerson } from "@/components/workspace-user-avatar";
 import { WorkStatusIcon, type WorkStatus } from "@/components/maintenance/work-status-icon";
 import {
   DropdownMenu,
@@ -18,7 +18,7 @@ import { useTimeZone, type TimeZoneContext } from "@/lib/use-timezone";
 import { dateKeyInZone } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 import { BILLING_OPTIONS, billingStatus, rampStatuses, type BillingStatus } from "./board-filters";
-import { TYPE_LABEL } from "./meta";
+import { TYPE_LABEL, TYPE_ORDER } from "./meta";
 
 /**
  * Bookings as a list rather than a calendar: the dispatch board's List layout and the member's
@@ -29,12 +29,14 @@ import { TYPE_LABEL } from "./meta";
  * empty slots claim the aircraft is free, a list makes no claim about the gaps between rows.
  */
 
-export type ReservationGroupBy = "date" | "status" | "resource";
+export type ReservationGroupBy = "date" | "status" | "resource" | "person" | "type";
 
 export const GROUP_BY_OPTIONS: { value: ReservationGroupBy; label: string }[] = [
   { value: "date", label: "Date" },
   { value: "status", label: "Status" },
   { value: "resource", label: "Aircraft" },
+  { value: "person", label: "Person" },
+  { value: "type", label: "Type" },
 ];
 
 export function asGroupBy(v: unknown): ReservationGroupBy {
@@ -94,6 +96,11 @@ export type ReservationGroup = {
   id: string;
   label: string;
   status?: Status;
+  /** Grouped by person: who, and their seat on each booking (booking id to "Instructor"). */
+  person?: WorkspacePerson;
+  seats?: Map<number, string>;
+  /** Grouped by type: which, for the dot and the order. */
+  type?: ReservationType;
   items: Reservation[];
 };
 
@@ -131,6 +138,19 @@ export function useReservationGroups(
       if (groupBy === "status") {
         const s = statusOf(r, now);
         put(s, () => ({ id: s, label: STATUS_BY_ID.get(s)!.label, status: s }), r);
+      } else if (groupBy === "person") {
+        // A booking sits under everyone on it: a dual lesson is in the instructor's group and
+        // the student's. Guests have no profile, so they are not groups of their own.
+        const seated = seatedPeople(r);
+        if (!seated.length) put("none", () => ({ id: "none", label: "Nobody assigned" }), r);
+        for (const { person, seat } of seated) {
+          const id = `p-${person.id}`;
+          put(id, () => ({ id, label: person.name?.trim() || "Unknown", person, seats: new Map() }), r);
+          buckets.get(id)!.seats!.set(r.id, seat);
+        }
+      } else if (groupBy === "type") {
+        const id = `t-${r.type}`;
+        put(id, () => ({ id, label: TYPE_LABEL[r.type] ?? r.type, type: r.type }), r);
       } else if (groupBy === "resource") {
         const name = resourceName(r);
         const id = r.resource ? `res-${r.resource.id}` : "none";
@@ -144,14 +164,21 @@ export function useReservationGroups(
     let groups = [...buckets.values()];
     if (groupBy === "status") {
       groups.sort((a, b) => (STATUS_RANK.get(a.status!) ?? 0) - (STATUS_RANK.get(b.status!) ?? 0));
-    } else if (groupBy === "resource") {
-      // Bookings with no aircraft (ground, a room) last.
+    } else if (groupBy === "type") {
+      // The order the booking form offers them in.
+      const rank = (t?: ReservationType) => (t ? TYPE_ORDER.indexOf(t) : -1);
+      groups.sort((a, b) => rank(a.type) - rank(b.type));
+    } else if (groupBy === "resource" || groupBy === "person") {
+      // Bookings with no aircraft (ground, a room), or with nobody on them, last.
       groups.sort((a, b) => (a.id === "none" ? 1 : b.id === "none" ? -1 : a.label.localeCompare(b.label)));
     } else {
       groups.sort((a, b) => (newestFirst ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id)));
     }
     groups = groups.map((g) => ({ ...g, items: order(g.items) }));
-    return { groups, ordered: groups.flatMap((g) => g.items) };
+    // A booking under two people is one stop for the panel's up and down, not two.
+    const seen = new Set<number>();
+    const ordered = groups.flatMap((g) => g.items).filter((r) => !seen.has(r.id) && !!seen.add(r.id));
+    return { groups, ordered };
   }, [reservations, groupBy, sort, newestFirst, tz.zone]);
 }
 
@@ -166,6 +193,25 @@ function dayHeading(key: string, zone: string): string {
 }
 
 const DAY_HEADING = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", weekday: "long", month: "long", day: "numeric" });
+
+/** The members on a booking with the seat each holds, one entry per person. */
+function seatedPeople(r: Reservation): { person: WorkspacePerson; seat: string }[] {
+  const p = r.personnel;
+  const out = new Map<number, { person: WorkspacePerson; seat: string }>();
+  const add = (list: OrganizationUser[] | undefined, seat: string) => {
+    for (const ou of list ?? []) {
+      if (!out.has(ou.id)) {
+        out.set(ou.id, { person: { id: ou.id, name: ou.user?.name, profileImage: ou.user?.publicProfileImage ?? null }, seat });
+      }
+    }
+  };
+  if (p) {
+    add(p.instructors, "Instructor");
+    add(p.students, "Student");
+    add(p.renters, "Renter");
+  }
+  return [...out.values()];
+}
 
 /** Everyone on the booking who is a member, for the avatars; a guest has no profile to open. */
 function workspacePeople(r: Reservation): WorkspacePerson[] {
@@ -225,20 +271,33 @@ export function ReservationListTable({
   const tableGroups: ListTableGroup[] = groups.map((g) => ({
     id: g.id,
     label: g.label,
-    marker: g.status ? <WorkStatusIcon status={STATUS_BY_ID.get(g.status)!.icon} /> : undefined,
+    marker: g.status ? (
+      <WorkStatusIcon status={STATUS_BY_ID.get(g.status)!.icon} />
+    ) : g.person ? (
+      <WorkspaceUserAvatar person={g.person} />
+    ) : g.type ? (
+      <span className="size-2 rounded-full" style={{ background: TYPE_HUE[g.type] }} aria-hidden />
+    ) : undefined,
     count: g.items.length,
     rows: g.items.map((r) => {
       const status = STATUS_BY_ID.get(statusOf(r, now))!;
       const billing = billingStatus(r);
       const people = workspacePeople(r);
       const when = whenText(r, groupBy, tz);
+      const seat = g.seats?.get(r.id);
       return {
-        id: `res-${r.id}`,
+        // The group in the id: grouped by person, one booking is a row in two groups.
+        id: `${g.id}:res-${r.id}`,
         testId: `reservation-row-${r.id}`,
         label: `${r.title}, ${when}`,
         leading: <span className="size-2 rounded-full" style={{ background: TYPE_HUE[r.type] }} aria-hidden />,
         title: r.title,
-        tags: <ListTag>{TYPE_LABEL[r.type] ?? r.type}</ListTag>,
+        tags: (
+          <>
+            {groupBy !== "type" && <ListTag>{TYPE_LABEL[r.type] ?? r.type}</ListTag>}
+            {seat && <ListTag>{seat}</ListTag>}
+          </>
+        ),
         dim: !!r.cancelledAt,
         selected: r.id === selectedId,
         onOpen: () => onOpen(r),

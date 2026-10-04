@@ -127,6 +127,10 @@ function actionLabel(action: string): string {
     "resource.rateChanged": "Rate changed",
     "resource.archived": "Retired from fleet",
     "resource.unarchived": "Returned to fleet",
+    "resource.componentAdded": "Component added",
+    "resource.componentChanged": "Component changed",
+    "resource.componentRemoved": "Component came off",
+    "resource.componentDeleted": "Component deleted",
 
     //Training records
     "enrollment.created": "Enrolled",

@@ -8,7 +8,9 @@ import {
   MapPin,
   MoreHorizontal,
   Pencil,
+  MessageSquareText,
   Plane,
+  UserRound,
   Users,
   Wrench,
 } from "lucide-react";
@@ -36,6 +38,7 @@ import { formatTimeInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { useBookingJob } from "@/components/maintenance/maintenance-job-field";
 import { WorkspaceUserAvatars } from "@/components/workspace-user-avatar";
+import { GroundedMark, shopJobOf } from "./shop-job";
 
 /**
  * A booking at a glance, beside the board.
@@ -81,6 +84,7 @@ export function ReservationDetailSheet({
   const people = r ? personnelEntries(r) : [];
   // A maintenance booking seats nobody; its job says who is on it, for those who may see jobs.
   const held = useBookingJob(r?.type === "maintenance" ? r.id : null);
+  const shopJob = r ? shopJobOf(r) : null;
   // `/aircraft/:id` is the AIRCRAFT page and bounces a simulator or a room to Facilities,
   // so only a plane is a link. Same rule the search results follow.
   const resourceHref = r?.resource && res?.kind === "Aircraft" ? r.resource.id : null;
@@ -230,6 +234,26 @@ export function ReservationDetailSheet({
                 ) : (
                   <span className="text-muted-foreground">{held.loading ? "Loading…" : "None. Edit the booking to open or link one."}</span>
                 )}
+              </SheetDetailField>
+            )}
+
+            {/* The job's customer, what they asked for, and whether the aircraft is grounded:
+                sent by the server only to the shop roles, the request only to the job roles. */}
+            {shopJob?.customerName && (
+              <SheetDetailField icon={UserRound} label="Customer">
+                {shopJob.customerName}
+              </SheetDetailField>
+            )}
+            {shopJob?.request && (
+              <SheetDetailField icon={MessageSquareText} label="Requested">
+                <span className="line-clamp-3">{shopJob.request}</span>
+              </SheetDetailField>
+            )}
+            {shopJob?.grounded && (
+              <SheetDetailField icon={Ban} label="Aircraft">
+                <span className="inline-flex items-center gap-1.5">
+                  <GroundedMark /> Grounded until it is returned to service
+                </span>
               </SheetDetailField>
             )}
 

@@ -37,6 +37,7 @@ import { formatTimeInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { cn } from "@/lib/utils";
 import { useBookingJob } from "@/components/maintenance/maintenance-job-field";
+import { GroundedMark } from "@/components/schedule/shop-job";
 import { WorkspaceUserAvatars } from "@/components/workspace-user-avatar";
 
 /**
@@ -279,7 +280,23 @@ function ReservationBody({ reservation: r }: { reservation: Reservation }) {
                 </KeyValue>
                 {locationName && <KeyValue label="Location">{locationName}</KeyValue>}
                 {r.type === "maintenance" ? (
-                  <BookingJobValue bookingId={r.id} />
+                  <>
+                    <BookingJobValue bookingId={r.id} />
+                    {/* The job's customer, request and grounded mark: what the server sent this viewer. */}
+                    {r.shopJob?.customerName && <KeyValue label="Customer">{r.shopJob.customerName}</KeyValue>}
+                    {r.shopJob?.request && (
+                      <KeyValue label="Requested">
+                        <span className="line-clamp-3 font-normal">{r.shopJob.request}</span>
+                      </KeyValue>
+                    )}
+                    {r.shopJob?.grounded && (
+                      <KeyValue label="Aircraft">
+                        <span className="inline-flex items-center gap-1.5">
+                          <GroundedMark /> Grounded
+                        </span>
+                      </KeyValue>
+                    )}
+                  </>
                 ) : (
                 <KeyValue label="Personnel">
                   {people.length > 0 ? (

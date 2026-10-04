@@ -8,9 +8,11 @@ import {
   FileText,
   Fuel,
   Gauge,
+  History,
   MapPin,
   Pencil,
   PlaneTakeoff,
+  Receipt,
   Undo2,
   UserCheck,
   UserRound,
@@ -42,11 +44,14 @@ import {
   ResourceSquawks,
 } from "@/components/aircraft/detail/resource-maintenance";
 import { ResourcePapers } from "@/components/aircraft/detail/resource-papers";
+import { ResourceComponents } from "@/components/aircraft/detail/resource-components";
 import { ResourceOwners } from "@/components/aircraft/detail/resource-owners";
 import { AircraftProfileCard } from "@/components/aircraft/detail/aircraft-profile-card";
 import { AircraftMetersCard } from "@/components/aircraft/detail/aircraft-meters-card";
 import { AircraftPhoto } from "@/components/aircraft/detail/aircraft-photo";
 import { ResourceWorkOrders, WorkOrdersIcon } from "@/components/aircraft/detail/resource-work-orders";
+import { ResourceHistory } from "@/components/aircraft/detail/resource-history";
+import { ResourceInvoices } from "@/components/aircraft/detail/resource-invoices";
 import { useCurrentJobs } from "@/features/queries";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
 import {
@@ -199,6 +204,9 @@ function sectionsFor(
     ...(access.maintenance
       ? [{ value: "maintenance", label: "Maintenance", icon: Wrench }]
       : [{ value: "squawks", label: "Squawks", icon: AlertTriangle }]),
+    //Everything done to it, newest first: whoever reads its maintenance today (staff and
+    //technicians, the server's shop roles). The jobs in it are the server's call.
+    ...(opts.isPlane && access.maintenance && opts.maySeeShop ? [{ value: "history", label: "History", icon: History }] : []),
     ...(access.approvedPilots && !opts.isShop
       ? [{ value: "approved-renters", label: "Approved members", icon: UserCheck }]
       : []),
@@ -210,6 +218,8 @@ function sectionsFor(
       : []),
     //Jobs carry the owner and money, so the shop roles only, on fleet aircraft too.
     ...(opts.isPlane && opts.mayOpenWorkOrders ? [{ value: "work-orders", label: "Work orders", icon: WorkOrdersIcon }] : []),
+    //Every bill tied to it. Admin only, like every organization-wide invoice list.
+    ...(opts.isPlane && access.money ? [{ value: "invoices", label: "Invoices", icon: Receipt }] : []),
   ];
   return [{ items }];
 }
@@ -413,7 +423,12 @@ function ResourceBody({ resource }: { resource: Resource }) {
 
         <div
           data-doc-shot={active === "maintenance" ? "aircraft-maintenance-tab" : undefined}
-          className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto"
+          className={
+            //The paged lists own their scroll, so their pager and headers stay put.
+            active === "history" || active === "invoices"
+              ? "flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden"
+              : "min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto"
+          }
         >
           {needsRange && (
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -493,6 +508,10 @@ function ResourceBody({ resource }: { resource: Resource }) {
 
           {active === "work-orders" && <ResourceWorkOrders resource={resource} />}
 
+          {active === "history" && <ResourceHistory resourceId={resource.id} mayOpenWorkOrders={canOpenWorkOrders(roles)} />}
+
+          {active === "invoices" && access.money && <ResourceInvoices resourceId={resource.id} isShop={isShop} />}
+
           {active === "papers" &&
             plane &&
             (access.managePapers || (resource.papers?.length ?? 0) > 0) && (
@@ -508,6 +527,8 @@ function ResourceBody({ resource }: { resource: Resource }) {
                 resource={resource}
                 canManage={access.resolveSquawks}
               />
+              {/* Life-limited parts: a limit is an inspection above, the part's time is here. */}
+              <ResourceComponents resource={resource} />
               <ResourceSquawks
                 resource={resource}
                 canResolve={access.resolveSquawks}

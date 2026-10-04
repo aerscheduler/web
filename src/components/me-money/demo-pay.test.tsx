@@ -22,6 +22,8 @@ let intentState: { isLoading: boolean; isError: boolean; error: unknown; data: u
 };
 vi.mock("@/features/queries", () => ({
   useInvoice: () => ({ isPending: false, data: undefined }),
+  // The files the organization shared on the bill (none here).
+  useInvoiceFiles: () => ({ isPending: false, data: [] }),
   useInvoicePaymentIntent: (id: number | null, opts?: { enabled?: boolean }) => {
     intentCalls.push({ id, enabled: opts?.enabled });
     return intentState;

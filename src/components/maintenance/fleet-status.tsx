@@ -42,7 +42,7 @@ import {
   InspectionTags,
   SignOffButton,
   dueBand,
-  dueSentence,
+  inspectionSentence,
   inspectionName,
 } from "@/components/maintenance/inspection-list";
 
@@ -221,6 +221,9 @@ export function FleetStatus({
                 <span className="text-muted-foreground">
                   Next: <span className="text-foreground">{inspectionName(next)}</span>
                 </span>
+              ) : summary.total > 0 ? (
+                // Tracked, but every inspection on it is marked not applicable.
+                <span className="text-muted-foreground">Nothing applies</span>
               ) : (
                 <span className="text-muted-foreground">Nothing tracked yet</span>
               ),
@@ -249,8 +252,8 @@ export function FleetStatus({
                 tags: <InspectionTags reminder={r} filesShown={canManage} />,
                 cells: {
                   detail: (
-                    <span className="text-muted-foreground" title={dueSentence(r.due)}>
-                      {dueSentence(r.due)}
+                    <span className="text-muted-foreground" title={inspectionSentence(r)}>
+                      {inspectionSentence(r)}
                     </span>
                   ),
                   rail: <DueRail due={r.due} />,

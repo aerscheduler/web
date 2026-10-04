@@ -4,6 +4,8 @@ import { api, apiList, apiRaw, ApiError, raw, type PaginationMeta } from "@/lib/
 import { track } from "@/lib/analytics";
 import { isOutsideOwnerSync } from "@/lib/auth";
 import type { Paged, PagingState } from "@/lib/paging";
+import type { AircraftHistoryEntry, AircraftHistoryKind, AircraftInvoice, CustomerFile, OwnFile } from "@/types/api";
+import type { InvoiceFile } from "@/types/api";
 import { outstandingHolds } from "@/lib/outstanding-holds";
 import type { CurrencyRuleDetail, CurrencyRuleStanding } from "@/types/currency-rule";
 import {
@@ -38,6 +40,8 @@ import type {
   TaxExemptReason,
   AdReadiness,
   AircraftProfile,
+  AircraftComponent,
+  AircraftComponentInput,
   MeterLog,
   MeterLogEntry,
   OwnerAircraft,
@@ -68,6 +72,7 @@ import type {
   CreateLocationInput,
   CreatePlaneResourceInput,
   CreateReminderTemplateInput,
+  ReminderSteps,
   CreateReservationInput,
   CreateRoomResourceInput,
   CreateSimulatorResourceInput,
@@ -297,6 +302,8 @@ export type InvoiceListFilter = {
   /** Voided is its own axis: `paid: false` alone still includes voided invoices,
    *  which nobody owes. Pass `voided: false` for "outstanding". */
   voided?: boolean;
+  /** Only past due: unpaid, not voided, and past a due date it has (the server's IS_OVERDUE). */
+  overdue?: boolean;
   startDate?: string;
   endDate?: string;
 };
@@ -3716,6 +3723,8 @@ export function useCreateResourceFiles() {
       category: string;
       visibility?: string;
       label?: string;
+      /** A customer's aircraft only: show it to the aircraft's owners. */
+      ownerVisible?: boolean;
       files: File[];
     }) => {
       const res = await apiRaw<{ data: ResourceFile[]; signedUrlData?: PresignedPost[] }>(
@@ -3726,6 +3735,7 @@ export function useCreateResourceFiles() {
             category: input.category,
             visibility: input.visibility,
             label: input.label,
+            ownerVisible: input.ownerVisible,
             fileNames: input.files.map((f) => f.name),
           },
         }
@@ -3749,6 +3759,7 @@ export function useUpdateResourceFile() {
       visibility?: string;
       label?: string;
       category?: string;
+      ownerVisible?: boolean;
     }) =>
       api<ResourceFile>(`/resources/${input.resourceId}/files/${input.fileId}`, {
         method: "PATCH",
@@ -3756,6 +3767,7 @@ export function useUpdateResourceFile() {
           visibility: input.visibility,
           label: input.label,
           category: input.category,
+          ownerVisible: input.ownerVisible,
         },
       }),
     onSuccess: () => {
@@ -4275,6 +4287,41 @@ export function useInspectionPresets(opts?: QueryOpts) {
  * template should end up on. Omitting a tail DETACHES it and deletes its unresolved
  * reminder, so never send a partial list thinking it will merge.
  */
+/** One aircraft's own reminder steps for an inspection (Murray spec 6); null follows the rule's. */
+export function useUpdateReminderSteps() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reminderSteps }: { id: number; reminderSteps: ReminderSteps | null }) =>
+      api<MaintenanceReminder>(`/maintenance/reminders/${id}`, { method: "PATCH", body: { reminderSteps } }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reminders"] });
+      void qc.invalidateQueries({ queryKey: ["reminder"] });
+    },
+  });
+}
+
+/**
+ * Mark an inspection not applicable on its aircraft, or put it back (Murray spec 5). Marking can
+ * return a grounded aircraft to service, and putting back an overdue one grounds it, so the
+ * aircraft reads are refreshed as well as the inspection's.
+ */
+export function useSetInspectionNotApplicable() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, notApplicable, reason }: { id: number; notApplicable: boolean; reason?: string | null }) =>
+      api<MaintenanceReminder>(`/maintenance/reminders/${id}`, {
+        method: "PATCH",
+        body: { notApplicable, ...(notApplicable ? { notApplicableReason: reason?.trim() || null } : {}) },
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["reminders"] });
+      void qc.invalidateQueries({ queryKey: ["reminder"] });
+      void qc.invalidateQueries({ queryKey: ["resource"] });
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+    },
+  });
+}
+
 export function useUpdateMaintenanceReminderTemplate() {
   const qc = useQueryClient();
   return useMutation({
@@ -4381,7 +4428,7 @@ export function useRemoveReminderFile() {
 export function useResolveMaintenanceReminder() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: {
+    mutationFn: async ({ id, ...body }: {
       id: number;
       completedAt: string;
       completedHours?: number;
@@ -4393,7 +4440,13 @@ export function useResolveMaintenanceReminder() {
       /** DECI-hours, both of them. */
       tachAtCompliance?: number;
       hobbsAtCompliance?: number;
-    }) => api<MaintenanceReminder>(`/maintenance/reminders/${id}`, { method: "POST", body }),
+      /** The meter log's question, answered: newer meters at the sign-off ground the aircraft. */
+      confirmMaintenanceTrigger?: boolean;
+    }) => {
+      // Newer meters at the sign-off go on the aircraft's log too; the answer says so beside the data.
+      const res = await apiRaw<{ data: MaintenanceReminder; aircraftTimes?: "updated" | "logged" | null }>(`/maintenance/reminders/${id}`, { method: "POST", body });
+      return { ...res.data, aircraftTimes: res.aircraftTimes ?? null };
+    },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["reminders"] });
       // The inspection page reads one inspection under its own key.
@@ -5740,7 +5793,13 @@ export function useCreateWorkOrder() {
   return useMutation({
     mutationFn: (input: WorkOrderInput & { resourceId: number }) =>
       api<WorkOrder>("/work-orders", { method: "POST", body: input }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ["workOrders"] }),
+    onSuccess: (job) => {
+      void qc.invalidateQueries({ queryKey: ["workOrders"] });
+      if (job.aircraftTimes) {
+        void qc.invalidateQueries({ queryKey: ["resources"] });
+        void qc.invalidateQueries({ queryKey: ["resource"] });
+      }
+    },
   });
 }
 
@@ -5762,6 +5821,11 @@ export function useUpdateWorkOrder() {
       // The job page shows the saved value at once, before the refetch lands.
       qc.setQueryData(["workOrders", "one", job.id], job);
       void qc.invalidateQueries({ queryKey: ["workOrders"] });
+      // The readings went on the aircraft's meter log and may have moved its times.
+      if (job.aircraftTimes) {
+        void qc.invalidateQueries({ queryKey: ["resources"] });
+        void qc.invalidateQueries({ queryKey: ["resource"] });
+      }
     },
   });
 }
@@ -5954,6 +6018,51 @@ export function useUpdateAircraftProfile(resourceId: number) {
   });
 }
 
+/**
+ * An aircraft's life-limited components (Murray spec 5). Read by the shop roles; pass `enabled`
+ * for them. `removed` includes the ones that came off.
+ */
+export function useAircraftComponents(resourceId: number | null, opts?: QueryOpts & { removed?: boolean }) {
+  return useQuery({
+    queryKey: ["resources", "components", resourceId, { removed: !!opts?.removed }],
+    queryFn: () => api<AircraftComponent[]>(`/resources/${resourceId}/components`, { query: opts?.removed ? { removed: "true" } : undefined }),
+    enabled: (opts?.enabled ?? true) && resourceId != null,
+  });
+}
+
+/**
+ * Add, change (including "came off") or delete a component. Each moves the linked inspections on
+ * the server, so the inspection lists and the aircraft are refreshed with the components.
+ */
+export function useSaveAircraftComponent(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: AircraftComponentInput & { id?: number }) =>
+      id == null
+        ? api<AircraftComponent>(`/resources/${resourceId}/components`, { method: "POST", body })
+        : api<AircraftComponent>(`/resources/${resourceId}/components/${id}`, { method: "PATCH", body }),
+    onSettled: () => invalidateComponentDependents(qc),
+  });
+}
+
+export function useDeleteAircraftComponent(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api<void>(`/resources/${resourceId}/components/${id}`, { method: "DELETE" }),
+    onSettled: () => invalidateComponentDependents(qc),
+  });
+}
+
+/** A component write can create, move or retire an inspection and ground or release the aircraft. */
+function invalidateComponentDependents(qc: QueryClient) {
+  void qc.invalidateQueries({ queryKey: ["resources"] });
+  void qc.invalidateQueries({ queryKey: ["resource"] });
+  void qc.invalidateQueries({ queryKey: ["reminders"] });
+  void qc.invalidateQueries({ queryKey: ["reminder"] });
+  void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
+  void qc.invalidateQueries({ queryKey: ["maintenance"] });
+}
+
 /** What the shop keeps about a customer. Owners, admins and technicians; pass `enabled` for them. */
 export function useCustomerProfile(orgUserId: number | null, opts?: QueryOpts) {
   return useQuery({
@@ -6018,6 +6127,67 @@ export function useRemoveWorkOrderFile(workOrderId: number) {
   return useMutation({
     mutationFn: (fileId: number) => api<void>(`/work-orders/${workOrderId}/files/${fileId}`, { method: "DELETE" }),
     onSettled: () => void qc.invalidateQueries({ queryKey: ["workOrders", "files", workOrderId] }),
+  });
+}
+
+// ---------------------------------------------------------------- invoice files
+
+/**
+ * Files on an invoice (the vendor's invoice, a receipt, an 8130-3). Admins get every file; the
+ * person billed gets only the ones shown to them (the server decides). Keyed under ["invoices"],
+ * so the billing channel refreshes it.
+ */
+export function useInvoiceFiles(invoiceId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["invoices", "files", invoiceId],
+    queryFn: () => apiList<InvoiceFile>(`/invoices/${invoiceId}/files`).then((r) => r.data),
+    ...opts,
+    enabled: (opts?.enabled ?? true) && invoiceId != null,
+    // The links last 15 minutes: fetch fresh ones before they die on an open panel.
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+  });
+}
+
+/** Attach files to an invoice: the rows first, then each file to its presigned POST. */
+export function useAttachInvoiceFiles(invoiceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { files: File[]; visibility?: "shop" | "owner" }) => {
+      const res = await apiRaw<{ data: InvoiceFile[]; signedUrlData?: PresignedPost[] }>(`/invoices/${invoiceId}/files`, {
+        method: "POST",
+        body: { fileNames: input.files.map((f) => f.name), visibility: input.visibility ?? "shop" },
+      });
+      const uploadError = await uploadSquawkAttachments(res.signedUrlData, input.files);
+      return { data: res.data, uploadError };
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["invoices", "files", invoiceId] }),
+  });
+}
+
+/** Copy the job's files onto its invoice (every one not already there). Nothing is uploaded. */
+export function useAddInvoiceFilesFromJob(invoiceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<InvoiceFile[]>(`/invoices/${invoiceId}/files/from-job`, { method: "POST", body: {} }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["invoices", "files", invoiceId] }),
+  });
+}
+
+export function useUpdateInvoiceFile(invoiceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fileId, ...patch }: { fileId: number; label?: string | null; visibility?: "shop" | "owner" }) =>
+      api<InvoiceFile>(`/invoices/${invoiceId}/files/${fileId}`, { method: "PATCH", body: patch }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["invoices", "files", invoiceId] }),
+  });
+}
+
+export function useRemoveInvoiceFile(invoiceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fileId: number) => api<void>(`/invoices/${invoiceId}/files/${fileId}`, { method: "DELETE" }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["invoices", "files", invoiceId] }),
   });
 }
 
@@ -6108,8 +6278,30 @@ export function useOwnerJob(workOrderId: number | null, opts?: QueryOpts) {
 export function useRequestWork(resourceId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { request: string; wantedBy?: string | null }) =>
-      api<{ id: number; label: string }>(`/owner/aircraft/${resourceId}/requests`, { method: "POST", body: input }),
+    mutationFn: async ({
+      files,
+      ...input
+    }: {
+      request: string;
+      wantedBy?: string | null;
+      preferredFrom?: string | null;
+      preferredTo?: string | null;
+      grounded?: boolean | null;
+      location?: string | null;
+      hobbsTime?: number | null;
+      tachTime?: number | null;
+      confirmLower?: boolean;
+      confirmMaintenanceTrigger?: boolean;
+      /** Photos or documents sent with it, uploaded once the job exists. */
+      files?: File[];
+    }) => {
+      const res = await apiRaw<{ data: { id: number; label: string; aircraftTimes?: "updated" | "logged" | null }; signedUrlData?: PresignedPost[] }>(
+        `/owner/aircraft/${resourceId}/requests`,
+        { method: "POST", body: { ...input, ...(files?.length ? { fileNames: files.map((f) => f.name) } : {}) } }
+      );
+      const uploadError = files?.length ? await uploadSquawkAttachments(res.signedUrlData, files) : null;
+      return { ...res.data, uploadError };
+    },
     onSettled: () => void qc.invalidateQueries({ queryKey: ["owner"] }),
   });
 }
@@ -6157,5 +6349,117 @@ export function useOwnerAttach(workOrderId: number) {
       return { uploadError };
     },
     onSettled: () => void qc.invalidateQueries({ queryKey: ["owner", "job", workOrderId] }),
+  });
+}
+
+// ── Aircraft history and invoices, account files (Murray spec sections 3, 16, 17) ───────────
+
+/** Everything done to an aircraft, newest first, paged on the server. Staff and technicians. */
+export function useAircraftHistoryPage(resourceId: number | null, filter: { kind?: AircraftHistoryKind[] }, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<AircraftHistoryEntry>(
+    ["aircraft-history", resourceId],
+    `/resources/${resourceId}/history`,
+    paging,
+    { kind: filter.kind?.length ? filter.kind.join(",") : undefined },
+    { ...opts, enabled: (opts?.enabled ?? true) && resourceId != null }
+  );
+}
+
+/** Every invoice tied to an aircraft. Admins only, like every organization-wide invoice list. */
+export function useAircraftInvoicesPage(resourceId: number | null, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<AircraftInvoice>(["aircraft-invoices", resourceId], `/resources/${resourceId}/invoices`, paging, {}, {
+    ...opts,
+    enabled: (opts?.enabled ?? true) && resourceId != null,
+  });
+}
+
+/** What has been done to one of the owner's own aircraft: sign-offs and finished jobs. */
+export function useOwnerAircraftHistoryPage(resourceId: number | null, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<AircraftHistoryEntry>(["owner", "aircraft-history", resourceId], `/owner/aircraft/${resourceId}/history`, paging, {}, {
+    ...opts,
+    enabled: (opts?.enabled ?? true) && resourceId != null,
+  });
+}
+
+/** The files on a customer's account, as the shop sees them. A short list: one page holds it. */
+export function useCustomerFiles(orgUserId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["customerFiles", orgUserId],
+    queryFn: () => apiList<CustomerFile>(`/orgUsers/${orgUserId}/files`).then((r) => r.data),
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
+  });
+}
+
+export function useAddCustomerFiles(orgUserId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { files: File[]; visibility: "shop" | "owner"; label?: string | null }) => {
+      const res = await apiRaw<{ data: CustomerFile[]; signedUrlData?: PresignedPost[] }>(`/orgUsers/${orgUserId}/files`, {
+        method: "POST",
+        body: { fileNames: input.files.map((f) => f.name), visibility: input.visibility, label: input.label ?? null },
+      });
+      const uploadError = await uploadSquawkAttachments(res.signedUrlData, input.files);
+      return { data: res.data, uploadError };
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["customerFiles", orgUserId] }),
+  });
+}
+
+export function useUpdateCustomerFile(orgUserId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fileId, ...patch }: { fileId: number; visibility?: "shop" | "owner"; label?: string | null }) =>
+      api<CustomerFile>(`/orgUsers/${orgUserId}/files/${fileId}`, { method: "PATCH", body: patch }),
+    // Optimistic: the tag flips on the click, and rolls back if the server says no.
+    onMutate: async ({ fileId, ...patch }) => {
+      await qc.cancelQueries({ queryKey: ["customerFiles", orgUserId] });
+      const before = qc.getQueryData<CustomerFile[]>(["customerFiles", orgUserId]);
+      if (before) qc.setQueryData<CustomerFile[]>(["customerFiles", orgUserId], before.map((f) => (f.id === fileId ? { ...f, ...patch } : f)));
+      return { before };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.before) qc.setQueryData(["customerFiles", orgUserId], ctx.before);
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["customerFiles", orgUserId] }),
+  });
+}
+
+export function useRemoveCustomerFile(orgUserId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fileId: number) => api<void>(`/orgUsers/${orgUserId}/files/${fileId}`, { method: "DELETE" }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["customerFiles", orgUserId] }),
+  });
+}
+
+/** The owner's own account files: what the shop shows them, and what they added. */
+export function useOwnFiles(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["owner", "files"],
+    queryFn: () => apiList<OwnFile>(`/owner/files`).then((r) => r.data),
+    enabled: opts?.enabled ?? true,
+  });
+}
+
+export function useAddOwnFiles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const res = await apiRaw<{ data: OwnFile[]; signedUrlData?: PresignedPost[] }>(`/owner/files`, {
+        method: "POST",
+        body: { fileNames: files.map((f) => f.name) },
+      });
+      const uploadError = await uploadSquawkAttachments(res.signedUrlData, files);
+      return { uploadError };
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["owner", "files"] }),
+  });
+}
+
+export function useRemoveOwnFile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fileId: number) => api<void>(`/owner/files/${fileId}`, { method: "DELETE" }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["owner", "files"] }),
   });
 }

@@ -27,6 +27,7 @@ import {
 } from "@/features/queries";
 import { useBillReservation } from "@/features/billing-mutations";
 import { useVoidInvoiceFlow } from "@/features/void-invoice-flow";
+import { useMarkPaidFlow } from "@/features/mark-paid-flow";
 import { usePaging } from "@/lib/paging";
 import { guardRoute } from "@/lib/permissions";
 import type { Invoice, Reservation } from "@/types/api";
@@ -44,7 +45,8 @@ import { hasLiveBill } from "@/components/schedule/close-out";
 import { CreateInvoiceDialog } from "@/components/billing/create-invoice-dialog";
 import { InvoiceDetailSheet } from "@/components/billing/invoice-detail-sheet";
 import { VoidInvoiceDialog } from "@/components/billing/void-invoice-dialog";
-import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
+import { InvoiceStatusBadge, invoiceStatus, isOwed } from "@/components/billing/invoice-status";
+import { MarkPaidDialog } from "@/components/billing/mark-paid-dialog";
 import { LedgerAccountsTable } from "@/components/billing/ledger-accounts-table";
 import { RAIL_ROW, SectionRail } from "@/components/section-rail";
 import { Card } from "@/components/ui/card";
@@ -97,7 +99,7 @@ export const Route = createFileRoute("/_authed/billing")({
   component: BillingPage,
 });
 
-type StatusKey = "outstanding" | "paid" | "unbilled";
+type StatusKey = "outstanding" | "past_due" | "paid" | "unbilled";
 
 type InvoiceActions = {
   onView: (inv: Invoice) => void;
@@ -117,6 +119,8 @@ const STATUS_FACETS: FacetDef[] = [
     multiple: true,
     options: [
       { value: "outstanding", label: "Outstanding" },
+      // Unpaid and past its due date: the server's own `overdue` filter, the rule Home counts.
+      { value: "past_due", label: "Past due" },
       { value: "paid", label: "Paid" },
       { value: "unbilled", label: "Unbilled reservations" },
     ],
@@ -220,7 +224,7 @@ function RowActions({ inv, actions }: { inv: Invoice; actions: InvoiceActions })
           <DropdownMenuItem onClick={() => actions.onView(inv)}>
             <Eye className="size-4" /> View invoice
           </DropdownMenuItem>
-          {status.key === "outstanding" && (
+          {isOwed(status) && (
             <>
               <DropdownMenuItem disabled={actions.busy} onClick={() => actions.onMarkPaid(inv)}>
                 <Check className="size-4" /> Mark paid
@@ -404,13 +408,18 @@ function BillingPage() {
   const [createOpen, setCreateOpen] = useState(false);
 
   const statuses = asFacetStrings(facets.status).filter(
-    (s): s is StatusKey => s === "outstanding" || s === "paid" || s === "unbilled"
+    (s): s is StatusKey => s === "outstanding" || s === "past_due" || s === "paid" || s === "unbilled"
   );
-  const wantsOutstanding = statuses.includes("outstanding");
+  const wantsPastDue = statuses.includes("past_due");
+  // Past due is a kind of outstanding: asking for either is asking for what is owed.
+  const wantsOwed = statuses.includes("outstanding") || wantsPastDue;
+  const wantsOutstanding = wantsOwed;
   const wantsPaid = statuses.includes("paid");
   const wantsUnbilled = statuses.includes("unbilled");
   const showUnbilled = wantsUnbilled;
-  const showInvoices = statuses.length === 0 || wantsOutstanding || wantsPaid;
+  const showInvoices = statuses.length === 0 || wantsOwed || wantsPaid;
+  // Only past due, and nothing wider: the server's overdue filter (unpaid, not voided, due before now).
+  const onlyPastDue = wantsPastDue && !statuses.includes("outstanding") && !wantsPaid;
 
   const paidFilter =
     wantsOutstanding && wantsPaid
@@ -473,6 +482,7 @@ function BillingPage() {
     // gave a table that paged three rows, then one, then several empty pages,
     // with a total that counted every voided invoice.
     ...(wantsOutstanding && !wantsPaid ? { voided: false } : {}),
+    ...(onlyPastDue ? { overdue: true } : {}),
   };
   const invoicePaging = usePaging({
     resetKey: invoiceFilter,
@@ -554,19 +564,9 @@ function BillingPage() {
     row?.scrollIntoView({ block: "nearest" });
   }, [viewId]);
 
-  function markPaid(inv: Invoice) {
-    update.mutate(
-      { id: inv.id, patch: { markPaid: true } },
-      {
-        onSuccess: (res) =>
-          res.warning
-            ? toast.warning(res.warning, { duration: 8000 })
-            : toast.success(`Invoice #${inv.id} marked paid`),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : "Couldn't update invoice"),
-      }
-    );
-  }
+  // Mark paid asks how it was paid: method, check number, the day it arrived, a note.
+  const markPaidFlow = useMarkPaidFlow();
+  const markPaid = markPaidFlow.markPaid;
 
   function remindInvoice(inv: Invoice) {
     remind.mutate(inv.id, {
@@ -622,7 +622,7 @@ function BillingPage() {
     onView: (inv) => setViewId(inv.id),
     onMarkPaid: markPaid,
     onVoid: voidFlow.voidInvoice,
-    busy: update.isPending || remind.isPending,
+    busy: update.isPending || markPaidFlow.isPending || remind.isPending,
   };
 
   const columns = useMemo(() => invoiceColumns(actions), [update.isPending]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -854,10 +854,12 @@ function BillingPage() {
         onVoid={voidFlow.voidInvoice}
         onRemind={remindInvoice}
         onStep={stepInvoice}
-        busy={update.isPending || remind.isPending}
+        busy={update.isPending || markPaidFlow.isPending || remind.isPending}
       />
 
       <VoidInvoiceDialog {...voidFlow.voidDialog} />
+
+      <MarkPaidDialog {...markPaidFlow.dialog} />
 
       <CreateInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} />
     </TableView>

@@ -46,6 +46,15 @@ export type DocsTopic = {
  * on screen when they go looking for the entry.
  */
 export const DOCS_TOPICS = {
+  /* ── Maintenance reminders ─────────────────────────────────────────────── */
+
+  "reminder-steps": {
+    title: "Reminders",
+    summary:
+      "Each step goes once per cycle, and only the nearest one. Due always goes out, and the shop hears once more if it is still not signed off a day later. Lists you have not changed follow their default.",
+    href: "maintenance/who-gets-maintenance-reminders-and-squawk-alerts#choose-when-reminders-go-out",
+  },
+
   /* ── Training and curriculum ──────────────────────────────────────────── */
 
   "course-regulatory-part": {
@@ -286,6 +295,12 @@ export const DOCS_TOPICS = {
     summary:
       "Wet includes fuel and dry does not, and AerScheduler never adds fuel to an invoice either way. On a dry rate, bill the fuel separately on a manual invoice.",
     href: "billing/set-aircraft-and-instruction-rates",
+  },
+  "mark-an-invoice-paid": {
+    title: "Marking an invoice paid",
+    summary:
+      "Record how it was paid and the day the money arrived. The person billed is emailed a receipt saying so; your note stays with you.",
+    href: "billing/mark-an-invoice-paid-void-or-refund-it",
   },
   "void-an-invoice": {
     title: "Voiding an invoice",
@@ -751,11 +766,38 @@ export const DOCS_TOPICS = {
       "Attach up to five photos or PDFs when you report a squawk, or on a note. They stay with the thread and cannot be deleted afterwards.",
     href: "maintenance/report-a-squawk",
   },
+  "aircraft-history": {
+    title: "Maintenance history",
+    summary:
+      "Everything done to this aircraft, newest first: inspections signed off (one-time ones too), squawks resolved and work orders completed. Open a row for the full record. Work orders show only to owners, admins and technicians.",
+    href: "maintenance/aircraft-history-and-invoices",
+    linkLabel: "An aircraft's history and invoices",
+  },
+  "aircraft-invoices": {
+    title: "Invoices for this aircraft",
+    summary:
+      "Every bill tied to this aircraft: the bookings that flew it and the shop's bills for work on it. Admins only. Open one to see it on Billing.",
+    href: "maintenance/aircraft-history-and-invoices#invoices",
+    linkLabel: "An aircraft's history and invoices",
+  },
+  "customer-files": {
+    title: "A customer's files",
+    summary:
+      "Signed authorizations, insurance, letters. The shop's own unless you show one to the owner. What the owner adds from their account is always theirs to see, so it cannot be hidden from them.",
+    href: "maintenance/work-on-a-customers-aircraft#files-on-a-customers-account",
+    linkLabel: "Files on a customer's account",
+  },
   "aircraft-papers": {
     title: "Aircraft papers",
     summary:
-      "The current POH and weight and balance for this tail. Members who can book it can open the ones marked for bookers. Staff can replace a stale file; unlike a squawk photo, papers can be deleted.",
+      "A copy of the airworthiness certificate and the registration, the current POH and weight and balance for this tail. Members who can book it can open the ones marked for bookers; staff can replace a stale file.",
     href: "maintenance/aircraft-papers",
+  },
+  "aircraft-components": {
+    title: "Life-limited components",
+    summary:
+      "A part with a limit (hours since new or overhaul, months, or both) and its time now, counted from the aircraft's tach. Each limit is tracked as an inspection, so it warns, reminds owners and grounds like the rest; record when the part comes off, do not delete it.",
+    href: "maintenance/track-life-limited-components",
   },
   "inspection-last-done": {
     title: "When was it last done?",
@@ -768,6 +810,12 @@ export const DOCS_TOPICS = {
     summary:
       "When this inspection comes due the aircraft is grounded automatically and can only be booked for maintenance. Signing it off puts the aircraft back on the line by itself.",
     href: "maintenance/when-aerscheduler-grounds-an-aircraft",
+  },
+  "inspection-not-applicable": {
+    title: "Not applicable",
+    summary:
+      "For an inspection this one aircraft does not need, like a VOR check on a VFR-only aircraft. It is never reminded about or grounds the aircraft, and it stays marked after a sign-off until you say it applies again.",
+    href: "maintenance/mark-an-inspection-not-applicable",
   },
   "track-inspections": {
     title: "Inspections",

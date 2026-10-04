@@ -185,6 +185,15 @@ function MeterRow({ entry: e }: { entry: MeterLogEntry }) {
           ) : (
             <span>{e.by?.name ?? "Recorded"}</span>
           )}
+          {e.workOrder && (
+            <Link
+              to="/maintenance/work-orders/$workOrderId"
+              params={{ workOrderId: String(e.workOrder.id) }}
+              className="text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {e.workOrder.label}
+            </Link>
+          )}
           {e.correction && <ListTag>Correction</ListTag>}
           {e.photoUrl && (
             <a

@@ -27,9 +27,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ResolveReminderModal } from "@/components/maintenance/resolve-reminder-modal";
+import { ReminderStepsCard } from "@/components/maintenance/reminder-steps-card";
 import { ReminderFilesSheet } from "@/components/maintenance/reminder-files-sheet";
 import { WorkOrderFormModal } from "@/components/maintenance/work-order-form-modal";
-import { inspectionName } from "@/components/maintenance/inspection-list";
+import { WorkTag, inspectionName } from "@/components/maintenance/inspection-list";
+import { NotApplicableCard } from "@/components/maintenance/not-applicable-card";
 import {
   HistorySkeleton,
   InspectionCountdown,
@@ -141,6 +143,8 @@ function InspectionBody({ reminder: r }: { reminder: MaintenanceReminder }) {
           badges={
             <>
               <InspectionStateTag reminder={r} />
+              {/* Scheduled or In progress, on the job that has it booked in (Murray spec 5). */}
+              <WorkTag work={r.work} />
               {badge ? (
                 <span title={source ?? undefined}>
                   <ListTag>{badge}</ListTag>
@@ -325,6 +329,12 @@ function InspectionBody({ reminder: r }: { reminder: MaintenanceReminder }) {
                 )}
               </DetailCard>
             )}
+
+            {/* When it is said, and to whom: the rule's, or this aircraft's own (Murray spec 6). */}
+            <ReminderStepsCard reminder={r} canManage={canManage} />
+
+            {/* Whether it applies to this aircraft at all (Murray spec 5). */}
+            <NotApplicableCard reminder={r} canManage={canManage} />
 
             {seesJobs && (
               <DetailCard

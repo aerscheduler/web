@@ -6,6 +6,7 @@ import { CalendarClock, FileText, ImageOff, Loader2, MessageSquareWarning, Paper
 import { useAnswerItems, useOwnerAttach, useOwnerJob } from "@/features/queries";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { RequestFacts } from "@/components/owner/request-facts";
 import { CardEmpty, CardSkeleton, DetailBack, DetailCard, DetailHeader, MetaItem, RecordNotFound, isMissingRecord, useDetailTitle } from "@/components/detail/detail-page";
 import { ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -119,7 +120,7 @@ function OwnerJobPage() {
                 <span className="inline-flex items-center gap-2">
                   <Receipt className="size-4 text-muted-foreground" />
                   {j.invoice.number ? `Invoice ${j.invoice.number}` : "Invoice"}, {formatMoney(j.invoice.totalCents)}
-                  <ListTag>{j.invoice.paid ? "Paid" : j.invoice.refunded ? "Refunded" : "Unpaid"}</ListTag>
+                  <ListTag>{j.invoice.paid ? "Paid" : j.invoice.refunded ? "Refunded" : j.invoice.pastDue ? "Past due" : "Unpaid"}</ListTag>
                 </span>
                 <Button size="sm" variant={j.invoice.paid || j.invoice.refunded ? "outline" : "default"} asChild>
                   <Link to="/me/invoices" search={{ invoice: j.invoice.id }}>
@@ -200,6 +201,7 @@ function OwnerWork({ job }: { job: OwnerJob }) {
           <div className="mb-4">
             <p className="text-[12px] text-muted-foreground">What you asked for</p>
             <p className="text-[13px] whitespace-pre-wrap">{job.request}</p>
+            <RequestFacts details={job.requestDetails} className="mt-2" />
           </div>
         )}
 

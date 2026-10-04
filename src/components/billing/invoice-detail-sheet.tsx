@@ -12,9 +12,10 @@ import { Separator } from "@/components/ui/separator";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { InvoiceStatusBadge } from "@/components/billing/invoice-status";
 import { InvoiceQuickBooksSection } from "@/components/billing/invoice-qbo-section";
+import { BillToSection, InvoiceFilesStaff, PaymentSummary, SectionHeading } from "@/components/billing/invoice-parts";
 import { formatMoney, visibleEmail } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { canOpenWorkOrders } from "@/lib/permissions";
+import { canOpenWorkOrders, isAdmin } from "@/lib/permissions";
 
 function fmt(iso: string | null | undefined) {
   return iso ? format(parseISO(iso), "MMM d, yyyy 'at' h:mm a") : null;
@@ -147,6 +148,15 @@ export function InvoiceDetailSheet({
           <div className="space-y-5 pt-4" data-doc-shot="invoice-detail-panel">
             {display.memo && <p className="text-sm text-muted-foreground">{display.memo}</p>}
 
+            {display.paidAt && (
+              <section>
+                <SectionHeading>Payment</SectionHeading>
+                <PaymentSummary invoice={display} staff />
+              </section>
+            )}
+
+            <BillToSection billTo={display.billTo} />
+
             <InvoiceQuickBooksSection invoice={display} />
 
             <section>
@@ -255,6 +265,9 @@ export function InvoiceDetailSheet({
                 )}
               </section>
             )}
+
+            {/* Admins manage an invoice's files (the server refuses anybody else). */}
+            {id != null && isAdmin(roles) && <InvoiceFilesStaff invoice={{ ...display, id }} />}
 
             {display.reservation && (
               <section>

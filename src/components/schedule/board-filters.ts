@@ -122,6 +122,9 @@ export function searchableText(r: Reservation): string[] {
     res?.kind ?? "",
     ...personnelNames(r),
     ...(r.personnel?.guests ?? []).map((g) => g.email),
+    // A hangar booking's customer and request, when the server sent them to this viewer.
+    r.shopJob?.customerName ?? "",
+    r.shopJob?.request ?? "",
   ].filter(Boolean);
 }
 

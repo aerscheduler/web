@@ -7,6 +7,7 @@ import { DetailPanel } from "@/components/detail-panel";
 import { SheetDetailField, SheetDetailFields } from "@/components/sheet-detail-field";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { isPastDue } from "@/lib/payment-methods";
 
 /**
  * A peek at one job from the board: where it stands, who pays, what was asked. The job's own
@@ -85,7 +86,7 @@ export function WorkOrderDetailSheet({
             {w.invoice && (
               <SheetDetailField icon={Receipt} label="Invoice">
                 <span className="tabular-nums">
-                  {formatMoney(w.invoice.total)} · {w.invoice.paidAt ? "Paid" : "Not paid yet"}
+                  {formatMoney(w.invoice.total)} · {w.invoice.paidAt ? "Paid" : isPastDue({ ...w.invoice, voidedAt: null }) ? "Past due" : "Not paid yet"}
                 </span>
               </SheetDetailField>
             )}

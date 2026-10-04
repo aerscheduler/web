@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   CalendarClock,
   FileCheck2,
+  FileText,
   GraduationCap,
   KeyRound,
   Hash,
@@ -15,7 +16,8 @@ import {
   Wrench,
 } from "lucide-react";
 import { rolesOf, type OrganizationUser } from "@/types/api";
-import { useMember, useOrgLedgerSettings, useOwnedAircraft } from "@/features/queries";
+import { useCustomerFiles, useMember, useOrgLedgerSettings, useOwnedAircraft } from "@/features/queries";
+import { CustomerFilesCard } from "@/components/people/detail/customer-files";
 import { PersonApprovedAircraft } from "@/components/people/detail/person-approved-aircraft";
 import { useAuth } from "@/lib/auth";
 import { canOpenWorkOrders, canSeeShop, isAdmin, personViewAccess, type PersonViewAccess } from "@/lib/permissions";
@@ -184,7 +186,7 @@ function PersonPage() {
 function sectionsForOwner(
   access: PersonViewAccess,
   ledgerOn: boolean,
-  shop: { aircraft: number | undefined; jobs: number | undefined; mayOpenJobs: boolean } | null
+  shop: { aircraft: number | undefined; jobs: number | undefined; files: number | undefined; mayOpenJobs: boolean } | null
 ): RailSection[] {
   return [
     {
@@ -196,6 +198,8 @@ function sectionsForOwner(
           ? [
               { value: "aircraft", label: "Aircraft", icon: Plane, count: shop.aircraft },
               ...(shop.mayOpenJobs ? [{ value: "work-orders", label: "Work orders", icon: Wrench, count: shop.jobs }] : []),
+              // Their account's papers (Murray spec section 16), for the same people as the jobs.
+              ...(shop.mayOpenJobs ? [{ value: "files", label: "Files", icon: FileText, count: shop.files }] : []),
             ]
           : []),
       ],
@@ -273,8 +277,13 @@ function PersonBody({
   const seesShop = canSeeShop(roles);
   const owned = useOwnedAircraft(ou.id, { enabled: outsideParty && seesShop });
   const ownerJobs = useOwnerJobs(ou.id);
+  const customerFiles = useCustomerFiles(ou.id, { enabled: outsideParty && canOpenWorkOrders(roles) });
   const sections = outsideParty
-    ? sectionsForOwner(access, ledgerOn, seesShop ? { aircraft: owned.data?.length, jobs: ownerJobs.data?.length, mayOpenJobs: canOpenWorkOrders(roles) } : null)
+    ? sectionsForOwner(
+        access,
+        ledgerOn,
+        seesShop ? { aircraft: owned.data?.length, jobs: ownerJobs.data?.length, files: customerFiles.data?.length, mayOpenJobs: canOpenWorkOrders(roles) } : null
+      )
     : sectionsFor(access, ledgerOn);
   const allowed = sections.flatMap((s) => s.items.map((i) => i.value));
   let active = tab && allowed.includes(tab) ? tab : "overview";
@@ -405,6 +414,7 @@ function PersonBody({
           {active === "overview" && outsideParty && <CustomerDetailsCard orgUserId={ou.id} />}
           {active === "aircraft" && outsideParty && <OwnerAircraftList owned={owned.data ?? []} loading={owned.isPending} />}
           {active === "work-orders" && outsideParty && <OwnerWorkOrdersList rows={ownerJobs.data ?? []} loading={ownerJobs.isPending} />}
+          {active === "files" && outsideParty && <CustomerFilesCard orgUserId={ou.id} />}
 
           {active === "overview" && !outsideParty && (
             <>

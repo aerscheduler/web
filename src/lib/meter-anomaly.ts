@@ -50,3 +50,37 @@ export function maintenanceTriggerMessage(err: unknown): string | null {
   if ((body as Record<string, unknown>).code !== "MAINTENANCE_TRIGGER") return null;
   return err.message || "Saving this reading will ground the aircraft.";
 }
+
+/** What the meter log asks before a reading saves, and how the person answered. */
+export type MeterAnswers = { confirmLower?: boolean; confirmMaintenanceTrigger?: boolean };
+
+type Confirm = (opts: { title: string; description: string; confirmLabel: string; cancelLabel?: string; destructive?: boolean }) => Promise<boolean>;
+
+/**
+ * Send something that puts a reading on an aircraft's meter log (a job's readings in or out, an
+ * inspection's sign-off), answering the log's two questions as they come: a reading lower than
+ * the aircraft's (save it as a correction) and one that grounds it (save and ground it). Null
+ * when the person backed out; any other error is thrown as it was.
+ */
+export async function withMeterAnswers<T>(send: (answers: MeterAnswers) => Promise<T>, confirm: Confirm, answers: MeterAnswers = {}): Promise<T | null> {
+  try {
+    return await send(answers);
+  } catch (e) {
+    const code = e instanceof ApiError && e.status === 409 ? ((e.body as { code?: string } | null)?.code ?? null) : null;
+    if (code === "METER_LOWER" && !answers.confirmLower) {
+      const ok = await confirm({
+        title: "Lower than the aircraft's times",
+        description: (e as Error).message,
+        confirmLabel: "Save as a correction",
+        cancelLabel: "Fix it",
+      });
+      return ok ? withMeterAnswers(send, confirm, { ...answers, confirmLower: true }) : null;
+    }
+    const trigger = maintenanceTriggerMessage(e);
+    if (trigger && !answers.confirmMaintenanceTrigger) {
+      const ok = await confirm({ title: "This reading grounds the aircraft", description: trigger, confirmLabel: "Save and ground it", destructive: true });
+      return ok ? withMeterAnswers(send, confirm, { ...answers, confirmMaintenanceTrigger: true }) : null;
+    }
+    throw e;
+  }
+}

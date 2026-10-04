@@ -3,6 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { addDays } from "date-fns";
 import { resourceLabel, type OrganizationUser, type Reservation, type ReservationType } from "@/types/api";
 import { GroupByMenu, ListTable, ListTableSkeleton, ListTag, type ListTableColumn, type ListTableGroup, type ListTableSort } from "@/components/list-table";
+import { GroundedMark, shopJobLine, shopJobOf } from "@/components/schedule/shop-job";
 import { WorkspaceUserAvatar, WorkspaceUserAvatars, type WorkspacePerson } from "@/components/workspace-user-avatar";
 import { WorkStatusIcon } from "@/components/maintenance/work-status-icon";
 import { useTimeZone, type TimeZoneContext } from "@/lib/use-timezone";
@@ -262,7 +263,16 @@ export function ReservationListTable({
         testId: `reservation-row-${r.id}`,
         label: `${r.title}, ${when}`,
         leading: <span className="size-2 rounded-full" style={{ background: TYPE_HUE[r.type] }} aria-hidden />,
-        title: r.title,
+        title: shopJobOf(r)?.grounded ? (
+          <>
+            <GroundedMark className="mr-1 -mt-0.5 align-middle" />
+            {r.title}
+          </>
+        ) : (
+          r.title
+        ),
+        // A hangar booking's customer and request, for the viewers the server sent them to.
+        subtitle: shopJobOf(r) ? shopJobLine(shopJobOf(r)!) ?? undefined : undefined,
         tags: (
           <>
             {groupBy !== "type" && <ListTag>{TYPE_LABEL[r.type] ?? r.type}</ListTag>}

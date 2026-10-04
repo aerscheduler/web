@@ -14,7 +14,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { RecordMeterReadingModal } from "@/components/aircraft/detail/aircraft-meters-card";
-import { GROUNDED_TONE, JobStatus, RequestWorkModal, dueText, dueTone } from "@/components/owner/owner-parts";
+import { GROUNDED_TONE, JobStatus, RequestWorkModal, dueText, dueTone, firstApplicable } from "@/components/owner/owner-parts";
+import { WorkTag } from "@/components/maintenance/inspection-list";
+import { YourDocumentsCard } from "@/components/owner/owner-files";
+import { isPastDue } from "@/lib/payment-methods";
 
 /**
  * What owning an aircraft adds to the home page (Murray spec sections 7 and 17; Tony,
@@ -107,6 +110,7 @@ export function OutsideOwnerHome() {
                 </Button>
               </CardContent>
             </Card>
+            <YourDocumentsCard />
           </div>
         </div>
       )}
@@ -235,7 +239,7 @@ function YourAircraftCard({ aircraft, loading }: { aircraft: OwnerAircraft[]; lo
 
 function AircraftRow({ a }: { a: OwnerAircraft }) {
   const j = a.currentJob;
-  const due = a.due[0] as OwnerDueItem | undefined;
+  const due = firstApplicable(a.due);
   const body = (
     <>
       <div className="min-w-0 flex-1 space-y-1">
@@ -268,7 +272,12 @@ function AircraftRow({ a }: { a: OwnerAircraft }) {
             {jobsWaiting(a).length ? ` on ${andList(jobsWaiting(a).map((w) => w.label))}` : ""} {a.needsAnswer === 1 ? "is" : "are"} waiting on your answer
           </p>
         )}
-        {due && <p className={cn("text-sm", dueTone(due.status))}>{dueText(due)}</p>}
+        {due && (
+          <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+            <span className={dueTone(due.status)}>{dueText(due)}</span>
+            <WorkTag work={due.work} link={false} />
+          </p>
+        )}
       </div>
       {(a.owns || j) && <ChevronRight className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />}
     </>
@@ -332,7 +341,8 @@ function needsOf(aircraft: OwnerAircraft[]): Need[] {
         kind: "pay",
         icon: <Receipt className="size-4 text-primary" />,
         title: `${formatMoney(inv.totalCents)} to pay for ${inv.jobLabel}`,
-        detail: `${tail}${inv.dueAt ? `, due ${format(parseISO(inv.dueAt), "MMM d")}` : ""}.`,
+        // Past due by the server's one overdue rule: unpaid and past a due date it has.
+        detail: `${tail}${inv.dueAt ? `, ${isPastDue({ paidAt: null, voidedAt: null, dueAt: inv.dueAt }) ? "past due since" : "due"} ${format(parseISO(inv.dueAt), "MMM d")}` : ""}.`,
         a,
         invoiceId: inv.id,
       });
@@ -424,7 +434,10 @@ const STATUS_RANK: Record<string, number> = { overdue: 0, dueSoon: 1, ok: 2 };
  * its aircraft's first, so the tile and the rows always agree.
  */
 function mostUrgent(aircraft: OwnerAircraft[]): { item: OwnerDueItem; aircraft: OwnerAircraft } | null {
-  const all = aircraft.flatMap((a) => (a.due[0] ? [{ item: a.due[0], aircraft: a }] : []));
+  const all = aircraft.flatMap((a) => {
+    const first = firstApplicable(a.due);
+    return first ? [{ item: first, aircraft: a }] : [];
+  });
   if (all.length === 0) return null;
   return all.sort((x, y) => dueOrder(x.item, y.item))[0];
 }

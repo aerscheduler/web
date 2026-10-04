@@ -21,6 +21,7 @@ import {
   type FlyingDayFrame,
 } from "./hours";
 import { BLOCK_CLASS, personnelNames, typeLabel } from "./meta";
+import { GroundedMark, shopJobLine, shopJobOf } from "./shop-job";
 import { packTracks } from "./pack";
 import { dimClass, selectedClass, type BoardMarks } from "./board-filters";
 import type { ReservationDraft } from "./reservation-form";
@@ -570,6 +571,7 @@ function WeekBlock({
         <ResizeHandle axis="y" side="end" onPointerDown={(e) => drag.begin(e, r, "resize-end", geom)} />
       )}
       <span className="truncate text-[11px] font-semibold leading-tight text-foreground">
+        {shopJobOf(r)?.grounded && <GroundedMark className="mr-1 -mt-0.5 align-middle" />}
         {highlightMatch(aircraft ? `${aircraft} · ${r.title}` : r.title, marks.query)}
       </span>
       <span className="truncate text-[10px] leading-tight opacity-80 tabular-nums">
@@ -593,6 +595,8 @@ function WeekBlock({
             {typeLabel(r.type)}
             {names.length > 0 ? ` · ${names.join(", ")}` : ""}
           </div>
+          {shopJobOf(r) && shopJobLine(shopJobOf(r)!) && <div className="opacity-80">{shopJobLine(shopJobOf(r)!)}</div>}
+          {shopJobOf(r)?.grounded && <div className="opacity-80">The aircraft is grounded.</div>}
           {drag && ability?.reason && (
             <div className="mt-1 border-t border-border/50 pt-1 opacity-90">{ability.reason}</div>
           )}

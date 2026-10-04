@@ -13,7 +13,9 @@ import {
   sourceIsIncomplete,
   type InspectionSource,
 } from "@/components/maintenance/inspection-source-fields";
-import type { MaintenanceReminderTemplate } from "@/types/api";
+import type { MaintenanceReminderTemplate, ReminderSteps } from "@/types/api";
+import { ReminderStepsFields } from "@/components/maintenance/reminder-steps-fields";
+import { ruleDefaults } from "@/lib/reminder-steps";
 
 /**
  * Edit what an inspection IS, as opposed to which aircraft it covers.
@@ -46,6 +48,8 @@ export function EditInspectionModal({
   const [name, setName] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [source, setSource] = React.useState<InspectionSource>(EMPTY_SOURCE);
+  // When it is said and to whom (Murray spec 6): the rule's own lists; absent ones are defaults.
+  const [steps, setSteps] = React.useState<ReminderSteps>({});
   const [busy, setBusy] = React.useState(false);
 
   //Reseeded every time it opens, so a cancelled edit does not survive into the next one.
@@ -63,6 +67,7 @@ export function EditInspectionModal({
       revisionDate: template.revisionDate ? template.revisionDate.slice(0, 10) : "",
       sourceUrl: template.sourceUrl ?? "",
     });
+    setSteps(template.reminderSteps ?? {});
   }, [open, template?.id]);
 
   const invalid = !name.trim() || sourceIsIncomplete(source);
@@ -85,6 +90,10 @@ export function EditInspectionModal({
         revision: source.sourceType ? source.revision.trim() || null : null,
         revisionDate: source.sourceType ? source.revisionDate || null : null,
         sourceUrl: source.sourceType ? source.sourceUrl.trim() || null : null,
+        // Only when changed, so saving a rename never touches when anybody is reminded.
+        ...(JSON.stringify(steps) !== JSON.stringify(template.reminderSteps ?? {})
+          ? { reminderSteps: Object.keys(steps).length ? steps : null }
+          : {}),
       });
       toast.success("Inspection updated.");
       onOpenChange(false);
@@ -100,7 +109,7 @@ export function EditInspectionModal({
       open={open}
       onOpenChange={onOpenChange}
       title="Edit inspection"
-      description="Renaming it or correcting its document number does not change anything already signed off."
+      description="Renaming it, correcting its document number or changing its reminders does not change anything already signed off."
       footer={
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={busy}>
@@ -136,6 +145,26 @@ export function EditInspectionModal({
         </div>
 
         <InspectionSourceFields value={source} onChange={setSource} idPrefix="edit-insp" />
+
+        {template && (
+          <div className="space-y-2 border-t border-border pt-4">
+            <p className="text-sm font-medium">Reminders</p>
+            <p className="text-[12px] text-muted-foreground">
+              For every aircraft this inspection covers. An aircraft can have its own on its inspection page. The owners' reminders go to the owners of customer aircraft.
+            </p>
+            <ReminderStepsFields
+              idPrefix="edit-insp"
+              value={steps}
+              onChange={setSteps}
+              defaults={ruleDefaults(template)}
+              clocks={{
+                days: Boolean(template.remindDays || template.remindMonths || template.remindDate),
+                hours: Boolean(template.remindHours || template.remindAtHours != null),
+              }}
+              owners
+            />
+          </div>
+        )}
       </div>
     </ResponsiveModal>
   );

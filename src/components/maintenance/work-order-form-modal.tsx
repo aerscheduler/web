@@ -28,6 +28,7 @@ import { Combobox, MultiCombobox, type ComboOption } from "@/components/combobox
 import { DatePickerField } from "@/components/date-picker";
 import { Field } from "@/components/settings/parts";
 import { useConfirm } from "@/components/confirm-dialog";
+import { withMeterAnswers } from "@/lib/meter-anomaly";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -358,19 +359,33 @@ export function WorkOrderFormModal({
         const changed = Object.fromEntries(
           Object.entries(full).filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(snapshot.current[k]))
         ) as WorkOrderInput;
-        if (Object.keys(changed).length) await update.mutateAsync({ id: editing.id, ...changed });
+        // The readings go on the aircraft's meter log too, which asks about a lower reading (asked
+        // above already) or one that grounds the aircraft.
+        if (Object.keys(changed).length) {
+          const saved = await withMeterAnswers((a) => update.mutateAsync({ id: editing.id, ...changed, ...a }), confirm, doubts.length ? { confirmLower: true } : {});
+          if (!saved) return once.fail();
+        }
         toast.success(`${editing.label} saved`);
         onOpenChange(false);
         return;
       }
       // A bill-to nobody picked is the server's to default (the primary owner). The picker only
       // shows the same default; sending it would turn a failed owners read into "nobody".
-      const created = await create.mutateAsync({
-        ...body,
-        resourceId: effectiveResourceId!,
-        ...(billTo === "" || !billToTouched.current ? { billToOrgUserId: undefined } : {}),
-      });
-      toast.success(`${created.label} opened for ${workOrderAircraftName(created)}`);
+      const created = await withMeterAnswers(
+        (a) =>
+          create.mutateAsync({
+            ...body,
+            ...a,
+            resourceId: effectiveResourceId!,
+            ...(billTo === "" || !billToTouched.current ? { billToOrgUserId: undefined } : {}),
+          }),
+        confirm,
+        doubts.length ? { confirmLower: true } : {}
+      );
+      if (!created) return once.fail();
+      toast.success(
+        `${created.label} opened for ${workOrderAircraftName(created)}${created.aircraftTimes === "updated" ? ". Its times are updated to the readings in." : ""}`
+      );
       onOpenChange(false);
       void navigate({ to: "/maintenance/work-orders/$workOrderId", params: { workOrderId: String(created.id) } });
     } catch (e) {

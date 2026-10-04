@@ -320,15 +320,21 @@ function TemplateMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={() => onCoverage(template)}>
-          <PlaneTakeoff className="size-4" /> Choose aircraft
-        </DropdownMenuItem>
+        {/* A component's life limit belongs to its aircraft and goes when the part comes off:
+            the Components card moves or retires it, and the server refuses both here. */}
+        {!template.componentClock && (
+          <DropdownMenuItem onSelect={() => onCoverage(template)}>
+            <PlaneTakeoff className="size-4" /> Choose aircraft
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onSelect={() => onDetails(template)}>
-          <Pencil className="size-4" /> Edit name, notes and source
+          <Pencil className="size-4" /> Edit name, source and reminders
         </DropdownMenuItem>
-        <DropdownMenuItem disabled={deleting} onSelect={() => onDelete(template)}>
-          <Trash2 className="size-4" /> Delete
-        </DropdownMenuItem>
+        {!template.componentClock && (
+          <DropdownMenuItem disabled={deleting} onSelect={() => onDelete(template)}>
+            <Trash2 className="size-4" /> Delete
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

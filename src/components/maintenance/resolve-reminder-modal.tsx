@@ -16,6 +16,8 @@ import { format } from "date-fns";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useResolveMaintenanceReminder } from "@/features/queries";
+import { withMeterAnswers } from "@/lib/meter-anomaly";
+import { useConfirm } from "@/components/confirm-dialog";
 import { useAuth } from "@/lib/auth";
 import type { MaintenanceReminder } from "@/types/api";
 import { MECHANIC_CERTIFICATE_TYPES, fromDeciHours, sourceLabel } from "@/lib/maintenance";
@@ -44,6 +46,7 @@ export function ResolveReminderModal({
   onOpenChange: (open: boolean) => void;
 }) {
   const resolve = useResolveMaintenanceReminder();
+  const confirm = useConfirm();
   const { user } = useAuth();
   //The server scopes orgUsers to the active org, so the first entry is this membership.
   const membership = user?.orgUsers?.[0];
@@ -121,7 +124,10 @@ export function ResolveReminderModal({
   async function submit() {
     if (!reminder) return;
     try {
-      await resolve.mutateAsync({
+      // Newer meters at the sign-off go on the aircraft's log, which asks first when they would
+      // ground it (another inspection coming due at those times).
+      const done = await withMeterAnswers((a) => resolve.mutateAsync({
+        ...a,
         id: reminder.id,
         // Midday, so a date-only answer can't land on the previous day once it is read back
         // in a timezone west of the server.
@@ -138,8 +144,9 @@ export function ResolveReminderModal({
               hobbsAtCompliance: hobbs !== "" ? Math.round(Number(hobbs) * 10) : undefined,
             }
           : {}),
-      });
-      toast.success("Signed off.");
+      }), confirm);
+      if (!done) return;
+      toast.success(done.aircraftTimes === "updated" ? "Signed off. The aircraft's times are updated to the readings at sign-off." : "Signed off.");
       onOpenChange(false);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't sign that off.");

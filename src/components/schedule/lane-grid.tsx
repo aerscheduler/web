@@ -27,6 +27,7 @@ import {
   type FlyingDayFrame,
 } from "./hours";
 import { BLOCK_CLASS, personnelNames, resourceIcon, typeLabel } from "./meta";
+import { GroundedMark, shopJobLine, shopJobOf } from "./shop-job";
 import { packTracks } from "./pack";
 import { ReservationMenu } from "./reservation-menu";
 import { dimClass, selectedClass, crewLabel, type BoardMarks } from "./board-filters";
@@ -689,6 +690,9 @@ function LaneBlock({
   //One name plus a count when a booking has a crew, see crewLabel.
   const shownName = crewLabel(names, marks.query);
   const timeRange = tz.range(r.start, r.end);
+  //A hangar booking's customer and request, for the viewers the server sent them to.
+  const shop = shopJobOf(r);
+  const shopLine = shop ? shopJobLine(shop) : null;
 
   const ability = drag?.abilityFor(r);
   //`floating` is the carried copy: it already IS the live drag, so it takes no input of its
@@ -771,10 +775,17 @@ function LaneBlock({
 
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-semibold leading-tight text-foreground">
+          {shop?.grounded && <GroundedMark className="mr-1 -mt-0.5 align-middle" />}
           {highlightMatch(r.title, marks.query)}
         </div>
         <div className="truncate text-[11px] leading-tight opacity-80 tabular-nums">
-          {floating ? timeRange : shownName ? highlightMatch(shownName, marks.query) : typeLabel(r.type)}
+          {floating
+            ? timeRange
+            : shopLine
+              ? highlightMatch(shopLine, marks.query)
+              : shownName
+                ? highlightMatch(shownName, marks.query)
+                : typeLabel(r.type)}
         </div>
       </div>
       {!floating && (
@@ -829,6 +840,8 @@ function LaneBlock({
             {typeLabel(r.type)}
             {names.length > 0 ? ` · ${names.join(", ")}` : ""}
           </div>
+          {shopLine && <div className="opacity-80">{shopLine}</div>}
+          {shop?.grounded && <div className="opacity-80">The aircraft is grounded.</div>}
           {drag && ability?.reason && (
             <div className="mt-1 border-t border-border/50 pt-1 opacity-90">{ability.reason}</div>
           )}

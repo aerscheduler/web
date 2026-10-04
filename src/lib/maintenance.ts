@@ -42,6 +42,8 @@ export function dueTone(due: MaintenanceDue | undefined): DueTone {
 export function dueAmount(due: MaintenanceDue | undefined): string {
   if (!due) return "–";
   if (due.status === "resolved") return "Signed off";
+  // Marked as not applying to this aircraft: the clocks are beside the point.
+  if (due.status === "notApplicable") return "Not applicable";
 
   if (due.kind === "hours") {
     if (due.hoursRemaining == null) {
@@ -72,6 +74,7 @@ export function dueAmount(due: MaintenanceDue | undefined): string {
 export function dueDetail(due: MaintenanceDue | undefined): string {
   if (!due) return "No interval set.";
   if (due.status === "resolved") return "Signed off. The next interval has started.";
+  if (due.status === "notApplicable") return "Not applicable to this aircraft. Nothing reminds about it or grounds the aircraft for it.";
 
   if (due.kind === "hours") {
     const meter = due.basis === "hobbs" ? "Hobbs" : "tach";
@@ -100,7 +103,7 @@ export function dueDetail(due: MaintenanceDue | undefined): string {
  */
 export function alsoLabel(due: MaintenanceDue | undefined): string {
   const also = due?.also;
-  if (!also || due?.status === "resolved") return "";
+  if (!also || due?.status === "resolved" || due?.status === "notApplicable") return "";
 
   if (also.kind === "hours") {
     if (also.dueAtHours == null) return "";
@@ -247,7 +250,22 @@ export function sourceLabel(t: {
 }
 
 /** The warning lead time, in words. Both leads on a combined interval, they differ. */
-export function warningLabel(t: { remindDaysBefore?: number | null; remindHoursBefore?: number | null }): string {
+export function warningLabel(t: {
+  remindDaysBefore?: number | null;
+  remindHoursBefore?: number | null;
+  /** The rule's reminder steps (Murray spec 6): when set, the shop's lists are what it warns at. */
+  reminderSteps?: { shopDays?: number[]; shopHours?: number[] } | null;
+}): string {
+  const own = t.reminderSteps ?? {};
+  if (own.shopDays || own.shopHours) {
+    const list = (steps: number[], unit: "days" | "hours") =>
+      steps.length ? `${[...steps].sort((a, b) => b - a).map((s) => (unit === "hours" ? fromDeciHours(s) : String(s))).join(", ")} ${unit}` : null;
+    const d = list(own.shopDays ?? (t.remindDaysBefore ? [t.remindDaysBefore] : []), "days");
+    const h = list(own.shopHours ?? (t.remindHoursBefore ? [t.remindHoursBefore] : []), "hours");
+    if (h && d) return `Warns ${h} or ${d} out`;
+    if (h || d) return `Warns ${h ?? d} out`;
+    return "No advance warning";
+  }
   const days = t.remindDaysBefore ? `${t.remindDaysBefore} ${t.remindDaysBefore === 1 ? "day" : "days"}` : null;
   const hours = t.remindHoursBefore ? `${fromDeciHours(t.remindHoursBefore)} hours` : null;
   if (hours && days) return `Warns ${hours} or ${days} out`;
@@ -331,9 +349,11 @@ export function fleetTotals(
 
 export function fleetSummary(reminders: MaintenanceReminder[]) {
   const live = reminders.filter((r) => r.resolvedAt == null);
+  // Marked not applicable on this aircraft: counted nowhere, and never the one a card names.
+  const applies = live.filter((r) => r.due?.status !== "notApplicable");
   const overdue = live.filter((r) => r.due?.status === "overdue");
   const dueSoon = live.filter((r) => r.due?.status === "dueSoon");
-  const sorted = [...live].sort((a, b) => (a.due?.urgency ?? 99) - (b.due?.urgency ?? 99));
+  const sorted = [...applies].sort((a, b) => (a.due?.urgency ?? 99) - (b.due?.urgency ?? 99));
 
   return {
     total: live.length,

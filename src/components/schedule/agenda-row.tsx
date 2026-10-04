@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useTimeZone } from "@/lib/use-timezone";
 import { highlightMatch } from "@/lib/highlight-match";
 import { BORDER_L_CLASS, personnelNames, typeLabel } from "./meta";
+import { GroundedMark, shopJobLine, shopJobOf } from "./shop-job";
 import { ReservationMenu } from "./reservation-menu";
 import { billingStatus, dimClass, selectedClass, type BoardMarks } from "./board-filters";
 
@@ -56,11 +57,12 @@ export function AgendaRow({
           {tz.range(r.start, r.end)}
         </div>
         <div className="mt-0.5 truncate text-sm text-muted-foreground">
+          {shopJobOf(r)?.grounded && <GroundedMark className="mr-1 -mt-0.5 align-middle" />}
           {highlightMatch(
             [
               res ? res.name : "Unassigned",
-              names.slice(0, 2).join(", "),
-              names.length > 2 ? `+${names.length - 2}` : "",
+              // A hangar booking says whose aircraft and what for, to the viewers it was sent to.
+              ...(shopJobOf(r) ? [shopJobLine(shopJobOf(r)!) ?? ""] : [names.slice(0, 2).join(", "), names.length > 2 ? `+${names.length - 2}` : ""]),
             ]
               .filter(Boolean)
               .join(" · "),

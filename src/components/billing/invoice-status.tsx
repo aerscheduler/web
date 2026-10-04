@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import type { Invoice } from "@/types/api";
 import { Badge } from "@/components/ui/badge";
 import type { BadgeProps } from "@/components/ui/badge";
@@ -7,25 +7,39 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { isPastDue } from "@/lib/payment-methods";
 
 export type InvoiceStatus = {
-  key: "paid" | "void" | "outstanding";
+  key: "paid" | "void" | "past_due" | "outstanding";
   label: string;
   variant: NonNullable<BadgeProps["variant"]>;
 };
 
-/** Derive the display status of an invoice. Paid wins, then void, else outstanding. */
-export function invoiceStatus(inv: Invoice): InvoiceStatus {
+/**
+ * Derive the display status of an invoice. Paid wins, then void, then past due (unpaid and past
+ * a due date it has, the server's own `overdue` rule), else outstanding.
+ */
+export function invoiceStatus(inv: Invoice, now = new Date()): InvoiceStatus {
   if (inv.paidAt) return { key: "paid", label: "Paid", variant: "success" };
   if (inv.voidedAt) return { key: "void", label: "Void", variant: "outline" };
+  if (isPastDue(inv, now)) return { key: "past_due", label: "Past due", variant: "warning" };
   return { key: "outstanding", label: "Outstanding", variant: "warning" };
+}
+
+/** Still owed: outstanding or past due. What may be paid, marked paid, reminded or voided. */
+export function isOwed(status: InvoiceStatus): boolean {
+  return status.key === "outstanding" || status.key === "past_due";
 }
 
 export function InvoiceStatusBadge({ invoice }: { invoice: Invoice }) {
   const s = invoiceStatus(invoice);
   return (
     <span className="inline-flex items-center gap-1.5">
-      <Badge variant={s.variant}>{s.label}</Badge>
+      <Badge variant={s.variant} data-status={s.key}>
+        {/* Amber like Outstanding (no red for a status), told apart by the clock and the word. */}
+        {s.key === "past_due" && <Clock className="size-3" aria-hidden="true" />}
+        {s.label}
+      </Badge>
       <QuickBooksSyncChip invoice={invoice} />
     </span>
   );

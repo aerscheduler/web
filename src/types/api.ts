@@ -750,6 +750,12 @@ export interface Reservation {
   end: string;
   timeZoneName: string;
   notes: string | null;
+  /**
+   * The shop's summary of the job a maintenance booking holds (Murray spec section 8). Sent
+   * only to the shop roles; `workOrderId`, `label` and `request` only to the roles that open
+   * work orders. Absent for everybody else and for bookings without a job.
+   */
+  shopJob?: ShopJobSummary;
   personnel?: ReservationPersonnel;
   resource?: Resource;
   /**
@@ -961,7 +967,10 @@ export interface ResourceFileSummary {
 }
 
 export type ResourceFileCategory =
+  | "airworthiness_certificate"
+  | "registration"
   | "poh"
+  | "operating_limitations"
   | "weight_and_balance"
   | "insurance"
   | "form_337"
@@ -976,6 +985,8 @@ export interface ResourceFile {
   category: ResourceFileCategory;
   visibility: ResourceFileVisibility;
   label: string | null;
+  /** Shown to the aircraft's owners in their portal. Only ever true on a customer's aircraft. */
+  ownerVisible?: boolean;
   fileUrls: string[];
 }
 
@@ -1133,15 +1144,63 @@ export interface Invoice {
   /** pending | in_flight | deferred | blocked | synced | unposting | handled */
   qboSyncState?: string | null;
   qboBlockedReason?: string | null;
-  /** "manual" when marked paid in the school's own Stripe dashboard (cash or check). */
-  paymentMethod?: string | null;
+  /**
+   * How a payment recorded outside the card flow came in: what the desk chose on Mark paid
+   * (DeskPaymentMethod), or "manual" when marked paid in the organization's own Stripe
+   * dashboard. Null for a card or bank payment through Stripe, and for desk payments recorded
+   * before methods were asked.
+   */
+  paymentMethod?: DeskPaymentMethod | "manual" | (string & {}) | null;
+  /** The check's number, with paymentMethod "check". */
+  checkNumber?: string | null;
+  /**
+   * The day the money arrived, as midnight UTC of that calendar day: read the first ten
+   * characters (dateKeyOf in lib/payment-methods), never shift it into a zone.
+   */
+  paymentReceivedOn?: string | null;
+  /** The organization's note about the payment. Not sent to an aircraft owner from outside. */
+  paymentNote?: string | null;
   /** Who at the desk marked it paid, when a person did. */
-  markedAsPaidBy?: { id: number } | null;
+  markedAsPaidBy?: { id: number; user?: { id: number; name?: string | null } | null } | null;
   items?: InvoiceItem[];
   customer?: OrganizationUser;
   reservation?: Reservation;
   /** The shop job this bill was raised for (purpose `work_order`). On the single invoice only. */
   workOrder?: { id: number; number: number } | null;
+  /**
+   * Who the bill is to, as it prints. On the single invoice (GET /invoices/:id), for the person
+   * billed and for admins only; absent for everybody else.
+   */
+  billTo?: InvoiceBillTo | null;
+}
+
+/** How the desk says a payment came in (Mark paid). */
+export type DeskPaymentMethod = "cash" | "check" | "card_in_person" | "bank_transfer" | "other";
+
+export interface InvoiceBillTo {
+  name: string | null;
+  email: string | null;
+  /** E.164, with its country for printing nationally. */
+  phone: string | null;
+  phoneCountry: string | null;
+  /** As written, one line per line. */
+  billingAddress: string | null;
+}
+
+/** A file on an invoice: the vendor's invoice, a receipt, an 8130-3. */
+export interface InvoiceFile {
+  id: number;
+  label: string | null;
+  /** shop: the organization's own; owner: shown to the person billed. */
+  visibility: "shop" | "owner";
+  /** A link that works for 15 minutes; null when the stored object is missing. */
+  url: string | null;
+  fileName: string;
+  createdAt: string;
+  /** Admins only. */
+  uploadedBy?: { id: number; name: string | null } | null;
+  /** The job file it was copied from ("Add from the job"). Admins only. */
+  workOrderFileId?: number | null;
 }
 
 export interface InvoiceItem {
@@ -1403,8 +1462,12 @@ export interface Squawk {
  */
 export interface MaintenanceDue {
   kind: "hours" | "days" | "date" | "unknown";
-  /** `dueSoon` is the template's own warning period, the same threshold that emails. */
-  status: "overdue" | "dueSoon" | "ok" | "resolved";
+  /**
+   * `dueSoon` is the template's own warning period, the same threshold that emails.
+   * `notApplicable`: marked as not applying to this aircraft (Murray spec 5); never overdue or
+   * due soon whatever the clocks say, and the figures below are still filled in.
+   */
+  status: "overdue" | "dueSoon" | "ok" | "resolved" | "notApplicable";
   name: string | null;
   notes: string | null;
   /** Whether coming due takes the aircraft off the line. */
@@ -1444,6 +1507,10 @@ export interface MaintenanceDueSide {
 }
 
 export interface MaintenanceReminder {
+  /** The steps that apply on this aircraft: its own, else the rule's, else the defaults. */
+  steps?: Required<ReminderSteps>;
+  /** The keys this aircraft sets itself; null when it follows the rule. */
+  ownSteps?: ReminderSteps | null;
   id: number;
   createdAt: string;
   resolvedAt: string | null;
@@ -1466,7 +1533,25 @@ export interface MaintenanceReminder {
    * The work order items carrying this inspection. Single read only, and only for the roles
    * that may see the job board (admin, technician); absent for a dispatcher.
    */
-  workOrderItems?: { id: number; completedAt: string | null; workOrder: { id: number; number: number; status: WorkOrderStatus } }[];
+  workOrderItems?: { id: number; completedAt: string | null; decision?: string | null; workOrder: { id: number; number: number; status: WorkOrderStatus } }[];
+  /**
+   * Booked in with the shop (Murray spec 5): `scheduled` while the job carrying it is requested
+   * or scheduled, `inProgress` while the aircraft is at the shop. Derived from the job on the
+   * server. Null when no open job carries it, and always null for a role that may not open work
+   * orders (a dispatcher).
+   */
+  work?: InspectionWork | null;
+  /** Marked not applicable on this aircraft (Murray spec 5): never warned, reminded or grounded. */
+  notApplicableAt?: string | null;
+  notApplicableReason?: string | null;
+  /** Who marked it. Single read only. */
+  notApplicableBy?: { id: number; user?: { name?: string | null } | null } | null;
+}
+
+/** The job an inspection is booked in on, as the reminder reads carry it. */
+export interface InspectionWork {
+  status: "scheduled" | "inProgress";
+  job: { id: number; label: string; status: WorkOrderStatus };
 }
 
 /**
@@ -1516,7 +1601,21 @@ export interface MaintenanceComplianceRecord {
 }
 
 /** The rule a reminder repeats on. One template spans many aircraft. */
+/**
+ * When an inspection coming due is said, and to whom (Murray spec 6): days before a calendar
+ * due date, and hours before an hour one, in TENTHS. An absent key is the default; an empty list
+ * is none but due. See server utils/reminderSteps.ts.
+ */
+export interface ReminderSteps {
+  shopDays?: number[];
+  shopHours?: number[];
+  ownerDays?: number[];
+  ownerHours?: number[];
+}
+
 export interface MaintenanceReminderTemplate {
+  /** The rule's own steps; absent keys are the defaults. */
+  reminderSteps?: ReminderSteps | null;
   id: number;
   createdAt: string;
   name: string | null;
@@ -1563,6 +1662,12 @@ export interface MaintenanceReminderTemplate {
   /** The EFFECTIVE DATE of the revision complied with. 14 CFR 91.417(a)(2)(v) asks for this,
    *  not the number beside it. ISO date string. */
   revisionDate: string | null;
+  /**
+   * Set on an inspection a life-limited component keeps: `hours` tracks its hour limit, `date`
+   * its calendar limit. Its due point and aircraft are the component's (the aircraft's
+   * Components card); the server refuses deleting it here. Null on every other inspection.
+   */
+  componentClock?: "hours" | "date" | null;
   resources?: Resource[];
   reminders?: MaintenanceReminder[];
 }
@@ -1610,6 +1715,8 @@ export interface CreateReminderTemplateInput {
   /** ISO date. The effective date of the revision. See `revisionDate` on the read model. */
   revisionDate?: string | null;
   templateResources?: { id: number; startDate?: string; startHour?: number }[];
+  /** When it is said and to whom (Murray spec 6). Null puts the rule back on the defaults. */
+  reminderSteps?: ReminderSteps | null;
 }
 
 // ---- Mutation input payloads (see _local/insights/api-contract.md §4) ----
@@ -2405,6 +2512,15 @@ export type WorkOrderStatus =
   | "cancelled";
 
 export interface WorkOrder {
+  /**
+   * Only on the answer to a save that changed the readings: they went on the aircraft's meter
+   * log and moved its times ("updated"), or were older than its newest reading ("logged").
+   */
+  aircraftTimes?: "updated" | "logged";
+  /** What the owner said with their request: when it can come in, grounded, where it is. Null when nothing. */
+  ownerRequest?: { preferredFrom: string | null; preferredTo: string | null; grounded: boolean | null; location: string | null } | null;
+  /** The Hobbs and tach the owner gave with the request (on the single job only). */
+  requestReading?: { hobbsTime: number | null; tachTime: number | null; readAt: string } | null;
   id: number;
   /** The school's number, from 1001. */
   number: number;
@@ -2571,6 +2687,9 @@ export interface WorkOrderInput {
   reservationId?: number | null;
   technicianOrgUserIds?: number[];
   holdOwnerNotices?: boolean;
+  /** The meter log's questions about the readings, answered (see withMeterAnswers). */
+  confirmLower?: boolean;
+  confirmMaintenanceTrigger?: boolean;
 }
 
 export type DayBlocks = { start: string; end: string }[];
@@ -2756,7 +2875,20 @@ export type RevenueReport = {
  * and records which org user did it. A body of `{ paidAt }` is silently ignored AND
  * answered with 200, so this type exists to make that mistake unrepresentable.
  */
-export type InvoiceUpdate = { markPaid: true } | { markVoided: true };
+export type InvoiceUpdate = ({ markPaid: true } & DeskPayment) | { markVoided: true };
+
+/**
+ * What Mark paid may say about the payment (Murray spec section 14). All optional: the server
+ * records the day as today in the organization's calendar when it is left out, and refuses a
+ * check number on anything but a check, or a day in the future.
+ */
+export type DeskPayment = {
+  paymentMethod?: DeskPaymentMethod | null;
+  checkNumber?: string | null;
+  /** YYYY-MM-DD. */
+  paymentReceivedOn?: string | null;
+  paymentNote?: string | null;
+};
 
 /* ── Global search ───────────────────────────────────────────────────────────
  * `GET /search` flattens every entity to ONE row shape so the palette can render
@@ -3532,6 +3664,79 @@ export interface AircraftProfile {
   updatedAt: string | null;
 }
 
+export type ComponentLifeStatus = "ok" | "dueSoon" | "overdue";
+
+/** How much of a component's life is used and left, computed by the server. Hours are TENTHS. */
+export interface ComponentLife {
+  meter: "tach" | "hobbs";
+  /** That meter now, or when it came off. */
+  meterNow: number | null;
+  /** Its own time now (or when it came off), since new or overhaul. */
+  timeNow: number | null;
+  hours: { limit: number; left: number | null; dueAtMeter: number | null; warnWithin: number; status: ComponentLifeStatus | null } | null;
+  calendar: { limitMonths: number; dueOn: string; daysLeft: number; warnWithin: number; status: ComponentLifeStatus } | null;
+  status: ComponentLifeStatus | "none" | "removed";
+  binding: "hours" | "calendar" | null;
+}
+
+/** A life-limited part on an aircraft (GET /resources/:id/components, Murray spec 5). */
+export interface AircraftComponent {
+  id: number;
+  name: string;
+  position: string | null;
+  partNumber: string | null;
+  serialNumber: string | null;
+  /** YYYY-MM-DD. */
+  installedOn: string;
+  /** The aircraft's reading on `meter` when it went on, tenths. */
+  installedAtMeter: number | null;
+  meter: "tach" | "hobbs";
+  /** Its own time when it went on, tenths. */
+  timeAtInstall: number;
+  timeSince: "new" | "overhaul";
+  sinceOn: string | null;
+  /** Tenths. */
+  limitHours: number | null;
+  limitMonths: number | null;
+  groundAtLimit: boolean;
+  notes: string | null;
+  removedOn: string | null;
+  removedAtMeter: number | null;
+  createdAt: string;
+  updatedAt: string;
+  life: ComponentLife;
+  inspections: { id: number; clock: "hours" | "date"; reminderId: number | null; signedOffAt: string | null }[];
+}
+
+/** What a component write takes: any field, null clears. */
+export type AircraftComponentInput = Partial<
+  Pick<
+    AircraftComponent,
+    | "name"
+    | "position"
+    | "partNumber"
+    | "serialNumber"
+    | "installedOn"
+    | "installedAtMeter"
+    | "meter"
+    | "timeAtInstall"
+    | "timeSince"
+    | "sinceOn"
+    | "limitHours"
+    | "limitMonths"
+    | "groundAtLimit"
+    | "notes"
+    | "removedOn"
+    | "removedAtMeter"
+  >
+>;
+
+/** What the owner of a customer aircraft sees of a component. */
+export type OwnerComponent = Pick<
+  AircraftComponent,
+  "id" | "name" | "position" | "partNumber" | "serialNumber" | "installedOn" | "timeSince" | "limitHours" | "limitMonths" | "life"
+>;
+
 /** What the shop keeps about a customer (GET /orgUsers/:id/customer). */
 export interface CustomerProfile {
   billingAddress: string | null;
@@ -3558,6 +3763,8 @@ export interface MeterLogEntry {
   photoUrl: string | null;
   by: { id: number; name: string | null } | null;
   reservationId: number | null;
+  /** The job whose reading in or out this was. */
+  workOrder?: { id: number; label: string } | null;
 }
 
 export interface MeterLog {
@@ -3591,13 +3798,17 @@ export interface OwnerDueItem {
   name: string | null;
   /** 0 just done, 1 due now, above 1 overdue; null when it cannot be measured. */
   progress: number | null;
-  status: "overdue" | "dueSoon" | "ok" | "resolved" | string;
+  status: "overdue" | "dueSoon" | "ok" | "resolved" | "notApplicable" | string;
   dueAt: string | null;
   daysRemaining: number | null;
   basis: "tach" | "hobbs" | null;
   dueAtHours: number | null;
   hoursRemaining: number | null;
   grounds: boolean;
+  /** Booked in with the shop: Scheduled or In progress, and the job (Murray spec 5). */
+  work?: InspectionWork | null;
+  /** Why the shop marked it not applicable on this aircraft, when it said. */
+  notApplicableReason?: string | null;
 }
 
 export interface OwnerJobSummary {
@@ -3649,11 +3860,26 @@ export interface OwnerAircraftDetail extends Omit<OwnerAircraft, "owns" | "curre
   lastReadAt: string | null;
   daysSinceRead: number | null;
   mayRecordTimes: boolean;
+  /** The aircraft's papers the shop shows its owners (a customer's aircraft only). */
+  papers?: OwnerPaper[];
+  /** Its life-limited components and their life left (a customer's aircraft only). */
+  components?: OwnerComponent[];
+}
+
+/** What an owner said with their request beyond the words (Murray spec 7). */
+export interface OwnerRequestDetails {
+  preferredFrom?: string | null;
+  preferredTo?: string | null;
+  grounded?: boolean | null;
+  location?: string | null;
+  reading?: { hobbsTime: number | null; tachTime: number | null; readAt: string } | null;
 }
 
 export interface OwnerJob extends OwnerJobSummary {
   aircraft: { id: number; tailNumber: string | null; make: string | null; model: string | null };
   receivedAt: string | null;
+  /** What was said with the request beyond the words: when it can come in, grounded, where it is, its times. */
+  requestDetails?: OwnerRequestDetails | null;
   notes: string | null;
   items: {
     id: number;
@@ -3678,6 +3904,89 @@ export interface OwnerJob extends OwnerJobSummary {
   /** The caller owns the aircraft (and can open its page); false when only billed for this job. */
   ownsAircraft: boolean;
   /** `refunded`: handed back in full, neither paid nor owed. */
-  invoice: { id: number; totalCents: number; paid: boolean; refunded: boolean; number: string | null } | null;
+  invoice: {
+    id: number;
+    totalCents: number;
+    paid: boolean;
+    refunded: boolean;
+    number: string | null;
+    dueAt?: string | null;
+    /** Unpaid and past its due date (the server's overdue rule). */
+    pastDue?: boolean;
+  } | null;
   files: { id: number; name: string; fileName: string; url: string | null; itemId: number | null; createdAt: string }[];
+}
+
+// ── Aircraft history, aircraft invoices, account files (Murray spec sections 3, 8, 16) ──────
+
+export type AircraftHistoryKind = "inspection" | "squawk" | "work_order";
+
+/** One thing done to an aircraft: a sign-off, a resolved squawk, or a finished job. */
+export interface AircraftHistoryEntry {
+  key: string;
+  kind: AircraftHistoryKind;
+  recordId: number;
+  date: string;
+  title: string;
+  reference: string | null;
+  detail: string | null;
+  by: string | null;
+  /** Tenths of an hour. */
+  hobbs: number | null;
+  tach: number | null;
+  link: { inspectionId?: number; squawkId?: number; workOrderId?: number };
+}
+
+export interface AircraftInvoice {
+  id: number;
+  number: string | null;
+  createdAt: string;
+  dueAt: string | null;
+  paidAt: string | null;
+  status: "paid" | "open" | "overdue" | "void" | "refunded";
+  totalCents: number;
+  purpose: string;
+  billedTo: { orgUserId: number | null; name: string | null };
+  for: { kind: "reservation"; id: number; title: string | null; start: string | null } | { kind: "work_order"; id: number; label: string } | null;
+}
+
+export interface CustomerFile {
+  id: number;
+  label: string | null;
+  visibility: "shop" | "owner";
+  url: string | null;
+  fileName: string;
+  createdAt: string;
+  uploadedBy: { id: number; name: string | null } | null;
+  /** The customer added it to their own account; it stays visible to them. */
+  fromCustomer: boolean;
+}
+
+/** A file on the caller's own account, as an owner sees it. */
+export interface OwnFile {
+  id: number;
+  name: string;
+  fileName: string;
+  url: string | null;
+  createdAt: string;
+  /** They added it, so they may remove it. */
+  yours: boolean;
+}
+
+/** A paper on a customer's aircraft the shop shows its owners. */
+export interface OwnerPaper {
+  id: number;
+  category: ResourceFileCategory;
+  name: string;
+  fileName: string;
+  url: string | null;
+  createdAt: string;
+}
+
+export interface ShopJobSummary {
+  customerName: string | null;
+  grounded: boolean;
+  workOrderId?: number;
+  label?: string;
+  request?: string | null;
 }

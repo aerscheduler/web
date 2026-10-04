@@ -21,7 +21,8 @@ import {
   workOrderAircraftName,
   workOrderStatusVariant,
 } from "@/lib/work-orders";
-import { EditableTextCard, WorkOrderDetailsCard } from "@/components/maintenance/work-order-properties";
+import { EditableTextCard, WorkOrderDetailsCard, type MetersPrompt } from "@/components/maintenance/work-order-properties";
+import { RequestFacts } from "@/components/owner/request-facts";
 import { WorkOrderAnswersCard } from "@/components/maintenance/work-order-work";
 import { WorkOrderFilesCard } from "@/components/maintenance/work-order-files";
 import { WorkOrderWorkTable } from "@/components/maintenance/work-order-work-table";
@@ -45,6 +46,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { isPastDue } from "@/lib/payment-methods";
 
 /**
  * One job, in full: the shop's workspace for it.
@@ -178,8 +180,18 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
       if (arrived && missing) {
         const plane = planeQ.data?.type?.plane;
         // The meters editor in Details opens, filled in from the aircraft.
-        setAskMeters({ hobbs: plane?.hobbsTime ?? null, tach: plane?.tachTime ?? null });
+        setAskMeters({ hobbs: plane?.hobbsTime ?? null, tach: plane?.tachTime ?? null, side: "in" });
         // The form says the aircraft is here; a toast would only sit on its Save button.
+        return;
+      }
+      // The work is done with no readings out: ask for them, the return to service the aircraft's
+      // log records (Murray spec 4 and 15). Only when it first gets there, Ready or Completed.
+      const done = (status === "ready" || status === "completed") && w.status !== "ready" && w.status !== "completed";
+      const noOut = (hasHobbs && next.hobbsOut == null) || (hasTach && next.tachOut == null);
+      if (done && noOut && (next.hobbsIn != null || next.tachIn != null)) {
+        const plane = planeQ.data?.type?.plane;
+        toast.success(`${w.label}: ${next.statusLabel}`);
+        setAskMeters({ hobbs: plane?.hobbsTime ?? null, tach: plane?.tachTime ?? null, side: "out" });
         return;
       }
       toast.success(`${w.label}: ${next.statusLabel}`);
@@ -189,7 +201,7 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
   }
 
   const planeQ = useResource(w.aircraft.id);
-  const [askMeters, setAskMeters] = useState<{ hobbs: number | null; tach: number | null } | null>(null);
+  const [askMeters, setAskMeters] = useState<MetersPrompt | null>(null);
   // One field at a time, from the cards: the job has no Edit dialog (Tony, 2026-09-30).
   const saveField = async (patch: WorkOrderInput) => {
     try {
@@ -314,6 +326,9 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
               placeholder="Annual inspection. Left brake feels soft."
               maxLength={2000}
               onSave={(v) => saveField({ complaint: v })}
+              footer={
+                w.ownerRequest || w.requestReading ? <RequestFacts details={{ ...(w.ownerRequest ?? {}), reading: w.requestReading ?? null }} /> : undefined
+              }
             />
 
             {/* The owner's answers are a customer's aircraft's: the organization decides its own. */}
@@ -362,7 +377,7 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
                       {formatMoney(w.invoice.tax)}
                     </KeyValue>
                   )}
-                  <KeyValue label="Paid">{w.invoice.paidAt ? day(w.invoice.paidAt) : "Not yet"}</KeyValue>
+                  <KeyValue label="Paid">{w.invoice.paidAt ? day(w.invoice.paidAt) : isPastDue({ ...w.invoice, voidedAt: null }) ? "Past due" : "Not yet"}</KeyValue>
                 </KeyValueList>
               ) : (
                 <CardEmpty>

@@ -11,22 +11,29 @@
  * meter the aircraft has no reading for (a customer aircraft whose meters were never entered),
  * so how much is left is unknown and it could already be late. Either way it gets its own band
  * instead of hiding, green, among the items that are genuinely not yet due.
+ *
+ * One band the SERVER does make and the others follow: Not applicable (Murray spec 5), an
+ * inspection marked as not applying to its aircraft. It wins over every other band and sorts last.
+ * Scheduled and In progress (the job carrying it) are not bands: an inspection booked in can still
+ * be overdue, which is the more urgent fact, so they ride along as a tag (`WorkTag`).
  */
 
+import { Link } from "@tanstack/react-router";
 import { AlertTriangle, Paperclip, ShieldCheck } from "lucide-react";
-import type { MaintenanceDue, MaintenanceReminder } from "@/types/api";
+import type { InspectionWork, MaintenanceDue, MaintenanceReminder } from "@/types/api";
 import { alsoLabel, dueAmount, dueDetail, duePercent, sourceBadge, sourceLabel } from "@/lib/maintenance";
 import { cn } from "@/lib/utils";
-import { ListTag } from "@/components/list-table";
+import { LIST_TAG_BUTTON_CLASS, LIST_TAG_CLASS, ListTag } from "@/components/list-table";
 import { Button } from "@/components/ui/button";
 
-export type DueBand = "overdue" | "dueSoon" | "unstarted" | "ok";
+export type DueBand = "overdue" | "dueSoon" | "unstarted" | "ok" | "notApplicable";
 
 export const DUE_BANDS: { id: DueBand; label: string; dot: string }[] = [
   { id: "overdue", label: "Overdue", dot: "var(--warning)" },
   { id: "dueSoon", label: "Due soon", dot: "color-mix(in oklch, var(--warning) 45%, var(--muted-foreground))" },
   { id: "unstarted", label: "Needs a reading or date", dot: "var(--muted-foreground)" },
   { id: "ok", label: "Not yet due", dot: "var(--success)" },
+  { id: "notApplicable", label: "Not applicable", dot: "var(--border)" },
 ];
 export const DUE_BAND_RANK = new Map(DUE_BANDS.map((b, i) => [b.id, i]));
 export const DUE_BAND_BY_ID = new Map(DUE_BANDS.map((b) => [b.id, b]));
@@ -55,6 +62,8 @@ export function otherClockUncounted(due: MaintenanceDue | undefined): boolean {
 }
 
 export function dueBand(due: MaintenanceDue | undefined): DueBand {
+  // Marked as not applying to this aircraft: whatever the clocks say, nothing is owed.
+  if (due?.status === "notApplicable") return "notApplicable";
   // Late or close on the clock that is counting wins: that much is known.
   if (due?.status === "overdue") return "overdue";
   if (due?.status === "dueSoon") return "dueSoon";
@@ -79,7 +88,7 @@ export function DueFigure({ due }: { due: MaintenanceDue | undefined }) {
         "tnum",
         band === "overdue" && "font-semibold text-warning",
         band === "dueSoon" && "font-medium text-warning",
-        band === "unstarted" && "text-muted-foreground",
+        (band === "unstarted" || band === "notApplicable") && "text-muted-foreground",
         band === "ok" && "text-foreground"
       )}
     >
@@ -91,7 +100,7 @@ export function DueFigure({ due }: { due: MaintenanceDue | undefined }) {
 /** How full the interval is. Full, not overflowing, once it is past due. */
 export function DueRail({ due }: { due: MaintenanceDue | undefined }) {
   const band = dueBand(due);
-  if (band === "unstarted") return null;
+  if (band === "unstarted" || band === "notApplicable") return null;
   return (
     <span className="block h-1 w-full overflow-hidden rounded-full bg-border" aria-hidden>
       <span
@@ -107,6 +116,7 @@ export function DueRail({ due }: { due: MaintenanceDue | undefined }) {
 
 /** The sentence under the figure: due at what, and the other clock on a combined interval. */
 export function dueSentence(due: MaintenanceDue | undefined): string {
+  if (due?.status === "notApplicable") return dueDetail(due);
   let text = dueDetail(due);
   // Due at a reading, with no reading to measure it against: say why there is no figure.
   if (due?.kind === "hours" && due.dueAtHours != null && due.hoursRemaining == null && due.status !== "resolved") {
@@ -125,8 +135,69 @@ export function dueSentence(due: MaintenanceDue | undefined): string {
 }
 
 /**
- * The small tags after an inspection's name: the rule it comes from, files, grounding.
- * `filesShown` when the row carries its own files button, which says "has files" itself.
+ * The sentence for an inspection's row: on one marked not applicable, the reason the shop gave
+ * (the figure beside it already says "Not applicable"); otherwise where it stands (`dueSentence`).
+ */
+export function inspectionSentence(r: Pick<MaintenanceReminder, "due" | "notApplicableReason">): string {
+  if (r.due?.status === "notApplicable") return r.notApplicableReason?.trim() || dueDetail(r.due);
+  return dueSentence(r.due);
+}
+
+export const WORK_LABEL: Record<InspectionWork["status"], string> = { scheduled: "Scheduled", inProgress: "In progress" };
+const WORK_DOT: Record<InspectionWork["status"], string> = {
+  scheduled: "var(--muted-foreground)",
+  inProgress: "var(--primary)",
+};
+
+/**
+ * Scheduled or In progress (Murray spec 5): the job carrying the inspection, as a tag that opens
+ * it. `owner` links to the owner's own job page. Null when no open job carries it, which is also
+ * what a dispatcher is always served.
+ */
+export function WorkTag({
+  work,
+  owner = false,
+  link = true,
+}: {
+  work: InspectionWork | null | undefined;
+  owner?: boolean;
+  /** False inside something that is already a link (a link may not hold another). */
+  link?: boolean;
+}) {
+  if (!work) return null;
+  const label = WORK_LABEL[work.status];
+  const params = { workOrderId: String(work.job.id) };
+  const className = cn(LIST_TAG_CLASS, LIST_TAG_BUTTON_CLASS);
+  const inner = (
+    <>
+      <span className="size-1.5 rounded-full" style={{ background: WORK_DOT[work.status] }} aria-hidden />
+      {label}
+      <span className="font-mono">{work.job.label}</span>
+    </>
+  );
+  if (!link) {
+    return (
+      <span className={LIST_TAG_CLASS} title={`${label} on ${work.job.label}`} data-testid="inspection-work-tag">
+        {inner}
+      </span>
+    );
+  }
+  // A click on the tag opens the job, not the row's panel.
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  return owner ? (
+    <Link to="/me/jobs/$workOrderId" params={params} className={className} title={`${label} on ${work.job.label}`} onClick={stop} data-testid="inspection-work-tag">
+      {inner}
+    </Link>
+  ) : (
+    <Link to="/maintenance/work-orders/$workOrderId" params={params} className={className} title={`${label} on ${work.job.label}`} onClick={stop} data-testid="inspection-work-tag">
+      {inner}
+    </Link>
+  );
+}
+
+/**
+ * The small tags after an inspection's name: the job carrying it, the rule it comes from, files,
+ * grounding. `filesShown` when the row carries its own files button, which says "has files" itself.
  */
 export function InspectionTags({
   reminder,
@@ -141,9 +212,11 @@ export function InspectionTags({
   const source = sourceShown ? null : sourceBadge(reminder.template ?? {});
   const grounds = reminder.due?.grounds && reminder.due.status === "overdue";
   const clip = reminder.hasAttachments && !filesShown;
-  if (!source && !clip && !grounds) return null;
+  const work = reminder.work ?? null;
+  if (!source && !clip && !grounds && !work) return null;
   return (
     <>
+      <WorkTag work={work} />
       {source && (
         <span title={sourceLabel(reminder.template ?? {}) ?? undefined}>
           <ListTag>{source}</ListTag>

@@ -40,8 +40,9 @@ import {
   DueFigure,
   DueRail,
   dueBand,
-  dueSentence,
+  inspectionSentence,
   inspectionName,
+  WorkTag,
 } from "@/components/maintenance/inspection-list";
 
 /** Where it stands, in the list's own words, or Signed off once it is. */
@@ -73,7 +74,7 @@ export function InspectionCountdown({ reminder: r, large = false }: { reminder: 
         <DueFigure due={r.due} />
       </div>
       <DueRail due={r.due} />
-      <p className="text-[13px] text-muted-foreground">{dueSentence(r.due)}</p>
+      <p className="text-[13px] text-muted-foreground">{inspectionSentence(r)}</p>
     </div>
   );
 }
@@ -169,7 +170,14 @@ export function InspectionDetailSheet({
       onStep={onStep}
       title={r ? inspectionName(r) : "Inspection"}
       description={tail ?? undefined}
-      badge={r ? <InspectionStateTag reminder={r} /> : undefined}
+      badge={
+        r ? (
+          <span className="inline-flex flex-wrap items-center gap-1.5">
+            <InspectionStateTag reminder={r} />
+            <WorkTag work={r.work} />
+          </span>
+        ) : undefined
+      }
       footer={
         r && onSignOff && !r.resolvedAt ? (
           <Button className="w-full" onClick={() => onSignOff(r)}>

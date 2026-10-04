@@ -5,7 +5,8 @@ import { DetailPanel } from "@/components/detail-panel";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
-import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
+import { InvoiceStatusBadge, invoiceStatus, isOwed } from "@/components/billing/invoice-status";
+import { BillToSection, InvoiceFilesShared, PaymentSummary } from "@/components/billing/invoice-parts";
 import { formatMoney } from "@/lib/utils";
 import { useInvoice } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
@@ -45,7 +46,8 @@ export function MemberInvoiceSheet({
   const subtotal =
     inv?.subtotal ?? items.reduce((s, it) => s + it.qty * it.unitPrice, 0);
   const status = inv ? invoiceStatus(inv) : null;
-  const outstanding = status?.key === "outstanding";
+  // Past due is still owed, and still payable.
+  const outstanding = status ? isOwed(status) : false;
 
   return (
     <DetailPanel
@@ -60,7 +62,10 @@ export function MemberInvoiceSheet({
         <div className="space-y-5 pt-4">
           {inv.memo && <p className="text-sm text-muted-foreground">{inv.memo}</p>}
 
-          {inv.dueAt && (
+          {/* "Paid by check #1234 on Oct 3": how it was settled, never the desk's own note. */}
+          {inv.paidAt && <PaymentSummary invoice={inv} />}
+
+          {inv.dueAt && !inv.paidAt && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <CalendarClock className="size-4 shrink-0" />
               <span>
@@ -141,6 +146,11 @@ export function MemberInvoiceSheet({
               </div>
             </dl>
           </section>
+
+          <BillToSection billTo={inv.billTo} />
+
+          {/* What the organization shared on the bill: a vendor's invoice, a receipt, an 8130-3. */}
+          {inv.id != null && <InvoiceFilesShared invoiceId={inv.id} />}
 
           {outstanding && (
             <div className="space-y-2">

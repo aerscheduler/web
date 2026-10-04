@@ -8,6 +8,8 @@ import { CardEmpty, CardSkeleton, DetailBack, DetailCard, DetailHeader, MetaItem
 import { ErrorState } from "@/components/states";
 import { AircraftPicture, DueLine, JobStatus, RequestWorkModal } from "@/components/owner/owner-parts";
 import { RecordMeterReadingModal } from "@/components/aircraft/detail/aircraft-meters-card";
+import { OwnerHistoryCard, OwnerPapersCard } from "@/components/owner/owner-files";
+import { OwnerComponentsCard } from "@/components/aircraft/detail/resource-components";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authed/me/aircraft/$resourceId")({
@@ -98,6 +100,7 @@ function OwnerAircraftPage() {
         </DetailCard>
 
         <div className="space-y-5">
+          <OwnerPapersCard papers={a.papers} />
           <DetailCard title="Coming due" description="Inspections the shop tracks on this aircraft.">
             {a.due.length === 0 ? (
               <CardEmpty>Nothing tracked yet.</CardEmpty>
@@ -109,6 +112,7 @@ function OwnerAircraftPage() {
               </ul>
             )}
           </DetailCard>
+          <OwnerComponentsCard components={a.components} />
 
           {a.meterMode !== "none" && (
             <DetailCard
@@ -157,6 +161,9 @@ function OwnerAircraftPage() {
           )}
         </div>
       </div>
+
+      {/* What has been done to it: sign-offs and finished jobs, the logbook as the shop keeps it. */}
+      <OwnerHistoryCard resourceId={a.id} />
 
       {asking && <RequestWorkModal open onOpenChange={(o) => !o && setAsking(false)} aircraft={a} />}
       {a.mayRecordTimes && (

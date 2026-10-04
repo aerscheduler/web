@@ -27,7 +27,10 @@ import {
 } from "@/components/ui/sheet";
 
 export const PAPER_CATEGORY_LABEL: Record<ResourceFileCategory, string> = {
+  airworthiness_certificate: "Airworthiness certificate",
+  registration: "Registration certificate",
   poh: "POH",
+  operating_limitations: "Operating limitations",
   weight_and_balance: "Weight and balance",
   insurance: "Insurance",
   form_337: "Form 337",
@@ -53,8 +56,27 @@ function paperDisplayLabel(file: ResourceFile): string {
   return PAPER_CATEGORY_LABEL[file.category];
 }
 
+/**
+ * The two papers every US aircraft has to carry (14 CFR 91.203): an airworthiness certificate and
+ * a registration certificate. The card tells staff which the organization has no copy of (Murray
+ * spec 5). Operating limitations are not in it: on most aircraft they are in the POH.
+ */
+const REQUIRED_PAPERS: ResourceFileCategory[] = ["airworthiness_certificate", "registration"];
+
+/** "No airworthiness certificate or registration on file.", or null when both are there. */
+export function missingPapersSentence(files: Pick<ResourceFile, "category">[]): string | null {
+  const have = new Set(files.map((f) => f.category));
+  const missing = REQUIRED_PAPERS.filter((c) => !have.has(c));
+  if (missing.length === 2) return "No airworthiness certificate or registration on file.";
+  if (missing.length === 1) return missing[0] === "airworthiness_certificate" ? "No airworthiness certificate on file." : "No registration certificate on file.";
+  return null;
+}
+
 const CATEGORY_ORDER: ResourceFileCategory[] = [
+  "airworthiness_certificate",
+  "registration",
   "poh",
+  "operating_limitations",
   "weight_and_balance",
   "insurance",
   "form_337",
@@ -66,10 +88,13 @@ function PaperRow({
   file,
   canManage,
   resourceId,
+  isShop = false,
 }: {
   file: ResourceFile;
   canManage: boolean;
   resourceId: number;
+  /** A customer's aircraft: nobody books it, so the choice is whether its owners see the paper. */
+  isShop?: boolean;
 }) {
   const confirm = useConfirm();
   const del = useDeleteResourceFile();
@@ -88,13 +113,45 @@ function PaperRow({
           <div className="truncate text-sm font-medium">{title}</div>
           <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             {title !== category ? <span>{category}</span> : null}
-            <Badge variant="outline" className="font-normal">
-              {file.visibility === "bookers" ? "Bookers" : "Staff"}
-            </Badge>
+            {isShop ? (
+              <Badge variant="outline" className="font-normal">
+                {file.ownerVisible ? "Owner can see" : "Shop only"}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="font-normal">
+                {file.visibility === "bookers" ? "Bookers" : "Staff"}
+              </Badge>
+            )}
           </div>
         </div>
       {canManage && (
         <div className="flex shrink-0 items-center gap-1">
+          {isShop ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                const next = !file.ownerVisible;
+                if (next) {
+                  const ok = await confirm({
+                    title: "Show this to the owner?",
+                    description: "The aircraft's owners will be able to open it from their aircraft's page when they sign in.",
+                    confirmLabel: "Show to the owner",
+                  });
+                  if (!ok) return;
+                }
+                try {
+                  await patch.mutateAsync({ resourceId, fileId: file.id, ownerVisible: next });
+                  toast.success(next ? "The owner can see it" : "Kept to the shop");
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "Could not update that file.");
+                }
+              }}
+            >
+              {file.ownerVisible ? "Keep to the shop" : "Show to the owner"}
+            </Button>
+          ) : (
           <Button
             type="button"
             variant="ghost"
@@ -123,6 +180,7 @@ function PaperRow({
           >
             {file.visibility === "bookers" ? "Make staff" : "Make bookers"}
           </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -156,14 +214,23 @@ function AddPapersForm({
   resourceId,
   existing,
   onDone,
+  isShop = false,
 }: {
   resourceId: number;
   existing: ResourceFile[];
   onDone: () => void;
+  isShop?: boolean;
 }) {
   const create = useCreateResourceFiles();
-  const [category, setCategory] = useState<ResourceFileCategory>("poh");
-  const [visibility, setVisibility] = useState<"bookers" | "staff">("bookers");
+  //Opens on the first required paper there is no copy of, else the POH.
+  const [category, setCategory] = useState<ResourceFileCategory>(
+    () => REQUIRED_PAPERS.find((c) => !existing.some((f) => f.category === c)) ?? "poh"
+  );
+  const [visibility, setVisibility] = useState<"bookers" | "staff">(() =>
+    category === "poh" || category === "weight_and_balance" ? "bookers" : "staff"
+  );
+  //A customer's aircraft: whether its owners see it. Nobody books it, so bookers means nothing.
+  const [ownerVisible, setOwnerVisible] = useState(false);
   const [label, setLabel] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [fileBusy, setFileBusy] = useState(false);
@@ -186,7 +253,8 @@ function AddPapersForm({
       const result = await create.mutateAsync({
         resourceId,
         category,
-        visibility,
+        visibility: isShop ? "staff" : visibility,
+        ...(isShop ? { ownerVisible } : {}),
         label: label.trim() || undefined,
         files,
       });
@@ -230,6 +298,17 @@ function AddPapersForm({
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="paper-visibility">Who can open it</Label>
+          {isShop ? (
+            <select
+              id="paper-visibility"
+              className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+              value={ownerVisible ? "owner" : "shop"}
+              onChange={(e) => setOwnerVisible(e.target.value === "owner")}
+            >
+              <option value="shop">Keep to the shop</option>
+              <option value="owner">Show to the owner</option>
+            </select>
+          ) : (
           <select
             id="paper-visibility"
             className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
@@ -239,6 +318,7 @@ function AddPapersForm({
             <option value="bookers">Bookers</option>
             <option value="staff">Staff only</option>
           </select>
+          )}
         </div>
       </div>
       <div className="space-y-1.5">
@@ -295,6 +375,8 @@ export function ResourcePapers({
   const q = useResourceFiles(resource.id);
   const files = q.data ?? [];
   const [adding, setAdding] = useState(false);
+  const isShop = resource.use === "shop";
+  const missing = missingPapersSentence(files);
 
   const grouped = useMemo(() => {
     const map = new Map<ResourceFileCategory, ResourceFile[]>();
@@ -318,7 +400,11 @@ export function ResourcePapers({
           <DocsHint topic="aircraft-papers" />
         </span>
       }
-      description="The current POH and weight and balance for this aircraft. Staff can replace a stale file."
+      description={
+        isShop
+          ? "The owner's papers for this aircraft. Show one to the owner and they can open it when they sign in."
+          : "The airworthiness certificate, registration, POH and weight and balance for this aircraft. Staff can replace a stale file."
+      }
       action={
         canManage && !adding ? (
           <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
@@ -329,7 +415,15 @@ export function ResourcePapers({
       docShot="aircraft-papers"
     >
       {canManage && adding ? (
-        <AddPapersForm resourceId={resource.id} existing={files} onDone={() => setAdding(false)} />
+        <AddPapersForm resourceId={resource.id} existing={files} onDone={() => setAdding(false)} isShop={isShop} />
+      ) : null}
+      {canManage && q.isSuccess && missing ? (
+        <p
+          data-testid="papers-missing"
+          className="mb-3 rounded-lg border border-[color-mix(in_oklch,var(--warning)_35%,transparent)] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] px-3 py-2 text-[13px] text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]"
+        >
+          {missing} Every aircraft has to carry both.
+        </p>
       ) : null}
       {q.isLoading ? (
         <CardSkeleton />
@@ -338,7 +432,7 @@ export function ResourcePapers({
       ) : files.length === 0 && !adding ? (
         <CardEmpty>
           {canManage
-            ? "Add the POH and the current weight and balance."
+            ? "Add the airworthiness certificate, the registration, the POH and the current weight and balance."
             : "The organization has not added papers for this aircraft yet."}
         </CardEmpty>
       ) : (
@@ -350,7 +444,7 @@ export function ResourcePapers({
               </p>
               <ul>
                 {group.files.map((file) => (
-                  <PaperRow key={file.id} file={file} canManage={canManage} resourceId={resource.id} />
+                  <PaperRow key={file.id} file={file} canManage={canManage} resourceId={resource.id} isShop={isShop} />
                 ))}
               </ul>
             </li>

@@ -16,6 +16,7 @@ import type { MaintenanceReminder } from "@/types/api";
 import { alsoLabel, dueAmount, dueBadge, dueDetail, duePercent, dueTone, sourceBadge, sourceLabel } from "@/lib/maintenance";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { WorkTag, inspectionSentence } from "@/components/maintenance/inspection-list";
 
 const RAIL: Record<string, string> = {
   // Late is amber, not red: red is for errors (Tony, 2026-09-30).
@@ -46,7 +47,10 @@ export function InspectionRow({
   const due = reminder.due;
   const tone = dueTone(due);
   const badge = dueBadge(due);
-  const percent = duePercent(due);
+  // Marked not applicable on this aircraft (Murray spec 5): no rail to fill, and the reason in
+  // place of the countdown sentence.
+  const notApplicable = due?.status === "notApplicable";
+  const percent = notApplicable ? 0 : duePercent(due);
   const name = due?.name ?? reminder.template?.name ?? "Inspection";
   // On a combined interval, the clock that is NOT the one binding. The headline figure is
   // whichever comes first; this is the one that could overtake it.
@@ -74,6 +78,9 @@ export function InspectionRow({
               {sourceBadge(reminder.template ?? {})}
             </Badge>
           )}
+          {/* Scheduled or In progress, on the job that has it booked in. Not a link when the
+              row is a button: a link may not sit inside one (the inspection page links it). */}
+          <WorkTag work={reminder.work} link={!onClick} />
           {reminder.hasAttachments && (
             <Paperclip
               className="size-3 shrink-0 text-muted-foreground"
@@ -91,7 +98,7 @@ export function InspectionRow({
             </span>
           )}
         </div>
-        <span className={cn("shrink-0 text-[13px] font-semibold tabular-nums", FIGURE[tone])}>
+        <span className={cn("shrink-0 text-[13px] font-semibold tabular-nums", notApplicable ? "font-normal text-muted-foreground" : FIGURE[tone])}>
           {dueAmount(due)}
         </span>
       </div>
@@ -104,7 +111,7 @@ export function InspectionRow({
           />
         </div>
         <span className="shrink-0 text-[11px] text-muted-foreground">
-          {dueDetail(due)}
+          {notApplicable ? inspectionSentence(reminder) : dueDetail(due)}
           {also && <span className="text-muted-foreground/70"> {also}.</span>}
         </span>
       </div>

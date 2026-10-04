@@ -46,6 +46,8 @@ import type {
 import type { Invoice, Reservation } from "@/types/api";
 import { useRemindInvoice, useUpdateInvoice } from "@/features/queries";
 import { useVoidInvoiceFlow } from "@/features/void-invoice-flow";
+import { useMarkPaidFlow } from "@/features/mark-paid-flow";
+import { MarkPaidDialog } from "@/components/billing/mark-paid-dialog";
 import { InvoiceDetailSheet } from "@/components/billing/invoice-detail-sheet";
 import { VoidInvoiceDialog } from "@/components/billing/void-invoice-dialog";
 import { ReservationDetailSheet } from "@/components/schedule/reservation-detail-sheet";
@@ -248,19 +250,9 @@ export function ReportView({
     if (next != null) setInvoiceId(next);
   }
 
-  function markPaid(inv: Invoice) {
-    updateInvoice.mutate(
-      { id: inv.id, patch: { markPaid: true } },
-      {
-        onSuccess: (res) =>
-          res.warning
-            ? toast.warning(res.warning, { duration: 8000 })
-            : toast.success(`Invoice #${inv.id} marked paid`),
-        onError: (err) =>
-          toast.error(err instanceof Error ? err.message : "Couldn't update invoice"),
-      }
-    );
-  }
+  // Mark paid asks how it was paid (method, check number, day received), as on Billing.
+  const markPaidFlow = useMarkPaidFlow();
+  const markPaid = markPaidFlow.markPaid;
 
   function sendReminder(inv: Invoice) {
     remindInvoiceMut.mutate(inv.id, {
@@ -450,10 +442,12 @@ export function ReportView({
         onVoid={voidFlow.voidInvoice}
         onRemind={sendReminder}
         onStep={stepInvoice}
-        busy={updateInvoice.isPending || remindInvoiceMut.isPending}
+        busy={updateInvoice.isPending || markPaidFlow.isPending || remindInvoiceMut.isPending}
       />
 
       <VoidInvoiceDialog {...voidFlow.voidDialog} />
+
+      <MarkPaidDialog {...markPaidFlow.dialog} />
 
       <CancelReservationDialog {...cancelDialog} />
 

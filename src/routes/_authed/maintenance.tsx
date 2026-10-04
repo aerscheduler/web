@@ -41,7 +41,7 @@ import {
   InspectionTags,
   SignOffButton,
   dueBand,
-  dueSentence,
+  inspectionSentence,
   inspectionName,
 } from "@/components/maintenance/inspection-list";
 import { ruleDueLabel, sourceBadge, sourceLabel } from "@/lib/maintenance";
@@ -281,6 +281,7 @@ function MaintenancePage() {
           { value: "dueSoon", label: "Due soon" },
           { value: "unstarted", label: "Needs a reading or date" },
           { value: "ok", label: "Not yet due" },
+          { value: "notApplicable", label: "Not applicable" },
         ],
       });
     }
@@ -589,8 +590,8 @@ function Reminders({
         cells: {
           aircraft: tail ? <span className="font-mono">{tail}</span> : <span className="text-muted-foreground">None</span>,
           detail: (
-            <span className="text-muted-foreground" title={dueSentence(r.due)}>
-              {dueSentence(r.due)}
+            <span className="text-muted-foreground" title={inspectionSentence(r)}>
+              {inspectionSentence(r)}
             </span>
           ),
           rail: <DueRail due={r.due} />,

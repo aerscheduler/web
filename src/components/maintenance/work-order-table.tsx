@@ -7,6 +7,10 @@ import { pageRows, useWorkOrder, useWorkOrders, useWorkOrdersPage } from "@/feat
 import { usePaging } from "@/lib/paging";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { ListTable, ListTag, type ListTableColumn, type ListTableGroup, type ListTableSort } from "@/components/list-table";
+
+/** An open job whose aircraft is grounded, or whose owner said so with the request. */
+const groundedJob = (w: { status: string; aircraft: { grounded?: boolean | null }; ownerRequest?: { grounded: boolean | null } | null }) =>
+  w.status !== "completed" && w.status !== "cancelled" && (w.aircraft.grounded === true || w.ownerRequest?.grounded === true);
 import { WorkspaceUserAvatar, WorkspaceUserAvatars } from "@/components/workspace-user-avatar";
 import { WorkStatusIcon, type WorkStatus } from "@/components/maintenance/work-status-icon";
 import { dateKeyInZone } from "@/lib/timezone";
@@ -386,8 +390,10 @@ function OpenJobsList({
             </>
           ),
           tags:
-            g.id === "waiting" || w.billing !== "none" || w.aircraft.use === "fleet" ? (
+            g.id === "waiting" || w.billing !== "none" || w.aircraft.use === "fleet" || groundedJob(w) ? (
               <>
+                {/* Grounded changes the job (a ferry, a pickup): the owner said so, or the aircraft is. */}
+                {groundedJob(w) && <ListTag>Grounded</ListTag>}
                 {g.id === "waiting" && <ListTag dot={g.dot}>{w.statusLabel}</ListTag>}
                 {w.billing !== "none" && <ListTag>{w.billing === "paid" ? "Paid" : "Invoiced"}</ListTag>}
                 {w.aircraft.use === "fleet" && <ListTag>Fleet</ListTag>}

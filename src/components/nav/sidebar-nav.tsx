@@ -58,14 +58,21 @@ export function SidebarNav() {
     [operations, prefs.order]
   );
 
+  // Pins and recents are kept per organization in this browser, not per person, so somebody who
+  // signs in after another (or a demo visitor switching from the owner to an aircraft owner)
+  // would otherwise be offered pages their role cannot open. Only what this person's nav has.
+  const allowed = React.useMemo(() => new Set([...operations, ...you].map((i) => i.to)), [operations, you]);
+  const pinned = React.useMemo(() => prefs.pinned.filter((to) => allowed.has(to)), [prefs.pinned, allowed]);
+  const recent = React.useMemo(() => prefs.recent.filter((to) => allowed.has(to)), [prefs.recent, allowed]);
+
   return (
     <>
-      <PinnedGroup pinned={prefs.pinned} pathname={pathname} orgId={orgId} />
+      <PinnedGroup pinned={pinned} pathname={pathname} orgId={orgId} />
       <OperationsGroup items={ordered} pathname={pathname} orgId={orgId} />
       <PlainGroup label="You" items={you} pathname={pathname} />
       <RecentGroup
-        recent={prefs.recent}
-        pinned={prefs.pinned}
+        recent={recent}
+        pinned={pinned}
         onRail={[...ordered.slice(0, NAV_VISIBLE_COUNT), ...you].map((i) => i.to)}
         pathname={pathname}
         orgId={orgId}

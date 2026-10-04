@@ -9,6 +9,7 @@ import { isAdmin } from "@/lib/permissions";
 import { cn, formatDate } from "@/lib/utils";
 import { useTimeZone } from "@/lib/use-timezone";
 import { isOpenWorkOrder, parseTenths, tenthsLabel, workOrderAircraftName } from "@/lib/work-orders";
+import { withMeterAnswers } from "@/lib/meter-anomaly";
 import { useConfirm } from "@/components/confirm-dialog";
 import { Combobox, MultiCombobox, type ComboOption } from "@/components/combobox";
 import { CardEmpty, DetailCard } from "@/components/detail/detail-page";
@@ -55,8 +56,8 @@ export function WorkOrderDetailsCard({
   onMetersPromptClose,
 }: {
   workOrder: WorkOrder;
-  /** The aircraft's readings, when the Stage menu has just moved the job into the shop. */
-  metersPrompt?: { hobbs: number | null; tach: number | null } | null;
+  /** The aircraft's readings, when the Stage menu has just moved the job into the shop (in) or finished it (out). */
+  metersPrompt?: MetersPrompt | null;
   onMetersPromptClose?: () => void;
 }) {
   const update = useUpdateWorkOrder();
@@ -91,7 +92,7 @@ export function WorkOrderDetailsCard({
         <PropertyRow label="Technicians">
           <TechniciansProperty workOrder={w} onSave={save} />
         </PropertyRow>
-        <MetersProperty workOrder={w} prompt={metersPrompt ?? null} onPromptClose={onMetersPromptClose} onSave={save} />
+        <MetersProperty workOrder={w} prompt={metersPrompt ?? null} onPromptClose={onMetersPromptClose} />
         <PropertyRow label="Booked for">
           <BookingProperty workOrder={w} onSave={save} />
         </PropertyRow>
@@ -305,6 +306,9 @@ function BookingProperty({ workOrder: w, onSave }: { workOrder: WorkOrder; onSav
   );
 }
 
+/** Ask for the readings in (the aircraft just arrived) or out (the work is done), seeded from the aircraft. */
+export type MetersPrompt = { hobbs: number | null; tach: number | null; side?: "in" | "out" };
+
 /**
  * The Hobbs and tach in and out, changed together in one small form: they are read off the same
  * panel, and the checks compare them with each other and with the aircraft. A reading lower than
@@ -315,13 +319,14 @@ function MetersProperty({
   workOrder: w,
   prompt,
   onPromptClose,
-  onSave,
 }: {
   workOrder: WorkOrder;
-  prompt: { hobbs: number | null; tach: number | null } | null;
+  prompt: MetersPrompt | null;
   onPromptClose?: () => void;
-  onSave: Save;
 }) {
+  // The readings go on the aircraft's meter log too, which asks about a lower reading or one that
+  // grounds the aircraft: saved here rather than through onSave, so those questions can be answered.
+  const update = useUpdateWorkOrder();
   const meters = w.aircraft.meterMode ?? "hobbs_and_tach";
   const hasHobbs = meters === "hobbs_and_tach" || meters === "hobbs_only";
   const hasTach = meters === "hobbs_and_tach" || meters === "tach_only";
@@ -338,11 +343,12 @@ function MetersProperty({
   const [saving, setSaving] = React.useState(false);
 
   const seed = React.useCallback(
-    (fromAircraft: { hobbs: number | null; tach: number | null } | null) => {
-      setHobbsIn(tenthsLabel(w.hobbsIn ?? (fromAircraft?.hobbs || null)));
-      setTachIn(tenthsLabel(w.tachIn ?? (fromAircraft?.tach || null)));
-      setHobbsOut(tenthsLabel(w.hobbsOut));
-      setTachOut(tenthsLabel(w.tachOut));
+    (fromAircraft: MetersPrompt | null) => {
+      const out = fromAircraft?.side === "out";
+      setHobbsIn(tenthsLabel(w.hobbsIn ?? (out ? null : fromAircraft?.hobbs || null)));
+      setTachIn(tenthsLabel(w.tachIn ?? (out ? null : fromAircraft?.tach || null)));
+      setHobbsOut(tenthsLabel(w.hobbsOut ?? (out ? fromAircraft?.hobbs || null : null)));
+      setTachOut(tenthsLabel(w.tachOut ?? (out ? fromAircraft?.tach || null : null)));
       setShowErrors(false);
     },
     [w.hobbsIn, w.tachIn, w.hobbsOut, w.tachOut]
@@ -405,9 +411,23 @@ function MetersProperty({
     if (hasTach && now.tachOut !== (w.tachOut ?? null)) patch.tachOut = now.tachOut;
     if (!Object.keys(patch).length) return close(false);
     setSaving(true);
-    const saved = await onSave(patch);
-    setSaving(false);
-    if (saved) close(false);
+    try {
+      // Asked about above already: a lower reading is not asked about twice.
+      const job = await withMeterAnswers((a) => update.mutateAsync({ id: w.id, ...patch, ...a }), confirm, doubts.length ? { confirmLower: true } : {});
+      if (!job) return;
+      toast.success(
+        job.aircraftTimes === "updated"
+          ? `Readings saved. ${tail}'s times are updated too.`
+          : job.aircraftTimes === "logged"
+            ? `Readings saved. ${tail} has a newer reading on record, so its times stay as they are.`
+            : "Readings saved"
+      );
+      close(false);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save the readings");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (!hasHobbs && !hasTach) return null;
@@ -448,7 +468,9 @@ function MetersProperty({
       >
         {prompt && (
           <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[12px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-            The aircraft is here. Check the readings in against its meters, then save.
+            {prompt.side === "out"
+              ? "The work is done. Check the readings out against its meters, then save."
+              : "The aircraft is here. Check the readings in against its meters, then save."}
           </p>
         )}
         <div className="grid grid-cols-2 gap-3">
@@ -505,6 +527,7 @@ export function EditableTextCard({
   docShot,
   docs,
   onSave,
+  footer,
 }: {
   title: string;
   description?: string;
@@ -515,6 +538,8 @@ export function EditableTextCard({
   docShot?: string;
   docs?: React.ComponentProps<typeof DocsHint>["topic"];
   onSave: (value: string | null) => Promise<boolean>;
+  /** Read-only facts under the text, such as what the owner said with their request. */
+  footer?: React.ReactNode;
 }) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState("");
@@ -587,6 +612,7 @@ export function EditableTextCard({
           <CardEmpty>{emptyText}</CardEmpty>
         </button>
       )}
+      {footer && !editing && <div className="mt-3 border-t border-border pt-3">{footer}</div>}
     </DetailCard>
   );
 }

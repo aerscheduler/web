@@ -124,3 +124,75 @@ describe("ListTable", () => {
     expect(screen.queryByText("$0.00")).toBeNull();
   });
 });
+
+describe("ListTable rows that start folded", () => {
+  const tail = (defaultFolded: boolean): ListTableGroup[] => [
+    {
+      id: "g",
+      label: "Fleet",
+      rows: [
+        {
+          id: "tail-1",
+          label: "N12345",
+          title: "N12345",
+          defaultFolded,
+          children: [{ id: "rem-1", label: "Annual", title: "Annual" }],
+        },
+      ],
+    },
+  ];
+
+  it("hides its children until unfolded", () => {
+    render(<ListTable label="Fleet" columns={COLUMNS} groups={tail(true)} />);
+    expect(screen.queryByText("Annual")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show its lines" }));
+    expect(screen.getByText("Annual")).toBeTruthy();
+  });
+
+  it("keeps a row open by hand when its default turns to folded", () => {
+    // A tail that needed attention (open by default), and the list re-renders with it current.
+    const { rerender } = render(<ListTable label="Fleet" columns={COLUMNS} groups={tail(false)} />);
+    fireEvent.click(screen.getByRole("button", { name: "Hide its lines" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show its lines" }));
+    rerender(<ListTable label="Fleet" columns={COLUMNS} groups={tail(true)} />);
+    expect(screen.getByText("Annual")).toBeTruthy();
+  });
+
+  it("opens with its default when nobody touched it, whichever way the default moves", () => {
+    const { rerender } = render(<ListTable label="Fleet" columns={COLUMNS} groups={tail(true)} />);
+    expect(screen.queryByText("Annual")).toBeNull();
+    rerender(<ListTable label="Fleet" columns={COLUMNS} groups={tail(false)} />);
+    expect(screen.getByText("Annual")).toBeTruthy();
+  });
+});
+
+describe("ListTable and portals", () => {
+  it("does not fold a row when a click lands in a dialog opened from it", async () => {
+    const { createPortal } = await import("react-dom");
+    const Dialog = () => createPortal(<p>Inside the dialog</p>, document.body);
+    render(
+      <ListTable
+        label="Lessons"
+        columns={COLUMNS}
+        groups={[
+          {
+            id: "g",
+            label: "Stage 1",
+            rows: [
+              {
+                id: "lesson-1",
+                label: "Pattern work",
+                title: "Pattern work",
+                cells: { qty: <Dialog /> },
+                children: [{ id: "rec-1", label: "Signed", title: "Signed record" }],
+              },
+            ],
+          },
+        ]}
+      />
+    );
+    expect(screen.getByText("Signed record")).toBeTruthy();
+    fireEvent.click(screen.getByText("Inside the dialog"));
+    expect(screen.getByText("Signed record")).toBeTruthy();
+  });
+});

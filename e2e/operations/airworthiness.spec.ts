@@ -308,9 +308,9 @@ test.describe("Airworthiness Directives", () => {
     await dismissCookieBanner(page);
 
     //Addressed by its aria-label rather than by walking the row: the label is unique per
-    //inspection, and scoping to a div that "has text" lands on the innermost one, which
-    //does not contain the buttons.
-    await page.getByRole("button", { name: `Edit ${name}` }).click();
+    //inspection. Edit lives in the row's menu since the Set up view became a list (2026-09-30).
+    await page.getByRole("button", { name: `More for ${name}` }).click();
+    await page.getByRole("menuitem", { name: "Edit name, notes and source" }).click();
 
     // Opens carrying what is stored, rather than an empty form that would blank the rest.
     await expect(page.locator("#edit-insp-source-ref")).toHaveValue(ref);

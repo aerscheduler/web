@@ -45,17 +45,21 @@ export function dueAmount(due: MaintenanceDue | undefined): string {
 
   if (due.kind === "hours") {
     if (due.hoursRemaining == null) {
-      return due.dueAtHours == null ? "Not set up" : `at ${fromDeciHours(due.dueAtHours)}`;
+      // No starting reading: the clock never started. A due point but no current reading:
+      // the aircraft's meters were never entered, so nothing can be said about what is left.
+      return due.dueAtHours == null ? "Not started" : "No reading";
     }
     const hrs = fromDeciHours(Math.abs(due.hoursRemaining));
     if (due.hoursRemaining <= 0) return `${hrs} hrs over`;
     return `${hrs} hrs`;
   }
 
-  if (due.daysRemaining == null) return "Not set up";
+  if (due.daysRemaining == null) return "Not started";
   const days = Math.abs(due.daysRemaining);
   if (due.daysRemaining < 0) return `${days} ${days === 1 ? "day" : "days"} over`;
-  if (due.daysRemaining === 0) return "Today";
+  // The server already counts a day interval or a one-off date as overdue on its last day
+  // (only a month interval gets that day's grace), so "Today" under Overdue needs saying.
+  if (due.daysRemaining === 0) return due.status === "overdue" ? "Due today" : "Today";
   return `${days} ${days === 1 ? "day" : "days"}`;
 }
 
@@ -81,7 +85,9 @@ export function dueDetail(due: MaintenanceDue | undefined): string {
   const on = format(new Date(due.dueAt), "MMM d, yyyy");
   if (due.daysRemaining == null) return `Due ${on}.`;
   if (due.daysRemaining < 0) return `Was due ${on}.`;
-  if (due.daysRemaining === 0) return `Due today, ${on}.`;
+  if (due.daysRemaining === 0) {
+    return due.status === "overdue" ? `Due today, ${on}, and already counted as overdue.` : `Due today, ${on}.`;
+  }
   return `Due ${on}.`;
 }
 
@@ -106,7 +112,11 @@ export function alsoLabel(due: MaintenanceDue | undefined): string {
 
   if (!also.dueAt || also.daysRemaining == null) return "";
   const on = format(new Date(also.dueAt), "MMM d");
-  if (also.daysRemaining < 0) return `also ${Math.abs(also.daysRemaining)} days over, ${on}`;
+  if (also.daysRemaining < 0) {
+    const over = Math.abs(also.daysRemaining);
+    return `also ${over} ${over === 1 ? "day" : "days"} over, ${on}`;
+  }
+  if (also.daysRemaining === 0) return `also due today, ${on}`;
   return `also ${also.daysRemaining} ${also.daysRemaining === 1 ? "day" : "days"}, ${on}`;
 }
 
@@ -190,6 +200,17 @@ export function intervalLabel(t: {
   if (t.remindDays || t.remindMonths) return `Every ${calendarPhrase(t)}`;
   if (t.remindDate) return `Once, ${format(new Date(t.remindDate), "MMM d, yyyy")}`;
   return "No interval set";
+}
+
+/**
+ * The interval in words, honest about a rule that comes due only once: an interval rule with
+ * repeat off (the API allows it) fires once and never rolls forward, so "Every 100.0 hours
+ * tach" would state a recurrence it lacks.
+ */
+export function ruleDueLabel(t: Parameters<typeof intervalLabel>[0] & { repeat?: boolean | null }): string {
+  const label = intervalLabel(t);
+  if (t.repeat === false && label.startsWith("Every ")) return `Once, after ${label.slice("Every ".length)}`;
+  return label;
 }
 
 /**

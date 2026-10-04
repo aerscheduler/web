@@ -114,7 +114,7 @@ export function WorkOrderFormModal({
   const effectiveResourceId = editing ? editing.aircraft.id : fixedResourceId ?? (resourceId ? Number(resourceId) : null);
   const ownersQ = useResourceOwners(effectiveResourceId ?? undefined, { enabled: open && effectiveResourceId != null });
 
-  // The aircraft's maintenance bookings, for the hangar slot the job is using.
+  // The aircraft's maintenance bookings, for the one holding the aircraft for this job.
   const tz = useTimeZone();
   const bookingWindow = React.useMemo(() => {
     const day = 86_400_000;
@@ -562,7 +562,7 @@ export function WorkOrderFormModal({
         </Field>
 
         {(bookingOptions.length > 0 || bookingId !== NOBODY) && (
-          <Field label="Maintenance booking" htmlFor="wo-booking" hint="The hangar slot on the schedule this job is using.">
+          <Field label="Booked for" htmlFor="wo-booking" hint="The maintenance booking on the schedule that holds the aircraft and the hangar for this job.">
             <Select value={bookingId} onValueChange={setBookingId}>
               <SelectTrigger id="wo-booking" className="w-full">
                 <SelectValue />

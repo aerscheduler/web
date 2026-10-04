@@ -40,9 +40,16 @@ import {
   isRenter,
   isStaff,
   isTechnician,
+  canOpenWorkOrders,
   reservationTypesForRoles,
   selfBookableTypes,
 } from "@/lib/permissions";
+import {
+  MaintenanceJobField,
+  useApplyMaintenanceJob,
+  useBookingJob,
+  type MaintenanceJobChoice,
+} from "@/components/maintenance/maintenance-job-field";
 import { NextLessonHint } from "@/components/training/next-lesson-hint";
 import { GraduationCap } from "lucide-react";
 import { ResponsiveModal } from "@/components/responsive-modal";
@@ -455,7 +462,7 @@ export function ReservationForm({
    */
   self?: { orgUserId: number; userId: number };
 }) {
-  const { roles, organization } = useAuth();
+  const { roles, organization, outsideOwner: outsideOwnerViewing } = useAuth();
   const tz = useTimeZone();
   const navigate = useNavigate();
 
@@ -581,7 +588,8 @@ export function ReservationForm({
   const locationsQ = useLocations({ enabled: open });
   const create = useCreateReservation();
   const createRequest = useCreateBookingRequest();
-  const approvalPolicyQ = useMyBookingApprovalPolicy();
+  // An aircraft owner from outside the organization never books; the form only sits mounted.
+  const approvalPolicyQ = useMyBookingApprovalPolicy(!outsideOwnerViewing);
   const requiresApproval = isSelf && (approvalPolicyQ.data?.requiresApproval ?? false);
   const update = useUpdateReservation();
 
@@ -695,6 +703,27 @@ export function ReservationForm({
   }, []);
   //Repeat rule. Only ever sent on CREATE, editing one occurrence of a series is
   //an ordinary edit, and changing the rule itself isn't offered yet.
+  // The job a maintenance booking holds (see maintenance-job-field.tsx). Only for the people
+  // who may open work orders; a dispatcher's maintenance booking is the hangar time alone.
+  const [jobChoice, setJobChoice] = React.useState<MaintenanceJobChoice>({ mode: "none" });
+  const bookingJob = useBookingJob(editing?.type === "maintenance" ? editing.id : null);
+  const applyJob = useApplyMaintenanceJob();
+  // Which booking the job choice was filled in for. The edit form can mount before the job has
+  // loaded, so it is filled in when the job arrives, once per booking.
+  const seededJob = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (!open || !editing || !bookingJob.job || seededJob.current === editing.id) return;
+    seededJob.current = editing.id;
+    setJobChoice({ mode: "existing", jobId: bookingJob.job.id });
+  }, [open, editing, bookingJob.job]);
+  // A job belongs to one aircraft: picking another aircraft lets go of the job chosen for the
+  // old one. Done where the person picks it, not in an effect on the aircraft: the form fills
+  // its aircraft in on open, and an effect cannot tell that from a choice (React's development
+  // double run of effects made it clear the job on every edit).
+  const pickResource = (next: string) => {
+    if (next !== resourceId) setJobChoice((c) => (c.mode === "existing" ? { mode: "none" } : c));
+    setResourceId(next);
+  };
   const [recurrence, setRecurrence] = React.useState<RecurrenceState>(() =>
     defaultRecurrence(null, "")
   );
@@ -912,6 +941,9 @@ export function ReservationForm({
         setTitle(editing.title ?? "");
         setType(editing.type);
         setResourceId(editing.resource?.id != null ? String(editing.resource.id) : "");
+        // The job it holds, if that has loaded; otherwise the effect above fills it in.
+        seededJob.current = bookingJob.job ? editing.id : null;
+        setJobChoice(bookingJob.job ? { mode: "existing", jobId: bookingJob.job.id } : { mode: "none" });
         //The day this booking is on is the airport's day, not the viewer's, a 9pm Mountain
         //flight is already tomorrow in UTC.
         setDate(Number.isNaN(start.getTime()) ? "" : dateKeyInZone(start, tz.zone));
@@ -946,6 +978,10 @@ export function ReservationForm({
         setTitle("");
         setType(seedType);
         setResourceId(draft.resourceId != null ? String(draft.resourceId) : "");
+        // A job chosen for the last booking (a new one with its technicians, or an open one)
+        // must never carry into this one: saving would open a second job or move the first.
+        seededJob.current = null;
+        setJobChoice({ mode: "none" });
         setDate(format(draft.date, "yyyy-MM-dd"));
         setStartAt(seed(draft.start));
         setEndAt(seed(draft.end));
@@ -1067,6 +1103,30 @@ export function ReservationForm({
     value: String(r.id),
     label: r.name,
   }));
+
+  /**
+   * After a maintenance booking saves: open or link its work order. The booking stands either
+   * way, so a refused job is its own message rather than a failed booking.
+   */
+  async function linkJob(bookingId: number, previousJobId: number | null) {
+    if (!canOpenWorkOrders(roles) || !resourceId || !startAt) return;
+    // A booking that stopped being maintenance lets go of its job.
+    const choice: MaintenanceJobChoice = type === "maintenance" ? jobChoice : { mode: "none" };
+    if (choice.mode === "none" && previousJobId == null) return;
+    try {
+      const job = await applyJob({
+        choice,
+        bookingId,
+        resourceId: Number(resourceId),
+        request: notes || title,
+        previousJobId,
+        startsAt: startAt,
+      });
+      if (job && choice.mode === "new") toast.success(`${job.label} opened for this booking`);
+    } catch (err) {
+      toast.error(`The booking is saved, but the work order was not: ${err instanceof ApiError ? err.message : "try again from the job"}`);
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -1217,6 +1277,7 @@ export function ReservationForm({
       if (editing) {
         await update.mutateAsync({ id: editing.id, input });
         toast.success("Reservation updated");
+        await linkJob(editing.id, editing.type === "maintenance" ? (bookingJob.job?.id ?? null) : null);
         closeModal(false);
         return;
       }
@@ -1245,6 +1306,7 @@ export function ReservationForm({
       toast.success(
         input.recurrence ? "Repeating booking created" : "Reservation booked"
       );
+      if (!input.recurrence && created?.id != null) await linkJob(created.id, null);
       if (isSelf && asPage) {
         await navigate({ to: "/me/schedule" });
         return;
@@ -1371,7 +1433,7 @@ export function ReservationForm({
               options={resourceChoices}
               value={resourceId || (resourceOptional ? NOT_LISTED : "")}
               onChange={(v) => {
-                setResourceId(v === NOT_LISTED ? "" : v);
+                pickResource(v === NOT_LISTED ? "" : v);
                 setUnapprovedResource(null);
               }}
               placeholder={resourcesQ.isLoading ? "Loading…" : "Select resource"}
@@ -1538,12 +1600,18 @@ export function ReservationForm({
             </p>
           </div>
         ) : type === "maintenance" ? (
-          // Maintenance takes the aircraft off the line, the server rejects it
-          // outright if anyone is assigned, so there's nobody to pick.
-          <p className="text-sm text-muted-foreground">
-            Maintenance blocks the aircraft for the whole window. Nobody is assigned to it, note
-            what&rsquo;s being done below.
-          </p>
+          // Nobody is seated on maintenance (the server refuses personnel on it): the people,
+          // the work and the bill are the work order's, which the booking links instead. A
+          // repeating booking links none: one job is one visit.
+          canOpenWorkOrders(roles) && !recurrence.enabled ? (
+            <MaintenanceJobField
+              resourceId={resourceId ? Number(resourceId) : null}
+              value={jobChoice}
+              onChange={setJobChoice}
+              linked={bookingJob.job}
+              formatBooking={(iso) => `${tz.date(new Date(iso), "short")}, ${tz.time(new Date(iso))}`}
+            />
+          ) : null
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {/* A member is already on one side of this booking, so they pick only

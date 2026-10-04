@@ -31,3 +31,29 @@ describe("quickbooks notification links", () => {
     );
   });
 });
+
+describe("inspection notification links", () => {
+  it("opens the inspection's own page from the app's per-inspection link", () => {
+    expect(notificationHref("/reminders/31")).toBe("/maintenance/inspections/31");
+  });
+});
+
+describe("maintenance shop notification links", () => {
+  it("opens the technician's job page, and the owner's own job and aircraft", () => {
+    expect(notificationHref("/work-orders/5875")).toBe("/maintenance/work-orders/5875");
+    expect(notificationHref("/my-jobs/5875")).toBe("/me/jobs/5875");
+    expect(notificationHref("/my-aircraft/114976")).toBe("/me/aircraft/114976");
+  });
+
+  it("does not open a page for a job without an id", () => {
+    expect(notificationHref("/my-jobs/abc")).toBeNull();
+  });
+
+  it("opens an owner's Home for a notice about several of their aircraft", () => {
+    expect(notificationHref("/")).toBe("/me");
+  });
+
+  it("opens the inspection itself from the shop's notice on a customer aircraft", () => {
+    expect(notificationHref("/reminders/31")).toBe("/maintenance/inspections/31");
+  });
+});

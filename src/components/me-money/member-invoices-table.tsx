@@ -22,6 +22,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn, formatMoney } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 
 const EMPTY_INVOICES =
   "No invoices yet. They'll appear here after your reservations are billed.";
@@ -186,7 +187,9 @@ export function MemberInvoicesTable({
   });
   const invoicesQ = useMemberInvoicesPage(orgUserId, filter, paging);
   const summaryQ = useMemberInvoiceSummary(orgUserId);
-  const ledgerOn = useOrgLedgerSettings().data?.enabled === true;
+  // An outside aircraft owner's bills are always invoices; the school's ledger is not theirs to read.
+  const { outsideOwner } = useAuth();
+  const ledgerOn = useOrgLedgerSettings({ enabled: !outsideOwner }).data?.enabled === true;
   const emptyBody = ledgerOn
     ? "No leftover invoices. Member flights and fees post to the account ledger."
     : EMPTY_INVOICES;

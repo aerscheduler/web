@@ -28,7 +28,12 @@ function localNow(): string {
 /**
  * Record what the owner said on the phone (Murray §10): who you reached, when, the most they will
  * spend, notes, and approve, decline or defer for each item you discussed. A record of a call, not
- * something the owner signs: they never log in.
+ * something the owner signs (an owner who has signed in answers on their own job page).
+ *
+ * When is sent only if somebody changed it: left alone, the server stamps the call as it is
+ * recorded. The field shows the minute, and sending that minute put the call BEFORE an answer the
+ * owner gave in AerScheduler seconds earlier, so the server kept theirs and this one silently did
+ * not land (C7). Whatever a later call already answered is kept, and said so.
  *
  * Found items that nobody has asked about come first and start unanswered; an item already
  * answered can be answered again (the owner changed their mind), and then points at this call.
@@ -48,6 +53,7 @@ export function RecordOwnerAnswerModal({
   const record = useRecordOwnerAnswer();
   const [contactName, setContactName] = React.useState("");
   const [contactedAt, setContactedAt] = React.useState("");
+  const [whenEdited, setWhenEdited] = React.useState(false);
   const [limit, setLimit] = React.useState<number | undefined>(undefined);
   const [notes, setNotes] = React.useState("");
   const [answers, setAnswers] = React.useState<Record<number, Answer | undefined>>({});
@@ -57,6 +63,7 @@ export function RecordOwnerAnswerModal({
     if (!open) return;
     setContactName(workOrder.billTo?.name ?? "");
     setContactedAt(localNow());
+    setWhenEdited(false);
     setLimit(undefined);
     setNotes("");
     setAnswers({});
@@ -84,16 +91,18 @@ export function RecordOwnerAnswerModal({
     }
     if (!once.begin()) return;
     try {
-      await record.mutateAsync({
+      const done = await record.mutateAsync({
         workOrderId: workOrder.id,
         contactName: contactName.trim(),
-        // The input is the viewer's local clock; the server wants an instant.
-        contactedAt: contactedAt ? new Date(contactedAt).toISOString() : undefined,
+        // The input is the viewer's local clock; the server wants an instant. Untouched, the
+        // server stamps it now.
+        contactedAt: whenEdited && contactedAt ? new Date(contactedAt).toISOString() : undefined,
         spendLimitCents: limit ?? null,
         notes: notes.trim() || null,
         decisions: chosen.map(([itemId, decision]) => ({ itemId: Number(itemId), decision })),
       });
-      toast.success("Owner's answer recorded");
+      if (done.kept.length) toast.warning(`Recorded the call; kept the later answer for ${done.kept.map((k) => k.description).join(", ")}`);
+      else toast.success("Owner's answer recorded");
       onOpenChange(false);
     } catch (e) {
       once.fail();
@@ -107,7 +116,7 @@ export function RecordOwnerAnswerModal({
       onOpenChange={onOpenChange}
       size="lg"
       title="Record the owner's answer"
-      description="Who you spoke to, and what they said about each item. The owner does not log in; this is your record of the call."
+      description="Who you spoke to, and what they said about each item. This is your record of the call."
       dataDocShot="work-order-owner-answer"
       footer={
         <div className="flex justify-end gap-2">
@@ -127,7 +136,15 @@ export function RecordOwnerAnswerModal({
             {showErrors && nameError && <p className="text-xs text-destructive">Say who you spoke to.</p>}
           </Field>
           <Field label="When" htmlFor="wo-answer-when">
-            <Input id="wo-answer-when" type="datetime-local" value={contactedAt} onChange={(e) => setContactedAt(e.target.value)} />
+            <Input
+              id="wo-answer-when"
+              type="datetime-local"
+              value={contactedAt}
+              onChange={(e) => {
+                setContactedAt(e.target.value);
+                setWhenEdited(true);
+              }}
+            />
           </Field>
         </div>
         <Field label="Spend limit (optional)" htmlFor="wo-answer-limit" hint="The most they said you can spend without calling again.">

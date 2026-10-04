@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { addDays, startOfDay } from "date-fns";
 import { useAuth } from "@/lib/auth";
-import { isAdmin } from "@/lib/permissions";
+import { canOpenWorkOrders, isAdmin } from "@/lib/permissions";
 import {
   useBilling,
   useInvoices,
@@ -28,6 +28,8 @@ import {
   useSimulators,
   useCourses,
   useUpdateOrgOnboarding,
+  useWorkOrders,
+  useWorkOrderSettings,
 } from "@/features/queries";
 import {
   CHECKLIST,
@@ -128,6 +130,12 @@ export function useChecklist(): ChecklistState {
   const billing = useBilling(q);
   const quickBooks = useQuickBooksSettings(q);
   const splitRules = useSplitRules(q);
+  // The shop's facts. Every admin can open work orders, so these are only skipped for a
+  // checklist that is not live.
+  const shopQ = { enabled: live && canOpenWorkOrders(roles) };
+  const shopPlanes = usePlanes({ scope: "shop" }, shopQ);
+  const workOrders = useWorkOrders(undefined, shopQ);
+  const shopRates = useWorkOrderSettings(shopQ);
 
   const update = useUpdateOrgOnboarding();
 
@@ -145,6 +153,10 @@ export function useChecklist(): ChecklistState {
     stripeConnected: Boolean(billing.data?.stripeEnabled),
     quickBooksConnected: quickBooks.data?.status === "connected",
     splitRulesConfigured: (splitRules.data?.rules.length ?? 0) > 0,
+    shopPlanes: shopPlanes.data?.length ?? 0,
+    workOrders: workOrders.data?.length ?? 0,
+    billedWorkOrders: (workOrders.data ?? []).filter((w) => w.billing !== "none").length,
+    shopRatesSet: shopRates.data?.laborRateCents != null,
   };
 
   const orgType = (organization?.organizationType ?? null) as OrgType;
@@ -154,14 +166,14 @@ export function useChecklist(): ChecklistState {
   const loading =
     onboarding.isLoading ||
     (live &&
-      [planes, members, reservations, invoices, ratings, sims, rooms, reminders, groups, courses, billing].some(
+      [planes, members, reservations, invoices, ratings, sims, rooms, reminders, groups, courses, billing, shopPlanes, workOrders, shopRates].some(
         (r) => r.isLoading
       ));
 
   // A dozen predicates over already-fetched counts, cheaper to just run than to
   // memoize, and memoizing would mean keeping a dependency list in step with every
   // field an item reads.
-  const applicable = CHECKLIST.filter((i) => i.appliesTo?.(orgType) ?? true);
+  const applicable = CHECKLIST.filter((i) => i.appliesTo?.(orgType, { source }) ?? true);
   const trackLeadIds = (trackFor(source)?.lead ?? []).filter((id) =>
     applicable.some((i) => i.id === id)
   );

@@ -41,10 +41,20 @@ import { ReservationForm } from "@/components/schedule/reservation-form";
 import { InstructionPartnersCard } from "@/components/me/instruction-partners-card";
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 import { AddFundsDialog } from "@/components/me-money/add-funds-dialog";
+import { MemberOwnerSections, OutsideOwnerHome, OwnerActions } from "@/components/owner/owner-home";
 
 export const Route = createFileRoute("/_authed/me/")({
-  component: MyDayPage,
+  component: HomePage,
 });
+
+/**
+ * Everybody's home. A member who also owns an aircraft here gets its sections below their day;
+ * an aircraft owner from outside the organization gets only those, in the same layout.
+ */
+function HomePage() {
+  const { outsideOwner } = useAuth();
+  return outsideOwner ? <OutsideOwnerHome /> : <MyDayPage />;
+}
 
 const HORIZON_DAYS = 30;
 const MAX_UPCOMING = 6;
@@ -338,12 +348,17 @@ function MyDayPage() {
                 <CircleDollarSign className="size-4" /> Add funds
               </Button>
             )}
+            {/* Renders nothing unless you own an aircraft here. */}
+            <OwnerActions />
           </CardContent>
         </Card>
 
         {/* Renders nothing unless you instruct or study. */}
         <InstructionPartnersCard />
       </div>
+
+      {/* Renders nothing unless you own an aircraft here. */}
+      <MemberOwnerSections />
 
       {ledgerOn && orgUserId != null && (
         <AddFundsDialog

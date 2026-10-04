@@ -241,8 +241,11 @@ function workOrderColumns(closed: boolean): ColumnDef<WorkOrder, unknown>[] {
   ];
 }
 
-/** Where each open job's aircraft is, in the order a desk works the board. */
-const STAGE_GROUPS: { id: string; label: string; statuses: WorkOrderStatus[]; icon: WorkStatus; dot: string }[] = [
+/**
+ * Where each open job's aircraft is, in the order a desk works the board. Shared with the
+ * aircraft page's Work orders tab, so a job reads the same in both places.
+ */
+export const STAGE_GROUPS: { id: string; label: string; statuses: WorkOrderStatus[]; icon: WorkStatus; dot: string }[] = [
   { id: "here", label: "In the hangar", statuses: ["received", "in_progress"], icon: "progress", dot: "var(--warning)" },
   { id: "waiting", label: "Waiting", statuses: ["waiting_owner", "waiting_parts"], icon: "waiting", dot: "var(--destructive)" },
   { id: "ready", label: "Ready for pickup", statuses: ["ready"], icon: "done", dot: "var(--success)" },

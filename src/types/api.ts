@@ -172,6 +172,11 @@ export interface ChannelNotificationPreferences {
   endorsementReminders?: boolean;
   slotOffers?: boolean;
   bookingRequests?: boolean;
+  /** The maintenance shop. Null until set: on for a technician, off for an admin. */
+  shopRequests?: boolean | null;
+  shopJobActivity?: boolean;
+  /** An aircraft owner's: findings sent, scheduled, received, ready, the promised date. */
+  ownerJobUpdates?: boolean;
   grounded?: boolean;
   /**
    * Onboarding and activation nudges from AerScheduler itself, not from the school.
@@ -185,6 +190,8 @@ export interface OrgUserNotificationPreferences {
   emailEnabled?: boolean;
   pushEnabled?: boolean;
   smsEnabled?: boolean;
+  /** Which customer aircraft's inspections you hear about. Null: the role's default. */
+  customerInspectionScope?: "worked_on" | "all" | "off" | null;
   emailNotificationPreferences?: ChannelNotificationPreferences | null;
   pushNotificationPreferences?: ChannelNotificationPreferences | null;
   smsNotificationPreferences?: ChannelNotificationPreferences | null;
@@ -210,6 +217,8 @@ export interface SmsStatus {
 export interface OrgUserPreferences extends TimeZonePreferences {
   id?: number;
   notificationPreferences?: OrgUserNotificationPreferences | null;
+  /** Read only: the organization runs a maintenance shop, so its settings apply. */
+  runsShop?: boolean;
 }
 
 export interface OrganizationDetails {
@@ -1453,6 +1462,11 @@ export interface MaintenanceReminder {
   hasAttachments?: boolean;
   /** Signed GET URLs. On the single-reminder read only. */
   fileUrls?: string[];
+  /**
+   * The work order items carrying this inspection. Single read only, and only for the roles
+   * that may see the job board (admin, technician); absent for a dispatcher.
+   */
+  workOrderItems?: { id: number; completedAt: string | null; workOrder: { id: number; number: number; status: WorkOrderStatus } }[];
 }
 
 /**
@@ -1497,6 +1511,8 @@ export interface MaintenanceComplianceRecord {
   fileUrls: string[];
   resource?: Resource;
   signedOffBy?: OrganizationUser | null;
+  /** The inspection this record signed off. On list rows. */
+  reminderId?: number;
 }
 
 /** The rule a reminder repeats on. One template spans many aircraft. */
@@ -2283,6 +2299,31 @@ export type TaxExemptReason =
 
 /** `POST /invoices/preview`: the bill priced but not sent. */
 /** What a work order's invoice says beyond its lines (Murray §13). */
+/** A finding on a job's bill that the owner has not agreed to, with what it charges. */
+export interface WorkOrderUnagreedCharge {
+  itemId: number;
+  description: string;
+  chargesCents: number;
+}
+
+/** A job's invoice preview: the bill, what it says beyond its lines, and the findings it charges for unagreed. */
+export interface WorkOrderInvoicePreview extends InvoicePreview {
+  details?: WorkOrderInvoiceDetails | null;
+  /** Findings with charges never sent to the owner: raising needs `includeUnsent`. */
+  ownerNotTold?: WorkOrderUnagreedCharge[];
+  /** Findings with charges sent to the owner and still waiting on their answer: raising needs `includeUnanswered`. */
+  awaitingAnswer?: WorkOrderUnagreedCharge[];
+  /** Findings the owner declined or put off that still have charges on them. */
+  declinedCharged?: WorkOrderUnagreedCharge[];
+}
+
+/** `POST /work-orders/:id/approvals`: the call, the items that took its answer, and those a later call kept. */
+export interface RecordOwnerAnswerResult {
+  id: number;
+  applied: number[];
+  kept: { itemId: number; description: string }[];
+}
+
 export interface WorkOrderInvoiceDetails {
   customFields: { name: string; value: string }[];
   description: string;
@@ -2394,7 +2435,8 @@ export interface WorkOrder {
     grounded: boolean;
     meterMode: string | null;
   };
-  billTo: { id: number; name: string | null; external: boolean; contactEmail: string | null } | null;
+  /** `claimed`: an outside owner who has signed in, billed at their own login. */
+  billTo: { id: number; name: string | null; external: boolean; contactEmail: string | null; claimed?: boolean } | null;
   technicians: { id: number; name: string | null }[];
   billing: "none" | "invoiced" | "paid";
   invoice: { id: number; total: number; tax: number | null; paidAt: string | null; dueAt: string | null; number: string | null } | null;
@@ -2405,6 +2447,8 @@ export interface WorkOrder {
   tachOut?: number | null;
   customerNotes?: string | null;
   internalNotes?: string | null;
+  /** The owners hear nothing about this job's stages until somebody lifts the hold. */
+  holdOwnerNotices?: boolean;
   createdAt?: string;
   createdBy?: { id: number; name: string | null } | null;
   booking?: { id: number; start: string; end: string; cancelled: boolean; moved?: boolean } | null;
@@ -2429,6 +2473,8 @@ export interface WorkOrderItem {
   inspection: { id: number; name: string | null; signedOff: boolean } | null;
   squawk: { id: number; title: string; resolved: boolean } | null;
   approval: { id: number; contactName: string; contactedAt: string } | null;
+  /** When the shop sent this finding to the owners; until then the owners don't see it. */
+  sentToOwnerAt: string | null;
 }
 
 export type WorkOrderLineCategory = "labor" | "part" | "supply" | "outside_service" | "freight" | "fee" | "other";
@@ -2459,6 +2505,7 @@ export interface WorkOrderLine {
   serialNumber: string | null;
   vendor: string | null;
   partStatus: "ordered" | "received" | "installed" | "returned" | "unused" | null;
+  orderedOn: string | null;
   expectedOn: string | null;
   itemId: number | null;
   /** Who entered it: somebody who may not set prices changes only their own lines. */
@@ -2483,6 +2530,7 @@ export interface WorkOrderLineInput {
   serialNumber?: string | null;
   vendor?: string | null;
   partStatus?: WorkOrderLine["partStatus"];
+  orderedOn?: string | null;
   expectedOn?: string | null;
   itemId?: number | null;
 }
@@ -2522,6 +2570,7 @@ export interface WorkOrderInput {
   billToOrgUserId?: number | null;
   reservationId?: number | null;
   technicianOrgUserIds?: number[];
+  holdOwnerNotices?: boolean;
 }
 
 export type DayBlocks = { start: string; end: string }[];
@@ -3468,3 +3517,167 @@ export type AdReadiness = {
   aircraft: AircraftAdReadiness[];
   counts: { total: number; serial: number; model: number; none: number };
 };
+
+/** What the shop keeps about an aircraft (GET /resources/:id/profile). Hours in TENTHS. */
+export interface AircraftProfile {
+  airframeTotalTenths: number | null;
+  airframeTotalAtHobbs: number | null;
+  /** The recorded total carried forward by the Hobbs flown since. */
+  airframeTotalNowTenths: number | null;
+  engineModel: string | null;
+  engineSerial: string | null;
+  propModel: string | null;
+  propSerial: string | null;
+  notes: string | null;
+  updatedAt: string | null;
+}
+
+/** What the shop keeps about a customer (GET /orgUsers/:id/customer). */
+export interface CustomerProfile {
+  billingAddress: string | null;
+  preferredContact: "email" | "phone" | "text" | null;
+  notes: string | null;
+  updatedAt: string | null;
+}
+
+/** A photo or document on a job or one of its items (GET /work-orders/:id/files). */
+/** One line of an aircraft's meter log: a recorded reading, or the one a close-out took. Tenths. */
+export interface MeterLogEntry {
+  kind: "reading" | "close-out";
+  id: number;
+  readAt: string;
+  hobbsTime: number | null;
+  tachTime: number | null;
+  /** What the aircraft said just before a recorded reading; null on a close-out. */
+  priorHobbsTime: number | null;
+  priorTachTime: number | null;
+  /** Lower than the aircraft's at the time: a correction, keeping what it replaced. */
+  correction: boolean;
+  note: string | null;
+  /** A 15-minute link to the meter photo. */
+  photoUrl: string | null;
+  by: { id: number; name: string | null } | null;
+  reservationId: number | null;
+}
+
+export interface MeterLog {
+  /** Which meters the aircraft has; a glider has none. */
+  meterMode: "hobbs_and_tach" | "hobbs_only" | "tach_only" | "none";
+  current: { hobbsTime: number; tachTime: number };
+  lastReadAt: string | null;
+  daysSinceRead: number | null;
+  /** A customer's aircraft not read in over 30 days. */
+  stale: boolean;
+  entries: MeterLogEntry[];
+}
+
+export interface WorkOrderFile {
+  id: number;
+  label: string | null;
+  /** shop: the shop's own. owner: one the owner may be shown. */
+  visibility: "shop" | "owner";
+  /** Works for 15 minutes; null when the stored object is missing. */
+  url: string | null;
+  fileName: string;
+  itemId: number | null;
+  createdAt: string;
+  uploadedBy: { id: number; name: string | null } | null;
+}
+
+// ── The owner's side of the shop (/owner) ────────────────────────────────────────────────
+
+/** An inspection still open on an owner's aircraft, as the shop computes it. Hours in tenths. */
+export interface OwnerDueItem {
+  name: string | null;
+  /** 0 just done, 1 due now, above 1 overdue; null when it cannot be measured. */
+  progress: number | null;
+  status: "overdue" | "dueSoon" | "ok" | "resolved" | string;
+  dueAt: string | null;
+  daysRemaining: number | null;
+  basis: "tach" | "hobbs" | null;
+  dueAtHours: number | null;
+  hoursRemaining: number | null;
+  grounds: boolean;
+}
+
+export interface OwnerJobSummary {
+  id: number;
+  label: string;
+  status: WorkOrderStatus;
+  statusLabel: string;
+  open: boolean;
+  request: string | null;
+  openedAt: string;
+  promisedOn: string | null;
+  completedAt: string | null;
+}
+
+export interface OwnerAircraft {
+  id: number;
+  tailNumber: string | null;
+  make: string | null;
+  model: string | null;
+  year: string | null;
+  use: "fleet" | "shop";
+  photoUrl: string | null;
+  meterMode: "hobbs_and_tach" | "hobbs_only" | "tach_only" | "none";
+  /** Null on an aircraft they are only billed on: its times and airworthiness are its owners'. */
+  hobbsTime: number | null;
+  tachTime: number | null;
+  grounded: boolean | null;
+  billedOwner: boolean;
+  /** False for an aircraft they are only billed on (sold since, or billed for another's): their own jobs only. */
+  owns: boolean;
+  currentJob: OwnerJobSummary | null;
+  /** Found items waiting on an owner's answer on the open jobs, and the job holding the first. */
+  needsAnswer: number;
+  needsAnswerJobId: number | null;
+  /** The same, job by job, oldest first: an aircraft can have findings waiting on two jobs. */
+  needsAnswerJobs?: { jobId: number; label: string; count: number }[];
+  /** The caller's own bills on this aircraft still to pay. */
+  unpaidInvoices: { id: number; totalCents: number; dueAt: string | null; number: string | null; jobId: number; jobLabel: string }[];
+  lastReadAt: string | null;
+  daysSinceRead: number | null;
+  /** A customer aircraft whose times are over a month old. */
+  timesStale: boolean;
+  due: OwnerDueItem[];
+}
+
+export interface OwnerAircraftDetail extends Omit<OwnerAircraft, "owns" | "currentJob" | "needsAnswer" | "needsAnswerJobId" | "unpaidInvoices" | "timesStale"> {
+  jobs: OwnerJobSummary[];
+  readings: { readAt: string; hobbsTime: number | null; tachTime: number | null; kind: "reading" | "close-out"; correction: boolean }[];
+  lastReadAt: string | null;
+  daysSinceRead: number | null;
+  mayRecordTimes: boolean;
+}
+
+export interface OwnerJob extends OwnerJobSummary {
+  aircraft: { id: number; tailNumber: string | null; make: string | null; model: string | null };
+  receivedAt: string | null;
+  notes: string | null;
+  items: {
+    id: number;
+    description: string;
+    source: "requested" | "found";
+    decision: "approved" | "declined" | "deferred" | null;
+    needsAnswer: boolean;
+    done: boolean;
+    /** The caller answered it here themselves; otherwise the shop took the answer, or a co-owner gave it. */
+    answeredByYou?: boolean;
+    /** What its billable lines come to, for the person billed (null for anybody else). Not in `chargesCents` until approved, or invoiced. */
+    estimateCents?: number | null;
+    /** When the shop sent it (null if never): an answer sends it back, so one given to wording since changed is refused. */
+    askedAt?: string | null;
+  }[];
+  lines: { id: number; kind: string; description: string; qty: number; minutes: number | null; totalCents: number; partStatus: string | null; expectedOn: string | null; itemId: number | null }[];
+  chargesCents: number;
+  /** False for a co-owner or a later owner: they see the work, not somebody else's bill. */
+  billedToYou: boolean;
+  /** The billed person answers what the shop found, while the job is open. */
+  mayAnswer: boolean;
+  /** The caller owns the aircraft (and can open its page); false when only billed for this job. */
+  ownsAircraft: boolean;
+  /** `refunded`: handed back in full, neither paid nor owed. */
+  invoice: { id: number; totalCents: number; paid: boolean; refunded: boolean; number: string | null } | null;
+  files: { id: number; name: string; fileName: string; url: string | null; itemId: number | null; createdAt: string }[];
+}

@@ -51,6 +51,10 @@ export const TRACKS: Record<string, Track> = {
     caption: "Reports light up once flights are on the board. Start there.",
     lead: ["aircraft", "reservation", "invoice"],
   },
+  shop: {
+    caption: "You came in from the shop side, start with a job.",
+    lead: ["customer-aircraft", "work-order", "shop-rates", "job-invoice", "technicians"],
+  },
 };
 
 export const trackFor = (source: string | null | undefined): Track | null =>

@@ -16,7 +16,8 @@ export type SetupIntent =
   | "quickbooks"
   | "clubs"
   | "training"
-  | "reports";
+  | "reports"
+  | "shop";
 
 export const SETUP_INTENTS: {
   id: SetupIntent;
@@ -37,6 +38,11 @@ export const SETUP_INTENTS: {
     id: "billing",
     label: "Bill and get paid",
     blurb: "Invoices, cards, and Stripe Connect.",
+  },
+  {
+    id: "shop",
+    label: "Run a maintenance shop",
+    blurb: "Work orders on customers' aircraft, billed to the owner.",
   },
   {
     id: "training",
@@ -70,6 +76,8 @@ export const HEARD_FROM_OPTIONS: {
 ];
 
 const LANDING_RULES: { match: RegExp; source: SetupIntent }[] = [
+  // Before the general maintenance rule, which would otherwise claim every shop page.
+  { match: /work-order|maintenance-shop|customer-?s?-aircraft|approve-work|shop-rates|repair-station/i, source: "shop" },
   { match: /myfbo|maintenance|squawk|100-hour|annual/i, source: "maintenance" },
   { match: /quickbooks/i, source: "quickbooks" },
   { match: /split-billing|billing|invoice|membership|dues/i, source: "billing" },

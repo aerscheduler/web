@@ -67,7 +67,10 @@ import { PeopleGroupsEmptyGraphic } from "@/components/empty-graphics/people-gro
 import { InstructorsEmptyGraphic } from "@/components/empty-graphics/instructors";
 import { AircraftEmptyGraphic } from "@/components/empty-graphics/aircraft";
 import { LocationsEmptyGraphic } from "@/components/empty-graphics/locations";
+import { MaintenanceEmptyGraphic } from "@/components/empty-graphics/maintenance";
+import { CustomerAircraftStep, FirstJobStep, ShopRatesStep } from "@/components/onboarding/shop-steps";
 import { DocsHint } from "@/components/docs-hint";
+import { Field, Nav, Step } from "@/components/onboarding/wizard-parts";
 import {
   StandingPreferenceFields,
   useStandingPreferenceForm,
@@ -97,8 +100,14 @@ function useWizardRestart() {
 
 // ---------------------------------------------------------------- shared
 
-type Persona = "student" | "instructor" | "school" | "owner";
-type OrgType = "flight_school" | "flying_club" | "rental" | "solo_instructor" | "aircraft_owner";
+type Persona = "student" | "instructor" | "school" | "owner" | "shop";
+type OrgType =
+  | "flight_school"
+  | "flying_club"
+  | "rental"
+  | "solo_instructor"
+  | "aircraft_owner"
+  | "maintenance_shop";
 
 const EMPTY_ADDRESS = {
   streetAddress1: "",
@@ -163,7 +172,9 @@ function Onboarding() {
         ? "instructor"
         : organization.organizationType === "aircraft_owner"
           ? "owner"
-          : "school";
+          : organization.organizationType === "maintenance_shop"
+            ? "shop"
+            : "school";
     return <OperationFlow persona={resume} onBack={() => setPersona(null)} />;
   }
   if (!persona)
@@ -204,6 +215,17 @@ function AllSet({ name }: { name: string }) {
 // ---------------------------------------------------------------- persona router
 
 function PersonaRouter({ onPick }: { onPick: (p: Persona) => void }) {
+  // Somebody who came from the shop side of the site sees the shop first. Everybody else
+  // sees it last, after the flying operations it sits beside.
+  const shopFirst = React.useMemo(() => inferredIntent(readAttribution()) === "shop", []);
+  const shopCard = (
+    <PersonaCard
+      graphic={MaintenanceEmptyGraphic}
+      title="I run a maintenance shop"
+      blurb="An A&P shop or repair station. Work orders on customers' aircraft, billed to the owner."
+      onClick={() => onPick("shop")}
+    />
+  );
   return (
     <Shell wide>
       <Step
@@ -211,6 +233,7 @@ function PersonaRouter({ onPick }: { onPick: (p: Persona) => void }) {
         sub="Join an organization with a code, or start your own operation. This picks the path, not a preference you can flip later."
       >
         <div className="grid gap-3 sm:grid-cols-2">
+          {shopFirst ? <div className="sm:col-span-2 [&>button]:w-full">{shopCard}</div> : null}
           <PersonaCard
             graphic={PeopleGroupsEmptyGraphic}
             title="I'm joining an organization"
@@ -235,6 +258,8 @@ function PersonaRouter({ onPick }: { onPick: (p: Persona) => void }) {
             blurb="Set up your fleet, team, and schedule."
             onClick={() => onPick("school")}
           />
+          {/* Fifth on the grid, so it spans the row rather than sitting alone in half of it. */}
+          {shopFirst ? null : <div className="sm:col-span-2 [&>button]:w-full">{shopCard}</div>}
         </div>
       </Step>
     </Shell>
@@ -456,7 +481,14 @@ function OperationFlow({
 
   const solo = persona === "instructor";
   const owner = persona === "owner";
-  const skipType = solo || owner;
+  //An A&P shop or repair station. Its type is decided by the card it picked and its first
+  //thing to get working is the shop, so it skips both the type and the intent pages, and
+  //after the name it walks its own steps: rates, the aircraft in the hangar, the first job.
+  const shop = persona === "shop";
+  const skipType = solo || owner || shop;
+  //Set by the shop's aircraft and job steps, so the last screen can land on the job.
+  const [shopAircraft, setShopAircraft] = React.useState<{ id: number; tail: string; hobbs: number; tach: number } | null>(null);
+  const [firstJobId, setFirstJobId] = React.useState<number | null>(null);
   const who = user?.name?.trim().split(" ")[0];
   const attribution = React.useMemo(() => readAttribution(), []);
 
@@ -480,10 +512,12 @@ function OperationFlow({
       t === "flying_club" ||
       t === "rental" ||
       t === "solo_instructor" ||
-      t === "aircraft_owner"
+      t === "aircraft_owner" ||
+      t === "maintenance_shop"
     ) {
       return t;
     }
+    if (shop) return "maintenance_shop";
     if (owner) return "aircraft_owner";
     return solo ? "solo_instructor" : "flight_school";
   });
@@ -535,7 +569,9 @@ function OperationFlow({
       country?: string;
     } | null;
   } | null>(null);
-  const [intent, setIntent] = React.useState<SetupIntent | null>(() => inferredIntent(attribution) ?? "scheduling");
+  const [intent, setIntent] = React.useState<SetupIntent | null>(() =>
+    shop ? "shop" : inferredIntent(attribution) ?? "scheduling"
+  );
   const [heardFrom, setHeardFrom] = React.useState<string | null>(null);
   const [heardFromDetail, setHeardFromDetail] = React.useState("");
   const [wantUpdates, setWantUpdates] = React.useState(true);
@@ -747,7 +783,9 @@ function OperationFlow({
       }
       const source =
         resolveSetupSource({
-          intent: intentTouched.current ? intent : null,
+          //The shop card is itself the answer to "what first", and outranks whatever page
+          //they came from (a mechanic arriving from /features/maintenance is still a shop).
+          intent: intentTouched.current || shop ? intent : null,
           src: attribution?.src,
           landingPath: attribution?.landingPath,
           utmCampaign: attribution?.utm_campaign,
@@ -844,6 +882,20 @@ function OperationFlow({
   function finish() {
     clearOnboardingSticky();
     qc.clear();
+    if (shop) {
+      //Straight onto the job they just opened, with the walkthrough of what a job holds. A
+      //shop that skipped the job lands on the job board, which is its home.
+      if (firstJobId != null) {
+        void navigate({
+          to: "/maintenance/work-orders/$workOrderId",
+          params: { workOrderId: String(firstJobId) },
+          search: { tour: true },
+        });
+      } else {
+        void navigate({ to: "/maintenance", search: { view: "work-orders" } as never });
+      }
+      return;
+    }
     void navigate({ to: isStaffSync() ? "/dashboard" : "/me" });
   }
 
@@ -865,6 +917,11 @@ function OperationFlow({
         return;
       }
       setShowErrors(false);
+      //The shop has nothing to choose on the intent page: the card was the choice.
+      if (shop) {
+        void submitOrg();
+        return;
+      }
       setOrgPage(intentPage);
       return;
     }
@@ -916,26 +973,30 @@ function OperationFlow({
           title={
             owner
               ? "Name your airplane"
-              : solo
-                ? "Name your operation"
-                : "Tell us about your operation"
+              : shop
+                ? "Name your shop"
+                : solo
+                  ? "Name your operation"
+                  : "Tell us about your operation"
           }
           sub={
             owner
               ? "A name and a home airport. That is enough to hang a schedule on the right clock."
-              : "Just enough to hang a schedule on. You can change any of it later."
+              : shop
+                ? "The name goes on your work orders and invoices. The airport and time zone set the clock your jobs and promised-back dates run on."
+                : "Just enough to hang a schedule on. You can change any of it later."
           }
         >
           <Field
             id="op-orgName"
-            label="Operation name"
-            error={showErrors && !orgName.trim() ? "Give your operation a name." : ""}
+            label={shop ? "Shop name" : "Operation name"}
+            error={showErrors && !orgName.trim() ? (shop ? "Give your shop a name." : "Give your operation a name.") : ""}
           >
             <Input
               id="op-orgName"
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
-              placeholder={owner ? "N1624" : solo ? undefined : "Blue Sky Aviation"}
+              placeholder={owner ? "N1624" : shop ? "Rocky Mountain Aero Repair" : solo ? undefined : "Blue Sky Aviation"}
               autoFocus
               aria-invalid={showErrors && !orgName.trim()}
             />
@@ -1002,13 +1063,15 @@ function OperationFlow({
               invalid={showErrors && !zone}
             />
             <p className="text-xs text-muted-foreground">
-              Lessons, flying hours and booking rules all run on this clock, wherever someone
-              is reading the schedule from.
+              {shop
+                ? "Jobs, promised-back dates and inspection reminders all run on this clock, wherever someone is reading them from."
+                : "Lessons, flying hours and booking rules all run on this clock, wherever someone is reading the schedule from."}
             </p>
           </Field>
           <Nav
             onBack={organization && orgPage === 0 ? undefined : goOrgBack}
             onNext={goOrgNext}
+            nextLabel={shop && !organization ? "Create shop" : undefined}
             busy={busy}
           />
         </Step>
@@ -1055,7 +1118,42 @@ function OperationFlow({
         </Step>
       )}
 
-      {step === 1 && (
+      {shop && step === 1 && (
+        <ShopRatesStep
+          onBack={() => {
+            setOrgPage(0);
+            setStep(0);
+          }}
+          onDone={() => setStep(2)}
+        />
+      )}
+
+      {shop && step === 2 && (
+        <CustomerAircraftStep
+          locationId={locationId}
+          fallbackLocationName={airport.trim() || orgName.trim() || organization?.name || "Home"}
+          onBack={() => setStep(1)}
+          onSkip={() => setStep(4)}
+          onCreated={(created) => {
+            setShopAircraft(created);
+            setStep(3);
+          }}
+        />
+      )}
+
+      {shop && step === 3 && (
+        <FirstJobStep
+          aircraft={shopAircraft}
+          onBack={() => setStep(2)}
+          onSkip={() => setStep(4)}
+          onCreated={(id) => {
+            setFirstJobId(id);
+            setStep(4);
+          }}
+        />
+      )}
+
+      {!shop && step === 1 && (
         <AircraftStep
           title={
             owner
@@ -1083,7 +1181,7 @@ function OperationFlow({
         />
       )}
 
-      {step === 2 && (
+      {!shop && step === 2 && (
         <BillingStep
           onBack={() => setStep(1)}
           onSkip={toUpdates}
@@ -1091,10 +1189,14 @@ function OperationFlow({
         />
       )}
 
-      {step === 3 && (
+      {(shop ? step === 4 : step === 3) && (
         <Step
           title="A few tips while you get going"
-          sub="If the board is still empty or billing isn't connected, a short email with the next step. Not a newsletter, and not invoices. Turn them off anytime in notification settings."
+          sub={
+            shop
+              ? "If there is no job on the board yet or billing isn't connected, a short email with the next step. Not a newsletter, and not invoices. Turn them off anytime in notification settings."
+              : "If the board is still empty or billing isn't connected, a short email with the next step. Not a newsletter, and not invoices. Turn them off anytime in notification settings."
+          }
         >
           <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-4">
             <Checkbox
@@ -1145,7 +1247,12 @@ function OperationFlow({
             ) : null}
           </div>
 
-          <Nav onBack={() => setStep(2)} onNext={finishUpdates} nextLabel="Finish" busy={busy} />
+          <Nav
+            onBack={() => setStep(shop ? (firstJobId != null ? 3 : 2) : 2)}
+            onNext={finishUpdates}
+            nextLabel={shop && firstJobId != null ? "Open the work order" : "Finish"}
+            busy={busy}
+          />
         </Step>
       )}
     </Shell>
@@ -1604,77 +1711,5 @@ function StandbyStep({ onDone }: { onDone: () => void }) {
         onSkip={onDone}
       />
     </>
-  );
-}
-
-function Step({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <h1 className="text-[28px] font-semibold tracking-tight text-balance sm:text-[32px]">{title}</h1>
-      {sub && <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">{sub}</p>}
-      <div className="mt-8 space-y-4">{children}</div>
-    </div>
-  );
-}
-
-function Field({
-  id,
-  label,
-  hint,
-  error,
-  children,
-}: {
-  id: string;
-  label: string;
-  hint?: React.ReactNode;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1.5 [&_input]:h-11 [&_select]:h-11">
-      <div className="flex items-baseline justify-between">
-        <Label htmlFor={id}>{label}</Label>
-        {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
-      </div>
-      {children}
-      {error && <p className="text-xs text-destructive">{error}</p>}
-    </div>
-  );
-}
-
-function Nav({
-  onBack,
-  onNext,
-  nextLabel = "Continue",
-  nextDisabled,
-  busy,
-  onSkip,
-}: {
-  onBack?: () => void;
-  onNext: () => void;
-  nextLabel?: string;
-  nextDisabled?: boolean;
-  busy?: boolean;
-  onSkip?: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-2 pt-2">
-      {onBack && (
-        <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back" disabled={busy}>
-          <ArrowLeft className="size-4" />
-        </Button>
-      )}
-      <div className="flex-1" />
-      {onSkip && (
-        <Button variant="ghost" onClick={onSkip} disabled={busy}>
-          Skip for now
-        </Button>
-      )}
-      <Button size="lg" className={AUTH_CONTROL} onClick={onNext} disabled={nextDisabled || busy}>
-        {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-        {nextLabel}
-        {!busy && <ArrowRight className="size-4" />}
-      </Button>
-    </div>
   );
 }

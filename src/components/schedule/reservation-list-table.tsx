@@ -1,23 +1,15 @@
 import * as React from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { addDays } from "date-fns";
-import { ChevronDown } from "lucide-react";
 import { resourceLabel, type OrganizationUser, type Reservation, type ReservationType } from "@/types/api";
-import { ListTable, ListTableSkeleton, ListTag, LIST_TAG_BUTTON_CLASS, LIST_TAG_CLASS, type ListTableColumn, type ListTableGroup, type ListTableSort } from "@/components/list-table";
+import { GroupByMenu, ListTable, ListTableSkeleton, ListTag, type ListTableColumn, type ListTableGroup, type ListTableSort } from "@/components/list-table";
 import { WorkspaceUserAvatar, WorkspaceUserAvatars, type WorkspacePerson } from "@/components/workspace-user-avatar";
-import { WorkStatusIcon, type WorkStatus } from "@/components/maintenance/work-status-icon";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { WorkStatusIcon } from "@/components/maintenance/work-status-icon";
 import { useTimeZone, type TimeZoneContext } from "@/lib/use-timezone";
 import { dateKeyInZone } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
-import { BILLING_OPTIONS, billingStatus, rampStatuses, type BillingStatus } from "./board-filters";
+import { BILLING_OPTIONS, billingStatus, type BillingStatus } from "./board-filters";
+import { STATUS_BY_ID, STATUS_RANK, statusOf, statusText, type Status } from "./reservation-list-status";
 import { TYPE_LABEL, TYPE_ORDER } from "./meta";
 
 /**
@@ -41,28 +33,6 @@ export const GROUP_BY_OPTIONS: { value: ReservationGroupBy; label: string }[] = 
 
 export function asGroupBy(v: unknown): ReservationGroupBy {
   return GROUP_BY_OPTIONS.some((o) => o.value === v) ? (v as ReservationGroupBy) : "date";
-}
-
-/** Where a booking stands, one answer per booking, in the order a dispatcher works them. */
-type Status = "overdue" | "out" | "back" | "scheduled" | "closed" | "cancelled";
-
-const STATUSES: { id: Status; label: string; icon: WorkStatus }[] = [
-  { id: "overdue", label: "Overdue back", icon: "progress" },
-  { id: "out", label: "Out now", icon: "approved" },
-  { id: "back", label: "Back, not closed out", icon: "notAsked" },
-  { id: "scheduled", label: "Not out yet", icon: "todo" },
-  { id: "closed", label: "Closed out", icon: "done" },
-  { id: "cancelled", label: "Cancelled", icon: "declined" },
-];
-const STATUS_RANK = new Map(STATUSES.map((s, i) => [s.id, i]));
-const STATUS_BY_ID = new Map(STATUSES.map((s) => [s.id, s]));
-
-function statusOf(r: Reservation, now: Date): Status {
-  if (r.cancelledAt) return "cancelled";
-  const s = rampStatuses(r, now);
-  // A late aircraft is both "out" and "overdue"; overdue is the one worth a group of its own.
-  if (s.includes("overdue")) return "overdue";
-  return (s[0] ?? "scheduled") as Status;
 }
 
 const BILLING_LABEL = new Map(BILLING_OPTIONS.map((o) => [o.value, o.label]));
@@ -230,7 +200,7 @@ function columnsFor(groupBy: ReservationGroupBy): ListTableColumn[] {
     { id: "when", header: "Time", width: groupBy === "date" ? "11.5rem" : "15rem", sortable: true },
     { id: "resource", header: "Aircraft", width: "8rem", sortable: true },
     { id: "people", header: "People", width: "5rem" },
-    { id: "status", header: "Status", width: "9.5rem", sortable: true },
+    { id: "status", header: "Status", width: "11rem", sortable: true },
     { id: "billing", header: "Billing", width: "5.5rem", sortable: true },
   ];
 }
@@ -280,7 +250,8 @@ export function ReservationListTable({
     ) : undefined,
     count: g.items.length,
     rows: g.items.map((r) => {
-      const status = STATUS_BY_ID.get(statusOf(r, now))!;
+      const statusId = statusOf(r, now);
+      const status = STATUS_BY_ID.get(statusId)!;
       const billing = billingStatus(r);
       const people = workspacePeople(r);
       const when = whenText(r, groupBy, tz);
@@ -308,9 +279,14 @@ export function ReservationListTable({
           resource: resourceName(r) ?? <span className="text-muted-foreground">None</span>,
           people: people.length ? <WorkspaceUserAvatars people={people} /> : null,
           status: (
-            <span className="inline-flex min-w-0 items-center gap-1.5 text-muted-foreground">
+            <span
+              className={cn(
+                "inline-flex min-w-0 items-center gap-1.5",
+                statusId === "overdue" ? "font-medium text-warning" : "text-muted-foreground"
+              )}
+            >
               <WorkStatusIcon status={status.icon} className="size-3.5" />
-              <span className="truncate">{status.label}</span>
+              <span className="truncate">{statusText(r, statusId)}</span>
             </span>
           ),
           billing:
@@ -339,7 +315,7 @@ export function ReservationListTable({
       showHeader
       sort={sort}
       onSortChange={onSortChange}
-      toolbar={<GroupByMenu value={groupBy} onChange={onGroupByChange} />}
+      toolbar={<GroupByMenu value={groupBy} options={GROUP_BY_OPTIONS} onChange={(v) => onGroupByChange(asGroupBy(v))} />}
       empty={empty ?? <p className="px-4 py-6 text-[13px] text-muted-foreground">Nothing matches these filters.</p>}
     />
   );
@@ -370,27 +346,4 @@ function narrowWidth(columns: ListTableColumn[]): number {
 function whenText(r: Reservation, groupBy: ReservationGroupBy, tz: TimeZoneContext): string {
   const range = tz.range(r.start, r.end);
   return groupBy === "date" ? range : `${tz.date(r.start)}, ${range}`;
-}
-
-function GroupByMenu({ value, onChange }: { value: ReservationGroupBy; onChange: (g: ReservationGroupBy) => void }) {
-  const current = GROUP_BY_OPTIONS.find((o) => o.value === value)!;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger className={cn(LIST_TAG_CLASS, LIST_TAG_BUTTON_CLASS, "h-6 px-2.5 text-[12px]")}>
-        <span className="text-muted-foreground">Group by</span>
-        <span className="text-foreground">{current.label}</span>
-        <ChevronDown className="size-3" aria-hidden />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-44">
-        <DropdownMenuLabel>Group by</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(asGroupBy(v))}>
-          {GROUP_BY_OPTIONS.map((o) => (
-            <DropdownMenuRadioItem key={o.value} value={o.value}>
-              {o.label}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
 }

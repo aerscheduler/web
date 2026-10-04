@@ -240,13 +240,13 @@ function AircraftPage() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => openAdd("fleet")}>
+          <DropdownMenuItem className="flex-col items-start gap-0.5" onSelect={() => openAdd("fleet")}>
             One of yours
-            <span className="block text-xs text-muted-foreground">Schedulable, and counted on your plan.</span>
+            <span className="text-xs text-muted-foreground">Schedulable, and counted on your plan.</span>
           </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => openAdd("shop")}>
+          <DropdownMenuItem className="flex-col items-start gap-0.5" onSelect={() => openAdd("shop")}>
             A customer&rsquo;s aircraft
-            <span className="block text-xs text-muted-foreground">In your shop for maintenance. Not scheduled, not billed.</span>
+            <span className="text-xs text-muted-foreground">In your shop for maintenance. Not scheduled, not billed.</span>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -53,7 +53,7 @@ import { PersonContact } from "@/components/people/detail/person-contact";
 import { PersonFlights } from "@/components/people/detail/person-flights";
 import { PersonInvoices } from "@/components/people/detail/person-invoices";
 import { PersonWorkOrders } from "@/components/people/detail/person-work-orders";
-import { OwnerAircraftList, OwnerContactCard, OwnerWorkOrdersList, useOwnerJobs } from "@/components/people/detail/owner-record";
+import { CustomerDetailsCard, OwnerAircraftList, OwnerContactCard, OwnerWorkOrdersList, useOwnerJobs } from "@/components/people/detail/owner-record";
 import { PersonLedger } from "@/components/people/detail/person-ledger";
 import { PersonMembership } from "@/components/people/detail/person-membership";
 import {
@@ -266,7 +266,10 @@ function PersonBody({
   const ledgerOn = useOrgLedgerSettings().data?.enabled === true;
 
   //An aircraft owner the shop wrote down has never signed up. See sectionsForOwner.
-  const outsideParty = !!(ou as { external?: boolean }).external && !(ou as { claimedAt?: string | null }).claimedAt;
+  // An aircraft owner from outside the organization, signed up or not: since 2026-10-01 an owner
+  // who signs in stays outside (they see only their own aircraft), so their record keeps the
+  // owner layout rather than turning into a member's with schedules and training.
+  const outsideParty = !!(ou as { external?: boolean }).external;
   const seesShop = canSeeShop(roles);
   const owned = useOwnedAircraft(ou.id, { enabled: outsideParty && seesShop });
   const ownerJobs = useOwnerJobs(ou.id);
@@ -322,7 +325,7 @@ function PersonBody({
             <>
               {ou.archivedAt ? (
                 <Badge variant="secondary">Archived</Badge>
-              ) : outsideParty ? (
+              ) : outsideParty && !(ou as { claimedAt?: string | null }).claimedAt ? (
                 <Badge variant="outline" title="On your roster so you can bill them. They cannot sign in.">
                   Not signed up
                 </Badge>
@@ -331,7 +334,7 @@ function PersonBody({
               ) : (
                 <Badge variant="outline">Active</Badge>
               )}
-              {outsideParty && <Badge variant="secondary">Aircraft owner</Badge>}
+              {outsideParty && <Badge variant="secondary">{seesShop && owned.data?.length === 0 ? "Customer" : "Aircraft owner"}</Badge>}
               {isSelf && <Badge variant="secondary">You</Badge>}
               {!outsideParty && (
                 <RolesMenuBadge
@@ -399,6 +402,7 @@ function PersonBody({
           )}
         >
           {active === "overview" && outsideParty && <OwnerContactCard ou={ou} owned={owned.data} />}
+          {active === "overview" && outsideParty && <CustomerDetailsCard orgUserId={ou.id} />}
           {active === "aircraft" && outsideParty && <OwnerAircraftList owned={owned.data ?? []} loading={owned.isPending} />}
           {active === "work-orders" && outsideParty && <OwnerWorkOrdersList rows={ownerJobs.data ?? []} loading={ownerJobs.isPending} />}
 

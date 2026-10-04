@@ -95,7 +95,7 @@ test.describe("Combined maintenance intervals", () => {
 
     // And what the console says about it: one line naming both clocks.
     await page.goto("/maintenance");
-    await page.getByRole("button", { name: "Set up" }).click();
+    await page.getByRole("button", { name: "Inspection rules" }).click();
     await expect(page.getByText("Whichever comes first", { exact: true }).first()).toBeVisible({ timeout: 20_000 });
     // .first(): the interval phrasing is shared by any other 50-hour/122-day rule the org
     // already has, and the assertion is about the WORDING, not which row carries it.
@@ -150,7 +150,7 @@ test.describe("Combined maintenance intervals", () => {
     expect(stored.remindDays).toBe(365);
 
     await page.goto("/maintenance");
-    await page.getByRole("button", { name: "Set up" }).click();
+    await page.getByRole("button", { name: "Inspection rules" }).click();
     await expect(
       page
         .getByText("Every 100.0 hours tach or 12 calendar months, whichever comes first", { exact: false })
@@ -189,15 +189,19 @@ test.describe("Combined maintenance intervals", () => {
     });
     expect(created.ok(), await created.text()).toBeTruthy();
 
-    await page.goto("/maintenance");
-    await page.getByRole("button", { name: "All inspections" }).click();
+    // All inspections became Inspections grouped by Status (2026-10-01).
+    await page.goto("/maintenance?view=aircraft&group=status");
 
-    const row = page.locator("li").filter({ hasText: name });
+    // A grouped list since 2026-09-30: "Overdue" is the heading of the row's group, not a
+    // badge on the row.
+    const overdue = page.locator('[role="rowgroup"]', {
+      has: page.locator('[role="row"][aria-level="1"]', { hasText: /^Overdue/ }),
+    });
+    const row = overdue.getByRole("row").filter({ hasText: name });
     await expect(row).toBeVisible({ timeout: 20_000 });
     // The calendar side is the headline; the meter side rides along.
-    await expect(row.getByText("Overdue")).toBeVisible();
     await expect(row.getByText(/days over/)).toBeVisible();
-    await expect(row.getByText(/also .* hrs on tach/)).toBeVisible();
+    await expect(row.getByText(/Also .* hrs on tach/)).toBeVisible();
 
     // Signing off must still collect a meter reading, or the hour clock restarts from
     // nothing and never counts again. `due.kind` here is "days", which is what the old

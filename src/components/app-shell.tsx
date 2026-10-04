@@ -76,7 +76,9 @@ import { WorkOrderFormModal } from "@/components/maintenance/work-order-form-mod
 import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
 import { AircraftFormModal } from "@/components/aircraft/aircraft-form";
 import { CreateInvoiceDialog } from "@/components/billing/create-invoice-dialog";
-import { useLocations } from "@/features/queries";
+import { useLocations, useOwnerAircraft } from "@/features/queries";
+import { RequestWorkModal } from "@/components/owner/owner-parts";
+import type { OwnerAircraft } from "@/types/api";
 import { useTheme } from "@/components/theme-provider";
 import type { Theme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
@@ -405,13 +407,17 @@ function OrgSwitcher() {
 }
 
 function Topbar() {
-  const { roles } = useAuth();
+  const { roles, outsideOwner } = useAuth();
   const { toggleSidebar } = useSidebar();
   const { openNewReservation } = useQuickCreate();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // The + makes anything the person can make, not only bookings (Tony, 2026-09-30): each form
   // opens here over whatever page they are on, and mounts only while it is open.
   const [creating, setCreating] = useState<"workOrder" | "squawk" | "aircraft" | "invite" | "invoice" | null>(null);
+  // Anybody who owns an aircraft here can ask the shop for work on it, from wherever they are.
+  const ownedQ = useOwnerAircraft();
+  const askable = (ownedQ.data ?? []).filter((a) => a.owns);
+  const [asking, setAsking] = useState<OwnerAircraft | null>(null);
   const locationsQ = useLocations({ enabled: creating === "aircraft" });
   const close = (o: boolean) => !o && setCreating(null);
   const make = {
@@ -440,8 +446,9 @@ function Topbar() {
           <Menu className="size-4" />
         </Button>
 
-        {/* Stripe-style search, results drop down from this field */}
-        <CommandMenuSearch />
+        {/* Stripe-style search, results drop down from this field. Not for an aircraft owner
+            from outside the organization: there is nothing of the school's to find. */}
+        {outsideOwner ? <div className="flex-1" /> : <CommandMenuSearch />}
 
         <div className="flex-1" />
 
@@ -467,7 +474,9 @@ function Topbar() {
           </Button>
         )}
 
-        {/* Stripe-style accent quick-create: everything this person can make, grouped. */}
+        {/* Stripe-style accent quick-create: everything this person can make, grouped. For an
+            outside owner that is one thing: asking the shop for work. */}
+        {(!outsideOwner || askable.length > 0) && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="icon" aria-label="Create" className="ml-1 rounded-full">
@@ -475,6 +484,10 @@ function Topbar() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-56">
+            {outsideOwner ? (
+              <RequestWorkItems aircraft={askable} onPick={setAsking} />
+            ) : (
+            <>
             {(make.reservation || (make.book && canCreateReservation(roles))) && (
               <>
                 <DropdownMenuLabel className="text-xs text-muted-foreground">Schedule</DropdownMenuLabel>
@@ -529,16 +542,54 @@ function Topbar() {
                 New invoice
               </DropdownMenuItem>
             )}
+            {askable.length > 0 && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground">Your aircraft</DropdownMenuLabel>
+                <RequestWorkItems aircraft={askable} onPick={setAsking} />
+              </>
+            )}
+            </>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
       {creating === "workOrder" && <WorkOrderFormModal open onOpenChange={close} />}
       {creating === "squawk" && <LogSquawkModal open onOpenChange={close} />}
       {creating === "aircraft" && <AircraftFormModal open onOpenChange={close} locations={locationsQ.data ?? []} />}
       {creating === "invite" && <InviteModal open onOpenChange={close} />}
       {creating === "invoice" && <CreateInvoiceDialog open onOpenChange={close} />}
+      {asking && <RequestWorkModal open onOpenChange={(o) => !o && setAsking(null)} aircraft={asking} />}
       <FeedbackModal open={feedbackOpen} onOpenChange={setFeedbackOpen} />
     </header>
+  );
+}
+
+/** "Request work" in the + menu: straight to the form with one aircraft, a choice with several. */
+function RequestWorkItems({ aircraft, onPick }: { aircraft: OwnerAircraft[]; onPick: (a: OwnerAircraft) => void }) {
+  if (aircraft.length === 1) {
+    return (
+      <DropdownMenuItem onClick={() => onPick(aircraft[0])}>
+        <Wrench />
+        Request work on {aircraft[0].tailNumber ?? "your aircraft"}
+      </DropdownMenuItem>
+    );
+  }
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSubTrigger>
+        <Wrench />
+        Request work
+      </DropdownMenuSubTrigger>
+      <DropdownMenuSubContent>
+        {aircraft.map((a) => (
+          <DropdownMenuItem key={a.id} onClick={() => onPick(a)}>
+            <span className="font-mono">{a.tailNumber ?? "Aircraft"}</span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuSubContent>
+    </DropdownMenuSub>
   );
 }
 

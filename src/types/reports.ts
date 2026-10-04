@@ -63,7 +63,7 @@ export interface ReportDimension {
   label: string;
 }
 
-export type ReportCategoryKey = "financial" | "operations" | "fleet" | "people" | "compliance";
+export type ReportCategoryKey = "financial" | "operations" | "fleet" | "shop" | "people" | "compliance";
 
 export type ReportDefaultRange =
   | "past7"

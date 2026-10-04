@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api, apiList, apiRaw, ApiError, raw, type PaginationMeta } from "@/lib/api";
 import { track } from "@/lib/analytics";
+import { isOutsideOwnerSync } from "@/lib/auth";
 import type { Paged, PagingState } from "@/lib/paging";
 import { outstandingHolds } from "@/lib/outstanding-holds";
 import type { CurrencyRuleDetail, CurrencyRuleStanding } from "@/types/currency-rule";
@@ -30,11 +31,20 @@ import type {
   WorkOrderLine,
   WorkOrderLineInput,
   WorkOrderSettings,
-  WorkOrderInvoiceDetails,
+  WorkOrderInvoicePreview,
+  RecordOwnerAnswerResult,
   InvoicePreview,
   SalesTaxSettings,
   TaxExemptReason,
   AdReadiness,
+  AircraftProfile,
+  MeterLog,
+  MeterLogEntry,
+  OwnerAircraft,
+  OwnerAircraftDetail,
+  OwnerJob,
+  CustomerProfile,
+  WorkOrderFile,
   AdTrackingMode,
   AirportMatch,
   Announcement,
@@ -777,12 +787,27 @@ export function useLedgerAccountsPage(
 
 /** Org ledger mode (`GET /organizations/ledger`). Any member may read. */
 export function useOrgLedgerSettings(opts?: QueryOpts) {
+  // An aircraft owner from outside the organization has no account here and may not read the
+  // school's ledger settings: answer "off" without asking, so no page waits on a query that
+  // never runs (a disabled query stays pending forever).
+  const outside = isOutsideOwnerSync();
   return useQuery({
-    queryKey: ["organizations", "ledger"],
-    queryFn: () => api<OrganizationLedgerSettings>("/organizations/ledger"),
+    queryKey: ["organizations", "ledger", outside ? "outside" : "member"],
+    queryFn: outside
+      ? async (): Promise<OrganizationLedgerSettings> => OUTSIDE_LEDGER
+      : () => api<OrganizationLedgerSettings>("/organizations/ledger"),
     ...opts,
+    ...(outside ? { enabled: true, staleTime: Infinity } : {}),
   });
 }
+const OUTSIDE_LEDGER: OrganizationLedgerSettings = {
+  enabled: false,
+  topUpCardFeePercent: null,
+  topUpCardFeeFlatCents: null,
+  lateFeePercent: null,
+  lateFeeFlatCents: null,
+  lateFeeGraceDays: null,
+};
 
 /** Owner: ledger mode and optional card surcharge on top-ups (`PATCH /organizations/ledger`). */
 export function useUpdateOrgLedgerSettings() {
@@ -4298,6 +4323,31 @@ export function useMaintenanceReminder(id: number | null) {
   });
 }
 
+/**
+ * One tail's compliance records, newest first, for an inspection page's history. Up to the
+ * server's page ceiling (250): a single aircraft's signed-off inspections, not the org's log.
+ */
+export function useAircraftComplianceRecords(resourceId: number | null, templateId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["compliance-records", "aircraft", resourceId, templateId],
+    // One rule on one tail: up to 250 sign-offs, which no inspection will reach.
+    queryFn: () =>
+      api<MaintenanceComplianceRecord[]>("/maintenance/compliance", {
+        query: { resourceId: resourceId!, templateId: templateId!, limit: 250 },
+      }),
+    enabled: (opts?.enabled ?? true) && resourceId != null && templateId != null,
+  });
+}
+
+/** One record's audit trail (`GET /audit/:entityType/:id`). Admin-only for most types. */
+export function useEntityAudit(entityType: string, entityId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["audit", entityType, entityId],
+    queryFn: () => api<AuditEvent[]>(`/audit/${entityType}/${entityId}`),
+    enabled: (opts?.enabled ?? true) && entityId != null,
+  });
+}
+
 export function useAddReminderFiles() {
   const qc = useQueryClient();
   return useMutation({
@@ -4346,6 +4396,8 @@ export function useResolveMaintenanceReminder() {
     }) => api<MaintenanceReminder>(`/maintenance/reminders/${id}`, { method: "POST", body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["reminders"] });
+      // The inspection page reads one inspection under its own key.
+      void qc.invalidateQueries({ queryKey: ["reminder"] });
       void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
       void qc.invalidateQueries({ queryKey: ["resource"] });
       void qc.invalidateQueries({ queryKey: ["resources"] });
@@ -5632,6 +5684,8 @@ export type WorkOrderListFilter = {
   ownerOrgUserId?: number | number[];
   technicianOrgUserId?: number | number[];
   locationId?: number | number[];
+  /** The job a maintenance booking holds. */
+  reservationId?: number | number[];
   q?: string;
 };
 
@@ -5732,7 +5786,7 @@ export function useWorkOrderApprovals(workOrderId: number | null, opts?: QueryOp
   });
 }
 
-function useWorkOrderWrite<I>(fn: (input: I) => Promise<unknown>) {
+function useWorkOrderWrite<I, O = unknown>(fn: (input: I) => Promise<O>) {
   const qc = useQueryClient();
   return useMutation({ mutationFn: fn, onSuccess: () => void qc.invalidateQueries({ queryKey: ["workOrders"] }) });
 }
@@ -5798,7 +5852,7 @@ export function useRecordOwnerAnswer() {
       spendLimitCents?: number | null;
       notes?: string | null;
       decisions: { itemId: number; decision: NonNullable<WorkOrderItem["decision"]> }[];
-    }) => api<{ id: number }>(`/work-orders/${workOrderId}/approvals`, { method: "POST", body })
+    }) => api<RecordOwnerAnswerResult>(`/work-orders/${workOrderId}/approvals`, { method: "POST", body })
   );
 }
 
@@ -5850,7 +5904,7 @@ export function useSetWorkOrderSettings() {
 export function useWorkOrderInvoicePreview(workOrderId: number | null, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["workOrders", "invoicePreview", workOrderId],
-    queryFn: () => api<InvoicePreview & { details?: WorkOrderInvoiceDetails | null }>(`/work-orders/${workOrderId}/invoice/preview`, { method: "POST" }),
+    queryFn: () => api<WorkOrderInvoicePreview>(`/work-orders/${workOrderId}/invoice/preview`, { method: "POST" }),
     enabled: workOrderId != null,
     retry: false,
     ...opts,
@@ -5860,11 +5914,248 @@ export function useWorkOrderInvoicePreview(workOrderId: number | null, opts?: Qu
 export function useRaiseWorkOrderInvoice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ workOrderId, ...body }: { workOrderId: number; expectedTotal?: number; expectedDetails?: string; dueIn?: number }) =>
+    mutationFn: ({
+      workOrderId,
+      ...body
+    }: {
+      workOrderId: number;
+      expectedTotal?: number;
+      expectedDetails?: string;
+      dueIn?: number;
+      includeUnsent?: boolean;
+      includeUnanswered?: boolean;
+    }) =>
       api(`/work-orders/${workOrderId}/invoice`, { method: "POST", body }),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: ["workOrders"] });
       void qc.invalidateQueries({ queryKey: ["invoices"] });
     },
+  });
+}
+
+// ---------------------------------------------------------------- shop profiles
+
+/** What the shop keeps about an aircraft. Shop roles only; pass `enabled` for them alone. */
+export function useAircraftProfile(resourceId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["resources", "profile", resourceId],
+    queryFn: () => api<AircraftProfile>(`/resources/${resourceId}/profile`),
+    ...opts,
+    enabled: (opts?.enabled ?? true) && resourceId != null,
+  });
+}
+
+export function useUpdateAircraftProfile(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<Omit<AircraftProfile, "airframeTotalNowTenths" | "updatedAt">>) =>
+      api<AircraftProfile>(`/resources/${resourceId}/profile`, { method: "PATCH", body: patch }),
+    onSuccess: (data) => qc.setQueryData(["resources", "profile", resourceId], data),
+  });
+}
+
+/** What the shop keeps about a customer. Owners, admins and technicians; pass `enabled` for them. */
+export function useCustomerProfile(orgUserId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["members", "customer", orgUserId],
+    queryFn: () => api<CustomerProfile>(`/orgUsers/${orgUserId}/customer`),
+    ...opts,
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
+  });
+}
+
+export function useUpdateCustomerProfile(orgUserId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: Partial<Omit<CustomerProfile, "updatedAt">>) =>
+      api<CustomerProfile>(`/orgUsers/${orgUserId}/customer`, { method: "PATCH", body: patch }),
+    onSuccess: (data) => qc.setQueryData(["members", "customer", orgUserId], data),
+  });
+}
+
+// ---------------------------------------------------------------- work order files
+
+/** A job's photos and documents. Keyed under ["workOrders"], so the billing channel refreshes it. */
+export function useWorkOrderFiles(workOrderId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["workOrders", "files", workOrderId],
+    queryFn: () => apiList<WorkOrderFile>(`/work-orders/${workOrderId}/files`).then((r) => r.data),
+    ...opts,
+    enabled: (opts?.enabled ?? true) && workOrderId != null,
+    // The links last 15 minutes: fetch fresh ones before they die on an open page.
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+  });
+}
+
+/** Attach files to a job (or one item): the rows first, then each file to its presigned POST. */
+export function useAttachWorkOrderFiles(workOrderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { files: File[]; itemId?: number | null; visibility?: "shop" | "owner" }) => {
+      const res = await apiRaw<{ data: WorkOrderFile[]; signedUrlData?: PresignedPost[] }>(`/work-orders/${workOrderId}/files`, {
+        method: "POST",
+        body: { fileNames: input.files.map((f) => f.name), itemId: input.itemId ?? null, visibility: input.visibility ?? "shop" },
+      });
+      const uploadError = await uploadSquawkAttachments(res.signedUrlData, input.files);
+      return { data: res.data, uploadError };
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["workOrders", "files", workOrderId] }),
+  });
+}
+
+export function useUpdateWorkOrderFile(workOrderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ fileId, ...patch }: { fileId: number; label?: string | null; visibility?: "shop" | "owner"; itemId?: number | null }) =>
+      api<WorkOrderFile>(`/work-orders/${workOrderId}/files/${fileId}`, { method: "PATCH", body: patch }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["workOrders", "files", workOrderId] }),
+  });
+}
+
+export function useRemoveWorkOrderFile(workOrderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fileId: number) => api<void>(`/work-orders/${workOrderId}/files/${fileId}`, { method: "DELETE" }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["workOrders", "files", workOrderId] }),
+  });
+}
+
+/** An aircraft's meter log (Murray spec section 4): recorded readings beside close-outs. */
+export function useMeterLog(resourceId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["resources", "meters", resourceId],
+    queryFn: () => api<MeterLog>(`/resources/${resourceId}/meters`),
+    // Photo links are signed for 15 minutes.
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+    ...opts,
+    enabled: (opts?.enabled ?? true) && resourceId != null,
+  });
+}
+
+/**
+ * Record a reading. A 409 (`METER_LOWER`, `MAINTENANCE_TRIGGER`) is thrown for the caller to
+ * confirm and send again with the matching flag. The photo uploads after the row exists.
+ */
+export function useRecordMeterReading(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      hobbsTime: number | null;
+      tachTime: number | null;
+      readAt?: string | null;
+      note?: string | null;
+      photo?: File | null;
+      confirmLower?: boolean;
+      /** The meter was replaced: carries the airframe's total time forward from the new one. */
+      meterReplaced?: boolean;
+      confirmMaintenanceTrigger?: boolean;
+    }) => {
+      const { photo, ...body } = input;
+      const res = await apiRaw<{ data: MeterLogEntry; appliedToAircraft?: boolean; signedUrlData?: PresignedPost[] }>(`/resources/${resourceId}/meters`, {
+        method: "POST",
+        body: { ...body, fileName: photo?.name ?? null },
+      });
+      const uploadError = photo ? await uploadSquawkAttachments(res.signedUrlData, [photo]) : null;
+      // The reading row points at the photo before the bytes arrive: one that never did is
+      // taken off, so the log never shows a link to nothing.
+      if (uploadError) await api<void>(`/resources/${resourceId}/meters/${res.data.id}/photo`, { method: "DELETE" }).catch(() => undefined);
+      return { data: res.data, appliedToAircraft: res.appliedToAircraft !== false, uploadError };
+    },
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["resources"] });
+      void qc.invalidateQueries({ queryKey: ["resource"] });
+      void qc.invalidateQueries({ queryKey: ["reminders"] });
+    },
+  });
+}
+
+// ── The owner's side of the shop ─────────────────────────────────────────────────────────
+
+/** The aircraft the signed-in member owns here (empty for nearly everybody). */
+export function useOwnerAircraft(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["owner", "aircraft"],
+    queryFn: () => api<OwnerAircraft[]>("/owner/aircraft"),
+    staleTime: 60_000,
+    ...opts,
+  });
+}
+
+export function useOwnerAircraftDetail(resourceId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["owner", "aircraft", resourceId],
+    queryFn: () => api<OwnerAircraftDetail>(`/owner/aircraft/${resourceId}`),
+    ...opts,
+    enabled: (opts?.enabled ?? true) && resourceId != null,
+  });
+}
+
+export function useOwnerJob(workOrderId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["owner", "job", workOrderId],
+    queryFn: () => api<OwnerJob>(`/owner/work-orders/${workOrderId}`),
+    // File links are signed for 15 minutes.
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+    ...opts,
+    enabled: (opts?.enabled ?? true) && workOrderId != null,
+  });
+}
+
+/** The owner asks for work: a Requested job on the shop's board. */
+export function useRequestWork(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { request: string; wantedBy?: string | null }) =>
+      api<{ id: number; label: string }>(`/owner/aircraft/${resourceId}/requests`, { method: "POST", body: input }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["owner"] }),
+  });
+}
+
+/**
+ * The owner answers the shop's found items, each naming the send it answers (`askedAt`, from the
+ * job): a finding reworded since is refused with a 409, and the job is read again either way.
+ */
+export function useAnswerItems(workOrderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (decisions: { itemId: number; decision: "approved" | "declined" | "deferred"; askedAt: string | null }[]) =>
+      api<unknown>(`/owner/work-orders/${workOrderId}/answers`, { method: "POST", body: { decisions } }),
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["owner"] }),
+  });
+}
+
+/** The owner records a customer aircraft's times (the meter log's 409s are thrown to confirm). */
+export function useOwnerRecordTimes(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { hobbsTime: number | null; tachTime: number | null; readAt?: string | null; note?: string | null; photo?: File | null; confirmLower?: boolean; meterReplaced?: boolean; confirmMaintenanceTrigger?: boolean }) => {
+      const { photo, ...body } = input;
+      const res = await apiRaw<{ data: MeterLogEntry; appliedToAircraft?: boolean; signedUrlData?: PresignedPost[] }>(`/owner/aircraft/${resourceId}/meters`, {
+        method: "POST",
+        body: { ...body, fileName: photo?.name ?? null },
+      });
+      const uploadError = photo ? await uploadSquawkAttachments(res.signedUrlData, [photo]) : null;
+      return { data: res.data, appliedToAircraft: res.appliedToAircraft !== false, uploadError };
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["owner"] }),
+  });
+}
+
+/** The owner attaches photos or documents to their job, shown to both sides. */
+export function useOwnerAttach(workOrderId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (files: File[]) => {
+      const res = await apiRaw<{ data: WorkOrderFile[]; signedUrlData?: PresignedPost[] }>(`/owner/work-orders/${workOrderId}/files`, {
+        method: "POST",
+        body: { fileNames: files.map((f) => f.name) },
+      });
+      const uploadError = await uploadSquawkAttachments(res.signedUrlData, files);
+      return { uploadError };
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: ["owner", "job", workOrderId] }),
   });
 }

@@ -36,6 +36,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatTimeInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { cn } from "@/lib/utils";
+import { useBookingJob } from "@/components/maintenance/maintenance-job-field";
+import { WorkspaceUserAvatars } from "@/components/workspace-user-avatar";
 
 /**
  * One booking, in full.
@@ -276,6 +278,9 @@ function ReservationBody({ reservation: r }: { reservation: Reservation }) {
                   {res ? `${res.name}` : "Unassigned"}
                 </KeyValue>
                 {locationName && <KeyValue label="Location">{locationName}</KeyValue>}
+                {r.type === "maintenance" ? (
+                  <BookingJobValue bookingId={r.id} />
+                ) : (
                 <KeyValue label="Personnel">
                   {people.length > 0 ? (
                     <ul className="space-y-0.5">
@@ -300,6 +305,7 @@ function ReservationBody({ reservation: r }: { reservation: Reservation }) {
                     <span className="font-normal text-muted-foreground">No one assigned</span>
                   )}
                 </KeyValue>
+                )}
               </KeyValueList>
 
               {/* Renders nothing at all unless the location is geocoded AND a lookup came
@@ -344,5 +350,33 @@ function PageFrame({ children }: { children: React.ReactNode }) {
       <DetailBack to="/schedule" label="Schedule" />
       {children}
     </div>
+  );
+}
+
+/**
+ * A maintenance booking seats nobody: the job it holds says who is on it and what is being done.
+ * Only for the people who may see jobs; anyone else sees the booking alone.
+ */
+function BookingJobValue({ bookingId }: { bookingId: number }) {
+  const held = useBookingJob(bookingId);
+  if (!held.allowed) return null;
+  return (
+    <KeyValue label="Work order">
+      {held.job ? (
+        <span className="inline-flex flex-wrap items-center justify-end gap-2">
+          <Link
+            to="/maintenance/work-orders/$workOrderId"
+            params={{ workOrderId: String(held.job.id) }}
+            className="underline-offset-2 hover:underline"
+          >
+            {held.job.label}
+          </Link>
+          <span className="font-normal text-muted-foreground">{held.job.statusLabel}</span>
+          {held.job.technicians.length > 0 && <WorkspaceUserAvatars people={held.job.technicians} />}
+        </span>
+      ) : (
+        <span className="font-normal text-muted-foreground">{held.loading ? "Loading…" : "None"}</span>
+      )}
+    </KeyValue>
   );
 }

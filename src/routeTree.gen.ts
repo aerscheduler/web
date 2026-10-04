@@ -61,8 +61,12 @@ import { Route as AuthedTrainingCourseIdRouteImport } from './routes/_authed/tra
 import { Route as BookOrgSlugOfferingSlugRouteImport } from './routes/book.$orgSlug.$offeringSlug'
 import { Route as AuthedComplianceRulesCurrencyTypeIdRouteImport } from './routes/_authed/compliance_.rules.$currencyTypeId'
 import { Route as AuthedDeveloperOrganizationsOrgIdRouteImport } from './routes/_authed/developer_.organizations.$orgId'
+import { Route as AuthedMaintenanceInspectionsInspectionIdRouteImport } from './routes/_authed/maintenance_.inspections.$inspectionId'
 import { Route as AuthedMaintenanceSquawksSquawkIdRouteImport } from './routes/_authed/maintenance_.squawks.$squawkId'
 import { Route as AuthedMaintenanceWorkOrdersWorkOrderIdRouteImport } from './routes/_authed/maintenance_.work-orders.$workOrderId'
+import { Route as AuthedMeAircraftIndexRouteImport } from './routes/_authed/me/aircraft.index'
+import { Route as AuthedMeAircraftResourceIdRouteImport } from './routes/_authed/me/aircraft.$resourceId'
+import { Route as AuthedMeJobsWorkOrderIdRouteImport } from './routes/_authed/me/jobs.$workOrderId'
 import { Route as AuthedScheduleReservationsReservationIdRouteImport } from './routes/_authed/schedule_.reservations.$reservationId'
 import { Route as AuthedSettingsIntegrationsQuickbooksRouteImport } from './routes/_authed/settings/integrations/quickbooks'
 import { Route as AuthedTrainingEnrollmentsEnrollmentIdRouteImport } from './routes/_authed/training_.enrollments.$enrollmentId'
@@ -334,6 +338,12 @@ const AuthedDeveloperOrganizationsOrgIdRoute =
     path: '/developer/organizations/$orgId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedMaintenanceInspectionsInspectionIdRoute =
+  AuthedMaintenanceInspectionsInspectionIdRouteImport.update({
+    id: '/maintenance_/inspections/$inspectionId',
+    path: '/maintenance/inspections/$inspectionId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedMaintenanceSquawksSquawkIdRoute =
   AuthedMaintenanceSquawksSquawkIdRouteImport.update({
     id: '/maintenance_/squawks/$squawkId',
@@ -346,6 +356,22 @@ const AuthedMaintenanceWorkOrdersWorkOrderIdRoute =
     path: '/maintenance/work-orders/$workOrderId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedMeAircraftIndexRoute = AuthedMeAircraftIndexRouteImport.update({
+  id: '/me/aircraft/',
+  path: '/me/aircraft/',
+  getParentRoute: () => AuthedRoute,
+} as any)
+const AuthedMeAircraftResourceIdRoute =
+  AuthedMeAircraftResourceIdRouteImport.update({
+    id: '/me/aircraft/$resourceId',
+    path: '/me/aircraft/$resourceId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
+const AuthedMeJobsWorkOrderIdRoute = AuthedMeJobsWorkOrderIdRouteImport.update({
+  id: '/me/jobs/$workOrderId',
+  path: '/me/jobs/$workOrderId',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedScheduleReservationsReservationIdRoute =
   AuthedScheduleReservationsReservationIdRouteImport.update({
     id: '/schedule_/reservations/$reservationId',
@@ -417,11 +443,15 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthedSettingsIndexRoute
   '/compliance/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
   '/developer/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
+  '/maintenance/inspections/$inspectionId': typeof AuthedMaintenanceInspectionsInspectionIdRoute
   '/maintenance/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/maintenance/work-orders/$workOrderId': typeof AuthedMaintenanceWorkOrdersWorkOrderIdRoute
+  '/me/aircraft/$resourceId': typeof AuthedMeAircraftResourceIdRoute
+  '/me/jobs/$workOrderId': typeof AuthedMeJobsWorkOrderIdRoute
   '/schedule/reservations/$reservationId': typeof AuthedScheduleReservationsReservationIdRoute
   '/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
   '/training/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
+  '/me/aircraft/': typeof AuthedMeAircraftIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -475,11 +505,15 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthedSettingsIndexRoute
   '/compliance/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
   '/developer/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
+  '/maintenance/inspections/$inspectionId': typeof AuthedMaintenanceInspectionsInspectionIdRoute
   '/maintenance/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/maintenance/work-orders/$workOrderId': typeof AuthedMaintenanceWorkOrdersWorkOrderIdRoute
+  '/me/aircraft/$resourceId': typeof AuthedMeAircraftResourceIdRoute
+  '/me/jobs/$workOrderId': typeof AuthedMeJobsWorkOrderIdRoute
   '/schedule/reservations/$reservationId': typeof AuthedScheduleReservationsReservationIdRoute
   '/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
   '/training/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
+  '/me/aircraft': typeof AuthedMeAircraftIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -535,11 +569,15 @@ export interface FileRoutesById {
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/compliance_/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
   '/_authed/developer_/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
+  '/_authed/maintenance_/inspections/$inspectionId': typeof AuthedMaintenanceInspectionsInspectionIdRoute
   '/_authed/maintenance_/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/_authed/maintenance_/work-orders/$workOrderId': typeof AuthedMaintenanceWorkOrdersWorkOrderIdRoute
+  '/_authed/me/aircraft/$resourceId': typeof AuthedMeAircraftResourceIdRoute
+  '/_authed/me/jobs/$workOrderId': typeof AuthedMeJobsWorkOrderIdRoute
   '/_authed/schedule_/reservations/$reservationId': typeof AuthedScheduleReservationsReservationIdRoute
   '/_authed/settings/integrations/quickbooks': typeof AuthedSettingsIntegrationsQuickbooksRoute
   '/_authed/training_/enrollments/$enrollmentId': typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
+  '/_authed/me/aircraft/': typeof AuthedMeAircraftIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -595,11 +633,15 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/compliance/rules/$currencyTypeId'
     | '/developer/organizations/$orgId'
+    | '/maintenance/inspections/$inspectionId'
     | '/maintenance/squawks/$squawkId'
     | '/maintenance/work-orders/$workOrderId'
+    | '/me/aircraft/$resourceId'
+    | '/me/jobs/$workOrderId'
     | '/schedule/reservations/$reservationId'
     | '/settings/integrations/quickbooks'
     | '/training/enrollments/$enrollmentId'
+    | '/me/aircraft/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -653,11 +695,15 @@ export interface FileRouteTypes {
     | '/settings'
     | '/compliance/rules/$currencyTypeId'
     | '/developer/organizations/$orgId'
+    | '/maintenance/inspections/$inspectionId'
     | '/maintenance/squawks/$squawkId'
     | '/maintenance/work-orders/$workOrderId'
+    | '/me/aircraft/$resourceId'
+    | '/me/jobs/$workOrderId'
     | '/schedule/reservations/$reservationId'
     | '/settings/integrations/quickbooks'
     | '/training/enrollments/$enrollmentId'
+    | '/me/aircraft'
   id:
     | '__root__'
     | '/'
@@ -712,11 +758,15 @@ export interface FileRouteTypes {
     | '/_authed/settings/'
     | '/_authed/compliance_/rules/$currencyTypeId'
     | '/_authed/developer_/organizations/$orgId'
+    | '/_authed/maintenance_/inspections/$inspectionId'
     | '/_authed/maintenance_/squawks/$squawkId'
     | '/_authed/maintenance_/work-orders/$workOrderId'
+    | '/_authed/me/aircraft/$resourceId'
+    | '/_authed/me/jobs/$workOrderId'
     | '/_authed/schedule_/reservations/$reservationId'
     | '/_authed/settings/integrations/quickbooks'
     | '/_authed/training_/enrollments/$enrollmentId'
+    | '/_authed/me/aircraft/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1102,6 +1152,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDeveloperOrganizationsOrgIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/maintenance_/inspections/$inspectionId': {
+      id: '/_authed/maintenance_/inspections/$inspectionId'
+      path: '/maintenance/inspections/$inspectionId'
+      fullPath: '/maintenance/inspections/$inspectionId'
+      preLoaderRoute: typeof AuthedMaintenanceInspectionsInspectionIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/maintenance_/squawks/$squawkId': {
       id: '/_authed/maintenance_/squawks/$squawkId'
       path: '/maintenance/squawks/$squawkId'
@@ -1114,6 +1171,27 @@ declare module '@tanstack/react-router' {
       path: '/maintenance/work-orders/$workOrderId'
       fullPath: '/maintenance/work-orders/$workOrderId'
       preLoaderRoute: typeof AuthedMaintenanceWorkOrdersWorkOrderIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/me/aircraft/': {
+      id: '/_authed/me/aircraft/'
+      path: '/me/aircraft'
+      fullPath: '/me/aircraft/'
+      preLoaderRoute: typeof AuthedMeAircraftIndexRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/me/aircraft/$resourceId': {
+      id: '/_authed/me/aircraft/$resourceId'
+      path: '/me/aircraft/$resourceId'
+      fullPath: '/me/aircraft/$resourceId'
+      preLoaderRoute: typeof AuthedMeAircraftResourceIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
+    '/_authed/me/jobs/$workOrderId': {
+      id: '/_authed/me/jobs/$workOrderId'
+      path: '/me/jobs/$workOrderId'
+      fullPath: '/me/jobs/$workOrderId'
+      preLoaderRoute: typeof AuthedMeJobsWorkOrderIdRouteImport
       parentRoute: typeof AuthedRoute
     }
     '/_authed/schedule_/reservations/$reservationId': {
@@ -1179,11 +1257,15 @@ interface AuthedRouteChildren {
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedComplianceRulesCurrencyTypeIdRoute: typeof AuthedComplianceRulesCurrencyTypeIdRoute
   AuthedDeveloperOrganizationsOrgIdRoute: typeof AuthedDeveloperOrganizationsOrgIdRoute
+  AuthedMaintenanceInspectionsInspectionIdRoute: typeof AuthedMaintenanceInspectionsInspectionIdRoute
   AuthedMaintenanceSquawksSquawkIdRoute: typeof AuthedMaintenanceSquawksSquawkIdRoute
   AuthedMaintenanceWorkOrdersWorkOrderIdRoute: typeof AuthedMaintenanceWorkOrdersWorkOrderIdRoute
+  AuthedMeAircraftResourceIdRoute: typeof AuthedMeAircraftResourceIdRoute
+  AuthedMeJobsWorkOrderIdRoute: typeof AuthedMeJobsWorkOrderIdRoute
   AuthedScheduleReservationsReservationIdRoute: typeof AuthedScheduleReservationsReservationIdRoute
   AuthedSettingsIntegrationsQuickbooksRoute: typeof AuthedSettingsIntegrationsQuickbooksRoute
   AuthedTrainingEnrollmentsEnrollmentIdRoute: typeof AuthedTrainingEnrollmentsEnrollmentIdRoute
+  AuthedMeAircraftIndexRoute: typeof AuthedMeAircraftIndexRoute
 }
 
 const AuthedRouteChildren: AuthedRouteChildren = {
@@ -1227,15 +1309,20 @@ const AuthedRouteChildren: AuthedRouteChildren = {
     AuthedComplianceRulesCurrencyTypeIdRoute,
   AuthedDeveloperOrganizationsOrgIdRoute:
     AuthedDeveloperOrganizationsOrgIdRoute,
+  AuthedMaintenanceInspectionsInspectionIdRoute:
+    AuthedMaintenanceInspectionsInspectionIdRoute,
   AuthedMaintenanceSquawksSquawkIdRoute: AuthedMaintenanceSquawksSquawkIdRoute,
   AuthedMaintenanceWorkOrdersWorkOrderIdRoute:
     AuthedMaintenanceWorkOrdersWorkOrderIdRoute,
+  AuthedMeAircraftResourceIdRoute: AuthedMeAircraftResourceIdRoute,
+  AuthedMeJobsWorkOrderIdRoute: AuthedMeJobsWorkOrderIdRoute,
   AuthedScheduleReservationsReservationIdRoute:
     AuthedScheduleReservationsReservationIdRoute,
   AuthedSettingsIntegrationsQuickbooksRoute:
     AuthedSettingsIntegrationsQuickbooksRoute,
   AuthedTrainingEnrollmentsEnrollmentIdRoute:
     AuthedTrainingEnrollmentsEnrollmentIdRoute,
+  AuthedMeAircraftIndexRoute: AuthedMeAircraftIndexRoute,
 }
 
 const AuthedRouteWithChildren =

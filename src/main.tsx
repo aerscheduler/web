@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { startBackTrail } from "@/lib/back-trail";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { routeTree } from "./routeTree.gen";
 import { queryClient } from "./lib/query";
@@ -84,6 +85,9 @@ router.subscribe("onResolved", ({ toLocation }) => {
   trackFilters(toLocation.pathname, search);
   startDwell(toLocation.pathname);
 });
+
+// Where each record page's Back goes: the console page you came from (lib/back-trail).
+startBackTrail(router);
 
 declare module "@tanstack/react-router" {
   interface Register {

@@ -216,6 +216,11 @@ export function ReportView({
 
   const navigate = useNavigate();
   const openRow = (row: ReportRow) => {
+    // A job has no panel; its page is the workspace.
+    if (typeof row.workOrderId === "number" && typeof row.invoiceId !== "number" && typeof row.reservationId !== "number") {
+      void navigate({ to: "/maintenance/work-orders/$workOrderId", params: { workOrderId: String(row.workOrderId) } });
+      return;
+    }
     if (typeof row.invoiceId === "number") {
       setReservationId(null);
       setInvoiceId(row.invoiceId);

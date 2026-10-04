@@ -167,10 +167,10 @@ test("the desk adds what the owner asked for and what was found, and records the
     await expect(dlg).toBeHidden();
     await expect(work.getByText(text)).toBeVisible();
   };
-  await addItem(/owner asked for/, "E2E-Adjust left brake");
-  await addItem(/shop found/, "E2E-Cracked exhaust stack");
-  await addItem(/shop found/, "E2E-Faded paint on the cowling");
-  await expect(work.getByText("Owner not asked yet")).toHaveCount(2);
+  await addItem(/Owner.s request/, "E2E-Adjust left brake");
+  await addItem(/^Finding/, "E2E-Cracked exhaust stack");
+  await addItem(/^Finding/, "E2E-Faded paint on the cowling");
+  await expect(work.getByText("Not sent yet")).toHaveCount(2);
 
   // The call: approve the exhaust, defer the paint.
   await work.getByRole("button", { name: "Record owner's answer" }).click();
@@ -232,9 +232,9 @@ test("the stage moves on the job page, and the aircraft's chip follows the job",
   await page.reload();
   await expect(page.getByText("Not in the shop").first()).toBeVisible();
 
-  // The job is on the aircraft's own Work orders tab, under past jobs.
+  // The job is on the aircraft's own Work orders tab, in its Finished group.
   await page.goto(`/aircraft/${resourceId}?tab=work-orders`);
-  await expect(page.getByText("Past jobs")).toBeVisible();
+  await expect(page.locator('[role="row"][aria-level="1"]', { hasText: /^Finished/ })).toBeVisible();
   await expect(page.locator('[data-doc-shot="aircraft-work-orders"]').getByText(/WO-\d+/).first()).toBeVisible();
 });
 
@@ -406,6 +406,34 @@ test("the desk adds labor and a part priced from the shop's rates, and sees the 
   expect(techRaise.status()).toBe(403);
 });
 
+test("the invoice preview names a priced finding never sent to the owner, and waits for the desk to tick it (C6)", async ({ page, request }) => {
+  const made = await request.post(`${base()}/work-orders`, { headers: owner, data: { resourceId, status: "in_progress", complaint: "E2E-Oil change" } });
+  expect(made.status(), await made.text()).toBe(201);
+  const job = (await made.json()).data;
+  jobIds.push(job.id);
+  const found = await unwrap(await request.post(`${base()}/work-orders/${job.id}/items`, { headers: owner, data: { source: "found", description: "E2E-Chafed alternator wire" } }));
+  await request.post(`${base()}/work-orders/${job.id}/lines`, { headers: owner, data: { category: "part", description: "E2E-Wire and terminals", unitPriceCents: 5500, itemId: found.id } });
+
+  // The server refuses the bill until the desk says it means to charge for it. Refused before
+  // Stripe is asked anything, so this stack can check it.
+  const refused = await request.post(`${base()}/work-orders/${job.id}/invoice`, { headers: owner, data: {} });
+  expect(refused.status()).toBe(409);
+  expect((await refused.json()).message).toBe("1 finding with charges was never sent to the owner. Send it, record the owner's answer, mark it done, or take its lines off.");
+
+  await page.goto(`/maintenance/work-orders/${job.id}`);
+  await settled(page, '[data-doc-shot="work-order-work"]');
+  await page.locator('[data-doc-shot="work-order-work"]').getByRole("button", { name: "Raise invoice" }).click();
+  const raise = page.getByRole("dialog").filter({ hasText: `Invoice ${OWNER_NAME}` });
+  const notTold = raise.getByTestId("invoice-not-told");
+  await expect(notTold).toContainText("E2E-Chafed alternator wire");
+  await expect(notTold).toContainText("$55.00");
+  const button = raise.getByRole("button", { name: /^Raise .* invoice$/ });
+  await expect(button).toBeDisabled();
+  await notTold.getByRole("checkbox").click();
+  await expect(button).toBeEnabled();
+  await raise.getByRole("button", { name: "Cancel" }).click();
+});
+
 test("the job links the maintenance booking holding its hangar slot", async ({ page, request }) => {
   const start = new Date(Date.now() + 6 * 864e5);
   start.setUTCMinutes(0, 0, 0);
@@ -421,13 +449,62 @@ test("the job links the maintenance booking holding its hangar slot", async ({ p
   const id = jobIds[jobIds.length - 1];
   await page.goto(`/maintenance/work-orders/${id}`);
   await settled(page, '[data-doc-shot="work-order-details"]');
-  // The hangar slot is changed where it is shown, and saved as it is picked.
-  await page.getByRole("button", { name: "Change the hangar slot" }).click();
-  await page.getByRole("option").filter({ hasNotText: "None" }).first().click();
+  // The booking is changed where it is shown, and saved as it is picked.
+  await page.getByRole("button", { name: "Change the booking" }).click();
+  await page.getByRole("option").filter({ hasNotText: "Not booked" }).first().click();
   await expect.poll(async () => (await unwrap(await request.get(`${base()}/work-orders/${id}`, { headers: owner }))).booking?.id).toBe(booking.id);
-  await expect(page.getByRole("button", { name: "Change the hangar slot" })).not.toContainText("None");
+  await expect(page.getByRole("button", { name: "Change the booking" })).not.toContainText("Not booked");
 });
 
+
+test("a maintenance booking opens its work order with technicians, and the booking shows the job", async ({ page, request }) => {
+  const start = new Date(Date.now() + 9 * 864e5);
+  start.setUTCMinutes(0, 0, 0);
+  const end = new Date(start.getTime() + 3 * 36e5);
+  const made = await request.post(`${base()}/reservations`, {
+    headers: owner,
+    data: { type: "maintenance", resource: { id: resourceId }, start: start.toISOString(), end: end.toISOString(), title: "E2E-Annual drop-off", notes: "E2E-Annual and the nav light" },
+  });
+  expect(made.status(), await made.text()).toBe(201);
+  const booking = (await made.json()).data;
+  bookingIds.push(booking.id);
+  const techs = (await unwrap(await request.get(`${base()}/orgUsers`, { headers: owner }))) as { id: number; external?: boolean; technicianRole?: unknown; user?: { name?: string } }[];
+  const tech = techs.find((m) => !m.external && m.technicianRole && m.user?.name)!;
+
+  // Edit the booking: link a new work order with a technician.
+  await page.goto(`/schedule/reservations/${booking.id}`);
+  await settled(page, "h1");
+  await page.getByRole("button", { name: /Edit reservation/ }).click();
+  // The cookie banner is a dialog too: this is the one with the form's Save.
+  const form = page.getByRole("dialog").filter({ hasText: "Save changes" });
+  await form.locator("#res-work-order").click();
+  await page.getByRole("option", { name: "Open a new work order" }).click();
+  await form.getByRole("combobox").filter({ hasText: "Who is doing the work" }).click();
+  await page.getByRole("option", { name: tech.user!.name! }).click();
+  await page.keyboard.press("Escape");
+  await form.getByRole("button", { name: "Save changes" }).click();
+
+  // The job exists, holds the booking, has the technician and the booking's notes as its request.
+  await expect.poll(async () => ((await unwrap(await request.get(`${base()}/work-orders?state=all&reservationId=${booking.id}`, { headers: owner }))) as unknown[]).length, { timeout: 15_000 }).toBe(1);
+  const [job] = (await unwrap(await request.get(`${base()}/work-orders?state=all&reservationId=${booking.id}`, { headers: owner }))) as { id: number; label: string; status: string; complaint: string | null; technicians: { id: number }[] }[];
+  jobIds.push(job.id);
+  await expect(form).toBeHidden({ timeout: 20_000 });
+  expect(job).toMatchObject({ status: "scheduled", complaint: "E2E-Annual and the nav light" });
+  expect(job.technicians.map((t) => t.id)).toEqual([tech.id]);
+
+  // The booking's page shows the job where the people would be.
+  await page.reload();
+  await expect(page.getByRole("link", { name: job.label })).toBeVisible({ timeout: 30_000 });
+
+  // Editing the booking again and saving it untouched keeps the job on it: the form opens on
+  // the job it holds, not on "No work order", which would have saved as an unlink.
+  await page.getByRole("button", { name: /Edit reservation/ }).click();
+  await expect(form.locator("#res-work-order")).toContainText(job.label);
+  await form.getByRole("button", { name: "Save changes" }).click();
+  await expect(form).toBeHidden({ timeout: 20_000 });
+  const still = (await unwrap(await request.get(`${base()}/work-orders?state=all&reservationId=${booking.id}`, { headers: owner }))) as { id: number }[];
+  expect(still.map((j) => j.id)).toEqual([job.id]);
+});
 
 test.describe("as a technician", () => {
   test.use({ storageState: ".auth/technician.json" });

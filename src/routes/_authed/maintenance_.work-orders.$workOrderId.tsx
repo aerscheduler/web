@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { CalendarClock, MoreHorizontal, PlaneTakeoff, Trash2, User, Wrench } from "lucide-react";
-import { useDeleteWorkOrder, useResource, useUpdateWorkOrder, useWorkOrder } from "@/features/queries";
+import { useDeleteWorkOrder, useResource, useUpdateWorkOrder, useWorkOrder, useWorkOrderItems } from "@/features/queries";
 import { hasActiveOrg, rolesFromSession, useAuth } from "@/lib/auth";
 import { canAccess, canManageBilling, canOpenWorkOrders, guardRoute, isAdmin } from "@/lib/permissions";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -23,7 +23,9 @@ import {
 } from "@/lib/work-orders";
 import { EditableTextCard, WorkOrderDetailsCard } from "@/components/maintenance/work-order-properties";
 import { WorkOrderAnswersCard } from "@/components/maintenance/work-order-work";
+import { WorkOrderFilesCard } from "@/components/maintenance/work-order-files";
 import { WorkOrderWorkTable } from "@/components/maintenance/work-order-work-table";
+import { OwnerNoticesHold } from "@/components/maintenance/owner-notices-hold";
 import {
   CardEmpty,
   DetailBack,
@@ -58,6 +60,9 @@ export const Route = createFileRoute("/_authed/maintenance_/work-orders/$workOrd
     // Maintenance is open to a dispatcher; the jobs are not. Back to the aircraft list.
     if (hasActiveOrg() && !canOpenWorkOrders(rolesFromSession())) throw redirect({ to: "/maintenance" });
   },
+  //`?tour=true`: the first-job walkthrough, which a shop lands on at the end of setup.
+  validateSearch: (search: Record<string, unknown>): { tour?: true } =>
+    search.tour === true || search.tour === "true" || search.tour === 1 || search.tour === "1" ? { tour: true } : {},
   component: WorkOrderPage,
 });
 
@@ -109,6 +114,7 @@ function WorkOrderPage() {
 }
 
 function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
+  const { tour } = Route.useSearch();
   const update = useUpdateWorkOrder();
   const remove = useDeleteWorkOrder();
   const confirm = useConfirm();
@@ -137,8 +143,32 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
   const aircraft = workOrderAircraftName(w);
   useDetailTitle(`${w.label} · ${aircraft}`);
 
+  // The job's work, read from the same cache the list below fills.
+  const itemsQ = useWorkOrderItems(w.id);
+
   async function moveTo(status: WorkOrderStatus) {
     if (status === w.status) return;
+    // Finishing a job with an inspection on it still open (not declined or put off) asks first:
+    // while the job is open the owner hears nothing about that inspection, and once it is
+    // finished they start getting its reminders (C9).
+    if (status === "completed" || status === "ready") {
+      const open = (itemsQ.data ?? []).filter((i) => i.inspection && !i.inspection.signedOff && i.decision !== "declined" && i.decision !== "deferred");
+      if (open.length) {
+        const names = open.map((i) => i.inspection?.name ?? i.description);
+        const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+        const one = names.length === 1;
+        const ok = await confirm({
+          title: `${list} ${one ? "is" : "are"} not signed off`,
+          description:
+            w.aircraft.use === "shop"
+              ? `Sign ${one ? "it" : "them"} off first, or the owner will start getting reminders about ${one ? "it" : "them"}.`
+              : `Sign ${one ? "it" : "them"} off first, or ${one ? "it stays" : "they stay"} due on the aircraft.`,
+          confirmLabel: status === "completed" ? "Complete anyway" : "Mark ready anyway",
+          cancelLabel: "Go back",
+        });
+        if (!ok) return;
+      }
+    }
     try {
       const next = await update.mutateAsync({ id: w.id, status });
       // Arrived with no meters in recorded: ask for them now, filled in from the aircraft, the
@@ -261,17 +291,22 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
           it is given and scrolls its rows, and the right-hand column scrolls on its own. Narrower,
           the two stack and the page scrolls as usual. */}
       <TableView.Body className="lg:flex lg:flex-col lg:overflow-hidden">
+        <OwnerNoticesHold workOrder={w} />
         <div className="grid gap-4 pb-8 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_320px] lg:pb-0">
           <div className="flex min-w-0 flex-col lg:min-h-0">
-            <WorkOrderWorkTable workOrder={w} />
+            <WorkOrderWorkTable
+              workOrder={w}
+              guide={tour ? { onClose: () => void navigate({ to: ".", search: {}, replace: true }) } : undefined}
+            />
           </div>
 
           <div className="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pr-1">
             <WorkOrderDetailsCard workOrder={w} metersPrompt={askMeters} onMetersPromptClose={() => setAskMeters(null)} />
 
+            {/* The organization's own aircraft has no owner asking for the work (L15). */}
             <EditableTextCard
-              title="What the owner asked for"
-              description="In their words."
+              title={w.aircraft.use === "shop" ? "What the owner asked for" : "The request"}
+              description={w.aircraft.use === "shop" ? "In their words." : "What the aircraft is in for."}
               docShot="work-order-request"
               docs="run-a-work-order"
               value={w.complaint}
@@ -281,14 +316,17 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
               onSave={(v) => saveField({ complaint: v })}
             />
 
-            <WorkOrderAnswersCard workOrder={w} />
+            {/* The owner's answers are a customer's aircraft's: the organization decides its own. */}
+            {w.aircraft.use === "shop" && <WorkOrderAnswersCard workOrder={w} />}
+
+            <WorkOrderFilesCard workOrder={w} />
 
             <EditableTextCard
-              title="Notes for the owner"
+              title={w.aircraft.use === "shop" ? "Notes for the owner" : "Notes for the invoice"}
               description="Printed on the invoice under the work completed."
               value={w.customerNotes}
               emptyText="None yet."
-              placeholder="What the owner should know: parts on order, what to watch for."
+              placeholder={w.aircraft.use === "shop" ? "What the owner should know: parts on order, what to watch for." : "Parts on order, what to watch for."}
               maxLength={4000}
               onSave={(v) => saveField({ customerNotes: v })}
             />
@@ -298,7 +336,7 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
               description="For the shop only."
               value={w.internalNotes}
               emptyText="None yet."
-              placeholder="Purchase orders, reminders, anything the owner should not see."
+              placeholder={w.aircraft.use === "shop" ? "Purchase orders, reminders, anything the owner should not see." : "Purchase orders, reminders."}
               maxLength={4000}
               onSave={(v) => saveField({ internalNotes: v })}
             />

@@ -1,12 +1,11 @@
 import * as React from "react";
 import { addDays, addMonths, endOfWeek, format, startOfWeek } from "date-fns";
 import { CalendarDays, ChevronLeft, ChevronRight, List } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { civilDateInZone, isCivilToday } from "@/lib/timezone";
+import { isCivilToday } from "@/lib/timezone";
 import { cn } from "@/lib/utils";
 
 export type ScheduleView = "month" | "week" | "day";
@@ -65,13 +64,15 @@ export function ScheduleControls({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center rounded-lg border border-border bg-card">
+      {/* h-8, the height of the Month/Week/Day and Calendar/List switches beside it, border
+          included, so the whole row lines up (Tony, 2026-10-01). */}
+      <div className="flex h-8 items-stretch rounded-md border border-border bg-card">
         <Tooltip>
           <TooltipTrigger asChild>
             <button
               aria-label={`Previous ${NOUN[view]}`}
               onClick={() => onDayChange(stepDate(day, view, -1))}
-              className="grid size-9 place-items-center rounded-l-lg text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="grid w-8 place-items-center rounded-l-md text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <ChevronLeft className="size-4" />
             </button>
@@ -81,10 +82,11 @@ export function ScheduleControls({
 
         <Popover open={calOpen} onOpenChange={setCalOpen}>
           <PopoverTrigger asChild>
-            <button className="flex min-w-40 items-center justify-center gap-1.5 border-x border-border px-3 py-2 text-sm font-medium hover:bg-accent">
+            <button className="flex min-w-40 items-center justify-center gap-1.5 border-x border-border px-3 text-sm font-medium hover:bg-accent">
               <CalendarDays className="size-4 text-muted-foreground" />
               <span>{rangeLabel}</span>
-              {view !== "month" && (
+              {/* No year after "Today", which already says which day it is. */}
+              {view !== "month" && rangeLabel !== "Today" && (
                 <span className="text-muted-foreground">{format(day, "yyyy")}</span>
               )}
             </button>
@@ -107,7 +109,7 @@ export function ScheduleControls({
             <button
               aria-label={`Next ${NOUN[view]}`}
               onClick={() => onDayChange(stepDate(day, view, 1))}
-              className="grid size-9 place-items-center rounded-r-lg text-muted-foreground hover:bg-accent hover:text-foreground"
+              className="grid w-8 place-items-center rounded-r-md text-muted-foreground hover:bg-accent hover:text-foreground"
             >
               <ChevronRight className="size-4" />
             </button>
@@ -115,10 +117,6 @@ export function ScheduleControls({
           <TooltipContent>{`Next ${NOUN[view]}`}</TooltipContent>
         </Tooltip>
       </div>
-
-      <Button variant="outline" size="sm" onClick={() => onDayChange(civilDateInZone(new Date(), zone))}>
-        Today
-      </Button>
 
       <Tabs value={view} onValueChange={(v) => onViewChange(v as ScheduleView)}>
         <TabsList>

@@ -56,6 +56,13 @@ export function SubscriptionGate() {
     );
   }
 
+  // A maintenance shop with no aircraft of its own has nothing on the plan: customer aircraft
+  // are never counted (server utils/fleetPlanes.ts), so the server never pauses it either. A
+  // countdown ending in "$20/mo per aircraft, add your fleet" would be false for it. Shop
+  // pricing is still Tony's decision (see _local/maintenance-shop/MECHANIC-ONBOARDING-AND-
+  // WEBSITE-PLAN.md); once a shop adds a fleet aircraft it gets the ordinary banner.
+  const shopWithoutFleet = organization.organizationType === "maintenance_shop" && status.planeCount === 0;
+
   if (status.blocked) {
     // These two replace the app shell entirely, so the impersonation banner has
     // to come along, a lapsed org is exactly the kind you get asked to look at,
@@ -71,7 +78,7 @@ export function SubscriptionGate() {
 
   return (
     <AppShell>
-      {isAdmin(roles) && status.state !== "active" && !isOffPlan(status) && (
+      {isAdmin(roles) && status.state !== "active" && !isOffPlan(status) && !shopWithoutFleet && (
         <SubscriptionBanner status={status} />
       )}
       <Outlet />

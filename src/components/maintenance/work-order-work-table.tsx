@@ -1,17 +1,20 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
-import { Check, MoreHorizontal, Pencil, Phone, Plus, Receipt, ScanSearch, Trash2, UserRound } from "lucide-react";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { Check, MoreHorizontal, Paperclip, Pencil, Phone, Plus, Receipt, ScanSearch, Send, Trash2, UserRound } from "lucide-react";
 import {
+  useBilling,
   useRecordOwnerAnswer,
   useRemoveWorkOrderItem,
   useRemoveWorkOrderLine,
   useUpdateWorkOrderItem,
+  useWorkOrderFiles,
   useWorkOrderItems,
   useWorkOrderLines,
   useWorkOrderSettings,
 } from "@/features/queries";
+import { sendFindingsToOwner } from "@/features/send-to-owner";
 import type { WorkOrder, WorkOrderItem, WorkOrderLine, WorkOrderLineCategory } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { canManageBilling, canResolveSquawk } from "@/lib/permissions";
@@ -29,6 +32,8 @@ import { RecordOwnerAnswerModal } from "@/components/maintenance/record-owner-an
 import { SignOffLinked } from "@/components/maintenance/work-order-work";
 import { eachLabel, RaiseInvoiceModal } from "@/components/maintenance/work-order-lines";
 import { LINE_KIND_ICON, LINE_KINDS, WorkOrderLineModal } from "@/components/maintenance/work-order-line-modal";
+import { useAttach, useFilePicker } from "@/components/maintenance/work-order-files";
+import { FirstJobGuide, type FirstJobGuideStep } from "@/components/maintenance/first-job-guide";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -54,6 +59,31 @@ const COLUMNS: ListTableColumn[] = [
   { id: "each", header: "Each", width: "6rem", align: "end" },
   { id: "total", header: "Total", width: "6.5rem", align: "end", narrow: "keep" },
 ];
+
+/**
+ * Narrower than this (the job page beside its details card on a 1280 screen), the line names were
+ * squeezed to "E2…" (Tony, 2026-10-01): the list takes its narrow layout, where Who goes under each
+ * line's name and the tags wrap, and the numbers stay columns. Narrower than a phone's
+ * `PHONE_AT`, the numbers fold under the name as well.
+ */
+const FOLD_WHO_AT = 800;
+const PHONE_AT = 600;
+const COLUMNS_FOLD_WHO: ListTableColumn[] = COLUMNS.map((c) => (c.id === "qty" || c.id === "each" ? { ...c, narrow: "keep" } : c));
+
+/** The width of the element `ref` points at, kept current. */
+function useWidth(ref: React.RefObject<HTMLElement | null>): number | null {
+  const [width, setWidth] = React.useState<number | null>(null);
+  React.useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setWidth(el.getBoundingClientRect().width);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref]);
+  return width;
+}
 
 const KIND_ICON = LINE_KIND_ICON;
 
@@ -84,13 +114,30 @@ function lineFacts(l: WorkOrderLine): string {
   return [l.partNumber ? `P/N ${l.partNumber}` : null, l.serialNumber ? `S/N ${l.serialNumber}` : null, l.vendor, priced, l.partStatus].filter(Boolean).join(" · ");
 }
 
-export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
+export function WorkOrderWorkTable({
+  workOrder: w,
+  guide,
+}: {
+  workOrder: WorkOrder;
+  /** The first-job walkthrough (`?tour=true` after a shop's setup), and how to put it away. */
+  guide?: { onClose: () => void };
+}) {
   const itemsQ = useWorkOrderItems(w.id);
   const linesQ = useWorkOrderLines(w.id);
   const settingsQ = useWorkOrderSettings();
   const items = React.useMemo(() => itemsQ.data ?? [], [itemsQ.data]);
   const lines = React.useMemo(() => linesQ.data ?? [], [linesQ.data]);
-  const { roles, orgUserId } = useAuth();
+  // Photos on an item (the crack on its finding): attached from the item's menu, counted on its row.
+  const filesQ = useWorkOrderFiles(w.id);
+  const filesOn = React.useMemo(() => {
+    const m = new Map<number, number>();
+    for (const f of filesQ.data ?? []) if (f.itemId != null) m.set(f.itemId, (m.get(f.itemId) ?? 0) + 1);
+    return m;
+  }, [filesQ.data]);
+  const attachFor = React.useRef<number | null>(null);
+  const { run: attach } = useAttach(w.id);
+  const picker = useFilePicker((files) => void attach(files, attachFor.current));
+  const { roles, orgUserId, user } = useAuth();
   const canInvoice = canManageBilling(roles);
   // Signing off an inspection or resolving a squawk is an admin's or a technician's (the server's
   // rule for both), so nobody is offered a button the server then refuses.
@@ -112,7 +159,32 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
   const confirm = useConfirm();
 
   const subtotal = lines.reduce((sum, l) => sum + l.totalCents, 0);
-  const waiting = items.filter((i) => i.source === "found" && !i.decision).length;
+  // A finding still to be answered is either not sent to the owners yet (the shop's own) or sent
+  // and waiting. Done is done: nothing to ask.
+  const pending = items.filter((i) => i.source === "found" && !i.decision && !i.done);
+  const unsent = pending.filter((i) => !i.sentToOwnerAt);
+  const waiting = pending.length - unsent.length;
+  const [sending, setSending] = React.useState(false);
+  // Owners to ask exist only on a customer's aircraft; the organization decides its own.
+  const customer = w.aircraft.use === "shop";
+  const mayAsk = customer && !frozen && w.closedAt == null;
+  // An answer (the owner's, or the organization's own decision) is recorded only on an open job
+  // with no live invoice: the server refuses it on an invoiced one, whose bill already charges
+  // for the work as it stands (C8).
+  const mayDecide = !frozen && w.closedAt == null;
+  const decisionLocked = frozen ? "Invoiced: void the invoice to change the work." : "Closed: reopen the job to change the work.";
+
+  async function send() {
+    const ok = await confirm({
+      title: `Send ${unsent.length} ${unsent.length === 1 ? "finding" : "findings"} to the owner?`,
+      description: `${unsent.map((i) => i.description).join("; ")}. Every owner of the aircraft is told and asked to approve, decline or put off each one; prices go only to the person billed.`,
+      confirmLabel: "Send",
+    });
+    if (!ok) return;
+    setSending(true);
+    await sendFindingsToOwner(qc, w.id);
+    setSending(false);
+  }
 
   async function toggleDone(item: WorkOrderItem) {
     try {
@@ -123,8 +195,10 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
   }
 
   // The owner's answer for one item, picked from its tag (Linear's status menu). An answer is a
-  // record of a call, so it is recorded as one, from the person billed, now; it shows under
-  // Owner's answers like any other. "Record a call with notes" is there for the full story.
+  // record of a call, so it is recorded as one, from the person billed, now (the server stamps
+  // the time); it shows under Owner's answers like any other. "Record a call with notes" is there
+  // for the full story. On the organization's own aircraft there is no owner to call: it is the
+  // shop's decision, recorded under the name of whoever made it.
   const recordAnswer = useRecordOwnerAnswer();
   const qc = useQueryClient();
   async function decide(item: WorkOrderItem, decision: NonNullable<WorkOrderItem["decision"]>) {
@@ -133,7 +207,15 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
     const before = qc.getQueryData<WorkOrderItem[]>(key);
     if (before) qc.setQueryData<WorkOrderItem[]>(key, before.map((i) => (i.id === item.id ? { ...i, decision } : i)));
     try {
-      await recordAnswer.mutateAsync({ workOrderId: w.id, contactName: w.billTo?.name ?? "The owner", decisions: [{ itemId: item.id, decision }] });
+      const done = await recordAnswer.mutateAsync({
+        workOrderId: w.id,
+        decisions: [{ itemId: item.id, decision }],
+        ...(customer
+          ? { contactName: w.billTo?.name ?? "The owner" }
+          : { contactName: user?.name?.trim() || "The organization", notes: "Decided by the shop" }),
+      });
+      // A later call already answered it: that answer stands, and the desk is told so.
+      if (done.kept.length) toast.warning(`Recorded the call; kept the later answer for ${done.kept.map((k) => k.description).join(", ")}`);
     } catch (e) {
       if (before) qc.setQueryData(key, before);
       toast.error(e instanceof Error ? e.message : "Couldn't record the answer");
@@ -240,10 +322,19 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
       title: item.description,
       tags: (
         <>
-          {(item.decision || item.source === "found") && (
-            <DecisionMenu item={item} onPick={(d) => void decide(item, d)} onFullCall={() => setAnswering(true)} />
-          )}
+          {(item.decision || item.source === "found") &&
+            (mayDecide ? (
+              <DecisionMenu customer={customer} item={item} onPick={(d) => void decide(item, d)} onFullCall={customer ? () => setAnswering(true) : undefined} />
+            ) : (
+              <DecisionTag customer={customer} item={item} locked={decisionLocked} />
+            ))}
           {item.inspection && <ListTag>{item.inspection.name ?? "Inspection"}</ListTag>}
+          {(filesOn.get(item.id) ?? 0) > 0 && (
+            <ListTag>
+              <Paperclip className="size-3" aria-hidden /> {filesOn.get(item.id)}
+              <span className="sr-only"> {filesOn.get(item.id) === 1 ? "file" : "files"}</span>
+            </ListTag>
+          )}
           {item.squawk && <ListTag>Squawk</ListTag>}
           {linked && !item.done && maySignOff && (
             <Button size="sm" variant="outline" className="h-6 px-2 text-[12px]" onClick={() => setSigning(item)}>
@@ -285,6 +376,14 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
                 <Check className="size-4" /> {item.done ? "Mark not done" : "Mark done"}
               </DropdownMenuItem>
             )}
+            <DropdownMenuItem
+              onSelect={() => {
+                attachFor.current = item.id;
+                picker.open();
+              }}
+            >
+              <Paperclip className="size-4" /> Attach a photo or file
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => setEditingItem(item)}>
               <Pencil className="size-4" /> Rename
             </DropdownMenuItem>
@@ -305,12 +404,13 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
   const groups: ListTableGroup[] = [
     {
       id: "requested",
-      label: "Requested by the owner",
+      // The organization's own aircraft has no owner asking: the work is just requested.
+      label: customer ? "Requested by the owner" : "Requested",
       count: requested.length,
       summary: formatMoney(sum(lines.filter((l) => requested.some((i) => i.id === l.itemId)))),
       rows: requested.map(itemRow),
       onAdd: () => setAddingItem("requested"),
-      addLabel: "Add an owner's request",
+      addLabel: customer ? "Add an owner's request" : "Add a request",
     },
     {
       id: "found",
@@ -333,14 +433,17 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
     },
   ];
 
-  // One Add menu, not four buttons (Tony, 2026-09-30): the work first, each with a plain name
-  // and what it means under it, then the kinds of charge. Recording the owner's answer sits by
+  // One Add menu, not four buttons (Tony, 2026-09-30): the work first, then the kinds of
+  // charge, names only (Tony, 2026-10-01, took the explanations off). The hints below are kept
+  // as search words, so typing "markup" still finds Part. Recording the owner's answer sits by
   // the count of findings waiting for it; raising the invoice sits by the total it bills.
   const LINE_HINT: Partial<Record<WorkOrderLineCategory, string>> = {
     labor: "Hours at the shop rate",
     part: "Cost plus the markup",
     outside_service: "Work sent out, cost plus the markup",
   };
+  // The status wraps, and the answer link goes under it, rather than either being cut on a phone
+  // (L14): "1 finding not sent to the own…" was the one thing the line was there to say.
   const toolbar = (
     <>
       <div className="min-w-0 flex-1 basis-48">
@@ -348,15 +451,22 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
           Work and charges
           <DocsHint topic="work-order-lines" />
         </div>
-        <p className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted-foreground">
-          <span className="truncate">
+        <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
+          <span className="min-w-0">
             {frozen
-              ? "Invoiced: these are the bill's lines. Void the invoice to change them."
-              : waiting
-                ? `${waiting} finding${waiting === 1 ? "" : "s"} waiting for the owner's answer.`
-                : "What the owner asked for, what the shop found, and what each one charges."}
+              ? "Invoiced: void the invoice to change the work."
+              : !customer
+                ? // The organization's own aircraft: nothing is sent, the shop decides.
+                  pending.length
+                  ? `${pending.length} finding${pending.length === 1 ? "" : "s"} not decided yet.`
+                  : "The work on the aircraft, and what each item costs."
+                : unsent.length
+                  ? `${unsent.length} finding${unsent.length === 1 ? "" : "s"} not sent to the owner yet.`
+                  : waiting
+                    ? `${waiting} finding${waiting === 1 ? "" : "s"} waiting for the owner's answer.`
+                    : "What the owner asked for, what the shop found, and what each one charges."}
           </span>
-          {items.length > 0 && (
+          {customer && mayDecide && items.length > 0 && (
             <button
               type="button"
               onClick={() => setAnswering(true)}
@@ -367,8 +477,14 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
           )}
         </p>
       </div>
+      {mayAsk && unsent.length > 0 && (
+        <Button size="sm" variant="outline" onClick={() => void send()} disabled={sending}>
+          <Send className="size-4" /> Send to owner
+        </Button>
+      )}
       <AddMenu
         frozen={frozen}
+        customer={customer}
         lineHint={LINE_HINT}
         onItem={(source) => setAddingItem(source)}
         onLine={(kind) => setAddingLine({ kind, itemId: null })}
@@ -377,11 +493,72 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
   );
   const mayRaise = canInvoice && !frozen && !!w.billTo && subtotal > 0 && w.status !== "cancelled";
 
+  // Each step is read from the job (see FirstJobGuide): the buttons open the forms this page
+  // already has, so doing the step from the Add menu ticks it just the same.
+  const billingQ = useBilling({ enabled: !!guide && canInvoice });
+  const navigate = useNavigate();
+  const stripeOn = Boolean(billingQ.data?.stripeEnabled);
+  const firstFound = items.find((i) => i.source === "found");
+  const guideSteps: FirstJobGuideStep[] = [
+    {
+      id: "finding",
+      title: "Write up what you found",
+      body: "Anything beyond what the owner asked for: a worn brake pad, a cracked exhaust stack. Attach a photo from its menu.",
+      done: items.some((i) => i.source === "found"),
+      action: mayAsk ? { label: "Add a finding", onClick: () => setAddingItem("found") } : undefined,
+    },
+    {
+      id: "lines",
+      title: "Add your labor and a part",
+      body: settingsQ.data?.laborRateCents != null
+        ? `Labor fills in at your ${formatMoney(settingsQ.data.laborRateCents)} an hour, and a part at cost plus your markup. The total updates as you go.`
+        : "Labor at your shop rate and a part at cost plus your markup. The total updates as you go.",
+      done: lines.length > 0,
+      action: frozen ? undefined : { label: "Add labor", onClick: () => setAddingLine({ kind: "labor", itemId: firstFound?.id ?? null }) },
+    },
+    {
+      id: "send",
+      title: "Send it to the owner",
+      body: w.billTo?.contactEmail
+        ? `${w.billTo.name ?? "The owner"} gets an email to approve, decline or put off each finding. Prices go only to the person billed.`
+        : "Every owner is emailed to approve, decline or put off each finding. Add an email on the aircraft's Owners panel to reach them.",
+      done: items.some((i) => i.sentToOwnerAt != null),
+      action: mayAsk && unsent.length > 0 ? { label: "Send to owner", onClick: () => void send() } : undefined,
+      waiting: "Write up a finding first.",
+    },
+    {
+      id: "invoice",
+      title: "Raise the invoice",
+      body: "Labor and parts go on one invoice with the WO number, the tail and the meters. The owner pays it by card or ACH.",
+      done: frozen,
+      action:
+        mayRaise && stripeOn
+          ? { label: "Raise invoice", onClick: () => setRaising(true) }
+          : //A new shop has no billing row at all (the settings are created lazily), which is
+            //"not connected", not "unknown": offer the way there rather than a dead sentence.
+            canInvoice && !billingQ.isLoading && !stripeOn
+            ? { label: "Connect billing", onClick: () => void navigate({ to: "/settings", search: { tab: "billing" } as never }) }
+            : undefined,
+      waiting: !canInvoice
+        ? "An admin raises the invoice."
+        : !stripeOn
+          ? "Connect billing first, in Settings, Billing."
+          : !w.billTo
+            ? "Choose who pays under Details."
+            : "Add a priced line first.",
+    },
+  ];
+
   const loading = itemsQ.isLoading || linesQ.isLoading;
   const failed = itemsQ.isError ? itemsQ : linesQ.isError ? linesQ : null;
+  const box = React.useRef<HTMLDivElement>(null);
+  const width = useWidth(box);
+  const phone = width != null && width < PHONE_AT;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2">
+    <div ref={box} className="flex min-h-0 flex-1 flex-col gap-2">
+      {picker.input}
+      {guide && !loading && !failed ? <FirstJobGuide steps={guideSteps} onClose={guide.onClose} /> : null}
       {loading ? (
         <Skeleton className="h-40 w-full rounded-lg" />
       ) : failed ? (
@@ -393,7 +570,8 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
           fill
           label={`Work and charges on ${w.label}`}
           docShot="work-order-work"
-          columns={COLUMNS}
+          columns={width != null && !phone ? COLUMNS_FOLD_WHO : COLUMNS}
+          narrowAt={FOLD_WHO_AT}
           groups={groups}
           titleHeader="Item or line"
           showHeader
@@ -401,11 +579,13 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
           footer={
             lines.length
               ? {
-                  label: "Billed before tax and fees",
+                  // A phone cut the long label to "Bille…" beside the Raise button (L14): there
+                  // both say less, and the button keeps its full name for a screen reader.
+                  label: phone ? "Before tax" : "Billed before tax and fees",
                   value: formatMoney(subtotal),
                   action: mayRaise ? (
-                    <Button size="sm" onClick={() => setRaising(true)}>
-                      <Receipt className="size-4" /> Raise invoice
+                    <Button size="sm" onClick={() => setRaising(true)} aria-label="Raise invoice">
+                      <Receipt className="size-4" /> {phone ? "Raise" : "Raise invoice"}
                     </Button>
                   ) : undefined,
                 }
@@ -413,7 +593,9 @@ export function WorkOrderWorkTable({ workOrder: w }: { workOrder: WorkOrder }) {
           }
           empty={
             <p className="px-4 py-6 text-[13px] text-muted-foreground">
-              Nothing on the job yet. Add what the owner asked for and anything you find, then the labor and parts as the work is done: the invoice is built from them.
+              {customer
+                ? "Nothing on the job yet. Add what the owner asked for and anything you find, then the labor and parts as the work is done: the invoice is built from them."
+                : "Nothing on the job yet. Add the work to do and anything you find, then the labor and parts as the work is done."}
             </p>
           }
         />
@@ -469,23 +651,56 @@ function MenuChoice({ icon: Icon, title, hint }: { icon?: React.ComponentType<{ 
 
 const DECISIONS: NonNullable<WorkOrderItem["decision"]>[] = ["approved", "declined", "deferred"];
 
-/** The owner's answer as a tag that opens to change it, like a status in Linear. */
+/** Where an item's answer stands, as its tag reads. */
+function decisionTag(item: WorkOrderItem, customer: boolean): { label: string; dot: string } {
+  return item.decision
+    ? DECISION_TAG[item.decision]
+    : item.done
+      ? // Done without an answer: on the organization's own aircraft that is just done; a finding
+        // sent and then done through its inspection or squawk was asked, and nobody answered.
+        { label: !customer ? "Done" : item.sentToOwnerAt ? "Done, no answer" : "Done, not asked", dot: "var(--muted-foreground)" }
+      : !customer
+        ? { label: "Not decided", dot: "var(--muted-foreground)" }
+        : item.sentToOwnerAt
+          ? { label: "Sent, waiting", dot: "var(--warning)" }
+          : { label: "Not sent yet", dot: "var(--muted-foreground)" };
+}
+
+/** The answer as a plain tag, on a job where it can no longer change (invoiced or closed), saying why. */
+function DecisionTag({ item, customer, locked }: { item: WorkOrderItem; customer: boolean; locked: string }) {
+  const tag = decisionTag(item, customer);
+  return (
+    <span className={LIST_TAG_CLASS} title={locked} aria-label={`${customer ? "Owner's answer" : "Decision"} on "${item.description}": ${tag.label}. ${locked}`}>
+      <span className="size-1.5 rounded-full" style={{ background: tag.dot }} aria-hidden />
+      {tag.label}
+    </span>
+  );
+}
+
+/**
+ * The owner's answer as a tag that opens to change it, like a status in Linear. On the
+ * organization's own aircraft it is the shop's own decision: no owner, no call to record.
+ */
 function DecisionMenu({
   item,
+  customer,
   onPick,
   onFullCall,
 }: {
   item: WorkOrderItem;
+  /** A customer's aircraft: the owners are asked. The organization's own aircraft: it decides. */
+  customer: boolean;
   onPick: (d: NonNullable<WorkOrderItem["decision"]>) => void;
-  onFullCall: () => void;
+  /** The full call dialog; absent where there is no owner to call. */
+  onFullCall?: () => void;
 }) {
-  const tag = item.decision ? DECISION_TAG[item.decision] : { label: "Owner not asked yet", dot: "var(--warning)" };
+  const tag = decisionTag(item, customer);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={`Owner's answer on "${item.description}": ${tag.label}`}
+          aria-label={`${customer ? "Owner's answer" : "Decision"} on "${item.description}": ${tag.label}`}
           className={cn(LIST_TAG_CLASS, LIST_TAG_BUTTON_CLASS)}
         >
           <span className="size-1.5 rounded-full" style={{ background: tag.dot }} aria-hidden />
@@ -493,7 +708,7 @@ function DecisionMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-56">
-        <DropdownMenuLabel className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">The owner said</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{customer ? "The owner said" : "Decision"}</DropdownMenuLabel>
         {DECISIONS.map((d) => (
           <DropdownMenuItem key={d} onSelect={() => onPick(d)}>
             <span className="size-1.5 rounded-full" style={{ background: DECISION_TAG[d].dot }} aria-hidden />
@@ -501,10 +716,14 @@ function DecisionMenu({
             {item.decision === d && <Check className="size-3.5" />}
           </DropdownMenuItem>
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={onFullCall}>
-          <Phone className="size-4" /> Record a call with notes…
-        </DropdownMenuItem>
+        {onFullCall && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onFullCall}>
+              <Phone className="size-4" /> Record a call with notes…
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -517,11 +736,14 @@ function DecisionMenu({
  */
 function AddMenu({
   frozen,
+  customer,
   lineHint,
   onItem,
   onLine,
 }: {
   frozen: boolean;
+  /** A customer's aircraft, where the owner asks for work; the organization's own just has requests. */
+  customer: boolean;
   lineHint: Partial<Record<WorkOrderLineCategory, string>>;
   onItem: (source: WorkOrderItem["source"]) => void;
   onLine: (kind: WorkOrderLineCategory) => void;
@@ -546,18 +768,18 @@ function AddMenu({
           <CommandList className={TALL_LIST_CLASS}>
             <CommandEmpty>Nothing called that.</CommandEmpty>
             <CommandGroup heading="Work" className={STICKY_GROUP_CLASS}>
-              <CommandItem value="owner's request something the owner asked for requested" onSelect={() => pick(() => onItem("requested"))}>
-                <MenuChoice icon={UserRound} title="Owner's request" hint="Something the owner asked for" />
+              <CommandItem value={customer ? "owner's request something the owner asked for requested" : "request something asked for requested"} onSelect={() => pick(() => onItem("requested"))}>
+                <MenuChoice icon={UserRound} title={customer ? "Owner's request" : "Request"} />
               </CommandItem>
               <CommandItem value="finding something the shop found found" onSelect={() => pick(() => onItem("found"))}>
-                <MenuChoice icon={ScanSearch} title="Finding" hint="Something the shop found" />
+                <MenuChoice icon={ScanSearch} title="Finding" />
               </CommandItem>
             </CommandGroup>
             {!frozen && (
               <CommandGroup heading="Charges" className={STICKY_GROUP_CLASS}>
                 {LINE_KINDS.map((k) => (
                   <CommandItem key={k.value} value={`${k.label} ${lineHint[k.value] ?? ""} ${k.value}`} onSelect={() => pick(() => onLine(k.value))}>
-                    <MenuChoice icon={LINE_KIND_ICON[k.value]} title={k.label} hint={lineHint[k.value]} />
+                    <MenuChoice icon={LINE_KIND_ICON[k.value]} title={k.label} />
                   </CommandItem>
                 ))}
               </CommandGroup>

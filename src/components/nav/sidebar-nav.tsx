@@ -41,16 +41,17 @@ import { cn } from "@/lib/utils";
  */
 export function SidebarNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { roles, organization } = useAuth();
+  const { roles, organization, outsideOwner } = useAuth();
   const orgId = organization?.id ?? null;
   const prefs = useNavPrefs(orgId);
-  const ledgerQ = useOrgLedgerSettings();
+  const ledgerQ = useOrgLedgerSettings({ enabled: !outsideOwner });
   const ledgerBilling = ledgerQ.data?.enabled === true;
 
-  const operations = React.useMemo(() => operationsNav(roles), [roles]);
+  // An aircraft owner from outside the organization sees none of the school's pages.
+  const operations = React.useMemo(() => (outsideOwner ? [] : operationsNav(roles)), [roles, outsideOwner]);
   const you = React.useMemo(
-    () => youNav(roles, { ledgerBilling }),
-    [roles, ledgerBilling]
+    () => youNav(roles, { ledgerBilling, outsideOwner }),
+    [roles, ledgerBilling, outsideOwner]
   );
   const ordered = React.useMemo(
     () => mergeNavOrder(operations, prefs.order),

@@ -373,6 +373,8 @@ function SchedulePage() {
   const { groups: listGroups, ordered: listOrdered } = useReservationGroups(listed, {
     groupBy,
     sort: listSort,
+    // The list is mostly read for what just happened: latest day and latest booking first.
+    newestFirst: true,
   });
 
   const locationNames = React.useMemo(

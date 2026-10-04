@@ -1,7 +1,10 @@
 import * as React from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { MapPin } from "lucide-react";
+import { Armchair, CircleDot, Cog, Droplets, Fuel, Gauge, MapPin, Sun, Timer } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { api, ApiError } from "@/lib/api";
+import { OwnerField, ownerDraftError, type OwnerConflict, type OwnerDraft } from "@/components/aircraft/aircraft-owner-field";
 import { useCreatePlane, useUpdateResource } from "@/features/queries";
 import type { AircraftUse, CreatePlaneResourceInput, Location, Resource } from "@/types/api";
 import { fuelToDisplay, fuelToStored } from "@/components/aircraft/lib";
@@ -27,7 +30,7 @@ import { PerPlanePricingNote } from "@/components/subscription/plan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { ChipMenu, InputChip } from "@/components/property-chips";
 import {
   Select,
   SelectContent,
@@ -35,6 +38,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+/** "Not recorded" in a chip's menu: an optional fact left empty. */
+const NONE = "none";
 
 type FormState = {
   tailNumber: string;
@@ -208,13 +214,33 @@ export function AircraftFormModal({
   const [rateKey, setRateKey] = React.useState(0);
   // Surfaced only after a submit attempt, so we don't nag on a pristine form.
   const [showErrors, setShowErrors] = React.useState(false);
+  // A customer's aircraft: who owns it, and, when the new person's address turned out to be
+  // somebody's already, the aircraft that was added while that question is answered.
+  const qc = useQueryClient();
+  const [owner, setOwner] = React.useState<OwnerDraft>({ mode: "none" });
+  const [ownerConflict, setOwnerConflict] = React.useState<Omit<OwnerConflict, "onUse" | "onAddAnyway" | "pending"> | null>(null);
+  const [addedAwaitingOwner, setAddedAwaitingOwner] = React.useState<Resource | null>(null);
+  const [ownerPending, setOwnerPending] = React.useState(false);
 
   // Reset the form whenever the modal opens (fresh add, or prefilled edit).
   React.useEffect(() => {
     if (!open) return;
-    setForm(resource ? stateFromResource(resource) : { ...emptyState(), use: defaultUse, ...(defaultTail ? { tailNumber: defaultTail.toUpperCase() } : {}) });
+    setForm(
+      resource
+        ? stateFromResource(resource)
+        : {
+            ...emptyState(),
+            use: defaultUse,
+            ...(defaultTail ? { tailNumber: defaultTail.toUpperCase() } : {}),
+            // One place to keep it: nothing to choose, so it is chosen.
+            ...(locations.length === 1 ? { locationId: String(locations[0].id) } : {}),
+          }
+    );
     setRateKey((k) => k + 1);
     setShowErrors(false);
+    setOwner({ mode: "none" });
+    setOwnerConflict(null);
+    setAddedAwaitingOwner(null);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, resource, defaultUse]);
 
@@ -351,12 +377,57 @@ export function AircraftFormModal({
     locationId: !noLocations && !form.locationId ? "Select a home base." : "",
   };
   const firstInvalid = REQUIRED_FIELDS.find((f) => errors[f.key]);
+  const ownerErr = !isEdit && isShop ? ownerDraftError(owner) : {};
+  const ownerInvalid = !!(ownerErr.name || ownerErr.email);
+
+  /** The aircraft is added; it is done once its owner is on it (or left off on purpose). */
+  function finish(created: Resource, ownerName?: string) {
+    toast.success(
+      `${created.type?.plane?.tailNumber ?? tail} added to the ${form.use === "shop" ? "shop" : "fleet"}${ownerName ? `, owned by ${ownerName}` : ""}`
+    );
+    void qc.invalidateQueries({ queryKey: ["resources"] });
+    void qc.invalidateQueries({ queryKey: ["members"] });
+    onOpenChange(false);
+    onCreated?.(created);
+  }
+
+  async function addOwner(created: Resource, extra: { orgUserId?: number; createAnyway?: boolean } = {}) {
+    if (owner.mode === "none") return finish(created);
+    setOwnerPending(true);
+    const body =
+      owner.mode === "existing" || extra.orgUserId
+        ? { orgUserId: extra.orgUserId ?? (owner.mode === "existing" ? owner.orgUserId : undefined), isPrimary: true }
+        : { name: owner.name.trim(), email: owner.email.trim() || undefined, phone: owner.phone.trim() || undefined, isPrimary: true, ...(extra.createAnyway ? { createAnyway: true } : {}) };
+    try {
+      await api(`/resources/${created.id}/owners`, { method: "POST", body });
+      finish(created, extra.orgUserId ? ownerConflict?.conflict.name : owner.mode === "existing" ? owner.name : owner.mode === "new" ? owner.name.trim() : undefined);
+    } catch (err) {
+      // A 409 is a question, as on the Owners panel: that address is somebody's already.
+      const conflictBody = err instanceof ApiError && err.status === 409 ? (err.body as { message?: string; conflict?: OwnerConflict["conflict"] } | undefined) : undefined;
+      if (conflictBody?.conflict) {
+        setAddedAwaitingOwner(created);
+        setOwnerConflict({ message: conflictBody.message ?? (err as Error).message, conflict: conflictBody.conflict });
+      } else {
+        toast.error(`${created.type?.plane?.tailNumber ?? tail} is added, but its owner was not: ${err instanceof Error ? err.message : "add them on its Owners panel"}`);
+        finish(created);
+      }
+    } finally {
+      setOwnerPending(false);
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (pending) return;
+    if (pending || ownerPending) return;
+    // Added already. With the owner's question still open, Save means "without an owner"; once
+    // the owner was changed after it (a typo fixed, somebody picked), Save adds that owner.
+    if (addedAwaitingOwner) {
+      if (ownerConflict || owner.mode === "none") return finish(addedAwaitingOwner);
+      if (ownerInvalid) return setShowErrors(true);
+      return void addOwner(addedAwaitingOwner);
+    }
     // Instead of a silently-disabled button, tell the user exactly what's missing.
-    if (noLocations || firstInvalid) {
+    if (noLocations || firstInvalid || ownerInvalid) {
       setShowErrors(true);
       // A school with no location yet has nothing to mark invalid, so lib/form-focus.ts
       // cannot help and this would be a silent button again. Take them to the dead end
@@ -457,11 +528,7 @@ export function AircraftFormModal({
       },
     };
     create.mutate(input, {
-      onSuccess: (created) => {
-        toast.success(form.use === "shop" ? `${tail} added to the shop` : `${tail} added to the fleet`);
-        onOpenChange(false);
-        onCreated?.(created);
-      },
+      onSuccess: (created) => void addOwner(created),
       onError: (err) =>
         toast.error(err instanceof Error ? err.message : "Couldn't add aircraft"),
     });
@@ -477,7 +544,15 @@ export function AircraftFormModal({
             </Button>
             <Button type="submit"
                 form="modal-aircraft-form" disabled={pending}>
-              {pending ? "Saving…" : isEdit ? "Save changes" : "Add aircraft"}
+              {pending || ownerPending
+                ? "Saving…"
+                : addedAwaitingOwner
+                  ? ownerConflict || owner.mode === "none"
+                    ? "Done, without an owner"
+                    : "Add the owner"
+                  : isEdit
+                    ? "Save changes"
+                    : "Add aircraft"}
             </Button>
         </div>
       }
@@ -685,78 +760,6 @@ export function AircraftFormModal({
         </div>
 
 
-        <div className="grid grid-cols-3 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="ac-engine">Engine (optional)</Label>
-            <Select value={form.engineType || undefined} onValueChange={(v) => set("engineType", v)}>
-              <SelectTrigger id="ac-engine" className="w-full">
-                <SelectValue placeholder="Engine" />
-              </SelectTrigger>
-              <SelectContent>
-                {ENGINE_TYPES.map((c) => (
-                  <SelectItem key={c} value={c}>{vocabLabel(c)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ac-fuel-type">Fuel (optional)</Label>
-            <Select value={form.fuelType || undefined} onValueChange={(v) => set("fuelType", v)}>
-              <SelectTrigger id="ac-fuel-type" className="w-full">
-                <SelectValue placeholder="Fuel" />
-              </SelectTrigger>
-              <SelectContent>
-                {FUEL_TYPES.map((c) => (
-                  <SelectItem key={c} value={c}>{vocabLabel(c)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ac-gear">Gear (optional)</Label>
-            <Select value={form.gearType || undefined} onValueChange={(v) => set("gearType", v)}>
-              <SelectTrigger id="ac-gear" className="w-full">
-                <SelectValue placeholder="Gear" />
-              </SelectTrigger>
-              <SelectContent>
-                {GEAR_TYPES.map((c) => (
-                  <SelectItem key={c} value={c}>{vocabLabel(c)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="ac-seats">Seats (optional)</Label>
-            <Input
-              id="ac-seats"
-              inputMode="numeric"
-              placeholder="4"
-              value={form.seats}
-              onChange={(e) => set("seats", e.target.value.replace(/[^0-9]/g, "").slice(0, 2))}
-              className="tnum"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="ac-meters">Meters</Label>
-              <DocsHint topic="aircraft-meters" />
-            </div>
-            <Select value={form.meterMode} onValueChange={(v) => set("meterMode", v)}>
-              <SelectTrigger id="ac-meters" className="w-full">
-                <SelectValue placeholder="Meters" />
-              </SelectTrigger>
-              <SelectContent>
-                {METER_MODES.map((c) => (
-                  <SelectItem key={c} value={c}>{vocabLabel(c)}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
         {meterless && (
           <p className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
             This aircraft has no meters, so its flights are not invoiced automatically. It
@@ -792,87 +795,21 @@ export function AircraftFormModal({
         </div>
         )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="ac-fuel">Fuel capacity (optional)</Label>
-            <Input
-              id="ac-fuel"
-              inputMode="decimal"
-              placeholder="56"
-              value={form.fuelCapacity}
-              onChange={(e) => set("fuelCapacity", e.target.value.replace(/[^0-9.]/g, ""))}
-              className="tnum"
-              aria-invalid={showErrors && !!errors.fuelCapacity}
-            />
-            {showErrors && errors.fuelCapacity && (
-              <p className="text-xs text-destructive">{errors.fuelCapacity}</p>
-            )}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="ac-fuel-unit">Fuel unit</Label>
-            <Select
-              value={form.fuelMeasurement}
-              onValueChange={(v) => set("fuelMeasurement", v as "gallons" | "liters")}
-            >
-              <SelectTrigger id="ac-fuel-unit" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="gallons">Gallons</SelectItem>
-                <SelectItem value="liters">Liters</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
         {!hidePricing && (
-        <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor="ac-rate">Rate (per hour)</Label>
-            <MoneyInput
-              key={rateKey}
-              id="ac-rate"
-              cents={form.rateCents}
-              onCentsChange={(c) => set("rateCents", c)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="ac-basis">Rate basis</Label>
-              <DocsHint topic="rate-basis" />
+            <Label htmlFor="ac-rate">Rate per hour</Label>
+            <div className="w-48">
+              <MoneyInput
+                key={rateKey}
+                id="ac-rate"
+                cents={form.rateCents}
+                onCentsChange={(c) => set("rateCents", c)}
+              />
             </div>
-            <Select
-              value={form.rateBasis}
-              onValueChange={(v) => set("rateBasis", v as "wet" | "dry")}
-            >
-              <SelectTrigger id="ac-basis" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="wet">Wet (fuel included)</SelectItem>
-                <SelectItem value="dry">Dry</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-        )}
-
-        {!hidePricing && (
-        <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-          <div>
-            <Label htmlFor="ac-bill" className="cursor-pointer">
-              Bill by Hobbs time
-            </Label>
             <p className="text-xs text-muted-foreground">
-              {form.billByHobbs ? "Charging on Hobbs meter" : "Charging on tach time"}
+              {form.rateBasis === "wet" ? "Wet, fuel included" : "Dry, fuel extra"}, charged on {form.billByHobbs ? "Hobbs" : "tach"} time. Change either below.
             </p>
           </div>
-          <Switch
-            id="ac-bill"
-            checked={form.billByHobbs}
-            onCheckedChange={(v) => set("billByHobbs", v)}
-          />
-        </div>
         )}
 
         {/* NEAR THE BOTTOM on purpose. This form is the one a school has to get through before
@@ -903,37 +840,6 @@ export function AircraftFormModal({
             Airworthiness Directive applies to this aeroplane.
           </p>
         </div>
-
-        {/* Not on a customer's aircraft: "override when this aircraft can be booked" is a
-            question about an aeroplane that can be booked. */}
-        {!isShop && (
-        <div className="space-y-1.5">
-          <div className="flex items-center gap-1.5">
-            <Label htmlFor="ac-flying-day">Flying day</Label>
-            <DocsHint topic="flying-day-hours" />
-          </div>
-          <Select
-            value={form.flyingDayKey}
-            onValueChange={(v) => set("flyingDayKey", v)}
-          >
-            <SelectTrigger id="ac-flying-day" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="inherit">Use organization hours</SelectItem>
-              {PLANE_FLYING_DAY_OPTIONS.map((o) => (
-                <SelectItem key={o.key} value={o.key}>
-                  {o.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            Override when this aircraft can be booked. Leave as organization hours unless this
-            tail really runs a different day.
-          </p>
-        </div>
-        )}
 
         <div className="space-y-1.5" id="ac-home-base">
           <Label htmlFor="ac-location">Home base</Label>
@@ -975,6 +881,155 @@ export function AircraftFormModal({
                 <MapPin className="size-4" /> Add a location
               </Button>
             </div>
+          )}
+        </div>
+
+        {/* A customer's aeroplane is somebody's: who is billed for the work goes in with it, so
+            the first job on it has somebody to invoice (Tony, 2026-09-30). Optional, because the
+            desk does not always know on the first call; more owners go on the aircraft's page. */}
+        {!isEdit && isShop && (
+          <OwnerField
+            value={owner}
+            onChange={(o) => {
+              setOwner(o);
+              setOwnerConflict(null);
+            }}
+            showErrors={showErrors}
+            conflict={
+              ownerConflict && addedAwaitingOwner
+                ? {
+                    ...ownerConflict,
+                    pending: ownerPending,
+                    onUse: () => void addOwner(addedAwaitingOwner, { orgUserId: ownerConflict.conflict.orgUserId }),
+                    onAddAnyway: () => void addOwner(addedAwaitingOwner, { createAnyway: true }),
+                  }
+                : null
+            }
+          />
+        )}
+
+        {/* The rest as chips: each has a sensible default and is usually left alone, so it is
+            one click away rather than a labelled field in everyone's way (Tony, 2026-10-01). */}
+        <div className="flex flex-wrap gap-2 border-t border-border pt-4" role="group" aria-label="More about the aircraft">
+          <ChipMenu
+            id="ac-meters"
+            name="Meters"
+            leading={<Gauge className="size-3.5" />}
+            label={vocabLabel(form.meterMode)}
+            set
+            value={form.meterMode}
+            onChange={(v) => set("meterMode", v)}
+            options={METER_MODES.map((c) => ({ value: c, label: vocabLabel(c) }))}
+          />
+          <ChipMenu
+            id="ac-engine"
+            name="Engine"
+            leading={<Cog className="size-3.5" />}
+            label={form.engineType ? vocabLabel(form.engineType) : "Engine"}
+            set={!!form.engineType}
+            value={form.engineType || NONE}
+            onChange={(v) => set("engineType", v === NONE ? "" : v)}
+            options={[{ value: NONE, label: "Not recorded" }, ...ENGINE_TYPES.map((c) => ({ value: c, label: vocabLabel(c) }))]}
+          />
+          <ChipMenu
+            id="ac-fuel-type"
+            name="Fuel"
+            leading={<Fuel className="size-3.5" />}
+            label={form.fuelType ? vocabLabel(form.fuelType) : "Fuel"}
+            set={!!form.fuelType}
+            value={form.fuelType || NONE}
+            onChange={(v) => set("fuelType", v === NONE ? "" : v)}
+            options={[{ value: NONE, label: "Not recorded" }, ...FUEL_TYPES.map((c) => ({ value: c, label: vocabLabel(c) }))]}
+          />
+          <ChipMenu
+            id="ac-gear"
+            name="Gear"
+            leading={<CircleDot className="size-3.5" />}
+            label={form.gearType ? vocabLabel(form.gearType) : "Gear"}
+            set={!!form.gearType}
+            value={form.gearType || NONE}
+            onChange={(v) => set("gearType", v === NONE ? "" : v)}
+            options={[{ value: NONE, label: "Not recorded" }, ...GEAR_TYPES.map((c) => ({ value: c, label: vocabLabel(c) }))]}
+          />
+          <InputChip
+            id="ac-seats"
+            name="Seats"
+            leading={<Armchair className="size-3.5" />}
+            label={form.seats ? `${form.seats} seats` : "Seats"}
+            set={!!form.seats}
+            value={form.seats}
+            onChange={(v) => set("seats", v.replace(/[^0-9]/g, "").slice(0, 2))}
+            placeholder="4"
+            inputMode="numeric"
+          />
+          <InputChip
+            id="ac-fuel"
+            name="Fuel capacity"
+            leading={<Fuel className="size-3.5" />}
+            label={form.fuelCapacity ? `${form.fuelCapacity} ${form.fuelMeasurement === "liters" ? "L" : "gal"}` : "Fuel capacity"}
+            set={!!form.fuelCapacity}
+            value={form.fuelCapacity}
+            onChange={(v) => set("fuelCapacity", v.replace(/[^0-9.]/g, ""))}
+            placeholder="56"
+            inputMode="decimal"
+            suffix={
+              <Select value={form.fuelMeasurement} onValueChange={(v) => set("fuelMeasurement", v as "gallons" | "liters")}>
+                <SelectTrigger id="ac-fuel-unit" className="w-28" aria-label="Fuel unit">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gallons">Gallons</SelectItem>
+                  <SelectItem value="liters">Liters</SelectItem>
+                </SelectContent>
+              </Select>
+            }
+          />
+          {!isShop && (
+            // Not on a customer's aircraft: "when can this be booked" is a question about an
+            // aeroplane that can be booked.
+            <ChipMenu
+              id="ac-flying-day"
+              name="Flying day"
+              leading={<Sun className="size-3.5" />}
+              label={form.flyingDayKey === "inherit" ? "Organization hours" : (PLANE_FLYING_DAY_OPTIONS.find((o) => o.key === form.flyingDayKey)?.label ?? "Flying day")}
+              set={form.flyingDayKey !== "inherit"}
+              value={form.flyingDayKey}
+              onChange={(v) => set("flyingDayKey", v)}
+              options={[
+                { value: "inherit", label: "Organization hours", hint: "Leave this unless the tail really runs a different day." },
+                ...PLANE_FLYING_DAY_OPTIONS.map((o) => ({ value: o.key, label: o.label })),
+              ]}
+            />
+          )}
+          {!hidePricing && (
+            <>
+              <ChipMenu
+                id="ac-basis"
+                name="Rate basis"
+                leading={<Droplets className="size-3.5" />}
+                label={form.rateBasis === "wet" ? "Wet rate" : "Dry rate"}
+                set
+                value={form.rateBasis}
+                onChange={(v) => set("rateBasis", v as "wet" | "dry")}
+                options={[
+                  { value: "wet", label: "Wet rate", hint: "Fuel included in the hourly rate." },
+                  { value: "dry", label: "Dry rate", hint: "Fuel charged separately." },
+                ]}
+              />
+              <ChipMenu
+                id="ac-bill"
+                name="Billed on"
+                leading={<Timer className="size-3.5" />}
+                label={form.billByHobbs ? "Billed on Hobbs" : "Billed on tach"}
+                set
+                value={form.billByHobbs ? "hobbs" : "tach"}
+                onChange={(v) => set("billByHobbs", v === "hobbs")}
+                options={[
+                  { value: "hobbs", label: "Billed on Hobbs" },
+                  { value: "tach", label: "Billed on tach" },
+                ]}
+              />
+            </>
           )}
         </div>
 

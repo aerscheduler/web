@@ -125,7 +125,7 @@ export function ReportTable({
             const clickable =
               !grouped &&
               onRowClick != null &&
-              (typeof row.invoiceId === "number" || typeof row.reservationId === "number");
+              (typeof row.invoiceId === "number" || typeof row.reservationId === "number" || typeof row.workOrderId === "number");
             return (
               <tr
                 key={i}

@@ -2,6 +2,14 @@ import * as React from "react";
 import { ArrowDown, ArrowUp, ChevronDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useSecondPress } from "@/lib/use-second-press";
 
 /**
@@ -27,8 +35,12 @@ export type ListTableColumn = {
   /** A CSS grid track, "8rem" or "minmax(0,1fr)". */
   width: string;
   align?: "start" | "end";
-  /** In a narrow list: stays a column ("keep"), or folds into the line under the title (the default). */
-  narrow?: "keep" | "fold";
+  /**
+   * In a narrow list: stays a column ("keep"), folds into the line under the title (the
+   * default), or is left out ("hide"), for a column that only says something in a grid, like
+   * a progress bar, which would leave a stray separator in the folded line.
+   */
+  narrow?: "keep" | "fold" | "hide";
   /** Its header sorts the rows. The list only draws the sort; the caller orders the rows. */
   sortable?: boolean;
 };
@@ -51,6 +63,8 @@ export type ListTableRow = {
   span?: boolean;
   /** A parent row: a step bolder than its children. */
   emphasis?: boolean;
+  /** A parent row that starts with its children hidden: a healthy tail's inspections. */
+  defaultFolded?: boolean;
   /** Not counted (a line not billed), drawn quieter. */
   dim?: boolean;
   /** The row's menu. Clicks inside it never open the row. */
@@ -103,6 +117,7 @@ export function ListTable({
   onSortChange,
   titleSortable = false,
   narrowAt = NARROW_AT,
+  childNoun = "lines",
 }: {
   /** What the list is, for assistive technology. */
   label: string;
@@ -138,6 +153,8 @@ export function ListTable({
    * list with many columns: past their total the title column is squeezed to nothing.
    */
   narrowAt?: number;
+  /** What a parent's children are, for its fold button: "Show its aircraft". */
+  childNoun?: string;
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const header = (id: string, content: React.ReactNode, sortable: boolean, end = false) => {
@@ -170,7 +187,17 @@ export function ListTable({
   };
   const narrow = useNarrow(ref, narrowAt);
   const [foldedGroups, setFoldedGroups] = React.useState<Set<string>>(() => new Set());
-  const [foldedRows, setFoldedRows] = React.useState<Set<string>>(() => new Set());
+  // The rows somebody folded or unfolded by hand, and which way. Stored as the state they
+  // chose rather than as a flip of the default: a row whose default changes under it (a tail
+  // that went from Current to Due soon) must not have a remembered flip turn it the wrong way.
+  const [chosenFolds, setChosenFolds] = React.useState<Map<string, boolean>>(() => new Map());
+  const isRowFolded = (r: ListTableRow) => chosenFolds.get(r.id) ?? r.defaultFolded ?? false;
+  /** Fold or unfold a parent row; with no `open`, the other way from how it is. */
+  const foldRow = (r: ListTableRow, open?: boolean) => {
+    const fold = open === undefined ? !isRowFolded(r) : !open;
+    if (fold === isRowFolded(r)) return;
+    setChosenFolds((prev) => new Map(prev).set(r.id, fold));
+  };
   const [focusId, setFocusId] = React.useState<string | null>(null);
   // A double click opens the row's own page, even after the first click docked a panel and the
   // list moved under the pointer.
@@ -212,7 +239,7 @@ export function ListTable({
 
   const activate = (r: ListTableRow) => {
     if (r.onOpen) r.onOpen();
-    else if (r.children?.length) toggle(setFoldedRows, r.id);
+    else if (r.children?.length) foldRow(r);
   };
 
   function onKeyDown(e: React.KeyboardEvent) {
@@ -244,15 +271,15 @@ export function ListTable({
         go(rows.length - 1);
         break;
       case "ArrowRight":
-        if (entry?.row.children?.length && foldedRows.has(id)) {
+        if (entry?.row.children?.length && isRowFolded(entry.row)) {
           e.preventDefault();
-          toggle(setFoldedRows, id, true);
+          foldRow(entry.row, true);
         }
         break;
       case "ArrowLeft":
-        if (entry?.row.children?.length && !foldedRows.has(id)) {
+        if (entry?.row.children?.length && !isRowFolded(entry.row)) {
           e.preventDefault();
-          toggle(setFoldedRows, id, false);
+          foldRow(entry.row, false);
         } else if (entry?.parent) {
           e.preventDefault();
           focusRow(entry.parent);
@@ -271,9 +298,11 @@ export function ListTable({
 
   const renderRow = (r: ListTableRow, level: 2 | 3, lastChild: boolean) => {
     const hasKids = !!r.children?.length;
-    const folded = foldedRows.has(r.id);
+    const folded = isRowFolded(r);
     const kept = shown;
-    const folding = narrow ? columns.filter((c) => c.narrow !== "keep" && r.cells?.[c.id] != null && r.cells[c.id] !== "") : [];
+    const folding = narrow
+      ? columns.filter((c) => c.narrow !== "keep" && c.narrow !== "hide" && r.cells?.[c.id] != null && r.cells[c.id] !== "")
+      : [];
     const titleSpan = r.span ? `1 / span ${Math.max(1, kept.length)}` : undefined;
     return (
       <React.Fragment key={r.id}>
@@ -288,6 +317,9 @@ export function ListTable({
           tabIndex={tabbable === r.id ? 0 : -1}
           onFocus={() => setFocusId(r.id)}
           onClick={(e) => {
+            // React bubbles events through portals: a click inside a dialog opened from this
+            // row (a Grade dialog, a menu) arrives here although it is nowhere near the row.
+            if (!e.currentTarget.contains(e.target as Node)) return;
             // A click on a button, a link or a menu inside the row is that control's, not the row's.
             const control = (e.target as HTMLElement).closest("button, a, input, select, textarea, [role='menuitem'], [data-row-ignore]");
             if (control && control !== e.currentTarget) return;
@@ -325,8 +357,8 @@ export function ListTable({
               (hasKids ? (
                 <button
                   type="button"
-                  aria-label={folded ? "Show its lines" : "Hide its lines"}
-                  onClick={() => toggle(setFoldedRows, r.id)}
+                  aria-label={folded ? `Show its ${childNoun}` : `Hide its ${childNoun}`}
+                  onClick={() => foldRow(r)}
                   className="-ml-1 grid size-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
                   tabIndex={-1}
                 >
@@ -577,5 +609,46 @@ export function ListTableSkeleton({
         </div>
       ))}
     </div>
+  );
+}
+
+/**
+ * "Group by: Status", for a list's toolbar. The list owns no grouping of its own (the caller
+ * builds the groups), so this is only the control, the same on every list that offers it.
+ */
+export function GroupByMenu<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  const current = options.find((o) => o.value === value) ?? options[0]!;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={cn(LIST_TAG_CLASS, LIST_TAG_BUTTON_CLASS, "h-6 px-2.5 text-[12px]")}>
+        <span className="text-muted-foreground">Group by</span>
+        <span className="text-foreground">{current.label}</span>
+        <ChevronDown className="size-3" aria-hidden />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-44">
+        <DropdownMenuLabel>Group by</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(v) => {
+            const hit = options.find((o) => o.value === v);
+            if (hit) onChange(hit.value);
+          }}
+        >
+          {options.map((o) => (
+            <DropdownMenuRadioItem key={o.value} value={o.value}>
+              {o.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

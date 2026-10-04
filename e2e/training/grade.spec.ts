@@ -55,7 +55,8 @@ test.describe("Training grading UI (instructor)", () => {
     expect((await saveReq).ok()).toBeTruthy();
     expect((await signReq).ok()).toBeTruthy();
 
-    await expect(page.getByText("Complete")).toBeVisible({ timeout: 15_000 });
+    // Scoped to the lesson's row: the stage heading also says "1 of 1 complete".
+    await expect(page.getByTestId(`enrollment-lesson-${course.lessonId}`).getByText("Complete", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("button", { name: /^Grade$/ })).toHaveCount(0);
 
     const instructor = await loginAs(request, ACCOUNTS.instructor);

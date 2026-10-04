@@ -71,7 +71,7 @@ function ForgotPasswordPage() {
                 type="email"
                 autoComplete="email"
                 required
-                placeholder="you@flightschool.com"
+                placeholder="you@example.com"
                 className={AUTH_CONTROL}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}

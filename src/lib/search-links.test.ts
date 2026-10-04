@@ -27,3 +27,20 @@ describe("searchLinkFor endorsements", () => {
     expect(link.params).toEqual({ orgUserId: "4" });
   });
 });
+
+describe("searchLinkFor reservations", () => {
+  it("opens the booking's own page", () => {
+    const link = searchLinkFor(hit({ type: "reservation", params: { reservationId: 42 } }), 9);
+    expect(link).toEqual({
+      to: "/schedule/reservations/$reservationId",
+      params: { reservationId: "42" },
+    });
+  });
+
+  it("falls back to the board filtered by title when the hit has no id", () => {
+    expect(searchLinkFor(hit({ type: "reservation" }), 9)).toEqual({
+      to: "/schedule",
+      search: { q: "Solo" },
+    });
+  });
+});

@@ -18,14 +18,15 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
 const RAIL: Record<string, string> = {
-  danger: "bg-destructive",
+  // Late is amber, not red: red is for errors (Tony, 2026-09-30).
+  danger: "bg-[var(--warning)]",
   warning: "bg-[var(--warning)]",
   success: "bg-[var(--success)]",
   muted: "bg-primary",
 };
 
 const FIGURE: Record<string, string> = {
-  danger: "text-destructive",
+  danger: "font-semibold text-warning",
   warning: "text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]",
   success: "text-muted-foreground",
   muted: "text-foreground",
@@ -57,7 +58,7 @@ export function InspectionRow({
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate text-[13px] font-medium">{name}</span>
           {badge && (
-            <Badge variant={tone === "danger" ? "danger" : "warning"} className="shrink-0">
+            <Badge variant="warning" className="shrink-0">
               {badge}
             </Badge>
           )}
@@ -83,7 +84,7 @@ export function InspectionRow({
               rule, not news, and it would sit on every line of the card. */}
           {due?.grounds && due.status === "overdue" && (
             <span
-              className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-destructive"
+              className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-warning"
               title="This one grounds the aircraft."
             >
               <AlertTriangle className="size-3" /> Grounds

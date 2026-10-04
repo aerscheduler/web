@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Archive, BookOpen, GraduationCap, Lock, PlusCircle, Sparkles } from "lucide-react";
 import {
   useCourses,
@@ -11,9 +11,9 @@ import {
 import { guardRoute } from "@/lib/permissions";
 import { rolesFromSession } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
-import { PART_LABEL, STATUS_LABEL } from "@/lib/training";
+import { PART_LABEL } from "@/lib/training";
 import { TRAINING_TABS } from "@/lib/training-sections";
-import type { Course, CourseVersionSummary } from "@/types/api";
+import type { Course, CourseVersionSummary, EnrollmentSummary } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
 import { DocsHint } from "@/components/docs-hint";
 import { TableView } from "@/components/table-view";
@@ -22,6 +22,10 @@ import { TrainingPermissions } from "@/components/training/training-permissions"
 import { StatCard, StatGrid } from "@/components/stat-card";
 import { EmptyState, ErrorState, CardGridSkeleton } from "@/components/states";
 import { Card } from "@/components/ui/card";
+import { ListTable, ListTableSkeleton, ListTag, type ListTableColumn, type ListTableGroup, type ListTableSort } from "@/components/list-table";
+import { WorkspaceUserAvatar } from "@/components/workspace-user-avatar";
+import { EnrollmentProgress, lessonsFraction } from "@/components/training/enrollment-progress";
+import { cn, formatDate } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
@@ -139,7 +143,11 @@ function TrainingPage() {
         <SectionRail label="Training" sections={sections} value={activeTab} onChange={pick} />
 
         <div
-          className="min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto"
+          className={cn(
+            "min-h-0 min-w-0 flex-1",
+            // The roster is a list that fills the pane and scrolls inside; the others scroll whole.
+            activeTab === "students" ? "flex flex-col pb-4" : "space-y-5 overflow-y-auto"
+          )}
           data-doc-shot={activeTab === "courses" ? "training-courses-list" : undefined}
         >
           {activeTab === "courses" && (
@@ -412,11 +420,91 @@ function BlankCourseDialog() {
   );
 }
 
-/** Everyone currently in training, so the page answers "who is where" without a click. */
+const STUDENT_COLUMNS: ListTableColumn[] = [
+  { id: "progress", header: "Progress", width: "10rem", sortable: true, narrow: "keep" },
+  { id: "enrolled", header: "Enrolled", width: "7.5rem", sortable: true },
+  { id: "fee", header: "Fee", width: "5.5rem", align: "end" },
+];
+
+
+const STUDENT_SORT: Record<string, (e: EnrollmentSummary) => string | number> = {
+  title: (e) => (e.student?.user?.name ?? "").toLowerCase(),
+  progress: lessonsFraction,
+  enrolled: (e) => e.enrolledAt,
+};
+
+/**
+ * Everyone currently in training, grouped by the course they are on, so the page answers
+ * "who is where" without a click. A row opens the student's training record.
+ */
 function ActiveStudents({ loading }: { loading: boolean }) {
   const enrollments = useEnrollments({ status: "enrolled" });
-  const rows = enrollments.data ?? [];
-  if (loading || enrollments.isLoading) return <CardGridSkeleton count={1} />;
+  const navigate = useNavigate();
+  const [sort, setSort] = useState<ListTableSort | null>(null);
+  const rows = useMemo(() => enrollments.data ?? [], [enrollments.data]);
+
+  const groups = useMemo<ListTableGroup[]>(() => {
+    const byCourse = new Map<number, { name: string; part?: string; items: EnrollmentSummary[] }>();
+    for (const e of rows) {
+      const course = e.courseVersion?.course;
+      const id = course?.id ?? 0;
+      const g = byCourse.get(id) ?? { name: course?.name ?? "Unknown course", part: course ? PART_LABEL[course.regulatoryPart] : undefined, items: [] };
+      g.items.push(e);
+      byCourse.set(id, g);
+    }
+    const key = sort ? STUDENT_SORT[sort.id] : null;
+    const order = (list: EnrollmentSummary[]) =>
+      [...list].sort((a, b) => {
+        // Unsorted, the list reads by name.
+        if (!sort || !key) return STUDENT_SORT.title!(a).toString().localeCompare(STUDENT_SORT.title!(b).toString());
+        const x = key(a);
+        const y = key(b);
+        const c = x < y ? -1 : x > y ? 1 : a.id - b.id;
+        return sort.desc ? -c : c;
+      });
+    return [...byCourse.entries()]
+      .sort(([, a], [, b]) => a.name.localeCompare(b.name))
+      .map(([id, g]) => ({
+        id: `course-${id}`,
+        label: (
+          <span className="inline-flex items-center gap-2">
+            {g.name}
+            {g.part && <ListTag>{g.part}</ListTag>}
+          </span>
+        ),
+        count: g.items.length,
+        rows: order(g.items).map((e) => {
+          const name = e.student?.user?.name ?? "Unknown";
+          return {
+            id: `enrollment-${e.id}`,
+            testId: `enrollment-row-${e.id}`,
+            label: `${name}, ${g.name}`,
+            leading: e.student ? <WorkspaceUserAvatar person={{ id: e.student.id, name }} /> : undefined,
+            title: name,
+            tags: e.courseVersion?.label ? <ListTag>{e.courseVersion.label}</ListTag> : undefined,
+            onOpen: () =>
+              void navigate({ to: "/training/enrollments/$enrollmentId", params: { enrollmentId: String(e.id) } }),
+            cells: {
+              progress: <EnrollmentProgress enrollment={e} />,
+              enrolled: <span className="text-muted-foreground">{formatDate(e.enrolledAt, "MMM d, yyyy", "")}</span>,
+              // Billed or not, nothing more: "invoiced" also covers a ledger charge, and the
+              // server does not say whether a bill was paid or voided, so "Invoiced" or "Paid"
+              // would claim more than is known. The fee card on the record has the detail.
+              fee:
+                e.feeStatus === "owed" ? (
+                  <span className="font-medium text-warning">Not billed</span>
+                ) : e.feeStatus === "invoiced" ? (
+                  <span className="text-muted-foreground">Billed</span>
+                ) : null,
+            },
+          };
+        }),
+      }));
+  }, [rows, sort, navigate]);
+
+  if (loading || enrollments.isLoading) {
+    return <ListTableSkeleton fill columns={STUDENT_COLUMNS} groups={2} rows={3} toolbar={false} className="min-h-0 flex-1" />;
+  }
   if (enrollments.isError) return <ErrorState error={enrollments.error} />;
 
   // Its own section now, so "nobody is on a course" has to be stated rather than
@@ -433,32 +521,18 @@ function ActiveStudents({ loading }: { loading: boolean }) {
   }
 
   return (
-    <Card className="p-4">
-      <div className="mb-3 flex items-center gap-2">
-        <GraduationCap className="size-4 text-muted-foreground" />
-        <h2 className="font-medium">Students in training</h2>
-      </div>
-      <div className="divide-y">
-        {rows.map((e) => (
-          <Link
-            key={e.id}
-            to="/training/enrollments/$enrollmentId"
-            params={{ enrollmentId: String(e.id) }}
-            className="flex items-center justify-between gap-3 py-2 text-sm transition hover:bg-accent/40"
-          >
-            <span className="min-w-0 truncate font-medium">{e.student?.user?.name ?? "Unknown"}</span>
-            <span className="min-w-0 flex-1 truncate text-muted-foreground">
-              {e.courseVersion?.course.name}
-              <span className="ml-2 text-xs">{e.courseVersion?.label}</span>
-            </span>
-            <Badge variant="outline">{STATUS_LABEL[e.status]}</Badge>
-            <span className="text-xs text-muted-foreground">
-              {e.lessonsComplete ?? e._count?.lessonRecords ?? 0}
-              {e.lessonsTotal != null ? ` of ${e.lessonsTotal}` : ""} complete
-            </span>
-          </Link>
-        ))}
-      </div>
-    </Card>
+    <ListTable
+      fill
+      label="Students in training"
+      docShot="training-students"
+      className="min-h-0 flex-1"
+      columns={STUDENT_COLUMNS}
+      groups={groups}
+      titleHeader="Student"
+      titleSortable
+      showHeader
+      sort={sort}
+      onSortChange={setSort}
+    />
   );
 }

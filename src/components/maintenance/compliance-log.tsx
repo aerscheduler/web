@@ -94,12 +94,14 @@ export function ComplianceLog({
     //`data-doc-shot` wraps the caption AND the table: the sentence above the table is the part
     //of this screen that stops somebody mistaking the log for a complete AD status, so a crop
     //that showed only the rows would leave out the most important thing on the page.
-    <div data-doc-shot="compliance-log">
+    // A bounded column, so the table fills the space below the caption and scrolls inside it
+    // rather than growing the page (DataTable `fill` needs its parent to set the height).
+    <div data-doc-shot="compliance-log" className="flex min-h-0 flex-1 flex-col pb-4">
       {/* SAID HERE, not in a footnote. The industry phrase "AD tracking" means a catalogue
           that answers "which ADs apply to this serial number", and we do not have one. A
           school that believes this log IS their AD status is the one failure in this feature
           that could actually hurt somebody. */}
-      <p className="flex items-center gap-1.5 px-0.5 pb-2 text-xs text-muted-foreground">
+      <p className="flex shrink-0 items-center gap-1.5 px-0.5 pb-2 text-xs text-muted-foreground">
         Every inspection signed off here, newest first. This records the ADs you enter; it does
         not tell you which ADs apply to your aircraft.
         <DocsHint topic="compliance-log-scope" />

@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { ArrowLeft, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { DetailBack, useDetailTitle } from "@/components/detail/detail-page";
 import { Link } from "@tanstack/react-router";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -70,16 +71,12 @@ export function IntegrationPageHeader({
   accountLabel,
   actions,
 }: IntegrationHeaderProps) {
+  useDetailTitle(title);
   return (
     <div>
-      <Link
-        to="/settings"
-        search={{ tab: "integrations", qbo: undefined }}
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-      >
-        <ArrowLeft className="size-3.5" />
-        Integrations
-      </Link>
+      <div className="mb-4">
+        <DetailBack to="/settings" search={{ tab: "integrations", qbo: undefined }} label="Integrations" />
+      </div>
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">

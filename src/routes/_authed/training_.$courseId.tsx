@@ -1,8 +1,7 @@
 import { useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   Archive,
-  ArrowLeft,
   BookOpen,
   CheckCircle2,
   ClipboardList,
@@ -25,10 +24,15 @@ import {
   useMyTrainingGrants,
 } from "@/features/queries";
 import { guardRoute } from "@/lib/permissions";
-import { LESSON_KIND_LABEL, PART_LABEL, deciHoursLabel, holdsTrainingGrant } from "@/lib/training";
+import { LESSON_KIND_LABEL, PART_LABEL, STATUS_LABEL, deciHoursLabel, holdsTrainingGrant } from "@/lib/training";
+import { formatDate } from "@/lib/utils";
+import { ListTable, ListTableSkeleton, ListTag, type ListTableColumn, type ListTableGroup, type ListTableRow } from "@/components/list-table";
+import { WorkspaceUserAvatar } from "@/components/workspace-user-avatar";
+import { EnrollmentProgress } from "@/components/training/enrollment-progress";
 import { rolesOf } from "@/types/api";
-import type { CourseRequirement, CourseVersion, SyllabusLesson } from "@/types/api";
+import type { CourseRequirement, CourseVersion, EnrollmentStatus, EnrollmentSummary, SyllabusLesson } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { DetailBack, useDetailTitle } from "@/components/detail/detail-page";
 import { DocsHint } from "@/components/docs-hint";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
@@ -43,11 +47,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import {
   Select,
   SelectContent,
@@ -107,6 +106,7 @@ function CourseDetailPage() {
     null;
 
   const version = useCourseVersion(selected ?? undefined);
+  useDetailTitle(course.data?.name);
 
   if (course.error) return <ErrorState error={course.error} />;
   if (course.isLoading) return <Skeleton className="h-64 w-full" />;
@@ -117,11 +117,7 @@ function CourseDetailPage() {
   return (
     <TableView className="gap-5">
       <TableView.Header>
-        <Button asChild variant="ghost" size="sm" className="-ml-2">
-          <Link to="/training">
-            <ArrowLeft className="size-4" /> Training
-          </Link>
-        </Button>
+        <DetailBack to="/training" label="Training" />
 
         <PageHeader
           title={c.name}
@@ -232,8 +228,33 @@ function CourseDetailPage() {
 
 const KIND_ICON = { flight: Plane, ground: BookOpen, sim: ClipboardList } as const;
 
+const LESSON_COLUMNS: ListTableColumn[] = [
+  { id: "kind", header: "Kind", width: "5.5rem" },
+  // The lesson's own minimum, flight and ground; blank when it sets none.
+  { id: "minimum", header: "Minimum", width: "12.5rem" },
+  { id: "tasks", header: "Tasks", width: "5rem", align: "end", narrow: "keep" },
+];
+
+/** "1.5 hrs flight · 1.0 hrs ground", or "" when the lesson sets no minimum. */
+function minimumText(lesson: SyllabusLesson): string {
+  return [
+    // `minFlightDeciHours` is aircraft OR sim time: on a simulator lesson it is sim time.
+    lesson.minFlightDeciHours ? `${deciHoursLabel(lesson.minFlightDeciHours)} ${lesson.kind === "sim" ? "sim" : "flight"}` : null,
+    lesson.minGroundDeciHours ? `${deciHoursLabel(lesson.minGroundDeciHours)} ground` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+/**
+ * A published syllabus, read-only: its stages as groups, their lessons as rows, each lesson's
+ * tasks folded beneath it. A ListTable since 2026-09-30 (it was a card per stage of
+ * expanding rows). A lesson's prose, its objectives, completion standards and what it credits,
+ * opens in a dialog from the row, so the list stays a list and nothing the old rows showed is lost.
+ */
 function SyllabusView({ version }: { version: CourseVersion }) {
   const requirementsById = new Map(version.requirements.map((r) => [r.id, r]));
+  const [reading, setReading] = useState<SyllabusLesson | null>(null);
 
   if (version.stages.length === 0) {
     return (
@@ -246,122 +267,143 @@ function SyllabusView({ version }: { version: CourseVersion }) {
     );
   }
 
-  return (
-    <div className="space-y-4">
-      {version.stages.map((stage) => (
-        <Card key={stage.id} className="p-4">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <h2 className="font-medium">{stage.name}</h2>
-            {stage.requiresStageCheck ? (
-              <Badge variant="outline" className="gap-1">
-                <CheckCircle2 className="size-3" /> Stage check
-              </Badge>
-            ) : null}
-            <span className="text-xs text-muted-foreground">{stage.lessons.length} lessons</span>
-          </div>
-          {stage.objective ? (
-            <p className="mb-3 text-sm text-muted-foreground">{stage.objective}</p>
-          ) : null}
+  const groups: ListTableGroup[] = version.stages.map((stage) => ({
+    id: `stage-${stage.id}`,
+    label: (
+      <span className="inline-flex min-w-0 items-center gap-2" title={stage.objective ?? undefined}>
+        <span className="truncate">{stage.name}</span>
+        {stage.objective ? <span className="truncate font-normal text-muted-foreground">{stage.objective}</span> : null}
+      </span>
+    ),
+    // Marked when the stage requires a check or any lesson in it is one, so the marker and a
+    // lesson's "Stage check" tag can't disagree.
+    marker:
+      stage.requiresStageCheck || stage.lessons.some((l) => l.isStageCheck) ? (
+        <span title="Has a stage check" className="inline-flex">
+          <CheckCircle2 className="size-3.5 text-muted-foreground" aria-hidden />
+          <span className="sr-only">Has a stage check</span>
+        </span>
+      ) : undefined,
+    count: `${stage.lessons.length} ${stage.lessons.length === 1 ? "lesson" : "lessons"}`,
+    rows: stage.lessons.map((lesson): ListTableRow => {
+      const Icon = KIND_ICON[lesson.kind] ?? BookOpen;
+      return {
+        id: `lesson-${lesson.id}`,
+        testId: `syllabus-lesson-${lesson.id}`,
+        label: lesson.name,
+        leading: <Icon className="size-4 text-muted-foreground" aria-hidden />,
+        title: lesson.name,
+        tags: lesson.isStageCheck ? <ListTag>Stage check</ListTag> : undefined,
+        subtitle: lesson.objectives ?? undefined,
+        defaultFolded: true,
+        onOpen: () => setReading(lesson),
+        cells: {
+          kind: <span className="text-muted-foreground">{LESSON_KIND_LABEL[lesson.kind]}</span>,
+          minimum: <span className="text-muted-foreground">{minimumText(lesson)}</span>,
+          tasks: lesson.tasks.length ? <span className="tnum">{lesson.tasks.length}</span> : <span className="text-muted-foreground">None</span>,
+        },
+        children: lesson.tasks.map((t) => ({
+          id: `task-${t.id}`,
+          label: t.name,
+          title: t.name,
+          tags: t.acsCode ? <ListTag className="font-mono">{t.acsCode}</ListTag> : undefined,
+        })),
+      };
+    }),
+  }));
 
-          <div className="divide-y rounded-md border">
-            {stage.lessons.map((lesson) => (
-              <LessonRow key={lesson.id} lesson={lesson} requirementsById={requirementsById} />
-            ))}
-          </div>
-        </Card>
-      ))}
-    </div>
+  return (
+    <>
+      <ListTable
+        label="Syllabus"
+        docShot="course-syllabus"
+        columns={LESSON_COLUMNS}
+        groups={groups}
+        titleHeader="Lesson"
+        showHeader
+        childNoun="tasks"
+      />
+      <LessonDialog lesson={reading} requirementsById={requirementsById} onClose={() => setReading(null)} />
+    </>
   );
 }
 
-function LessonRow({
+/** One lesson in full: what the old expanding row showed, from a click on its row. */
+function LessonDialog({
   lesson,
   requirementsById,
+  onClose,
 }: {
-  lesson: SyllabusLesson;
+  lesson: SyllabusLesson | null;
   requirementsById: Map<number, CourseRequirement>;
+  onClose: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const Icon = KIND_ICON[lesson.kind] ?? BookOpen;
-
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CollapsibleTrigger className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition hover:bg-accent/40">
-        <Icon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">{lesson.name}</span>
-        <Badge variant="outline" className="hidden sm:inline-flex">
-          {LESSON_KIND_LABEL[lesson.kind]}
-        </Badge>
-        {lesson.minFlightDeciHours ? (
-          <span className="hidden text-xs text-muted-foreground md:inline">
-            {deciHoursLabel(lesson.minFlightDeciHours)}
-          </span>
-        ) : null}
-        {lesson.tasks.length ? (
-          <span className="text-xs text-muted-foreground">{lesson.tasks.length} tasks</span>
-        ) : null}
-      </CollapsibleTrigger>
-
-      <CollapsibleContent className="space-y-3 border-t bg-muted/30 px-3 py-3">
-        {lesson.objectives ? (
-          <div>
-            <div className="text-xs font-medium uppercase text-muted-foreground">Objectives</div>
-            <p className="mt-1 text-sm">{lesson.objectives}</p>
-          </div>
-        ) : null}
-        {lesson.completionStandards ? (
-          <div>
-            <div className="text-xs font-medium uppercase text-muted-foreground">
-              Completion standards
+    <ResponsiveModal
+      open={lesson != null}
+      onOpenChange={(o) => !o && onClose()}
+      title={lesson?.name ?? ""}
+      description={
+        lesson ? [LESSON_KIND_LABEL[lesson.kind], minimumText(lesson), lesson.isStageCheck ? "Stage check" : null].filter(Boolean).join(" · ") : undefined
+      }
+    >
+      {lesson ? (
+        <div className="space-y-4">
+          {lesson.objectives ? (
+            <div>
+              <div className="text-xs font-medium uppercase text-muted-foreground">Objectives</div>
+              <p className="mt-1 text-sm">{lesson.objectives}</p>
             </div>
-            <p className="mt-1 text-sm">{lesson.completionStandards}</p>
-          </div>
-        ) : null}
-
-        {lesson.tasks.length ? (
-          <div>
-            <div className="text-xs font-medium uppercase text-muted-foreground">Tasks</div>
-            <ul className="mt-1 space-y-1">
-              {lesson.tasks.map((t) => (
-                <li key={t.id} className="flex items-start gap-2 text-sm">
-                  <Target className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-                  <span>{t.name}</span>
-                  {t.acsCode ? (
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      {t.acsCode}
+          ) : null}
+          {lesson.completionStandards ? (
+            <div>
+              <div className="text-xs font-medium uppercase text-muted-foreground">Completion standards</div>
+              <p className="mt-1 text-sm">{lesson.completionStandards}</p>
+            </div>
+          ) : null}
+          {lesson.tasks.length ? (
+            <div>
+              <div className="text-xs font-medium uppercase text-muted-foreground">Tasks</div>
+              <ul className="mt-1 space-y-1">
+                {lesson.tasks.map((t) => (
+                  <li key={t.id} className="flex items-start gap-2 text-sm">
+                    <Target className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+                    <span>{t.name}</span>
+                    {t.acsCode ? (
+                      <Badge variant="outline" className="font-mono text-[10px]">
+                        {t.acsCode}
+                      </Badge>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {/* This is the fan-out, made visible: one signed lesson posts to all of these at
+              once, which is the thing a ticked-checkbox gradebook cannot do. */}
+          {lesson.creditsWhat.length ? (
+            <div>
+              <div className="text-xs font-medium uppercase text-muted-foreground">Credits toward</div>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {lesson.creditsWhat.map((c) => {
+                  const requirement = requirementsById.get(c.requirementId);
+                  if (!requirement) return null;
+                  return (
+                    <Badge key={c.id} variant="secondary" className="gap-1">
+                      {requirement.label}
+                      <span className="text-[10px] opacity-70">{c.creditFrom === "count" ? "per lesson" : `${c.creditFrom} time`}</span>
                     </Badge>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        {/* This is the fan-out, made visible: one signed lesson posts to all of these at
-            once, which is the thing a ticked-checkbox gradebook cannot do. */}
-        {lesson.creditsWhat.length ? (
-          <div>
-            <div className="text-xs font-medium uppercase text-muted-foreground">
-              Credits toward
+                  );
+                })}
+              </div>
             </div>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {lesson.creditsWhat.map((c) => {
-                const requirement = requirementsById.get(c.requirementId);
-                if (!requirement) return null;
-                return (
-                  <Badge key={c.id} variant="secondary" className="gap-1">
-                    {requirement.label}
-                    <span className="text-[10px] opacity-70">
-                      {c.creditFrom === "count" ? "per lesson" : `${c.creditFrom} time`}
-                    </span>
-                  </Badge>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-      </CollapsibleContent>
-    </Collapsible>
+          ) : null}
+          {!lesson.objectives && !lesson.completionStandards && !lesson.tasks.length && !lesson.creditsWhat.length ? (
+            <p className="text-sm text-muted-foreground">Nothing more is written for this lesson.</p>
+          ) : null}
+        </div>
+      ) : null}
+    </ResponsiveModal>
   );
 }
 
@@ -407,11 +449,34 @@ function RequirementsView({ version }: { version: CourseVersion }) {
   );
 }
 
+const STUDENT_COLUMNS: ListTableColumn[] = [
+  { id: "version", header: "Version", width: "6rem" },
+  { id: "progress", header: "Progress", width: "10rem", narrow: "keep" },
+  // Says which date it is, by where the student stands.
+  { id: "date", header: "Date", width: "10rem" },
+];
+
+/** The roster's groups, in the order a chief instructor reads it: who is training now first. */
+const STATUS_ORDER: EnrollmentStatus[] = ["enrolled", "graduated", "transferred", "terminated"];
+
+function statusDate(e: EnrollmentSummary): string {
+  const at =
+    e.status === "graduated" ? e.graduatedAt : e.status === "terminated" ? e.terminatedAt : e.status === "transferred" ? e.transferredAt : e.enrolledAt;
+  const verb = e.status === "enrolled" ? "Enrolled" : STATUS_LABEL[e.status];
+  // The status stamp should always be there; when an old row lacks it, say only the status.
+  return at ? `${verb} ${formatDate(at, "MMM d, yyyy", "")}` : verb;
+}
+
+/**
+ * Everyone ever enrolled on this course, by where they stand. A ListTable since 2026-09-30.
+ * A row opens the student's training record.
+ */
 function StudentsView({ courseId }: { courseId: number }) {
   const enrollments = useEnrollments({ courseId });
+  const navigate = useNavigate();
   const rows = enrollments.data ?? [];
 
-  if (enrollments.isLoading) return <Skeleton className="h-32 w-full" />;
+  if (enrollments.isLoading) return <ListTableSkeleton columns={STUDENT_COLUMNS} groups={2} rows={3} toolbar={false} />;
   if (enrollments.isError) return <ErrorState error={enrollments.error} />;
   if (rows.length === 0) {
     return (
@@ -424,26 +489,35 @@ function StudentsView({ courseId }: { courseId: number }) {
     );
   }
 
-  return (
-    <Card className="divide-y p-0">
-      {rows.map((e) => (
-        <Link
-          key={e.id}
-          to="/training/enrollments/$enrollmentId"
-          params={{ enrollmentId: String(e.id) }}
-          className="flex items-center justify-between gap-3 px-4 py-3 text-sm transition hover:bg-accent/40"
-        >
-          <span className="min-w-0 flex-1 truncate font-medium">{e.student?.user?.name ?? "Unknown"}</span>
-          <span className="text-xs text-muted-foreground">{e.courseVersion?.label}</span>
-          <Badge variant={e.status === "graduated" ? "secondary" : "outline"}>{e.status}</Badge>
-          <span className="text-xs text-muted-foreground">
-            {e.lessonsComplete ?? e._count?.lessonRecords ?? 0}
-            {e.lessonsTotal != null ? ` of ${e.lessonsTotal}` : ""} complete
-          </span>
-        </Link>
-      ))}
-    </Card>
-  );
+  const groups: ListTableGroup[] = STATUS_ORDER.map((status) => {
+    const members = rows
+      .filter((e) => e.status === status)
+      .sort((a, b) => (a.student?.user?.name ?? "").localeCompare(b.student?.user?.name ?? ""));
+    return {
+      id: status,
+      label: STATUS_LABEL[status],
+      count: members.length,
+      rows: members.map((e): ListTableRow => {
+        const name = e.student?.user?.name ?? "Unknown";
+        return {
+          id: `enrollment-${e.id}`,
+          testId: `course-enrollment-${e.id}`,
+          label: name,
+          leading: e.student ? <WorkspaceUserAvatar person={{ id: e.student.id, name }} /> : undefined,
+          title: name,
+          dim: status === "terminated",
+          onOpen: () => void navigate({ to: "/training/enrollments/$enrollmentId", params: { enrollmentId: String(e.id) } }),
+          cells: {
+            version: <span className="text-muted-foreground">{e.courseVersion?.label}</span>,
+            progress: <EnrollmentProgress enrollment={e} />,
+            date: <span className="text-muted-foreground">{statusDate(e)}</span>,
+          },
+        };
+      }),
+    };
+  });
+
+  return <ListTable label="Students on this course" docShot="course-students" columns={STUDENT_COLUMNS} groups={groups} titleHeader="Student" showHeader />;
 }
 
 function PublishDialog({ version }: { version: CourseVersion }) {

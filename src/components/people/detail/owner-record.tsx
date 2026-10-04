@@ -2,8 +2,11 @@ import * as React from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
 import type { OrganizationUser, WorkOrder } from "@/types/api";
-import { useCurrentJobs, useUpdateResourceOwner, useWorkOrders, type OwnedAircraft } from "@/features/queries";
+import { useCurrentJobs, useCustomerProfile, useUpdateCustomerProfile, useUpdateResourceOwner, useWorkOrders, type OwnedAircraft } from "@/features/queries";
+import { api } from "@/lib/api";
+import { ChoiceProperty, EditableProperty } from "@/components/detail/editable-property";
 import { useAuth } from "@/lib/auth";
 import { canOpenWorkOrders, isAdmin } from "@/lib/permissions";
 import { formatPhone } from "@/lib/phone";
@@ -129,8 +132,22 @@ export function OwnerContactCard({ ou, owned }: { ou: OrganizationUser; owned: O
   // Primary first from the server: any ownership row reaches the same person.
   const via = owned?.[0] ?? null;
   const update = useUpdateResourceOwner(via?.resource.id ?? 0);
-  const editable = isAdmin(roles) && !!via;
+  // An owner who has signed in keeps their own name and address; the shop no longer types them.
+  const claimed = !!ou.claimedAt;
+  const editable = isAdmin(roles) && !!via && !claimed;
   const email = memberEmail(ou);
+  // Signing in shows them their aircraft, and their jobs and bills: somebody with none of those
+  // here would see nothing, so the server refuses and the button is not offered. Until both
+  // lists have loaded it shows, and the server's answer is the toast.
+  const jobs = useOwnerJobs(ou.id).data;
+  const nothingHere = owned?.length === 0 && jobs != null && !jobs.some((w) => isOpenWorkOrder(w) || w.billing === "invoiced");
+  // Not an invitation (Tony, 2026-10-01): a note to the address on the record, with the code to join
+  // with. Signing up at that address is what hands them this record; nothing is stored.
+  const signInEmail = useMutation({
+    mutationFn: () => api<{ sent: boolean; to: string; code: string }>(`/orgUsers/${ou.id}/owner-sign-in-email`, { method: "POST" }),
+    onSuccess: (r) => toast.success(`Sent to ${r.to}. They sign up with that address and join with the code ${r.code}.`),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't send the email"),
+  });
   const rawPhone = ou.user?.details?.phone ?? null;
   const phone = formatPhone(rawPhone, ou.user?.details?.phoneCountry);
 
@@ -149,11 +166,21 @@ export function OwnerContactCard({ ou, owned }: { ou: OrganizationUser; owned: O
     <DetailCard
       title="Contact"
       description={
-        editable
-          ? "They have not signed up, so these are the details you keep for them. Click one to change it."
-          : "They have not signed up, so these are the details the shop keeps for them."
+        claimed
+          ? "They sign in with this address to see their aircraft, jobs and bills, and keep these details themselves."
+          : editable
+            ? "They have not signed up, so these are the details you keep for them. Click one to change it."
+            : "They have not signed up, so these are the details the shop keeps for them."
       }
       docShot="owner-contact"
+      action={
+        // An archived record cannot be claimed, so there is nothing for them to sign in to.
+        !claimed && !ou.archivedAt && isAdmin(roles) && email && !nothingHere ? (
+          <Button size="sm" variant="outline" onClick={() => signInEmail.mutate()} disabled={signInEmail.isPending}>
+            {signInEmail.isPending ? "Sending…" : "Email how to sign in"}
+          </Button>
+        ) : undefined
+      }
     >
       <div className="space-y-0.5">
         <ContactField label="Name" value={ou.user?.name ?? null} placeholder="Ray Hollis" required editable={editable} onSave={save("name")} />
@@ -173,6 +200,72 @@ export function OwnerContactCard({ ou, owned }: { ou: OrganizationUser; owned: O
       </div>
       {isAdmin(roles) && owned && owned.length === 0 && (
         <p className="mt-2 text-[12px] text-muted-foreground">They own no aircraft here, so their details are changed from an aircraft&apos;s Owners panel once they do.</p>
+      )}
+    </DetailCard>
+  );
+}
+
+/**
+ * What the shop keeps about a customer (Murray spec section 2): where the bill goes, how they
+ * like to be reached, and notes. For the people who run jobs; changed by owners and admins.
+ * Never shown to the person themselves.
+ */
+export function CustomerDetailsCard({ orgUserId }: { orgUserId: number }) {
+  const { roles } = useAuth();
+  const readable = canOpenWorkOrders(roles);
+  const editable = isAdmin(roles);
+  const q = useCustomerProfile(orgUserId, { enabled: readable });
+  const update = useUpdateCustomerProfile(orgUserId);
+  if (!readable) return null;
+  const p = q.data;
+  const save = async (patch: Parameters<typeof update.mutateAsync>[0], what: string) => {
+    try {
+      await update.mutateAsync(patch);
+      toast.success(`${what} saved`);
+      return true;
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `Couldn't save the ${what.toLowerCase()}`);
+      return false;
+    }
+  };
+  return (
+    <DetailCard title="Customer details" description="What the shop keeps about them. They never see this." docShot="customer-details">
+      {q.isPending ? (
+        <Skeleton className="h-20 w-full" />
+      ) : !p ? (
+        <p className="text-[13px] text-muted-foreground">Couldn&apos;t load these details.</p>
+      ) : (
+        <div className="space-y-0.5">
+          <EditableProperty
+            label="Billing address"
+            shown={p.billingAddress}
+            fields={[{ key: "billingAddress", label: "Billing address", placeholder: "Whitcomb Aviation LLC\n12 Taxiway B\nIdaho Falls, ID 83402", multiline: true, maxLength: 500 }]}
+            values={{ billingAddress: p.billingAddress }}
+            editable={editable}
+            onSave={(v) => save({ billingAddress: v.billingAddress }, "Billing address")}
+          />
+          <ChoiceProperty
+            label="Prefers"
+            value={p.preferredContact}
+            options={[
+              { value: null, label: "No preference" },
+              { value: "phone", label: "A call" },
+              { value: "text", label: "A text" },
+              { value: "email", label: "An email" },
+            ]}
+            editable={editable}
+            onSave={(v) => save({ preferredContact: v as "email" | "phone" | "text" | null }, "Preference")}
+          />
+          <EditableProperty
+            label="Notes"
+            shown={p.notes}
+            empty="No notes"
+            fields={[{ key: "notes", label: "Notes for the shop", placeholder: "Calls back after 5pm. Pays by check.", multiline: true, maxLength: 2000 }]}
+            values={{ notes: p.notes }}
+            editable={editable}
+            onSave={(v) => save({ notes: v.notes }, "Notes")}
+          />
+        </div>
       )}
     </DetailCard>
   );

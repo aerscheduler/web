@@ -6,11 +6,12 @@ import type {
   CreateBookingRequestInput,
 } from "@/types/booking-requests";
 
-export function useMyBookingApprovalPolicy() {
+export function useMyBookingApprovalPolicy(enabled = true) {
   return useQuery({
     queryKey: ["booking-requests", "policy", "me"],
     queryFn: () => api<{ requiresApproval: boolean }>("/booking-requests/policy/me"),
     staleTime: 60_000,
+    enabled,
   });
 }
 

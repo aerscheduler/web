@@ -5,7 +5,6 @@ import {
   Hammer,
   Archive,
   ListChecks,
-  PlaneTakeoff,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -48,22 +47,20 @@ export const MAINTENANCE_SECTIONS: { label: string; items: MaintenanceView[] }[]
     label: "Inspections",
     items: [
       {
+        // One view since 2026-10-01, grouped by aircraft, status or inspection. The value stays
+        // "aircraft" so old links keep landing here; `view=reminders` (All inspections) opens it
+        // grouped by status (see routes/_authed/maintenance.tsx).
         value: "aircraft",
-        label: "By aircraft",
-        icon: PlaneTakeoff,
-        keywords: ["fleet status", "tail", "due", "annual"],
-      },
-      {
-        value: "reminders",
-        label: "All inspections",
+        label: "Inspections",
         icon: ListChecks,
-        keywords: ["reminders", "inspection list", "overdue", "due soon"],
+        keywords: ["by aircraft", "all inspections", "fleet status", "tail", "due", "annual", "reminders", "overdue", "due soon"],
       },
       {
+        // Was "Set up", which said nothing about what is on it (Tony, 2026-10-01).
         value: "templates",
-        label: "Set up",
+        label: "Inspection rules",
         icon: SlidersHorizontal,
-        keywords: ["inspection templates", "rules", "intervals", "configure"],
+        keywords: ["set up", "inspection templates", "rules", "intervals", "configure"],
       },
       {
         value: "compliance",

@@ -209,6 +209,7 @@ export function ResourceReminders({
 }) {
   const q = useMaintenanceReminders({ resourceId, resolved: false });
   const [adding, setAdding] = useState(false);
+  const navigateTo = useNavigate();
   const [resolving, setResolving] = useState<MaintenanceReminder | null>(null);
   const [filesFor, setFilesFor] = useState<MaintenanceReminder | null>(null);
 
@@ -276,6 +277,8 @@ export function ResourceReminders({
                 <InspectionRow
                   key={m.id}
                   reminder={m}
+                  // The inspection's own page: its history, files and the job carrying it.
+                  onClick={() => void navigateTo({ to: "/maintenance/inspections/$inspectionId", params: { inspectionId: String(m.id) } })}
                   action={
                     canManage ? (
                       <div className="flex items-center">

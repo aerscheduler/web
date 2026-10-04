@@ -91,21 +91,13 @@ test.describe("Go / No-Go hub", () => {
     );
   });
 
-  // The stat tiles only sometimes carry a hint line, and the aircraft card used to
-  // have one fewer text row than the member card, so both sets rendered at mixed
-  // heights side by side.
-  test("renders every card on the board at one height", async ({ page }) => {
+  // The stat tiles only sometimes carry a hint line, so they rendered at mixed heights side
+  // by side. (The grounded aircraft and members were cards of mismatched height too; since
+  // 2026-09-30 they are rows of one list, which share a height by construction.)
+  test("renders every stat tile at one height", async ({ page }) => {
     await mockGroundedBoard(page);
     await page.goto("/compliance");
-
-    const aircraftCard = page.getByRole("link", { name: "Open N901GO" });
-    const memberCard = page.getByRole("link", { name: "Open Grounded Pilot" });
-    await expect(aircraftCard).toBeVisible();
-    await expect(memberCard).toBeVisible();
-
-    const aircraftBox = await aircraftCard.boundingBox();
-    const memberBox = await memberCard.boundingBox();
-    expect(aircraftBox?.height).toBeCloseTo(memberBox?.height ?? 0, 0);
+    await expect(page.getByRole("link", { name: "Open N901GO" })).toBeVisible();
 
     // Measure the card, not the grid item: a grid item stretches to the row on its
     // own, which is exactly why the short inner card went unnoticed.

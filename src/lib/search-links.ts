@@ -156,8 +156,14 @@ export function searchLinkFor(result: SearchResult, viewerOrgUserId: number | nu
       // without it the hit lands on Organization and the rating is nowhere on screen.
       return { to: "/settings", search: { tab: "rates" } };
 
-    case "reservation":
-      return { to: "/schedule", search: { q: result.title } };
+    case "reservation": {
+      // A booking has a page of its own; the board filtered by title is only the
+      // fallback, and titles repeat ("Dual"), so it rarely landed on the one clicked.
+      const reservationId = asInt(result.params.reservationId);
+      return reservationId != null
+        ? { to: "/schedule/reservations/$reservationId", params: { reservationId: String(reservationId) } }
+        : { to: "/schedule", search: { q: result.title } };
+    }
 
     case "announcement":
       return { to: "/operations/announcements", search: { q: result.title } };

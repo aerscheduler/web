@@ -91,15 +91,20 @@ const WITH_ID: Record<string, ((id: number) => NotificationHref) | undefined> = 
   //administrator's ledger of everyone and would bounce them; this is their own copy, and
   //it opens the same invoice for an admin who is also the customer.
   "/invoices": (id) => `/me/invoices?invoice=${id}`,
-  //No per-reminder route exists in the console, so this lands on the inspections list
-  //rather than nowhere. Reminder notifications go to technicians and administrators,
-  //which is exactly who `/maintenance` admits.
-  "/reminders": () => "/maintenance?view=reminders",
+  //The inspection's own page (2026-10-01; until then the console had none and this landed on
+  //the list). Reminder notifications go to technicians and administrators, which is exactly
+  //who `/maintenance` admits, and the page has the same guard.
+  "/reminders": (id) => `/maintenance/inspections/${id}`,
   //A document expiry is about the recipient's own paperwork. There is no per-document
   //page on either surface; the app's link opens the list too.
   "/documents": () => "/me/documents",
   "/currencies": () => "/me/currencies",
   // Member list lives under Schedule; offer detail is not a separate console page.
+  //The maintenance shop: a technician's job, and an owner's own job and aircraft. The app has
+  //no screens for these yet; the server stores app-shaped links so it can grow them.
+  "/work-orders": (id) => `/maintenance/work-orders/${id}`,
+  "/my-jobs": (id) => `/me/jobs/${id}`,
+  "/my-aircraft": (id) => `/me/aircraft/${id}`,
   "/slot-offers": () => `/me/schedule?tab=offers`,
   "/booking-requests": () => `/me/schedule?tab=requests`,
 };
@@ -151,6 +156,10 @@ export function notificationHref(link: string | null | undefined): NotificationH
   }
 
   const trimmed = path.replace(/\/+$/, "");
+
+  //The app's Home ("/"), which the server sends only for an aircraft owner's notice about more
+  //than one of their aircraft (linksFor `ownerHome`). Their Home here is /me, which lists them all.
+  if (trimmed === "" && !query) return "/me";
 
   if (query) {
     // The mobile app has no Security pane. Deletion notices use its existing

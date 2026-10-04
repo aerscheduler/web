@@ -12,6 +12,7 @@ import { DatePickerField } from "@/components/date-picker";
 import { ErrorState } from "@/components/states";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -43,17 +44,23 @@ const DUE: { value: string; label: string }[] = [
  * The bill before it is raised, priced by the server exactly as it will be raised: each line with
  * its tax, the school's service fee, and the total. Raising sends the total the person saw, and is
  * refused with the new one if a line or a rate moved meanwhile.
+ *
+ * It also names the findings the bill charges for that the owner never agreed to (C6): ones never
+ * sent to them, and ones sent and still waiting on their answer (C1: once billed, the owner can no
+ * longer answer them), each of which the desk must tick to bill anyway (the server refuses
+ * otherwise), and ones they declined or put off, said as a notice.
  */
 export function RaiseInvoiceModal({ workOrder: w, open, onOpenChange }: { workOrder: WorkOrder; open: boolean; onOpenChange: (o: boolean) => void }) {
   // An owner the shop wrote down is reached only at the address on the Owners panel; without one
   // the server refuses the bill, so say so here instead of offering a button that always fails.
-  const noAddress = !!w.billTo?.external && !w.billTo.contactEmail;
+  // One who has signed in is billed at their own login, like a member.
+  const noAddress = !!w.billTo?.external && !w.billTo.claimed && !w.billTo.contactEmail;
   const ownersQ = useResourceOwners(noAddress && open ? w.aircraft.id : undefined, { enabled: noAddress && open });
   // Removed from the aircraft since: the Owners panel no longer lists them to add an address to.
   const stillOwner = !ownersQ.data || ownersQ.data.some((o) => o.orgUser.id === w.billTo?.id);
-  // How the bill reaches them: Stripe's email for an owner the shop wrote down, our own email
-  // (and the app) for a member.
-  const sentBy = w.billTo?.external
+  // How the bill reaches them, by the server's rule: Stripe's email at an address the shop
+  // recorded; our own email (and the app) for anybody else, an owner who has signed in included.
+  const sentBy = w.billTo?.contactEmail
     ? `Stripe emails it to ${w.billTo.contactEmail}`
     : `${w.billTo?.name ?? "The member"} gets it by email and in the app`;
   const preview = useWorkOrderInvoicePreview(open && !noAddress ? w.id : null);
@@ -67,11 +74,29 @@ export function RaiseInvoiceModal({ workOrder: w, open, onOpenChange }: { workOr
   const dueDays = dueIn === CUSTOM ? (dueOn ? differenceInCalendarDays(parseISO(dueOn), parseISO(today)) : null) : Number(dueIn);
   const dueOk = dueDays != null && dueDays >= 0 && dueDays <= DUE_MAX_DAYS;
   const p = preview.data;
+  const notTold = p?.ownerNotTold ?? [];
+  const unanswered = p?.awaitingAnswer ?? [];
+  const declined = p?.declinedCharged ?? [];
+  const [includeUnsent, setIncludeUnsent] = React.useState(false);
+  const [includeUnanswered, setIncludeUnanswered] = React.useState(false);
+  React.useEffect(() => {
+    if (!open) return;
+    setIncludeUnsent(false);
+    setIncludeUnanswered(false);
+  }, [open]);
+  const tickedOk = (notTold.length === 0 || includeUnsent) && (unanswered.length === 0 || includeUnanswered);
 
   async function submit() {
-    if (!p || !dueOk) return;
+    if (!p || !dueOk || !tickedOk) return;
     try {
-      await raise.mutateAsync({ workOrderId: w.id, expectedTotal: p.total, expectedDetails: p.details?.hash, dueIn: dueDays! });
+      await raise.mutateAsync({
+        workOrderId: w.id,
+        expectedTotal: p.total,
+        expectedDetails: p.details?.hash,
+        dueIn: dueDays!,
+        ...(notTold.length ? { includeUnsent: true } : {}),
+        ...(unanswered.length ? { includeUnanswered: true } : {}),
+      });
       toast.success(`${w.label} invoiced ${formatMoney(p.total)}. ${sentBy}.`);
       onOpenChange(false);
     } catch (e) {
@@ -102,7 +127,7 @@ export function RaiseInvoiceModal({ workOrder: w, open, onOpenChange }: { workOr
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={raise.isPending}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={noAddress || !p || !dueOk || raise.isPending || preview.isFetching}>
+          <Button onClick={submit} disabled={noAddress || !p || !dueOk || !tickedOk || raise.isPending || preview.isFetching}>
             {raise.isPending ? "Raising…" : p ? `Raise ${formatMoney(p.total)} invoice` : "Raise invoice"}
           </Button>
         </div>
@@ -164,6 +189,68 @@ export function RaiseInvoiceModal({ workOrder: w, open, onOpenChange }: { workOr
             </tfoot>
           </table>
           {p.exemption && <p className="text-xs text-muted-foreground">{p.exemption.printed}</p>}
+          {notTold.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="invoice-not-told">
+              <p className="font-medium">
+                {notTold.length === 1 ? "A finding on this bill was never sent to the owner" : `${notTold.length} findings on this bill were never sent to the owner`}
+              </p>
+              <ul className="mt-1.5 space-y-0.5">
+                {notTold.map((f) => (
+                  <li key={f.itemId} className="flex justify-between gap-3">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{f.description}</span>
+                    <span className="tnum shrink-0">{formatMoney(f.chargesCents)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[12px]">
+                The owner has not been asked about {notTold.length === 1 ? "it" : "them"}. Send {notTold.length === 1 ? "it" : "them"} first, record their answer, mark{" "}
+                {notTold.length === 1 ? "it" : "them"} done, or take {notTold.length === 1 ? "its" : "their"} lines off.
+              </p>
+              <label className="mt-2 flex items-start gap-2 font-medium">
+                <Checkbox checked={includeUnsent} onCheckedChange={(v) => setIncludeUnsent(v === true)} className="mt-0.5" />
+                Bill {notTold.length === 1 ? "it" : "them"} anyway
+              </label>
+            </div>
+          )}
+          {unanswered.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="invoice-awaiting-answer">
+              <p className="font-medium">
+                {unanswered.length === 1 ? "A finding on this bill is still waiting on the owner's answer" : `${unanswered.length} findings on this bill are still waiting on the owner's answer`}
+              </p>
+              <ul className="mt-1.5 space-y-0.5">
+                {unanswered.map((f) => (
+                  <li key={f.itemId} className="flex justify-between gap-3">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{f.description}</span>
+                    <span className="tnum shrink-0">{formatMoney(f.chargesCents)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[12px]">
+                Once billed, the owner can no longer answer {unanswered.length === 1 ? "it" : "them"}. Record their answer, mark {unanswered.length === 1 ? "it" : "them"} done, or take{" "}
+                {unanswered.length === 1 ? "its" : "their"} lines off.
+              </p>
+              <label className="mt-2 flex items-start gap-2 font-medium">
+                <Checkbox checked={includeUnanswered} onCheckedChange={(v) => setIncludeUnanswered(v === true)} className="mt-0.5" />
+                Bill {unanswered.length === 1 ? "it" : "them"} anyway
+              </label>
+            </div>
+          )}
+          {declined.length > 0 && (
+            <div className="rounded-md border p-3 text-[13px]" data-testid="invoice-declined-charged">
+              <p className="font-medium">
+                {declined.length === 1 ? "The owner declined or put off a finding this bill charges for" : `The owner declined or put off ${declined.length} findings this bill charges for`}
+              </p>
+              <ul className="mt-1.5 space-y-0.5 text-muted-foreground">
+                {declined.map((f) => (
+                  <li key={f.itemId} className="flex justify-between gap-3">
+                    <span className="min-w-0 [overflow-wrap:anywhere]">{f.description}</span>
+                    <span className="tnum shrink-0">{formatMoney(f.chargesCents)}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[12px] text-muted-foreground">If the owner should not pay for {declined.length === 1 ? "it" : "them"}, take {declined.length === 1 ? "its" : "their"} lines off or set them to No charge.</p>
+            </div>
+          )}
           {/* What the invoice also says (Murray §13), so the whole bill is reviewed before it goes. */}
           {p.details && (
             <div className="rounded-md border p-3 text-[13px]" data-testid="invoice-details">

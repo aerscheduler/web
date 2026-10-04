@@ -1,5 +1,6 @@
-import { useEffect, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
+import { previousPage, type TrailEntry } from "@/lib/back-trail";
 import { ChevronLeft, type LucideIcon } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -13,20 +14,51 @@ import { cn } from "@/lib/utils";
  * aircraft, and whatever gets its own page next.
  *
  * These pages are deep-linked from search, from a notification, and from a
- * bookmark, which means they are routinely the FIRST page of a session. That is
- * the whole reason `DetailBack` is an explicit link to the list rather than a
- * `history.back()`: on a cold load there is no history to go back to, and a back
- * button that does nothing on the exact entry point people arrive through is
- * worse than no back button at all.
+ * bookmark, which means they are routinely the FIRST page of a session.
  */
 
+const BACK_CLASS =
+  "-ml-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/**
+ * Back to where you came from, named for it: from an aircraft to the person's page reads
+ * "‹ N172TS" and returns there, scroll and filters intact (a real history step, not a fresh
+ * load of the list). With no console page behind this one (a cold load from a link, a
+ * notification, a bookmark) it is a link to `to`, the record's own list, labelled `label`.
+ * See `lib/back-trail` (Tony, 2026-10-01: a hard-coded list was the wrong place half the time).
+ *
+ * A modified click (new tab, new window) follows the href, which is the page behind or the list.
+ */
 export function DetailBack({ to, label, search }: { to: string; label: string; search?: Record<string, unknown> }) {
+  const router = useRouter();
+  // Re-read on every navigation: the same component instance can sit on a page whose history
+  // position changed (a tab push), and the trail is written just after a navigation resolves.
+  const href = useRouterState({ select: (s) => s.location.href });
+  const [back, setBack] = useState<{ entry: TrailEntry; steps: number } | null>(() => previousPage());
+  useEffect(() => {
+    setBack(previousPage());
+    const t = window.setTimeout(() => setBack(previousPage()), 0);
+    return () => window.clearTimeout(t);
+  }, [href]);
+
+  if (back) {
+    return (
+      <a
+        href={back.entry.href}
+        onClick={(e) => {
+          if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          router.history.go(-back.steps);
+        }}
+        className={BACK_CLASS}
+      >
+        <ChevronLeft className="size-4" />
+        {back.entry.title ?? "Back"}
+      </a>
+    );
+  }
   return (
-    <Link
-      to={to}
-      {...(search ? { search: search as never } : {})}
-      className="-ml-1.5 inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[13px] text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
+    <Link to={to} {...(search ? { search: search as never } : {})} className={BACK_CLASS}>
       <ChevronLeft className="size-4" />
       {label}
     </Link>

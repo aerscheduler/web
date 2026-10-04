@@ -75,7 +75,7 @@ function LoginPage() {
     >
       <h1 className="text-[28px] font-semibold tracking-tight sm:text-[32px]">Sign in</h1>
       <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
-        Welcome back. Enter your credentials to reach your flight school.
+        Welcome back. Sign in to reach your organization.
       </p>
 
       <div className="mt-8">
@@ -93,7 +93,7 @@ function LoginPage() {
             type="email"
             autoComplete="email"
             required
-            placeholder="you@flightschool.com"
+            placeholder="you@example.com"
             className={AUTH_CONTROL}
             value={email}
             onChange={(e) => setEmail(e.target.value)}

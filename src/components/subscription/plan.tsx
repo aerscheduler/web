@@ -43,7 +43,9 @@ function overrideState(): SubState | null {
  * without a reload.
  */
 export function useSubStatus(): SubStatus | null {
-  const { organization } = useAuth();
+  const { organization: org, outsideOwner } = useAuth();
+  // An aircraft owner from outside the organization never sees the school's plan.
+  const organization = outsideOwner ? null : org;
   // Only a fallback so a page can show a fleet size before the status lands; the
   // server reports the count its invoice is actually built from.
   const planes = usePlanes(undefined, { enabled: !!organization });

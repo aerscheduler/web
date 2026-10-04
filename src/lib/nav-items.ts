@@ -128,8 +128,20 @@ export function operationsNav(roles: string[]): NavItem[] {
  * finds their own things in the same place. Payment methods and availability live
  * as tabs under Profile (the account menu at the foot of the rail owns that page).
  */
-export function youNav(roles: string[], opts?: { ledgerBilling?: boolean }): NavItem[] {
+export function youNav(roles: string[], opts?: { ledgerBilling?: boolean; outsideOwner?: boolean }): NavItem[] {
   const R = roles as Role[];
+  const invoices: NavItem = {
+    to: "/me/invoices",
+    // Ledger mode: the page is account balance + charges, not a Stripe invoice list.
+    label: opts?.ledgerBilling ? "Billing" : "Invoices",
+    icon: Wallet,
+    keywords: ["my bill", "pay", "balance", "statement", "ledger", "invoices"],
+  };
+  // An aircraft owner from outside the organization: their home (their aircraft are on it) and
+  // their bills. Nothing about flying, because they do not fly here.
+  if (opts?.outsideOwner) {
+    return [{ to: "/me", label: "Home", icon: Home, keywords: ["my home", "my plane", "my aircraft", "work orders", "request work"] }, invoices];
+  }
   return [
     { to: "/me", label: "Home", icon: Home, keywords: ["my home", "personal"] },
     { to: "/me/schedule", label: "Schedule", icon: CalendarDays, keywords: ["my flights", "my bookings"] },
@@ -138,13 +150,7 @@ export function youNav(roles: string[], opts?: { ledgerBilling?: boolean }): Nav
     ...(canSelfBook(R)
       ? [{ to: "/me/book", label: "Book", icon: CalendarPlus, keywords: ["book a flight", "new booking", "reserve"] }]
       : []),
-    {
-      to: "/me/invoices",
-      // Ledger mode: the page is account balance + charges, not a Stripe invoice list.
-      label: opts?.ledgerBilling ? "Billing" : "Invoices",
-      icon: Wallet,
-      keywords: ["my bill", "pay", "balance", "statement", "ledger", "invoices"],
-    },
+    invoices,
     // Only for people who can actually be on a syllabus. A dispatcher or technician
     // has no training record, and an empty page in their personal nav reads as broken.
     ...(R.includes("student") || R.includes("instructor")
@@ -314,7 +320,8 @@ function nestedCommandPages(roles: Role[], slotOffersOn: boolean, enterprise: bo
           to: "/maintenance",
           label: view.label,
           icon: view.icon,
-          path: ["Operations", "Maintenance", section.label, view.label],
+          // "Inspections › Inspections" says nothing twice: drop a view named like its section.
+          path: ["Operations", "Maintenance", section.label, ...(view.label === section.label ? [] : [view.label])],
           keywords: ["maintenance", ...(view.keywords ?? [])],
           search: { view: view.value },
         });

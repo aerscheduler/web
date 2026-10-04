@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { API_URL } from "./env";
 import { api, getToken, isTokenExpired, tokenExpiresAt } from "./api";
 import { track } from "./analytics";
+import { safeSetTimeout } from "./safe-timeout";
 
 //---------------------------------------------------------------------------------
 // Realtime bridge for TanStack Query.
@@ -380,10 +381,17 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
 
         // Proactively reconnect before the JWT expires so the socket never
         // outlives a session that REST would already reject.
+        //
+        // `safeSetTimeout`, never a bare setTimeout: a session token lives 30 days,
+        // which is past the ~24.8 days a browser timer can hold, and an overflowing
+        // timer fires AT ONCE. That reconnected every tab in a loop, a ticket a second,
+        // with no live updates for the first ~5 days of every session. Clamped, the
+        // timer may fire early instead, which is harmless: the reconnect re-arms it
+        // for whatever time the token has left.
         const exp = tokenExpiresAt(current);
         if (exp != null) {
           const until = Math.max(5_000, exp - Date.now() - 30_000);
-          expiryTimer = window.setTimeout(() => {
+          expiryTimer = safeSetTimeout(() => {
             disconnect();
             scheduleReconnect(true);
           }, until);

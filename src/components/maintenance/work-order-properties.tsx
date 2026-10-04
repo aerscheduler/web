@@ -92,7 +92,7 @@ export function WorkOrderDetailsCard({
           <TechniciansProperty workOrder={w} onSave={save} />
         </PropertyRow>
         <MetersProperty workOrder={w} prompt={metersPrompt ?? null} onPromptClose={onMetersPromptClose} onSave={save} />
-        <PropertyRow label="Hangar slot">
+        <PropertyRow label="Booked for">
           <BookingProperty workOrder={w} onSave={save} />
         </PropertyRow>
         <div className="my-2 border-t border-border" />
@@ -278,7 +278,7 @@ function BookingProperty({ workOrder: w, onSave }: { workOrder: WorkOrder; onSav
     if (linked && !list.some((o) => o.value === String(linked.id))) {
       list.unshift({ value: String(linked.id), label: linked.cancelled ? "Cancelled booking" : linked.moved ? "Moved off this aircraft" : when(linked.start, linked.end) });
     }
-    return [{ value: NOBODY, label: "None", hint: "No hangar slot linked" }, ...list];
+    return [{ value: NOBODY, label: "Not booked", hint: "No maintenance booking on the schedule" }, ...list];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingsQ.data, w.booking, tz]);
   const label = !w.booking
@@ -297,8 +297,8 @@ function BookingProperty({ workOrder: w, onSave }: { workOrder: WorkOrder; onSav
       emptyText="No maintenance bookings on this aircraft."
       contentClassName="w-80"
       trigger={
-        <button type="button" className={valueButton} aria-label="Change the hangar slot" onPointerDown={() => setOpened(true)} onFocus={() => setOpened(true)}>
-          {label ? <span className={cn("truncate", (w.booking?.cancelled || w.booking?.moved) && "text-muted-foreground")}>{label}</span> : <span className="text-muted-foreground">None</span>}
+        <button type="button" className={valueButton} aria-label="Change the booking" onPointerDown={() => setOpened(true)} onFocus={() => setOpened(true)}>
+          {label ? <span className={cn("truncate", (w.booking?.cancelled || w.booking?.moved) && "text-muted-foreground")}>{label}</span> : <span className="text-muted-foreground">Not booked</span>}
         </button>
       }
     />

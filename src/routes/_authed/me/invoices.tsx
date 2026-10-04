@@ -41,6 +41,9 @@ function MyInvoicesPage() {
   const { organization, orgUserId } = useAuth();
   const navigate = Route.useNavigate();
   const { tab, invoice } = Route.useSearch();
+  // An outside aircraft owner's bills are always invoices: they have no account here.
+  const { outsideOwner } = useAuth();
+  // Answers "off" for an outside owner without asking the server (see useOrgLedgerSettings).
   const ledgerSettingsQ = useOrgLedgerSettings();
   const ledgerOn = ledgerSettingsQ.data?.enabled === true;
   const [addFundsOpen, setAddFundsOpen] = useState(false);
@@ -73,12 +76,14 @@ function MyInvoicesPage() {
         <PageHeader
           title={
             <span className="inline-flex items-center gap-1.5">
-              Billing
+              {outsideOwner ? "Invoices" : "Billing"}
               {ledgerOn && <DocsHint topic="account-ledger" />}
             </span>
           }
           subtitle={
-            ledgerOn
+            outsideOwner
+              ? `What ${organization.name} has billed you for work on your aircraft.`
+              : ledgerOn
               ? pane === "invoices"
                 ? "Bills raised outside your account: shop work orders, invoices from before the account ledger, and guest bills."
                 : "Your account balance, credits, and charges."

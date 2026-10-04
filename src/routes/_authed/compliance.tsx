@@ -1,8 +1,6 @@
-import type { ReactNode } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
-  ChevronRight,
   PlaneTakeoff,
   ShieldCheck,
   UserX,
@@ -16,12 +14,12 @@ import type { Resource, OrganizationUser } from "@/types/api";
 import { DocsHint } from "@/components/docs-hint";
 import { PageHeader } from "@/components/page-header";
 import { StatCard, StatGrid } from "@/components/stat-card";
-import { EmptyState, ErrorState, CardGridSkeleton } from "@/components/states";
+import { EmptyState, ErrorState } from "@/components/states";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { initials } from "@/lib/utils";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { ListTable, ListTableSkeleton, type ListTableColumn, type ListTableGroup, type ListTableRow } from "@/components/list-table";
+import { WorkspaceUserAvatar } from "@/components/workspace-user-avatar";
 
 export const Route = createFileRoute("/_authed/compliance")({
   beforeLoad: guardRoute("/compliance"),
@@ -99,7 +97,7 @@ function CompliancePage() {
       </StatGrid>
 
       {loading ? (
-        <CardGridSkeleton count={3} />
+        <ListTableSkeleton columns={NO_GO_COLUMNS} groups={2} rows={2} toolbar={false} />
       ) : error ? (
         <ErrorState
           error={error}
@@ -119,28 +117,7 @@ function CompliancePage() {
           />
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          {groundedAircraft.length > 0 && (
-            <section className="space-y-2.5">
-              <h2 className="text-sm font-semibold text-muted-foreground">Grounded aircraft</h2>
-              <div className="max-h-[min(28rem,50vh)] space-y-2.5 overflow-y-auto">
-                {groundedAircraft.map((r) => (
-                  <GroundedAircraftCard key={r.id} resource={r} />
-                ))}
-              </div>
-            </section>
-          )}
-          {groundedMembers.length > 0 && (
-            <section className="space-y-2.5">
-              <h2 className="text-sm font-semibold text-muted-foreground">Grounded members</h2>
-              <div className="max-h-[min(28rem,50vh)] space-y-2.5 overflow-y-auto">
-                {groundedMembers.map((m) => (
-                  <GroundedMemberCard key={m.id} member={m} />
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
+        <NoGoList aircraft={groundedAircraft} members={groundedMembers} />
       )}
 
       {/* currency types tracked */}
@@ -190,99 +167,92 @@ function CompliancePage() {
   );
 }
 
+const NO_GO_COLUMNS: ListTableColumn[] = [
+  // What was written when they were grounded: the reason is the row's whole point.
+  { id: "reason", header: "Reason", width: "minmax(0,1.2fr)" },
+];
+
 /**
- * The inside of one no-go row, shared by the aircraft and member cards.
- *
- * Always three lines, and every line always has content, so an aircraft card and
- * a member card are the same height beside each other in the two-column layout.
- * A third line that only some cards carry makes the two columns saw up and down
- * against each other. The Link stays with each caller because the router types
- * `params` against the specific route.
+ * What can't fly, as one list: grounded aircraft, then grounded members. A ListTable since
+ * 2026-09-30 (two columns of cards, which sawed against each other and each scrolled on its
+ * own). Both groups are "grounded" in the product's one sense: off the line until somebody
+ * returns them to service, whatever the reason.
  */
-function GroundedCardBody({
-  media,
-  name,
-  reason,
-  detail,
-  badge,
-}: {
-  media: ReactNode;
-  name: string;
-  reason: string;
-  detail: string;
-  badge: ReactNode;
-}) {
-  return (
-    <Card className="flex items-center gap-3 p-4 transition-colors hover:bg-muted/40">
-      {media}
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-medium">{name}</div>
-        <div className="truncate text-xs text-muted-foreground">{reason}</div>
-        <div className="truncate text-xs text-muted-foreground/80">{detail}</div>
-      </div>
-      {badge}
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-    </Card>
-  );
+function NoGoList({ aircraft, members }: { aircraft: Resource[]; members: OrganizationUser[] }) {
+  const navigate = useNavigate();
+  const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+  const groups: ListTableGroup[] = [
+    {
+      id: "aircraft",
+      label: "Grounded aircraft",
+      marker: <PlaneTakeoff className="size-3.5 text-warning" aria-hidden />,
+      count: aircraft.length,
+      rows: [...aircraft]
+        .sort((a, b) => byName(resourceLabel(a).name, resourceLabel(b).name))
+        .map((r): ListTableRow => {
+          const plane = r.type?.plane;
+          const { name, kind } = resourceLabel(r);
+          return {
+            id: `aircraft-${r.id}`,
+            testId: `no-go-aircraft-${r.id}`,
+            label: `${name}, grounded`,
+            // A real link (cmd-click, new tab), named as the old card was.
+            title: (
+              <Link to="/aircraft/$resourceId" params={{ resourceId: String(r.id) }} aria-label={`Open ${name}`} className="font-mono underline-offset-2 hover:underline">
+                {name}
+              </Link>
+            ),
+            subtitle: [plane?.make, plane?.model].filter(Boolean).join(" ") || kind,
+            onOpen: () => void navigate({ to: "/aircraft/$resourceId", params: { resourceId: String(r.id) } }),
+            cells: { reason: <ReasonText reason={plane?.groundedReason} /> },
+          };
+        }),
+    },
+    {
+      id: "members",
+      label: "Grounded members",
+      marker: <UserX className="size-3.5 text-warning" aria-hidden />,
+      count: members.length,
+      rows: [...members]
+        .sort((a, b) => byName(a.user?.name ?? `Member #${a.id}`, b.user?.name ?? `Member #${b.id}`))
+        .map((m): ListTableRow => {
+          const name = m.user?.name ?? `Member #${m.id}`;
+          const roles = rolesOf(m);
+          return {
+            id: `member-${m.id}`,
+            testId: `no-go-member-${m.id}`,
+            label: `${name}, grounded`,
+            leading: <WorkspaceUserAvatar person={{ id: m.id, name, profileImage: m.profileImage ?? null }} />,
+            title: (
+              <Link to="/people/$orgUserId" params={{ orgUserId: String(m.id) }} aria-label={`Open ${name}`} className="underline-offset-2 hover:underline">
+                {name}
+              </Link>
+            ),
+            subtitle: roles.length ? roles.map((r) => r[0]!.toUpperCase() + r.slice(1)).join(", ") : "Member",
+            onOpen: () => void navigate({ to: "/people/$orgUserId", params: { orgUserId: String(m.id) } }),
+            cells: { reason: <ReasonText reason={m.groundedReason} /> },
+          };
+        }),
+    },
+  ];
+  return <ListTable label="Grounded aircraft and members" docShot="go-no-go-list" columns={NO_GO_COLUMNS} groups={groups} titleHeader="Who or what" showHeader />;
 }
 
-function GroundedAircraftCard({ resource }: { resource: Resource }) {
-  const plane = resource.type?.plane;
-  const { name, kind } = resourceLabel(resource);
-  const makeAndModel = [plane?.make, plane?.model].filter(Boolean).join(" ");
+/**
+ * System reasons written in the grounded member's own voice, said here in the third person:
+ * the money sweep writes "You have unpaid invoices." (server `UNPAID_INVOICES_GROUNDED_REASON`),
+ * which beside somebody else's name reads as addressed to the admin.
+ */
+const REASON_FOR_STAFF: Record<string, string> = {
+  "You have unpaid invoices.": "Unpaid invoices",
+};
 
-  return (
-    <Link
-      to="/aircraft/$resourceId"
-      params={{ resourceId: String(resource.id) }}
-      aria-label={`Open ${name}`}
-      className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <GroundedCardBody
-        media={
-          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-warning/15 text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
-            <PlaneTakeoff className="size-5" />
-          </span>
-        }
-        name={name}
-        reason={plane?.groundedReason || "Grounded. No reason on file"}
-        detail={makeAndModel || kind}
-        badge={
-          <Badge variant="secondary" className="shrink-0 border-warning/30 text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
-            Grounded
-          </Badge>
-        }
-      />
-    </Link>
-  );
-}
-
-function GroundedMemberCard({ member }: { member: OrganizationUser }) {
-  const name = member.user?.name ?? `Member #${member.id}`;
-  const roles = rolesOf(member);
-
-  return (
-    <Link
-      to="/people/$orgUserId"
-      params={{ orgUserId: String(member.id) }}
-      aria-label={`Open ${name}`}
-      className="block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <GroundedCardBody
-        media={
-          <Avatar className="size-10">
-            <AvatarFallback>{initials(name)}</AvatarFallback>
-          </Avatar>
-        }
-        name={name}
-        reason={member.groundedReason || "Grounded. No reason on file"}
-        detail={roles.length ? roles.join(", ") : "Member"}
-        badge={
-          <Badge variant="danger" className="shrink-0">
-            Grounded
-          </Badge>
-        }
-      />
-    </Link>
+/** The reason on file, or a quiet note that none was written. Same words as the person page. */
+function ReasonText({ reason }: { reason: string | null | undefined }) {
+  const text = reason?.trim();
+  return text ? (
+    <span title={text}>{REASON_FOR_STAFF[text] ?? text}</span>
+  ) : (
+    <span className="text-muted-foreground">No reason recorded</span>
   );
 }

@@ -166,6 +166,20 @@ export const STICKY_GROUP_CLASS =
 export const TALL_LIST_CLASS = "max-h-[min(30rem,calc(var(--radix-popover-content-available-height)-3rem))]";
 
 /**
+ * Rows pinned to the bottom of a searchable menu ("Add a customer aircraft"). Sticky inside the
+ * list rather than outside it: cmdk only arrow-keys through items inside `CommandList`, so a
+ * footer below the list would be unreachable from the keyboard. Pair with
+ * {@link STICKY_FOOTER_LIST_CLASS} on the list so a highlighted row never scrolls under it.
+ */
+export const STICKY_FOOTER_CLASS = "sticky bottom-0 z-10 order-last border-t border-border bg-popover";
+// A column so `order-last` holds: while you type, cmdk re-appends the matching groups to the
+// end of the list, which would otherwise leave the footer stranded at the top of the results.
+export const STICKY_FOOTER_LIST_CLASS = "scroll-pb-11 [&_[cmdk-list-sizer]]:flex [&_[cmdk-list-sizer]]:flex-col";
+
+/** A row pinned below a picker's options: makes the thing being looked for when it isn't there. */
+export type ComboAction = { label: string; onSelect: (search: string) => void };
+
+/**
  * Searchable single-select (Popover + Command). Client-side fuzzy filter, the API has
  * no server search, so this is how large rosters/fleets stay usable.
  */
@@ -188,10 +202,11 @@ export function Combobox({
   value?: string;
   onChange: (value: string) => void;
   /**
-   * A last row that makes the thing being looked for when it is not there ("Add a customer
-   * aircraft"). Always shown, whatever is typed; given the search text, to start the new one with.
+   * Rows that make the thing being looked for when it is not there ("Add a customer
+   * aircraft"). Pinned to the bottom of the list, so they stay in view however long it is,
+   * and always shown, whatever is typed; given the search text, to start the new one with.
    */
-  action?: { label: string; onSelect: (search: string) => void };
+  action?: ComboAction | ComboAction[];
   placeholder?: string;
   searchPlaceholder?: string;
   emptyText?: string;
@@ -210,6 +225,7 @@ export function Combobox({
   const [search, setSearch] = React.useState("");
   const selected = options.find((o) => o.value === value);
   const groups = React.useMemo(() => groupOptions(options), [options]);
+  const actions = action ? (Array.isArray(action) ? action : [action]) : [];
 
   return (
     // `modal` so Dialog's RemoveScroll treats this portaled list as a scroll shard;
@@ -235,7 +251,7 @@ export function Combobox({
       <PopoverContent className={cn("w-(--radix-popover-trigger-width) p-0", contentClassName)} align="start">
         <Command>
           <CommandInput placeholder={searchPlaceholder} value={search} onValueChange={setSearch} />
-          <CommandList className={TALL_LIST_CLASS}>
+          <CommandList className={cn(TALL_LIST_CLASS, actions.length > 0 && STICKY_FOOTER_LIST_CLASS)}>
             <CommandEmpty>{emptyText}</CommandEmpty>
             {groups.map((group, i) => (
               // Headed groups keep their heading pinned while their rows scroll under it, so a
@@ -270,19 +286,22 @@ export function Combobox({
                 ))}
               </CommandGroup>
             ))}
-          {action && (
-              <CommandGroup forceMount className="border-t border-border">
-                <CommandItem
-                  forceMount
-                  value="__combobox-action"
-                  onSelect={() => {
-                    setOpen(false);
-                    action.onSelect(search.trim());
-                  }}
-                >
-                  <Plus className="size-4" />
-                  <span className="truncate">{action.label}</span>
-                </CommandItem>
+            {actions.length > 0 && (
+              <CommandGroup forceMount className={STICKY_FOOTER_CLASS}>
+                {actions.map((a, i) => (
+                  <CommandItem
+                    key={a.label}
+                    forceMount
+                    value={`__combobox-action-${i}`}
+                    onSelect={() => {
+                      setOpen(false);
+                      a.onSelect(search.trim());
+                    }}
+                  >
+                    <Plus className="size-4" />
+                    <span className="truncate">{a.label}</span>
+                  </CommandItem>
+                ))}
               </CommandGroup>
             )}
           </CommandList>

@@ -1,6 +1,5 @@
 import * as React from "react";
-import { format, parseISO } from "date-fns";
-import { Box, CalendarDays, CircleDollarSign, Clock, CornerDownRight, Droplet, Landmark, Package, PackageCheck, Percent, Receipt, Truck, UserRound } from "lucide-react";
+import { Box, CircleDollarSign, Clock, CornerDownRight, Droplet, Landmark, Package, PackageCheck, Percent, Receipt, Truck, UserRound } from "lucide-react";
 import { useSubmitOnce } from "@/lib/use-submit-once";
 import { toast } from "sonner";
 import {
@@ -20,11 +19,10 @@ import { ResponsiveModal } from "@/components/responsive-modal";
 import { MoneyInput } from "@/components/money-input";
 import { Field } from "@/components/settings/parts";
 import { Button } from "@/components/ui/button";
-import { Calendar } from "@/components/ui/calendar";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { PersonAvatar } from "@/components/workspace-user-avatar";
+import { ChipButton, ChipMenu, DateChip } from "@/components/property-chips";
 
 export const LINE_KINDS: { value: WorkOrderLineCategory; label: string }[] = [
   { value: "labor", label: "Labor" },
@@ -66,7 +64,7 @@ function minutesFrom(text: string): number | null {
 }
 
 /** "20 min", "1.5 h": what the minutes will read as on the job, as the server labels them. */
-function timeLabel(minutes: number): string {
+export function timeLabel(minutes: number): string {
   if (minutes % 15 === 0) return `${minutes / 60} h`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -137,6 +135,7 @@ export function WorkOrderLineModal({
   const [serialNumber, setSerialNumber] = React.useState("");
   const [vendor, setVendor] = React.useState("");
   const [partStatus, setPartStatus] = React.useState<string>(NONE);
+  const [orderedOn, setOrderedOn] = React.useState("");
   const [expectedOn, setExpectedOn] = React.useState("");
   const [taxable, setTaxable] = React.useState<string>(RULE);
   const [billable, setBillable] = React.useState(true);
@@ -174,6 +173,7 @@ export function WorkOrderLineModal({
     setSerialNumber(l?.serialNumber ?? "");
     setVendor(l?.vendor ?? "");
     setPartStatus(l?.partStatus ?? NONE);
+    setOrderedOn(l?.orderedOn ?? "");
     setExpectedOn(l?.expectedOn ?? "");
     setTaxable(l?.taxable == null ? RULE : l.taxable ? "yes" : "no");
     setBillable(l?.billable ?? true);
@@ -275,6 +275,7 @@ export function WorkOrderLineModal({
           partNumber: partNumber.trim() || null,
           serialNumber: serialNumber.trim() || null,
           partStatus: partStatus === NONE ? null : (partStatus as WorkOrderLine["partStatus"]),
+          orderedOn: orderedOn || null,
           expectedOn: expectedOn || null,
         });
       }
@@ -513,6 +514,10 @@ export function WorkOrderLineModal({
                 onChange={setPartStatus}
                 options={[{ value: NONE, label: "Not tracked" }, ...Object.entries(PART_STATUS_LABEL).map(([value, label]) => ({ value, label }))]}
               />
+              {/* Murray's parts list: the order date and the expected arrival, once it is on order. */}
+              {(partStatus !== NONE || orderedOn) && (
+                <DateChip id="wo-line-ordered" name="Ordered" prefix="Ordered " empty="Ordered" value={orderedOn} onChange={setOrderedOn} />
+              )}
               {(partStatus === "ordered" || expectedOn) && (
                 <DateChip id="wo-line-expected" name="Expected" prefix="Expected " empty="Expected" value={expectedOn} onChange={setExpectedOn} />
               )}
@@ -590,130 +595,6 @@ const PART_STATUS_LABEL: Record<string, string> = {
   returned: "Returned",
   unused: "Unused",
 };
-
-/** A chip: a line's property, its value as the label. Hover makes it louder, never fills it. */
-const CHIP =
-  "inline-flex h-7 max-w-[16rem] min-w-0 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-medium text-muted-foreground outline-none transition-colors hover:border-foreground/35 hover:text-foreground data-[state=open]:border-foreground/35 data-[state=open]:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60";
-
-function ChipButton({
-  leading,
-  set,
-  className,
-  children,
-  ...props
-}: React.ComponentProps<"button"> & { leading: React.ReactNode; set?: boolean }) {
-  return (
-    <button type="button" className={cn(CHIP, set && "text-foreground", className)} {...props}>
-      <span className="flex shrink-0 items-center">{leading}</span>
-      <span className="truncate">{children}</span>
-    </button>
-  );
-}
-
-function ChipMenu({
-  id,
-  name,
-  leading,
-  label,
-  set,
-  value,
-  onChange,
-  options,
-  disabled,
-  contentClassName,
-}: {
-  id: string;
-  /** What the chip is, for a screen reader: "Kind: Labor". */
-  name: string;
-  leading: React.ReactNode;
-  label: React.ReactNode;
-  /** A value somebody chose, drawn brighter than a default. */
-  set?: boolean;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: React.ReactNode; hint?: string }[];
-  disabled?: boolean;
-  contentClassName?: string;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild disabled={disabled}>
-        <ChipButton id={id} leading={leading} set={set} aria-label={`${name}: ${typeof label === "string" ? label : value}`}>
-          {label}
-        </ChipButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className={cn("max-w-[min(20rem,calc(100vw-2rem))]", contentClassName)}>
-        <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
-          {options.map((o) => (
-            <DropdownMenuRadioItem key={o.value} value={o.value} className="items-start">
-              <span className="flex min-w-0 flex-col [overflow-wrap:anywhere]">
-                {o.label}
-                {o.hint && <span className="text-xs text-muted-foreground">{o.hint}</span>}
-              </span>
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
-}
-
-/** A day as a chip: "yyyy-MM-dd" or "" for none. */
-function DateChip({
-  id,
-  name,
-  empty,
-  prefix = "",
-  value,
-  onChange,
-}: {
-  id: string;
-  name: string;
-  empty: string;
-  prefix?: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const selected = value ? parseISO(value) : undefined;
-  const label = selected ? `${prefix}${format(selected, "MMM d, yyyy")}` : empty;
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <ChipButton id={id} leading={<CalendarDays className="size-3.5" />} set={!!selected} aria-label={`${name}: ${label}`}>
-          {label}
-        </ChipButton>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={selected}
-          defaultMonth={selected}
-          onSelect={(d) => {
-            if (!d) return;
-            setOpen(false);
-            onChange(format(d, "yyyy-MM-dd"));
-          }}
-        />
-        {selected && (
-          <div className="border-t border-border p-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full"
-              onClick={() => {
-                setOpen(false);
-                onChange("");
-              }}
-            >
-              {empty === "Expected" ? "No date" : empty}
-            </Button>
-          </div>
-        )}
-      </PopoverContent>
-    </Popover>
-  );
-}
 
 /** A discount off the whole line, typed as a percentage in a small popover. */
 function DiscountChip({

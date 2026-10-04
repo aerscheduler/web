@@ -1,8 +1,7 @@
 import { useMemo, useRef, useState } from "react";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import {
   AlertTriangle,
-  ArrowLeft,
   BookOpen,
   CheckCircle2,
   ClipboardList,
@@ -54,11 +53,14 @@ import {
 import type { EnrollmentProgress, LessonRecord, Standing, SyllabusLesson } from "@/types/api";
 import { gradeCodesOf } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { DetailBack, useDetailTitle } from "@/components/detail/detail-page";
 import { DocsHint } from "@/components/docs-hint";
 import { TableView } from "@/components/table-view";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { EmptyState, ErrorState } from "@/components/states";
 import { EndorsementsCard } from "@/components/training/endorsements-card";
+import { ListTable, ListTag, type ListTableColumn, type ListTableGroup, type ListTableRow } from "@/components/list-table";
+import { WorkStatusIcon } from "@/components/maintenance/work-status-icon";
 import { EnrollmentFeeCard } from "@/components/training/enrollment-fee-card";
 import { ToCountersign } from "@/components/training/to-countersign";
 import { PaceBadge } from "@/components/training/pace-badge";
@@ -116,6 +118,8 @@ function EnrollmentPage() {
   const navigate = Route.useNavigate();
   const { orgUserId } = useAuth();
   const progress = useEnrollmentProgress(Number(enrollmentId));
+  const enrolled = progress.data?.enrollment;
+  useDetailTitle(enrolled ? `${enrolled.student?.user?.name ?? "Student"}, ${enrolled.courseVersion.course.name}` : null);
 
   const active = SECTIONS[0]!.items.some((i) => i.value === tab) ? tab! : "overview";
   const pick = (next: string) => {
@@ -133,11 +137,7 @@ function EnrollmentPage() {
   return (
     <TableView className="gap-5">
       <TableView.Header>
-        <Button asChild variant="ghost" size="sm" className="-ml-2">
-          <Link to={canAccess("/training", rolesFromSession()) ? "/training" : "/me/training"}>
-            <ArrowLeft className="size-4" /> Training
-          </Link>
-        </Button>
+        <DetailBack to={canAccess("/training", rolesFromSession()) ? "/training" : "/me/training"} label="Training" />
 
         <PageHeader
           title={e.student?.user?.name ?? "Student"}
@@ -324,132 +324,153 @@ function LessonsTab({ progress }: { progress: EnrollmentProgress }) {
   const mine = useMyTrainingGrants();
   const editable = p.enrollment.status === "enrolled" && mine.data?.canGrade === true;
 
-  return (
-    <div className="space-y-4" data-doc-shot="enrollment-lessons">
-      {p.enrollment.courseVersion.stages.map((stage) => (
-        <Card key={stage.id} className="p-4">
-          <h2 className="mb-3 font-medium">{stage.name}</h2>
-          <div className="divide-y rounded-md border">
-            {stage.lessons.map((lesson) => {
-              const Icon = KIND_ICON[lesson.kind] ?? BookOpen;
-              const records = (recordsByLesson.get(lesson.id) ?? []).sort((a, b) => b.id - a.id);
-              const complete = done.has(lesson.id);
-              return (
-                <div
-                  key={lesson.id}
-                  className={`px-3 py-2.5 ${lesson.id === suggested ? "bg-primary/5" : ""}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Icon className="size-4 shrink-0 text-muted-foreground" />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{lesson.name}</span>
-                    {complete ? (
-                      <Badge variant="secondary" className="gap-1">
-                        <CheckCircle2 className="size-3" /> Complete
-                      </Badge>
-                    ) : lesson.id === suggested ? (
-                      <Badge variant="outline">Next up</Badge>
-                    ) : null}
-                    <Badge variant="outline" className="hidden sm:inline-flex">
-                      {LESSON_KIND_LABEL[lesson.kind]}
-                    </Badge>
-                    {editable && !complete ? (
-                      <GradeDialog
-                        progress={p}
-                        lesson={lesson}
-                        existing={records.find((r) => !r.instructorSignedAt) ?? null}
-                      />
-                    ) : null}
-                  </div>
+  const groups: ListTableGroup[] = p.enrollment.courseVersion.stages.map((stage) => {
+    const finished = stage.lessons.filter((l) => done.has(l.id)).length;
+    return {
+      id: `stage-${stage.id}`,
+      label: stage.name,
+      // "4 of 9 complete" says where the student stands in the stage, which is what the count
+      // is for here; a bare 9 would only restate the syllabus.
+      count: `${finished} of ${stage.lessons.length} complete`,
+      rows: stage.lessons.map((lesson): ListTableRow => {
+        const Icon = KIND_ICON[lesson.kind] ?? BookOpen;
+        const records = (recordsByLesson.get(lesson.id) ?? []).sort((a, b) => b.id - a.id);
+        const complete = done.has(lesson.id);
+        // Where the lesson stands: complete per the server, else the newest live record's
+        // state, else not started. Never the newest record when a correction superseded it.
+        const live = records.find((r) => !superseded.has(r.id));
+        // The server's completion rule is signed (where sign-off is required), passing and not
+        // superseded; the student's countersignature is not part of it. So a live record the
+        // instructor signed on a lesson that is NOT complete failed its grade: "Signed" or
+        // "Awaiting student" there would promise a completion that is not coming.
+        const status = complete
+          ? "Complete"
+          : live?.instructorSignedAt
+            ? "Not passed"
+            : live
+              ? recordState({ ...live, requiresSignoff: lesson.requiresSignoff }).label
+              : "Not started";
+        return {
+          id: `lesson-${lesson.id}`,
+          testId: `enrollment-lesson-${lesson.id}`,
+          label: `${lesson.name}, ${status}`,
+          leading: <WorkStatusIcon status={complete ? "done" : live ? "progress" : lesson.id === suggested ? "approved" : "todo"} />,
+          title: lesson.name,
+          tags: lesson.id === suggested && !complete ? <ListTag>Next up</ListTag> : undefined,
+          cells: {
+            meta: (
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <Icon className="size-3.5" aria-hidden /> {LESSON_KIND_LABEL[lesson.kind]}
+              </span>
+            ),
+            status: <span className={complete ? "text-foreground" : "text-muted-foreground"}>{status}</span>,
+            action:
+              editable && !complete ? (
+                <GradeDialog progress={p} lesson={lesson} existing={records.find((r) => !r.instructorSignedAt) ?? null} />
+              ) : null,
+          },
+          children: records.map((r) =>
+            recordRow(r, {
+              superseded: superseded.has(r.id),
+              editable,
+              requiresSignoff: lesson.requiresSignoff,
+              requiresNotes: lesson.requiresNotes === true,
+            })
+          ),
+        };
+      }),
+    };
+  });
 
-                  {records.length ? (
-                    <div className="mt-2 space-y-1.5 pl-7">
-                      {records.map((r) => (
-                        <RecordRow
-                          key={r.id}
-                          record={r}
-                          superseded={superseded.has(r.id)}
-                          editable={editable}
-                          lessonComplete={complete}
-                          requiresSignoff={lesson.requiresSignoff}
-                          requiresNotes={lesson.requiresNotes === true}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </Card>
-      ))}
-    </div>
+  return (
+    <ListTable
+      label="Lessons"
+      docShot="enrollment-lessons"
+      columns={LESSON_COLUMNS}
+      groups={groups}
+      childNoun="records"
+    />
   );
 }
 
-function RecordRow({
+/**
+ * No column labels, Linear-style: a lesson's row and its records' rows share the columns but
+ * not their meaning (the lesson's kind, the record's hours), and one header over both would
+ * be false for one of them.
+ */
+const LESSON_COLUMNS: ListTableColumn[] = [
+  { id: "meta", width: "9.5rem" },
+  { id: "status", width: "9.5rem" },
+  { id: "action", width: "7rem", align: "end", narrow: "keep" },
+];
+
+/** One lesson record, as a row under its lesson. */
+function recordRow(
+  record: LessonRecord,
+  opts: { superseded: boolean; editable: boolean; requiresSignoff: boolean; requiresNotes: boolean }
+): ListTableRow {
+  const state = recordState({ ...record, requiresSignoff: opts.requiresSignoff });
+  const hours = [
+    record.flightDeciHours ? `${deciHours(record.flightDeciHours)} flight` : null,
+    record.instructionDeciHours ? `${deciHours(record.instructionDeciHours)} ground` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return {
+    id: `record-${record.id}`,
+    testId: `lesson-record-${record.id}`,
+    label: `${state.label}${record.grade ? `, graded ${record.grade}` : ""}${opts.superseded ? ", superseded" : ""}`,
+    dim: opts.superseded,
+    title: <span className={opts.superseded ? "line-through" : undefined}>{state.label}</span>,
+    tags:
+      record.grade || opts.superseded ? (
+        <>
+          {record.grade ? <ListTag>Grade {record.grade}</ListTag> : null}
+          {opts.superseded ? <ListTag>Superseded</ListTag> : null}
+        </>
+      ) : undefined,
+    cells: {
+      // Null when empty, so a phone's folded line has no stray dots.
+      meta: hours ? <span className="text-muted-foreground">{hours}</span> : null,
+      status: record.instructor?.user?.name ? <span className="text-muted-foreground">{record.instructor.user.name}</span> : null,
+      action: <RecordActions record={record} superseded={opts.superseded} editable={opts.editable} requiresNotes={opts.requiresNotes} />,
+    },
+  };
+}
+
+/** A record's own actions: sign a draft, or amend a signed one that nothing has superseded. */
+function RecordActions({
   record,
   superseded,
   editable,
-  lessonComplete: _lessonComplete,
-  requiresSignoff,
   requiresNotes,
 }: {
   record: LessonRecord;
   superseded: boolean;
   editable: boolean;
-  lessonComplete: boolean;
-  requiresSignoff: boolean;
   requiresNotes: boolean;
 }) {
-  const state = recordState({ ...record, requiresSignoff });
   const sign = useSignLessonRecord();
-
-  return (
-    <div
-      className={`flex flex-wrap items-center gap-2 rounded border px-2 py-1.5 text-xs ${
-        superseded ? "opacity-50" : ""
-      }`}
-    >
-      {record.grade ? (
-        <Badge variant={record.grade.toUpperCase() === "S" ? "secondary" : "outline"}>{record.grade}</Badge>
-      ) : null}
-      <span className={superseded ? "line-through" : undefined}>{state.label}</span>
-      {superseded ? <Badge variant="outline">Superseded</Badge> : null}
-      {record.flightDeciHours ? <span className="text-muted-foreground">{deciHours(record.flightDeciHours)} flight</span> : null}
-      {record.instructionDeciHours ? (
-        <span className="text-muted-foreground">{deciHours(record.instructionDeciHours)} ground</span>
-      ) : null}
-      {record.instructor?.user?.name ? (
-        <span className="text-muted-foreground">· {record.instructor.user.name}</span>
-      ) : null}
-
-      <span className="flex-1" />
-
-      {editable && !record.instructorSignedAt ? (
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-6 px-2 text-xs"
-          disabled={!record.grade || sign.isPending || (requiresNotes && !record.notes?.trim())}
-          onClick={() =>
-            sign.mutate(
-              { recordId: record.id },
-              {
-                onError: (err) =>
-                  toast.error(err instanceof Error ? err.message : "Couldn't sign that lesson"),
-              }
-            )
-          }
-        >
-          <FileSignature className="size-3" /> Sign
-        </Button>
-      ) : null}
-
-      {editable && record.instructorSignedAt && !superseded ? (
-        <AmendDialog recordId={record.id} />
-      ) : null}
-    </div>
-  );
+  if (editable && !record.instructorSignedAt) {
+    return (
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-6 px-2 text-xs"
+        disabled={!record.grade || sign.isPending || (requiresNotes && !record.notes?.trim())}
+        onClick={() =>
+          sign.mutate(
+            { recordId: record.id },
+            { onError: (err) => toast.error(err instanceof Error ? err.message : "Couldn't sign that lesson") }
+          )
+        }
+      >
+        <FileSignature className="size-3" /> Sign
+      </Button>
+    );
+  }
+  if (editable && record.instructorSignedAt && !superseded) return <AmendDialog recordId={record.id} />;
+  return null;
 }
 
 /**

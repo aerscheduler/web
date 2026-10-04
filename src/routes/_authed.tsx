@@ -1,6 +1,9 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { isAuthenticated, needsEmailVerification } from "@/lib/auth";
+import { isAuthenticated, isOutsideOwnerSync, needsEmailVerification } from "@/lib/auth";
 import { SubscriptionGate } from "@/components/subscription/gate";
+
+/** Where an outside owner may go: exact paths, or a prefix when it ends in "/". */
+const OUTSIDE_OWNER_PATHS = ["/me", "/me/aircraft", "/me/aircraft/", "/me/jobs/", "/me/invoices", "/me/profile", "/me/notifications", "/me/payment-methods", "/notifications"];
 
 export const Route = createFileRoute("/_authed")({
   beforeLoad: ({ location }) => {
@@ -13,6 +16,12 @@ export const Route = createFileRoute("/_authed")({
     // bypassed on local dev).
     if (needsEmailVerification()) {
       throw redirect({ to: "/verify-email" });
+    }
+    // An aircraft owner from outside the organization has their own aircraft, jobs and bills,
+    // and their account. Anything else (a bookmark, a link in an email meant for staff) goes
+    // home rather than to a page whose every request the server refuses.
+    if (isOutsideOwnerSync() && !OUTSIDE_OWNER_PATHS.some((p) => (p.endsWith("/") ? location.pathname.startsWith(p) : location.pathname === p))) {
+      throw redirect({ to: "/me" });
     }
   },
   component: AuthedLayout,

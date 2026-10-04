@@ -64,6 +64,11 @@ export function InviteModal({
     for (const opt of INVITE_ROLE_OPTIONS) {
       if (roles[opt.key]) flags[opt.key] = true;
     }
+    // Somebody invited with no role joins as an outside party and sees nothing.
+    if (Object.keys(flags).length === 0) {
+      toast.error("Choose at least one role.");
+      return;
+    }
 
     setSubmitting(true);
     let ok = 0;

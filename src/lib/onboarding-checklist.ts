@@ -17,6 +17,8 @@
 
 import {
   Building2,
+  Hammer,
+  Percent,
   Split,
   CreditCard,
   GraduationCap,
@@ -34,7 +36,14 @@ import type { Organization, OrganizationUser } from "@/types/api";
 import { rolesOf } from "@/types/api";
 
 /** The org shapes the wizard can create. Anything else is treated as a school. */
-export type OrgType = "flight_school" | "flying_club" | "rental" | "solo_instructor" | "aircraft_owner" | null;
+export type OrgType =
+  | "flight_school"
+  | "flying_club"
+  | "rental"
+  | "solo_instructor"
+  | "aircraft_owner"
+  | "maintenance_shop"
+  | null;
 
 /** Everything the items need to decide whether they're done. Gathered once, by
  *  `useChecklist`, so an item can never fire a request of its own. */
@@ -60,7 +69,26 @@ export type ChecklistFacts = {
    * person for the whole booking, which is the safe default and also what it always did.
    */
   splitRulesConfigured: boolean;
+
+  // The maintenance shop's facts. A shop's ladder is a customer's aircraft, then a job on
+  // it, then the bill for the job, so these are what its items are answered from.
+  /** Customers' aircraft on file (`use = shop`). `planes` counts only the fleet. */
+  shopPlanes: number;
+  /** Work orders, open or finished. */
+  workOrders: number;
+  /** Work orders that have raised a bill (invoiced or paid). */
+  billedWorkOrders: number;
+  /** The shop has set a labor rate (Settings, Shop rates). */
+  shopRatesSet: boolean;
 };
+
+/**
+ * What else decides whether an item applies, besides the org type.
+ *
+ * A flight school with its own hangar (Murray) is not a shop org, but one that told us it
+ * wants the shop working (the "shop" source) should see the shop items too.
+ */
+export type ApplyContext = { source: string | null };
 
 type Copy = string | ((orgType: OrgType) => string);
 
@@ -76,19 +104,25 @@ export type ChecklistItem = {
   isDone: (f: ChecklistFacts) => boolean;
   /** Items that make no sense for some operations, a solo CFI has no instructors
    *  to invite, are absent rather than permanently unchecked. */
-  appliesTo?: (orgType: OrgType) => boolean;
+  appliesTo?: (orgType: OrgType, ctx: ApplyContext) => boolean;
 };
 
 export const resolveCopy = (copy: Copy, orgType: OrgType): string =>
   typeof copy === "function" ? copy(orgType) : copy;
 
 const isClubLike = (t: OrgType) => t === "flying_club" || t === "rental";
+/** An A&P or repair station. Nothing here flies, so the flight items do not apply. */
+export const isShopOrg = (t: OrgType) => t === "maintenance_shop";
+const runsShop = (t: OrgType, ctx: ApplyContext) => isShopOrg(t) || ctx.source === "shop";
 const isPrivateOwner = (t: OrgType) => t === "aircraft_owner";
 const isSoloish = (t: OrgType) => t === "solo_instructor" || isPrivateOwner(t);
 
 /** Members holding a role, ignoring the founder (always the owner), who would
  *  otherwise mark "invite your instructors" done on day one. */
-function othersWithRole(members: OrganizationUser[], role: "instructor" | "student" | "renter"): number {
+function othersWithRole(
+  members: OrganizationUser[],
+  role: "instructor" | "student" | "renter" | "technician"
+): number {
   return members.filter((m) => !m.ownerRole && rolesOf(m).includes(role)).length;
 }
 
@@ -105,6 +139,41 @@ export const CHECKLIST: ChecklistItem[] = [
     to: "/aircraft",
     cta: "Add aircraft",
     isDone: (f) => f.planes > 0,
+    // A shop's aircraft are its customers', which is the customer-aircraft item.
+    appliesTo: (t) => !isShopOrg(t),
+  },
+  {
+    id: "customer-aircraft",
+    title: "Add a customer's aircraft",
+    blurb: "The tail, its meters and its owner. The owner is who the work is billed to.",
+    icon: PlaneTakeoff,
+    to: "/aircraft",
+    search: { scope: "shop" },
+    cta: "Add an aircraft",
+    isDone: (f) => f.shopPlanes > 0,
+    appliesTo: runsShop,
+  },
+  {
+    id: "work-order",
+    title: "Open your first work order",
+    blurb: "What the owner asked for, what you found, your labor and parts, and the invoice, on one job.",
+    icon: Hammer,
+    to: "/maintenance",
+    search: { view: "work-orders" },
+    cta: "Open a work order",
+    isDone: (f) => f.workOrders > 0,
+    appliesTo: runsShop,
+  },
+  {
+    id: "shop-rates",
+    title: "Set your shop rates",
+    blurb: "Your labor rate fills in every labor line, and your markup prices parts and outside work.",
+    icon: Percent,
+    to: "/settings",
+    search: { tab: "shop-rates" },
+    cta: "Set rates",
+    isDone: (f) => f.shopRatesSet,
+    appliesTo: runsShop,
   },
   {
     id: "reservation",
@@ -114,12 +183,15 @@ export const CHECKLIST: ChecklistItem[] = [
     to: "/schedule",
     cta: "Open the calendar",
     isDone: (f) => f.reservations > 0,
+    appliesTo: (t) => !isShopOrg(t),
   },
   {
     id: "billing",
     title: "Connect billing",
-    blurb:
-      "Stripe lets you charge cards and ACH. Bill with invoices per booking, or use an account ledger. Payouts land in your own bank; QuickBooks sync is optional.",
+    blurb: (t) =>
+      isShopOrg(t)
+        ? "Owners pay a job's invoice by card or ACH from the email Stripe sends them. Payouts land in your own bank; QuickBooks sync is optional."
+        : "Stripe lets you charge cards and ACH. Bill with invoices per booking, or use an account ledger. Payouts land in your own bank; QuickBooks sync is optional.",
     icon: CreditCard,
     to: "/settings",
     search: { tab: "billing" },
@@ -138,7 +210,7 @@ export const CHECKLIST: ChecklistItem[] = [
     search: { tab: "cost-splitting" },
     cta: "Set your rules",
     isDone: (f) => f.splitRulesConfigured,
-    appliesTo: (t) => !isPrivateOwner(t),
+    appliesTo: (t) => !isPrivateOwner(t) && !isShopOrg(t),
     //Placed after billing on purpose: the rules decide how invoices divide, so it reads
     //oddly before there is any way to send one. It is NOT gated on Stripe though, a
     //school can set its rules before connecting, and the wizard shouldn't hide the item
@@ -153,7 +225,17 @@ export const CHECKLIST: ChecklistItem[] = [
     cta: "Invite instructors",
     isDone: (f) => othersWithRole(f.members, "instructor") > 0,
     // A solo CFI is the instructor. Nothing to invite.
-    appliesTo: (t) => !isSoloish(t),
+    appliesTo: (t) => !isSoloish(t) && !isShopOrg(t),
+  },
+  {
+    id: "technicians",
+    title: "Invite your technicians",
+    blurb: "Only technicians can be put on a job. They log their own hours and parts, and see no member billing.",
+    icon: Users,
+    to: "/people",
+    cta: "Invite technicians",
+    isDone: (f) => othersWithRole(f.members, "technician") > 0,
+    appliesTo: runsShop,
   },
   {
     id: "students",
@@ -174,6 +256,7 @@ export const CHECKLIST: ChecklistItem[] = [
     cta: (t) =>
       isPrivateOwner(t) ? "Invite someone" : isClubLike(t) ? "Invite members" : "Invite students",
     isDone: (f) => othersWithRole(f.members, "student") + othersWithRole(f.members, "renter") > 0,
+    appliesTo: (t) => !isShopOrg(t),
   },
   {
     id: "rates",
@@ -184,7 +267,7 @@ export const CHECKLIST: ChecklistItem[] = [
     search: { tab: "rates" },
     cta: "Set rates",
     isDone: (f) => f.ratings > 0,
-    appliesTo: (t) => !isPrivateOwner(t),
+    appliesTo: (t) => !isPrivateOwner(t) && !isShopOrg(t),
   },
   {
     id: "rules",
@@ -205,11 +288,15 @@ export const CHECKLIST: ChecklistItem[] = [
           f.organization?.preferences?.personnelCanOnlyUseApprovedResources ||
           f.organization?.bookingPolicy?.requirePaymentMethod
       ),
+    appliesTo: (t) => !isShopOrg(t),
   },
   {
     id: "maintenance",
-    title: "Track maintenance due dates",
-    blurb: "Annuals, 100-hours and transponder checks warn you before they ground an aircraft.",
+    title: (t) => (isShopOrg(t) ? "Track inspections on customer aircraft" : "Track maintenance due dates"),
+    blurb: (t) =>
+      isShopOrg(t)
+        ? "Annuals and 100-hours counting down on each customer's aircraft, so you call the owner before they are due."
+        : "Annuals, 100-hours and transponder checks warn you before they ground an aircraft.",
     icon: Wrench,
     to: "/maintenance",
     cta: "Add reminders",
@@ -223,7 +310,7 @@ export const CHECKLIST: ChecklistItem[] = [
     to: "/training",
     cta: "Open training",
     isDone: (f) => f.courses > 0,
-    appliesTo: (t) => !isSoloish(t) && t !== "rental",
+    appliesTo: (t) => !isSoloish(t) && t !== "rental" && !isShopOrg(t),
   },
   {
     id: "facilities",
@@ -233,7 +320,7 @@ export const CHECKLIST: ChecklistItem[] = [
     to: "/facilities",
     cta: "Add facilities",
     isDone: (f) => f.facilities > 0,
-    appliesTo: (t) => !isSoloish(t),
+    appliesTo: (t) => !isSoloish(t) && !isShopOrg(t),
   },
   {
     id: "invoice",
@@ -243,6 +330,19 @@ export const CHECKLIST: ChecklistItem[] = [
     to: "/billing",
     cta: "Open billing",
     isDone: (f) => f.invoices > 0,
+    // A shop's first invoice is raised from a job, which is the job-invoice item.
+    appliesTo: (t) => !isShopOrg(t),
+  },
+  {
+    id: "job-invoice",
+    title: "Raise the invoice for a job",
+    blurb: "Raise invoice on a work order bills its labor and parts to the owner, with the WO number and meters on it.",
+    icon: Receipt,
+    to: "/maintenance",
+    search: { view: "work-orders" },
+    cta: "Open jobs",
+    isDone: (f) => f.billedWorkOrders > 0,
+    appliesTo: runsShop,
   },
   {
     id: "quickbooks",
@@ -263,7 +363,7 @@ export const CHECKLIST: ChecklistItem[] = [
     search: { tab: "groups" },
     cta: "Create groups",
     isDone: (f) => f.groups > 0,
-    appliesTo: (t) => !isSoloish(t),
+    appliesTo: (t) => !isSoloish(t) && !isShopOrg(t),
   },
   {
     id: "profile",

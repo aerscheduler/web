@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { BadgeDollarSign, Building2, Users } from "lucide-react";
 import { isDeveloperSync } from "@/lib/auth";
 import { useOrgBillingTerms } from "@/features/queries";
-import { DetailBack, RecordNotFound } from "@/components/detail/detail-page";
+import { DetailBack, RecordNotFound, useDetailTitle } from "@/components/detail/detail-page";
 import { PageHeader } from "@/components/page-header";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { TableView } from "@/components/table-view";
@@ -18,9 +18,8 @@ import { shortDate } from "@/components/developer/billing-terms-shared";
  * Un-nested (`developer_`) so it is a full page rather than a pane inside the
  * developer rail: it has its own sections, and nesting would put a rail inside a rail.
  * The URL is `/developer/organizations/:orgId`, so it can be pasted into a ticket, and
- * browser Back works. `DetailBack` is an explicit link rather than history.back() for
- * the reason detail-page.tsx gives, a deep link is routinely the first page of a
- * session and there is no history to go back to.
+ * browser Back works. `DetailBack` goes back to the page you came from, and to the
+ * Developer list when there is none (a deep link is routinely the first page of a session).
  *
  * Billing terms is the first section because it is why this page exists, but the shape
  * is deliberately open: anything we currently answer by opening a psql shell against
@@ -56,6 +55,7 @@ function DeveloperOrgPage() {
 
   const id = Number.parseInt(orgIdParam, 10);
   const q = useOrgBillingTerms(Number.isFinite(id) ? id : null);
+  useDetailTitle(q.data?.organization?.name);
 
   const known = SECTIONS.flatMap((s) => s.items).map((i) => i.value);
   const active = search.tab && known.includes(search.tab) ? search.tab : DEFAULT_TAB;

@@ -10,6 +10,7 @@ import {
   Pencil,
   Plane,
   Users,
+  Wrench,
 } from "lucide-react";
 import { resourceLabel, type Reservation } from "@/types/api";
 import { DetailPanel } from "@/components/detail-panel";
@@ -33,6 +34,8 @@ import { ReservationStandby } from "@/components/slot-offers/reservation-standby
 import { canCancelReservation, canEditReservation } from "./close-out";
 import { formatTimeInZone } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
+import { useBookingJob } from "@/components/maintenance/maintenance-job-field";
+import { WorkspaceUserAvatars } from "@/components/workspace-user-avatar";
 
 /**
  * A booking at a glance, beside the board.
@@ -76,6 +79,8 @@ export function ReservationDetailSheet({
   const res = r?.resource ? resourceLabel(r.resource) : null;
   const ResourceIcon = r?.resource ? resourceIcon(r.resource) : Plane;
   const people = r ? personnelEntries(r) : [];
+  // A maintenance booking seats nobody; its job says who is on it, for those who may see jobs.
+  const held = useBookingJob(r?.type === "maintenance" ? r.id : null);
   // `/aircraft/:id` is the AIRCRAFT page and bounces a simulator or a room to Facilities,
   // so only a plane is a link. Same rule the search results follow.
   const resourceHref = r?.resource && res?.kind === "Aircraft" ? r.resource.id : null;
@@ -208,7 +213,27 @@ export function ReservationDetailSheet({
               timeZone={r.timeZoneName}
             />
 
-            <SheetDetailField icon={Users} label="Personnel">
+            {r.type === "maintenance" && held.allowed && (
+              <SheetDetailField icon={Wrench} label="Work order">
+                {held.job ? (
+                  <span className="flex flex-wrap items-center gap-2">
+                    <Link
+                      to="/maintenance/work-orders/$workOrderId"
+                      params={{ workOrderId: String(held.job.id) }}
+                      className="underline-offset-2 hover:underline"
+                    >
+                      {held.job.label}
+                    </Link>
+                    <span className="text-muted-foreground">{held.job.statusLabel}</span>
+                    {held.job.technicians.length > 0 && <WorkspaceUserAvatars people={held.job.technicians} />}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">{held.loading ? "Loading…" : "None. Edit the booking to open or link one."}</span>
+                )}
+              </SheetDetailField>
+            )}
+
+            {r.type !== "maintenance" && <SheetDetailField icon={Users} label="Personnel">
               {people.length > 0 ? (
                 <ul className="space-y-0.5">
                   {people.map((p, i) => (
@@ -233,7 +258,7 @@ export function ReservationDetailSheet({
               ) : (
                 <span className="text-muted-foreground">No one assigned</span>
               )}
-            </SheetDetailField>
+            </SheetDetailField>}
 
             {r.notes && (
               <SheetDetailField icon={FileText} label="Notes" stacked>

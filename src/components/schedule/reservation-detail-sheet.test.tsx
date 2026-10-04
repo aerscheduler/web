@@ -39,6 +39,11 @@ vi.mock("@/components/slot-offers/reservation-standby", () => ({
   ReservationStandby: () => null,
 }));
 vi.mock("@/components/weather-badge", () => ({ WeatherBadge: () => null }));
+// The maintenance job lookup reads the server; these tests are about the body's identity.
+vi.mock("@/components/maintenance/maintenance-job-field", () => ({
+  useBookingJob: () => ({ allowed: false, job: null, loading: false }),
+}));
+vi.mock("@/components/workspace-user-avatar", () => ({ WorkspaceUserAvatars: () => null }));
 
 //The dock is a portal behind a media query; here it is just a wrapper, so the test is
 //about the body's identity rather than about where the body is mounted.

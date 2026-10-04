@@ -147,6 +147,12 @@ export function rolesFromSession(): Role[] {
   return membership ? rolesOf(membership) : [];
 }
 
+/** An aircraft owner signed in from outside the organization (see `outsideOwner`). */
+export function isOutsideOwnerSync(): boolean {
+  const membership = loadSession().user?.orgUsers?.[0] as { external?: boolean } | undefined;
+  return membership?.external === true;
+}
+
 /** Synchronous staff check from the stored session (owner/admin/dispatcher). */
 export function isStaffSync(): boolean {
   return rolesFromSession().some((r) => r === "owner" || r === "admin" || r === "dispatcher");
@@ -250,6 +256,12 @@ interface AuthContextValue extends SessionState {
   /** Re-send the account verification email to the signed-in user. */
   resendVerificationEmail: () => Promise<void>;
   rehydrate: () => Promise<void>;
+  /**
+   * An aircraft owner signed in from outside the organization (`orgUser.external`): they see
+   * their own aircraft, jobs and bills and nothing else. The server refuses them everything
+   * else regardless; this keeps the console from offering it.
+   */
+  outsideOwner: boolean;
   /** True if this user's email is on the developer allowlist (UI gating only.
    *  the server independently enforces it on every /developer request). */
   isDeveloper: boolean;
@@ -695,6 +707,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       userId: session.user?.id ?? null,
       isStaff,
       isAdmin,
+      outsideOwner: (membership as { external?: boolean } | null)?.external === true,
       isDeveloper: isDeveloperEmail(session.user?.email),
       isImpersonating,
       impersonatorEmail: isImpersonating ? (readDevStash()?.developerEmail ?? null) : null,

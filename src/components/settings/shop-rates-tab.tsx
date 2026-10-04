@@ -13,14 +13,14 @@ import { MoneyInput } from "@/components/money-input";
 import { Field } from "@/components/settings/parts";
 
 /** "15" or "15%" to basis points, "" to null, anything else undefined. */
-function bpsFrom(text: string): number | null | undefined {
+export function bpsFrom(text: string): number | null | undefined {
   const t = text.trim().replace(/%$/, "");
   if (!t) return null;
   if (!/^\d{1,4}(\.\d{1,2})?$/.test(t)) return undefined;
   const bps = Math.round(Number(t) * 100);
   return bps <= 100_000 ? bps : undefined;
 }
-const pctText = (bps: number | null) => (bps == null ? "" : String(bps / 100));
+export const pctText = (bps: number | null) => (bps == null ? "" : String(bps / 100));
 
 /**
  * The shop's defaults for pricing work order lines: the labor rate that fills in each labor entry,

@@ -1,6 +1,8 @@
 import * as React from "react";
 import { useSubmitOnce } from "@/lib/use-submit-once";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { sendFindingsToOwner } from "@/features/send-to-owner";
 import { useAddWorkOrderItem, useMaintenanceReminders, useSquawks, useUpdateWorkOrderItem } from "@/features/queries";
 import type { WorkOrder, WorkOrderItem } from "@/types/api";
 import { ResponsiveModal } from "@/components/responsive-modal";
@@ -32,6 +34,7 @@ export function WorkOrderItemModal({
 }) {
   const once = useSubmitOnce(open);
   const add = useAddWorkOrderItem();
+  const qc = useQueryClient();
   const update = useUpdateWorkOrderItem();
   const aircraftId = workOrder.aircraft.id;
   const remindersQ = useMaintenanceReminders({ resourceId: aircraftId, resolved: false }, { enabled: open && !editing });
@@ -89,9 +92,22 @@ export function WorkOrderItemModal({
     try {
       if (editing) {
         await update.mutateAsync({ workOrderId: workOrder.id, itemId: editing.id, description: description.trim() });
-        toast.success("Item saved");
+        // A finding the owner was asked about, reworded, is asked again: the server clears its
+        // answer and its send (an open one; a finding already done keeps its answer). Not on an
+        // invoiced or closed job, where nothing can be asked: there the answer stands (C3).
+        const askable = workOrder.invoice == null && workOrder.closedAt == null;
+        const askedBefore = editing.source === "found" && !editing.done && (editing.sentToOwnerAt != null || editing.decision != null);
+        if (askable && askedBefore && description.trim() !== editing.description) {
+          toast.success("Reworded. Send it to the owner again: their answer was for the old wording.");
+        } else {
+          toast.success("Item saved");
+        }
       } else {
         const [kind, id] = attach === NONE ? [null, null] : attach.split(":");
+        // Findings already waiting to be sent: Notify owner sends them all, this one with them.
+        const unsentBefore = (qc.getQueryData<WorkOrderItem[]>(["workOrders", "items", workOrder.id]) ?? []).filter(
+          (i) => i.source === "found" && !i.decision && !i.done && !i.sentToOwnerAt
+        ).length;
         await add.mutateAsync({
           workOrderId: workOrder.id,
           source,
@@ -99,7 +115,20 @@ export function WorkOrderItemModal({
           ...(kind === "r" ? { maintenanceReminderId: Number(id) } : {}),
           ...(kind === "s" ? { squawkId: Number(id) } : {}),
         });
-        toast.success(source === "found" ? "Found item added" : "Item added");
+        // Offered only where the job's Send to owner is (its `mayAsk`): a customer's aircraft, an
+        // open job, no live invoice. Anywhere else there is nobody to send it to, or no sending.
+        if (source === "found" && workOrder.closedAt == null && workOrder.aircraft.use === "shop" && workOrder.invoice == null) {
+          // The owners don't see a finding until it is sent: offer it right here (Tony,
+          // 2026-10-01). It sends every finding not yet sent, as the Send to owner button does.
+          const jobId = workOrder.id;
+          toast.success("Finding added", {
+            description: unsentBefore > 0 ? "The owner won't see these until you send them." : "The owner won't see it until you send it.",
+            duration: 10_000,
+            action: { label: "Notify owner", onClick: () => void sendFindingsToOwner(qc, jobId) },
+          });
+        } else {
+          toast.success(source === "found" ? "Found item added" : "Item added");
+        }
       }
       onOpenChange(false);
     } catch (e) {
@@ -135,7 +164,8 @@ export function WorkOrderItemModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="requested">The owner asked for it</SelectItem>
+                  {/* The organization's own aircraft has no owner asking for work (L15). */}
+                  <SelectItem value="requested">{workOrder.aircraft.use === "shop" ? "The owner asked for it" : "Requested"}</SelectItem>
                   <SelectItem value="found">We found it</SelectItem>
                 </SelectContent>
               </Select>

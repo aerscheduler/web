@@ -28,7 +28,7 @@ import {
 } from "@/features/queries";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { canOpenWorkOrders, canSeeShop, resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
+import { canOpenWorkOrders, canSeeShop, isAdmin, resourceViewAccess, type ResourceViewAccess } from "@/lib/permissions";
 import { outstandingHolds, outstandingSentence, returnToServiceDescription } from "@/lib/outstanding-holds";
 import { formatDate, formatMoney, initials } from "@/lib/utils";
 import { fuelToDisplay, planeRate, planeStatus, planeTitle } from "@/components/aircraft/lib";
@@ -43,6 +43,9 @@ import {
 } from "@/components/aircraft/detail/resource-maintenance";
 import { ResourcePapers } from "@/components/aircraft/detail/resource-papers";
 import { ResourceOwners } from "@/components/aircraft/detail/resource-owners";
+import { AircraftProfileCard } from "@/components/aircraft/detail/aircraft-profile-card";
+import { AircraftMetersCard } from "@/components/aircraft/detail/aircraft-meters-card";
+import { AircraftPhoto } from "@/components/aircraft/detail/aircraft-photo";
 import { ResourceWorkOrders, WorkOrdersIcon } from "@/components/aircraft/detail/resource-work-orders";
 import { useCurrentJobs } from "@/features/queries";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
@@ -313,19 +316,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
         <DetailBack to="/aircraft" label="Aircraft" />
 
         <DetailHeader
-          media={
-            <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-border bg-muted text-muted-foreground">
-              {resource.featuredImage ? (
-                <img
-                  src={resource.featuredImage}
-                  alt={title}
-                  className="size-full object-cover"
-                />
-              ) : (
-                <PlaneTakeoff className="size-7" />
-              )}
-            </span>
-          }
+          media={<AircraftPhoto resource={resource} title={title} editable={isAdmin(roles)} />}
           title={title}
           titleClassName="font-mono"
           badges={status ? <Badge variant={status.variant}>{status.label}</Badge> : undefined}
@@ -481,6 +472,10 @@ function ResourceBody({ resource }: { resource: Resource }) {
               </KeyValueList>
             </DetailCard>
           )}
+
+          {/* What the shop keeps about the airframe, for the people who see the shop. */}
+          {active === "overview" && <AircraftMetersCard resource={resource} />}
+          {active === "overview" && <AircraftProfileCard resource={resource} />}
 
           {active === "metrics" && access.metrics && (
             <ResourceMetrics

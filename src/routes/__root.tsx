@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { SessionWatcher } from "@/components/session-watcher";
 import { DemoWatcher } from "@/components/demo/demo-watcher";
 import { ConsentBanner } from "@/components/consent-banner";
+import { isOutsideOwnerSync } from "@/lib/auth";
 import { useOrgLedgerSettings } from "@/features/queries";
 import { getToken } from "@/lib/api";
 
@@ -56,17 +57,21 @@ const TITLES: Array<[string, string]> = [
 /** Keeps the browser-tab title in sync as the route changes. */
 function RouteTitle() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // Not for an aircraft owner from outside the organization: the school's ledger is not theirs
+  // to read, and their bills are always invoices.
   const ledgerQ = useOrgLedgerSettings({
-    enabled: !!getToken() && !pathname.startsWith("/book"),
+    enabled: !!getToken() && !pathname.startsWith("/book") && !isOutsideOwnerSync(),
   });
+  const match = TITLES.find(([p]) => pathname === p || pathname.startsWith(p + "/"));
+  let label = match?.[1];
+  if (pathname.startsWith("/me/invoices") && ledgerQ.data?.enabled === true) {
+    label = "Billing";
+  }
+  // Keyed on the label, not the ledger answer: that query lands after a record page has put
+  // its own name in the tab, and re-running here would put "People" back over "Jane Doe".
   useEffect(() => {
-    const match = TITLES.find(([p]) => pathname === p || pathname.startsWith(p + "/"));
-    let label = match?.[1];
-    if (pathname.startsWith("/me/invoices") && ledgerQ.data?.enabled === true) {
-      label = "Billing";
-    }
     document.title = label ? `${label} · AerScheduler` : "AerScheduler";
-  }, [pathname, ledgerQ.data?.enabled]);
+  }, [pathname, label]);
   return null;
 }
 

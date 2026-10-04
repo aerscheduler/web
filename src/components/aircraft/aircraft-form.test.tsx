@@ -53,6 +53,13 @@ const created = vi.hoisted(() => ({ mutate: vi.fn() }));
 vi.mock("@/features/queries", () => ({
   useCreatePlane: () => ({ mutate: created.mutate, isPending: false }),
   useUpdateResource: () => ({ mutate: vi.fn(), isPending: false }),
+  // The customer's-aircraft owner picker lists the roster.
+  useMembers: () => ({ data: [] }),
+}));
+// The owner is added after the aircraft and the lists refreshed; nothing here reaches a server.
+vi.mock("@tanstack/react-query", async (orig) => ({
+  ...(await orig<typeof import("@tanstack/react-query")>()),
+  useQueryClient: () => ({ invalidateQueries: vi.fn() }),
 }));
 vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
 //Home base is required, so a test that submits has to be able to choose one. The real
@@ -184,8 +191,10 @@ describe("choosing a registry suggestion", () => {
     created.mutate.mockClear();
     picked.current = match();
     openForm();
-    const rate = screen.getByLabelText("Rate (per hour)") as HTMLInputElement;
-    const fuel = screen.getByLabelText("Fuel capacity (optional)") as HTMLInputElement;
+    const rate = screen.getByLabelText("Rate per hour") as HTMLInputElement;
+    // Fuel capacity is a chip now: open it to reach the box.
+    fireEvent.click(screen.getByRole("button", { name: /^Fuel capacity/ }));
+    const fuel = screen.getByLabelText("Fuel capacity") as HTMLInputElement;
     fireEvent.change(rate, { target: { value: "165" } });
     fireEvent.change(fuel, { target: { value: "56" } });
 
@@ -215,17 +224,17 @@ describe("the customer's aircraft switch", () => {
   it("hides the money questions when it is on", () => {
     openForm("shop");
 
-    expect(screen.queryByLabelText("Rate (per hour)")).toBeNull();
-    expect(screen.queryByLabelText("Bill by Hobbs time")).toBeNull();
+    expect(screen.queryByLabelText("Rate per hour")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Billed on/ })).toBeNull();
     // And the question about when it can be booked, on an aeroplane that cannot be.
-    expect(screen.queryByLabelText("Flying day")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Flying day/ })).toBeNull();
   });
 
   it("asks them for one of the school's own", () => {
     openForm("fleet");
 
-    expect(screen.queryByLabelText("Rate (per hour)")).not.toBeNull();
-    expect(screen.queryByLabelText("Flying day")).not.toBeNull();
+    expect(screen.queryByLabelText("Rate per hour")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /^Flying day/ })).not.toBeNull();
   });
 
   // The switch these two used to read is gone. It sat at the top of a form that 90% of
@@ -245,6 +254,6 @@ describe("the customer's aircraft switch", () => {
 
     expect(screen.getByRole("heading").textContent).toBe("Add aircraft");
     // The money questions are the behavioural half of the same fact.
-    expect(screen.queryByLabelText("Rate (per hour)")).not.toBeNull();
+    expect(screen.queryByLabelText("Rate per hour")).not.toBeNull();
   });
 });

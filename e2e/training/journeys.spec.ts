@@ -38,7 +38,8 @@ test.describe("Training console (owner)", () => {
 
     await page.goto("/training?tab=students");
     await expect(page.getByText(course.name)).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("link").filter({ hasText: course.name }).first().click();
+    // The roster is a grouped list (2026-09-30): rows, labelled "<student>, <course>".
+    await page.getByRole("row", { name: new RegExp(course.name) }).first().click();
     await expect(page).toHaveURL(/\/training\/enrollments\//);
 
     await page.getByRole("button", { name: /End enrollment/i }).click();

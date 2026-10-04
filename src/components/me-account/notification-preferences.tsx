@@ -14,6 +14,7 @@ import { isAdmin, isInstructor, isTechnician } from "@/lib/permissions";
 import {
   useConfirmSmsVerification,
   useOrgUserPreferences,
+  useOwnerAircraft,
   useSmsOptOut,
   useSmsStatus,
   useStartSmsVerification,
@@ -28,15 +29,30 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link } from "@tanstack/react-router";
 import { DocsHint } from "@/components/docs-hint";
 
 type PrefKey = keyof ChannelNotificationPreferences;
 
+/** Which groups of switches this person sees. */
+type Sections = {
+  admin: boolean;
+  /** Everything about being one of the organization's people: off for an outside owner. */
+  member: boolean;
+  maintenance: boolean;
+  endorsements: boolean;
+  shop: PrefRow[] | null;
+  owner: PrefRow[] | null;
+  maintenanceRows: PrefRow[];
+};
+
 type PrefRow = {
   key: PrefKey;
   label: string;
   hint: string;
+  /** What an unset switch means, where it is not simply on. */
+  defaultOn?: boolean;
 };
 
 const RESERVATION_ROWS: PrefRow[] = [
@@ -169,9 +185,84 @@ const MAINTENANCE_ROWS: PrefRow[] = [
   },
 ];
 
+const MAINTENANCE_ROWS_WITH_SHOP: PrefRow[] = [
+  {
+    key: "maintenanceReminders",
+    label: "Maintenance reminders",
+    hint: "Aircraft inspection and due-item reminders. Which customer aircraft is set under Customer aircraft inspections.",
+  },
+];
+
+/**
+ * The maintenance shop, for technicians (and admins who want them). `noTechnicians`: the
+ * organization has no signed-in technicians, so the server has its admins hear new requests
+ * until they turn it off.
+ */
+function shopRows(technician: boolean, noTechnicians: boolean): PrefRow[] {
+  return [
+    {
+      key: "shopRequests",
+      label: "New requests",
+      hint: technician
+        ? "When an aircraft owner asks for work."
+        : noTechnicians
+          ? "When an aircraft owner asks for work. On for admins while the organization has no technicians."
+          : "When an aircraft owner asks for work. Off for admins until you turn it on.",
+      defaultOn: technician || noTechnicians,
+    },
+    // Only a technician can be put on a job, so only a technician has jobs to hear about.
+    ...(technician
+      ? [
+          {
+            key: "shopJobActivity" as PrefKey,
+            label: "Activity on my jobs",
+            hint: "When you're put on a job, and when its owner answers, adds photos or updates the times.",
+          },
+        ]
+      : []),
+  ];
+}
+
+/** An aircraft owner's own aircraft. */
+function ownerRows(withInspections: boolean): PrefRow[] {
+  return [
+    {
+      key: "ownerJobUpdates",
+      label: "Work on my aircraft",
+      hint: "What the shop finds and sends you, and when your aircraft is booked in, arrives, is ready, or its date moves.",
+    },
+    ...(withInspections
+      ? [
+          {
+            key: "maintenanceReminders" as PrefKey,
+            label: "Inspection reminders",
+            hint: "30 and 7 days before an inspection is due, when it is due, and overdue; 10 hours before and when due.",
+          },
+        ]
+      : []),
+  ];
+}
+
+type InspectionScope = "worked_on" | "all" | "off";
+
+const SCOPE_LABEL: Record<InspectionScope, string> = {
+  worked_on: "Aircraft I've worked on",
+  all: "All customer aircraft",
+  off: "Off",
+};
+
+/** Read-only facts the server adds for the shop's settings (GET /orgUsers/preferences). */
+type ShopFacts = {
+  /** Signed-in technicians exist. With none, admins hear new requests by default. */
+  hasTechnicians?: boolean;
+  /** The customer-inspection scope the server uses for this person: theirs, or their role's default here. */
+  effectiveCustomerInspectionScope?: InspectionScope;
+};
+
 export function NotificationPreferencesPanel() {
-  const { roles } = useAuth();
+  const { roles, outsideOwner } = useAuth();
   const prefsQ = useOrgUserPreferences();
+  const ownedQ = useOwnerAircraft();
   const smsQ = useSmsStatus();
   const update = useUpdateOrgUserPreferences();
   const startVerify = useStartSmsVerification();
@@ -240,10 +331,74 @@ export function NotificationPreferencesPanel() {
   const showAdmin = isAdmin(roles);
   const showMaintenance = isAdmin(roles) || isTechnician(roles);
   const showEndorsements = isAdmin(roles) || isInstructor(roles);
+  // An aircraft owner from outside the organization hears only about their aircraft and bills.
+  const member = !outsideOwner;
+  const showShop = member && prefsQ.data.runsShop === true && showMaintenance;
+  // Only an aircraft the shop looks after for them: nothing on this list fires for a leaseback.
+  const showOwner = outsideOwner || (ownedQ.data ?? []).some((a) => a.use === "shop");
+  const facts = prefsQ.data as typeof prefsQ.data & ShopFacts;
+  const technician = isTechnician(roles);
+  const noTechnicians = facts.hasTechnicians === false;
+  const sections: Sections = {
+    admin: showAdmin,
+    member,
+    maintenance: showMaintenance,
+    endorsements: showEndorsements,
+    shop: showShop ? shopRows(technician, noTechnicians) : null,
+    maintenanceRows: showShop ? MAINTENANCE_ROWS_WITH_SHOP : MAINTENANCE_ROWS,
+    owner: showOwner ? ownerRows(!showMaintenance) : null,
+  };
+  // Set: what they chose. Unset: what the server does for them here (their role's default, which
+  // for an admin of a shop with no technicians is All), shown as the trigger's text with nothing
+  // selected, so picking any option, the one shown included, saves it.
+  const storedScope = prefsQ.data.notificationPreferences?.customerInspectionScope ?? null;
+  const effectiveScope: InspectionScope =
+    storedScope ?? facts.effectiveCustomerInspectionScope ?? (technician ? "worked_on" : noTechnicians ? "all" : "off");
   const saving = update.isPending;
 
   return (
     <div data-doc-shot="notification-preferences-maintenance" className="space-y-4">
+      {showShop && (
+        <Card data-doc-shot="notification-preferences-shop">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Customer aircraft inspections</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3">
+            <p className="min-w-0 flex-1 basis-64 text-xs text-muted-foreground">
+              Which customers' aircraft you hear about when an inspection comes due. An aircraft nobody here has worked on
+              goes to everybody whose setting is not Off.
+              {!technician && noTechnicians
+                ? " While the organization has no technicians, admins hear about every customer aircraft unless they turn this off."
+                : !technician && storedScope == null
+                  ? " Off for admins until you pick one."
+                  : ""}{" "}
+              How you hear follows Maintenance reminders below.
+            </p>
+            <Select
+              value={storedScope ?? ""}
+              onValueChange={(v) =>
+                update.mutate(
+                  { notificationPreferences: { customerInspectionScope: v as InspectionScope } },
+                  { onError: (err) => toast.error(err instanceof ApiError ? err.message : "Couldn't save notification settings") }
+                )
+              }
+              disabled={saving}
+            >
+              {/* Unset reads like a value, not a muted placeholder: it is what happens today. */}
+              <SelectTrigger className="w-60 data-[placeholder]:text-foreground" aria-label="Customer aircraft inspections">
+                <SelectValue placeholder={SCOPE_LABEL[effectiveScope]} />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(SCOPE_LABEL) as InspectionScope[]).map((v) => (
+                  <SelectItem key={v} value={v}>
+                    {SCOPE_LABEL[v]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </CardContent>
+        </Card>
+      )}
       <ChannelCard
         channel="email"
         title="Email"
@@ -255,9 +410,7 @@ export function NotificationPreferencesPanel() {
         enabled={emailEnabled}
         prefs={email}
         saving={saving}
-        showAdmin={showAdmin}
-        showMaintenance={showMaintenance}
-        showEndorsements={showEndorsements}
+        sections={sections}
         onMasterChange={(v) => patchMaster("email", v)}
         onPrefChange={(key, v) => patchPref("email", key, v)}
         shotId="me-notifications"
@@ -274,9 +427,7 @@ export function NotificationPreferencesPanel() {
         enabled={pushEnabled}
         prefs={push}
         saving={saving}
-        showAdmin={showAdmin}
-        showMaintenance={showMaintenance}
-        showEndorsements={showEndorsements}
+        sections={sections}
         onMasterChange={(v) => patchMaster("push", v)}
         onPrefChange={(key, v) => patchPref("push", key, v)}
         shotId="me-notifications-push"
@@ -394,14 +545,16 @@ export function NotificationPreferencesPanel() {
                       onChange={(key, v) => patchPref("sms", key, v)}
                     />
                   )}
-                  <PrefSection
-                    channel="sms"
-                    title="Reservations"
-                    rows={RESERVATION_ROWS}
-                    prefs={sms}
-                    saving={saving}
-                    onChange={(key, v) => patchPref("sms", key, v)}
-                  />
+                  {member && (
+                    <PrefSection
+                      channel="sms"
+                      title="Reservations"
+                      rows={RESERVATION_ROWS}
+                      prefs={sms}
+                      saving={saving}
+                      onChange={(key, v) => patchPref("sms", key, v)}
+                    />
+                  )}
                   <PrefSection
                     channel="sms"
                     title="Billing"
@@ -410,22 +563,26 @@ export function NotificationPreferencesPanel() {
                     saving={saving}
                     onChange={(key, v) => patchPref("sms", key, v)}
                   />
-                  <PrefSection
-                    channel="sms"
-                    title="Documents"
-                    rows={DOCUMENT_ROWS}
-                    prefs={sms}
-                    saving={saving}
-                    onChange={(key, v) => patchPref("sms", key, v)}
-                  />
-                  <PrefSection
-                    channel="sms"
-                    title="Currency"
-                    rows={CURRENCY_ROWS}
-                    prefs={sms}
-                    saving={saving}
-                    onChange={(key, v) => patchPref("sms", key, v)}
-                  />
+                  {member && (
+                    <PrefSection
+                      channel="sms"
+                      title="Documents"
+                      rows={DOCUMENT_ROWS}
+                      prefs={sms}
+                      saving={saving}
+                      onChange={(key, v) => patchPref("sms", key, v)}
+                    />
+                  )}
+                  {member && (
+                    <PrefSection
+                      channel="sms"
+                      title="Currency"
+                      rows={CURRENCY_ROWS}
+                      prefs={sms}
+                      saving={saving}
+                      onChange={(key, v) => patchPref("sms", key, v)}
+                    />
+                  )}
                   {showEndorsements && (
                     <PrefSection
                       channel="sms"
@@ -446,22 +603,26 @@ export function NotificationPreferencesPanel() {
                       onChange={(key, v) => patchPref("sms", key, v)}
                     />
                   )}
-                  <PrefSection
-                    channel="sms"
-                    title="Status"
-                    rows={STATUS_ROWS}
-                    prefs={sms}
-                    saving={saving}
-                    onChange={(key, v) => patchPref("sms", key, v)}
-                  />
-                  <PrefSection
-                    channel="sms"
-                    title="Announcements"
-                    rows={ANNOUNCEMENT_ROWS}
-                    prefs={sms}
-                    saving={saving}
-                    onChange={(key, v) => patchPref("sms", key, v)}
-                  />
+                  {member && (
+                    <PrefSection
+                      channel="sms"
+                      title="Status"
+                      rows={STATUS_ROWS}
+                      prefs={sms}
+                      saving={saving}
+                      onChange={(key, v) => patchPref("sms", key, v)}
+                    />
+                  )}
+                  {member && (
+                    <PrefSection
+                      channel="sms"
+                      title="Announcements"
+                      rows={ANNOUNCEMENT_ROWS}
+                      prefs={sms}
+                      saving={saving}
+                      onChange={(key, v) => patchPref("sms", key, v)}
+                    />
+                  )}
                 </>
               )}
               <Button
@@ -502,9 +663,7 @@ function ChannelCard({
   enabled,
   prefs,
   saving,
-  showAdmin,
-  showMaintenance,
-  showEndorsements,
+  sections,
   onMasterChange,
   onPrefChange,
   shotId,
@@ -519,9 +678,7 @@ function ChannelCard({
   enabled: boolean;
   prefs: ChannelNotificationPreferences | null | undefined;
   saving: boolean;
-  showAdmin: boolean;
-  showMaintenance: boolean;
-  showEndorsements: boolean;
+  sections: Sections;
   onMasterChange: (value: boolean) => void;
   onPrefChange: (key: PrefKey, value: boolean) => void;
   shotId: string;
@@ -547,94 +704,40 @@ function ChannelCard({
           <p className="text-xs text-muted-foreground">{offHint}</p>
         ) : (
           <>
-            {showAdmin && (
-              <PrefSection
-                channel={channel}
-                title="Organization"
-                rows={ADMIN_ROWS}
-                prefs={prefs}
-                saving={saving}
-                onChange={onPrefChange}
-              />
+            {sections.admin && (
+              <PrefSection channel={channel} title="Organization" rows={ADMIN_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
             )}
-            <PrefSection
-              channel={channel}
-              title="Reservations"
-              rows={RESERVATION_ROWS}
-              prefs={prefs}
-              saving={saving}
-              onChange={onPrefChange}
-            />
-            <PrefSection
-              channel={channel}
-              title="Billing"
-              rows={BILLING_ROWS}
-              prefs={prefs}
-              saving={saving}
-              onChange={onPrefChange}
-            />
-            <PrefSection
-              channel={channel}
-              title="Documents"
-              rows={DOCUMENT_ROWS}
-              prefs={prefs}
-              saving={saving}
-              onChange={onPrefChange}
-            />
-            <PrefSection
-              channel={channel}
-              title="Currency"
-              rows={CURRENCY_ROWS}
-              prefs={prefs}
-              saving={saving}
-              onChange={onPrefChange}
-            />
-            {showEndorsements && (
-              <PrefSection
-                channel={channel}
-                title="Endorsements"
-                rows={ENDORSEMENT_ROWS}
-                prefs={prefs}
-                saving={saving}
-                onChange={onPrefChange}
-              />
+            {sections.member && (
+              <PrefSection channel={channel} title="Reservations" rows={RESERVATION_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
             )}
-            {showMaintenance && (
-              <PrefSection
-                channel={channel}
-                title="Maintenance"
-                rows={MAINTENANCE_ROWS}
-                prefs={prefs}
-                saving={saving}
-                onChange={onPrefChange}
-              />
+            <PrefSection channel={channel} title="Billing" rows={BILLING_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
+            {sections.owner && (
+              <PrefSection channel={channel} title="Your aircraft" rows={sections.owner} prefs={prefs} saving={saving} onChange={onPrefChange} />
             )}
-            <PrefSection
-              channel={channel}
-              title="Status"
-              rows={STATUS_ROWS}
-              prefs={prefs}
-              saving={saving}
-              onChange={onPrefChange}
-            />
-            <PrefSection
-              channel={channel}
-              title="Announcements"
-              rows={ANNOUNCEMENT_ROWS}
-              prefs={prefs}
-              saving={saving}
-              onChange={onPrefChange}
-            />
+            {sections.member && (
+              <>
+                <PrefSection channel={channel} title="Documents" rows={DOCUMENT_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
+                <PrefSection channel={channel} title="Currency" rows={CURRENCY_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
+              </>
+            )}
+            {sections.endorsements && (
+              <PrefSection channel={channel} title="Endorsements" rows={ENDORSEMENT_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
+            )}
+            {sections.maintenance && (
+              <PrefSection channel={channel} title="Maintenance" rows={sections.maintenanceRows} prefs={prefs} saving={saving} onChange={onPrefChange} />
+            )}
+            {sections.shop && (
+              <PrefSection channel={channel} title="Maintenance shop" rows={sections.shop} prefs={prefs} saving={saving} onChange={onPrefChange} />
+            )}
+            {sections.member && (
+              <>
+                <PrefSection channel={channel} title="Status" rows={STATUS_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
+                <PrefSection channel={channel} title="Announcements" rows={ANNOUNCEMENT_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
+              </>
+            )}
             {/* Email only, there is no push or SMS column behind this one. */}
-            {channel === "email" && (
-              <PrefSection
-                channel={channel}
-                title="Getting started"
-                rows={ONBOARDING_ROWS}
-                prefs={prefs}
-                saving={saving}
-                onChange={onPrefChange}
-              />
+            {channel === "email" && sections.member && (
+              <PrefSection channel={channel} title="Getting started" rows={ONBOARDING_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
             )}
           </>
         )}
@@ -671,7 +774,7 @@ function PrefSection({
             id={`${channel}-${row.key}`}
             label={row.label}
             hint={row.hint}
-            checked={prefs?.[row.key] ?? true}
+            checked={prefs?.[row.key] ?? row.defaultOn ?? true}
             disabled={saving}
             onChange={(value) => onChange(row.key, value)}
           />

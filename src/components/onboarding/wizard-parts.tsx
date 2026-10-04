@@ -7,7 +7,9 @@
 import * as React from "react";
 import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 import { AUTH_CONTROL } from "@/components/auth-shell";
 
 export function Step({ title, sub, children }: { title: string; sub?: string; children: React.ReactNode }) {
@@ -78,6 +80,70 @@ export function Nav({
         {nextLabel}
         {!busy && <ArrowRight className="size-4" />}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * An optional one-tap question: pills, at most one picked, and a short free-text
+ * follow-up for the options that ask "which one?". Used for "how did you hear about us"
+ * and "how do you schedule today" on the org-create page.
+ */
+export function ChipQuestion({
+  id,
+  label,
+  options,
+  value,
+  onChange,
+  detail,
+  onDetailChange,
+  detailPlaceholder,
+}: {
+  id: string;
+  label: string;
+  options: { id: string; label: string; detailLabel?: string }[];
+  value: string | null;
+  onChange: (v: string | null) => void;
+  /** Only needed when an option has a `detailLabel`. */
+  detail?: string;
+  onDetailChange?: (v: string) => void;
+  detailPlaceholder?: string;
+}) {
+  const detailLabel = options.find((o) => o.id === value)?.detailLabel;
+  return (
+    <div>
+      <Label>
+        {label} <span className="font-normal text-muted-foreground">(optional)</span>
+      </Label>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            aria-pressed={value === opt.id}
+            onClick={() => onChange(value === opt.id ? null : opt.id)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+              value === opt.id ? "border-primary bg-primary/5 text-primary" : "hover:bg-accent"
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      {detailLabel && value && onDetailChange ? (
+        <div className="mt-3">
+          <Field id={`${id}-detail`} label={detailLabel}>
+            <Input
+              id={`${id}-detail`}
+              value={detail ?? ""}
+              onChange={(e) => onDetailChange(e.target.value)}
+              placeholder={detailPlaceholder}
+              maxLength={255}
+            />
+          </Field>
+        </div>
+      ) : null}
     </div>
   );
 }

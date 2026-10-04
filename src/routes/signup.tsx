@@ -38,7 +38,7 @@ function SignupPage() {
       track("signup_completed", { method: "password", channel: attributionChannel() });
       // A PRIMARY conversion in Google Ads. Until this fired, smart bidding had nothing
       // to optimise toward on this side of the domain hop. See lib/ads.ts.
-      trackAdConversion("signup_completed");
+      trackAdConversion("signup_completed", { email: email.trim() });
       await navigate({ to: "/onboarding" });
     } catch (err) {
       setError(

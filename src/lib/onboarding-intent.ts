@@ -75,6 +75,28 @@ export const HEARD_FROM_OPTIONS: {
   { id: "other", label: "Other", detailLabel: "Anything we should know?" },
 ];
 
+/**
+ * "How do you schedule today?" Asked at org create, beside "how did you hear about us",
+ * to split signups into no-software and switching. Ids must match SCHEDULED_WITH in the
+ * server's services/organization.ts and the app's create_organization_page.dart.
+ */
+export const SCHEDULED_WITH_OPTIONS: typeof HEARD_FROM_OPTIONS = [
+  { id: "paper", label: "Paper or whiteboard" },
+  { id: "spreadsheet", label: "Spreadsheet" },
+  { id: "calendar", label: "Google or Outlook calendar" },
+  { id: "texts", label: "Group texts or email" },
+  { id: "app", label: "Another app" },
+  { id: "starting", label: "Just getting started" },
+];
+
+export const SHOP_SCHEDULED_WITH_OPTIONS: typeof HEARD_FROM_OPTIONS = [
+  { id: "paper", label: "Paper" },
+  { id: "spreadsheet", label: "Spreadsheet" },
+  { id: "quickbooks", label: "QuickBooks or invoices only" },
+  { id: "shop_software", label: "Shop software" },
+  { id: "starting", label: "Just getting started" },
+];
+
 const LANDING_RULES: { match: RegExp; source: SetupIntent }[] = [
   // Before the general maintenance rule, which would otherwise claim every shop page.
   { match: /work-order|maintenance-shop|customer-?s?-aircraft|approve-work|shop-rates|repair-station/i, source: "shop" },

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Outlet } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Clock, Lock } from "lucide-react";
@@ -25,28 +25,38 @@ import { PriceBreakdown, SubscribeButton, useSubStatus } from "@/components/subs
  * only a hardcoded map of org ids could unblock an installed phone.
  */
 export function SubscriptionGate() {
-  const { organization, roles } = useAuth();
+  const { organization, roles, user } = useAuth();
   const status = useSubStatus();
   const qc = useQueryClient();
 
   // Returning from Stripe's hosted checkout (success redirect ...?subscribed=1):
   // re-fetch the subscription so the new (trialing) status shows, and clear the param.
+  // The flag is read once on mount, because the param is stripped straight away and
+  // the conversion below has to wait for the status to load.
+  const [returnedFromCheckout] = useState(
+    () => new URLSearchParams(window.location.search).get("subscribed") === "1"
+  );
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("subscribed") !== "1") return;
-    // The one conversion that is actually money, and the other PRIMARY action in Google
-    // Ads. Stripe's hosted checkout redirects back here on success, which is the only
-    // moment the browser learns about it, so this is where it has to fire. No value is
-    // passed: the per-conversion value lives in the Ads UI so it can be retuned without
-    // a deploy. Guarded against double-counting inside lib/ads.ts, because a reloaded
-    // success URL would otherwise report twice.
-    trackAdConversion("subscribed");
+    if (!returnedFromCheckout) return;
     void qc.invalidateQueries({ queryKey: ["subscription"] });
+    const params = new URLSearchParams(window.location.search);
     params.delete("subscribed");
     const qs = params.toString();
     window.history.replaceState({}, "", window.location.pathname + (qs ? `?${qs}` : ""));
     toast.success("Thanks, finishing up your subscription…");
-  }, [qc]);
+  }, [qc, returnedFromCheckout]);
+
+  // The one conversion that is actually money, and the other PRIMARY action in Google
+  // Ads. Stripe's hosted checkout redirects back here on success, which is the only
+  // moment the browser learns about it, so this is where it has to fire. The value is
+  // the school's real first year (what it owes per month, after allowance and discount,
+  // times 12), so a three-aircraft school reports three times a one-aircraft school.
+  // Guarded against double-counting inside lib/ads.ts.
+  const firstYearValue = status && status.monthlyCents > 0 ? (status.monthlyCents * 12) / 100 : undefined;
+  useEffect(() => {
+    if (!returnedFromCheckout || firstYearValue === undefined) return;
+    trackAdConversion("subscribed", { value: firstYearValue, email: user?.email ?? undefined });
+  }, [returnedFromCheckout, firstYearValue, user?.email]);
 
   if (!organization || !status) {
     return (

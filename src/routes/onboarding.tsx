@@ -33,6 +33,8 @@ import {
 import {
   SETUP_INTENTS,
   HEARD_FROM_OPTIONS,
+  SCHEDULED_WITH_OPTIONS,
+  SHOP_SCHEDULED_WITH_OPTIONS,
   inferredIntent,
   pickerIntentFromSource,
   resolveSetupSource,
@@ -59,7 +61,6 @@ import {
   type AircraftCategory,
   type AircraftClass,
 } from "@/components/aircraft/vocabulary";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MoneyInput } from "@/components/money-input";
 import { AUTH_CONTROL, AuthShell } from "@/components/auth-shell";
@@ -70,7 +71,7 @@ import { LocationsEmptyGraphic } from "@/components/empty-graphics/locations";
 import { MaintenanceEmptyGraphic } from "@/components/empty-graphics/maintenance";
 import { CustomerAircraftStep, FirstJobStep, ShopRatesStep } from "@/components/onboarding/shop-steps";
 import { DocsHint } from "@/components/docs-hint";
-import { Field, Nav, Step } from "@/components/onboarding/wizard-parts";
+import { ChipQuestion, Field, Nav, Step } from "@/components/onboarding/wizard-parts";
 import {
   StandingPreferenceFields,
   useStandingPreferenceForm,
@@ -574,12 +575,9 @@ function OperationFlow({
   );
   const [heardFrom, setHeardFrom] = React.useState<string | null>(null);
   const [heardFromDetail, setHeardFromDetail] = React.useState("");
+  const [scheduledWith, setScheduledWith] = React.useState<string | null>(null);
   const [wantUpdates, setWantUpdates] = React.useState(true);
-  const heardFromRef = React.useRef(heardFrom);
-  const heardFromDetailRef = React.useRef(heardFromDetail);
   const wantUpdatesRef = React.useRef(wantUpdates);
-  heardFromRef.current = heardFrom;
-  heardFromDetailRef.current = heardFromDetail;
   wantUpdatesRef.current = wantUpdates;
 
   React.useEffect(() => {
@@ -791,7 +789,7 @@ function OperationFlow({
           utmCampaign: attribution?.utm_campaign,
           utmSource: attribution?.utm_source,
         }) ?? intent;
-      const attributionBody = attributionPayload();
+      const attributionBody = { ...attributionPayload(), ...surveyAnswers() };
       const loc = locationFields();
       const created = await createOrganization({
         name: orgName.trim(),
@@ -819,7 +817,8 @@ function OperationFlow({
         channel: attributionChannel(),
         campaign: source,
         intent,
-        heard_from: null,
+        heard_from: heardFrom,
+        scheduled_with: scheduledWith,
         marketing_updates: null,
       });
       clearAttribution();
@@ -849,22 +848,10 @@ function OperationFlow({
     if (finishing.current) return;
     finishing.current = true;
     setBusy(true);
-    const heard = heardFromRef.current;
-    const heardDetail = heardFromDetailRef.current.trim();
     const want = wantUpdatesRef.current;
     try {
       await applyUpdatesPref(want);
-      if (heard) {
-        await api("/organizations/onboarding", {
-          method: "PATCH",
-          body: {
-            heardFrom: heard,
-            ...(heardDetail ? { heardFromDetail: heardDetail.slice(0, 255) } : {}),
-          },
-        });
-      }
       track("onboarding_updates_recorded", {
-        heard_from: heard,
         marketing_updates: want,
         channel: attributionChannel(),
       });
@@ -899,7 +886,16 @@ function OperationFlow({
     void navigate({ to: isStaffSync() ? "/dashboard" : "/me" });
   }
 
-  const heardDetailLabel = HEARD_FROM_OPTIONS.find((o) => o.id === heardFrom)?.detailLabel;
+  /** The two optional org-create questions, in the attribution blob's wire names. */
+  function surveyAnswers(): Record<string, string> {
+    const out: Record<string, string> = {};
+    if (heardFrom) {
+      out.heardFrom = heardFrom;
+      if (heardFromDetail.trim()) out.heardFromDetail = heardFromDetail.trim().slice(0, 255);
+    }
+    if (scheduledWith) out.scheduledWith = scheduledWith;
+    return out;
+  }
   // School: type → name+airport → intent. Solo CFI and private owner skip type.
   const namePage = skipType ? 0 : 1;
   const intentPage = skipType ? 1 : 2;
@@ -1068,6 +1064,29 @@ function OperationFlow({
                 : "Lessons, flying hours and booking rules all run on this clock, wherever someone is reading the schedule from."}
             </p>
           </Field>
+          {!organization ? (
+            <>
+              <ChipQuestion
+                id="op-scheduled-with"
+                label={shop ? "How do you run jobs today?" : "How do you schedule today?"}
+                options={shop ? SHOP_SCHEDULED_WITH_OPTIONS : SCHEDULED_WITH_OPTIONS}
+                value={scheduledWith}
+                onChange={setScheduledWith}
+              />
+              <ChipQuestion
+                id="op-heard"
+                label="How did you hear about us?"
+                options={HEARD_FROM_OPTIONS}
+                value={heardFrom}
+                onChange={(v) => {
+                  setHeardFrom(v);
+                  setHeardFromDetail("");
+                }}
+                detail={heardFromDetail}
+                onDetailChange={setHeardFromDetail}
+              />
+            </>
+          ) : null}
           <Nav
             onBack={organization && orgPage === 0 ? undefined : goOrgBack}
             onNext={goOrgNext}
@@ -1211,41 +1230,6 @@ function OperationFlow({
               </span>
             </span>
           </label>
-
-          <div>
-            <Label>How did you hear about us? <span className="font-normal text-muted-foreground">(optional)</span></Label>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {HEARD_FROM_OPTIONS.map((opt) => (
-                <button
-                  key={opt.id}
-                  type="button"
-                  aria-pressed={heardFrom === opt.id}
-                  onClick={() => setHeardFrom((cur) => (cur === opt.id ? null : opt.id))}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                    heardFrom === opt.id
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "hover:bg-accent"
-                  )}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            {heardDetailLabel && heardFrom ? (
-              <div className="mt-3">
-                <Field id="op-heard-detail" label={heardDetailLabel}>
-                  <Input
-                    id="op-heard-detail"
-                    value={heardFromDetail}
-                    onChange={(e) => setHeardFromDetail(e.target.value)}
-                    placeholder={heardFrom === "switching" ? "MyFBO, Flight Circle…" : undefined}
-                    maxLength={255}
-                  />
-                </Field>
-              </div>
-            ) : null}
-          </div>
 
           <Nav
             onBack={() => setStep(shop ? (firstJobId != null ? 3 : 2) : 2)}

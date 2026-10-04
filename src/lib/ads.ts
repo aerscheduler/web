@@ -252,13 +252,13 @@ function alreadyFired(name: AdConversion): boolean {
  * Report one conversion to every configured ad platform.
  *
  * `value` is in whole currency units and only meaningful for `subscribed`, which is the
- * only action carrying a value in the Ads account. Everything here is best-effort and
+ * only action carrying a value in the Ads account. `email` feeds enhanced conversions. Everything here is best-effort and
  * must never throw into a click handler: a school losing its signup because an ad
  * blocker ate gtag would be a far worse bug than a missing conversion.
  */
 export function trackAdConversion(
   name: AdConversion,
-  opts?: { value?: number; currency?: string; transactionId?: string }
+  opts?: { value?: number; currency?: string; transactionId?: string; email?: string }
 ): void {
   if (typeof window === "undefined" || isPublicGuestBookingPath()) return;
   // A hard reload straight onto the Stripe success redirect can land here before either
@@ -272,6 +272,13 @@ export function trackAdConversion(
     // cookieless ping: no cookie, no identifier, still a signal Google can model from.
     const label = GOOGLE_LABELS[name];
     if (window.gtag && GOOGLE_ADS_ID && label) {
+      // Enhanced conversions: the tag SHA-256 hashes this in the browser before it is
+      // sent, and Google matches it to the signed-in account that clicked the ad. This
+      // recovers conversions whose `_gcl_*` cookie never existed or was lost. Google
+      // only uses it when `ad_user_data` is granted, so a visitor who declined the
+      // banner still sends nothing identifying. Disclosed in the privacy policy.
+      const email = opts?.email?.trim().toLowerCase();
+      if (email) window.gtag("set", "user_data", { email });
       window.gtag("event", "conversion", {
         send_to: `${GOOGLE_ADS_ID}/${label}`,
         ...(opts?.value !== undefined

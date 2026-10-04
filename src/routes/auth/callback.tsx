@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { postLoginPath, useAuth } from "@/lib/auth";
 import { apiRaw, getToken, setToken } from "@/lib/api";
+import { reportSignupIfNew } from "@/lib/signup-conversion";
 import { LogoLockup } from "@/components/logo";
 
 export const Route = createFileRoute("/auth/callback")({
@@ -112,8 +113,11 @@ function AuthCallbackPage() {
       setToken(jwt);
 
       try {
-        await rehydrate();
+        const user = await rehydrate();
         if (cancelled) return;
+        // The full-page Google redirect is a signup path too. Only on a fresh code:
+        // a refresh of this page re-reads an old session and is not a signup.
+        if (code) reportSignupIfNew(user, "google");
         // Replace, so neither the code nor the token stays in the address bar.
         await navigate({ to: postLoginPath(), replace: true });
       } catch {

@@ -12,6 +12,7 @@ import { apiRaw, beaconDemoExit, getToken, isTokenExpired, setToken } from "./ap
 import { identify, resetIdentity } from "./analytics";
 import { signInWithGoogle } from "./google";
 import { signInWithApple } from "./apple";
+import { reportSignupIfNew } from "./signup-conversion";
 import { TERMS_VERSION } from "./legal";
 import {
   clearDevStash,
@@ -255,7 +256,8 @@ interface AuthContextValue extends SessionState {
   joinByCode: (code: string) => Promise<"joined" | "requested">;
   /** Re-send the account verification email to the signed-in user. */
   resendVerificationEmail: () => Promise<void>;
-  rehydrate: () => Promise<void>;
+  /** Re-reads the session; resolves to the signed-in user, or null. */
+  rehydrate: () => Promise<User | null>;
   /**
    * An aircraft owner signed in from outside the organization (`orgUser.external`): they see
    * their own aircraft, jobs and bills and nothing else. The server refuses them everything
@@ -412,6 +414,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
     apply(env);
+    reportSignupIfNew(env.data.user, "google");
   }, [apply]);
 
   const appleLogin = useCallback(async () => {
@@ -426,6 +429,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
     });
     apply(env);
+    reportSignupIfNew(env.data.user, "apple");
   }, [apply]);
 
   const switchOrg = useCallback(
@@ -471,13 +475,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await apiRaw("/auth/resendVerificationEmail", { method: "POST" });
   }, []);
 
-  const rehydrate = useCallback(async () => {
-    if (!getToken()) return;
+  const rehydrate = useCallback(async (): Promise<User | null> => {
+    if (!getToken()) return null;
     try {
       const env = await apiRaw<AuthEnvelope>("/auth/", {});
       apply(env);
+      return env.data.user;
     } catch {
       /* token invalid, the route guard will redirect to /login */
+      return null;
     }
   }, [apply]);
 

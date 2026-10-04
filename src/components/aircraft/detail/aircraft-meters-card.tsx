@@ -259,6 +259,9 @@ export function RecordMeterReadingModal({
   const shopRecord = useRecordMeterReading(resourceId);
   const ownerRecord = useOwnerRecordTimes(resourceId);
   const record = asOwner ? ownerRecord : shopRecord;
+  // The demo refuses uploads (the server's refuseIfDemoUpload), so offering a photo there would
+  // only lose it after the reading saved. No picker in the demo, for the owner or the shop.
+  const { isDemo } = useAuth();
   const confirm = useConfirm();
   const once = useSubmitOnce(open);
   const today = format(new Date(), "yyyy-MM-dd");
@@ -313,7 +316,7 @@ export function RecordMeterReadingModal({
       tachTime: t,
       readAt,
       note: note.trim() || null,
-      photo,
+      photo: isDemo ? null : photo,
     };
     const send = async (flags: {
       confirmLower?: boolean;
@@ -476,37 +479,41 @@ export function RecordMeterReadingModal({
             value={readOn}
             onChange={(v) => setReadOn(v || today)}
           />
-          <ChipButton
-            leading={<Camera className="size-3.5" />}
-            set={!!photo}
-            onClick={() => fileRef.current?.click()}
-            aria-label={
-              photo ? `Meter photo: ${photo.name}` : "Add a photo of the meter"
-            }
-          >
-            {photo ? photo.name : "Photo of the meter"}
-          </ChipButton>
-          {photo && (
-            <button
-              type="button"
-              className="text-[12px] text-muted-foreground hover:text-foreground"
-              onClick={() => setPhoto(null)}
-            >
-              Remove photo
-            </button>
+          {!isDemo && (
+            <>
+              <ChipButton
+                leading={<Camera className="size-3.5" />}
+                set={!!photo}
+                onClick={() => fileRef.current?.click()}
+                aria-label={
+                  photo ? `Meter photo: ${photo.name}` : "Add a photo of the meter"
+                }
+              >
+                {photo ? photo.name : "Photo of the meter"}
+              </ChipButton>
+              {photo && (
+                <button
+                  type="button"
+                  className="text-[12px] text-muted-foreground hover:text-foreground"
+                  onClick={() => setPhoto(null)}
+                >
+                  Remove photo
+                </button>
+              )}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/heic,image/heif,application/pdf,.heic,.heif"
+                className="hidden"
+                data-testid="meter-photo-input"
+                onChange={(ev) => {
+                  const f = ev.target.files?.[0] ?? null;
+                  ev.target.value = "";
+                  if (f) setPhoto(f);
+                }}
+              />
+            </>
           )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png,image/heic,image/heif,application/pdf,.heic,.heif"
-            className="hidden"
-            data-testid="meter-photo-input"
-            onChange={(ev) => {
-              const f = ev.target.files?.[0] ?? null;
-              ev.target.value = "";
-              if (f) setPhoto(f);
-            }}
-          />
         </div>
         {error && (
           <p

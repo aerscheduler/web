@@ -82,6 +82,11 @@ export interface DemoIdentity {
   orgUserId: number;
   name: string;
   roles: string[];
+  /**
+   * An aircraft owner from outside the organization: no roles, the shop's customer. The server
+   * lists at most one, last. Their home is /me, never the staff dashboard.
+   */
+  external?: boolean;
 }
 
 /** The `demo` block that rides alongside the auth envelope. */
@@ -137,4 +142,22 @@ export function decodeDemoOrgId(token: string | null): number | null {
 /** A role name the switcher can show, title-cased for display. */
 export function roleLabel(role: string): string {
   return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+/**
+ * Why Pay is off in the public demo, on the invoice sheet and the pay dialog alike. The demo
+ * runs against live Stripe, so the server refuses /stripe there; the console says so up front.
+ */
+export const DEMO_PAY_OFF = "Paying is turned off in the demo.";
+
+/** What the outside owner is called in the picker and the banner. */
+export const AIRCRAFT_OWNER_LABEL = "Aircraft owner";
+
+/**
+ * Who an identity is, for the switcher: "Aircraft owner" for the outside owner, who has no roles
+ * to name, and the roles otherwise ("Owner", "Instructor + Dispatcher").
+ */
+export function identityLabel(identity: Pick<DemoIdentity, "roles" | "external">): string {
+  if (identity.external) return AIRCRAFT_OWNER_LABEL;
+  return identity.roles.map(roleLabel).join(" + ");
 }

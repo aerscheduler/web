@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { CalendarClock, FileText, ImageOff, Loader2, MessageSquareWarning, Paperclip, PlaneTakeoff, Receipt } from "lucide-react";
 import { useAnswerItems, useOwnerAttach, useOwnerJob } from "@/features/queries";
 import { formatDate, formatMoney } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 import { CardEmpty, CardSkeleton, DetailBack, DetailCard, DetailHeader, MetaItem, RecordNotFound, isMissingRecord, useDetailTitle } from "@/components/detail/detail-page";
 import { ErrorState } from "@/components/states";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -296,6 +297,8 @@ function OwnerWork({ job }: { job: OwnerJob }) {
 
 /** Photos and documents the shop shared, and the owner's own. */
 function OwnerFiles({ job }: { job: OwnerJob }) {
+  // The demo refuses uploads (403 DEMO_BLOCKED), so it offers none rather than a button that fails.
+  const { isDemo } = useAuth();
   const attach = useOwnerAttach(job.id);
   const picker = useFilePicker((files) => {
     if (files.length > 5) return void toast.error("Attach up to 5 files at a time.");
@@ -307,11 +310,13 @@ function OwnerFiles({ job }: { job: OwnerJob }) {
   return (
     <DetailCard
       title="Photos and documents"
-      description="What the shop shared with you, and anything you add."
+      description={isDemo ? "What the shop shared with you." : "What the shop shared with you, and anything you add."}
       action={
-        <Button size="sm" variant="outline" onClick={picker.open} disabled={attach.isPending}>
-          {attach.isPending ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />} Attach
-        </Button>
+        isDemo ? undefined : (
+          <Button size="sm" variant="outline" onClick={picker.open} disabled={attach.isPending}>
+            {attach.isPending ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />} Attach
+          </Button>
+        )
       }
     >
       {picker.input}

@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, FlaskConical, LogOut } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
-import { roleLabel } from "@/lib/demo";
+import { AIRCRAFT_OWNER_LABEL, identityLabel, roleLabel, type DemoIdentity } from "@/lib/demo";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -35,14 +35,14 @@ import {
  * seven sets of credentials to hand out is most of why the demo exists.
  */
 export function DemoBanner() {
-  const { isDemo, demo, user, roles, switchDemoRole, exitDemo } = useAuth();
+  const { isDemo, demo, user, roles, outsideOwner, switchDemoRole, exitDemo } = useAuth();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
 
   if (!isDemo || !demo) return null;
 
-  const become = async (orgUserId: number, name: string) => {
+  const become = async ({ orgUserId, name, external }: DemoIdentity) => {
     setBusy(true);
     try {
       await switchDemoRole(orgUserId);
@@ -53,8 +53,10 @@ export function DemoBanner() {
       toast.success(`Now viewing as ${name}`);
       // Land somewhere that role can actually use: staff get the dispatch view,
       // everyone else their own home. Mirrors postLoginPath without the checks
-      // that cannot apply here (a demo account is verified and has an org).
-      await navigate({ to: "/dashboard" });
+      // that cannot apply here (a demo account is verified and has an org). The
+      // aircraft owner goes straight to their home, /me, rather than through a
+      // dashboard that would only send them on.
+      await navigate({ to: external ? "/me" : "/dashboard" });
     } catch {
       toast.error("Couldn't switch role", { description: "Try again in a moment." });
     } finally {
@@ -68,7 +70,7 @@ export function DemoBanner() {
     void navigate({ to: "/login" });
   };
 
-  const current = roles.length ? roles.map(roleLabel).join(" + ") : "Demo";
+  const current = outsideOwner ? AIRCRAFT_OWNER_LABEL : roles.length ? roles.map(roleLabel).join(" + ") : "Demo";
 
   return (
     <div
@@ -84,8 +86,17 @@ export function DemoBanner() {
         <span className="text-muted-foreground"> &middot; {current}</span>
         <span className="hidden text-muted-foreground lg:inline">
           {" "}
-          You&rsquo;re {user?.name ?? "a demo user"} at a made-up flight school. Change
-          anything you like.
+          {outsideOwner ? (
+            <>
+              You&rsquo;re {user?.name ?? "a demo user"}, a customer of a made-up maintenance
+              shop. Change anything you like.
+            </>
+          ) : (
+            <>
+              You&rsquo;re {user?.name ?? "a demo user"} at a made-up flight school. Change
+              anything you like.
+            </>
+          )}
         </span>
       </p>
 
@@ -104,10 +115,10 @@ export function DemoBanner() {
               <DropdownMenuItem
                 key={identity.orgUserId}
                 disabled={identity.orgUserId === demo.orgUserId}
-                onSelect={() => void become(identity.orgUserId, identity.name)}
+                onSelect={() => void become(identity)}
               >
                 <div className="flex flex-col">
-                  <span>{identity.roles.map(roleLabel).join(" + ")}</span>
+                  <span>{identityLabel(identity)}</span>
                   <span className="text-xs text-muted-foreground">{identity.name}</span>
                 </div>
               </DropdownMenuItem>

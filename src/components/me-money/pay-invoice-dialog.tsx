@@ -17,6 +17,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
+import { DEMO_PAY_OFF } from "@/lib/demo";
+
+/** The demo guard's refusal (403, code DEMO_BLOCKED): nothing the organization can switch on. */
+function isDemoBlocked(e: unknown): boolean {
+  return e instanceof ApiError && (e.body as { code?: string } | null)?.code === "DEMO_BLOCKED";
+}
 
 function errMessage(e: unknown): string {
   if (e instanceof ApiError) return e.message;
@@ -40,9 +47,12 @@ export function PayInvoiceDialog({
 }) {
   const dark = useIsDark();
   const [busy, setBusy] = React.useState(false);
+  // In the demo, never ask /stripe for a payment: the sheet's Pay is off there, and this is
+  // the second lock in case anything else opens the dialog.
+  const { isDemo } = useAuth();
 
   const intentQ = useInvoicePaymentIntent(invoice?.id ?? null, {
-    enabled: open && invoice != null,
+    enabled: open && invoice != null && !isDemo,
   });
 
   const stripePromise = React.useMemo(
@@ -85,6 +95,12 @@ export function PayInvoiceDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {isDemo && (
+          <p className="py-6 text-center text-sm text-muted-foreground" role="status">
+            {DEMO_PAY_OFF}
+          </p>
+        )}
+
         {intentQ.isLoading && (
           <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" /> Setting up secure payment…
@@ -96,10 +112,13 @@ export function PayInvoiceDialog({
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]" />
             <div className="space-y-1">
               <p className="text-foreground">{errMessage(intentQ.error)}</p>
-              <p className="text-muted-foreground">
-                If this keeps happening, your organization may not have online payments enabled yet.
-                reach out to them to settle up.
-              </p>
+              {/* The demo's refusal is not the organization's missing setup: no advice to chase it. */}
+              {!isDemoBlocked(intentQ.error) && (
+                <p className="text-muted-foreground">
+                  If this keeps happening, your organization may not have online payments enabled yet.
+                  Reach out to them to settle up.
+                </p>
+              )}
             </div>
           </div>
         )}

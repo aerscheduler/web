@@ -65,4 +65,12 @@ export const ACCOUNTS = {
  */
 export const RENTER2_EMAIL = process.env.E2E_RENTER2_EMAIL ?? "test-renter2@aerscheduler.com";
 
+/**
+ * An OUTSIDE AIRCRAFT OWNER, also kept out of `ACCOUNTS` for the same setup-time reason, and
+ * because it is not a role: an external, claimed membership with no role rows, who owns the
+ * customer aircraft N4417T and has a finding to answer on it. seed-test-accounts.sql puts that
+ * job back to "waiting for the owner" on every run.
+ */
+export const AIRCRAFT_OWNER_EMAIL = process.env.E2E_AIRCRAFT_OWNER_EMAIL ?? "test-aircraft-owner@aerscheduler.com";
+
 export type AccountRole = keyof typeof ACCOUNTS;

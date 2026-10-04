@@ -6,6 +6,7 @@ import {
   Building2,
   GraduationCap,
   Headset,
+  KeyRound,
   Loader2,
   Plane,
   Wrench,
@@ -31,7 +32,15 @@ export const Route = createFileRoute("/demo")({
   component: DemoEntry,
 });
 
-type DemoRole = "owner" | "admin" | "dispatcher" | "instructor" | "student" | "renter" | "technician";
+type DemoRole =
+  | "owner"
+  | "admin"
+  | "dispatcher"
+  | "instructor"
+  | "student"
+  | "renter"
+  | "technician"
+  | "aircraftOwner";
 
 /**
  * Who a visitor can be, asked FIRST (Tony, 2026-10-03). "Show me this as a dispatcher" is the
@@ -47,11 +56,30 @@ const ROLES: { role: DemoRole; title: string; blurb: string; icon: LucideIcon }[
   { role: "student", title: "Student", blurb: "Book a lesson, follow their training and pay their invoices.", icon: BookOpen },
   { role: "renter", title: "Renter", blurb: "Book an aircraft they are checked out in and pay for the flight.", icon: Plane },
   { role: "technician", title: "Mechanic", blurb: "Squawks, inspections and work orders, on the fleet and customers' aircraft.", icon: Wrench },
+  // The shop's customer, from outside the organization: no roles, matched by `external`.
+  {
+    role: "aircraftOwner",
+    title: "Aircraft owner",
+    blurb: "Answer the shop's findings, see their aircraft's times and inspections, and pay the bill.",
+    icon: KeyRound,
+  },
 ];
-// Admin is left off: in the sample it sees what the owner sees, and a seventh card would sit
-// alone on its row. It is still one click away in the banner's "Switch role".
+// Admin is left off: in the sample it sees what the owner sees. It is still one click away in
+// the banner's "Switch role". Seven cards leave one over, so the last card takes the whole row.
 
-const SHOP_FIRST: DemoRole[] = ["technician", "owner", "dispatcher", "instructor", "student", "renter"];
+// A visitor who came for the shop sees the mechanic, then the mechanic's customer.
+const SHOP_FIRST: DemoRole[] = ["technician", "aircraftOwner", "owner", "dispatcher", "instructor", "student", "renter"];
+
+/**
+ * The identity a card switches to. The outside owner has no roles, so it is found by the flag
+ * the server sets on it; everyone else by their role.
+ */
+function identityFor(role: DemoRole) {
+  const identities = getDemoMeta()?.identities ?? [];
+  return role === "aircraftOwner"
+    ? identities.find((i) => i.external)
+    : identities.find((i) => !i.external && i.roles[0] === role);
+}
 
 /** Roles that can open the shop's work orders, so `?to=work-orders` means something to them. */
 const SHOP_ROLES: DemoRole[] = ["owner", "admin", "technician"];
@@ -106,14 +134,19 @@ function DemoEntry() {
     try {
       // The sandbox starts as its owner; anyone else is one switch away.
       await startDemo();
+      // Where the visitor lands follows who they actually are: a sandbox that does not offer
+      // the picked identity leaves them as the owner, on the owner's page, not on another
+      // role's page under the owner's name.
+      let became: DemoRole = "owner";
       if (role !== "owner") {
-        const identity = getDemoMeta()?.identities.find((i) => i.roles[0] === role);
+        const identity = identityFor(role);
         if (identity) {
           await switchDemoRole(identity.orgUserId);
           qc.clear();
+          became = role;
         }
       }
-      await navigate({ ...landingFor(role, to), replace: true } as never);
+      await navigate({ ...landingFor(became, to), replace: true } as never);
     } catch (err) {
       setStarting(null);
       // The server's own message is the pool-aware one ("every sandbox is in use…" on a
@@ -164,15 +197,17 @@ function DemoEntry() {
         ) : null}
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          {roles.map(({ role, title, blurb, icon: Icon }) => (
+          {roles.map(({ role, title, blurb, icon: Icon }, i) => (
             <button
               key={role}
               type="button"
-              data-testid={`demo-role-${role}`}
+              data-testid={`demo-role-${role === "aircraftOwner" ? "aircraft-owner" : role}`}
               onClick={() => void start(role)}
               disabled={starting != null}
               className={cn(
                 "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors hover:border-primary/50 hover:bg-accent/40 disabled:cursor-default",
+                // An odd card out takes the whole row rather than sitting alone in half of it.
+                roles.length % 2 === 1 && i === roles.length - 1 && "sm:col-span-2",
                 starting === role && "border-primary bg-primary/5 ring-1 ring-primary",
                 starting != null && starting !== role && "opacity-50"
               )}

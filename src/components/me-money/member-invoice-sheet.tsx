@@ -8,6 +8,8 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { InvoiceStatusBadge, invoiceStatus } from "@/components/billing/invoice-status";
 import { formatMoney } from "@/lib/utils";
 import { useInvoice } from "@/features/queries";
+import { useAuth } from "@/lib/auth";
+import { DEMO_PAY_OFF } from "@/lib/demo";
 
 function fmtDate(iso: string | null | undefined) {
   return iso ? format(parseISO(iso), "MMM d, yyyy") : "–";
@@ -35,6 +37,9 @@ export function MemberInvoiceSheet({
   // The list row carries no lines (only GET /invoices/:id selects them), so every bill showed
   // "No line items". Read the whole invoice, and keep the row underneath while it loads.
   const full = useInvoice(open ? invoice?.id ?? null : null);
+  // The demo runs against live Stripe, and the server refuses /stripe there anyway: say so here
+  // rather than let the visitor open a payment form that can only fail.
+  const { isDemo } = useAuth();
   const inv: Invoice | null = invoice && full.data?.id === invoice.id ? { ...invoice, ...full.data } : invoice;
   const items = inv?.items ?? [];
   const subtotal =
@@ -140,12 +145,12 @@ export function MemberInvoiceSheet({
           {outstanding && (
             <div className="space-y-2">
               {onPay && (
-                <Button className="w-full" onClick={() => onPay(inv)}>
+                <Button className="w-full" disabled={isDemo} onClick={() => onPay(inv)}>
                   <CreditCard className="size-4" /> Pay {formatMoney(inv.total)}
                 </Button>
               )}
-              <p className="text-center text-xs text-muted-foreground">
-                Pay securely by card, or contact your organization to settle another way.
+              <p className="text-center text-xs text-muted-foreground" data-testid="invoice-pay-note">
+                {isDemo ? DEMO_PAY_OFF : "Pay securely by card, or contact your organization to settle another way."}
               </p>
             </div>
           )}

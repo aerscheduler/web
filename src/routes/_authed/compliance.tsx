@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ListTable, ListTableSkeleton, type ListTableColumn, type ListTableGroup, type ListTableRow } from "@/components/list-table";
 import { WorkspaceUserAvatar } from "@/components/workspace-user-avatar";
+import { TableView } from "@/components/table-view";
 
 export const Route = createFileRoute("/_authed/compliance")({
   beforeLoad: guardRoute("/compliance"),
@@ -41,87 +42,93 @@ function CompliancePage() {
   const error = planes.error ?? members.error ?? currencyTypes.error;
 
   return (
-    <div className="space-y-5">
-      <PageHeader
-        title="Go / No-Go"
-        subtitle="Who and what can't fly right now, grounded aircraft, grounded members, and the currencies you track."
-        actions={
-          canManageCurrencyRules ? (
-            // Currency RULES are org configuration (scope, expiry, renewal), so they
-            // live in Settings. This board consumes their status; it doesn't define them.
-            <Button asChild variant="outline">
-              <Link to="/settings" search={{ tab: "currencies" }}>
-                <Settings2 className="size-4" /> Manage currency rules
-              </Link>
-            </Button>
-          ) : undefined
-        }
-      />
+    // Fills the page like the other list pages: the header, the counts and the tracked
+    // currencies stay put, and the no-go list scrolls inside the space between them.
+    <TableView>
+      <TableView.Header>
+        <PageHeader
+          title="Go / No-Go"
+          subtitle="Who and what can't fly right now, grounded aircraft, grounded members, and the currencies you track."
+          actions={
+            canManageCurrencyRules ? (
+              // Currency RULES are org configuration (scope, expiry, renewal), so they
+              // live in Settings. This board consumes their status; it doesn't define them.
+              <Button asChild variant="outline">
+                <Link to="/settings" search={{ tab: "currencies" }}>
+                  <Settings2 className="size-4" /> Manage currency rules
+                </Link>
+              </Button>
+            ) : undefined
+          }
+        />
 
-      <StatGrid>
-        <StatCard
-          label="No-go items"
-          value={noGoCount}
-          icon={AlertTriangle}
-          accent={noGoCount > 0 ? "warning" : "success"}
-          hint={noGoCount === 0 ? "All clear" : "Need attention"}
-          loading={planes.isLoading || members.isLoading}
-        />
-        <StatCard
-          label="Grounded aircraft"
-          value={groundedAircraft.length}
-          icon={PlaneTakeoff}
-          accent={groundedAircraft.length ? "warning" : "success"}
-          loading={planes.isLoading}
-          to="/aircraft"
-          search={{ grounded: true }}
-        />
-        <StatCard
-          label="Grounded members"
-          value={groundedMembers.length}
-          icon={UserX}
-          accent={groundedMembers.length ? "warning" : "success"}
-          loading={members.isLoading}
-          to="/people"
-          search={{ grounded: true }}
-        />
-        <StatCard
-          label="Currencies tracked"
-          value={currencyTypes.data?.length ?? 0}
-          icon={ShieldCheck}
-          loading={currencyTypes.isLoading}
-          {...(canManageCurrencyRules
-            ? { to: "/settings" as const, search: { tab: "currencies" } }
-            : {})}
-        />
-      </StatGrid>
-
-      {loading ? (
-        <ListTableSkeleton columns={NO_GO_COLUMNS} groups={2} rows={2} toolbar={false} />
-      ) : error ? (
-        <ErrorState
-          error={error}
-          onRetry={() => {
-            void planes.refetch();
-            void members.refetch();
-            void currencyTypes.refetch();
-          }}
-        />
-      ) : noGoCount === 0 ? (
-        <Card className="p-0">
-          <EmptyState
-            graphic="compliance-clear"
-            title="Everything's cleared to fly"
-            body="No grounded aircraft or members right now. Ground an aircraft from the Aircraft page, or a member from People, and it shows up here."
-            docs="go-no-go-board"
+        <StatGrid>
+          <StatCard
+            label="No-go items"
+            value={noGoCount}
+            icon={AlertTriangle}
+            accent={noGoCount > 0 ? "warning" : "success"}
+            hint={noGoCount === 0 ? "All clear" : "Need attention"}
+            loading={planes.isLoading || members.isLoading}
           />
-        </Card>
-      ) : (
-        <NoGoList aircraft={groundedAircraft} members={groundedMembers} />
-      )}
+          <StatCard
+            label="Grounded aircraft"
+            value={groundedAircraft.length}
+            icon={PlaneTakeoff}
+            accent={groundedAircraft.length ? "warning" : "success"}
+            loading={planes.isLoading}
+            to="/aircraft"
+            search={{ grounded: true }}
+          />
+          <StatCard
+            label="Grounded members"
+            value={groundedMembers.length}
+            icon={UserX}
+            accent={groundedMembers.length ? "warning" : "success"}
+            loading={members.isLoading}
+            to="/people"
+            search={{ grounded: true }}
+          />
+          <StatCard
+            label="Currencies tracked"
+            value={currencyTypes.data?.length ?? 0}
+            icon={ShieldCheck}
+            loading={currencyTypes.isLoading}
+            {...(canManageCurrencyRules
+              ? { to: "/settings" as const, search: { tab: "currencies" } }
+              : {})}
+          />
+        </StatGrid>
+      </TableView.Header>
+
+      <TableView.Body className="flex flex-col">
+        {loading ? (
+          <ListTableSkeleton fill columns={NO_GO_COLUMNS} groups={2} rows={2} toolbar={false} className="min-h-0 flex-1" />
+        ) : error ? (
+          <ErrorState
+            error={error}
+            onRetry={() => {
+              void planes.refetch();
+              void members.refetch();
+              void currencyTypes.refetch();
+            }}
+          />
+        ) : noGoCount === 0 ? (
+          <Card className="p-0">
+            <EmptyState
+              graphic="compliance-clear"
+              title="Everything's cleared to fly"
+              body="No grounded aircraft or members right now. Ground an aircraft from the Aircraft page, or a member from People, and it shows up here."
+              docs="go-no-go-board"
+            />
+          </Card>
+        ) : (
+          <NoGoList aircraft={groundedAircraft} members={groundedMembers} />
+        )}
+      </TableView.Body>
 
       {/* currency types tracked */}
-      <section className="space-y-2.5">
+      <section className="shrink-0 space-y-2.5">
         <div className="flex items-center gap-1.5">
           <h2 className="text-sm font-semibold text-muted-foreground">Currencies tracked</h2>
           <DocsHint topic="go-no-go-board" side="right" />
@@ -162,8 +169,7 @@ function CompliancePage() {
           </Card>
         )}
       </section>
-
-    </div>
+    </TableView>
   );
 }
 
@@ -235,7 +241,18 @@ function NoGoList({ aircraft, members }: { aircraft: Resource[]; members: Organi
         }),
     },
   ];
-  return <ListTable label="Grounded aircraft and members" docShot="go-no-go-list" columns={NO_GO_COLUMNS} groups={groups} titleHeader="Who or what" showHeader />;
+  return (
+    <ListTable
+      fill
+      className="min-h-0 flex-1"
+      label="Grounded aircraft and members"
+      docShot="go-no-go-list"
+      columns={NO_GO_COLUMNS}
+      groups={groups}
+      titleHeader="Who or what"
+      showHeader
+    />
+  );
 }
 
 /**

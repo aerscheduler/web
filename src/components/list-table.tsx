@@ -342,6 +342,7 @@ export function ListTable({
             activate(r);
           }}
           onMouseDown={r.onOpenPage ? (e) => secondPress.press(r, e) : undefined}
+          onMouseOver={showTruncated}
           className={cn(
             "group/row relative grid min-h-10 cursor-default items-center gap-x-3 border-b border-border/70 pr-1 pl-4 text-[13px] outline-none",
             "hover:bg-accent/60 focus-visible:bg-accent",
@@ -395,9 +396,12 @@ export function ListTable({
               ))}
             {r.leading && <span className="flex shrink-0 items-center">{r.leading}</span>}
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className={cn("min-w-0", narrow ? "[overflow-wrap:break-word]" : "truncate", r.emphasis && "font-medium")}>{r.title}</span>
-                {!narrow && r.tags && <span className="flex shrink-0 items-center gap-1.5">{r.tags}</span>}
+              {/* The title wins the room: it shrinks only past the whole cell, and the tags give
+                  way first. A tag that doesn't fit wraps to a second line this one hides, and when
+                  not even one fits the whole strip wraps away, so no tag is ever cut in half. */}
+              <div className={cn("flex min-w-0 items-center gap-x-2", !narrow && r.tags && "h-5 flex-wrap overflow-hidden")}>
+                <span className={cn("max-w-full shrink-0", narrow ? "min-w-0 [overflow-wrap:break-word]" : "truncate", r.emphasis && "font-medium")}>{r.title}</span>
+                {!narrow && r.tags && <span className="flex h-5 min-w-min flex-1 flex-wrap items-center gap-x-1.5 overflow-hidden">{r.tags}</span>}
               </div>
               {narrow && r.tags && <div className="mt-1 flex flex-wrap items-center gap-1.5">{r.tags}</div>}
               {r.subtitle && <div className="mt-0.5 truncate text-[12px] text-muted-foreground">{r.subtitle}</div>}
@@ -534,6 +538,22 @@ export function ListTable({
 
 function groupHasRows(g: ListTableGroup): boolean {
   return g.rows.length > 0 || !!g.subgroups?.some(groupHasRows);
+}
+
+/**
+ * Hovering text the row cut short shows it whole: a title, a subtitle or a cell clipped with
+ * an ellipsis gets a native tooltip of its full text, and loses it once it fits again.
+ */
+function showTruncated(e: React.MouseEvent<HTMLElement>) {
+  const el = (e.target as HTMLElement).closest<HTMLElement>(".truncate");
+  if (!el || !e.currentTarget.contains(el)) return;
+  if (el.scrollWidth > el.clientWidth) {
+    el.title = el.textContent?.trim() ?? "";
+    el.dataset.ltTip = "";
+  } else if ("ltTip" in el.dataset) {
+    el.removeAttribute("title");
+    delete el.dataset.ltTip;
+  }
 }
 
 /** Whether the list itself is narrow: beside a sidebar a list can be narrow on a wide window. */

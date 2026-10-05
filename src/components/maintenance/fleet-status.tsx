@@ -204,13 +204,14 @@ export function FleetStatus({
                 {meta && <> · <span className="tnum">{fromDeciHours(meta.tachTime)}</span> tach</>}
               </>
             ),
-            // The counts the group name leaves out: a grounded tail may also be overdue, an
-            // overdue one may have more coming due behind it.
+            // Only the counts the group name leaves out: a grounded tail may also be overdue, an
+            // overdue one may have more coming due behind it. Under Overdue, "2 overdue" says
+            // the group again, and its inspections are listed right below.
             tags:
-              summary.overdue || summary.dueSoon ? (
+              (summary.overdue > 0 && g.id !== "overdue") || (summary.dueSoon > 0 && g.id !== "dueSoon") ? (
                 <>
-                  {summary.overdue > 0 && <ListTag dot="var(--warning)">{summary.overdue} overdue</ListTag>}
-                  {summary.dueSoon > 0 && <ListTag>{summary.dueSoon} due soon</ListTag>}
+                  {summary.overdue > 0 && g.id !== "overdue" && <ListTag dot="var(--warning)">{summary.overdue} overdue</ListTag>}
+                  {summary.dueSoon > 0 && g.id !== "dueSoon" && <ListTag>{summary.dueSoon} due soon</ListTag>}
                 </>
               ) : undefined,
             // A tail that is fine starts folded; one that needs a look starts open.

@@ -195,4 +195,36 @@ describe("ListTable and portals", () => {
     fireEvent.click(screen.getByText("Inside the dialog"));
     expect(screen.getByText("Signed record")).toBeTruthy();
   });
+
+  it("nests subgroups under their group, folds them with it, and walks their rows", () => {
+    const nested: ListTableGroup[] = [
+      {
+        id: "today",
+        label: "Today",
+        count: 3,
+        rows: [],
+        subgroups: [
+          { id: "today/a", label: "N123AB", count: 2, rows: [{ id: "r1", label: "First", title: "First" }, { id: "r2", label: "Second", title: "Second" }] },
+          { id: "today/empty", label: "Empty one", count: 0, rows: [] },
+          { id: "today/b", label: "N456CD", count: 1, rows: [{ id: "r3", label: "Third", title: "Third" }] },
+        ],
+      },
+      { id: "empty", label: "No rows anywhere", rows: [], subgroups: [{ id: "empty/x", label: "Nothing", rows: [] }] },
+    ];
+    render(<ListTable label="Nested" columns={COLUMNS} groups={nested} />);
+    expect(screen.getByText("N123AB")).toBeTruthy();
+    expect(screen.queryByText("Empty one")).toBeNull();
+    expect(screen.queryByText("No rows anywhere")).toBeNull();
+    // The first row in reading order is the tab stop, though the group itself holds no rows.
+    const first = screen.getByRole("row", { name: "First" });
+    expect(first.tabIndex).toBe(0);
+    first.focus();
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    fireEvent.keyDown(document.activeElement!, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(screen.getByRole("row", { name: "Third" }));
+    // Folding the outer group hides every subgroup with it.
+    fireEvent.click(screen.getByText("Today"));
+    expect(screen.queryByText("N123AB")).toBeNull();
+    expect(screen.queryByRole("row", { name: "Third" })).toBeNull();
+  });
 });

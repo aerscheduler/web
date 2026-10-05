@@ -18,6 +18,7 @@ import {
   ReservationListSkeleton,
   ReservationListTable,
   asGroupBy,
+  asThenBy,
   useReservationGroups,
   type ReservationGroupBy,
 } from "@/components/schedule/reservation-list-table";
@@ -133,6 +134,8 @@ function MySchedulePage() {
   const range = asRange(facets.when);
   const [groupByRaw, setGroupBy] = usePersistedState<ReservationGroupBy>("view:me-schedule-group", "date");
   const groupBy = asGroupBy(groupByRaw);
+  const [thenByRaw, setThenBy] = usePersistedState<ReservationGroupBy | null>("view:me-schedule-then", null);
+  const thenBy = asThenBy(thenByRaw, groupBy);
   const [sort, setSort] = React.useState<ListTableSort | null>(null);
 
   const now = React.useMemo(() => new Date(), []);
@@ -155,6 +158,7 @@ function MySchedulePage() {
   // The window filters what is fetched; only the other filters count as "nothing matches".
   const { groups: days, ordered } = useReservationGroups(reservations, {
     groupBy,
+    thenBy,
     sort,
     newestFirst: range === "past",
   });
@@ -299,7 +303,7 @@ function MySchedulePage() {
               />
 
               {q.isPending ? (
-                <ReservationListSkeleton groupBy={groupBy} hideColumns={["billing"]} className="min-h-0 flex-1" />
+                <ReservationListSkeleton groupBy={groupBy} thenBy={thenBy} hideColumns={["billing"]} className="min-h-0 flex-1" />
               ) : q.isError ? (
                 <Card className="flex flex-col min-h-0 flex-1 p-0">
                   <ErrorState error={q.error} onRetry={() => q.refetch()} />
@@ -341,6 +345,8 @@ function MySchedulePage() {
                     groups={days}
                     groupBy={groupBy}
                     onGroupByChange={setGroupBy}
+                    thenBy={thenBy}
+                    onThenByChange={setThenBy}
                     sort={sort}
                     onSortChange={setSort}
                     selectedId={selectedId}

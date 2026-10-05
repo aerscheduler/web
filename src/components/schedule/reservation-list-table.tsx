@@ -27,13 +27,18 @@ export type ReservationGroupBy = "date" | "status" | "resource" | "person" | "ty
 export const GROUP_BY_OPTIONS: { value: ReservationGroupBy; label: string }[] = [
   { value: "date", label: "Date" },
   { value: "status", label: "Status" },
-  { value: "resource", label: "Aircraft" },
+  { value: "resource", label: "Resource" },
   { value: "person", label: "Person" },
   { value: "type", label: "Type" },
 ];
 
 export function asGroupBy(v: unknown): ReservationGroupBy {
   return GROUP_BY_OPTIONS.some((o) => o.value === v) ? (v as ReservationGroupBy) : "date";
+}
+
+/** The second level, or none: never the same as the first. */
+export function asThenBy(v: unknown, groupBy: ReservationGroupBy): ReservationGroupBy | null {
+  return v !== groupBy && GROUP_BY_OPTIONS.some((o) => o.value === v) ? (v as ReservationGroupBy) : null;
 }
 
 const BILLING_LABEL = new Map(BILLING_OPTIONS.map((o) => [o.value, o.label]));
@@ -73,6 +78,8 @@ export type ReservationGroup = {
   /** Grouped by type: which, for the dot and the order. */
   type?: ReservationType;
   items: Reservation[];
+  /** Grouped a second way: this group's bookings split again, "Today" by resource. */
+  subgroups?: ReservationGroup[];
 };
 
 /**
@@ -81,7 +88,12 @@ export type ReservationGroup = {
  */
 export function useReservationGroups(
   reservations: Reservation[],
-  { groupBy, sort, newestFirst = false }: { groupBy: ReservationGroupBy; sort: ListTableSort | null; newestFirst?: boolean }
+  {
+    groupBy,
+    thenBy = null,
+    sort,
+    newestFirst = false,
+  }: { groupBy: ReservationGroupBy; thenBy?: ReservationGroupBy | null; sort: ListTableSort | null; newestFirst?: boolean }
 ): { groups: ReservationGroup[]; ordered: Reservation[] } {
   const tz = useTimeZone();
   return React.useMemo(() => {
@@ -99,58 +111,73 @@ export function useReservationGroups(
         return sort.desc ? -c : c;
       });
 
-    const buckets = new Map<string, ReservationGroup>();
-    const put = (id: string, make: () => Omit<ReservationGroup, "items">, r: Reservation) => {
-      const g = buckets.get(id) ?? { ...make(), items: [] };
-      g.items.push(r);
-      buckets.set(id, g);
-    };
-    for (const r of reservations) {
-      if (groupBy === "status") {
-        const s = statusOf(r, now);
-        put(s, () => ({ id: s, label: STATUS_BY_ID.get(s)!.label, status: s }), r);
-      } else if (groupBy === "person") {
-        // A booking sits under everyone on it: a dual lesson is in the instructor's group and
-        // the student's. Guests have no profile, so they are not groups of their own.
-        const seated = seatedPeople(r);
-        if (!seated.length) put("none", () => ({ id: "none", label: "Nobody assigned" }), r);
-        for (const { person, seat } of seated) {
-          const id = `p-${person.id}`;
-          put(id, () => ({ id, label: person.name?.trim() || "Unknown", person, seats: new Map() }), r);
-          buckets.get(id)!.seats!.set(r.id, seat);
+    const bucket = (list: Reservation[], by: ReservationGroupBy): ReservationGroup[] => {
+      const buckets = new Map<string, ReservationGroup>();
+      const put = (id: string, make: () => Omit<ReservationGroup, "items">, r: Reservation) => {
+        const g = buckets.get(id) ?? { ...make(), items: [] };
+        g.items.push(r);
+        buckets.set(id, g);
+      };
+      for (const r of list) {
+        if (by === "status") {
+          const s = statusOf(r, now);
+          put(s, () => ({ id: s, label: STATUS_BY_ID.get(s)!.label, status: s }), r);
+        } else if (by === "person") {
+          // A booking sits under everyone on it: a dual lesson is in the instructor's group and
+          // the student's. Guests have no profile, so they are not groups of their own.
+          const seated = seatedPeople(r);
+          if (!seated.length) put("none", () => ({ id: "none", label: "Nobody assigned" }), r);
+          for (const { person, seat } of seated) {
+            const id = `p-${person.id}`;
+            put(id, () => ({ id, label: person.name?.trim() || "Unknown", person, seats: new Map() }), r);
+            buckets.get(id)!.seats!.set(r.id, seat);
+          }
+        } else if (by === "type") {
+          const id = `t-${r.type}`;
+          put(id, () => ({ id, label: TYPE_LABEL[r.type] ?? r.type, type: r.type }), r);
+        } else if (by === "resource") {
+          const name = resourceName(r);
+          const id = r.resource ? `res-${r.resource.id}` : "none";
+          put(id, () => ({ id, label: name ?? "No resource" }), r);
+        } else {
+          const day = dateKeyInZone(r.start, tz.zone);
+          put(day, () => ({ id: day, label: dayHeading(day, tz.zone) }), r);
         }
-      } else if (groupBy === "type") {
-        const id = `t-${r.type}`;
-        put(id, () => ({ id, label: TYPE_LABEL[r.type] ?? r.type, type: r.type }), r);
-      } else if (groupBy === "resource") {
-        const name = resourceName(r);
-        const id = r.resource ? `res-${r.resource.id}` : "none";
-        put(id, () => ({ id, label: name ?? "No aircraft" }), r);
-      } else {
-        const day = dateKeyInZone(r.start, tz.zone);
-        put(day, () => ({ id: day, label: dayHeading(day, tz.zone) }), r);
       }
-    }
 
-    let groups = [...buckets.values()];
-    if (groupBy === "status") {
-      groups.sort((a, b) => (STATUS_RANK.get(a.status!) ?? 0) - (STATUS_RANK.get(b.status!) ?? 0));
-    } else if (groupBy === "type") {
-      // The order the booking form offers them in.
-      const rank = (t?: ReservationType) => (t ? TYPE_ORDER.indexOf(t) : -1);
-      groups.sort((a, b) => rank(a.type) - rank(b.type));
-    } else if (groupBy === "resource" || groupBy === "person") {
-      // Bookings with no aircraft (ground, a room), or with nobody on them, last.
-      groups.sort((a, b) => (a.id === "none" ? 1 : b.id === "none" ? -1 : a.label.localeCompare(b.label)));
-    } else {
-      groups.sort((a, b) => (newestFirst ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id)));
-    }
-    groups = groups.map((g) => ({ ...g, items: order(g.items) }));
+      const groups = [...buckets.values()];
+      if (by === "status") {
+        groups.sort((a, b) => (STATUS_RANK.get(a.status!) ?? 0) - (STATUS_RANK.get(b.status!) ?? 0));
+      } else if (by === "type") {
+        // The order the booking form offers them in.
+        const rank = (t?: ReservationType) => (t ? TYPE_ORDER.indexOf(t) : -1);
+        groups.sort((a, b) => rank(a.type) - rank(b.type));
+      } else if (by === "resource" || by === "person") {
+        // Bookings with no resource (ground), or with nobody on them, last.
+        groups.sort((a, b) => (a.id === "none" ? 1 : b.id === "none" ? -1 : a.label.localeCompare(b.label)));
+      } else {
+        groups.sort((a, b) => (newestFirst ? b.id.localeCompare(a.id) : a.id.localeCompare(b.id)));
+      }
+      return groups.map((g) => ({ ...g, items: order(g.items) }));
+    };
+
+    const second = thenBy && thenBy !== groupBy ? thenBy : null;
+    const groups = bucket(reservations, groupBy).map((g) =>
+      second
+        ? {
+            ...g,
+            // The parent's id in each child's: "Today, N123AB" and "Tomorrow, N123AB" are two groups.
+            subgroups: bucket(g.items, second).map((sg) => ({ ...sg, id: `${g.id}/${sg.id}` })),
+          }
+        : g
+    );
     // A booking under two people is one stop for the panel's up and down, not two.
     const seen = new Set<number>();
-    const ordered = groups.flatMap((g) => g.items).filter((r) => !seen.has(r.id) && !!seen.add(r.id));
+    const ordered = groups
+      .flatMap((g) => (g.subgroups ? g.subgroups.flatMap((sg) => sg.items) : g.items))
+      .filter((r) => !seen.has(r.id) && !!seen.add(r.id));
     return { groups, ordered };
-  }, [reservations, groupBy, sort, newestFirst, tz.zone]);
+  }, [reservations, groupBy, thenBy, sort, newestFirst, tz.zone]);
 }
 
 /** "Today", "Tomorrow", "Yesterday", else "Tuesday, October 6", all on the airport's calendar. */
@@ -194,12 +221,16 @@ function workspacePeople(r: Reservation): WorkspacePerson[] {
   }));
 }
 
-function columnsFor(groupBy: ReservationGroupBy): ListTableColumn[] {
+/** Whether a heading above the row already says the day, so the row need only say the time. */
+const datedByHeading = (groupBy: ReservationGroupBy, thenBy: ReservationGroupBy | null) =>
+  groupBy === "date" || thenBy === "date";
+
+function columnsFor(groupBy: ReservationGroupBy, thenBy: ReservationGroupBy | null): ListTableColumn[] {
   // Time first: on a phone every column folds into the line under the title, in this order.
   return [
     // Grouped by day, the heading says the date; grouped any other way, the row has to.
-    { id: "when", header: "Time", width: groupBy === "date" ? "11.5rem" : "15rem", sortable: true },
-    { id: "resource", header: "Aircraft", width: "8rem", sortable: true },
+    { id: "when", header: "Time", width: datedByHeading(groupBy, thenBy) ? "11.5rem" : "15rem", sortable: true },
+    { id: "resource", header: "Resource", width: "8rem", sortable: true },
     { id: "people", header: "People", width: "5rem" },
     { id: "status", header: "Status", width: "11rem", sortable: true },
     { id: "billing", header: "Billing", width: "5.5rem", sortable: true },
@@ -210,6 +241,8 @@ export function ReservationListTable({
   groups,
   groupBy,
   onGroupByChange,
+  thenBy = null,
+  onThenByChange,
   sort,
   onSortChange,
   selectedId,
@@ -223,6 +256,9 @@ export function ReservationListTable({
   groups: ReservationGroup[];
   groupBy: ReservationGroupBy;
   onGroupByChange: (g: ReservationGroupBy) => void;
+  /** The second level of grouping; offered in the menu when `onThenByChange` is passed. */
+  thenBy?: ReservationGroupBy | null;
+  onThenByChange?: (g: ReservationGroupBy | null) => void;
   sort: ListTableSort | null;
   onSortChange: (s: ListTableSort | null) => void;
   selectedId?: number | null;
@@ -239,7 +275,7 @@ export function ReservationListTable({
   const navigate = useNavigate();
   const now = new Date();
 
-  const tableGroups: ListTableGroup[] = groups.map((g) => ({
+  const toTableGroup = (g: ReservationGroup, parent?: ReservationGroup): ListTableGroup => ({
     id: g.id,
     label: g.label,
     marker: g.status ? (
@@ -250,13 +286,16 @@ export function ReservationListTable({
       <span className="size-2 rounded-full" style={{ background: TYPE_HUE[g.type] }} aria-hidden />
     ) : undefined,
     count: g.items.length,
-    rows: g.items.map((r) => {
+    subgroups: g.subgroups?.map((sg) => toTableGroup(sg, g)),
+    // A group split again draws its bookings under its subgroups, not twice.
+    rows: (g.subgroups ? [] : g.items).map((r) => {
       const statusId = statusOf(r, now);
       const status = STATUS_BY_ID.get(statusId)!;
       const billing = billingStatus(r);
       const people = workspacePeople(r);
-      const when = whenText(r, groupBy, tz);
-      const seat = g.seats?.get(r.id);
+      const when = whenText(r, datedByHeading(groupBy, thenBy), tz);
+      // Grouped by person at either level, the seat that person holds.
+      const seat = g.seats?.get(r.id) ?? parent?.seats?.get(r.id);
       return {
         // The group in the id: grouped by person, one booking is a row in two groups.
         id: `${g.id}:res-${r.id}`,
@@ -275,7 +314,7 @@ export function ReservationListTable({
         subtitle: shopJobOf(r) ? shopJobLine(shopJobOf(r)!) ?? undefined : undefined,
         tags: (
           <>
-            {groupBy !== "type" && <ListTag>{TYPE_LABEL[r.type] ?? r.type}</ListTag>}
+            {groupBy !== "type" && thenBy !== "type" && <ListTag>{TYPE_LABEL[r.type] ?? r.type}</ListTag>}
             {seat && <ListTag>{seat}</ListTag>}
           </>
         ),
@@ -308,9 +347,10 @@ export function ReservationListTable({
         },
       };
     }),
-  }));
+  });
+  const tableGroups = groups.map((g) => toTableGroup(g));
 
-  const columns = columnsFor(groupBy).filter((c) => !hideColumns?.includes(c.id));
+  const columns = columnsFor(groupBy, thenBy).filter((c) => !hideColumns?.includes(c.id));
   return (
     <ListTable
       fill
@@ -325,7 +365,14 @@ export function ReservationListTable({
       showHeader
       sort={sort}
       onSortChange={onSortChange}
-      toolbar={<GroupByMenu value={groupBy} options={GROUP_BY_OPTIONS} onChange={(v) => onGroupByChange(asGroupBy(v))} />}
+      toolbar={
+        <GroupByMenu
+          value={groupBy}
+          options={GROUP_BY_OPTIONS}
+          onChange={(v) => onGroupByChange(asGroupBy(v))}
+          then={onThenByChange ? { value: thenBy, onChange: (v) => onThenByChange(v ? asThenBy(v, groupBy) : null) } : undefined}
+        />
+      }
       empty={empty ?? <p className="px-4 py-6 text-[13px] text-muted-foreground">Nothing matches these filters.</p>}
     />
   );
@@ -334,14 +381,16 @@ export function ReservationListTable({
 /** The list's loading state, in its own columns, so nothing jumps when the bookings land. */
 export function ReservationListSkeleton({
   groupBy,
+  thenBy = null,
   hideColumns,
   className,
 }: {
   groupBy: ReservationGroupBy;
+  thenBy?: ReservationGroupBy | null;
   hideColumns?: string[];
   className?: string;
 }) {
-  const columns = columnsFor(groupBy).filter((c) => !hideColumns?.includes(c.id));
+  const columns = columnsFor(groupBy, thenBy).filter((c) => !hideColumns?.includes(c.id));
   return <ListTableSkeleton fill columns={columns} narrowAt={narrowWidth(columns)} className={className} />;
 }
 
@@ -353,7 +402,7 @@ function narrowWidth(columns: ListTableColumn[]): number {
   return rem * 16 + TITLE_MIN + GAPS_AND_PADDING;
 }
 
-function whenText(r: Reservation, groupBy: ReservationGroupBy, tz: TimeZoneContext): string {
+function whenText(r: Reservation, dated: boolean, tz: TimeZoneContext): string {
   const range = tz.range(r.start, r.end);
-  return groupBy === "date" ? range : `${tz.date(r.start)}, ${range}`;
+  return dated ? range : `${tz.date(r.start)}, ${range}`;
 }

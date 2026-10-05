@@ -8,6 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSecondPress } from "@/lib/use-second-press";
@@ -91,6 +92,11 @@ export type ListTableGroup = {
   /** Shown in the last column: the group's total. */
   summary?: React.ReactNode;
   rows: ListTableRow[];
+  /**
+   * Groups inside this one, each under its own header pinned beneath this one's: grouped by
+   * date, then by resource. A group with subgroups draws theirs after its own `rows`.
+   */
+  subgroups?: ListTableGroup[];
   /** A + on the group's header that adds a row already in this group: "Add a finding". */
   onAdd?: () => void;
   /** What the + adds, for its label and tooltip. */
@@ -206,20 +212,30 @@ export function ListTable({
   const shown = narrow ? columns.filter((c) => c.narrow === "keep") : columns;
   const template = ["minmax(0,1fr)", ...shown.map((c) => c.width), "2rem"].join(" ");
   const last = shown.length; // index (0-based, after the title) of the last data column
-  const hasRows = groups.some((g) => g.rows.length > 0);
+  const hasRows = groups.some(groupHasRows);
   const headerShown = showHeader && !narrow && hasRows;
   // Group headers pin under the column labels when those are shown and pinned too.
   const groupTop = headerShown ? `calc(${stickyTop} + 2rem)` : stickyTop;
 
   // Every row by id, for the keyboard.
   const byId = new Map<string, { row: ListTableRow; parent: string | null }>();
-  for (const g of groups) {
+  const index = (g: ListTableGroup) => {
     for (const r of g.rows) {
       byId.set(r.id, { row: r, parent: null });
       for (const c of r.children ?? []) byId.set(c.id, { row: c, parent: r.id });
     }
-  }
-  const firstId = groups.find((g) => g.rows.length && !foldedGroups.has(g.id))?.rows[0]?.id ?? null;
+    g.subgroups?.forEach(index);
+  };
+  groups.forEach(index);
+  const firstIn = (list: ListTableGroup[]): string | null => {
+    for (const g of list) {
+      if (foldedGroups.has(g.id)) continue;
+      const id = g.rows[0]?.id ?? firstIn(g.subgroups ?? []);
+      if (id) return id;
+    }
+    return null;
+  };
+  const firstId = firstIn(groups);
   const tabbable = focusId != null && byId.has(focusId) ? focusId : firstId;
 
   const toggle = (set: React.Dispatch<React.SetStateAction<Set<string>>>, id: string, open?: boolean) =>
@@ -296,7 +312,7 @@ export function ListTable({
 
   const cellClass = (c: ListTableColumn) => cn("min-w-0 truncate tnum", c.align === "end" && "text-right");
 
-  const renderRow = (r: ListTableRow, level: 2 | 3, lastChild: boolean) => {
+  const renderRow = (r: ListTableRow, level: 2 | 3, lastChild: boolean, depth = 0) => {
     const hasKids = !!r.children?.length;
     const folded = isRowFolded(r);
     const kept = shown;
@@ -308,7 +324,7 @@ export function ListTable({
       <React.Fragment key={r.id}>
         <div
           role="row"
-          aria-level={level}
+          aria-level={level + depth}
           aria-expanded={hasKids ? !folded : undefined}
           aria-selected={r.selected || undefined}
           aria-label={r.label}
@@ -349,6 +365,16 @@ export function ListTable({
                   "before:absolute before:top-0 before:left-[31px] before:border-l before:border-border",
                   lastChild ? "before:bottom-1/2" : "before:bottom-0",
                   "after:absolute after:top-1/2 after:left-[31px] after:w-3.5 after:border-t after:border-border"
+                ),
+              // A subgroup's rows hang from its chevron on the same tree line, so they read as
+              // the subgroup's, not the outer group's.
+              level === 2 &&
+                depth > 0 &&
+                cn(
+                  "relative pl-9",
+                  "before:absolute before:top-0 before:left-[31px] before:border-l before:border-border",
+                  lastChild ? "before:bottom-1/2" : "before:bottom-0",
+                  "after:absolute after:top-1/2 after:left-[31px] after:w-3 after:border-t after:border-border"
                 )
             )}
             style={titleSpan ? { gridColumn: titleSpan } : undefined}
@@ -400,8 +426,68 @@ export function ListTable({
             )}
           </div>
         </div>
-        {hasKids && !folded && r.children!.map((c, i) => renderRow(c, 3, i === r.children!.length - 1))}
+        {hasKids && !folded && r.children!.map((c, i) => renderRow(c, 3, i === r.children!.length - 1, depth))}
       </React.Fragment>
+    );
+  };
+
+  /** A group's header and its rows; `depth` 1 is a subgroup, its header pinned under its parent's. */
+  const renderGroup = (g: ListTableGroup, depth: 0 | 1): React.ReactNode => {
+    const folded = foldedGroups.has(g.id);
+    const subgroups = (g.subgroups ?? []).filter(groupHasRows);
+    return (
+      <div key={g.id} role="rowgroup">
+        <div
+          role="row"
+          aria-level={depth + 1}
+          aria-expanded={!folded}
+          onClick={() => toggle(setFoldedGroups, g.id)}
+          className={cn(
+            "group/group sticky grid h-9 cursor-pointer items-center gap-x-3 border-b border-border/70 pr-1 pl-4 text-[13px] backdrop-blur select-none",
+            depth === 0 ? "z-[5] bg-muted/60 supports-[backdrop-filter]:bg-muted/80" : "z-[4] bg-card/90 supports-[backdrop-filter]:bg-card/80"
+          )}
+          style={{ gridTemplateColumns: template, top: depth === 0 ? groupTop : `calc(${groupTop} + 2.25rem)` }}
+        >
+          <div
+            role="gridcell"
+            className={cn("flex min-w-0 items-center gap-2", depth === 1 && "pl-6")}
+            style={{ gridColumn: `1 / span ${Math.max(1, last)}` }}
+          >
+            <button
+              type="button"
+              aria-label={folded ? "Show the group" : "Hide the group"}
+              className="-ml-1 grid size-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <ChevronDown className={cn("size-3.5 transition-transform", folded && "-rotate-90")} />
+            </button>
+            {g.marker && <span className="flex shrink-0 items-center">{g.marker}</span>}
+            <span className="truncate font-medium">{g.label}</span>
+            {g.count != null && <span className="shrink-0 text-muted-foreground tnum">{g.count}</span>}
+          </div>
+          <div role="gridcell" className="truncate text-right text-muted-foreground tnum">
+            {g.summary}
+          </div>
+          <div role="gridcell" className="flex justify-end">
+            {g.onAdd && (
+              <button
+                type="button"
+                aria-label={g.addLabel ?? "Add"}
+                title={g.addLabel}
+                onClick={(e) => {
+                  // The header folds on a click; the + only adds.
+                  e.stopPropagation();
+                  g.onAdd!();
+                }}
+                className="grid size-6 place-items-center rounded text-muted-foreground opacity-0 outline-none transition-opacity group-hover/group:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring [@media(hover:none)]:opacity-100"
+              >
+                <Plus className="size-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+        {!folded && g.rows.map((r, i) => renderRow(r, 2, i === g.rows.length - 1, depth))}
+        {!folded && subgroups.map((sg) => renderGroup(sg, 1))}
+      </div>
     );
   };
 
@@ -430,57 +516,7 @@ export function ListTable({
           </div>
         )}
         {!hasRows && empty}
-        {groups
-          .filter((g) => g.rows.length > 0)
-          .map((g) => {
-            const folded = foldedGroups.has(g.id);
-            return (
-              <div key={g.id} role="rowgroup">
-                <div
-                  role="row"
-                  aria-level={1}
-                  aria-expanded={!folded}
-                  onClick={() => toggle(setFoldedGroups, g.id)}
-                  className="group/group sticky z-[5] grid h-9 cursor-pointer items-center gap-x-3 border-b border-border/70 bg-muted/60 pr-1 pl-4 text-[13px] backdrop-blur select-none supports-[backdrop-filter]:bg-muted/80"
-                  style={{ gridTemplateColumns: template, top: groupTop }}
-                >
-                  <div role="gridcell" className="flex min-w-0 items-center gap-2" style={{ gridColumn: `1 / span ${Math.max(1, last)}` }}>
-                    <button
-                      type="button"
-                      aria-label={folded ? "Show the group" : "Hide the group"}
-                      className="-ml-1 grid size-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <ChevronDown className={cn("size-3.5 transition-transform", folded && "-rotate-90")} />
-                    </button>
-                    {g.marker && <span className="flex shrink-0 items-center">{g.marker}</span>}
-                    <span className="truncate font-medium">{g.label}</span>
-                    {g.count != null && <span className="shrink-0 text-muted-foreground tnum">{g.count}</span>}
-                  </div>
-                  <div role="gridcell" className="truncate text-right text-muted-foreground tnum">
-                    {g.summary}
-                  </div>
-                  <div role="gridcell" className="flex justify-end">
-                    {g.onAdd && (
-                      <button
-                        type="button"
-                        aria-label={g.addLabel ?? "Add"}
-                        title={g.addLabel}
-                        onClick={(e) => {
-                          // The header folds on a click; the + only adds.
-                          e.stopPropagation();
-                          g.onAdd!();
-                        }}
-                        className="grid size-6 place-items-center rounded text-muted-foreground opacity-0 outline-none transition-opacity group-hover/group:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring [@media(hover:none)]:opacity-100"
-                      >
-                        <Plus className="size-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {!folded && g.rows.map((r) => renderRow(r, 2, false))}
-              </div>
-            );
-          })}
+        {groups.filter(groupHasRows).map((g) => renderGroup(g, 0))}
       </div>
       {footer && hasRows && (
         <div data-slot="list-table-footer" className="grid shrink-0 items-center gap-x-3 border-t border-border pr-1 pl-4 py-3 text-[13px]" style={{ gridTemplateColumns: template }}>
@@ -494,6 +530,10 @@ export function ListTable({
       )}
     </div>
   );
+}
+
+function groupHasRows(g: ListTableGroup): boolean {
+  return g.rows.length > 0 || !!g.subgroups?.some(groupHasRows);
 }
 
 /** Whether the list itself is narrow: beside a sidebar a list can be narrow on a wide window. */
@@ -612,25 +652,40 @@ export function ListTableSkeleton({
   );
 }
 
+const NO_SUBGROUP = "__none";
+
 /**
  * "Group by: Status", for a list's toolbar. The list owns no grouping of its own (the caller
  * builds the groups), so this is only the control, the same on every list that offers it.
+ * Pass `then` for a second level: "Group by Date, then Resource", the caller nesting the
+ * groups as `subgroups`.
  */
 export function GroupByMenu<T extends string>({
   value,
   options,
   onChange,
+  then,
 }: {
   value: T;
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
+  then?: { value: T | null; onChange: (value: T | null) => void };
 }) {
   const current = options.find((o) => o.value === value) ?? options[0]!;
+  // A second level by the same thing as the first would nest every group in one copy of itself.
+  const thenOptions = options.filter((o) => o.value !== current.value);
+  const sub = then ? thenOptions.find((o) => o.value === then.value) ?? null : null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className={cn(LIST_TAG_CLASS, LIST_TAG_BUTTON_CLASS, "h-6 px-2.5 text-[12px]")}>
         <span className="text-muted-foreground">Group by</span>
         <span className="text-foreground">{current.label}</span>
+        {sub && (
+          <>
+            <span className="text-muted-foreground">then</span>
+            <span className="text-foreground">{sub.label}</span>
+          </>
+        )}
         <ChevronDown className="size-3" aria-hidden />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-44">
@@ -639,7 +694,10 @@ export function GroupByMenu<T extends string>({
           value={value}
           onValueChange={(v) => {
             const hit = options.find((o) => o.value === v);
-            if (hit) onChange(hit.value);
+            if (!hit) return;
+            onChange(hit.value);
+            // The second level can't be what the first now is.
+            if (then && then.value === hit.value) then.onChange(null);
           }}
         >
           {options.map((o) => (
@@ -648,6 +706,23 @@ export function GroupByMenu<T extends string>({
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
+        {then && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>Then by</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={sub?.value ?? NO_SUBGROUP}
+              onValueChange={(v) => then.onChange(thenOptions.find((o) => o.value === v)?.value ?? null)}
+            >
+              <DropdownMenuRadioItem value={NO_SUBGROUP}>Nothing</DropdownMenuRadioItem>
+              {thenOptions.map((o) => (
+                <DropdownMenuRadioItem key={o.value} value={o.value}>
+                  {o.label}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -41,6 +41,7 @@ import {
   ReservationListSkeleton,
   ReservationListTable,
   asGroupBy,
+  asThenBy,
   useReservationGroups,
   type ReservationGroupBy,
 } from "@/components/schedule/reservation-list-table";
@@ -217,6 +218,8 @@ function SchedulePage() {
   const layout: ScheduleLayout = layoutRaw === "list" ? "list" : "calendar";
   const [groupByRaw, setGroupBy] = usePersistedState<ReservationGroupBy>("view:schedule-group", "date");
   const groupBy = asGroupBy(groupByRaw);
+  const [thenByRaw, setThenBy] = usePersistedState<ReservationGroupBy | null>("view:schedule-then", null);
+  const thenBy = asThenBy(thenByRaw, groupBy);
   const [listSort, setListSort] = React.useState<ListTableSort | null>(null);
   const isDesktop = useMediaQuery("(min-width: 768px)");
   // The desktop schedule is always the dispatch board. Narrow browser widths keep
@@ -372,6 +375,7 @@ function SchedulePage() {
   );
   const { groups: listGroups, ordered: listOrdered } = useReservationGroups(listed, {
     groupBy,
+    thenBy,
     sort: listSort,
     // The list is mostly read for what just happened: latest day and latest booking first.
     newestFirst: true,
@@ -615,7 +619,7 @@ function SchedulePage() {
 
       <TableView.Body className="flex flex-col overflow-hidden">
         {layout === "list" && q.isPending ? (
-          <ReservationListSkeleton groupBy={groupBy} className="min-h-0 flex-1" />
+          <ReservationListSkeleton groupBy={groupBy} thenBy={thenBy} className="min-h-0 flex-1" />
         ) : layout === "list" && !q.isError && reservations.length > 0 ? (
           <ReservationListTable
             label="Reservations"
@@ -624,6 +628,8 @@ function SchedulePage() {
             groups={listGroups}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
+            thenBy={thenBy}
+            onThenByChange={setThenBy}
             sort={listSort}
             onSortChange={setListSort}
             selectedId={selectedId}

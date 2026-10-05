@@ -572,7 +572,7 @@ export function WorkOrderFormModal({
             values={technicians}
             onChange={setTechnicians}
             placeholder="Assign technicians"
-            emptyText="No technicians or admins yet."
+            emptyText="No technicians yet. Give someone the Technician role in People."
           />
         </Field>
 

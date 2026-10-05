@@ -11,7 +11,7 @@ import {
 import type { InvoiceLineCategory, SalesTaxRate, SalesTaxSettings } from "@/types/api";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/lib/auth";
-import { canManageBillingSettings } from "@/lib/permissions";
+import { isAdmin } from "@/lib/permissions";
 import { LINE_CATEGORY_OPTIONS, parseRatePpm, percentLabel, percentText } from "@/lib/sales-tax";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,9 @@ type Editing = { mode: "new" } | { mode: "edit"; rate: SalesTaxRate } | null;
 
 function SalesTax({ data }: { data: SalesTaxSettings }) {
   const { roles } = useAuth();
-  const canEdit = canManageBillingSettings(roles);
+  // Owners and admins: admins already set the shop's rates, raise invoices and set a customer's
+  // exemption, so the rate those invoices charge is theirs too (Tony, 2026-10-04).
+  const canEdit = isAdmin(roles);
   const archive = useArchiveSalesTaxRate();
   const confirm = useConfirm();
   const [editing, setEditing] = useState<Editing>(null);
@@ -147,7 +149,7 @@ function SalesTax({ data }: { data: SalesTaxSettings }) {
               <Plus className="size-4" /> Add rate
             </Button>
           ) : (
-            <p className="text-xs text-muted-foreground">Only the owner can change sales tax.</p>
+            <p className="text-xs text-muted-foreground">Only an owner or admin of the organization can change sales tax.</p>
           )}
           {archived.length > 0 && (
             <p className="text-xs text-muted-foreground">
@@ -167,12 +169,14 @@ function SalesTax({ data }: { data: SalesTaxSettings }) {
       <Card>
         <CardContent className="space-y-2 pt-6 text-sm text-muted-foreground">
           <p>
-            <span className="font-medium text-foreground">Customers you do not tax.</span> Open them in People and set
-            Tax exempt, with the reason and which certificate you hold. Their invoices print why they carry no tax.
+            <span className="font-medium text-foreground">A customer who doesn't pay sales tax</span> (a dealer
+            buying for resale, a government agency): open their page in People and set the Sales tax card to exempt. Their
+            invoices are never taxed, and each one prints the reason.
           </p>
           <p>
-            <span className="font-medium text-foreground">QuickBooks.</span> Invoices that carry sales tax are not sent
-            to QuickBooks yet. They wait under Needs attention for you to record by hand.
+            <span className="font-medium text-foreground">If you use QuickBooks:</span> invoices with sales tax on them
+            are not synced yet. You'll find them in QuickBooks settings under Needs attention, to enter in QuickBooks
+            yourself.
           </p>
         </CardContent>
       </Card>

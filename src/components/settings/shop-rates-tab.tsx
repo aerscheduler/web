@@ -79,17 +79,17 @@ export function ShopRatesTab() {
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         ) : (
           <>
-            <Field label="Labor rate per hour" htmlFor="shop-labor-rate" hint="Fills in each labor entry. Only an admin changes the rate on an entry.">
+            <Field label="Labor rate per hour" htmlFor="shop-labor-rate" docs="shop-labor-rate" hint="Fills in each labor entry. Only an admin changes the rate on an entry.">
               <MoneyInput id="shop-labor-rate" cents={rate} onCentsChange={setRate} onClear={() => setRate(undefined)} className="w-40" disabled={!canEdit} placeholder="No rate" />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Markup on parts" htmlFor="shop-parts-markup" hint="Added to what the shop paid, for example 15.">
+              <Field label="Markup on parts" htmlFor="shop-parts-markup" docs="shop-parts-markup" hint="Added to what the shop paid, for example 15.">
                 <div className="relative w-32">
                   <Input placeholder="15" id="shop-parts-markup" inputMode="decimal" value={parts} onChange={(e) => setParts(e.target.value)} disabled={!canEdit} className="pr-7 tnum" aria-invalid={partsBps === undefined} />
                   <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-muted-foreground">%</span>
                 </div>
               </Field>
-              <Field label="Markup on outside work" htmlFor="shop-outside-markup" hint="A propeller overhaul, a radio repair sent out.">
+              <Field label="Markup on outside work" htmlFor="shop-outside-markup" docs="shop-outside-markup" hint="A propeller overhaul, a radio repair sent out.">
                 <div className="relative w-32">
                   <Input placeholder="10" id="shop-outside-markup" inputMode="decimal" value={outside} onChange={(e) => setOutside(e.target.value)} disabled={!canEdit} className="pr-7 tnum" aria-invalid={outsideBps === undefined} />
                   <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-muted-foreground">%</span>

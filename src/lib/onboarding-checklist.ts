@@ -18,6 +18,7 @@
 import {
   Building2,
   Hammer,
+  Landmark,
   Percent,
   Split,
   CreditCard,
@@ -80,6 +81,8 @@ export type ChecklistFacts = {
   billedWorkOrders: number;
   /** The shop has set a labor rate (Settings, Shop rates). */
   shopRatesSet: boolean;
+  /** Sales tax rates on file (Settings, Sales tax). Parts are taxed in most states, labor rarely. */
+  salesTaxRates: number;
 };
 
 /**
@@ -173,6 +176,17 @@ export const CHECKLIST: ChecklistItem[] = [
     search: { tab: "shop-rates" },
     cta: "Set rates",
     isDone: (f) => f.shopRatesSet,
+    appliesTo: runsShop,
+  },
+  {
+    id: "sales-tax",
+    title: "Charge sales tax on parts",
+    blurb: "Most states tax parts and supplies and not labor. Set your rate once and every job invoice applies it to the right lines.",
+    icon: Landmark,
+    to: "/settings",
+    search: { tab: "sales-tax" },
+    cta: "Set sales tax",
+    isDone: (f) => f.salesTaxRates > 0,
     appliesTo: runsShop,
   },
   {
@@ -378,5 +392,6 @@ export const CHECKLIST: ChecklistItem[] = [
 ];
 
 const byId = new Map(CHECKLIST.map((i) => [i.id, i]));
+
 
 export const checklistItem = (id: string): ChecklistItem | undefined => byId.get(id);

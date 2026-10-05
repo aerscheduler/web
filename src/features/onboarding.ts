@@ -25,6 +25,7 @@ import {
   useReservations,
   useResourceGroups,
   useRooms,
+  useSalesTaxSettings,
   useSimulators,
   useCourses,
   useUpdateOrgOnboarding,
@@ -39,6 +40,17 @@ import {
   type OrgType,
 } from "@/lib/onboarding-checklist";
 import { orderForTrack, trackFor, TRACKS } from "@/lib/onboarding-tracks";
+import type { SalesTaxSettings } from "@/types/api";
+
+/**
+ * Rates that tax something: an active rate with at least one kind of line ticked for it. A rate
+ * with no lines ticked taxes nothing, so the shop has not set up sales tax yet.
+ */
+function activeTaxRates(s: SalesTaxSettings | undefined): number {
+  if (!s) return 0;
+  const used = new Set(Object.values(s.rules ?? {}));
+  return s.rates.filter((r) => !r.archivedAt && used.has(r.id)).length;
+}
 
 export type ChecklistEntry = { item: ChecklistItem; done: boolean; dismissed: boolean };
 
@@ -136,6 +148,7 @@ export function useChecklist(): ChecklistState {
   const shopPlanes = usePlanes({ scope: "shop" }, shopQ);
   const workOrders = useWorkOrders(undefined, shopQ);
   const shopRates = useWorkOrderSettings(shopQ);
+  const salesTax = useSalesTaxSettings(shopQ);
 
   const update = useUpdateOrgOnboarding();
 
@@ -157,6 +170,7 @@ export function useChecklist(): ChecklistState {
     workOrders: workOrders.data?.length ?? 0,
     billedWorkOrders: (workOrders.data ?? []).filter((w) => w.billing !== "none").length,
     shopRatesSet: shopRates.data?.laborRateCents != null,
+    salesTaxRates: activeTaxRates(salesTax.data),
   };
 
   const orgType = (organization?.organizationType ?? null) as OrgType;
@@ -166,7 +180,7 @@ export function useChecklist(): ChecklistState {
   const loading =
     onboarding.isLoading ||
     (live &&
-      [planes, members, reservations, invoices, ratings, sims, rooms, reminders, groups, courses, billing, shopPlanes, workOrders, shopRates].some(
+      [planes, members, reservations, invoices, ratings, sims, rooms, reminders, groups, courses, billing, shopPlanes, workOrders, shopRates, salesTax].some(
         (r) => r.isLoading
       ));
 

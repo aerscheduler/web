@@ -6,7 +6,7 @@ import { resolveSetupSource, sourceFromLandingPath } from "@/lib/onboarding-inte
 const applicable = (orgType: OrgType, source: string | null = null) =>
   CHECKLIST.filter((i) => i.appliesTo?.(orgType, { source }) ?? true).map((i) => i.id);
 
-const SHOP_ITEMS = ["customer-aircraft", "work-order", "shop-rates", "technicians", "job-invoice"];
+const SHOP_ITEMS = ["customer-aircraft", "work-order", "shop-rates", "sales-tax", "technicians", "job-invoice"];
 const FLIGHT_ITEMS = ["aircraft", "reservation", "instructors", "students", "rates", "rules", "training", "facilities", "invoice", "groups", "cost-splitting"];
 
 const facts = (overrides: Partial<ChecklistFacts> = {}): ChecklistFacts => ({
@@ -27,6 +27,7 @@ const facts = (overrides: Partial<ChecklistFacts> = {}): ChecklistFacts => ({
   workOrders: 0,
   billedWorkOrders: 0,
   shopRatesSet: false,
+  salesTaxRates: 0,
   ...overrides,
 });
 
@@ -58,7 +59,10 @@ describe("the maintenance shop's checklist", () => {
     expect(done("job-invoice", facts({ workOrders: 1 }))).toBe(false);
     expect(done("job-invoice", facts({ workOrders: 1, billedWorkOrders: 1 }))).toBe(true);
     expect(done("shop-rates", facts({ shopRatesSet: true }))).toBe(true);
+    expect(done("sales-tax", facts())).toBe(false);
+    expect(done("sales-tax", facts({ salesTaxRates: 1 }))).toBe(true);
   });
+
 
   it("leads the shop track with the job", () => {
     const ids = applicable("maintenance_shop", "shop");

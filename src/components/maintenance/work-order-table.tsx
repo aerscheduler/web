@@ -3,7 +3,9 @@ import { useNavigate } from "@tanstack/react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Plus } from "lucide-react";
 import type { WorkOrder, WorkOrderStatus } from "@/types/api";
-import { pageRows, useWorkOrder, useWorkOrders, useWorkOrdersPage } from "@/features/queries";
+import { pageRows, useWorkOrder, useWorkOrderSettings, useWorkOrders, useWorkOrdersPage } from "@/features/queries";
+import { useAuth } from "@/lib/auth";
+import { isAdmin } from "@/lib/permissions";
 import { usePaging } from "@/lib/paging";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { ListTable, ListTag, type ListTableColumn, type ListTableGroup, type ListTableSort } from "@/components/list-table";
@@ -312,6 +314,12 @@ function OpenJobsList({
   const rows = React.useMemo(() => listQ.data ?? [], [listQ.data]);
   const filtering = !!searchQ || aircraft != null || filtersOn(filters);
   const [sort, setSort] = React.useState<ListTableSort | null>(null);
+  // A shop with no labor rate is not set up yet, and only an admin can fix that. A technician
+  // who is not an admin gets the empty state saying so, instead of an empty filtered board
+  // (they land on Assigned: To me). Admins get the Set up your shop line above the board.
+  const { roles } = useAuth();
+  const ratesQ = useWorkOrderSettings();
+  const notSetUp = !isAdmin(roles) && ratesQ.isSuccess && ratesQ.data?.laborRateCents == null;
 
   // The board's own order, group by group, so the panel's up and down walk it as it reads.
   const ordered = React.useMemo(
@@ -342,6 +350,18 @@ function OpenJobsList({
     return (
       <Card className="flex flex-col min-h-0 flex-1">
         <ErrorState error={listQ.error} onRetry={() => listQ.refetch()} />
+      </Card>
+    );
+  }
+  if (rows.length === 0 && notSetUp) {
+    return (
+      <Card className="flex flex-col min-h-0 flex-1">
+        <EmptyState
+          graphic="maintenance"
+          title="The shop isn't set up yet"
+          body="An admin needs to set the shop's labor rate in Settings, Shop rates, before hours can be logged on a job. Jobs show up here once they're opened."
+          docs="run-a-work-order"
+        />
       </Card>
     );
   }

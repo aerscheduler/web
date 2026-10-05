@@ -29,6 +29,7 @@ import { AddInspectionsModal } from "@/components/maintenance/add-inspections-mo
 import { FleetStatus } from "@/components/maintenance/fleet-status";
 import { SquawkTable } from "@/components/maintenance/squawk-table";
 import { WorkOrderTable } from "@/components/maintenance/work-order-table";
+import { ShopSetupCallout } from "@/components/onboarding/shop-setup-guide";
 import { WorkOrderFormModal } from "@/components/maintenance/work-order-form-modal";
 import { ComplianceLog } from "@/components/maintenance/compliance-log";
 import { ReminderFilesSheet } from "@/components/maintenance/reminder-files-sheet";
@@ -441,6 +442,9 @@ function MaintenancePage() {
               onLog={view === "open" ? () => setSquawkOpen(true) : undefined}
             />
           )}
+          {/* Where the shop lives, so where its setup starts: an organization that already flies
+              never sees the shop signup. One line linking to Settings, like first dibs. */}
+          {view === "work-orders" && <ShopSetupCallout />}
           {showsWorkOrders && (
             <WorkOrderTable
               // Open and finished are different queues, like the squawk boards.

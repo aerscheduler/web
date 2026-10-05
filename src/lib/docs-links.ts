@@ -632,6 +632,27 @@ export const DOCS_TOPICS = {
     href: "maintenance/run-a-work-order#shop-rates",
     linkLabel: "Shop rates",
   },
+  "shop-labor-rate": {
+    title: "Labor rate per hour",
+    summary:
+      "Every new labor line on a work order starts at this rate, times the hours entered. Technicians log their hours at it and cannot change it; an admin can change the rate on one line. Until it is set, only an admin can enter labor.",
+    href: "maintenance/run-a-work-order#labor-and-parts",
+    linkLabel: "Labor and parts",
+  },
+  "shop-parts-markup": {
+    title: "Markup on parts",
+    summary:
+      "A part is billed at what the shop paid plus this percentage: 15 bills a $100 part at $115. An admin can type a different price on one line. The owner sees only the price, never your cost or markup.",
+    href: "maintenance/run-a-work-order#labor-and-parts",
+    linkLabel: "Labor and parts",
+  },
+  "shop-outside-markup": {
+    title: "Markup on outside work",
+    summary:
+      "For work you send out, like a propeller overhaul or a radio repair: billed at what the vendor charged you plus this percentage. An admin can type a different price on one line.",
+    href: "maintenance/run-a-work-order#labor-and-parts",
+    linkLabel: "Labor and parts",
+  },
   "work-on-a-customers-aircraft": {
     title: "Customer aircraft",
     summary:
@@ -643,7 +664,7 @@ export const DOCS_TOPICS = {
     title: "Owners",
     summary:
       "The owner marked Billed is who this aircraft's work is invoiced to. AerScheduler never messages them and they cannot sign in; if they later sign up with the email and name you recorded, the record becomes theirs.",
-    href: "maintenance/work-on-a-customers-aircraft#add-the-owner",
+    href: "maintenance/work-on-a-customers-aircraft#add-another-owner",
     linkLabel: "Adding and billing an owner",
   },
   "add-a-simulator-or-classroom": {

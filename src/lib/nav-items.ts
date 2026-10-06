@@ -23,7 +23,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { Role } from "@/types/api";
-import { canAccess, canOpenWorkOrders, canSelfBook, isAdmin, isInstructor, isStaff } from "@/lib/permissions";
+import { canAccess, canOpenWorkOrders, canSelfBook, fixesAircraftOnly, isAdmin, isInstructor, isStaff } from "@/lib/permissions";
 import { settingsSectionsFor } from "@/lib/settings-sections";
 import { TRAINING_TABS } from "@/lib/training-sections";
 import { MAINTENANCE_SECTIONS, WORK_ORDER_VIEWS } from "@/lib/maintenance-sections";
@@ -128,8 +128,21 @@ export function operationsNav(roles: string[]): NavItem[] {
  * finds their own things in the same place. Payment methods and availability live
  * as tabs under Profile (the account menu at the foot of the rail owns that page).
  */
-export function youNav(roles: string[], opts?: { ledgerBilling?: boolean; outsideOwner?: boolean }): NavItem[] {
+export function youNav(
+  roles: string[],
+  opts?: {
+    ledgerBilling?: boolean;
+    outsideOwner?: boolean;
+    /** Somebody who only fixes aircraft keeps Invoices when they have been billed (an aircraft they own here). */
+    hasBills?: boolean;
+    /** And Currencies when the organization has put them on one. */
+    hasCurrencies?: boolean;
+  }
+): NavItem[] {
   const R = roles as Role[];
+  // A technician who never flies here has no flight bills and no medical or flight review: the
+  // two pages were always empty for them (none of the 9 in production had either, 2026-10-05).
+  const shopOnly = fixesAircraftOnly(R);
   const invoices: NavItem = {
     to: "/me/invoices",
     // Ledger mode: the page is account balance + charges, not a Stripe invoice list.
@@ -150,7 +163,7 @@ export function youNav(roles: string[], opts?: { ledgerBilling?: boolean; outsid
     ...(canSelfBook(R)
       ? [{ to: "/me/book", label: "Book", icon: CalendarPlus, keywords: ["book a flight", "new booking", "reserve"] }]
       : []),
-    invoices,
+    ...(shopOnly && !opts?.hasBills ? [] : [invoices]),
     // Only for people who can actually be on a syllabus. A dispatcher or technician
     // has no training record, and an empty page in their personal nav reads as broken.
     ...(R.includes("student") || R.includes("instructor")
@@ -163,7 +176,9 @@ export function youNav(roles: string[], opts?: { ledgerBilling?: boolean; outsid
           },
         ]
       : []),
-    { to: "/me/currencies", label: "Currencies", icon: ShieldCheck, keywords: ["my medical", "bfr", "flight review"] },
+    ...(shopOnly && !opts?.hasCurrencies
+      ? []
+      : [{ to: "/me/currencies", label: "Currencies", icon: ShieldCheck, keywords: ["my medical", "bfr", "flight review"] }]),
     { to: "/me/documents", label: "Documents", icon: FileText, keywords: ["my license", "certificate", "upload"] },
   ];
 }

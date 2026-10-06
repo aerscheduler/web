@@ -12,7 +12,9 @@ import {
   youNav,
   type NavItem,
 } from "@/lib/nav-items";
-import { useOrgLedgerSettings } from "@/features/queries";
+import { useMemberInvoices, useMyBillingSettings, useMyCurrencies, useOrgLedgerSettings } from "@/features/queries";
+import { fixesAircraftOnly } from "@/lib/permissions";
+import type { Role } from "@/types/api";
 import {
   recordRecent,
   setNavOrder,
@@ -41,17 +43,27 @@ import { cn } from "@/lib/utils";
  */
 export function SidebarNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { roles, organization, outsideOwner } = useAuth();
+  const { roles, organization, outsideOwner, orgUserId } = useAuth();
   const orgId = organization?.id ?? null;
   const prefs = useNavPrefs(orgId);
   const ledgerQ = useOrgLedgerSettings({ enabled: !outsideOwner });
   const ledgerBilling = ledgerQ.data?.enabled === true;
 
+  // Somebody who only fixes aircraft gets Invoices and Currencies only when there is something
+  // on them: a bill for work on an aircraft they own here, an account balance, or a currency the
+  // organization put them on. Asked only for them; everyone else always has both pages.
+  const shopOnly = !outsideOwner && fixesAircraftOnly(roles as Role[]);
+  const billsQ = useMemberInvoices(orgUserId, undefined, { enabled: shopOnly });
+  const accountQ = useMyBillingSettings({ enabled: shopOnly && ledgerBilling });
+  const currenciesQ = useMyCurrencies({ enabled: shopOnly });
+  const hasBills = (billsQ.data?.length ?? 0) > 0 || (accountQ.data?.balanceCents ?? 0) !== 0;
+  const hasCurrencies = (currenciesQ.data?.length ?? 0) > 0;
+
   // An aircraft owner from outside the organization sees none of the school's pages.
   const operations = React.useMemo(() => (outsideOwner ? [] : operationsNav(roles)), [roles, outsideOwner]);
   const you = React.useMemo(
-    () => youNav(roles, { ledgerBilling, outsideOwner }),
-    [roles, ledgerBilling, outsideOwner]
+    () => youNav(roles, { ledgerBilling, outsideOwner, hasBills, hasCurrencies }),
+    [roles, ledgerBilling, outsideOwner, hasBills, hasCurrencies]
   );
   const ordered = React.useMemo(
     () => mergeNavOrder(operations, prefs.order),

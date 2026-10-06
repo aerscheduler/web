@@ -25,6 +25,14 @@ export const isRenter = (r: Role[]) => r.includes("renter");
 export const isTechnician = (r: Role[]) => r.includes("technician");
 /** owner | admin | dispatcher, the "runs the operation" set. */
 export const isStaff = (r: Role[]) => isAdmin(r) || isDispatcher(r);
+/** Holds a role that seats them on a booking to fly or learn: instructor, student or renter. */
+export const fliesHere = (r: Role[]) => isInstructor(r) || isStudent(r) || isRenter(r);
+/**
+ * A technician with no flying role: works on the aircraft and never flies them here. Their Home
+ * is the shop's work rather than a pilot's day, and their personal menu drops the bills and
+ * currencies a pilot has (kept when they do have one). The phone's technician persona.
+ */
+export const fixesAircraftOnly = (r: Role[]) => isTechnician(r) && !fliesHere(r);
 
 const anyMember = (_r: Role[]) => true;
 

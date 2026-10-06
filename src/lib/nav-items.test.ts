@@ -29,3 +29,29 @@ describe("the personal menu", () => {
     expect(items.map((i) => i.to)).toContain("/me/schedule");
   });
 });
+
+// Tony, 2026-10-05: a technician who never flies here has no flight bills and no medical, so the
+// two pages were empty in their menu. They come back when there is something on them.
+describe("the personal menu for somebody who only fixes aircraft", () => {
+  const paths = (items: ReturnType<typeof youNav>) => items.map((i) => i.to);
+
+  it("drops Invoices and Currencies, keeps Documents", () => {
+    const items = paths(youNav(["technician"]));
+    expect(items).not.toContain("/me/invoices");
+    expect(items).not.toContain("/me/currencies");
+    expect(items).toContain("/me/documents");
+  });
+
+  it("keeps each one when there is something on it", () => {
+    expect(paths(youNav(["technician"], { hasBills: true }))).toContain("/me/invoices");
+    expect(paths(youNav(["technician"], { hasCurrencies: true }))).toContain("/me/currencies");
+  });
+
+  it("leaves a technician who also flies with both", () => {
+    for (const flying of ["instructor", "student", "renter"]) {
+      const items = paths(youNav(["technician", flying]));
+      expect(items).toContain("/me/invoices");
+      expect(items).toContain("/me/currencies");
+    }
+  });
+});

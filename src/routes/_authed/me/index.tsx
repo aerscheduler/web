@@ -7,12 +7,15 @@ import {
   CalendarPlus,
   Check,
   CircleDollarSign,
+  ClipboardPlus,
   Megaphone,
   PlaneTakeoff,
   Receipt,
   ShieldCheck,
+  TriangleAlert,
   UserRound,
   Wallet,
+  Wrench,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { bookActionLabel, bookingNouns } from "@/lib/permissions";
@@ -42,6 +45,9 @@ import { InstructionPartnersCard } from "@/components/me/instruction-partners-ca
 import { useReservationDetail } from "@/components/schedule/use-reservation-detail";
 import { AddFundsDialog } from "@/components/me-money/add-funds-dialog";
 import { MemberOwnerSections, OutsideOwnerHome, OwnerActions } from "@/components/owner/owner-home";
+import { MaintenanceQueueCard, MyJobsCard, useTechnicianHome } from "@/components/me/technician-home";
+import { LogSquawkModal } from "@/components/maintenance/log-squawk-modal";
+import { WorkOrderFormModal } from "@/components/maintenance/work-order-form-modal";
 
 export const Route = createFileRoute("/_authed/me/")({
   component: HomePage,
@@ -62,6 +68,9 @@ const MAX_UPCOMING = 6;
 function MyDayPage() {
   const { user, organization, userId, orgUserId, roles } = useAuth();
   const [addFundsOpen, setAddFundsOpen] = React.useState(false);
+  const [squawkOpen, setSquawkOpen] = React.useState(false);
+  const [workOrderOpen, setWorkOrderOpen] = React.useState(false);
+  const tech = useTechnicianHome();
 
   const now = new Date();
   const startISO = startOfDay(now).toISOString();
@@ -130,6 +139,267 @@ function MyDayPage() {
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 2);
 
+  const owesSomething = outstanding > 0 || (ledgerOn && accountBalance < 0);
+
+  const nextStat = (
+    <StatCard
+      label={`Next ${bookings.one}`}
+      value={next ? format(parseISO(next.start), "EEE h:mm a") : "None"}
+      hint={next ? (nextResource ?? "Unassigned") : "Nothing on the books"}
+      icon={PlaneTakeoff}
+      loading={reservationsQ.isLoading}
+      to="/me/schedule"
+    />
+  );
+  const upcomingStat = (
+    <StatCard
+      label={`Upcoming ${bookings.many}`}
+      value={upcoming.length}
+      hint={`next ${HORIZON_DAYS} days`}
+      icon={CalendarClock}
+      loading={reservationsQ.isLoading}
+      to="/me/schedule"
+    />
+  );
+  /* An unpaid bill comes first, account or not: a shop work order is billed outside the
+     account, and a card reading "Credit on account" while it sat unpaid hid it. */
+  const moneyStat =
+    ledgerOn && (invoicesQ.data?.length ?? 0) === 0 ? (
+      <StatCard
+        label="Account balance"
+        value={formatMoney(accountBalance)}
+        hint={
+          accountBalance >= 0
+            ? "Credit on account"
+            : "Amount owed on account"
+        }
+        icon={Receipt}
+        accent={accountBalance < 0 ? "warning" : "success"}
+        loading={billingQ.isLoading}
+        to="/me/invoices"
+      />
+    ) : (
+      <StatCard
+        label="Outstanding balance"
+        // Everything owed: the unpaid bills, and at an account school what the account owes
+        // too, so the headline is never less than the member owes.
+        value={formatMoney(outstanding + (ledgerOn && accountBalance < 0 ? -accountBalance : 0))}
+        hint={`${invoicesQ.data?.length ?? 0} unpaid ${
+          (invoicesQ.data?.length ?? 0) === 1 ? "invoice" : "invoices"
+        }${
+          ledgerOn && accountBalance !== 0
+            ? accountBalance > 0
+              ? ` · ${formatMoney(accountBalance)} on account`
+              : ` + ${formatMoney(-accountBalance)} owed on account`
+            : ""
+        }`}
+        icon={Receipt}
+        accent={owesSomething ? "warning" : "success"}
+        loading={invoicesQ.isLoading}
+        to="/me/invoices"
+        search={ledgerOn ? { tab: "invoices" } : undefined}
+      />
+    );
+  const currencyStat = (
+    <StatCard
+      label="Currency status"
+      value={att.attention === 0 ? "All current" : `${att.attention} need attention`}
+      hint={
+        att.attention === 0
+          ? "medicals, reviews, checkouts"
+          : [
+              att.expired > 0 ? `${att.expired} expired` : null,
+              att.expiring > 0 ? `${att.expiring} expiring` : null,
+              att.notSignedOff > 0 ? `${att.notSignedOff} not signed off` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")
+      }
+      icon={att.attention === 0 ? BadgeCheck : ShieldCheck}
+      accent={att.attention > 0 ? "warning" : "success"}
+      loading={currenciesQ.isLoading}
+      to="/me/currencies"
+    />
+  );
+
+  // The shop's figures, read only for a technician (see `useTechnicianHome`).
+  const jobs = tech.jobs;
+  const inHangar = jobs.filter((w) => w.status === "received" || w.status === "in_progress").length;
+  const waiting = jobs.filter((w) => w.status === "waiting_owner" || w.status === "waiting_parts").length;
+  const myJobsStat = (
+    <StatCard
+      label="My jobs"
+      value={jobs.length}
+      hint={
+        jobs.length === 0
+          ? "Nothing assigned to you"
+          : [inHangar > 0 ? `${inHangar} in the hangar` : null, waiting > 0 ? `${waiting} waiting` : null]
+              .filter(Boolean)
+              .join(" · ") || "None in the hangar yet"
+      }
+      icon={Wrench}
+      loading={tech.jobsQ.isLoading}
+      to="/maintenance"
+      search={{ view: "work-orders", assigned: "me" }}
+    />
+  );
+  const grounding = tech.squawks.filter((s) => s.grounding).length;
+  const openSquawksStat = (
+    <StatCard
+      label="Open squawks"
+      value={tech.squawks.length}
+      hint={tech.squawks.length === 0 ? "All clear" : grounding > 0 ? `${grounding} grounding` : "Across the fleet"}
+      icon={TriangleAlert}
+      accent={tech.squawks.length > 0 ? "warning" : "success"}
+      loading={tech.squawksQ.isLoading}
+      to="/maintenance"
+      search={{ view: "open" }}
+    />
+  );
+  const overdue = tech.reminders.filter((r) => r.due?.status === "overdue").length;
+  const inspectionsDueStat = (
+    <StatCard
+      label="Inspections due"
+      value={tech.reminders.length}
+      hint={
+        tech.reminders.length === 0
+          ? "None overdue or due soon"
+          : overdue > 0
+            ? `${overdue} overdue`
+            : "Due soon"
+      }
+      icon={CalendarClock}
+      accent={tech.reminders.length > 0 ? "warning" : "success"}
+      loading={tech.remindersQ.isLoading}
+      // Exactly what the card counts: the Inspections board as a status queue, overdue and due soon.
+      to="/maintenance"
+      search={{ view: "aircraft", group: "status", status: "overdue,dueSoon" }}
+    />
+  );
+
+  const scheduleCard = (
+    <Card className="relative transition-colors hover:bg-muted/30">
+      <Link
+        to="/me/schedule"
+        aria-label="Open my schedule"
+        className="absolute inset-0 z-0 rounded-xl"
+      />
+      <CardHeader className="relative z-10 flex-row items-center justify-between pointer-events-none">
+        <CardTitle>Today &amp; upcoming</CardTitle>
+        <span className="text-sm font-medium text-primary">Schedule</span>
+      </CardHeader>
+      <CardContent className="relative z-10 pt-0 pointer-events-none">
+        {reservationsQ.isPending ? (
+          <CalendarGridSkeleton />
+        ) : reservationsQ.isError ? (
+          <div className="pointer-events-auto">
+            <ErrorState error={reservationsQ.error} onRetry={() => reservationsQ.refetch()} />
+          </div>
+        ) : upcoming.length === 0 ? (
+          <EmptyState
+            icon={CalendarClock}
+            title={`No upcoming ${bookings.many}`}
+            body={`${bookLabel} and it'll show up here.`}
+            docs="book-a-reservation"
+            action={
+              <div className="pointer-events-auto">
+                <Button asChild>
+                  <Link to="/me/book">
+                    <CalendarPlus className="size-4" /> {bookLabel}
+                  </Link>
+                </Button>
+              </div>
+            }
+          />
+        ) : (
+          <>
+            {/* Pre-flight weather for the NEXT flight only, sitting directly above it.
+                Hides itself entirely when the location isn't geocoded or the lookup
+                fails, so the list closes up as if it were never here. */}
+            {next && (
+              <div className="pointer-events-auto">
+                <WeatherBadge
+                  // The RESERVATION's location, not the resource's, the API returns
+                  // `resource.location` as a bare { id } stub with no address, so the
+                  // badge would never have coordinates to look weather up with.
+                  location={(next as unknown as { location?: unknown }).location}
+                  start={next.start}
+                  timeZone={next.timeZoneName}
+                  className="mb-3"
+                />
+              </div>
+            )}
+            <div className="pointer-events-auto max-h-[min(28rem,50vh)] overflow-y-auto">
+              <ul className="space-y-2">
+                {upcoming.slice(0, MAX_UPCOMING).map((r) => (
+                  <li key={r.id}>
+                    <ReservationCard
+                      r={r}
+                      showDate
+                      onOpen={openDetail}
+                      selected={r.id === selectedId}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+
+  const quickActions = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Quick actions</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2 pt-0">
+        {/* The shop's two verbs, the same two the + menu offers under Maintenance. */}
+        {tech.jobsOn && (
+          <Button className="justify-start" onClick={() => setWorkOrderOpen(true)}>
+            <Wrench className="size-4" /> Open a work order
+          </Button>
+        )}
+        {tech.technician && (
+          <Button variant="outline" className="justify-start" onClick={() => setSquawkOpen(true)}>
+            <ClipboardPlus className="size-4" /> Log a squawk
+          </Button>
+        )}
+        <Button asChild variant={tech.jobsOn ? "outline" : "default"} className="justify-start">
+          <Link to="/me/book">
+            <CalendarPlus className="size-4" /> {bookLabel}
+          </Link>
+        </Button>
+        <Button asChild variant="outline" className="justify-start">
+          <Link to="/me/schedule">
+            <CalendarClock className="size-4" /> Schedule
+          </Link>
+        </Button>
+        {/* Somebody who only fixes aircraft has no bills of their own to look at, unless they
+            owe for work on an aircraft they own here. */}
+        {(!tech.techOnly || owesSomething) && (
+          <Button asChild variant="outline" className="justify-start">
+            <Link to="/me/invoices">
+              <Wallet className="size-4" /> Billing
+            </Link>
+          </Button>
+        )}
+        {ledgerOn && orgUserId != null && !tech.techOnly && (
+          <Button
+            variant="outline"
+            className="justify-start"
+            onClick={() => setAddFundsOpen(true)}
+          >
+            <CircleDollarSign className="size-4" /> Add funds
+          </Button>
+        )}
+        {/* Renders nothing unless you own an aircraft here. */}
+        <OwnerActions />
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div>
       <PageHeader
@@ -138,79 +408,32 @@ function MyDayPage() {
       />
 
       <StatGrid>
-        <StatCard
-          label={`Next ${bookings.one}`}
-          value={next ? format(parseISO(next.start), "EEE h:mm a") : "None"}
-          hint={next ? (nextResource ?? "Unassigned") : "Nothing on the books"}
-          icon={PlaneTakeoff}
-          loading={reservationsQ.isLoading}
-          to="/me/schedule"
-        />
-        <StatCard
-          label={`Upcoming ${bookings.many}`}
-          value={upcoming.length}
-          hint={`next ${HORIZON_DAYS} days`}
-          icon={CalendarClock}
-          loading={reservationsQ.isLoading}
-          to="/me/schedule"
-        />
-        {/* An unpaid bill comes first, account or not: a shop work order is billed outside the
-            account, and a card reading "Credit on account" while it sat unpaid hid it. */}
-        {ledgerOn && (invoicesQ.data?.length ?? 0) === 0 ? (
-          <StatCard
-            label="Account balance"
-            value={formatMoney(accountBalance)}
-            hint={
-              accountBalance >= 0
-                ? "Credit on account"
-                : "Amount owed on account"
-            }
-            icon={Receipt}
-            accent={accountBalance < 0 ? "warning" : "success"}
-            loading={billingQ.isLoading}
-            to="/me/invoices"
-          />
+        {tech.techOnly ? (
+          // Somebody who only fixes aircraft: their jobs and what the fleet owes, not a
+          // pilot's balance and currencies (the phone's technician persona, same four questions).
+          <>
+            {tech.jobsOn && myJobsStat}
+            {openSquawksStat}
+            {inspectionsDueStat}
+            {nextStat}
+          </>
+        ) : tech.technician ? (
+          // A technician who also flies keeps the flying day and swaps the bare booking count
+          // for the jobs they are on.
+          <>
+            {nextStat}
+            {tech.jobsOn ? myJobsStat : upcomingStat}
+            {moneyStat}
+            {currencyStat}
+          </>
         ) : (
-          <StatCard
-            label="Outstanding balance"
-            // Everything owed: the unpaid bills, and at an account school what the account owes
-            // too, so the headline is never less than the member owes.
-            value={formatMoney(outstanding + (ledgerOn && accountBalance < 0 ? -accountBalance : 0))}
-            hint={`${invoicesQ.data?.length ?? 0} unpaid ${
-              (invoicesQ.data?.length ?? 0) === 1 ? "invoice" : "invoices"
-            }${
-              ledgerOn && accountBalance !== 0
-                ? accountBalance > 0
-                  ? ` · ${formatMoney(accountBalance)} on account`
-                  : ` + ${formatMoney(-accountBalance)} owed on account`
-                : ""
-            }`}
-            icon={Receipt}
-            accent={outstanding > 0 || (ledgerOn && accountBalance < 0) ? "warning" : "success"}
-            loading={invoicesQ.isLoading}
-            to="/me/invoices"
-            search={ledgerOn ? { tab: "invoices" } : undefined}
-          />
+          <>
+            {nextStat}
+            {upcomingStat}
+            {moneyStat}
+            {currencyStat}
+          </>
         )}
-        <StatCard
-          label="Currency status"
-          value={att.attention === 0 ? "All current" : `${att.attention} need attention`}
-          hint={
-            att.attention === 0
-              ? "medicals, reviews, checkouts"
-              : [
-                  att.expired > 0 ? `${att.expired} expired` : null,
-                  att.expiring > 0 ? `${att.expiring} expiring` : null,
-                  att.notSignedOff > 0 ? `${att.notSignedOff} not signed off` : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")
-          }
-          icon={att.attention === 0 ? BadgeCheck : ShieldCheck}
-          accent={att.attention > 0 ? "warning" : "success"}
-          loading={currenciesQ.isLoading}
-          to="/me/currencies"
-        />
       </StatGrid>
 
       {announcements.length > 0 && (
@@ -248,114 +471,38 @@ function MyDayPage() {
         </div>
       )}
 
-      <div className="mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-        <Card className="relative transition-colors hover:bg-muted/30">
-          <Link
-            to="/me/schedule"
-            aria-label="Open my schedule"
-            className="absolute inset-0 z-0 rounded-xl"
-          />
-          <CardHeader className="relative z-10 flex-row items-center justify-between pointer-events-none">
-            <CardTitle>Today &amp; upcoming</CardTitle>
-            <span className="text-sm font-medium text-primary">Schedule</span>
-          </CardHeader>
-          <CardContent className="relative z-10 pt-0 pointer-events-none">
-            {reservationsQ.isPending ? (
-              <CalendarGridSkeleton />
-            ) : reservationsQ.isError ? (
-              <div className="pointer-events-auto">
-                <ErrorState error={reservationsQ.error} onRetry={() => reservationsQ.refetch()} />
-              </div>
-            ) : upcoming.length === 0 ? (
-              <EmptyState
-                icon={CalendarClock}
-                title={`No upcoming ${bookings.many}`}
-                body={`${bookLabel} and it'll show up here.`}
-                docs="book-a-reservation"
-                action={
-                  <div className="pointer-events-auto">
-                    <Button asChild>
-                      <Link to="/me/book">
-                        <CalendarPlus className="size-4" /> {bookLabel}
-                      </Link>
-                    </Button>
-                  </div>
-                }
-              />
-            ) : (
-              <>
-                {/* Pre-flight weather for the NEXT flight only, sitting directly above it.
-                    Hides itself entirely when the location isn't geocoded or the lookup
-                    fails, so the list closes up as if it were never here. */}
-                {next && (
-                  <div className="pointer-events-auto">
-                    <WeatherBadge
-                      // The RESERVATION's location, not the resource's, the API returns
-                      // `resource.location` as a bare { id } stub with no address, so the
-                      // badge would never have coordinates to look weather up with.
-                      location={(next as unknown as { location?: unknown }).location}
-                      start={next.start}
-                      timeZone={next.timeZoneName}
-                      className="mb-3"
-                    />
-                  </div>
-                )}
-                <div className="pointer-events-auto max-h-[min(28rem,50vh)] overflow-y-auto">
-                  <ul className="space-y-2">
-                    {upcoming.slice(0, MAX_UPCOMING).map((r) => (
-                      <li key={r.id}>
-                        <ReservationCard
-                          r={r}
-                          showDate
-                          onOpen={openDetail}
-                          selected={r.id === selectedId}
-                        />
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+      {tech.techOnly ? (
+        // The work first: their jobs beside the actions, then what the fleet owes beside
+        // the maintenance they are booked on.
+        <div className="mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+          {tech.jobsOn ? (
+            <MyJobsCard home={tech} onNew={() => setWorkOrderOpen(true)} />
+          ) : (
+            <MaintenanceQueueCard home={tech} onLogSquawk={() => setSquawkOpen(true)} />
+          )}
+          {quickActions}
+          {tech.jobsOn && <MaintenanceQueueCard home={tech} onLogSquawk={() => setSquawkOpen(true)} />}
+          {scheduleCard}
+        </div>
+      ) : (
+        <>
+          <div className="mt-5 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+            {scheduleCard}
+            {quickActions}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Quick actions</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2 pt-0">
-            <Button asChild className="justify-start">
-              <Link to="/me/book">
-                <CalendarPlus className="size-4" /> {bookLabel}
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="justify-start">
-              <Link to="/me/schedule">
-                <CalendarClock className="size-4" /> Schedule
-              </Link>
-            </Button>
-            <Button asChild variant="outline" className="justify-start">
-              <Link to="/me/invoices">
-                <Wallet className="size-4" /> Billing
-              </Link>
-            </Button>
-            {ledgerOn && orgUserId != null && (
-              <Button
-                variant="outline"
-                className="justify-start"
-                onClick={() => setAddFundsOpen(true)}
-              >
-                <CircleDollarSign className="size-4" /> Add funds
-              </Button>
-            )}
-            {/* Renders nothing unless you own an aircraft here. */}
-            <OwnerActions />
-          </CardContent>
-        </Card>
+            {/* Renders nothing unless you instruct or study. */}
+            <InstructionPartnersCard />
+          </div>
 
-        {/* Renders nothing unless you instruct or study. */}
-        <InstructionPartnersCard />
-      </div>
+          {/* A technician who also flies: the shop work under their own day. */}
+          {tech.technician && (
+            <div className="mt-4 grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+              {tech.jobsOn && <MyJobsCard home={tech} onNew={() => setWorkOrderOpen(true)} />}
+              <MaintenanceQueueCard home={tech} onLogSquawk={() => setSquawkOpen(true)} />
+            </div>
+          )}
+        </>
+      )}
 
       {/* Renders nothing unless you own an aircraft here. */}
       <MemberOwnerSections />
@@ -376,6 +523,9 @@ function MyDayPage() {
           editing={editing}
         />
       )}
+
+      {tech.technician && <LogSquawkModal open={squawkOpen} onOpenChange={setSquawkOpen} />}
+      {tech.jobsOn && <WorkOrderFormModal open={workOrderOpen} onOpenChange={setWorkOrderOpen} />}
 
       <CancelReservationDialog {...cancelDialog} />
 

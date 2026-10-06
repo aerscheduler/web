@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { ArrowDown, ArrowUp, ChevronDown, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -163,6 +164,7 @@ export function ListTable({
   childNoun?: string;
 }) {
   const ref = React.useRef<HTMLDivElement>(null);
+  const clippedTip = useClippedTip();
   const header = (id: string, content: React.ReactNode, sortable: boolean, end = false) => {
     if (!sortable || !onSortChange) {
       return (
@@ -342,7 +344,8 @@ export function ListTable({
             activate(r);
           }}
           onMouseDown={r.onOpenPage ? (e) => secondPress.press(r, e) : undefined}
-          onMouseOver={showTruncated}
+          onMouseOver={clippedTip.onMouseOver}
+          onMouseLeave={clippedTip.onMouseLeave}
           className={cn(
             "group/row relative grid min-h-10 cursor-default items-center gap-x-3 border-b border-border/70 pr-1 pl-4 text-[13px] outline-none",
             "hover:bg-accent/60 focus-visible:bg-accent",
@@ -532,6 +535,7 @@ export function ListTable({
           <span aria-hidden />
         </div>
       )}
+      {clippedTip.node}
     </div>
   );
 }
@@ -541,19 +545,51 @@ function groupHasRows(g: ListTableGroup): boolean {
 }
 
 /**
- * Hovering text the row cut short shows it whole: a title, a subtitle or a cell clipped with
- * an ellipsis gets a native tooltip of its full text, and loses it once it fits again.
+ * Hovering text the row cut short shows it whole, at once: a title, a subtitle or a cell clipped
+ * with an ellipsis. Not the browser's own `title` tooltip, which waits a second or more and no
+ * page can shorten (Tony, 2026-10-05). One label per list, under the clipped text (above it at
+ * the bottom of the window), gone when the pointer leaves it or anything scrolls.
  */
-function showTruncated(e: React.MouseEvent<HTMLElement>) {
-  const el = (e.target as HTMLElement).closest<HTMLElement>(".truncate");
-  if (!el || !e.currentTarget.contains(el)) return;
-  if (el.scrollWidth > el.clientWidth) {
-    el.title = el.textContent?.trim() ?? "";
-    el.dataset.ltTip = "";
-  } else if ("ltTip" in el.dataset) {
-    el.removeAttribute("title");
-    delete el.dataset.ltTip;
-  }
+function useClippedTip() {
+  const [tip, setTip] = React.useState<{ el: HTMLElement; text: string } | null>(null);
+  const tipRef = React.useRef<HTMLDivElement>(null);
+  const onMouseOver = React.useCallback((e: React.MouseEvent<HTMLElement>) => {
+    const el = (e.target as HTMLElement).closest<HTMLElement>(".truncate");
+    const text = el && e.currentTarget.contains(el) && el.scrollWidth > el.clientWidth ? el.textContent?.trim() : "";
+    setTip((t) => (!el || !text ? null : t?.el === el ? t : { el, text }));
+  }, []);
+  const hide = React.useCallback(() => setTip(null), []);
+  React.useLayoutEffect(() => {
+    const node = tipRef.current;
+    if (!tip || !node) return;
+    const r = tip.el.getBoundingClientRect();
+    const { width, height } = node.getBoundingClientRect();
+    node.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 8 - width))}px`;
+    node.style.top = `${r.bottom + 4 + height > window.innerHeight - 8 ? r.top - 4 - height : r.bottom + 4}px`;
+    node.style.visibility = "visible";
+  }, [tip]);
+  React.useEffect(() => {
+    if (!tip) return;
+    window.addEventListener("scroll", hide, true);
+    window.addEventListener("resize", hide);
+    return () => {
+      window.removeEventListener("scroll", hide, true);
+      window.removeEventListener("resize", hide);
+    };
+  }, [tip, hide]);
+  const node = tip
+    ? createPortal(
+        <div
+          ref={tipRef}
+          role="tooltip"
+          className="pointer-events-none invisible fixed top-0 left-0 z-50 max-w-sm rounded-md bg-foreground px-2.5 py-1 text-xs text-background shadow-md [overflow-wrap:anywhere]"
+        >
+          {tip.text}
+        </div>,
+        document.body
+      )
+    : null;
+  return { onMouseOver, onMouseLeave: hide, node };
 }
 
 /** Whether the list itself is narrow: beside a sidebar a list can be narrow on a wide window. */

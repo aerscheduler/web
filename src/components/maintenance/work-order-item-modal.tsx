@@ -3,7 +3,7 @@ import { useSubmitOnce } from "@/lib/use-submit-once";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { sendFindingsToOwner } from "@/features/send-to-owner";
-import { useAddWorkOrderItem, useMaintenanceReminders, useSquawks, useUpdateWorkOrderItem } from "@/features/queries";
+import { fetchWorkOrderSendAudience, useAddWorkOrderItem, useMaintenanceReminders, useSquawks, useUpdateWorkOrderItem, workOrderSendAudienceKey } from "@/features/queries";
 import type { WorkOrder, WorkOrderItem } from "@/types/api";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
@@ -121,11 +121,18 @@ export function WorkOrderItemModal({
           // The owners don't see a finding until it is sent: offer it right here (Tony,
           // 2026-10-01). It sends every finding not yet sent, as the Send to owner button does.
           const jobId = workOrder.id;
-          toast.success("Finding added", {
-            description: unsentBefore > 0 ? "The owner won't see these until you send them." : "The owner won't see it until you send it.",
-            duration: 10_000,
-            action: { label: "Notify owner", onClick: () => void sendFindingsToOwner(qc, jobId) },
-          });
+          // Only when somebody can be reached (Tony, 2026-10-05): a Notify owner that can only fail
+          // is not offered; the toast says why instead, as the disabled Send to owner does.
+          const audience = await qc.fetchQuery({ queryKey: workOrderSendAudienceKey(jobId), queryFn: () => fetchWorkOrderSendAudience(jobId), staleTime: 0 }).catch(() => null);
+          if (audience?.blocked) {
+            toast.success("Finding added", { description: audience.blocked, duration: 10_000 });
+          } else {
+            toast.success("Finding added", {
+              description: unsentBefore > 0 ? "The owner won't see these until you send them." : "The owner won't see it until you send it.",
+              duration: 10_000,
+              action: { label: "Notify owner", onClick: () => void sendFindingsToOwner(qc, jobId) },
+            });
+          }
         } else {
           toast.success(source === "found" ? "Found item added" : "Item added");
         }

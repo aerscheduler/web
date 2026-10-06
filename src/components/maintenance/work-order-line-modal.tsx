@@ -6,9 +6,11 @@ import {
   useAddWorkOrderLine,
   useMembers,
   useUpdateWorkOrderLine,
+  useSalesTaxSettings,
   useWorkOrderItems,
   useWorkOrderSettings,
 } from "@/features/queries";
+import { Link } from "@tanstack/react-router";
 import type { WorkOrder, WorkOrderLine, WorkOrderLineCategory, WorkOrderLineInput } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { canManageBilling } from "@/lib/permissions";
@@ -116,6 +118,10 @@ export function WorkOrderLineModal({
   // shown (they say what the line will charge) but not theirs to change; the server holds the rule.
   const { roles } = useAuth();
   const mayPrice = canManageBilling(roles);
+  // Only an admin marks a line taxable, and only an admin reads the rates: one marked taxable with
+  // no rate to charge it at is said here, not first at Raise invoice (Tony, 2026-10-05).
+  const taxQ = useSalesTaxSettings({ enabled: mayPrice && open });
+  const noTaxRate = !!taxQ.data && !taxQ.data.rates.some((r) => !r.archivedAt);
   const tz = useTimeZone();
   const membersQ = useMembers(undefined, { enabled: open });
   const itemsQ = useWorkOrderItems(open ? workOrder.id : null);
@@ -562,6 +568,14 @@ export function WorkOrderLineModal({
             ]}
           />
         </div>
+        {taxable === "yes" && noTaxRate && (
+          <p className="text-xs text-muted-foreground" data-testid="wo-line-no-tax-rate">
+            There is no sales tax rate yet, so a taxable line cannot be invoiced.{" "}
+            <Link to="/settings" search={{ tab: "sales-tax" } as never} className="font-medium text-foreground underline-offset-2 hover:underline">
+              Set a sales tax rate
+            </Link>
+          </p>
+        )}
         {showErrors && invalid && (
           <p className="text-xs text-destructive">
             {errors.description

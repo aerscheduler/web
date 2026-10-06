@@ -6,6 +6,8 @@ import { useRaiseWorkOrderInvoice, useResourceOwners, useWorkOrderInvoicePreview
 import type { WorkOrder, WorkOrderLine } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { formatMoney } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
+import { isAdmin } from "@/lib/permissions";
 import { useTimeZone } from "@/lib/use-timezone";
 import { dateKeyInZone } from "@/lib/timezone";
 import { DatePickerField } from "@/components/date-picker";
@@ -48,8 +50,27 @@ const DUE: { value: string; label: string }[] = [
  * It also names the findings the bill charges for that the owner never agreed to (C6): ones never
  * sent to them, and ones sent and still waiting on their answer (C1: once billed, the owner can no
  * longer answer them), each of which the desk must tick to bill anyway (the server refuses
- * otherwise), and ones they declined or put off, said as a notice.
+ * otherwise). What they declined or put off is left off the bill, and listed so the desk sees it.
  */
+/** Why the bill cannot be raised, with the way to fix it when there is one. */
+function CannotRaise({ error }: { error: ApiError }) {
+  const { roles } = useAuth();
+  const taxMissing = (error.body as { code?: string } | null | undefined)?.code === "TAX_RATE_MISSING";
+  return (
+    <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="invoice-cannot-raise">
+      <p>{error.message}</p>
+      {taxMissing &&
+        (isAdmin(roles) ? (
+          <Link to="/settings" search={{ tab: "sales-tax" } as never} className="mt-1.5 inline-block font-medium underline-offset-2 hover:underline">
+            Set a sales tax rate
+          </Link>
+        ) : (
+          <p className="mt-1.5">Ask an admin to set a sales tax rate in Settings, Sales tax.</p>
+        ))}
+    </div>
+  );
+}
+
 export function RaiseInvoiceModal({ workOrder: w, open, onOpenChange }: { workOrder: WorkOrder; open: boolean; onOpenChange: (o: boolean) => void }) {
   // An owner the shop wrote down is reached only at the address on the Owners panel; without one
   // the server refuses the bill, so say so here instead of offering a button that always fails.
@@ -76,7 +97,7 @@ export function RaiseInvoiceModal({ workOrder: w, open, onOpenChange }: { workOr
   const p = preview.data;
   const notTold = p?.ownerNotTold ?? [];
   const unanswered = p?.awaitingAnswer ?? [];
-  const declined = p?.declinedCharged ?? [];
+  const leftOff = p?.leftOff ?? [];
   const [includeUnsent, setIncludeUnsent] = React.useState(false);
   const [includeUnanswered, setIncludeUnanswered] = React.useState(false);
   React.useEffect(() => {
@@ -156,7 +177,13 @@ export function RaiseInvoiceModal({ workOrder: w, open, onOpenChange }: { workOr
       ) : preview.isLoading ? (
         <Skeleton className="h-40 w-full" />
       ) : preview.isError ? (
-        <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />
+        // A reason the bill cannot be raised (a taxable line with no rate, nothing left to bill) is
+        // said as what to do, not "Couldn't load this" with a Try again that can only fail again.
+        preview.error instanceof ApiError && preview.error.status >= 400 && preview.error.status < 500 ? (
+          <CannotRaise error={preview.error} />
+        ) : (
+          <ErrorState error={preview.error} onRetry={() => void preview.refetch()} />
+        )
       ) : p ? (
         <div className="space-y-4">
           <table className="w-full text-[13px]">
@@ -235,20 +262,24 @@ export function RaiseInvoiceModal({ workOrder: w, open, onOpenChange }: { workOr
               </label>
             </div>
           )}
-          {declined.length > 0 && (
-            <div className="rounded-md border p-3 text-[13px]" data-testid="invoice-declined-charged">
-              <p className="font-medium">
-                {declined.length === 1 ? "The owner declined or put off a finding this bill charges for" : `The owner declined or put off ${declined.length} findings this bill charges for`}
-              </p>
+          {leftOff.length > 0 && (
+            <div className="rounded-md border p-3 text-[13px]" data-testid="invoice-left-off">
+              <p className="font-medium">Left off this bill</p>
               <ul className="mt-1.5 space-y-0.5 text-muted-foreground">
-                {declined.map((f) => (
+                {leftOff.map((f) => (
                   <li key={f.itemId} className="flex justify-between gap-3">
-                    <span className="min-w-0 [overflow-wrap:anywhere]">{f.description}</span>
-                    <span className="tnum shrink-0">{formatMoney(f.chargesCents)}</span>
+                    <span className="min-w-0 [overflow-wrap:anywhere]">
+                      {f.description} <span className="text-[12px]">({f.decision === "declined" ? "declined" : "put off"})</span>
+                    </span>
+                    <s className="tnum shrink-0">{formatMoney(f.chargesCents)}</s>
                   </li>
                 ))}
               </ul>
-              <p className="mt-1.5 text-[12px] text-muted-foreground">If the owner should not pay for {declined.length === 1 ? "it" : "them"}, take {declined.length === 1 ? "its" : "their"} lines off or set them to No charge.</p>
+              <p className="mt-1.5 text-[12px] text-muted-foreground">
+                {leftOff.length === 1
+                  ? "The owner turned it down, so it is not charged. To bill it, record a new answer for it."
+                  : "The owner turned these down, so they are not charged. To bill one, record a new answer for it."}
+              </p>
             </div>
           )}
           {/* What the invoice also says (Murray §13), so the whole bill is reviewed before it goes. */}

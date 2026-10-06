@@ -12,12 +12,16 @@ import {
   useWorkOrderFiles,
   useWorkOrderItems,
   useWorkOrderLines,
+  useWorkOrderInvoicePreview,
+  useWorkOrderSendAudience,
   useWorkOrderSettings,
 } from "@/features/queries";
 import { sendFindingsToOwner } from "@/features/send-to-owner";
-import type { WorkOrder, WorkOrderItem, WorkOrderLine, WorkOrderLineCategory } from "@/types/api";
+import type { WorkOrder, WorkOrderItem, WorkOrderLine, WorkOrderLineCategory, WorkOrderSendAudience } from "@/types/api";
+import { ApiError } from "@/lib/api";
+import { ExplainedButton } from "@/components/explained-button";
 import { useAuth } from "@/lib/auth";
-import { canManageBilling, canResolveSquawk } from "@/lib/permissions";
+import { canManageBilling, canResolveSquawk, isAdmin } from "@/lib/permissions";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
 import { DocsHint } from "@/components/docs-hint";
@@ -158,7 +162,12 @@ export function WorkOrderWorkTable({
   const removeLine = useRemoveWorkOrderLine();
   const confirm = useConfirm();
 
-  const subtotal = lines.reduce((sum, l) => sum + l.totalCents, 0);
+  // What the owner declined or put off is left off the bill (the server's `leftOffBill`, Tony
+  // 2026-10-05): its lines show struck through and count toward nothing.
+  const leftOffItems = new Set(items.filter((i) => i.decision === "declined" || i.decision === "deferred").map((i) => i.id));
+  const leftOff = (l: WorkOrderLine) => l.itemId != null && leftOffItems.has(l.itemId);
+  const chargeOf = (l: WorkOrderLine) => (leftOff(l) ? 0 : l.totalCents);
+  const subtotal = lines.reduce((sum, l) => sum + chargeOf(l), 0);
   // A finding still to be answered is either not sent to the owners yet (the shop's own) or sent
   // and waiting. Done is done: nothing to ask.
   const pending = items.filter((i) => i.source === "found" && !i.decision && !i.done);
@@ -256,21 +265,21 @@ export function WorkOrderWorkTable({
       label: l.description,
       leading: <Icon className="size-3.5 text-muted-foreground" />,
       title: l.description,
-      tags: (l.discountBps || !l.billable || l.taxable != null) && (
+      tags: (l.discountBps || !l.billable || leftOff(l) || l.taxable != null) && (
         <>
           {l.discountBps ? <ListTag>{l.discountBps / 100}% off</ListTag> : null}
-          {!l.billable && <ListTag>Not billed</ListTag>}
+          {(!l.billable || leftOff(l)) && <ListTag>Not billed</ListTag>}
           {l.taxable === true && <ListTag>Taxable</ListTag>}
           {l.taxable === false && <ListTag>Not taxable</ListTag>}
         </>
       ),
       subtitle: facts || undefined,
-      dim: !l.billable,
+      dim: !l.billable || leftOff(l),
       cells: {
         who: l.technician ? <WorkspaceUserAvatar person={l.technician} showName nameClassName="text-muted-foreground" /> : null,
         qty: l.category === "labor" ? l.hours : String(l.qty),
         each: eachLabel(l),
-        total: l.billable ? <span className="font-medium text-foreground">{formatMoney(l.totalCents)}</span> : "–",
+        total: !l.billable ? "–" : leftOff(l) ? <NotBilled cents={l.totalCents} /> : <span className="font-medium text-foreground">{formatMoney(l.totalCents)}</span>,
       },
       onOpen: editable ? () => setEditingLine(l) : undefined,
       actions: editable ? (
@@ -297,6 +306,7 @@ export function WorkOrderWorkTable({
   const itemRow = (item: WorkOrderItem): ListTableRow => {
     const own = lines.filter((l) => l.itemId === item.id);
     const charged = own.reduce((sum, l) => sum + l.totalCents, 0);
+    const offBill = leftOffItems.has(item.id) && charged > 0;
     const linked = item.inspection ?? item.squawk;
     const status = <WorkStatusIcon status={itemStatus(item)} />;
     return {
@@ -350,9 +360,17 @@ export function WorkOrderWorkTable({
             }`
           : item.squawk
             ? item.squawk.title
-            : undefined,
+            : offBill
+              ? `Not billed: ${customer ? "the owner" : "the shop"} ${item.decision === "declined" ? "declined it" : "put it off"}`
+              : undefined,
       cells: {
-        total: own.length ? <span className="font-medium text-foreground">{formatMoney(charged)}</span> : <span className="text-muted-foreground">No charges</span>,
+        total: !own.length ? (
+          <span className="text-muted-foreground">No charges</span>
+        ) : offBill ? (
+          <NotBilled cents={charged} />
+        ) : (
+          <span className="font-medium text-foreground">{formatMoney(charged)}</span>
+        ),
       },
       children: own.map(lineRow),
       actions: (
@@ -396,7 +414,7 @@ export function WorkOrderWorkTable({
     };
   };
 
-  const sum = (ls: WorkOrderLine[]) => ls.reduce((s, l) => s + l.totalCents, 0);
+  const sum = (ls: WorkOrderLine[]) => ls.reduce((s, l) => s + chargeOf(l), 0);
   const requested = items.filter((i) => i.source === "requested");
   const found = items.filter((i) => i.source === "found");
   // A line for no item, or for an item since removed, still charges: it is listed on its own.
@@ -435,15 +453,36 @@ export function WorkOrderWorkTable({
 
   // One Add menu, not four buttons (Tony, 2026-09-30): the work first, then the kinds of
   // charge, names only (Tony, 2026-10-01, took the explanations off). The hints below are kept
-  // as search words, so typing "markup" still finds Part. Recording the owner's answer sits by
-  // the count of findings waiting for it; raising the invoice sits by the total it bills.
+  // as search words, so typing "markup" still finds Part. Recording the owner's answer sits
+  // beside Add (Tony, 2026-10-05); raising the invoice sits by the total it bills.
   const LINE_HINT: Partial<Record<WorkOrderLineCategory, string>> = {
     labor: "Hours at the shop rate",
     part: "Cost plus the markup",
     outside_service: "Work sent out, cost plus the markup",
   };
-  // The status wraps, and the answer link goes under it, rather than either being cut on a phone
-  // (L14): "1 finding not sent to the own…" was the one thing the line was there to say.
+  // Who Send to owner would reach, asked before it is pressed: with nobody to reach the button is
+  // disabled and says why on hover, with the way to fix it (Tony, 2026-10-05).
+  const audienceQ = useWorkOrderSendAudience(mayAsk && unsent.length > 0 ? w.id : null);
+  const sendBlocked = !!audienceQ.data?.blocked;
+  const sendExplain = audienceQ.data
+    ? explainSend(audienceQ.data, unsent.length, w.billTo?.name ?? null, w.aircraft.id, mayDecide ? () => setAnswering(true) : undefined)
+    : null;
+
+  // Only a status earns the line under the title (Tony, 2026-10-05: a sentence describing the
+  // card on every job was a waste of space). It wraps rather than being cut on a phone (L14):
+  // "1 finding not sent to the own…" was the one thing the line was there to say.
+  const status = frozen
+    ? "Invoiced: void the invoice to change the work."
+    : !customer
+      ? // The organization's own aircraft: nothing is sent, the shop decides.
+        pending.length
+        ? `${pending.length} finding${pending.length === 1 ? "" : "s"} not decided yet.`
+        : null
+      : unsent.length
+        ? `${unsent.length} finding${unsent.length === 1 ? "" : "s"} not sent to the owner yet.`
+        : waiting
+          ? `${waiting} finding${waiting === 1 ? "" : "s"} waiting for the owner's answer.`
+          : null;
   const toolbar = (
     <>
       <div className="min-w-0 flex-1 basis-48">
@@ -451,35 +490,23 @@ export function WorkOrderWorkTable({
           Work and charges
           <DocsHint topic="work-order-lines" />
         </div>
-        <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[12px] text-muted-foreground">
-          <span className="min-w-0">
-            {frozen
-              ? "Invoiced: void the invoice to change the work."
-              : !customer
-                ? // The organization's own aircraft: nothing is sent, the shop decides.
-                  pending.length
-                  ? `${pending.length} finding${pending.length === 1 ? "" : "s"} not decided yet.`
-                  : "The work on the aircraft, and what each item costs."
-                : unsent.length
-                  ? `${unsent.length} finding${unsent.length === 1 ? "" : "s"} not sent to the owner yet.`
-                  : waiting
-                    ? `${waiting} finding${waiting === 1 ? "" : "s"} waiting for the owner's answer.`
-                    : "What the owner asked for, what the shop found, and what each one charges."}
-          </span>
-          {customer && mayDecide && items.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setAnswering(true)}
-              className="inline-flex shrink-0 items-center gap-1 font-medium text-foreground underline-offset-2 hover:underline"
-            >
-              <Phone className="size-3" /> Record owner's answer
-            </button>
-          )}
-        </p>
+        {status && <p className="text-[12px] text-muted-foreground">{status}</p>}
       </div>
       {mayAsk && unsent.length > 0 && (
-        <Button size="sm" variant="outline" onClick={() => void send()} disabled={sending}>
+        <ExplainedButton
+          size="sm"
+          variant="outline"
+          onClick={() => void send()}
+          disabled={sending || sendBlocked}
+          explain={sendExplain?.node}
+          summary={sendExplain?.text}
+        >
           <Send className="size-4" /> Send to owner
+        </ExplainedButton>
+      )}
+      {customer && mayDecide && items.length > 0 && (
+        <Button size="sm" variant="outline" onClick={() => setAnswering(true)}>
+          <Phone className="size-4" /> Record owner's answer
         </Button>
       )}
       <AddMenu
@@ -492,6 +519,13 @@ export function WorkOrderWorkTable({
     </>
   );
   const mayRaise = canInvoice && !frozen && !!w.billTo && subtotal > 0 && w.status !== "cancelled";
+  // The bill priced as the server would raise it: a reason it cannot be raised (a taxable line
+  // with no sales tax rate) disables the button and says so on hover, rather than the dialog
+  // opening onto an error (Tony, 2026-10-05). Keyed under ["workOrders"], so a line or a rate
+  // changed re-prices it.
+  const readyQ = useWorkOrderInvoicePreview(mayRaise ? w.id : null);
+  const raiseBlock = readyQ.error instanceof ApiError && readyQ.error.status >= 400 && readyQ.error.status < 500 ? readyQ.error : null;
+  const raiseExplain = raiseBlock ? explainRaise(raiseBlock, isAdmin(roles)) : null;
 
   // Each step is read from the job (see FirstJobGuide): the buttons open the forms this page
   // already has, so doing the step from the Add menu ticks it just the same.
@@ -523,8 +557,8 @@ export function WorkOrderWorkTable({
         ? `${w.billTo.name ?? "The owner"} gets an email to approve, decline or put off each finding. Prices go only to the person billed.`
         : "Every owner is emailed to approve, decline or put off each finding. Add an email on the aircraft's Owners panel to reach them.",
       done: items.some((i) => i.sentToOwnerAt != null),
-      action: mayAsk && unsent.length > 0 ? { label: "Send to owner", onClick: () => void send() } : undefined,
-      waiting: "Write up a finding first.",
+      action: mayAsk && unsent.length > 0 && !sendBlocked ? { label: "Send to owner", onClick: () => void send() } : undefined,
+      waiting: sendBlocked && audienceQ.data?.blocked ? audienceQ.data.blocked : "Write up a finding first.",
     },
     {
       id: "invoice",
@@ -532,7 +566,7 @@ export function WorkOrderWorkTable({
       body: "Labor and parts go on one invoice with the WO number, the tail and the meters. The owner pays it by card or ACH.",
       done: frozen,
       action:
-        mayRaise && stripeOn
+        mayRaise && stripeOn && !raiseBlock
           ? { label: "Raise invoice", onClick: () => setRaising(true) }
           : //A new shop has no billing row at all (the settings are created lazily), which is
             //"not connected", not "unknown": offer the way there rather than a dead sentence.
@@ -541,6 +575,8 @@ export function WorkOrderWorkTable({
             : undefined,
       waiting: !canInvoice
         ? "An admin raises the invoice."
+        : raiseBlock
+          ? raiseBlock.message
         : !stripeOn
           ? "Connect billing first, in Settings, Billing."
           : !w.billTo
@@ -584,9 +620,16 @@ export function WorkOrderWorkTable({
                   label: phone ? "Before tax" : "Billed before tax and fees",
                   value: formatMoney(subtotal),
                   action: mayRaise ? (
-                    <Button size="sm" onClick={() => setRaising(true)} aria-label="Raise invoice">
+                    <ExplainedButton
+                      size="sm"
+                      onClick={() => setRaising(true)}
+                      aria-label="Raise invoice"
+                      disabled={!!raiseBlock}
+                      explain={raiseExplain?.node}
+                      summary={raiseExplain?.text}
+                    >
                       <Receipt className="size-4" /> {phone ? "Raise" : "Raise invoice"}
-                    </Button>
+                    </ExplainedButton>
                   ) : undefined,
                 }
               : undefined
@@ -636,6 +679,122 @@ export function WorkOrderWorkTable({
       {canInvoice && <RaiseInvoiceModal workOrder={w} open={raising} onOpenChange={setRaising} />}
     </div>
   );
+}
+
+/** A charge left off the bill: its amount struck through, so the desk sees what it would have been. */
+function NotBilled({ cents }: { cents: number }) {
+  return (
+    <span className="text-muted-foreground">
+      <span className="sr-only">Not billed, would have been </span>
+      <s>{formatMoney(cents)}</s>
+    </span>
+  );
+}
+
+/** "Ann", "Ann and Bo", "Ann, Bo and Cy". */
+function names(list: string[]): string {
+  return list.length <= 1 ? (list[0] ?? "") : `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
+}
+
+const HOVER_LINK = "font-medium text-foreground underline underline-offset-2 hover:no-underline";
+
+/**
+ * What Send to owner will do, or why it cannot, for its hover card: who it asks, or the reason
+ * nobody can be reached and the way to fix it (an owner, an address, or the answer recorded by
+ * hand). `text` is the same as one plain sentence, for a screen reader.
+ */
+function explainSend(a: WorkOrderSendAudience, n: number, billedName: string | null, aircraftId: number, onAnswer?: () => void) {
+  const it = n === 1 ? "it" : "these";
+  const them = n === 1 ? "it" : "them";
+  const ownersPanel = (label: string) => (
+    <Link to="/aircraft/$resourceId" params={{ resourceId: String(aircraftId) }} search={{ tab: "owners" } as never} className={HOVER_LINK}>
+      {label}
+    </Link>
+  );
+  const answer = onAnswer ? (
+    <button type="button" onClick={onAnswer} className={HOVER_LINK}>
+      Record owner's answer
+    </button>
+  ) : null;
+  const unreachable = a.notReached.map((x) => `${x.name} ${x.reason}.`).join(" ");
+  if (a.blocked) {
+    if (a.notReached.length) {
+      return {
+        text: `Nobody can be reached. ${unreachable}`,
+        node: (
+          <>
+            <p className="font-medium">Nobody can be reached</p>
+            <p className="text-muted-foreground">{unreachable}</p>
+            <p>
+              {ownersPanel(`Add an email on ${a.tail}`)}
+              {answer && <> or call them and {answer}.</>}
+            </p>
+          </>
+        ),
+      };
+    }
+    if (a.you) {
+      return {
+        text: `You own ${a.tail}, so there is no one else to send ${it} to. Decide ${them} yourself with Record owner's answer.`,
+        node: (
+          <>
+            <p className="font-medium">You own {a.tail}</p>
+            <p className="text-muted-foreground">There is no one else to send {it} to.</p>
+            {answer && <p>Decide {them} yourself with {answer}.</p>}
+          </>
+        ),
+      };
+    }
+    return {
+      text: `${a.tail} has no owner on record, so there is no one to send ${it} to.`,
+      node: (
+        <>
+          <p className="font-medium">{a.tail} has no owner on record</p>
+          <p className="text-muted-foreground">There is no one to send {it} to yet.</p>
+          <p>{ownersPanel(`Add an owner on ${a.tail}`)}</p>
+        </>
+      ),
+    };
+  }
+  const asks = `Asks ${names(a.reached)} to approve, decline or put off ${n === 1 ? "the finding" : `${n} findings`}.`;
+  const prices = billedName ? `Prices go only to ${billedName}.` : "";
+  return {
+    text: [asks, prices, unreachable].filter(Boolean).join(" "),
+    node: (
+      <>
+        <p>{asks}</p>
+        {prices && <p className="text-muted-foreground">{prices}</p>}
+        {unreachable && <p className="text-muted-foreground">{unreachable}</p>}
+      </>
+    ),
+  };
+}
+
+/** Why the invoice cannot be raised, for the Raise invoice button's hover card, with the way to fix it. */
+function explainRaise(err: ApiError, admin: boolean) {
+  const code = (err.body as { code?: string } | null | undefined)?.code;
+  if (code === "TAX_RATE_MISSING") {
+    return {
+      text: `${err.message}`,
+      node: (
+        <>
+          <p className="font-medium">A taxable line has no sales tax rate</p>
+          <p className="text-muted-foreground">Lines are marked taxable, but there is no rate to charge them at.</p>
+          <p>
+            {admin ? (
+              <Link to="/settings" search={{ tab: "sales-tax" } as never} className={HOVER_LINK}>
+                Set a sales tax rate
+              </Link>
+            ) : (
+              "Ask an admin to set a sales tax rate in Settings, Sales tax"
+            )}
+            , or untick Taxable on the lines.
+          </p>
+        </>
+      ),
+    };
+  }
+  return { text: err.message, node: <p>{err.message}</p> };
 }
 
 /** A menu choice with its plain name first and what it means under it, so the names scan. */

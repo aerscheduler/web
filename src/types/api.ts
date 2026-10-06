@@ -2420,8 +2420,19 @@ export interface WorkOrderInvoicePreview extends InvoicePreview {
   ownerNotTold?: WorkOrderUnagreedCharge[];
   /** Findings with charges sent to the owner and still waiting on their answer: raising needs `includeUnanswered`. */
   awaitingAnswer?: WorkOrderUnagreedCharge[];
-  /** Findings the owner declined or put off that still have charges on them. */
-  declinedCharged?: WorkOrderUnagreedCharge[];
+  /** Items the owner declined or put off (found or asked for): their lines are left off this bill. */
+  leftOff?: (WorkOrderUnagreedCharge & { decision: "declined" | "deferred" })[];
+}
+
+/** `GET /work-orders/:id/send-to-owner`: who Send to owner would reach now, sending nothing. */
+export interface WorkOrderSendAudience {
+  tail: string;
+  reached: string[];
+  notReached: { name: string; reason: string }[];
+  /** The caller owns the aircraft or is billed: nobody is sent their own findings. */
+  you: boolean;
+  /** Why a send would reach nobody; null when it reaches somebody. */
+  blocked: string | null;
 }
 
 /** `POST /work-orders/:id/approvals`: the call, the items that took its answer, and those a later call kept. */

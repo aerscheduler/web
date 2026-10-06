@@ -34,6 +34,7 @@ import type {
   WorkOrderLineInput,
   WorkOrderSettings,
   WorkOrderInvoicePreview,
+  WorkOrderSendAudience,
   RecordOwnerAnswerResult,
   InvoicePreview,
   SalesTaxSettings,
@@ -1450,6 +1451,8 @@ export function useAddResourceOwner(resourceId: number) {
       void qc.invalidateQueries({ queryKey: ["resources", "owners", resourceId] });
       // A new owner can be a brand-new member, so the roster is stale too.
       void qc.invalidateQueries({ queryKey: ["members"] });
+      // And who a job's Send to owner reaches.
+      void qc.invalidateQueries({ queryKey: ["workOrders", "sendAudience"] });
     },
   });
 }
@@ -1474,6 +1477,8 @@ export function useUpdateResourceOwner(resourceId: number) {
       // A corrected name shows on the roster and on every other aeroplane they own.
       void qc.invalidateQueries({ queryKey: ["members"] });
       void qc.invalidateQueries({ queryKey: ["resources", "owners"] });
+      // An address added is somebody Send to owner can now reach.
+      void qc.invalidateQueries({ queryKey: ["workOrders", "sendAudience"] });
     },
   });
 }
@@ -1482,7 +1487,10 @@ export function useRemoveResourceOwner(resourceId: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (ownerId: number) => api(`/resources/${resourceId}/owners/${ownerId}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["resources", "owners", resourceId] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["resources", "owners", resourceId] });
+      void qc.invalidateQueries({ queryKey: ["workOrders", "sendAudience"] });
+    },
   });
 }
 
@@ -5974,6 +5982,23 @@ export function useWorkOrderInvoicePreview(workOrderId: number | null, opts?: Qu
     ...opts,
   });
 }
+
+/**
+ * Who Send to owner would reach on a job right now, sending nothing, so the button is disabled
+ * and says why before anybody presses it into an error (Tony, 2026-10-05). Keyed under
+ * ["workOrders"] so the job's own changes refresh it; an owner added on the aircraft page
+ * refreshes it there (`useAddResourceOwner`).
+ */
+export function useWorkOrderSendAudience(workOrderId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: workOrderSendAudienceKey(workOrderId),
+    queryFn: () => fetchWorkOrderSendAudience(workOrderId!),
+    enabled: workOrderId != null,
+    ...opts,
+  });
+}
+export const workOrderSendAudienceKey = (workOrderId: number | null) => ["workOrders", "sendAudience", workOrderId] as const;
+export const fetchWorkOrderSendAudience = (workOrderId: number) => api<WorkOrderSendAudience>(`/work-orders/${workOrderId}/send-to-owner`);
 
 export function useRaiseWorkOrderInvoice() {
   const qc = useQueryClient();

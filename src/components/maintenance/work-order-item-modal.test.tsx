@@ -13,8 +13,10 @@ import type { WorkOrder, WorkOrderItem } from "@/types/api";
 
 const add = vi.hoisted(() => ({ mutateAsync: vi.fn() }));
 const update = vi.hoisted(() => ({ mutateAsync: vi.fn() }));
-const cached = vi.hoisted(() => ({ items: [] as unknown[] }));
+const cached = vi.hoisted(() => ({ items: [] as unknown[], audience: { blocked: null } as { blocked: string | null } }));
 vi.mock("@/features/queries", () => ({
+  workOrderSendAudienceKey: (id: number) => ["workOrders", "sendAudience", id],
+  fetchWorkOrderSendAudience: async () => cached.audience,
   useAddWorkOrderItem: () => ({ mutateAsync: add.mutateAsync, isPending: false }),
   useUpdateWorkOrderItem: () => ({ mutateAsync: update.mutateAsync, isPending: false }),
   useMaintenanceReminders: () => ({ data: [] }),
@@ -22,7 +24,7 @@ vi.mock("@/features/queries", () => ({
 }));
 vi.mock("@tanstack/react-query", async (orig) => ({
   ...(await orig<typeof import("@tanstack/react-query")>()),
-  useQueryClient: () => ({ getQueryData: () => cached.items }),
+  useQueryClient: () => ({ getQueryData: () => cached.items, fetchQuery: async () => cached.audience }),
 }));
 vi.mock("@/features/send-to-owner", () => ({ sendFindingsToOwner: vi.fn() }));
 const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -71,6 +73,7 @@ beforeEach(() => {
   update.mutateAsync.mockReset().mockResolvedValue({});
   toast.success.mockReset();
   cached.items = [];
+  cached.audience = { blocked: null };
 });
 afterEach(cleanup);
 
@@ -86,6 +89,14 @@ describe("adding a finding", () => {
     cached.items = [finding()];
     const [, opts] = await addFinding(job());
     expect(opts?.description).toBe("The owner won't see these until you send them.");
+  });
+
+  it("offers no Notify owner when nobody can be reached, and says why instead (Murray, 2026-10-05)", async () => {
+    cached.audience = { blocked: "You own N52402, so there is nobody else to ask. Decide these yourself with Record owner's answer." };
+    const [title, opts] = await addFinding(job());
+    expect(title).toBe("Finding added");
+    expect(opts?.action).toBeUndefined();
+    expect(opts?.description).toMatch(/^You own N52402/);
   });
 
   it("offers nothing to send on an invoiced job, the organization's own aircraft, or a closed job", async () => {

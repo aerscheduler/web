@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Building2, KeyRound, ShieldAlert, UserCheck } from "lucide-react";
+import { Building2, KeyRound, ShieldAlert, Sparkles, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import { isDeveloperSync, postLoginPath, useAuth } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-rail";
 import { TableView } from "@/components/table-view";
 import { OrganizationsTable } from "@/components/developer/organizations-table";
+import { WhatsNewStatsPanel } from "@/components/developer/whats-new-stats";
 
 /**
  * Developer tools. Gated to the allowlisted developer accounts, but only for
@@ -47,6 +48,10 @@ const SECTIONS: RailSection[] = [
     label: "Customers",
     items: [{ value: "organizations", label: "Organizations", icon: Building2 }],
   },
+  {
+    label: "Product",
+    items: [{ value: "whats-new", label: "What's new", icon: Sparkles }],
+  },
 ];
 
 const DEFAULT_TAB = "login-as";
@@ -74,6 +79,7 @@ function DeveloperPage() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">
           {active === "login-as" && <LoginAsTab />}
           {active === "organizations" && <OrganizationsTable />}
+          {active === "whats-new" && <WhatsNewStatsPanel />}
         </div>
       </div>
     </TableView>

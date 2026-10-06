@@ -16,6 +16,7 @@ import {
   Moon,
   Plus,
   Settings,
+  Sparkles,
   Sun,
   TerminalSquare,
   User as UserIcon,
@@ -45,11 +46,16 @@ import { LogoMark } from "@/components/logo";
 import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
 import { DemoBanner } from "@/components/demo/demo-banner";
 import { FeedbackModal } from "@/components/feedback/feedback-modal";
+import { WhatsNewCard } from "@/components/whats-new/whats-new-card";
+import { WhatsNewWindowHost } from "@/components/whats-new/whats-new-window";
+import { whatsNewWindow } from "@/components/whats-new/whats-new-store";
+import { useWhatsNew } from "@/features/whats-new";
 import { initials } from "@/lib/utils";
 import { armSecondPress, ROW_CONTROLS } from "@/lib/use-second-press";
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarInset,
   SidebarMenu,
@@ -109,6 +115,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           <SidebarProvider className="h-svh overflow-hidden">
             <AppSidebar />
             <SidebarEdgeToggle />
+            <WhatsNewWindowHost />
+            {/* Floats over the bottom-left corner on a desktop; inside the drawer on a phone. */}
+            <WhatsNewCard placement="floating" />
             {/* `min-w-0` as much as `min-h-0`: the inset is a flex item beside the
                 rail and defaults to `min-width:auto`, so it will not shrink below its
                 content's min-content width. The detail panel is a fixed 384px that
@@ -199,6 +208,11 @@ function AppSidebar() {
       <SidebarContent>
         <SidebarNav />
       </SidebarContent>
+      {/* What's new on a phone, at the foot of the drawer. On a desktop the card floats instead
+          (rendered in AppShell). Renders nothing unless the server picks an update. */}
+      <SidebarFooter className="empty:hidden">
+        <WhatsNewCard placement="drawer" />
+      </SidebarFooter>
     </Sidebar>
   );
 }
@@ -249,6 +263,7 @@ function OrgSwitcher() {
   // so following one of these would leave the drawer over the page it opened.
   const { isMobile, setOpenMobile } = useSidebar();
   const dismiss = () => isMobile && setOpenMobile(false);
+  const whatsNew = useWhatsNew();
 
   async function onSwitch(id: number) {
     if (id === organization?.id) return;
@@ -378,6 +393,20 @@ function OrgSwitcher() {
                   Notification settings
                 </Link>
               </DropdownMenuItem>
+              {whatsNew.data && whatsNew.data.entries.length > 0 && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    dismiss();
+                    whatsNewWindow.open(null, "console_menu");
+                  }}
+                >
+                  <Sparkles />
+                  What's new
+                  {whatsNew.data.unreadCount > 0 && (
+                    <span className="ml-auto size-[7px] rounded-full bg-primary" aria-label={`${whatsNew.data.unreadCount} unread`} />
+                  )}
+                </DropdownMenuItem>
+              )}
               {isDeveloper && (
                 <DropdownMenuItem asChild>
                   <Link to="/developer" onClick={dismiss}>

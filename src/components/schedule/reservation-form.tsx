@@ -14,17 +14,31 @@ import {
   useLocations,
   useMembers,
   useMyInstructionPartners,
+  usePendingInvitations,
   useRatings,
   useReservation,
   useResources,
   useSquawks,
   useUpdateReservation,
+  useUpdateRoles,
   useCandidateLessons,
 } from "@/features/queries";
+import { InviteModal } from "@/components/people/invite-modal";
+import {
+  deskTypeFor,
+  emptySideText,
+  inviteOptions,
+  invitesForSide,
+  sideNoun,
+  sideRole,
+  type PeopleSide,
+  type SideCounts,
+} from "./people-availability";
 import {
   resourceLabel,
   type CreateReservationInput,
   type OrganizationUser,
+  type Role,
   type Reservation,
   type ReservationType,
   type Resource,
@@ -37,6 +51,7 @@ import {
   deskDefaultReservationType,
   isInstructor as hasInstructorRole,
   isStudent as hasStudentRole,
+  isAdmin,
   isRenter,
   isStaff,
   isTechnician,
@@ -56,7 +71,7 @@ import { ResponsiveModal } from "@/components/responsive-modal";
 import { EmptyState, ErrorState } from "@/components/states";
 import { DocsHint } from "@/components/docs-hint";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Combobox, type ComboOption } from "@/components/combobox";
+import { Combobox, type ComboAction, type ComboOption } from "@/components/combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -175,7 +190,10 @@ function PeopleOnSide({
   searchPlaceholder,
   emptyText,
   invalid,
+  help,
 }: {
+  /** Invited-not-joined rows, the way out when nobody can be chosen, and the line saying why. */
+  help?: { extra: ComboOption[]; actions: ComboAction[]; note: string | null };
   label: string;
   pluralLabel: string;
   side: "students" | "renters";
@@ -217,7 +235,8 @@ function PeopleOnSide({
       <Combobox
         id={`res-primary-${side}`}
         invalid={invalid}
-        options={memberOptions(roster, excludeFor(-1))}
+        options={[...memberOptions(roster, excludeFor(-1)), ...(help?.extra ?? [])]}
+        action={help?.actions}
         value={primaryId}
         onChange={(v) => {
           setPrimaryId(v);
@@ -233,6 +252,7 @@ function PeopleOnSide({
         searchPlaceholder={searchPlaceholder}
         emptyText={emptyText}
       />
+      {help?.note && <p className="text-xs text-muted-foreground">{help.note}</p>}
 
       {extraIds.map((id, i) => (
         <div key={`${side}-extra-${i}`} className="flex items-center gap-1.5">
@@ -462,7 +482,14 @@ export function ReservationForm({
    */
   self?: { orgUserId: number; userId: number };
 }) {
-  const { roles, organization, outsideOwner: outsideOwnerViewing } = useAuth();
+  const {
+    roles,
+    organization,
+    outsideOwner: outsideOwnerViewing,
+    userId: myUserId,
+    orgUserId: myOrgUserId,
+    rehydrate,
+  } = useAuth();
   const tz = useTimeZone();
   const navigate = useNavigate();
 
@@ -584,6 +611,89 @@ export function ReservationForm({
   const squawksQ = useSquawks({ resolved: false }, { enabled: open && canSeeSquawks });
   const instructorsQ = useMembers({ instructor: true }, { enabled: open });
   const rentersQ = useMembers({ renter: true }, { enabled: open });
+
+  /**
+   * WHO THIS ORGANIZATION CAN PUT ON A BOOKING, and what to say when it can't.
+   *
+   * A founder alone in a new organization used to pick a type, find an empty picker that
+   * said "No instructors.", save, and get a red field. Now a type nobody can fill says why
+   * in the type list, an empty picker says why and offers the two ways out (make yourself
+   * one, invite one), and admins see the people they invited who have not joined yet, as
+   * rows that cannot be picked. Desk only: a member booking themselves fills their own seat.
+   */
+  const canManagePeople = isAdmin(roles);
+  const invitesQ = usePendingInvitations({ enabled: open && !isSelf && canManagePeople });
+  const rostersLoaded = instructorsQ.isSuccess && studentsQ.isSuccess && rentersQ.isSuccess;
+  const sideCounts = React.useMemo<SideCounts>(
+    () => ({
+      instructors: instructorsQ.data?.length ?? 0,
+      students: studentsQ.data?.length ?? 0,
+      renters: rentersQ.data?.length ?? 0,
+    }),
+    [instructorsQ.data, studentsQ.data, rentersQ.data]
+  );
+  const rosterFor = (side: PeopleSide) =>
+    side === "instructors" ? instructorsQ.data : side === "students" ? studentsQ.data : rentersQ.data;
+
+  const updateMyRoles = useUpdateRoles(myUserId ?? 0);
+  const [inviteSide, setInviteSide] = React.useState<PeopleSide | null>(null);
+  /** Gives the person booking the role this side needs, then seats them on it. */
+  const addMyselfTo = React.useCallback(
+    (side: PeopleSide, seat: (orgUserId: string) => void) => {
+      if (myUserId == null) return;
+      const role = sideRole(side);
+      const has = (r: Role) => roles.includes(r) || r === role;
+      updateMyRoles.mutate(
+        {
+          owner: has("owner"),
+          admin: has("admin"),
+          dispatcher: has("dispatcher"),
+          instructor: has("instructor"),
+          student: has("student"),
+          renter: has("renter"),
+          technician: has("technician"),
+        },
+        {
+          onSuccess: async () => {
+            await rehydrate();
+            if (myOrgUserId != null) seat(String(myOrgUserId));
+            toast.success(`You're now ${sideNoun(side).a} here too.`);
+          },
+          onError: (e) =>
+            toast.error(e instanceof Error && e.message ? e.message : "Couldn't update your roles."),
+        }
+      );
+    },
+    [myUserId, myOrgUserId, roles, updateMyRoles, rehydrate]
+  );
+
+  /**
+   * The help a people picker carries for one side: invited people as disabled rows (admins
+   * only), the reason when nobody can be chosen, and the two ways to fix that.
+   */
+  const sideHelp = (side: PeopleSide, seat: (orgUserId: string) => void) => {
+    const roster = rosterFor(side);
+    const invites = canManagePeople ? invitesForSide(invitesQ.data, side) : [];
+    const empty = rostersLoaded && (roster?.length ?? 0) === 0;
+    const { a } = sideNoun(side);
+    const actions = [];
+    if (empty && canManagePeople && !roles.includes(sideRole(side))) {
+      actions.push({ label: `Make myself ${a}`, onSelect: () => addMyselfTo(side, seat) });
+    }
+    if (empty && canManagePeople) {
+      actions.push({ label: `Invite ${a}`, onSelect: () => setInviteSide(side) });
+    }
+    // The line under the field only where this side is what stands between the person and a
+    // booking: a Solo flown by the instructor does not need "nobody is a student yet".
+    const req = TYPE_REQUIREMENTS[type];
+    const needed =
+      req.requiresAll.includes(side) ||
+      (req.requiresAny.includes(side) &&
+        req.requiresAny.every((s) => (rosterFor(s as PeopleSide)?.length ?? 0) === 0));
+    // One plain line (Tony, 2026-10-07): the fixes and the invited people live in the list.
+    const note = empty && needed ? emptySideText(side) : null;
+    return { extra: inviteOptions(invites), emptyText: emptySideText(side), actions, note };
+  };
   const ratingsQ = useRatings({ enabled: open });
   const locationsQ = useLocations({ enabled: open });
   const create = useCreateReservation();
@@ -629,10 +739,14 @@ export function ReservationForm({
   const typeTouched = React.useRef(false);
   React.useEffect(() => {
     if (isSelf || isEditing || draft.type || typeTouched.current) return;
-    if (!studentsQ.isSuccess) return;
-    const next = deskDefaultReservationType(roles, (studentsQ.data?.length ?? 0) > 0);
+    if (!rostersLoaded) return;
+    // The first type this organization can actually fill. A lone founder used to open on
+    // Rental with no renter to pick; the role rule alone remains the fallback.
+    const next =
+      deskTypeFor(typeOptions, sideCounts) ??
+      deskDefaultReservationType(roles, sideCounts.students > 0);
     if (next !== type) setType(next);
-  }, [isSelf, isEditing, draft.type, studentsQ.isSuccess, studentsQ.data, roles, type]);
+  }, [isSelf, isEditing, draft.type, rostersLoaded, sideCounts, typeOptions, roles, type]);
   const [resourceId, setResourceId] = React.useState("");
   /**
    * The aircraft the calendar seeded that this member may not book, the name, so it can
@@ -1654,25 +1768,33 @@ export function ReservationForm({
                 Solo is exclusive (one pilot): show Instructor OR Student, never both.
                 Picking one clears and hides the other so the empty dropdown does not
                 look required beside an already-filled seat. */}
-            {!isSelf && showDispatchInstructor && (
-              <div className="space-y-1.5">
-                <Label>
-                  Instructor
-                  {!TYPE_REQUIREMENTS[type].requiresAll.includes("instructors") &&
-                    " (optional)"}
-                </Label>
-                <Combobox
-                  id="res-primary-instructors"
-                  invalid={errorField === "res-primary-instructors"}
-                  options={memberOptions(instructorsQ.data, assignedElsewhere("instructors"))}
-                  value={instructorId}
-                  onChange={setDispatchInstructorId}
-                  placeholder="Assign instructor"
-                  searchPlaceholder="Search instructors…"
-                  emptyText="No instructors."
-                />
-              </div>
-            )}
+            {!isSelf && showDispatchInstructor && (() => {
+              const help = sideHelp("instructors", setDispatchInstructorId);
+              return (
+                <div className="space-y-1.5">
+                  <Label>
+                    Instructor
+                    {!TYPE_REQUIREMENTS[type].requiresAll.includes("instructors") &&
+                      " (optional)"}
+                  </Label>
+                  <Combobox
+                    id="res-primary-instructors"
+                    invalid={errorField === "res-primary-instructors"}
+                    options={[
+                      ...memberOptions(instructorsQ.data, assignedElsewhere("instructors")),
+                      ...help.extra,
+                    ]}
+                    value={instructorId}
+                    onChange={setDispatchInstructorId}
+                    placeholder="Assign instructor"
+                    searchPlaceholder="Search instructors…"
+                    emptyText={help.emptyText}
+                    action={help.actions}
+                  />
+                  {help.note && <p className="text-xs text-muted-foreground">{help.note}</p>}
+                </div>
+              );
+            })()}
             {!isSelf && showDispatchStudent && (
               <PeopleOnSide
                 label="Student"
@@ -1688,7 +1810,8 @@ export function ReservationForm({
                 assignedElsewhere={assignedElsewhere("students")}
                 takenOnSide={takenOnSide}
                 searchPlaceholder="Search students…"
-                emptyText="No students."
+                emptyText={emptySideText("students")}
+                help={sideHelp("students", setDispatchStudentId)}
               />
             )}
             {!isSelf && TYPE_REQUIREMENTS[type].allows.includes("renters") && (
@@ -1706,7 +1829,8 @@ export function ReservationForm({
                 assignedElsewhere={assignedElsewhere("renters")}
                 takenOnSide={takenOnSide}
                 searchPlaceholder="Search renters…"
-                emptyText="No renters."
+                emptyText={emptySideText("renters")}
+                help={sideHelp("renters", setRenterId)}
               />
             )}
             {/* THE RATE CARD, but only when the course has not already answered it.
@@ -1916,6 +2040,15 @@ export function ReservationForm({
       }
     >
       {content}
+      {/* "Invite an instructor" from an empty picker: the People page's own invite, with
+          the role already ticked, so the booking in progress is not lost. */}
+      {canManagePeople && (
+        <InviteModal
+          open={inviteSide != null}
+          onOpenChange={(next) => !next && setInviteSide(null)}
+          initialRoles={inviteSide ? { [sideRole(inviteSide)]: true } : undefined}
+        />
+      )}
     </ResponsiveModal>
   );
 }

@@ -131,6 +131,7 @@ import type {
   OrganizationRating,
   OrganizationUser,
   PaymentMethod,
+  PendingInvitation,
   RampInInput,
   RampOutInput,
   Reservation,
@@ -363,6 +364,18 @@ export function useMembers(filter?: MemberFilter, opts?: QueryOpts) {
   return useQuery({
     queryKey: ["members", filter ?? {}],
     queryFn: () => api<OrganizationUser[]>("/orgUsers", { query: filter }),
+    ...opts,
+  });
+}
+
+/**
+ * Invitations nobody has accepted yet. `GET /invitations` is admin-only, so callers must
+ * pass `enabled: false` for anyone else rather than fire a request that is certain to 403.
+ */
+export function usePendingInvitations(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["invitations"],
+    queryFn: () => api<PendingInvitation[]>("/invitations"),
     ...opts,
   });
 }
@@ -1575,10 +1588,8 @@ export function useInviteMember() {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["members"] });
       void qc.invalidateQueries({ queryKey: ["users"] });
-      // No ["invitations"] invalidation: nothing in the console queries that key,
-      // so it was invalidating a cache entry that never existed. The API does
-      // have GET /invitations, a pending-invitations view would be a genuinely
-      // useful thing to build on it, at which point this line comes back.
+      // The booking form lists pending invites in its people pickers.
+      void qc.invalidateQueries({ queryKey: ["invitations"] });
     },
   });
 }

@@ -1955,6 +1955,25 @@ export interface InviteInput {
   membershipPlanId?: number | null;
 }
 
+/** `GET /invitations` (admins only): somebody invited who has not joined yet. */
+export interface PendingInvitation {
+  id: number;
+  createdAt: string;
+  email: string;
+  /** Set when the address already belongs to an AerScheduler account. */
+  user?: { id: number; name?: string | null; email?: string | null } | null;
+  /** What they will be once they accept. */
+  roles?: {
+    owner?: boolean;
+    admin?: boolean;
+    dispatcher?: boolean;
+    instructor?: boolean;
+    student?: boolean;
+    renter?: boolean;
+    technician?: boolean;
+  } | null;
+}
+
 export interface PersonRef {
   id: number;
 }

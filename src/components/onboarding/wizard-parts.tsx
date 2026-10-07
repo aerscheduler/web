@@ -85,6 +85,50 @@ export function Nav({
 }
 
 /**
+ * Pills where any number can be on, same look as {@link ChipQuestion}. Used for "What do
+ * you do here yourself?", which sets the founder's own roles.
+ */
+export function MultiChipQuestion({
+  label,
+  hint,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  options: readonly { id: string; label: string }[];
+  value: string[];
+  onChange: (v: string[]) => void;
+}) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((opt) => {
+          const on = value.includes(opt.id);
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onChange(on ? value.filter((v) => v !== opt.id) : [...value, opt.id])}
+              className={cn(
+                "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                on ? "border-primary bg-primary/5 text-primary" : "hover:bg-accent"
+              )}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
  * An optional one-tap question: pills, at most one picked, and a short free-text
  * follow-up for the options that ask "which one?". Used for "how did you hear about us"
  * and "how do you schedule today" on the org-create page.

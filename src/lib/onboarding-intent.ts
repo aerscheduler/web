@@ -207,3 +207,14 @@ export function attributionIsWeak(a: Attribution | null): boolean {
 export function shouldAskHeardFrom(a: Attribution | null): boolean {
   return attributionIsWeak(a);
 }
+
+/**
+ * "What do you do here yourself?" at signup. Each id is a role the server gives the
+ * founder on top of owner and admin (`parseFounderRoles`), so these ids must stay role names.
+ */
+export const SELF_ROLE_OPTIONS = [
+  { id: "instructor", label: "I teach" },
+  { id: "student", label: "I'm learning to fly" },
+  { id: "renter", label: "I fly the aircraft" },
+  { id: "technician", label: "I work on the aircraft" },
+] as const;

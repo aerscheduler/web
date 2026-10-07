@@ -35,6 +35,7 @@ import {
   HEARD_FROM_OPTIONS,
   SCHEDULED_WITH_OPTIONS,
   SHOP_SCHEDULED_WITH_OPTIONS,
+  SELF_ROLE_OPTIONS,
   inferredIntent,
   pickerIntentFromSource,
   resolveSetupSource,
@@ -71,7 +72,7 @@ import { LocationsEmptyGraphic } from "@/components/empty-graphics/locations";
 import { MaintenanceEmptyGraphic } from "@/components/empty-graphics/maintenance";
 import { CustomerAircraftStep, FirstJobStep, ShopRatesStep } from "@/components/onboarding/shop-steps";
 import { DocsHint } from "@/components/docs-hint";
-import { ChipQuestion, Field, Nav, Step } from "@/components/onboarding/wizard-parts";
+import { ChipQuestion, Field, MultiChipQuestion, Nav, Step } from "@/components/onboarding/wizard-parts";
 import {
   StandingPreferenceFields,
   useStandingPreferenceForm,
@@ -576,6 +577,16 @@ function OperationFlow({
   const [heardFrom, setHeardFrom] = React.useState<string | null>(null);
   const [heardFromDetail, setHeardFromDetail] = React.useState("");
   const [scheduledWith, setScheduledWith] = React.useState<string | null>(null);
+  /**
+   * What the founder does here themselves, which becomes their own roles (owner and admin
+   * are always given). Asked because a founder alone in a new organization could not book:
+   * the booking form needs somebody to be the instructor, student or renter, and the
+   * persona guess was wrong for an owner who also teaches or a school owner who only rents.
+   * Preselected from the card they picked, so most people just read it and continue.
+   */
+  const [selfRoles, setSelfRoles] = React.useState<string[]>(() =>
+    owner ? ["renter"] : shop ? ["technician"] : ["instructor"]
+  );
   const [wantUpdates, setWantUpdates] = React.useState(true);
   const wantUpdatesRef = React.useRef(wantUpdates);
   wantUpdatesRef.current = wantUpdates;
@@ -807,6 +818,8 @@ function OperationFlow({
         source,
         // Campaign tuple for spend reporting, plus optional human "how did you hear".
         attribution: attributionBody,
+        // Their own roles. The server adds owner and admin.
+        founderRoles: selfRoles,
       });
       writeStickyStep(created.id, 1);
       // The single most important event in the product: a school now exists. Everything
@@ -819,6 +832,7 @@ function OperationFlow({
         intent,
         heard_from: heardFrom,
         scheduled_with: scheduledWith,
+        founder_roles: selfRoles,
         marketing_updates: null,
       });
       clearAttribution();
@@ -1066,6 +1080,13 @@ function OperationFlow({
           </Field>
           {!organization ? (
             <>
+              <MultiChipQuestion
+                label="What do you do here yourself?"
+                hint="So you can put yourself on a booking. You can change it later under People."
+                options={SELF_ROLE_OPTIONS}
+                value={selfRoles}
+                onChange={setSelfRoles}
+              />
               <ChipQuestion
                 id="op-scheduled-with"
                 label={shop ? "How do you run jobs today?" : "How do you schedule today?"}

@@ -23,6 +23,8 @@ export type ComboOption = {
   group?: string;
   /** Extra search terms, matched but never shown. Where airport identifiers live. */
   keywords?: string[];
+  /** Shown but not choosable: somebody invited who has not joined, so the list says they exist. */
+  disabled?: boolean;
 };
 
 /**
@@ -268,14 +270,19 @@ export function Combobox({
                     // Distinct per item: cmdk keys on this, and two cities can share a label.
                     value={`${o.value} ${o.label} ${o.hint ?? ""}`}
                     keywords={o.keywords}
+                    disabled={o.disabled}
                     onSelect={() => {
+                      if (o.disabled) return;
                       onChange(o.value);
                       setOpen(false);
                     }}
                   >
-                    <Check
-                      className={cn("size-4", o.value === value ? "opacity-100" : "opacity-0")}
-                    />
+                    {/* No check gutter on a row that can never be checked, or it sits indented for nothing. */}
+                    {!o.disabled && (
+                      <Check
+                        className={cn("size-4", o.value === value ? "opacity-100" : "opacity-0")}
+                      />
+                    )}
                     <span className="truncate">{o.label}</span>
                     {o.hint && (
                       <span className="ml-auto truncate text-xs text-muted-foreground">

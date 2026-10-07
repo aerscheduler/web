@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { InviteInput } from "@/types/api";
 import { useInviteMember, useMembershipPlanOptions } from "@/features/queries";
@@ -27,14 +27,21 @@ type RoleState = Partial<Record<RoleKey, boolean>>;
 export function InviteModal({
   open,
   onOpenChange,
+  initialRoles,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Ticked when it opens: the booking form's "Invite an instructor" arrives with Instructor on. */
+  initialRoles?: RoleState;
 }) {
   const invite = useInviteMember();
   const [email, setEmail] = useState("");
   const [bulk, setBulk] = useState("");
-  const [roles, setRoles] = useState<RoleState>({});
+  const [roles, setRoles] = useState<RoleState>(initialRoles ?? {});
+  const initialKey = JSON.stringify(initialRoles ?? {});
+  useEffect(() => {
+    if (open) setRoles(JSON.parse(initialKey) as RoleState);
+  }, [open, initialKey]);
   const [submitting, setSubmitting] = useState(false);
   //Only offered when the school has plans, so the modal is unchanged at every school that
   //does not run memberships.

@@ -2,7 +2,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Check, MoreHorizontal, Paperclip, Pencil, Phone, Plus, Receipt, ScanSearch, Send, Trash2, UserRound } from "lucide-react";
+import { Check, Clock, MoreHorizontal, Paperclip, Pencil, Phone, Plus, Receipt, ScanSearch, Send, Trash2, UserRound, X } from "lucide-react";
 import {
   useBilling,
   useRecordOwnerAnswer,
@@ -97,14 +97,18 @@ const DECISION_TAG: Record<NonNullable<WorkOrderItem["decision"]>, { label: stri
   deferred: { label: "Deferred", dot: "var(--muted-foreground)" },
 };
 
-/** Where an item stands, as the ring before it says. */
-function itemStatus(i: WorkOrderItem): WorkStatus {
+/**
+ * Where an item stands, as the ring before it says. A finding on the organization's own aircraft
+ * is work to do, not a question: the shop that wrote it up is the one that decides (Murray,
+ * 2026-10-06: Nathan pressed Approved on each of his own findings within seconds, every time).
+ */
+function itemStatus(i: WorkOrderItem, customer: boolean): WorkStatus {
   if (i.done) return "done";
   if (i.decision === "declined") return "declined";
   if (i.decision === "deferred") return "deferred";
   if (i.inspection || i.squawk) return "progress";
   if (i.decision === "approved") return "approved";
-  if (i.source === "found") return "notAsked";
+  if (i.source === "found" && customer) return "notAsked";
   return "todo";
 }
 
@@ -308,7 +312,7 @@ export function WorkOrderWorkTable({
     const charged = own.reduce((sum, l) => sum + l.totalCents, 0);
     const offBill = leftOffItems.has(item.id) && charged > 0;
     const linked = item.inspection ?? item.squawk;
-    const status = <WorkStatusIcon status={itemStatus(item)} />;
+    const status = <WorkStatusIcon status={itemStatus(item, customer)} />;
     return {
       id: `item-${item.id}`,
       label: item.description,
@@ -332,7 +336,9 @@ export function WorkOrderWorkTable({
       title: item.description,
       tags: (
         <>
-          {(item.decision || item.source === "found") &&
+          {/* The owner's answer, or the place to give it. On the organization's own aircraft only
+              a decision not to do it (declined, put off) shows: a finding is otherwise just work. */}
+          {(customer ? item.decision || item.source === "found" : item.decision === "declined" || item.decision === "deferred") &&
             (mayDecide ? (
               <DecisionMenu customer={customer} item={item} onPick={(d) => void decide(item, d)} onFullCall={customer ? () => setAnswering(true) : undefined} />
             ) : (
@@ -392,6 +398,23 @@ export function WorkOrderWorkTable({
             {item.doneVia === "item" && (
               <DropdownMenuItem onSelect={() => void toggleDone(item)}>
                 <Check className="size-4" /> {item.done ? "Mark not done" : "Mark done"}
+              </DropdownMenuItem>
+            )}
+            {/* The shop's own aircraft: deciding not to do a finding, or to do it later, is the
+                shop's, from here; anything else written up is simply to be done. */}
+            {!customer && mayDecide && item.source === "found" && !item.done && item.decision !== "declined" && (
+              <DropdownMenuItem onSelect={() => void decide(item, "declined")}>
+                <X className="size-4" /> Not doing it
+              </DropdownMenuItem>
+            )}
+            {!customer && mayDecide && item.source === "found" && !item.done && item.decision !== "deferred" && (
+              <DropdownMenuItem onSelect={() => void decide(item, "deferred")}>
+                <Clock className="size-4" /> Later
+              </DropdownMenuItem>
+            )}
+            {!customer && mayDecide && (item.decision === "declined" || item.decision === "deferred") && (
+              <DropdownMenuItem onSelect={() => void decide(item, "approved")}>
+                <Check className="size-4" /> Doing it after all
               </DropdownMenuItem>
             )}
             <DropdownMenuItem
@@ -474,10 +497,8 @@ export function WorkOrderWorkTable({
   const status = frozen
     ? "Invoiced: void the invoice to change the work."
     : !customer
-      ? // The organization's own aircraft: nothing is sent, the shop decides.
-        pending.length
-        ? `${pending.length} finding${pending.length === 1 ? "" : "s"} not decided yet.`
-        : null
+      ? // The organization's own aircraft: nothing is sent and nothing waits on an answer.
+        null
       : unsent.length
         ? `${unsent.length} finding${unsent.length === 1 ? "" : "s"} not sent to the owner yet.`
         : waiting
@@ -771,7 +792,7 @@ function explainSend(a: WorkOrderSendAudience, n: number, billedName: string | n
 }
 
 /** Why the invoice cannot be raised, for the Raise invoice button's hover card, with the way to fix it. */
-function explainRaise(err: ApiError, admin: boolean) {
+export function explainRaise(err: ApiError, admin: boolean) {
   const code = (err.body as { code?: string } | null | undefined)?.code;
   if (code === "TAX_RATE_MISSING") {
     return {

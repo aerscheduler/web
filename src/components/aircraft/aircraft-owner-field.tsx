@@ -1,5 +1,7 @@
 import * as React from "react";
 import { useMembers } from "@/features/queries";
+import type { OrganizationUser } from "@/types/api";
+import { memberEmail } from "@/components/people/util";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +29,75 @@ export type OwnerConflict = {
 const NONE = "none";
 
 export const EMAIL_RE = /^[^\s@,;:<>"'\\]+@[^\s@,;:<>"'\\]+\.[a-z]{2,}$/i;
+
+/**
+ * Somebody already on the roster who is the "new person" being typed: the same address, or
+ * failing that the same name. Asked before anything is saved, because every owner Murray's
+ * staff added was themselves or a colleague, typed as a new person, and every one came back
+ * "already a member with that email" from the server (2026-10-05 to 10-07); once, it was given up.
+ */
+export function rosterMatch(
+  members: readonly OrganizationUser[] | undefined,
+  draft: { name: string; email: string }
+): { member: OrganizationUser; by: "email" | "name" } | null {
+  const live = (members ?? []).filter((m) => !m.archivedAt);
+  const email = draft.email.trim().toLowerCase();
+  if (email && EMAIL_RE.test(email)) {
+    const m = live.find((x) => (memberEmail(x) ?? "").trim().toLowerCase() === email);
+    if (m) return { member: m, by: "email" };
+  }
+  const name = draft.name.trim().toLowerCase().replace(/\s+/g, " ");
+  if (name.length >= 3) {
+    const same = live.filter((x) => (x.user?.name ?? "").trim().toLowerCase().replace(/\s+/g, " ") === name);
+    // Two people with one name is not a match: the address decides that.
+    if (same.length === 1) return { member: same[0], by: "name" };
+  }
+  return null;
+}
+
+/** "Dylan Freiberg is already on your roster with this email." with the way to use them. */
+export function RosterMatchNote({
+  match,
+  onUse,
+  onNew,
+  newLabel,
+  pending,
+  alreadyOwner,
+}: {
+  match: { member: OrganizationUser; by: "email" | "name" };
+  onUse: () => void;
+  /** It is somebody else: a different person with that name, or one sharing that address. */
+  onNew?: () => void;
+  newLabel?: string;
+  pending?: boolean;
+  /** They own this aircraft already: nothing to add. */
+  alreadyOwner?: boolean;
+}) {
+  const name = match.member.user?.name ?? "Somebody";
+  return (
+    <div role="status" data-testid="roster-match" className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
+      <p>
+        {alreadyOwner
+          ? `${name} already owns this aircraft.`
+          : match.by === "email"
+            ? `${name} is already on your roster with this email.`
+            : `${name} is already on your roster.`}
+      </p>
+      {!alreadyOwner && (
+        <div className="flex flex-wrap gap-2">
+          <Button type="button" size="sm" disabled={pending} onClick={onUse}>
+            Use {name}
+          </Button>
+          {onNew && (match.by === "name" || newLabel) && (
+            <Button type="button" size="sm" variant="outline" disabled={pending} onClick={onNew}>
+              {match.by === "name" ? "A different person" : newLabel}
+            </Button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** What is wrong with the draft, if anything: only a new person has fields to get wrong. */
 export function ownerDraftError(o: OwnerDraft): { name?: string; email?: string } {
@@ -57,11 +128,16 @@ export function OwnerField({
           value: String(m.id),
           label: m.user?.name ?? `Member #${m.id}`,
           hint: m.external && !m.claimedAt ? "Owner, not a member" : undefined,
+          // Found by address too: people often know the owner's email before their name.
+          keywords: memberEmail(m) ? [memberEmail(m)!] : undefined,
         }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     [membersQ.data]
   );
   const err = ownerDraftError(value);
+  const [notThem, setNotThem] = React.useState<number | null>(null);
+  const match = value.mode === "new" ? rosterMatch(membersQ.data, value) : null;
+  const shownMatch = match && match.member.id !== notThem ? match : null;
 
   return (
     <div className="space-y-2 rounded-lg border border-border p-3">
@@ -134,6 +210,13 @@ export function OwnerField({
             </div>
           </div>
         </div>
+      )}
+      {!conflict && shownMatch && (
+        <RosterMatchNote
+          match={shownMatch}
+          onUse={() => onChange({ mode: "existing", orgUserId: shownMatch.member.id, name: shownMatch.member.user?.name ?? "" })}
+          onNew={() => setNotThem(shownMatch.member.id)}
+        />
       )}
       {conflict && (
         <div role="alert" className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">

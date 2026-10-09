@@ -6115,7 +6115,11 @@ export function useUpdateCustomerProfile(orgUserId: number) {
   return useMutation({
     mutationFn: (patch: Partial<Omit<CustomerProfile, "updatedAt">>) =>
       api<CustomerProfile>(`/orgUsers/${orgUserId}/customer`, { method: "PATCH", body: patch }),
-    onSuccess: (data) => qc.setQueryData(["members", "customer", orgUserId], data),
+    onSuccess: (data) => {
+      qc.setQueryData(["members", "customer", orgUserId], data);
+      // A customer's rates price the next line on every open job billed to them.
+      void qc.invalidateQueries({ queryKey: ["workOrders"] });
+    },
   });
 }
 

@@ -2612,7 +2612,29 @@ export interface WorkOrder {
   booking?: { id: number; start: string; end: string; cancelled: boolean; moved?: boolean } | null;
   /** Ever billed, voided bills included: such a job can be cancelled, never deleted. */
   hasInvoices?: boolean;
+  /**
+   * Completed with charges on it, no live invoice, and nobody closed it as not billed: a customer's
+   * job the shop has not billed yet (the server's `isNotInvoiced`).
+   */
+  notInvoiced?: boolean;
+  /** When an admin closed the finished job without an invoice, or null. */
+  noInvoiceAt?: string | null;
+  /** The job's own rates (null each: follows the customer's or the shop's). On the single job only. */
+  ownRates?: ShopRates;
+  /** What the next line on the job is priced at, and where each rate came from. On the single job only. */
+  rates?: ShopRates & { from: Record<keyof ShopRates, RateSource | null> };
+  /** What the job follows without its own rates: the customer's, else the shop's. */
+  inheritedRates?: ShopRates & { from: Record<keyof ShopRates, RateSource | null> };
 }
+
+/** A set of rates; null is "not set at this level". Labor in cents an hour, markups in basis points. */
+export interface ShopRates {
+  laborRateCents: number | null;
+  partsMarkupBps: number | null;
+  outsideWorkMarkupBps: number | null;
+}
+/** Where a job's rate came from: the job itself, the customer billed, or the shop's. */
+export type RateSource = "job" | "customer" | "shop";
 
 export interface WorkOrderItem {
   id: number;
@@ -2729,6 +2751,12 @@ export interface WorkOrderInput {
   reservationId?: number | null;
   technicianOrgUserIds?: number[];
   holdOwnerNotices?: boolean;
+  /** Close a completed job without an invoice (true), or put it back to be billed. Admins only. */
+  noInvoice?: boolean;
+  /** The job's own rates; null follows the customer's or the shop's. Admins only. */
+  laborRateCents?: number | null;
+  partsMarkupBps?: number | null;
+  outsideWorkMarkupBps?: number | null;
   /** The meter log's questions about the readings, answered (see withMeterAnswers). */
   confirmLower?: boolean;
   confirmMaintenanceTrigger?: boolean;
@@ -3780,7 +3808,7 @@ export type OwnerComponent = Pick<
 >;
 
 /** What the shop keeps about a customer (GET /orgUsers/:id/customer). */
-export interface CustomerProfile {
+export interface CustomerProfile extends ShopRates {
   billingAddress: string | null;
   preferredContact: "email" | "phone" | "text" | null;
   notes: string | null;

@@ -626,6 +626,13 @@ export const DOCS_TOPICS = {
     href: "maintenance/run-a-work-order#the-work-on-the-job",
     linkLabel: "The work, labor and parts",
   },
+  "work-order-rates": {
+    title: "Rates for a customer or a job",
+    summary:
+      "A customer's own labor rate and markups (staff at cost, an agreed rate) price every new line on jobs billed to them, and a job can set its own. Blank follows the level above: the job, then the customer, then the shop.",
+    href: "maintenance/run-a-work-order#rates-for-a-customer-or-a-job",
+    linkLabel: "Rates for a customer or a job",
+  },
   "shop-rates": {
     title: "Shop rates",
     summary: "The labor rate and markups that price new work order lines. Changing them never changes a line already on a job.",

@@ -219,6 +219,9 @@ function workOrderColumns(closed: boolean): ColumnDef<WorkOrder, unknown>[] {
               {row.original.billing === "paid" ? "Paid" : "Invoiced"}
             </Badge>
           )}
+          {/* Finished with charges and never billed: the money a shop forgets (Murray's WO-1003). */}
+          {row.original.notInvoiced && <Badge variant="warning">Not invoiced</Badge>}
+          {row.original.noInvoiceAt && row.original.billing === "none" && <Badge variant="outline">Not billed</Badge>}
         </span>
       ),
     },
@@ -410,12 +413,13 @@ function OpenJobsList({
             </>
           ),
           tags:
-            g.id === "waiting" || w.billing !== "none" || w.aircraft.use === "fleet" || groundedJob(w) ? (
+            g.id === "waiting" || w.billing !== "none" || w.aircraft.use === "fleet" || groundedJob(w) || w.notInvoiced ? (
               <>
                 {/* Grounded changes the job (a ferry, a pickup): the owner said so, or the aircraft is. */}
                 {groundedJob(w) && <ListTag>Grounded</ListTag>}
                 {g.id === "waiting" && <ListTag dot={g.dot}>{w.statusLabel}</ListTag>}
                 {w.billing !== "none" && <ListTag>{w.billing === "paid" ? "Paid" : "Invoiced"}</ListTag>}
+                {w.notInvoiced && <ListTag dot="var(--warning)">Not invoiced</ListTag>}
                 {w.aircraft.use === "fleet" && <ListTag>Fleet</ListTag>}
               </>
             ) : undefined,

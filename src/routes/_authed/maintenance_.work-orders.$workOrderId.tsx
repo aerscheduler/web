@@ -26,6 +26,9 @@ import { RequestFacts } from "@/components/owner/request-facts";
 import { WorkOrderAnswersCard } from "@/components/maintenance/work-order-work";
 import { WorkOrderFilesCard } from "@/components/maintenance/work-order-files";
 import { WorkOrderWorkTable } from "@/components/maintenance/work-order-work-table";
+import { RaiseInvoiceModal } from "@/components/maintenance/work-order-lines";
+import { FinishUnbilledDialog, needsBillingBeforeCompleting } from "@/components/maintenance/finish-unbilled-dialog";
+import { JobRatesRows } from "@/components/maintenance/work-order-rates";
 import { OwnerNoticesHold } from "@/components/maintenance/owner-notices-hold";
 import {
   CardEmpty,
@@ -171,8 +174,18 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
         if (!ok) return;
       }
     }
+    // Completing a job somebody pays for, with charges on it and no invoice, asks first: raise
+    // it now, or complete it without one on purpose (Murray's WO-1003, 2026-10-07).
+    if (status === "completed" && w.status !== "completed" && needsBillingBeforeCompleting(w)) {
+      setFinishAsk(true);
+      return;
+    }
+    await moveNow(status);
+  }
+
+  async function moveNow(status: WorkOrderStatus, extra: Pick<WorkOrderInput, "noInvoice"> = {}) {
     try {
-      const next = await update.mutateAsync({ id: w.id, status });
+      const next = await update.mutateAsync({ id: w.id, status, ...extra });
       // Arrived with no meters in recorded: ask for them now, filled in from the aircraft, the
       // way the open form does. Only the arrival, never a later in-shop move.
       const arrived = IN_SHOP_STATUSES.includes(status) && !IN_SHOP_STATUSES.includes(w.status);
@@ -202,6 +215,11 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
 
   const planeQ = useResource(w.aircraft.id);
   const [askMeters, setAskMeters] = useState<MetersPrompt | null>(null);
+  const [finishAsk, setFinishAsk] = useState(false);
+  // The invoice raised from the completion question completes the job once it is sent; raised
+  // from the Billing card it only bills it.
+  const [raising, setRaising] = useState<"complete" | "bill" | null>(null);
+  const admin = canManageBilling(roles);
   // One field at a time, from the cards: the job has no Edit dialog (Tony, 2026-09-30).
   const saveField = async (patch: WorkOrderInput) => {
     try {
@@ -232,6 +250,8 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
             <>
               <Badge variant={workOrderStatusVariant(w.status)}>{w.statusLabel}</Badge>
               {w.billing !== "none" && <Badge variant={w.billing === "paid" ? "success" : "outline"}>{w.billing === "paid" ? "Paid" : "Invoiced"}</Badge>}
+              {w.notInvoiced && <Badge variant="warning">Not invoiced</Badge>}
+              {w.noInvoiceAt && w.billing === "none" && <Badge variant="outline">Not billed</Badge>}
             </>
           }
           subtitle={
@@ -356,7 +376,7 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
               onSave={(v) => saveField({ internalNotes: v })}
             />
 
-            <DetailCard title="Billing" description="Read from the job's invoice.">
+            <DetailCard title="Billing">
               {w.invoice ? (
                 <KeyValueList>
                   <KeyValue label="Invoice">
@@ -379,16 +399,68 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
                   )}
                   <KeyValue label="Paid">{w.invoice.paidAt ? day(w.invoice.paidAt) : isPastDue({ ...w.invoice, voidedAt: null }) ? "Past due" : "Not yet"}</KeyValue>
                 </KeyValueList>
+              ) : w.notInvoiced ? (
+                // Finished and never billed: say so where the money is, with the two ways out.
+                <div className="space-y-2.5" data-testid="job-not-invoiced">
+                  <p className="text-[13px]">
+                    Completed without an invoice. <span className="tnum font-medium">{formatMoney(w.chargesCents ?? 0)}</span> of work is not billed.
+                  </p>
+                  {admin ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" onClick={() => setRaising("bill")}>
+                        Raise invoice
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void saveField({ noInvoice: true })}>
+                        Not billing it
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-[12px] text-muted-foreground">An admin raises the invoice.</p>
+                  )}
+                </div>
+              ) : w.noInvoiceAt && w.billing === "none" ? (
+                <div className="space-y-2.5">
+                  <p className="text-[13px] text-muted-foreground">Completed without an invoice on {day(w.noInvoiceAt)}, on purpose.</p>
+                  {admin && (
+                    <Button size="sm" variant="outline" onClick={() => void saveField({ noInvoice: false })}>
+                      Bill it after all
+                    </Button>
+                  )}
+                </div>
               ) : (
                 <CardEmpty>
                   {w.billTo ? "Not invoiced yet." : w.aircraft.use === "shop" ? "Nobody is billed yet." : "Nobody is billed for this job."}
                 </CardEmpty>
               )}
+              {/* What the next line is priced at: the job's, the customer's or the shop's. */}
+              {!w.invoice && w.rates && <JobRatesRows workOrder={w} editable={admin} />}
             </DetailCard>
           </div>
         </div>
       </TableView.Body>
 
+      <FinishUnbilledDialog
+        workOrder={w}
+        open={finishAsk}
+        admin={admin}
+        onCancel={() => setFinishAsk(false)}
+        onRaise={() => {
+          setFinishAsk(false);
+          setRaising("complete");
+        }}
+        onComplete={(noInvoice) => {
+          setFinishAsk(false);
+          void moveNow("completed", noInvoice ? { noInvoice: true } : {});
+        }}
+      />
+      {admin && (
+        <RaiseInvoiceModal
+          workOrder={w}
+          open={raising != null}
+          onOpenChange={(o) => !o && setRaising(null)}
+          onRaised={raising === "complete" ? () => void moveNow("completed") : undefined}
+        />
+      )}
     </TableView>
   );
 }

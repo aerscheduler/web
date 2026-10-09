@@ -2,7 +2,8 @@ import * as React from "react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
 import { Pencil } from "lucide-react";
-import { useMembers, useReservations, useResource, useResourceOwners, useUpdateWorkOrder } from "@/features/queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMembers, useReservations, useResource, useResourceOwners, useUpdateResource, useUpdateWorkOrder } from "@/features/queries";
 import type { WorkOrder, WorkOrderInput } from "@/types/api";
 import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
@@ -341,6 +342,49 @@ function MetersProperty({
   const [tachOut, setTachOut] = React.useState("");
   const [showErrors, setShowErrors] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const { roles } = useAuth();
+  const updateAircraft = useUpdateResource(w.aircraft.id);
+  const qc = useQueryClient();
+
+  // A customer's aircraft entered as "Hobbs and tach" that has only a tach (most older singles):
+  // Murray typed Hobbs 0.0 on a Husky and a Cherokee to get past the question (2026-10-07). The
+  // meter it lacks is offered here, where it is asked for, when the aircraft has never read one.
+  const missingMeter: "hobbs" | "tach" | null =
+    w.aircraft.use === "shop" && meters === "hobbs_and_tach" && plane
+      ? !plane.hobbsTime && (!hobbsIn.trim() || parseTenths(hobbsIn) === 0)
+        ? "hobbs"
+        : !plane.tachTime && (!tachIn.trim() || parseTenths(tachIn) === 0)
+          ? "tach"
+          : null
+      : null;
+  async function noSuchMeter(which: "hobbs" | "tach") {
+    const tail = workOrderAircraftName(w);
+    const ok = await confirm({
+      title: which === "hobbs" ? `${tail} has no Hobbs meter?` : `${tail} has no tach?`,
+      description:
+        which === "hobbs"
+          ? `${tail} is recorded as tach only, here and on every job after this one. Change it back on the aircraft's page if it ever gets a Hobbs.`
+          : `${tail} is recorded as Hobbs only, here and on every job after this one.`,
+      confirmLabel: which === "hobbs" ? "Tach only" : "Hobbs only",
+    });
+    if (!ok || !plane) return;
+    try {
+      // Grounded and its reason ride along: this update writes the reason from what it is sent.
+      await updateAircraft.mutateAsync({
+        type: { plane: { meterMode: which === "hobbs" ? "tach_only" : "hobbs_only", grounded: plane.grounded, groundedReason: plane.groundedReason ?? null } },
+      });
+      // A 0.0 typed for the meter it lacks comes off the job too.
+      const clear: WorkOrderInput = which === "hobbs" ? { hobbsIn: null, hobbsOut: null } : { tachIn: null, tachOut: null };
+      const stale = which === "hobbs" ? w.hobbsIn != null || w.hobbsOut != null : w.tachIn != null || w.tachOut != null;
+      if (stale) await update.mutateAsync({ id: w.id, ...clear });
+      if (which === "hobbs") (setHobbsIn(""), setHobbsOut(""));
+      else (setTachIn(""), setTachOut(""));
+      void qc.invalidateQueries({ queryKey: ["workOrders"] });
+      toast.success(`${tail} is recorded as ${which === "hobbs" ? "tach" : "Hobbs"} only`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't change the aircraft's meters");
+    }
+  }
 
   const seed = React.useCallback(
     (fromAircraft: MetersPrompt | null) => {
@@ -499,6 +543,16 @@ function MetersProperty({
             {hasTach && plane.tachTime ? ` tach ${tenthsLabel(plane.tachTime)}` : ""}.
           </p>
         ) : null}
+        {missingMeter &&
+          (isAdmin(roles) ? (
+            <button type="button" className="text-[12px] font-medium text-foreground underline underline-offset-2 hover:no-underline" onClick={() => void noSuchMeter(missingMeter)}>
+              {missingMeter === "hobbs" ? "This aircraft has no Hobbs meter" : "This aircraft has no tach"}
+            </button>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">
+              No {missingMeter === "hobbs" ? "Hobbs meter" : "tach"} on this aircraft? Leave it empty, and ask an admin to set its meters on the aircraft&apos;s page.
+            </p>
+          ))}
         {showErrors && bad && <p className="text-xs text-destructive">A reading is a number in tenths, like 1234.5.</p>}
         <div className="flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={() => close(false)}>

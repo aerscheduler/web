@@ -13,7 +13,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import type { WorkOrder, WorkOrderLine, WorkOrderLineCategory, WorkOrderLineInput } from "@/types/api";
 import { useAuth } from "@/lib/auth";
-import { canManageBilling } from "@/lib/permissions";
+import { canManageBilling, isTechnician } from "@/lib/permissions";
 import { useTimeZone } from "@/lib/use-timezone";
 import { dateKeyInZone } from "@/lib/timezone";
 import { cn, formatMoney } from "@/lib/utils";
@@ -116,7 +116,7 @@ export function WorkOrderLineModal({
   const settingsQ = useWorkOrderSettings({ enabled: open });
   // Only an admin prices. Anyone else enters work at the shop's rates, so the pricing controls are
   // shown (they say what the line will charge) but not theirs to change; the server holds the rule.
-  const { roles } = useAuth();
+  const { roles, orgUserId: me } = useAuth();
   const mayPrice = canManageBilling(roles);
   // Only an admin marks a line taxable, and only an admin reads the rates: one marked taxable with
   // no rate to charge it at is said here, not first at Raise invoice (Tony, 2026-10-05).
@@ -163,7 +163,19 @@ export function WorkOrderLineModal({
     setDescription(l?.description ?? "");
     setHours(l?.minutes ? String(Number((l.minutes / 60).toFixed(2))) : "");
     setRate(l?.rateCents ?? undefined);
-    setTechnician(l?.technician ? String(l.technician.id) : NONE);
+    // Who did the work: the job's technician when it has one, else the person entering it if they
+    // are a technician (Murray, 2026-10-09: 12 of 18 labor lines said nobody, all left at None).
+    setTechnician(
+      l
+        ? l.technician
+          ? String(l.technician.id)
+          : NONE
+        : workOrder.technicians.length === 1
+          ? String(workOrder.technicians[0].id)
+          : me != null && isTechnician(roles) && (workOrder.technicians.length === 0 || workOrder.technicians.some((t) => t.id === me))
+            ? String(me)
+            : NONE
+    );
     // Today at the school, not in UTC: from 6 PM in Idaho the UTC date is already tomorrow.
     // An existing labor line keeps its day, even none: editing its wording must not stamp today.
     setWorkedOn(l && l.category === "labor" ? l.workedOn ?? "" : dateKeyInZone(new Date(), tz.zone));
@@ -189,8 +201,12 @@ export function WorkOrderLineModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing, defaultKind, defaultItemId]);
 
-  // The shop's defaults, shown as the value until somebody types their own.
-  const settings = settingsQ.data;
+  // The job's rates (its own, else the customer's, else the shop's), shown as the value until
+  // somebody types their own. A list row carries no rates: the shop's then.
+  const settings = workOrder.rates ?? settingsQ.data;
+  const rateFrom = workOrder.rates?.from;
+  const rateWord = (key: "laborRateCents" | "partsMarkupBps" | "outsideWorkMarkupBps") =>
+    rateFrom?.[key] === "job" ? "This job's rate" : rateFrom?.[key] === "customer" ? `${workOrder.billTo?.name ?? "The customer"}'s rate` : "Shop rate";
   const effectiveRate = rate ?? settings?.laborRateCents ?? undefined;
   const defaultMarkupBps = kind === "part" ? settings?.partsMarkupBps : kind === "outside_service" ? settings?.outsideWorkMarkupBps : null;
   const markupBps = bpsFrom(markup);
@@ -369,7 +385,7 @@ export function WorkOrderLineModal({
             </Field>
             <Field label="Rate per hour" htmlFor="wo-line-rate" hint={
                 settings?.laborRateCents != null
-                  ? `Shop rate ${formatMoney(settings.laborRateCents)}`
+                  ? `${rateWord("laborRateCents")} ${formatMoney(settings.laborRateCents)}`
                   : mayPrice
                     ? "No shop rate set; type one."
                     : NO_RATE_FOR_TECH
@@ -437,7 +453,7 @@ export function WorkOrderLineModal({
           </div>
         )}
         {!mayPrice && (marksUp || isLabor) && (
-          <p className="text-xs text-muted-foreground">Priced at the shop's rates. Only an admin changes a line's rate, markup or price.</p>
+          <p className="text-xs text-muted-foreground">Priced at this job's rates. Only an admin changes a line's rate, markup or price.</p>
         )}
         {kind === "part" ? (
           <div className="grid gap-4 sm:grid-cols-3">

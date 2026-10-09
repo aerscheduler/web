@@ -20,6 +20,11 @@ import { formatMoney } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { DEMO_PAY_OFF } from "@/lib/demo";
 
+/** Paid already (409, ALREADY_PAID): by the webhook a moment ago, or on another device. */
+function isAlreadyPaid(e: unknown): boolean {
+  return e instanceof ApiError && (e.body as { code?: string } | null)?.code === "ALREADY_PAID";
+}
+
 /** The demo guard's refusal (403, code DEMO_BLOCKED): nothing the organization can switch on. */
 function isDemoBlocked(e: unknown): boolean {
   return e instanceof ApiError && (e.body as { code?: string } | null)?.code === "DEMO_BLOCKED";
@@ -107,7 +112,13 @@ export function PayInvoiceDialog({
           </div>
         )}
 
-        {intentQ.isError && (
+        {intentQ.isError && isAlreadyPaid(intentQ.error) && (
+          <p className="py-6 text-center text-sm text-muted-foreground" role="status">
+            This invoice is already paid. Nothing more to do.
+          </p>
+        )}
+
+        {intentQ.isError && !isAlreadyPaid(intentQ.error) && (
           <div className="flex items-start gap-2.5 rounded-lg border border-[color-mix(in_oklch,var(--warning)_35%,transparent)] bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] p-3 text-sm">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]" />
             <div className="space-y-1">
@@ -183,7 +194,9 @@ function PayForm({
     toast.success("Payment received, thank you!");
     void qc.invalidateQueries({ queryKey: ["invoices"] });
     void qc.invalidateQueries({ queryKey: ["reservations"] });
-    void qc.invalidateQueries({ queryKey: ["stripe"] });
+    // Not this invoice's payment setup: asked again for a paid invoice, the server said 500 (now
+    // 409), three times in a week at Murray at the moment a pilot paid (2026-10-07 to 10-09).
+    void qc.invalidateQueries({ queryKey: ["stripe"], predicate: (q) => q.queryKey[1] !== "invoice" });
     setSubmitting(false);
     onDone();
   }

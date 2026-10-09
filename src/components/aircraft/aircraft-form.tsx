@@ -221,6 +221,9 @@ export function AircraftFormModal({
   const [ownerConflict, setOwnerConflict] = React.useState<Omit<OwnerConflict, "onUse" | "onAddAnyway" | "pending"> | null>(null);
   const [addedAwaitingOwner, setAddedAwaitingOwner] = React.useState<Resource | null>(null);
   const [ownerPending, setOwnerPending] = React.useState(false);
+  // A customer's aircraft says which meters it has, asked rather than assumed: "Hobbs and tach"
+  // by default had Murray typing Hobbs 0.0 on a Husky and a 1963 Cherokee that have only a tach.
+  const [metersChosen, setMetersChosen] = React.useState(false);
 
   // Reset the form whenever the modal opens (fresh add, or prefilled edit).
   React.useEffect(() => {
@@ -241,6 +244,7 @@ export function AircraftFormModal({
     setOwner({ mode: "none" });
     setOwnerConflict(null);
     setAddedAwaitingOwner(null);
+    setMetersChosen(!!resource);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, resource, defaultUse]);
 
@@ -379,6 +383,7 @@ export function AircraftFormModal({
   const firstInvalid = REQUIRED_FIELDS.find((f) => errors[f.key]);
   const ownerErr = !isEdit && isShop ? ownerDraftError(owner) : {};
   const ownerInvalid = !!(ownerErr.name || ownerErr.email);
+  const metersUnasked = !isEdit && isShop && !metersChosen && form.meterMode !== "none";
 
   /** The aircraft is added; it is done once its owner is on it (or left off on purpose). */
   function finish(created: Resource, ownerName?: string) {
@@ -427,8 +432,9 @@ export function AircraftFormModal({
       return void addOwner(addedAwaitingOwner);
     }
     // Instead of a silently-disabled button, tell the user exactly what's missing.
-    if (noLocations || firstInvalid || ownerInvalid) {
+    if (noLocations || firstInvalid || ownerInvalid || metersUnasked) {
       setShowErrors(true);
+      if (metersUnasked && !firstInvalid && !ownerInvalid) document.getElementById("ac-meters")?.focus();
       // A school with no location yet has nothing to mark invalid, so lib/form-focus.ts
       // cannot help and this would be a silent button again. Take them to the dead end
       // and its "add a location" button instead.
@@ -915,10 +921,13 @@ export function AircraftFormModal({
             id="ac-meters"
             name="Meters"
             leading={<Gauge className="size-3.5" />}
-            label={vocabLabel(form.meterMode)}
-            set
+            label={metersUnasked ? "Which meters?" : vocabLabel(form.meterMode)}
+            set={!metersUnasked}
             value={form.meterMode}
-            onChange={(v) => set("meterMode", v)}
+            onChange={(v) => {
+              setMetersChosen(true);
+              set("meterMode", v);
+            }}
             options={METER_MODES.map((c) => ({ value: c, label: vocabLabel(c) }))}
           />
           <ChipMenu
@@ -1032,6 +1041,11 @@ export function AircraftFormModal({
             </>
           )}
         </div>
+        {showErrors && metersUnasked && (
+          <p className="-mt-2 text-xs text-destructive" role="alert">
+            Which meters does it have? Many older aircraft have only a tach.
+          </p>
+        )}
 
         {!isEdit && !isShop && <PerPlanePricingNote className="pt-1" />}
 

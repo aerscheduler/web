@@ -56,6 +56,7 @@ import { PersonFlights } from "@/components/people/detail/person-flights";
 import { PersonInvoices } from "@/components/people/detail/person-invoices";
 import { PersonWorkOrders } from "@/components/people/detail/person-work-orders";
 import { CustomerDetailsCard, OwnerAircraftList, OwnerContactCard, OwnerWorkOrdersList, useOwnerJobs } from "@/components/people/detail/owner-record";
+import { CustomerRatesCard } from "@/components/maintenance/work-order-rates";
 import { PersonLedger } from "@/components/people/detail/person-ledger";
 import { PersonMembership } from "@/components/people/detail/person-membership";
 import {
@@ -275,7 +276,8 @@ function PersonBody({
   // owner layout rather than turning into a member's with schedules and training.
   const outsideParty = !!(ou as { external?: boolean }).external;
   const seesShop = canSeeShop(roles);
-  const owned = useOwnedAircraft(ou.id, { enabled: outsideParty && seesShop });
+  // A member who owns an aircraft here is a customer of the shop too (Murray's staff own theirs).
+  const owned = useOwnedAircraft(ou.id, { enabled: seesShop });
   const ownerJobs = useOwnerJobs(ou.id);
   const customerFiles = useCustomerFiles(ou.id, { enabled: outsideParty && canOpenWorkOrders(roles) });
   const sections = outsideParty
@@ -412,6 +414,11 @@ function PersonBody({
         >
           {active === "overview" && outsideParty && <OwnerContactCard ou={ou} owned={owned.data} />}
           {active === "overview" && outsideParty && <CustomerDetailsCard orgUserId={ou.id} />}
+          {/* What jobs billed to them are priced at, when it is not the shop's (staff at cost). Never
+              their own: the server refuses a person their own customer record. */}
+          {active === "overview" && outsideParty && canOpenWorkOrders(roles) && (
+            <CustomerRatesCard orgUserId={ou.id} name={ou.user?.name ?? null} editable={isAdmin(roles)} />
+          )}
           {active === "aircraft" && outsideParty && <OwnerAircraftList owned={owned.data ?? []} loading={owned.isPending} />}
           {active === "work-orders" && outsideParty && <OwnerWorkOrdersList rows={ownerJobs.data ?? []} loading={ownerJobs.isPending} />}
           {active === "files" && outsideParty && <CustomerFilesCard orgUserId={ou.id} />}
@@ -439,6 +446,9 @@ function PersonBody({
               <PersonContact ou={ou} isSelf={isSelf} />
               {/* A member who owns an aircraft is billed for shop work too. */}
               <PersonWorkOrders orgUserId={ou.id} onlyIfAny />
+              {canOpenWorkOrders(roles) && !isSelf && ((owned.data?.length ?? 0) > 0 || (ownerJobs.data?.length ?? 0) > 0) && (
+                <CustomerRatesCard orgUserId={ou.id} name={ou.user?.name ?? null} editable={isAdmin(roles)} />
+              )}
             </>
           )}
 

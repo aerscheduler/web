@@ -292,7 +292,10 @@ export function CustomerAircraftStep({
             year: year.trim(),
             category,
             aircraftClass: (aircraftClass || null) as AircraftClass | null,
-            meterMode: meterModeForCategory(category, "hobbs_and_tach"),
+            // Only the meters it was read on: a tach typed with no Hobbs is a tach-only aircraft,
+            // as most older singles are (Murray's Husky and Cherokee were recorded as having a
+            // Hobbs, and the shop typed 0.0 into it on every job).
+            meterMode: meterModeForCategory(category, hobbs.trim() && !tach.trim() ? "hobbs_only" : !hobbs.trim() && tach.trim() ? "tach_only" : "hobbs_and_tach"),
             hobbsTime: tenths(hobbs),
             tachTime: tenths(tach),
             fuelCapacity: 0,
@@ -386,7 +389,7 @@ export function CustomerAircraftStep({
         </Field>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field id="shop-hobbs" label="Hobbs as it arrived">
+        <Field id="shop-hobbs" label="Hobbs as it arrived" hint="Empty if none">
           <Input id="shop-hobbs" inputMode="decimal" value={hobbs} onChange={(e) => setHobbs(e.target.value)} placeholder="2461.2" className="tnum" disabled={!!added} />
         </Field>
         <Field id="shop-tach" label="Tach as it arrived">

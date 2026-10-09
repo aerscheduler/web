@@ -6,10 +6,15 @@ import { DocsHint } from "@/components/docs-hint";
 
 import {
   useAddResourceOwner,
+  useMembers,
   useRemoveResourceOwner,
   useResourceOwners,
   useUpdateResourceOwner,
 } from "@/features/queries";
+import { Combobox, type ComboOption } from "@/components/combobox";
+import { RosterMatchNote, rosterMatch } from "@/components/aircraft/aircraft-owner-field";
+import { memberEmail } from "@/components/people/util";
+import { ExplainedButton } from "@/components/explained-button";
 import type { OwnerConflict, Resource, ResourceOwner } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -70,7 +75,13 @@ export function ResourceOwners({ resource, canManage }: { resource: Resource; ca
         )}
       </CardContent>
 
-      <AddOwnerDialog resourceId={resource.id} open={adding} onOpenChange={setAdding} hasOwners={owners.length > 0} />
+      <AddOwnerDialog
+        resourceId={resource.id}
+        open={adding}
+        onOpenChange={setAdding}
+        hasOwners={owners.length > 0}
+        ownerIds={owners.map((o) => o.orgUser.id)}
+      />
     </Card>
   );
 }
@@ -193,18 +204,30 @@ function OwnerRow({
   );
 }
 
+/**
+ * Add an owner: somebody already on the roster (a member who owns their aircraft, a colleague, a
+ * customer from another job), or a new person by name and address. It opened on the new-person
+ * fields only, so adding a colleague always typed them as new and the server answered "already a
+ * member with that email" (Murray, every owner they added, 2026-10-05 to 10-07).
+ */
 function AddOwnerDialog({
   resourceId,
   open,
   onOpenChange,
   hasOwners,
+  ownerIds,
 }: {
   resourceId: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   hasOwners: boolean;
+  ownerIds: number[];
 }) {
   const add = useAddResourceOwner(resourceId);
+  const membersQ = useMembers(undefined, { enabled: open });
+  const [picked, setPicked] = React.useState<{ id: number; name: string } | null>(null);
+  const [newPerson, setNewPerson] = React.useState(false);
+  const [notThem, setNotThem] = React.useState<number | null>(null);
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
   const [phone, setPhone] = React.useState("");
@@ -220,7 +243,27 @@ function AddOwnerDialog({
     setTitle("");
     setShowErrors(false);
     setConflict(null);
+    setPicked(null);
+    setNewPerson(false);
+    setNotThem(null);
   }, [open]);
+
+  const people: ComboOption[] = React.useMemo(
+    () =>
+      (membersQ.data ?? [])
+        .filter((m) => !m.archivedAt && !ownerIds.includes(m.id))
+        .map((m) => ({
+          value: String(m.id),
+          label: m.user?.name ?? `Member #${m.id}`,
+          hint: m.external && !m.claimedAt ? "Owner, not a member" : undefined,
+          keywords: memberEmail(m) ? [memberEmail(m)!] : undefined,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [membersQ.data, ownerIds]
+  );
+  // The new person being typed is somebody on the roster already: said before Add is pressed.
+  const match = newPerson && !conflict ? rosterMatch(membersQ.data, { name, email }) : null;
+  const shownMatch = match && match.member.id !== notThem ? match : null;
 
   // Editing the address after a conflict is a new question; the old answer no longer applies.
   React.useEffect(() => setConflict(null), [email]);
@@ -276,6 +319,13 @@ function AddOwnerDialog({
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (picked) return pickExisting(picked.id, picked.name);
+    if (!newPerson) {
+      setShowErrors(true);
+      return;
+    }
+    // Their address is somebody's on the roster: the note above already asks which they mean.
+    if (shownMatch?.by === "email") return;
     if (nameError || emailError) {
       setShowErrors(true);
       return;
@@ -290,8 +340,43 @@ function AddOwnerDialog({
           <DialogTitle>Add an owner</DialogTitle>
         </DialogHeader>
         <form id="add-owner-form" onSubmit={submit} className="space-y-4" autoComplete="off">
+          {!newPerson && (
+            <div className="space-y-1.5">
+              <Label htmlFor="owner-who">Who</Label>
+              <Combobox
+                id="owner-who"
+                options={people}
+                value={picked ? String(picked.id) : ""}
+                onChange={(v) => {
+                  const p = people.find((o) => o.value === v);
+                  setPicked(p ? { id: Number(v), name: p.label } : null);
+                }}
+                placeholder="Somebody on your roster"
+                searchPlaceholder="Search by name or email…"
+                emptyText="Nobody by that name. Add them as a new person."
+                action={{
+                  label: "Add a new person",
+                  onSelect: (typed) => {
+                    setPicked(null);
+                    setNewPerson(true);
+                    // Typed an address into the search: it is their email, not their name.
+                    if (typed.includes("@")) setEmail(typed.trim());
+                    else setName(typed);
+                  },
+                }}
+              />
+              {showErrors && !picked && <p className="text-xs text-destructive">Choose who owns it, or add a new person.</p>}
+            </div>
+          )}
+          {newPerson && (
+          <>
           <div className="space-y-1.5">
-            <Label htmlFor="owner-name">Name</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="owner-name">Name</Label>
+              <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setNewPerson(false)}>
+                Pick somebody instead
+              </Button>
+            </div>
             <Input
               id="owner-name"
               autoFocus
@@ -325,6 +410,18 @@ function AddOwnerDialog({
               />
             </div>
           </div>
+          </>
+          )}
+          {shownMatch && (
+            <RosterMatchNote
+              match={shownMatch}
+              pending={add.isPending}
+              onUse={() => pickExisting(shownMatch.member.id, shownMatch.member.user?.name ?? "Owner")}
+              // A shared address (a family's, a company's) is a different person on purpose.
+              onNew={() => (shownMatch.by === "email" ? (nameError ? setShowErrors(true) : send({ createAnyway: true })) : setNotThem(shownMatch.member.id))}
+              newLabel={`Add ${name.trim() || "them"} as a new person`}
+            />
+          )}
           <div className="space-y-1.5">
             <Label htmlFor="owner-title">Role</Label>
             <Input
@@ -360,19 +457,27 @@ function AddOwnerDialog({
               </div>
             </div>
           )}
-          <p className="text-xs text-muted-foreground">
-            They go on your roster so you can invoice them and keep this aircraft&apos;s history together. They
-            won&apos;t get your organization&apos;s notifications or be able to sign in, but invoices you send them go to
-            this email address.
-          </p>
+          {newPerson && (
+            <p className="text-xs text-muted-foreground">
+              They go on your roster so you can invoice them and keep this aircraft&apos;s history together. They
+              won&apos;t get your organization&apos;s notifications or be able to sign in, but invoices you send them go to
+              this email address.
+            </p>
+          )}
         </form>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="submit" form="add-owner-form" disabled={add.isPending}>
+          <ExplainedButton
+            type="submit"
+            form="add-owner-form"
+            disabled={add.isPending || shownMatch?.by === "email"}
+            explain={shownMatch?.by === "email" ? <p>{shownMatch.member.user?.name ?? "Somebody"} is already on your roster with this email. Use them, or add a new person, from the note above.</p> : undefined}
+            summary={shownMatch?.by === "email" ? "That email is already on your roster. Choose from the note above." : undefined}
+          >
             {add.isPending ? "Adding…" : "Add owner"}
-          </Button>
+          </ExplainedButton>
         </DialogFooter>
       </DialogContent>
     </Dialog>

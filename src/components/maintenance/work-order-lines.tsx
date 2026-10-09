@@ -71,7 +71,18 @@ function CannotRaise({ error }: { error: ApiError }) {
   );
 }
 
-export function RaiseInvoiceModal({ workOrder: w, open, onOpenChange }: { workOrder: WorkOrder; open: boolean; onOpenChange: (o: boolean) => void }) {
+export function RaiseInvoiceModal({
+  workOrder: w,
+  open,
+  onOpenChange,
+  onRaised,
+}: {
+  workOrder: WorkOrder;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  /** After the invoice is raised: completing the job that was waiting on it. */
+  onRaised?: () => void;
+}) {
   // An owner the shop wrote down is reached only at the address on the Owners panel; without one
   // the server refuses the bill, so say so here instead of offering a button that always fails.
   // One who has signed in is billed at their own login, like a member.
@@ -120,6 +131,7 @@ export function RaiseInvoiceModal({ workOrder: w, open, onOpenChange }: { workOr
       });
       toast.success(`${w.label} invoiced ${formatMoney(p.total)}. ${sentBy}.`);
       onOpenChange(false);
+      onRaised?.();
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         // The server's words: a moved total, changed text, or a bill Stripe would not void that needs the desk.

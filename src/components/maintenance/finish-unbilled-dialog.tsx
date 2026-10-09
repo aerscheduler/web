@@ -98,7 +98,10 @@ export function FinishUnbilledDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="gap-2 sm:gap-2">
-          <AlertDialogCancel onClick={onCancel}>Go back</AlertDialogCancel>
+          {/* Closing it is not a third answer (Tony, 2026-10-09): it sits apart, on the left. */}
+          <AlertDialogCancel onClick={onCancel} className="sm:mr-auto">
+            Go back
+          </AlertDialogCancel>
           {admin ? (
             <>
               <Button variant="outline" onClick={() => onComplete(true)}>

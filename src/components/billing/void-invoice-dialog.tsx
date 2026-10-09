@@ -53,7 +53,10 @@ export function VoidInvoiceDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          {/* With two ways to void, Cancel is not a third: it sits apart, on the left. */}
+          <AlertDialogCancel disabled={busy} className={atRisk ? "sm:mr-auto" : undefined}>
+            Cancel
+          </AlertDialogCancel>
           {atRisk ? (
             <>
               <AlertDialogAction variant="outline" disabled={busy} onClick={onLeaveUnbilled}>

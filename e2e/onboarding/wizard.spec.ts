@@ -57,6 +57,38 @@ async function signupFresh(page: Page, name: string) {
   return email;
 }
 
+/**
+ * The card-required trial step (server NEW_ORGS_REQUIRE_CARD). Asserted for real: the step
+ * shows, it has no Skip, and it offers the card. Stripe's hosted Checkout is out of reach
+ * in this stack (see e2e/maintenance/work-order-stripe.spec.ts for the opt-in Stripe
+ * specs), so from here `/subscription` answers the way it does once Stripe holds the
+ * trial, and the page comes back the way Stripe sends it back, `?card=added`.
+ */
+async function passCardStep(page: Page) {
+  const step = page.getByTestId("onboarding-trial-card");
+  await expect(step).toBeVisible({ timeout: 20_000 });
+  await expect(step.getByRole("heading", { name: "Start your free trial" })).toBeVisible();
+  await expect(step.getByText(/Nothing is charged today/).first()).toBeVisible();
+  await expect(step.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
+  await expect(step.getByRole("button", { name: "Add a card" })).toBeVisible();
+
+  await page.route("**/api/subscription", async (route) => {
+    // A status read still in flight when the test ends has nothing left to answer.
+    const res = await route.fetch().catch(() => null);
+    if (!res) return;
+    const body = await res.json();
+    const real = body?.data ?? body;
+    expect(real.state, "a new school must start on the card-required trial").toMatch(/card_required|active/);
+    await route
+      .fulfill({
+        response: res,
+        json: { data: { ...real, state: "active", status: "trialing", hasSubscription: true, blocked: false } },
+      })
+      .catch(() => undefined);
+  });
+  await page.goto("/onboarding?card=added");
+}
+
 async function onboardingComplete(page: Page): Promise<boolean> {
   return page.evaluate(() => {
     const raw = localStorage.getItem("aer.session");
@@ -218,6 +250,14 @@ test.describe("Onboarding wizard", () => {
     await expect(page.getByRole("heading", { name: /Add your first aircraft/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /What brings you to AerScheduler/i })).toHaveCount(0);
     await page.getByRole("button", { name: "Skip for now" }).click();
+
+    // No card yet: the console itself is behind the start-trial wall, not just the wizard.
+    await expect(page.getByTestId("onboarding-trial-card")).toBeVisible({ timeout: 20_000 });
+    await page.goto("/dashboard");
+    await expect(page.getByTestId("start-trial-wall")).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole("button", { name: "Add a card and start trial" })).toBeVisible();
+    await page.goto("/onboarding");
+    await passCardStep(page);
 
     const billing = page.getByTestId("onboarding-billing");
     await expect(billing).toBeVisible();
@@ -381,6 +421,7 @@ test.describe("Onboarding wizard", () => {
     await page.getByRole("option", { name: /^Tach$/i }).click();
     await page.getByRole("button", { name: "Add aircraft" }).click();
 
+    await passCardStep(page);
     await expect(page.getByTestId("onboarding-billing")).toBeVisible({ timeout: 20_000 });
     await page.getByRole("button", { name: "Skip for now" }).click();
 
@@ -477,6 +518,7 @@ test.describe("Onboarding wizard", () => {
       timeout: 30_000,
     });
     await page.getByRole("button", { name: "Skip for now" }).click();
+    await passCardStep(page);
     await expect(page.getByTestId("onboarding-billing")).toBeVisible();
     await page.getByRole("button", { name: "Skip for now" }).click();
 
@@ -544,6 +586,7 @@ test.describe("Onboarding wizard", () => {
       timeout: 30_000,
     });
     await page.getByRole("button", { name: "Skip for now" }).click();
+    await passCardStep(page);
     await expect(page.getByTestId("onboarding-billing")).toBeVisible();
     await page.getByRole("button", { name: "Skip for now" }).click();
     await finishWizard(page);

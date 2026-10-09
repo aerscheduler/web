@@ -18,6 +18,9 @@ import {
   useConnectStripe,
   useCreateLocation,
   useCreatePlane,
+  usePlanes,
+  useSubscription,
+  useSubscriptionCheckout,
   useUpdateLocation,
   useUpdateOrganization,
   useUpdateOrgUserPreferences,
@@ -80,6 +83,8 @@ import {
 import { orgSlotOffersEnabled } from "@/lib/slot-offers-enabled";
 import { canStandBy } from "@/lib/permissions";
 import { PerPlanePricingNote } from "@/components/subscription/plan";
+import { TrialTerms } from "@/components/subscription/gate";
+import { subscriptionStatus } from "@/lib/subscription";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/onboarding")({
@@ -87,9 +92,11 @@ export const Route = createFileRoute("/onboarding")({
     if (!isAuthenticated()) throw redirect({ to: "/login" });
     if (needsEmailVerification()) throw redirect({ to: "/verify-email" });
   },
-  validateSearch: (search: Record<string, unknown>): { restart?: boolean } => {
+  validateSearch: (search: Record<string, unknown>): { restart?: boolean; card?: "added" | "cancelled" } => {
     const restart = search.restart === true || search.restart === "1" || search.restart === "true";
-    return restart ? { restart: true } : {};
+    //Where Stripe sends them back from the card step: `added` on success, `cancelled` on Back.
+    const card = search.card === "added" || search.card === "cancelled" ? search.card : undefined;
+    return { ...(restart ? { restart: true } : {}), ...(card ? { card } : {}) };
   },
   component: Onboarding,
 });
@@ -494,6 +501,11 @@ function OperationFlow({
   const who = user?.name?.trim().split(" ")[0];
   const attribution = React.useMemo(() => readAttribution(), []);
 
+  //Whether the school still owes its card (card-required trial, no card yet). Only used to
+  //decide where Back from Connect lands; the card step reads the same answer itself.
+  const subscription = useSubscription({ enabled: !!organization && !shop });
+  const cardStillOwed = subscription.data?.state === "card_required";
+
   const creating = React.useRef(false);
   const finishing = React.useRef(false);
   // Resume on aircraft if the org already exists (refresh after Create operation,
@@ -847,15 +859,22 @@ function OperationFlow({
     }
   }
 
-  /** Aircraft is done or skipped. Stripe is optional; the wizard is not finished yet. */
-  function toBilling() {
+  /** Aircraft is done or skipped. The card step decides for itself whether it is needed
+   *  (it moves straight on for a school whose trial does not require one). */
+  function toCard() {
     writeStickyStep(organization?.id, 2);
     setStep(2);
   }
 
-  function toUpdates() {
+  /** The trial is running (or never needed a card). Stripe Connect is optional. */
+  function toBilling() {
     writeStickyStep(organization?.id, 3);
     setStep(3);
+  }
+
+  function toUpdates() {
+    writeStickyStep(organization?.id, 4);
+    setStep(4);
   }
 
   async function finishUpdates() {
@@ -1216,20 +1235,32 @@ function OperationFlow({
             setOrgPage(skipType ? 0 : 1);
             setStep(0);
           }}
-          onSkip={toBilling}
-          onCreated={toBilling}
+          onSkip={toCard}
+          onCreated={toCard}
         />
       )}
 
       {!shop && step === 2 && (
-        <BillingStep
-          onBack={() => setStep(1)}
-          onSkip={toUpdates}
-          onConnectLeaving={() => writeStickyStep(organization?.id, 3)}
+        <TrialCardStep
+          onBack={() => {
+            writeStickyStep(organization?.id, 1);
+            setStep(1);
+          }}
+          onDone={toBilling}
         />
       )}
 
-      {(shop ? step === 4 : step === 3) && (
+      {!shop && step === 3 && (
+        <BillingStep
+          //Back past the card only when it is still owed. Once the trial is running the
+          //card step would just move them forward again, which reads as a broken Back.
+          onBack={() => setStep(cardStillOwed ? 2 : 1)}
+          onSkip={toUpdates}
+          onConnectLeaving={() => writeStickyStep(organization?.id, 4)}
+        />
+      )}
+
+      {step === 4 && (
         <Step
           title="A few tips while you get going"
           sub={
@@ -1253,7 +1284,7 @@ function OperationFlow({
           </label>
 
           <Nav
-            onBack={() => setStep(shop ? (firstJobId != null ? 3 : 2) : 2)}
+            onBack={() => setStep(shop ? (firstJobId != null ? 3 : 2) : 3)}
             onNext={finishUpdates}
             nextLabel={shop && firstJobId != null ? "Open the work order" : "Finish"}
             busy={busy}
@@ -1261,6 +1292,129 @@ function OperationFlow({
         </Step>
       )}
     </Shell>
+  );
+}
+
+/**
+ * The card-required trial: add a card on Stripe's hosted Checkout, and the 14 days run in
+ * Stripe from there, converting to paid by themselves when they end. No Skip, on purpose:
+ * the card IS the experiment (fewer trials, but ones that mean it), and the server blocks
+ * a school without one anyway. See NEW_ORGS_REQUIRE_CARD in the server's billing-terms.
+ *
+ * Moves straight on, showing nothing, for a school that does not owe a card: one created
+ * before the experiment, one whose card is already in, or one we waived by hand.
+ */
+function TrialCardStep({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const search = Route.useSearch();
+  const sub = useSubscription();
+  const planes = usePlanes();
+  const checkout = useSubscriptionCheckout();
+  const status = subscriptionStatus(sub.data, planes.data?.length ?? 0);
+
+  //Read once: the param is stripped from the address bar straight away, and both the
+  //conversion and the "no card was added" note below need it after that.
+  const [returned] = React.useState(search.card);
+  const [confirmTries, setConfirmTries] = React.useState(0);
+  const advanced = React.useRef(false);
+  const viewed = React.useRef(false);
+
+  //Re-read on arrival. The wizard first fetched the status before the aircraft step, so
+  //the cached one prices a fleet of zero and would tell a school that just added its
+  //first tail that it has none.
+  React.useEffect(() => {
+    void qc.invalidateQueries({ queryKey: ["subscription"] });
+    if (returned) void navigate({ to: "/onboarding", search: {}, replace: true });
+  }, [returned, qc, navigate]);
+
+  const owed = status?.state === "card_required";
+
+  React.useEffect(() => {
+    if (!status || owed || advanced.current) return;
+    advanced.current = true;
+    if (returned === "added") {
+      track("trial_card_added", { channel: attributionChannel(), aircraft: status.planeCount });
+      //The PRIMARY money conversion in Google Ads, as on the console's own checkout return
+      //(components/subscription/gate.tsx): their real first year. A school with no
+      //aircraft yet has no value to report, so nothing is sent rather than a made-up one.
+      if (status.monthlyCents > 0) {
+        trackAdConversion("subscribed", {
+          value: (status.monthlyCents * 12) / 100,
+          email: user?.email ?? undefined,
+        });
+      }
+    }
+    onDone();
+  }, [status, owed, returned, onDone, user?.email]);
+
+  //Back from Stripe with a card, but the status read raced it. Checkout creates the
+  //subscription before it redirects, so a couple of re-reads settle it.
+  React.useEffect(() => {
+    if (returned !== "added" || !owed || confirmTries >= 5) return;
+    const t = window.setTimeout(() => {
+      setConfirmTries((n) => n + 1);
+      void sub.refetch();
+    }, 1500);
+    return () => window.clearTimeout(t);
+  }, [returned, owed, confirmTries, sub]);
+
+  React.useEffect(() => {
+    if (!owed || viewed.current) return;
+    viewed.current = true;
+    track("trial_card_step_viewed", { channel: attributionChannel(), aircraft: status?.planeCount ?? 0 });
+  }, [owed, status?.planeCount]);
+
+  async function addCard() {
+    const back = `${window.location.origin}/onboarding`;
+    track("trial_card_started", { channel: attributionChannel() });
+    try {
+      const { url } = await checkout.mutateAsync({
+        successUrl: `${back}?card=added`,
+        cancelUrl: `${back}?card=cancelled`,
+      });
+      if (url) window.location.assign(url);
+      else toast.error("Couldn't open the card form. Please try again.");
+    } catch (e) {
+      toast.error(apiErr(e));
+    }
+  }
+
+  if (!status || !owed) {
+    return (
+      <Step title="Start your free trial">
+        <p className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="onboarding-trial-card-wait">
+          <Loader2 className="size-4 animate-spin" />
+          {returned === "added" ? "Confirming your card…" : "One moment…"}
+        </p>
+      </Step>
+    );
+  }
+
+  return (
+    <div data-testid="onboarding-trial-card">
+      <Step
+        title="Start your free trial"
+        //No day count here on purpose. The window runs from signup, so somebody who comes
+        //back to this step a day later has 13 days, and Stripe's own page says so; the date
+        //in the terms below is the promise, and it matches Stripe's to the second.
+        sub="Add a card to start your free trial. Nothing is charged today."
+      >
+        {returned === "cancelled" ? (
+          <p className="text-sm text-muted-foreground" role="status">
+            No card was added and nothing was charged. Your trial starts when you add one.
+          </p>
+        ) : returned === "added" && confirmTries >= 5 ? (
+          <p className="text-sm text-muted-foreground" role="status">
+            We couldn't confirm your card yet. If you just added it, give it a moment and press Add a card again; you
+            won't be charged twice.
+          </p>
+        ) : null}
+        <TrialTerms status={status} />
+        <Nav onBack={onBack} onNext={addCard} nextLabel="Add a card" busy={checkout.isPending} />
+      </Step>
+    </div>
   );
 }
 

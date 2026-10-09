@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 /** Read a preview override from the URL (?sub=trial|grace|courtesy|expired|active|
- *  legacy|free) so we can see each billing state without waiting 14 days or editing a
+ *  legacy|free|card_required) so we can see each billing state without waiting 14 days or editing a
  *  school's terms. Harmless in prod: it changes what this browser renders, never what
  *  anyone is charged. */
 const PREVIEW_STATES: readonly SubState[] = [
@@ -29,6 +29,7 @@ const PREVIEW_STATES: readonly SubState[] = [
   "active",
   "legacy",
   "free",
+  "card_required",
 ];
 
 function overrideState(): SubState | null {
@@ -59,7 +60,7 @@ export function useSubStatus(): SubStatus | null {
     const base = subscriptionStatus(sub.data, planes.data?.length ?? 0);
     if (!base) return null;
     const ov = overrideState();
-    return ov ? { ...base, state: ov, blocked: ov === "expired" } : base;
+    return ov ? { ...base, state: ov, blocked: ov === "expired" || ov === "card_required" } : base;
   }, [organization, planes.data, sub.data]);
 }
 
@@ -72,16 +73,22 @@ export function SubscribeButton({
   label = "Start subscription",
   className,
   size,
+  successUrl,
+  cancelUrl,
 }: {
   label?: string;
   className?: string;
   size?: "sm" | "default" | "lg";
+  /** Where Stripe sends them back. Defaults (server-side) to Settings on the production
+   *  console, so a surface that must come back to itself passes its own. */
+  successUrl?: string;
+  cancelUrl?: string;
 }) {
   const checkout = useSubscriptionCheckout();
 
   async function go() {
     try {
-      const { url } = await checkout.mutateAsync({});
+      const { url } = await checkout.mutateAsync({ successUrl, cancelUrl });
       if (url) window.location.assign(url);
       else toast.error("Couldn't start checkout, please try again.");
     } catch (e) {

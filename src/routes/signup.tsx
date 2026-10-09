@@ -61,7 +61,7 @@ function SignupPage() {
     >
       <h1 className="text-[28px] font-semibold tracking-tight sm:text-[32px]">Create your account</h1>
       <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
-        Two minutes to a bookable aircraft. No credit card, no sales call.
+        Two minutes to a bookable aircraft. 14 days free, no sales call.
       </p>
 
       <div className="mt-8">

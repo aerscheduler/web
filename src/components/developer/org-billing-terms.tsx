@@ -64,6 +64,7 @@ export function OrgBillingTerms({ orgId }: { orgId: number }) {
         feeRateBasis: form.feeRateBasis === "" ? null : form.feeRateBasis ?? terms?.feeRateBasis ?? null,
         freeUntil: form.freeUntil ?? dateInputValue(terms?.freeUntil ?? null),
         freeUntilReason: val("freeUntilReason", terms?.freeUntilReason ?? ""),
+        cardRequired: val("cardRequired", terms?.cardRequired ? "yes" : "no") === "yes",
         notes: val("notes", terms?.notes ?? ""),
         reason: reason.trim(),
       });
@@ -202,6 +203,23 @@ export function OrgBillingTerms({ orgId }: { orgId: number }) {
               </select>
               <p className="text-xs text-muted-foreground">Decides which words their banner uses.</p>
             </div>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="cardRequired">Card to start the trial</Label>
+            <select
+              id="cardRequired"
+              className="h-9 rounded-md border bg-transparent px-3 text-sm"
+              value={val("cardRequired", terms?.cardRequired ? "yes" : "no")}
+              onChange={set("cardRequired")}
+            >
+              <option value="no">Not required</option>
+              <option value="yes">Required</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Required: during a Trial window they are blocked until a card is on file. New schools get this
+              while the card-required trial experiment runs. Set Not required to let one in without a card.
+            </p>
           </div>
 
           <div className="grid gap-2">

@@ -59,6 +59,13 @@ export type SubStatus = {
   paymentProblem: boolean;
   /** Stop them using the console. Straight from the server. */
   blocked: boolean;
+  /**
+   * The trial is running IN STRIPE with a card on file, so it converts to paid by itself
+   * when it ends. Every school on the card-required trial is here once its card is in,
+   * and so is any school that added a card early. `trialEnd` is when Stripe charges.
+   */
+  cardTrial: boolean;
+  trialEnd: Date | null;
   /** Anything is being given away or discounted. */
   sponsored: boolean;
 };
@@ -99,6 +106,11 @@ export function subscriptionStatus(sub: SubscriptionStatus | undefined, planeCou
     subscribed: state === "active",
     paymentProblem: Boolean(sub.hasSubscription && (sub.status === "past_due" || sub.status === "unpaid")),
     blocked: sub.blocked ?? false,
+    // `status: "trialing"` alone is not enough: the server also reports it for a school
+    // with no Stripe subscription at all, so installed phones keep working. Only an
+    // ACTIVE verdict means Stripe really holds it.
+    cardTrial: state === "active" && sub.status === "trialing",
+    trialEnd: state === "active" && sub.status === "trialing" && sub.trialEnd ? new Date(sub.trialEnd) : null,
     sponsored: freeUnits > 0 || discountPercent > 0 || state === "free",
   };
 }

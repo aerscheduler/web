@@ -20,11 +20,17 @@ const shortDate = (d: Date | null): string => formatFreeUntil(d, { year: true })
 function StatePill({ status }: { status: SubStatus }) {
   switch (status.state) {
     case "active":
-      return (
+      return status.cardTrial ? (
+        <Badge variant="success">
+          <Check className="size-3" /> Trial, {status.daysLeft}d left
+        </Badge>
+      ) : (
         <Badge variant="success">
           <Check className="size-3" /> Active
         </Badge>
       );
+    case "card_required":
+      return <Badge variant="outline">Card needed to start</Badge>;
     case "free":
       return (
         <Badge variant="success">
@@ -57,7 +63,17 @@ function stateNote(status: SubStatus): string {
     case "legacy":
       return "You're on your existing plan (billed through Stripe Connect). The new per-aircraft pricing doesn't apply to your account.";
     case "active":
+      // A trial running in Stripe with the card on file. Say exactly when the first
+      // charge happens and how to avoid it, on the page they will come to check.
+      if (status.cardTrial) {
+        const charge = shortDate(status.trialEnd ?? status.freeUntil);
+        return status.monthlyCents > 0
+          ? `Your free trial ends ${charge}. After that your card is charged ${price}/mo per aircraft. To stop before then, cancel from Manage billing and you won't be charged.`
+          : `Your free trial ends ${charge}. Each aircraft you add is ${price}/mo after that, charged to the card on file. Nothing is charged while you have none.`;
+      }
       return "Your subscription is active. Aircraft are billed monthly; add or remove tails anytime.";
+    case "card_required":
+      return `Add a card to start your free trial. Nothing is charged today, and nothing at all if you cancel before ${until}.`;
     case "trial":
       return `You won't be charged until ${until}: ${days} left in your ${TRIAL_DAYS}-day free trial.`;
     case "grace":
@@ -187,9 +203,17 @@ export function PlanTab() {
       </CardContent>
       <CardFooter className="justify-end">
         {status.subscribed ? (
-          <span className="flex items-center gap-1.5 text-sm text-success">
-            <Check className="size-4" /> Subscription active
-          </span>
+          // The portal is where a card trial is cancelled or its card changed, so it is
+          // offered here rather than leaving them to find a support address.
+          status.cardTrial ? (
+            <ManageBillingButton label="Manage billing" />
+          ) : (
+            <span className="flex items-center gap-1.5 text-sm text-success">
+              <Check className="size-4" /> Subscription active
+            </span>
+          )
+        ) : status.state === "card_required" ? (
+          <SubscribeButton label="Add a card and start trial" />
         ) : status.paymentProblem ? (
           // They HAVE a subscription; Stripe just cannot collect on it. Checkout is the
           // wrong door here, it would open a second subscription beside the unpaid one.

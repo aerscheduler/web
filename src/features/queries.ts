@@ -2537,6 +2537,7 @@ export type BillingTerms = {
   feeRateBasis: number | null;
   freeUntil: string | null;
   freeUntilReason: string | null;
+  cardRequired?: boolean;
   notes: string | null;
   updatedAt: string;
   FK_organizationId: number;

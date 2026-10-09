@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { Outlet } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Clock, Lock } from "lucide-react";
+import { AlertTriangle, Check, Clock, CreditCard, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
+import { cn } from "@/lib/utils";
 import { trackAdConversion } from "@/lib/ads";
 import { formatFreeUntil, formatMonthly, formatUnitPrice, isOffPlan, type SubStatus } from "@/lib/subscription";
 import { AppShell } from "@/components/app-shell";
@@ -81,7 +82,17 @@ export function SubscriptionGate() {
       <>
         <ImpersonationBanner />
         <DemoBanner />
-        {isAdmin(roles) ? <Paywall status={status} /> : <OrgPausedNotice orgName={organization.name} />}
+        {status.state === "card_required" ? (
+          isAdmin(roles) ? (
+            <StartTrialWall status={status} />
+          ) : (
+            <OrgPausedNotice orgName={organization.name} notStarted />
+          )
+        ) : isAdmin(roles) ? (
+          <Paywall status={status} />
+        ) : (
+          <OrgPausedNotice orgName={organization.name} />
+        )}
       </>
     );
   }
@@ -206,9 +217,7 @@ function Paywall({ status }: { status: SubStatus }) {
             </p>
           </div>
         )}
-        <p className="mt-2 text-xs text-muted-foreground">
-          No card to start. Simulators and rooms are free. Cancel anytime.
-        </p>
+        <p className="mt-2 text-xs text-muted-foreground">Simulators and rooms are free. Cancel anytime.</p>
 
         <SubscribeButton
           className="mt-5 w-full"
@@ -223,8 +232,115 @@ function Paywall({ status }: { status: SubStatus }) {
   );
 }
 
-function OrgPausedNotice({ orgName }: { orgName: string }) {
+/**
+ * A school on the card-required trial that has not added its card. Normally the signup
+ * wizard asks for it, so this is what somebody sees who left the wizard at the card and
+ * came back later: the same offer, said the same way, with the date it is free until.
+ */
+function StartTrialWall({ status }: { status: SubStatus }) {
+  const { organization, logout } = useAuth();
+  const price = formatUnitPrice(status.unitPriceCents);
+  const until = formatFreeUntil(status.freeUntil);
+  const back = `${window.location.origin}${window.location.pathname}`;
+
+  return (
+    <div className="grid min-h-svh place-items-center bg-muted/30 px-4 py-10" data-testid="start-trial-wall">
+      <div className="w-full max-w-md rounded-xl border bg-card p-8 text-center shadow-sm">
+        <div className="mb-5 flex justify-center">
+          <LogoMark className="h-9" />
+        </div>
+        <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+          <CreditCard className="size-6" />
+        </div>
+        <h1 className="mt-4 text-xl font-semibold tracking-tight">Start your free trial</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          Add a card to start using AerScheduler for {organization?.name ?? "your operation"}. Nothing is charged
+          today.
+        </p>
+
+        <TrialTerms status={status} className="mt-5 text-left" />
+
+        <SubscribeButton
+          className="mt-5 w-full"
+          label="Add a card and start trial"
+          successUrl={`${back}?subscribed=1`}
+          cancelUrl={back}
+        />
+        <p className="mt-2 text-xs text-muted-foreground">
+          {price}/mo per aircraft after {until}.
+          <br />
+          Cancel before then and you pay nothing.
+        </p>
+
+        <button onClick={logout} className="mt-4 text-xs text-muted-foreground hover:text-foreground">
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What starting a card-required trial commits them to, in three lines: free until when,
+ * what it costs after, and how to get out. Shared by the signup wizard and the wall above
+ * so the offer never reads two different ways.
+ */
+export function TrialTerms({ status, className }: { status: SubStatus; className?: string }) {
+  const price = formatUnitPrice(status.unitPriceCents);
+  const until = formatFreeUntil(status.freeUntil);
+  const after =
+    status.planeCount === 0
+      ? `Then ${price}/mo for each aircraft you add. Nothing is charged while you have none.`
+      : status.monthlyCents === 0
+        ? "Your aircraft are sponsored, so there is nothing to pay after it either."
+        : `Then ${formatMonthly(status.monthlyCents)} for ${status.billableCount} aircraft, charged to this card. Add or remove aircraft anytime and it adjusts.`;
+
+  return (
+    <ul className={cn("space-y-2 rounded-lg border bg-muted/30 p-4 text-sm", className)}>
+      <li className="flex gap-2">
+        <Check className="mt-0.5 size-4 shrink-0 text-success" />
+        <span>
+          <span className="font-medium">Free until {until}.</span>{" "}
+          <span className="text-muted-foreground">Nothing is charged today.</span>
+        </span>
+      </li>
+      <li className="flex gap-2">
+        <Check className="mt-0.5 size-4 shrink-0 text-success" />
+        <span className="text-muted-foreground">{after} Simulators and rooms are always free.</span>
+      </li>
+      <li className="flex gap-2">
+        <Check className="mt-0.5 size-4 shrink-0 text-success" />
+        <span className="text-muted-foreground">
+          We email you 3 days before it ends. Cancel from Settings, Plan before {until} and you pay nothing.
+        </span>
+      </li>
+    </ul>
+  );
+}
+
+function OrgPausedNotice({ orgName, notStarted = false }: { orgName: string; notStarted?: boolean }) {
   const { logout } = useAuth();
+  if (notStarted) {
+    // A member who joined before the founder finished setup. Nothing has lapsed, so
+    // "paused" and "renew" would be the wrong words.
+    return (
+      <div className="grid min-h-svh place-items-center bg-muted/30 px-4 py-10">
+        <div className="w-full max-w-md rounded-xl border bg-card p-8 text-center shadow-sm">
+          <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+            <Clock className="size-6" />
+          </div>
+          <h1 className="mt-4 text-xl font-semibold tracking-tight">Almost ready</h1>
+          <p className="mt-1.5 text-sm text-muted-foreground">
+            {orgName} is still being set up. Once an administrator starts the organization's trial, you'll have
+            full access.
+          </p>
+          <button onClick={logout} className="mt-5 text-xs text-muted-foreground hover:text-foreground">
+            Sign out
+          </button>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="grid min-h-svh place-items-center bg-muted/30 px-4 py-10">
       <div className="w-full max-w-md rounded-xl border bg-card p-8 text-center shadow-sm">

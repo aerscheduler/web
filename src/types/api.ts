@@ -245,7 +245,7 @@ export interface SubscriptionStatus {
   // ── What their terms say (the verdict) ────────────────────────────────────
   /** per_aircraft | legacy_fee | free. */
   model?: string;
-  /** trial | grace | courtesy | active | legacy | free | expired. */
+  /** trial | grace | courtesy | active | legacy | free | expired | card_required. */
   state?: SubState;
   /** Whether to stop them using the console. Rendered, never recomputed. */
   blocked?: boolean;
@@ -265,6 +265,9 @@ export interface SubscriptionStatus {
   daysLeft?: number;
   /** What a unit is called under this model ("aircraft"), for copy. */
   unitLabel?: string;
+  /** Their terms require a card before the signup trial starts (state `card_required`
+   *  until one is added). */
+  cardRequired?: boolean;
 
   /** DEPRECATED, kept so a console older than the server keeps its banner through a
    *  rollout. `freeUntilReason: "courtesy"` is the replacement. */
@@ -272,7 +275,16 @@ export interface SubscriptionStatus {
 }
 
 /** The billing states the server can report. */
-export type SubState = "trial" | "grace" | "courtesy" | "active" | "legacy" | "free" | "expired";
+export type SubState =
+  | "trial"
+  | "grace"
+  | "courtesy"
+  | "active"
+  | "legacy"
+  | "free"
+  | "expired"
+  /** A card-required signup trial with no card yet: blocked until one is added. */
+  | "card_required";
 
 export interface OrganizationPreferences {
   id: number;

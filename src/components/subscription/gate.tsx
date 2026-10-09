@@ -12,7 +12,7 @@ import { AppShell } from "@/components/app-shell";
 import { ImpersonationBanner } from "@/components/developer/impersonation-banner";
 import { DemoBanner } from "@/components/demo/demo-banner";
 import { LogoMark } from "@/components/logo";
-import { PriceBreakdown, SubscribeButton, useSubStatus } from "@/components/subscription/plan";
+import { ManageBillingButton, PriceBreakdown, SubscribeButton, useSubStatus } from "@/components/subscription/plan";
 
 /**
  * The subscription gate. Wraps the whole authed app:
@@ -89,7 +89,11 @@ export function SubscriptionGate() {
             <OrgPausedNotice orgName={organization.name} notStarted />
           )
         ) : isAdmin(roles) ? (
-          <Paywall status={status} />
+          status.paymentProblem ? (
+            <PaymentFailedWall status={status} />
+          ) : (
+            <Paywall status={status} />
+          )
         ) : (
           <OrgPausedNotice orgName={organization.name} />
         )}
@@ -223,6 +227,47 @@ function Paywall({ status }: { status: SubStatus }) {
           className="mt-5 w-full"
           label={hasPlanes ? `Subscribe: ${formatMonthly(status.monthlyCents)}` : "Start free trial"}
         />
+
+        <button onClick={logout} className="mt-4 text-xs text-muted-foreground hover:text-foreground">
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A school that DID subscribe, whose charge then failed (Stripe `past_due` or `unpaid`).
+ *
+ * The ordinary Paywall told them "Your free trial has ended, subscribe", which is false
+ * for somebody whose card was just declined, and the first school to land here
+ * (VA Office of Emergency Services, 2026-10-08) had subscribed two weeks earlier. What
+ * they need is the billing portal, where the card is changed, not Checkout.
+ */
+function PaymentFailedWall({ status }: { status: SubStatus }) {
+  const { organization, logout } = useAuth();
+  const orgName = organization?.name ?? "your operation";
+
+  return (
+    <div className="grid min-h-svh place-items-center bg-muted/30 px-4 py-10" data-testid="payment-failed-wall">
+      <div className="w-full max-w-md rounded-xl border bg-card p-8 text-center shadow-sm">
+        <div className="mb-5 flex justify-center">
+          <LogoMark className="h-9" />
+        </div>
+        <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary/10 text-primary">
+          <CreditCard className="size-6" />
+        </div>
+        <h1 className="mt-4 text-xl font-semibold tracking-tight">Your payment didn't go through</h1>
+        <p className="mt-1.5 text-sm text-muted-foreground">
+          We couldn't charge the card on file for{" "}
+          {status.monthlyCents > 0 ? `${orgName}'s ${formatMonthly(status.monthlyCents)} plan` : orgName}, so
+          AerScheduler is paused for everyone until it's paid.
+        </p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          Nothing is deleted. Update your card and everything comes back the moment the payment goes through.
+        </p>
+
+        <ManageBillingButton className="mt-5 w-full" />
 
         <button onClick={logout} className="mt-4 text-xs text-muted-foreground hover:text-foreground">
           Sign out

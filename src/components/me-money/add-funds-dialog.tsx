@@ -4,15 +4,18 @@ import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { AlertTriangle, CreditCard, Info, Loader2, Lock } from "lucide-react";
-import type { LedgerTopUpIntent, PaymentMethod } from "@/types/api";
+import type { LedgerBlock, LedgerTopUpIntent, PaymentMethod } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import {
   invalidateLedgerMoney,
   useConfirmLedgerTopUp,
   useCreateLedgerTopUp,
+  useLedgerBlocks,
   useOrgLedgerSettings,
   usePaymentMethods,
+  type LedgerTopUpBody,
 } from "@/features/queries";
+import { blockBonusCents } from "@/lib/ledger-blocks";
 import { getStripeForAccount } from "@/lib/stripe";
 import { stripeAppearance, useIsDark } from "@/components/billing/stripe-appearance";
 import { useConfirm } from "@/components/confirm-dialog";
@@ -31,6 +34,32 @@ const CARD_TOP_UP_CONFIRM_ABOVE_CENTS = PRESETS[PRESETS.length - 1];
 const NEW_CARD = "__new__";
 /** Pre-charge undo window — same idea as reservation toast Undo, but before Stripe fires. */
 const TOP_UP_UNDO_MS = 5_000;
+/** The "Custom amount" choice beside the prepaid blocks. */
+const CUSTOM = "custom" as const;
+
+/** What the member is buying: a typed amount, or a prepaid block the server prices. */
+type TopUpTarget = { kind: "amount"; cents: number } | { kind: "block"; block: LedgerBlock };
+
+function targetBody(target: TopUpTarget): LedgerTopUpBody {
+  // A block carries the terms on screen, so a block edited meanwhile is refused, not charged.
+  return target.kind === "block"
+    ? {
+        blockId: target.block.id,
+        expectedPriceCents: target.block.priceCents,
+        expectedCreditCents: target.block.creditCents,
+      }
+    : { amountCents: target.cents };
+}
+
+/** What lands on the balance: the typed amount, or the block's credit (price plus bonus). */
+function targetCreditCents(target: TopUpTarget): number {
+  return target.kind === "block" ? target.block.creditCents : target.cents;
+}
+
+/** What the card is charged before any card fee. */
+function targetPriceCents(target: TopUpTarget): number {
+  return target.kind === "block" ? target.block.priceCents : target.cents;
+}
 
 function errMessage(e: unknown): string {
   if (e instanceof ApiError) return e.message;
@@ -103,11 +132,15 @@ export function AddFundsDialog({
   const confirmTopUp = useConfirmLedgerTopUp(orgUserId);
   const methodsQ = usePaymentMethods({ enabled: open });
   const ledgerSettingsQ = useOrgLedgerSettings({ enabled: open });
+  // Prepaid blocks the organization offers. Members only ever get active ones back.
+  const blocksQ = useLedgerBlocks({}, { enabled: open });
   const methods = methodsQ.data ?? [];
+  const blocks = (blocksQ.data ?? []).filter((b) => b.active && !b.archivedAt);
 
   const [step, setStep] = React.useState<"amount" | "pay">("amount");
   const [dollars, setDollars] = React.useState("100");
   const [payWith, setPayWith] = React.useState<string>(NEW_CARD);
+  const [choice, setChoice] = React.useState<number | typeof CUSTOM>(CUSTOM);
   const [intent, setIntent] = React.useState<LedgerTopUpIntent | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -117,6 +150,7 @@ export function AddFundsDialog({
       setStep("amount");
       setDollars("100");
       setPayWith(NEW_CARD);
+      setChoice(CUSTOM);
       setIntent(null);
       setError(null);
       setBusy(false);
@@ -143,8 +177,11 @@ export function AddFundsDialog({
     return invalidateLedgerMoney(qc, balanceCents);
   }
 
-  function successToast(creditCents: number, feeCents: number) {
-    if (feeCents > 0) {
+  function successToast(data: Pick<LedgerTopUpIntent, "creditCents" | "feeCents" | "block">) {
+    const { creditCents, feeCents, block } = data;
+    if (block) {
+      toast.success(`Bought ${block.name}. ${formatMoney(block.creditCents)} added to your account.`);
+    } else if (feeCents > 0) {
       toast.success(`${formatMoney(creditCents)} credited to your account.`);
     } else {
       toast.success("Funds added to your account.");
@@ -152,7 +189,7 @@ export function AddFundsDialog({
   }
 
   /** Charge a saved card after a short Undo window so a mis-tap doesn't hit Stripe. */
-  function scheduleSavedCardTopUp(amountCents: number, paymentMethodId: string, chargeCents: number) {
+  function scheduleSavedCardTopUp(target: TopUpTarget, paymentMethodId: string, chargeCents: number) {
     setError(null);
     onOpenChange(false);
 
@@ -164,10 +201,10 @@ export function AddFundsDialog({
       void (async () => {
         const loadingId = toast.loading("Charging your card…");
         try {
-          const data = await create.mutateAsync({ amountCents, paymentMethodId });
+          const data = await create.mutateAsync({ ...targetBody(target), paymentMethodId });
           toast.dismiss(loadingId);
           if (data.confirmed) {
-            successToast(data.creditCents, data.feeCents);
+            successToast(data);
             await refreshBalances(data.balanceCents);
             return;
           }
@@ -178,11 +215,16 @@ export function AddFundsDialog({
         } catch (e) {
           toast.dismiss(loadingId);
           toast.error(errMessage(e));
+          if (e instanceof ApiError && e.status === 409) void blocksQ.refetch();
         }
       })();
     }, TOP_UP_UNDO_MS);
 
-    toastId = toast.message(`Adding ${formatMoney(chargeCents)}…`, {
+    toastId = toast.message(
+      target.kind === "block"
+        ? `Buying ${target.block.name} for ${formatMoney(chargeCents)}…`
+        : `Adding ${formatMoney(chargeCents)}…`,
+      {
       duration: TOP_UP_UNDO_MS,
       action: {
         label: "Undo",
@@ -192,45 +234,64 @@ export function AddFundsDialog({
           toast.message("Top-up cancelled");
         },
       },
-    });
+      }
+    );
   }
 
-  async function startTopUp(amountCents: number) {
+  async function startTopUp(target: TopUpTarget) {
     setError(null);
+    const priceCents = targetPriceCents(target);
 
-    if (amountCents > CARD_TOP_UP_CONFIRM_ABOVE_CENTS) {
-      const breakdown = previewTopUpCharge(amountCents, ledgerSettingsQ.data);
-      const ok = await confirm({
-        title: `Add ${formatMoney(breakdown.creditCents)}?`,
-        description:
-          breakdown.feeCents > 0
-            ? `Your card will be charged ${formatMoney(breakdown.chargeCents)} (${formatMoney(breakdown.creditCents)} credited plus ${formatMoney(breakdown.feeCents)} card fee).`
-            : `Your card will be charged ${formatMoney(breakdown.chargeCents)}.`,
-        confirmLabel: "Continue",
-      });
+    if (priceCents > CARD_TOP_UP_CONFIRM_ABOVE_CENTS) {
+      const breakdown = previewTopUpCharge(priceCents, ledgerSettingsQ.data);
+      const creditCents = targetCreditCents(target);
+      const ok = await confirm(
+        target.kind === "block"
+          ? {
+              title: `Buy ${target.block.name}?`,
+              description:
+                breakdown.feeCents > 0
+                  ? `Your card will be charged ${formatMoney(breakdown.chargeCents)} (${formatMoney(priceCents)} plus ${formatMoney(breakdown.feeCents)} card fee) for ${formatMoney(creditCents)} of credit.`
+                  : `Your card will be charged ${formatMoney(breakdown.chargeCents)} for ${formatMoney(creditCents)} of credit.`,
+              confirmLabel: "Continue",
+            }
+          : {
+              title: `Add ${formatMoney(breakdown.creditCents)}?`,
+              description:
+                breakdown.feeCents > 0
+                  ? `Your card will be charged ${formatMoney(breakdown.chargeCents)} (${formatMoney(breakdown.creditCents)} credited plus ${formatMoney(breakdown.feeCents)} card fee).`
+                  : `Your card will be charged ${formatMoney(breakdown.chargeCents)}.`,
+              confirmLabel: "Continue",
+            }
+      );
       if (!ok) return;
     }
 
     // Saved card charges immediately — give a misclick Undo before Stripe.
     if (payWith !== NEW_CARD) {
-      const chargeCents = previewTopUpCharge(amountCents, ledgerSettingsQ.data).chargeCents;
-      scheduleSavedCardTopUp(amountCents, payWith, chargeCents);
+      const chargeCents = previewTopUpCharge(priceCents, ledgerSettingsQ.data).chargeCents;
+      scheduleSavedCardTopUp(target, payWith, chargeCents);
       return;
     }
 
     // New card: open Payment Element; they still confirm on the next step.
     try {
-      const data = await create.mutateAsync({ amountCents });
+      const data = await create.mutateAsync(targetBody(target));
       setIntent(data);
       setStep("pay");
     } catch (e) {
       setError(errMessage(e));
+      // The block changed while the dialog was open: show its new terms.
+      if (e instanceof ApiError && e.status === 409) void blocksQ.refetch();
     }
   }
 
+  // A block that was archived while the dialog was open drops back to a custom amount.
+  const block = choice === CUSTOM ? null : (blocks.find((b) => b.id === choice) ?? null);
   const amountCents = parseDollarsToCents(dollars) ?? 0;
-  const breakdown =
-    amountCents >= 100
+  const breakdown = block
+    ? previewTopUpCharge(block.priceCents, ledgerSettingsQ.data)
+    : amountCents >= 100
       ? previewTopUpCharge(amountCents, ledgerSettingsQ.data)
       : null;
   const feeRecipe =
@@ -262,6 +323,41 @@ export function AddFundsDialog({
 
         {step === "amount" && (
           <div className="space-y-4">
+            {blocks.length > 0 && (
+              <div className="space-y-2">
+                <Label>Prepaid blocks</Label>
+                <div role="radiogroup" aria-label="What to buy" className="grid gap-2">
+                  {blocks.map((b) => (
+                    <BlockOption
+                      key={b.id}
+                      block={b}
+                      selected={block?.id === b.id}
+                      onSelect={() => {
+                        setChoice(b.id);
+                        setError(null);
+                      }}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={block == null}
+                    onClick={() => setChoice(CUSTOM)}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
+                      block == null
+                        ? "border-primary bg-primary/5 ring-1 ring-primary"
+                        : "border-border hover:bg-muted/40"
+                    )}
+                  >
+                    <span className="font-medium">Custom amount</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {block == null && (
+            <>
             <div className="flex flex-wrap gap-2">
               {PRESETS.map((cents) => (
                 <Button
@@ -286,14 +382,24 @@ export function AddFundsDialog({
               />
               <p className="text-xs text-muted-foreground">Minimum {formatMoney(100)} credited</p>
             </div>
+            </>
+            )}
 
-            {breakdown && breakdown.feeCents > 0 && (
-              <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
-                <p>
-                  Pay <span className="font-medium">{formatMoney(breakdown.chargeCents)}</span>
-                  {" → "}
-                  <span className="font-medium">{formatMoney(breakdown.creditCents)}</span> credited
-                </p>
+            {breakdown && (block != null || breakdown.feeCents > 0) && (
+              <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" data-testid="add-funds-summary">
+                {block ? (
+                  <p>
+                    Pay <span className="font-medium">{formatMoney(breakdown.chargeCents)}</span> for{" "}
+                    <span className="font-medium">{formatMoney(block.creditCents)}</span> of credit
+                  </p>
+                ) : (
+                  <p>
+                    Pay <span className="font-medium">{formatMoney(breakdown.chargeCents)}</span>
+                    {" → "}
+                    <span className="font-medium">{formatMoney(breakdown.creditCents)}</span> credited
+                  </p>
+                )}
+                {breakdown.feeCents > 0 && (
                 <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                   <span>Includes {formatMoney(breakdown.feeCents)} card fee</span>
                   {feeRecipe && (
@@ -308,11 +414,12 @@ export function AddFundsDialog({
                         </button>
                       </TooltipTrigger>
                       <TooltipContent side="top" className="max-w-xs">
-                        Calculated as {feeRecipe} of the credit amount.
+                        Calculated as {feeRecipe} of {block ? "the block price" : "the credit amount"}.
                       </TooltipContent>
                     </Tooltip>
                   )}
                 </p>
+                )}
               </div>
             )}
 
@@ -381,16 +488,31 @@ export function AddFundsDialog({
                 <p>{error}</p>
               </div>
             )}
+            {ledgerSettingsQ.isError && (
+              <p className="text-sm text-muted-foreground">
+                Couldn&rsquo;t load the card fee, so the total can&rsquo;t be shown yet.{" "}
+                <button type="button" className="underline" onClick={() => void ledgerSettingsQ.refetch()}>
+                  Try again
+                </button>
+              </p>
+            )}
             <Button
               className="w-full"
-              disabled={create.isPending || methodsQ.isLoading}
+              // The card fee decides the charge shown above; never offer Pay before it is known.
+              disabled={
+                create.isPending || methodsQ.isLoading || ledgerSettingsQ.isPending || ledgerSettingsQ.isError
+              }
               onClick={() => {
+                if (block) {
+                  void startTopUp({ kind: "block", block });
+                  return;
+                }
                 const cents = parseDollarsToCents(dollars);
                 if (cents == null || cents < 100) {
                   setError(`Enter at least ${formatMoney(100)}`);
                   return;
                 }
-                void startTopUp(cents);
+                void startTopUp({ kind: "amount", cents });
               }}
             >
               {create.isPending ? (
@@ -408,15 +530,15 @@ export function AddFundsDialog({
           <Elements stripe={stripePromise} options={{ clientSecret: intent.clientSecret, appearance }}>
             <PayTopUpForm
               chargeLabel={formatMoney(intent.chargeCents)}
-              creditLabel={formatMoney(intent.creditCents)}
-              feeCents={intent.feeCents}
+              creditLabel={formatMoney(intent.block?.creditCents ?? intent.creditCents)}
+              showCredit={intent.feeCents > 0 || intent.block != null}
               onBusyChange={setBusy}
               onDone={async () => {
                 try {
                   const settled = await confirmTopUp.mutateAsync({
                     paymentIntentId: intent.paymentIntentId,
                   });
-                  successToast(intent.creditCents, intent.feeCents);
+                  successToast(intent);
                   await refreshBalances(settled.balanceCents);
                 } catch (e) {
                   toast.error(errMessage(e));
@@ -438,14 +560,15 @@ export function AddFundsDialog({
 function PayTopUpForm({
   chargeLabel,
   creditLabel,
-  feeCents,
+  showCredit,
   onBusyChange,
   onDone,
   onBack,
 }: {
   chargeLabel: string;
   creditLabel: string;
-  feeCents: number;
+  /** A card fee or a block bonus: the credit differs from the charge, so say both. */
+  showCredit: boolean;
   onBusyChange: (busy: boolean) => void;
   onDone: () => void | Promise<void>;
   onBack: () => void;
@@ -488,7 +611,7 @@ function PayTopUpForm({
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        {feeCents > 0 ? (
+        {showCredit ? (
           <>
             Charging <span className="font-medium text-foreground">{chargeLabel}</span>
             {" → "}
@@ -523,5 +646,47 @@ function PayTopUpForm({
         </Button>
       </div>
     </form>
+  );
+}
+
+/** One prepaid block as a choice, styled like the saved-card options below it. */
+function BlockOption({
+  block,
+  selected,
+  onSelect,
+}: {
+  block: LedgerBlock;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const bonus = blockBonusCents(block.priceCents, block.creditCents);
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      data-testid={`add-funds-block-${block.id}`}
+      className={cn(
+        "flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
+        selected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/40"
+      )}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">{block.name}</span>
+        <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground tnum">
+          <span>Pay {formatMoney(block.priceCents)}</span>
+          <span>Get {formatMoney(block.creditCents)}</span>
+          {bonus > 0 && (
+            <span className="text-emerald-700 dark:text-emerald-400">
+              +{formatMoney(bonus)} bonus
+            </span>
+          )}
+        </span>
+        {block.description ? (
+          <span className="mt-1 block text-xs text-muted-foreground">{block.description}</span>
+        ) : null}
+      </span>
+    </button>
   );
 }

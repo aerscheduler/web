@@ -77,7 +77,7 @@ function accountColumns(formatDay: (iso: string | null) => string): ColumnDef<Le
         const days = getValue() as number | null;
         return (
           <span className="tnum text-sm text-muted-foreground">
-            {days == null ? "—" : days === 0 ? "Current" : `${days}d`}
+            {days == null ? "None" : days === 0 ? "Current" : `${days}d`}
           </span>
         );
       },
@@ -150,7 +150,7 @@ export function LedgerAccountsTable() {
   const summary = q.data?.summary;
   const tz = useTimeZone();
   const columns = useMemo(
-    () => accountColumns((iso) => (iso ? tz.date(iso) : "–")),
+    () => accountColumns((iso) => (iso ? tz.date(iso) : "None")),
     [tz]
   );
 

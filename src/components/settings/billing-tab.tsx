@@ -67,6 +67,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Field, PreferenceToggle } from "@/components/settings/parts";
+import { HOW_MEMBERS_PAY_ID, PrepaidBlocksCard } from "@/components/settings/prepaid-blocks-card";
 
 /** serviceFeePercent is stored as hundredths of a percent (500 = 5%, 50 = 0.5%). */
 function feeToText(bps: number | null): string {
@@ -175,6 +176,8 @@ function BillingPage({
           />
         </>
       )}
+      {/* Collapsed to a pointer at How members pay while the organization bills by invoice. */}
+      {!loadError && <PrepaidBlocksCard ledgerOn={ledgerMode === "ledger"} />}
       <BillingForms billing={billing} />
     </div>
   );
@@ -1236,7 +1239,7 @@ function BillingModePicker({
 
   return (
     <>
-      <Card data-doc-shot="ledger-mode-card">
+      <Card id={HOW_MEMBERS_PAY_ID} data-doc-shot="ledger-mode-card">
         <CardHeader className="flex-row items-start gap-2.5">
           <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
             <Receipt className="size-4" />

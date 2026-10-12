@@ -27,10 +27,12 @@ export function ExplainedButton({
       </Button>
     );
   }
+  // The button fills its wrapper, so a footer that stretches the wrapper (the phone sheet)
+  // stretches the button too, as it does a plain Button.
   return (
     <HoverCard open={open} onOpenChange={setOpen} openDelay={0} closeDelay={150}>
       <HoverCardTrigger asChild>
-        <span className="inline-flex" tabIndex={disabled ? 0 : undefined} onClick={disabled ? () => setOpen((o) => !o) : undefined} data-explained={disabled ? "disabled" : "enabled"}>
+        <span className="inline-flex [&>button]:flex-1" tabIndex={disabled ? 0 : undefined} onClick={disabled ? () => setOpen((o) => !o) : undefined} data-explained={disabled ? "disabled" : "enabled"}>
           <Button disabled={disabled} aria-describedby={summary ? id : undefined} {...props}>
             {children}
           </Button>

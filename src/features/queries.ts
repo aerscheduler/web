@@ -102,6 +102,10 @@ import type {
   LedgerAccount,
   LedgerAccountSummary,
   LedgerAutoRefill,
+  LedgerBlock,
+  LedgerBlockInput,
+  LedgerBlockPaymentMethod,
+  LedgerBlockPurchase,
   LedgerEntry,
   LedgerRefundable,
   LedgerStatement,
@@ -112,6 +116,7 @@ import type {
   MaintenanceReminder,
   MaintenanceReminderTemplate,
   MemberLedger,
+  MemberLedgerBlocks,
   MemberPermissions,
   Membership,
   MembershipPlan,
@@ -2871,10 +2876,24 @@ export function useLedgerRefundable(orgUserId: number | null, opts?: QueryOpts) 
   });
 }
 
-/** Start a card top-up PaymentIntent (`POST /orgUsers/:id/ledger/topups`). */
+/**
+ * Start a card top-up PaymentIntent (`POST /orgUsers/:id/ledger/topups`). Exactly one of
+ * `amountCents` (a custom amount) or `blockId` (a prepaid block, the server prices it).
+ */
+export type LedgerTopUpBody = (
+  | { amountCents: number; blockId?: never }
+  | {
+      blockId: number;
+      amountCents?: never;
+      /** The terms the member saw. The server refuses (409) if the block changed since. */
+      expectedPriceCents?: number;
+      expectedCreditCents?: number;
+    }
+) & { paymentMethodId?: string; idempotencyKey?: string };
+
 export function useCreateLedgerTopUp(orgUserId: number | null) {
   return useMutation({
-    mutationFn: (body: { amountCents: number; paymentMethodId?: string; idempotencyKey?: string }) =>
+    mutationFn: (body: LedgerTopUpBody) =>
       api<LedgerTopUpIntent>(`/orgUsers/${orgUserId}/ledger/topups`, { method: "POST", body }),
   });
 }
@@ -2915,6 +2934,122 @@ export function invalidateLedgerMoney(
     qc.invalidateQueries({ queryKey: ["ledger"] }),
     qc.invalidateQueries({ queryKey: ["stripe", "paymentMethods"] }),
   ]);
+}
+
+//---------------------------------------------------------------------------------
+// Prepaid blocks (block time with a bonus): pay 1,700, get 1,800 of account credit.
+//
+// The catalog lives under ["ledger", "blocks"] so `invalidateLedgerMoney` (which
+// invalidates ["ledger"]) refreshes purchase counts after any sale. One member's
+// purchases live under ["orgUsers", id, "ledger", "blocks"]; the string at index 3 keeps
+// them out of the balance patch in `invalidateLedgerMoney`.
+//---------------------------------------------------------------------------------
+
+const LEDGER_BLOCKS_KEY = ["ledger", "blocks"] as const;
+
+/**
+ * The block catalog (`GET /organizations/ledger/blocks`). Any member; members get active
+ * blocks only. `includeArchived` is honoured for owners and admins.
+ */
+export function useLedgerBlocks(
+  { includeArchived = false }: { includeArchived?: boolean } = {},
+  opts?: QueryOpts
+) {
+  return useQuery({
+    queryKey: [...LEDGER_BLOCKS_KEY, { includeArchived }],
+    queryFn: () =>
+      api<LedgerBlock[]>("/organizations/ledger/blocks", {
+        query: includeArchived ? { includeArchived: "true" } : undefined,
+      }),
+    ...opts,
+  });
+}
+
+/** Owner/admin: add a block. */
+export function useCreateLedgerBlock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: LedgerBlockInput) =>
+      api<LedgerBlock>("/organizations/ledger/blocks", { method: "POST", body }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: LEDGER_BLOCKS_KEY }),
+  });
+}
+
+/**
+ * Owner/admin: change a block (`PATCH`). Optimistic, so the Active switch moves on the
+ * click; rolled back when the server refuses. Restoring an archived block is `{ active: true }`.
+ */
+export function useUpdateLedgerBlock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: Partial<LedgerBlockInput> & { id: number }) =>
+      api<LedgerBlock>(`/organizations/ledger/blocks/${id}`, { method: "PATCH", body }),
+    onMutate: async ({ id, ...patch }) => {
+      await qc.cancelQueries({ queryKey: LEDGER_BLOCKS_KEY });
+      const previous = qc.getQueriesData<LedgerBlock[]>({ queryKey: LEDGER_BLOCKS_KEY });
+      qc.setQueriesData<LedgerBlock[]>({ queryKey: LEDGER_BLOCKS_KEY }, (old) =>
+        old?.map((b) =>
+          b.id === id
+            ? {
+                ...b,
+                ...patch,
+                // Turning a block back on brings it out of the archive.
+                archivedAt: patch.active === true ? null : b.archivedAt,
+              }
+            : b
+        )
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, ctx) => {
+      ctx?.previous.forEach(([key, data]) => qc.setQueryData(key, data));
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: LEDGER_BLOCKS_KEY }),
+  });
+}
+
+/** Owner/admin: archive a block (`DELETE`; the server never deletes, past purchases keep it). */
+export function useArchiveLedgerBlock() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      api<LedgerBlock>(`/organizations/ledger/blocks/${id}`, { method: "DELETE" }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: LEDGER_BLOCKS_KEY }),
+  });
+}
+
+/** One member's block purchases and unspent bonus (`GET /orgUsers/:id/ledger/blocks`). */
+export function useMemberBlocks(orgUserId: number | null, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["orgUsers", orgUserId, "ledger", "blocks"],
+    queryFn: () => api<MemberLedgerBlocks>(`/orgUsers/${orgUserId}/ledger/blocks`),
+    enabled: (opts?.enabled ?? true) && orgUserId != null,
+    ...opts,
+  });
+}
+
+/** Owner/admin: sell a block at the desk (`POST /orgUsers/:id/ledger/blocks`). */
+export function useSellBlock(orgUserId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      blockId: number;
+      method: Exclude<LedgerBlockPaymentMethod, "card">;
+      memo?: string;
+      /** The terms the desk saw. The server refuses (409) if the block changed since. */
+      expectedPriceCents?: number;
+      expectedCreditCents?: number;
+    }) =>
+      api<{ balanceCents: number; purchase: LedgerBlockPurchase }>(
+        `/orgUsers/${orgUserId}/ledger/blocks`,
+        { method: "POST", body }
+      ),
+    onSuccess: (data) => {
+      // The balance, the member's ledger and refundable figures, the accounts roster and the
+      // catalog's purchase counts all moved.
+      void invalidateLedgerMoney(qc, data?.balanceCents);
+    },
+  });
 }
 
 /** Admin cash/check/other credit or adjustment. */
@@ -3006,11 +3141,14 @@ export function useReverseLedgerFlightCharge(orgUserId: number | null) {
         `/orgUsers/${orgUserId}/ledger/entries/${body.entryId}/reverse`,
         { method: "POST", body: { memo: body.memo } }
       ),
-    onSuccess: () => {
+    onSuccess: (data) => {
       void qc.invalidateQueries({ queryKey: ["orgUsers", orgUserId, "ledger"] });
       void qc.invalidateQueries({ queryKey: ["orgUsers", "billing"] });
       void qc.invalidateQueries({ queryKey: ["orgUsers", orgUserId, "billing"] });
       void qc.invalidateQueries({ queryKey: ["reservations"] });
+      // A reversed block sale or a removed bonus also moves the accounts roster, the
+      // refundable figure and the catalog's purchase counts.
+      void invalidateLedgerMoney(qc, data?.balanceCents);
     },
   });
 }

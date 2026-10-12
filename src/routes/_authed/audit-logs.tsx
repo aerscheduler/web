@@ -162,6 +162,11 @@ function actionLabel(action: string): string {
     "ledger.charged": "Ledger charge",
     "ledger.reversed": "Ledger reversal",
 
+    //Prepaid blocks
+    "ledgerBlock.created": "Block created",
+    "ledgerBlock.updated": "Block changed",
+    "ledgerBlock.archived": "Block archived",
+
     //Memberships
     "membership.created": "Membership started",
     "membership.planChanged": "Plan changed",

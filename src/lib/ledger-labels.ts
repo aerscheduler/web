@@ -23,6 +23,10 @@ export function ledgerEntryLabel(type: string): string {
       return "Refund";
     case "reversal":
       return "Reversal";
+    case "block_bonus":
+      // The extra credit a prepaid block adds. Never refundable; a negative one is the
+      // bonus taken off with a refund.
+      return "Block bonus";
     default:
       return type;
   }
@@ -49,4 +53,5 @@ export const LEDGER_TYPE_FACET_OPTIONS = [
   { value: "fee", label: "Fee" },
   { value: "refund", label: "Refund" },
   { value: "reversal", label: "Reversal" },
+  { value: "block_bonus", label: "Block bonus" },
 ] as const;

@@ -291,7 +291,9 @@ test.describe("Ledger UI (owner)", () => {
     await page.goto("/settings?tab=billing");
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.getByLabel("Billing enabled")).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByText("How members pay", { exact: true })).toBeVisible();
+    // The Prepaid blocks card links to How members pay while billing by invoice, so the
+    // card's own title is the first of the two.
+    await expect(page.getByText("How members pay", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("radio", { name: /invoice each booking/i })).toBeVisible();
     await expect(page.getByRole("radio", { name: /account ledger/i })).toBeVisible();
   });

@@ -177,31 +177,28 @@ export function LedgerStatementSheet({
             {stmt.entries.length === 0 ? (
               <p className="text-muted-foreground">No entries in this period.</p>
             ) : (
-              <table className="w-full text-left text-sm">
+              <table className="w-full table-fixed text-left text-sm">
                 <thead>
                   <tr className="border-b text-xs text-muted-foreground">
-                    <th className="py-1.5 font-medium">Date</th>
-                    <th className="py-1.5 font-medium">Type</th>
-                    <th className="py-1.5 text-right font-medium">Amount</th>
-                    <th className="py-1.5 text-right font-medium">Balance</th>
+                    {/* Date, type and memo share the first column: four columns of their own
+                        did not fit the sheet, and the amounts ran into each other. */}
+                    <th className="py-1.5 pr-2 font-medium">Entry</th>
+                    <th className="w-[6.5rem] whitespace-nowrap px-2 py-1.5 text-right font-medium">Amount</th>
+                    <th className="w-[6.5rem] whitespace-nowrap py-1.5 pl-2 text-right font-medium">Balance</th>
                   </tr>
                 </thead>
                 <tbody>
                   {stmt.entries.map((row) => (
-                    <tr key={row.id} className="border-b border-border/60">
-                      <td className="py-1.5 text-muted-foreground">
-                        {tz.date(row.createdAt)}
-                      </td>
-                      <td className="py-1.5">
-                        {ledgerEntryLabel(row.type)}
+                    <tr key={row.id} className="border-b border-border/60 align-top">
+                      <td className="min-w-0 py-1.5 pr-2">
+                        <span className="block text-xs text-muted-foreground">{tz.date(row.createdAt)}</span>
+                        <span className="block truncate">{ledgerEntryLabel(row.type)}</span>
                         {row.memo ? (
-                          <span className="block max-w-[12rem] truncate text-xs text-muted-foreground">
-                            {row.memo}
-                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">{row.memo}</span>
                         ) : null}
                       </td>
-                      <td className="tnum py-1.5 text-right">{formatMoney(row.amountCents)}</td>
-                      <td className="tnum py-1.5 text-right">
+                      <td className="tnum whitespace-nowrap px-2 py-1.5 text-right">{formatMoney(row.amountCents)}</td>
+                      <td className="tnum whitespace-nowrap py-1.5 pl-2 text-right">
                         {formatMoney(row.runningBalanceCents)}
                       </td>
                     </tr>

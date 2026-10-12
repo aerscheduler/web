@@ -1,14 +1,20 @@
 import { moneySymbol, billingCurrencyLabel, parseMoneyInput } from "@/lib/billing-currency";
 import * as React from "react";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { ErrorState } from "@/components/states";
+import { Banknote, Loader2 } from "lucide-react";
 import { ApiError } from "@/lib/api";
 import {
+  useLedgerBlocks,
   useLedgerRefundable,
   usePostLedgerEntry,
   usePostLedgerRefund,
+  useSellBlock,
 } from "@/features/queries";
-import { formatMoney, formatDate } from "@/lib/utils";
+import type { LedgerBlock } from "@/types/api";
+import { blockBonusCents } from "@/lib/ledger-blocks";
+import { cn, formatMoney, formatDate } from "@/lib/utils";
+import { ChipMenu } from "@/components/property-chips";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -242,6 +248,13 @@ export function LedgerRefundDialog({
   const [attemptId, setAttemptId] = React.useState(() => Math.random().toString(36).slice(2));
 
   const balance = refundableQ.data?.balanceCents ?? 0;
+  // Block bonus is never refundable: what may leave is the balance minus the unspent bonus.
+  // An older server that does not send these yet means no bonus, so the balance stands.
+  const unspentBonus = Math.max(0, refundableQ.data?.unspentBonusCents ?? 0);
+  const refundable = Math.max(
+    0,
+    Math.min(balance, refundableQ.data?.refundableCents ?? balance - unspentBonus)
+  );
   const stripeTopups = (refundableQ.data?.topups ?? []).filter(
     (t) => t.stripePaymentIntentId && t.refundableCents > 0
   );
@@ -269,8 +282,8 @@ export function LedgerRefundDialog({
     const selected = stripeTopups.find((t) => String(t.id) === topupId) ?? stripeTopups[0];
     const defaultCents =
       method === "stripe" && selected
-        ? Math.min(balance, selected.refundableCents)
-        : balance;
+        ? Math.min(refundable, selected.refundableCents)
+        : refundable;
     if (defaultCents > 0) {
       setDollars((defaultCents / 100).toFixed(2));
     }
@@ -280,16 +293,18 @@ export function LedgerRefundDialog({
   const selectedTopup = stripeTopups.find((t) => String(t.id) === topupId);
   const chargeLeft = selectedTopup?.refundableCents ?? 0;
   const maxCents =
-    method === "stripe" && selectedTopup ? Math.min(balance, chargeLeft) : balance;
+    method === "stripe" && selectedTopup ? Math.min(refundable, chargeLeft) : refundable;
   const limitedByCharge =
-    method === "stripe" && selectedTopup != null && chargeLeft < balance;
+    method === "stripe" && selectedTopup != null && chargeLeft < refundable;
   const hasCardFee = Boolean(selectedTopup?.memo?.toLowerCase().includes("card fee"));
   const cents = parseDollarsToCents(dollars);
   const amountOver = cents != null && cents > 0 && cents > maxCents;
   const amountError = amountOver
     ? limitedByCharge
       ? `This charge only has ${formatMoney(chargeLeft)} left. Pick another charge to return more.`
-      : `Balance is only ${formatMoney(balance)}.`
+      : unspentBonus > 0
+        ? `Only ${formatMoney(refundable)} is refundable. Block bonus is not.`
+        : `Balance is only ${formatMoney(balance)}.`
     : submitted && (cents == null || cents <= 0)
       ? "Enter a positive amount."
       : null;
@@ -300,15 +315,23 @@ export function LedgerRefundDialog({
   return (
     <ResponsiveModal
       open={open} onOpenChange={onOpenChange}
-      title={<>Refund
-            <DocsHint topic="ledger-refund" /></>}
-      description={`Pay them back from this balance, down to ${formatMoney(0)}.`}
+      title={
+        <span className="inline-flex items-center gap-1.5">
+          Refund
+          <DocsHint topic="ledger-refund" />
+        </span>
+      }
+      description={
+        unspentBonus > 0
+          ? "Pay them back what they paid in. Block bonus stays on the account until it is used, or comes off with the last refund."
+          : `Pay them back from this balance, down to ${formatMoney(0)}.`
+      }
       size="sm"
       footer={<><Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button
-            disabled={refund.isPending || refundableQ.isPending || balance <= 0}
+            disabled={refund.isPending || refundableQ.isPending || refundable <= 0}
             onClick={async () => {
               setSubmitted(true);
               const nextCents = parseDollarsToCents(dollars);
@@ -355,6 +378,15 @@ export function LedgerRefundDialog({
               Balance{" "}
               <span className="font-semibold tabular-nums">{formatMoney(balance)}</span>
             </p>
+            {unspentBonus > 0 && (
+              <p
+                className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm"
+                data-testid="refund-bonus-note"
+              >
+                Refundable: <span className="font-medium tabular-nums">{formatMoney(refundable)}</span>.{" "}
+                {formatMoney(Math.min(unspentBonus, balance))} of block bonus is not refundable.
+              </p>
+            )}
 
             <div className="space-y-2">
               <Label>Method</Label>
@@ -435,9 +467,9 @@ export function LedgerRefundDialog({
               ) : method === "stripe" && selectedTopup && maxCents > 0 ? (
                 <p className="text-xs text-muted-foreground">
                   {limitedByCharge
-                    ? `Max ${formatMoney(chargeLeft)} on this charge · account ${formatMoney(balance)}`
-                    : chargeLeft > balance
-                      ? `Max ${formatMoney(balance)} · ${formatMoney(chargeLeft)} left on this charge`
+                    ? `Max ${formatMoney(chargeLeft)} on this charge · refundable ${formatMoney(refundable)}`
+                    : chargeLeft > refundable
+                      ? `Max ${formatMoney(refundable)} · ${formatMoney(chargeLeft)} left on this charge`
                       : `Max ${formatMoney(maxCents)}`}
                 </p>
               ) : maxCents > 0 ? (
@@ -459,5 +491,194 @@ export function LedgerRefundDialog({
           </div>
         )}
     </ResponsiveModal>
+  );
+}
+
+const SELL_METHODS = [
+  { value: "cash", label: "Cash" },
+  { value: "check", label: "Check" },
+  { value: "other", label: "Other" },
+] as const;
+type SellMethod = (typeof SELL_METHODS)[number]["value"];
+
+/**
+ * Desk: sell a prepaid block (owners and admins). Built from Add credit beside it: the money
+ * came in at the desk, nothing moves through Stripe. The block is the thing itself, so it is
+ * the field; how they paid is a chip under it. Posts the payment and the bonus as two rows.
+ */
+export function LedgerSellBlockDialog({
+  orgUserId,
+  open,
+  onOpenChange,
+}: {
+  orgUserId: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const blocksQ = useLedgerBlocks({}, { enabled: open });
+  const sell = useSellBlock(orgUserId);
+  const blocks = (blocksQ.data ?? []).filter((b) => b.active && !b.archivedAt);
+  const [blockId, setBlockId] = React.useState<number | null>(null);
+  const [method, setMethod] = React.useState<SellMethod>("cash");
+  const [memo, setMemo] = React.useState("");
+
+  React.useEffect(() => {
+    if (!open) {
+      setBlockId(null);
+      setMethod("cash");
+      setMemo("");
+      sell.reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // The first block is picked for you when the list arrives. One that disappears (archived
+  // meanwhile) is unpicked, never swapped for another: a refetch must not turn "Sell 20-hour"
+  // into "Sell 10-hour" under the cursor.
+  const firstId = blocks[0]?.id ?? null;
+  React.useEffect(() => {
+    if (open && blockId == null && firstId != null) setBlockId(firstId);
+  }, [open, blockId, firstId]);
+  const block = blocks.find((b) => b.id === blockId) ?? null;
+
+  async function submit() {
+    if (!block) return;
+    try {
+      const data = await sell.mutateAsync({
+        blockId: block.id,
+        expectedPriceCents: block.priceCents,
+        expectedCreditCents: block.creditCents,
+        method,
+        ...(memo.trim() ? { memo: memo.trim() } : {}),
+      });
+      toast.success(`Sold ${block.name}. Balance ${formatMoney(data.balanceCents)}.`);
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(errMessage(e));
+      // The block changed while the dialog was open: show its new terms before a retry.
+      if (e instanceof ApiError && e.status === 409) void blocksQ.refetch();
+    }
+  }
+
+  return (
+    <ResponsiveModal
+      open={open}
+      onOpenChange={(o) => {
+        if (sell.isPending) return;
+        onOpenChange(o);
+      }}
+      title={
+        <span className="inline-flex items-center gap-1.5">
+          Sell a block
+          <DocsHint topic="prepaid-blocks" />
+        </span>
+      }
+      description="Record a block paid for at the desk. The payment and the bonus both land on the account. Nothing moves through Stripe."
+      dataDocShot="ledger-sell-block-dialog"
+      footer={
+        <>
+          <Button variant="outline" disabled={sell.isPending} onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button disabled={!block || sell.isPending} onClick={() => void submit()}>
+            {sell.isPending ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : block ? (
+              `Sell ${block.name}`
+            ) : (
+              "Sell"
+            )}
+          </Button>
+        </>
+      }
+    >
+      {blocksQ.isPending ? (
+        <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> Loading blocks…
+        </div>
+      ) : blocksQ.isError ? (
+        <ErrorState error={blocksQ.error} onRetry={() => void blocksQ.refetch()} />
+      ) : blocks.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No blocks are on sale. Add one in Settings, Billing, Prepaid blocks.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Block</Label>
+            <div role="radiogroup" aria-label="Block" className="grid gap-2">
+              {blocks.map((b) => (
+                <SellBlockOption
+                  key={b.id}
+                  block={b}
+                  selected={block?.id === b.id}
+                  onSelect={() => setBlockId(b.id)}
+                />
+              ))}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <ChipMenu
+              id="sell-block-method"
+              name="How they paid"
+              leading={<Banknote className="size-3.5" />}
+              label={`Paid by ${SELL_METHODS.find((m) => m.value === method)?.label.toLowerCase()}`}
+              set
+              value={method}
+              onChange={(v) => setMethod(v as SellMethod)}
+              options={SELL_METHODS.map((m) => ({ value: m.value, label: m.label }))}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="sell-block-memo">Memo</Label>
+            <Textarea
+              id="sell-block-memo"
+              value={memo}
+              onChange={(e) => setMemo(e.target.value)}
+              placeholder="Optional. Check #1042"
+              rows={2}
+            />
+          </div>
+        </div>
+      )}
+    </ResponsiveModal>
+  );
+}
+
+function SellBlockOption({
+  block,
+  selected,
+  onSelect,
+}: {
+  block: LedgerBlock;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  const bonus = blockBonusCents(block.priceCents, block.creditCents);
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      onClick={onSelect}
+      data-testid={`sell-block-${block.id}`}
+      className={cn(
+        "flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left text-sm transition-colors",
+        selected ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/40"
+      )}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block font-medium">{block.name}</span>
+        <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted-foreground tnum">
+          <span>Pay {formatMoney(block.priceCents)}</span>
+          <span>Get {formatMoney(block.creditCents)}</span>
+          {bonus > 0 && (
+            <span className="text-emerald-700 dark:text-emerald-400">
+              +{formatMoney(bonus)} bonus
+            </span>
+          )}
+        </span>
+      </span>
+    </button>
   );
 }

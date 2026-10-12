@@ -2280,6 +2280,17 @@ export interface LedgerEntry {
   refundMethod?: string | null;
   stripeRefundId?: string | null;
   refundsTopupId?: number | null;
+  /** Set on a prepaid block's payment row. A desk sale (method other than card) can be reversed. */
+  blockSale?: {
+    method: "card" | "cash" | "check" | "other";
+    bonusCents: number;
+    /** Of that bonus, what is still on the account (bonus flown or removed is gone). */
+    bonusLeftCents?: number;
+    /** A refund was posted after this sale; the server refuses to reverse it. */
+    refundedSince?: boolean;
+  } | null;
+  /** On a block_bonus row: how much of it is still on the account. Remove takes this much. */
+  bonusLeftCents?: number | null;
   items: { id: number; name: string; qty: number; unitPrice: number }[];
 }
 
@@ -2330,6 +2341,8 @@ export interface LedgerTopUpIntent {
   chargeCents: number;
   /** Present after a saved-card confirm. */
   balanceCents?: number;
+  /** Present when the top-up bought a prepaid block (`creditCents` is then the price). */
+  block?: LedgerTopUpBlock | null;
 }
 
 /** POST /orgUsers/:id/ledger/topups/confirm */
@@ -2415,6 +2428,69 @@ export interface LedgerRefundable {
   balanceCents: number;
   ledgerEnabled: boolean;
   topups: LedgerRefundableTopup[];
+  /** Block bonus still sitting on the balance. Never refundable. */
+  unspentBonusCents?: number;
+  /** What may leave the organization: max(0, balance minus unspent bonus). */
+  refundableCents?: number;
+}
+
+/**
+ * One prepaid block (block time with a bonus): pay `priceCents`, get `creditCents` on the
+ * balance. GET/POST/PATCH/DELETE /organizations/ledger/blocks.
+ */
+export interface LedgerBlock {
+  id: number;
+  name: string;
+  description: string | null;
+  /** What the member pays. */
+  priceCents: number;
+  /** What lands on the balance. At least priceCents. */
+  creditCents: number;
+  /** creditCents minus priceCents. May be 0. */
+  bonusCents: number;
+  /** Offered to members. Archived blocks are never active. */
+  active: boolean;
+  archivedAt: string | null;
+  sortOrder: number;
+  /** Owners/admins only, else 0. */
+  purchaseCount: number;
+}
+
+export interface LedgerBlockInput {
+  name: string;
+  description?: string | null;
+  priceCents: number;
+  creditCents: number;
+  active?: boolean;
+  sortOrder?: number;
+}
+
+/** The block a card top-up bought, echoed by POST …/ledger/topups with `{ blockId }`. */
+export interface LedgerTopUpBlock {
+  id: number;
+  name: string;
+  priceCents: number;
+  creditCents: number;
+  bonusCents: number;
+}
+
+export type LedgerBlockPaymentMethod = "card" | "cash" | "check" | "other";
+
+/** One block bought by a member. GET /orgUsers/:id/ledger/blocks. */
+export interface LedgerBlockPurchase {
+  id: number;
+  createdAt: string;
+  name: string;
+  priceCents: number;
+  creditCents: number;
+  bonusCents: number;
+  method: LedgerBlockPaymentMethod;
+  reversedAt: string | null;
+}
+
+export interface MemberLedgerBlocks {
+  purchases: LedgerBlockPurchase[];
+  unspentBonusCents: number;
 }
 
 export interface CreateInvoiceInput {

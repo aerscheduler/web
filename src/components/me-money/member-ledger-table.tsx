@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useTimeZone } from "@/lib/use-timezone";
 import { CircleDollarSign, FileText, Wallet } from "lucide-react";
-import { pageRows, useMemberLedgerPage } from "@/features/queries";
+import { pageRows, useLedgerBlocks, useMemberLedgerPage } from "@/features/queries";
 import { usePaging } from "@/lib/paging";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import {
@@ -23,6 +23,7 @@ import {
   LedgerAddCreditDialog,
   LedgerAdjustmentDialog,
   LedgerRefundDialog,
+  LedgerSellBlockDialog,
 } from "@/components/people/detail/ledger-desk-dialogs";
 import { LedgerEntryDetailSheet } from "@/components/people/detail/ledger-entry-detail-sheet";
 import { LedgerReceiptSheet } from "@/components/people/detail/ledger-receipt-dialog";
@@ -64,6 +65,22 @@ function canReassignFlightCharge(entry: LedgerEntry): boolean {
   if (entry.reversesId != null) return false;
   if (entry.reversedBy != null) return false;
   return true;
+}
+
+/**
+ * What staff can reverse: a live flight charge, a prepaid block sold at the desk (the server
+ * takes its bonus off too), or a block bonus on its own (a bonus the school's terms let
+ * lapse). A block bought by card is not reversed; it goes back through Refund, where the
+ * money is.
+ */
+function canReverseLedgerEntry(entry: LedgerEntry): boolean {
+  if (canReassignFlightCharge(entry)) return true;
+  if (entry.reversesId != null || entry.reversedBy != null) return false;
+  // Only while some of it is still held: bonus already flown or removed with a refund is
+  // not on the account to take off, and the server refuses it.
+  if (entry.type === "block_bonus") return (entry.amountCents ?? 0) > 0 && (entry.bonusLeftCents ?? 0) > 0;
+  // A desk sale with a refund after it cannot be reversed: that would pay the member back twice.
+  return entry.blockSale != null && entry.blockSale.method !== "card" && !entry.blockSale.refundedSince;
 }
 
 function ledgerColumns(opts: {
@@ -143,7 +160,7 @@ function ledgerColumns(opts: {
         const entry = row.original;
         const receipt = LEDGER_RECEIPT_TYPES.has(entry.type);
         const reassign = opts.onReassign && canReassignFlightCharge(entry);
-        const reverse = opts.onReverse && canReassignFlightCharge(entry);
+        const reverse = opts.onReverse && canReverseLedgerEntry(entry);
         if (!receipt && !reassign && !reverse) return null;
         return (
           <div className="flex justify-end gap-1">
@@ -180,7 +197,7 @@ function ledgerColumns(opts: {
                   opts.onReverse!(entry);
                 }}
               >
-                Reverse
+                {entry.type === "block_bonus" ? "Remove" : "Reverse"}
               </Button>
             )}
           </div>
@@ -207,7 +224,7 @@ function LedgerCard({
 }) {
   const canReceipt = LEDGER_RECEIPT_TYPES.has(entry.type);
   const canReassign = onReassign != null && canReassignFlightCharge(entry);
-  const canReverse = onReverse != null && canReassignFlightCharge(entry);
+  const canReverse = onReverse != null && canReverseLedgerEntry(entry);
   return (
     <Card className="cursor-pointer p-4" onClick={onOpen}>
       <div className="flex items-start justify-between gap-3">
@@ -252,7 +269,7 @@ function LedgerCard({
                     onReverse(entry);
                   }}
                 >
-                  Reverse
+                  {entry.type === "block_bonus" ? "Remove" : "Reverse"}
                 </Button>
               )}
             </div>
@@ -300,6 +317,7 @@ export function MemberLedgerTable({
   const [credit, setCredit] = useState(false);
   const [adjustment, setAdjustment] = useState(false);
   const [refund, setRefund] = useState(false);
+  const [sellBlock, setSellBlock] = useState(false);
   const [receiptEntryId, setReceiptEntryId] = useState<number | null>(null);
   const [detailEntry, setDetailEntry] = useState<LedgerEntry | null>(null);
   const [reassignEntry, setReassignEntry] = useState<LedgerEntry | null>(null);
@@ -322,6 +340,10 @@ export function MemberLedgerTable({
   const { rows: entries, total } = pageRows(q);
   const balanceCents = q.data?.balanceCents ?? 0;
   const ledgerOn = q.data?.ledgerEnabled === true;
+  // Sell a block is offered only when the organization has a block on sale; with none the
+  // button would open onto nothing to sell.
+  const blocksQ = useLedgerBlocks({}, { enabled: !!canManage && ledgerOn });
+  const hasBlocks = (blocksQ.data ?? []).some((b) => b.active && !b.archivedAt);
   const filtersActive = !!debouncedQ || typeFilter.length > 0 || !!startDate || !!endDate;
 
   const columns = useMemo(
@@ -439,6 +461,15 @@ export function MemberLedgerTable({
             >
               Adjustment
             </Button>
+            {hasBlocks && (
+              <Button
+                size={showTitle ? "sm" : "default"}
+                variant="outline"
+                onClick={() => setSellBlock(true)}
+              >
+                Sell a block
+              </Button>
+            )}
           </>
         )}
       </div>
@@ -516,6 +547,11 @@ export function MemberLedgerTable({
             onOpenChange={setAdjustment}
           />
           <LedgerRefundDialog orgUserId={orgUserId} open={refund} onOpenChange={setRefund} />
+          <LedgerSellBlockDialog
+            orgUserId={orgUserId}
+            open={sellBlock}
+            onOpenChange={setSellBlock}
+          />
           <LedgerReassignDialog
             orgUserId={orgUserId}
             entry={reassignEntry}

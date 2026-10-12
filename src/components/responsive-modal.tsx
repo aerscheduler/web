@@ -124,7 +124,14 @@ export function ResponsiveModal({
           {children}
         </div>
         {footer != null && (
-          <div className="shrink-0 border-t bg-card px-5 py-4">{footer}</div>
+          // The footer lays its own buttons out, right-aligned and spaced, the way every
+          // dialog in the console reads (Cancel, then the action). Callers used to have to
+          // wrap them in their own `flex justify-end gap-2`, and the ones that passed bare
+          // buttons rendered flush left and touching. A caller that still passes ONE wrapper
+          // div (often `justify-between`, with a note on the left) gets the full width for it.
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t bg-card px-5 py-4 [&>div:only-child]:flex-1">
+            {footer}
+          </div>
         )}
       </DialogContent>
     </Dialog>

@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { useReverseLedgerFlightCharge } from "@/features/queries";
 import { ApiError } from "@/lib/api";
 import type { LedgerEntry } from "@/types/api";
+import { useTimeZone } from "@/lib/use-timezone";
 
 /**
  * Reverse a flight charge, which is what makes the flight behind it correctable again.
@@ -46,6 +47,8 @@ export function LedgerReverseDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const [memo, setMemo] = useState("");
+  // The organization's own day, as the ledger row beside it shows it.
+  const tz = useTimeZone();
   const reverse = useReverseLedgerFlightCharge(orgUserId);
 
   useEffect(() => {
@@ -56,7 +59,14 @@ export function LedgerReverseDialog({
 
   //A charge is stored negative (it draws the balance down), so the credit going back is its
   //absolute value. Showing the signed figure here read as taking money away again.
-  const amountCents = Math.abs(entry.amountCents ?? 0);
+  //A bonus row removes only what is still held, so the dialog quotes that, not the original.
+  const amountCents =
+    entry.type === "block_bonus" ? Math.max(0, entry.bonusLeftCents ?? 0) : Math.abs(entry.amountCents ?? 0);
+  //A prepaid block sold at the desk: reversing it takes the payment AND its bonus off, so the
+  //dialog says both figures and that the balance goes down, not up.
+  const sale = entry.blockSale && entry.blockSale.method !== "card" ? entry.blockSale : null;
+  //A block bonus on its own: removing it, typically because the school's terms let it lapse.
+  const bonus = entry.type === "block_bonus";
 
   async function submit() {
     if (!entry) return;
@@ -68,7 +78,7 @@ export function LedgerReverseDialog({
       //here can see them), or a booking that was cancelled after it flew, which both new
       //endpoints refuse outright. Saying "the flight can be corrected now" sent an admin off
       //having given real money back on a promise this dialog cannot keep.
-      toast.success("Charge reversed.");
+      toast.success(bonus ? "Bonus removed." : sale ? "Block sale reversed." : "Charge reversed.");
       onOpenChange(false);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't reverse the charge");
@@ -79,9 +89,21 @@ export function LedgerReverseDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Reverse this charge?</DialogTitle>
+          <DialogTitle>
+            {bonus
+              ? "Remove this block bonus?"
+              : sale
+                ? "Reverse this block sale?"
+                : "Reverse this charge?"}
+          </DialogTitle>
           <DialogDescription>
-            {`${formatMoney(amountCents)} goes back on the member's balance.`}
+            {bonus
+              ? `${formatMoney(amountCents)} of bonus comes off the member's balance. What they paid for the block stays.`
+              : sale
+                ? (sale.bonusLeftCents ?? sale.bonusCents) > 0
+                  ? `The ${formatMoney(amountCents)} payment and ${formatMoney(sale.bonusLeftCents ?? sale.bonusCents)} of block bonus still on the account come off the member's balance.`
+                  : `The ${formatMoney(amountCents)} payment comes off the member's balance.`
+                : `${formatMoney(amountCents)} goes back on the member's balance.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -91,9 +113,11 @@ export function LedgerReverseDialog({
             This moves real money and is deliberately irreversible in the other direction, so
             the confirm step has to give somebody something to notice a misclick with. */}
         <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
-          <div className="font-medium text-foreground">{entry.memo ?? "Flight charge"}</div>
+          <div className="font-medium text-foreground">
+            {entry.memo ?? (bonus ? "Block bonus" : sale ? "Block purchase" : "Flight charge")}
+          </div>
           <div className="mt-0.5 text-muted-foreground">
-            {entry.createdAt ? new Date(entry.createdAt).toLocaleDateString() : "Date unknown"}
+            {entry.createdAt ? tz.date(entry.createdAt) : "Date unknown"}
             {entry.reservationId ? ` · Booking #${entry.reservationId}` : ""}
           </div>
         </div>
@@ -104,15 +128,23 @@ export function LedgerReverseDialog({
             id="ledger-reverse-memo"
             value={memo}
             maxLength={200}
-            placeholder="Hobbs was typed wrong"
+            placeholder={
+              bonus
+                ? "Bonus lapsed under our terms"
+                : sale
+                  ? "Sold to the wrong member"
+                  : "Hobbs was typed wrong"
+            }
             onChange={(e) => setMemo(e.target.value)}
           />
           <p className="text-sm text-muted-foreground">
             {/* The ledger never rewrites money, and saying so here stops somebody
                 expecting the original line to disappear and then reversing it twice. */}
-            The original charge stays on the statement with the reversal beside it. If this was
-            the only money against the flight, it becomes correctable; where several people
-            share a booking, each of their charges has to come off before it does.
+            {bonus
+              ? "The bonus stays on the statement with the removal beside it."
+              : sale
+                ? "The sale stays on the statement with the reversal beside it. Use this for a sale recorded by mistake; to pay a member back, use Refund."
+                : "The original charge stays on the statement with the reversal beside it. If this was the only money against the flight, it becomes correctable; where several people share a booking, each of their charges has to come off before it does."}
           </p>
         </div>
 
@@ -121,7 +153,13 @@ export function LedgerReverseDialog({
             Cancel
           </Button>
           <Button onClick={submit} disabled={reverse.isPending}>
-            {reverse.isPending ? "Reversing…" : "Reverse charge"}
+            {reverse.isPending
+              ? "Reversing…"
+              : bonus
+                ? "Remove bonus"
+                : sale
+                  ? "Reverse sale"
+                  : "Reverse charge"}
           </Button>
         </DialogFooter>
       </DialogContent>

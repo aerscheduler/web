@@ -206,6 +206,12 @@ export const DOCS_TOPICS = {
       "Optional percent and/or flat fee when members add funds by card. They pay a little more and still get the credit they asked for. Desk cash and check are credited in full.",
     href: "billing/set-a-card-fee-on-account-top-ups",
   },
+  "prepaid-blocks": {
+    title: "Prepaid blocks",
+    summary:
+      "Sell credit up front with a bonus, for example pay 1,700 and get 1,800. Members buy blocks from Add funds and the desk can sell one too; the bonus is never refundable.",
+    href: "billing/sell-prepaid-blocks",
+  },
   "post-to-ledger": {
     title: "Post to ledger",
     summary:

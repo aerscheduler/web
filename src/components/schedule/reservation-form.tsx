@@ -1,3 +1,4 @@
+import { billingCurrencyLabel, PACKAGE_PRICE_MINIMUM_MINOR, parseMoneyInput } from "@/lib/billing-currency";
 import * as React from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { format } from "date-fns";
@@ -83,7 +84,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 import { dateKeyInZone, zonedWallClockToUtc } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { DOT_CLASS, typeLabel } from "./meta";
@@ -1337,11 +1338,13 @@ export function ReservationForm({
       if (recurrence.enabled) {
         return fail("Charge-when-booked is for a single booking, not a repeating series.", "package-price");
       }
-      const dollars = Number(packageDollars);
-      if (!Number.isFinite(dollars) || dollars < 0.5) {
-        return fail("Enter a package price of at least $0.50.", "package-price");
+      const packageCents = parseMoneyInput(packageDollars);
+      // The server's floor for charge-when-booked: 50 minor units in EVERY currency (not
+      // Stripe's 30 pence), so the form refuses exactly what the server would.
+      if (packageCents == null || packageCents < PACKAGE_PRICE_MINIMUM_MINOR) {
+        return fail(`Enter a package price of at least ${formatMoney(PACKAGE_PRICE_MINIMUM_MINOR)}.`, "package-price");
       }
-      prepaidAmountCents = Math.round(dollars * 100);
+      prepaidAmountCents = packageCents;
     }
 
     const input = buildReservationInput({
@@ -1906,7 +1909,7 @@ export function ReservationForm({
             </Select>
             {collectionStyle === "prepaid_fixed" ? (
               <div className="space-y-1.5">
-                <Label htmlFor="package-price">Package price (USD)</Label>
+                <Label htmlFor="package-price">Package price ({billingCurrencyLabel()})</Label>
                 <Input
                   id="package-price"
                   aria-invalid={errorField === "package-price"}

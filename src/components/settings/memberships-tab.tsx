@@ -1,3 +1,4 @@
+import { moneySymbol, parseMoneyInput } from "@/lib/billing-currency";
 import { useState } from "react";
 import { Archive, ArchiveRestore, Pencil, Plus, Users } from "lucide-react";
 import type { DuesInterval, MembershipPlan } from "@/types/api";
@@ -197,13 +198,13 @@ const ordinal = (n: number) => {
   return `${n}${suffix}`;
 };
 
-/** Dollars in the box, cents on the wire. Rounded, never truncated, see CourseFeeEditor. */
+/**
+ * The amount in the box, cents on the wire, through the shared parser: "12,50" is 12.50, where
+ * parseFloat read it as 12.
+ */
 const toCents = (dollars: string): number | null => {
-  const trimmed = dollars.trim();
-  if (trimmed === "") return null;
-  const parsed = Number.parseFloat(trimmed);
-  if (!Number.isFinite(parsed) || parsed <= 0) return null;
-  return Math.round(parsed * 100);
+  const cents = parseMoneyInput(dollars);
+  return cents != null && cents > 0 ? cents : null;
 };
 
 const toDollars = (cents: number | null | undefined): string =>
@@ -538,7 +539,7 @@ function MoneyField({
     <div className="space-y-1">
       <Label htmlFor={id}>{label}</Label>
       <div className="relative">
-        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{moneySymbol()}</span>
         <Input
           id={id}
           className="w-36 pl-5"
@@ -634,7 +635,8 @@ function PlanRateRow({
   const existing = current?.wetRate ?? current?.dryRate ?? null;
   const [text, setText] = useState(existing != null ? (existing / 100).toFixed(2) : "");
 
-  const parsed = text.trim() === "" ? null : Math.round(Number.parseFloat(text) * 100);
+  // NaN marks "typed but not an amount", so `invalid` catches it and `dirty` stays honest.
+  const parsed = text.trim() === "" ? null : (parseMoneyInput(text) ?? Number.NaN);
   const invalid = parsed != null && (!Number.isFinite(parsed) || parsed <= 0);
   const dirty = parsed !== existing;
 
@@ -649,7 +651,7 @@ function PlanRateRow({
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <div className="relative">
-          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
+          <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{moneySymbol()}</span>
           <Input
             className="w-28 pl-5"
             inputMode="decimal"

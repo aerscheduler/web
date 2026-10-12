@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Combobox, type ComboOption } from "@/components/combobox";
 import { MoneyInput } from "@/components/money-input";
+import { useMoneyFieldsValid } from "@/hooks/use-money-fields-valid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -95,6 +96,8 @@ export function CreateInvoiceDialog({
   const [duePickerOpen, setDuePickerOpen] = useState(false);
   // Surfaced only after a submit attempt, so we don't nag on a pristine form.
   const [showErrors, setShowErrors] = useState(false);
+  // A line whose price text is not an amount holds Create; the price field's message explains.
+  const money = useMoneyFieldsValid();
 
   // Reset the form each time the modal opens, applying any draft prefill.
   useEffect(() => {
@@ -252,7 +255,7 @@ export function CreateInvoiceDialog({
   }
 
   function submit() {
-    if (create.isPending || pricing || refusal) return;
+    if (create.isPending || pricing || refusal || !money.allValid) return;
     if (badQtyRow) {
       setShowErrors(true);
       document.getElementById(`invoice-qty-${badQtyRow.key}`)?.focus();
@@ -308,7 +311,7 @@ export function CreateInvoiceDialog({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button onClick={submit} disabled={create.isPending || pricing || !!refusal}>
+            <Button onClick={submit} disabled={create.isPending || pricing || !!refusal || !money.allValid}>
               {create.isPending ? "Creating…" : pricing && !previewError ? "Pricing…" : "Create invoice"}
             </Button>
         </div>
@@ -448,8 +451,10 @@ export function CreateInvoiceDialog({
                   />
                   <div className="flex-1 sm:w-28 sm:flex-none">
                     <MoneyInput
+                      id={`invoice-price-${r.key}`}
                       cents={r.unitPrice}
                       onCentsChange={(cents) => updateRow(r.key, { unitPrice: cents })}
+                      onValidityChange={money.report(`price-${r.key}`)}
                     />
                   </div>
                   <Tooltip>

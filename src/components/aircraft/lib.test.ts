@@ -19,7 +19,7 @@ describe("fuel scale", () => {
     expect(fuelToDisplay(17700)).toBe(177);
   });
 
-  it("keeps zero as zero — plenty of real aircraft have no capacity recorded", () => {
+  it("keeps zero as zero: plenty of real aircraft have no capacity recorded", () => {
     expect(fuelToDisplay(0)).toBe(0);
   });
 
@@ -34,7 +34,12 @@ describe("fuel scale", () => {
     }
   });
 
-  it("truncates like the app's decimalToInt rather than rounding up", () => {
-    expect(fuelToStored(42.999)).toBe(4299);
+  it("rounds like the app's decimalToInt, so float error never loses a hundredth", () => {
+    // 4.35 * 100 and 0.29 * 100 land just under the whole number; truncating stored 434 and 28.
+    expect(4.35 * 100).toBeLessThan(435);
+    expect(fuelToStored(4.35)).toBe(435);
+    expect(fuelToStored(0.29)).toBe(29);
+    expect(fuelToStored(42.999)).toBe(4300);
+    expect(fuelToStored(42.994)).toBe(4299);
   });
 });

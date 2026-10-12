@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/utils";
+import { billingCurrencyLabel, PACKAGE_PRICE_MINIMUM_MINOR, parseMoneyInput } from "@/lib/billing-currency";
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -853,7 +855,7 @@ export function BookingOfferingFormModal({
       collectionStyle: form.collectionStyle,
       prepaidAmountCents:
         form.collectionStyle === "prepaid_fixed"
-          ? Math.round(Number(form.packageDollars) * 100)
+          ? parseMoneyInput(form.packageDollars)
           : null,
     };
   }
@@ -867,9 +869,11 @@ export function BookingOfferingFormModal({
       return;
     }
     if (form.collectionStyle === "prepaid_fixed") {
-      const dollars = Number(form.packageDollars);
-      if (!Number.isFinite(dollars) || dollars < 0.5) {
-        toast.error("Enter a package price of at least $0.50.");
+      const packageCents = parseMoneyInput(form.packageDollars);
+      // The server's floor for charge-when-booked: 50 minor units in EVERY currency (not
+      // Stripe's 30 pence), so the form refuses exactly what the server would.
+      if (packageCents == null || packageCents < PACKAGE_PRICE_MINIMUM_MINOR) {
+        toast.error(`Enter a package price of at least ${formatMoney(PACKAGE_PRICE_MINIMUM_MINOR)}.`);
         return;
       }
     }
@@ -1112,7 +1116,7 @@ export function BookingOfferingFormModal({
           </Select>
           {form.collectionStyle === "prepaid_fixed" ? (
             <div className="space-y-1.5">
-              <Label htmlFor="bo-package">Package price (USD)</Label>
+              <Label htmlFor="bo-package">Package price ({billingCurrencyLabel()})</Label>
               <Input
                 id="bo-package"
                 inputMode="decimal"

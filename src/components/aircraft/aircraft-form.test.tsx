@@ -257,3 +257,27 @@ describe("the customer's aircraft switch", () => {
     expect(screen.queryByLabelText("Rate per hour")).not.toBeNull();
   });
 });
+
+// Review round 2 (2026-10-12): an unreadable rate ("1.250", "12.345") used to report 0, so the
+// form saved the aeroplane at $0.00 an hour with only the field's red text to say so. The
+// field now reports nothing for unreadable text, and the form holds its save until it reads.
+describe("an unreadable rate", () => {
+  const saveButton = () => document.querySelector('button[form="modal-aircraft-form"]') as HTMLButtonElement;
+
+  it("disables Save until the rate reads as an amount, and never sends $0.00", () => {
+    openForm();
+    fireEvent.change(screen.getByLabelText("Tail number"), { target: { value: "N123AB" } });
+    fireEvent.click(screen.getByText("Pick home base"));
+    const rate = screen.getByLabelText("Rate per hour") as HTMLInputElement;
+
+    fireEvent.change(rate, { target: { value: "1.250" } });
+    expect(rate.getAttribute("aria-invalid")).toBe("true");
+    expect(saveButton().disabled).toBe(true);
+    // Enter in the form is refused too, not just the button.
+    fireEvent.submit(document.getElementById("modal-aircraft-form") as HTMLFormElement);
+    expect(created.mutate).not.toHaveBeenCalled();
+
+    fireEvent.change(rate, { target: { value: "1,250" } });
+    expect(saveButton().disabled).toBe(false);
+  });
+});

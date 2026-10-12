@@ -16,6 +16,7 @@
  * and people, so nothing here is hardcoded and nothing goes stale.
  */
 
+import { moneySymbol } from "@/lib/billing-currency";
 import { useState } from "react";
 import { Filter, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -83,7 +84,7 @@ export function fromWire(value: unknown, type: ReportFilterDef["type"]): string 
 }
 
 export function unitHint(type: ReportFilterDef["type"]): string | null {
-  if (type === "money") return "$";
+  if (type === "money") return moneySymbol();
   if (type === "hours") return "hours";
   if (type === "percent") return "%";
   return null;

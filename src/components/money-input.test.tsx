@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import * as React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { MoneyInput } from "./money-input";
+import { parseMoneyInput } from "@/lib/billing-currency";
 
 /**
  * Regression guard for the bug that billed a 12 hour annual as twelve cents.
@@ -15,23 +16,30 @@ import { MoneyInput } from "./money-input";
  *
  * Two independent defences, tested separately below:
  *   1. focus selects the existing text, so the first keystroke replaces it;
- *   2. the change handler keeps only the first decimal point.
+ *   2. text that is not an amount ("0.0095.00", "1,2,3") is refused and the field shows its
+ *      error, instead of being read as whatever parseFloat or a stripped comma made of it.
+ *
+ * And the euro bug (2026-10-12): commas were stripped, so a school billing in EUR typing
+ * "12,50" saved 1250.00. The comma is now a decimal comma when it can only be one.
  */
 
 afterEach(cleanup);
 
 function Harness({ initial }: { initial?: number }) {
   const [cents, setCents] = React.useState<number | undefined>(initial);
+  const [valid, setValid] = React.useState<boolean | null>(null);
   return (
     <div>
-      <MoneyInput cents={cents} onCentsChange={setCents} id="price" />
+      <MoneyInput cents={cents} onCentsChange={setCents} onValidityChange={setValid} id="price" />
       <output data-testid="cents">{String(cents)}</output>
+      <output data-testid="valid">{String(valid)}</output>
     </div>
   );
 }
 
 const field = () => screen.getByRole("textbox") as HTMLInputElement;
 const cents = () => screen.getByTestId("cents").textContent;
+const valid = () => screen.getByTestId("valid").textContent;
 
 /** What a browser does to a text input when you type into it at the current selection. */
 function typeInto(input: HTMLInputElement, keys: string) {
@@ -82,13 +90,16 @@ describe("MoneyInput", () => {
     expect(cents()).toBe("9500");
   });
 
-  it("drops a second decimal point instead of silently truncating at it", () => {
+  it("refuses a second decimal point instead of silently truncating at it", () => {
     render(<Harness initial={0} />);
-    // Without the guard, parseFloat("95.0.5") reads 95 and the field keeps showing
-    // "95.0.5", so the number on screen is not the number billed.
+    // parseFloat("95.0.5") reads 95 while the field shows "95.0.5", so the number on screen
+    // is not the number billed. Refused, flagged, and nothing guessed.
     fireEvent.change(field(), { target: { value: "95.0.5" } });
-    expect(field().value).toBe("95.05");
-    expect(cents()).toBe("9505");
+    expect(field().value).toBe("95.0.5");
+    expect(field().getAttribute("aria-invalid")).toBe("true");
+    expect(screen.getByText(/Enter an amount like 12\.50/)).toBeTruthy();
+    expect(cents()).toBe("0");
+    expect(valid()).toBe("false");
   });
 
   it("never shows one number while billing another", () => {
@@ -103,24 +114,115 @@ describe("MoneyInput", () => {
       fireEvent.change(field(), { target: { value } });
 
       const shown = field().value;
-      expect(shown.split(".").length).toBeLessThanOrEqual(2);
-
-      const parsed = parseFloat(shown);
-      const expected = Number.isNaN(parsed) ? 0 : Math.round(parsed * 100);
-      expect(Number(cents())).toBe(expected);
+      const parsed = parseMoneyInput(shown.replace(/^(\d+)[.,]$/, "$1"));
+      if (parsed == null) {
+        // Not an amount: the field says so, tells the form, and reports no number at all.
+        expect(field().getAttribute("aria-invalid")).toBe("true");
+        expect(valid()).toBe("false");
+        expect(cents()).toBe("0");
+      } else {
+        expect(field().getAttribute("aria-invalid")).toBeNull();
+        expect(valid()).toBe("true");
+        expect(Number(cents())).toBe(parsed);
+      }
     }
   });
 
-  it("strips letters and currency punctuation", () => {
+  it("strips letters and currency symbols but keeps grouping", () => {
     render(<Harness initial={0} />);
-    fireEvent.change(field(), { target: { value: "$1,2a3.4" } });
-    expect(cents()).toBe("12340");
+    fireEvent.change(field(), { target: { value: "$1,2a34.5" } });
+    expect(field().value).toBe("1,234.5");
+    expect(cents()).toBe("123450");
+  });
+
+  it("reads a euro school's decimal comma: 12,50 is 12.50, not 1250.00", () => {
+    render(<Harness initial={0} />);
+    fireEvent.change(field(), { target: { value: "€12,50" } });
+    expect(field().value).toBe("12,50");
+    expect(cents()).toBe("1250");
+    fireEvent.blur(field());
+    expect(field().value).toBe("12.50");
+    expect(cents()).toBe("1250");
+  });
+
+  it("never flags the field while 12,50 is typed key by key", () => {
+    render(<Harness />);
+    const input = field();
+    fireEvent.focus(input);
+    for (const key of "12,50") {
+      input.setSelectionRange(input.value.length, input.value.length);
+      typeInto(input, key);
+      expect(field().getAttribute("aria-invalid")).toBeNull();
+    }
+    expect(field().value).toBe("12,50");
+    expect(cents()).toBe("1250");
+  });
+
+  it("keeps en-US grouping: 1,234 is 1234.00", () => {
+    render(<Harness initial={0} />);
+    fireEvent.change(field(), { target: { value: "1,234" } });
+    expect(cents()).toBe("123400");
+  });
+
+  it("flags an ambiguous amount instead of guessing, and reports no fake 0", () => {
+    for (const value of ["1,2,3", "1.234,56", "12.345", "1.250", ",50"]) {
+      cleanup();
+      render(<Harness initial={500} />);
+      fireEvent.change(field(), { target: { value } });
+      expect(field().getAttribute("aria-invalid")).toBe("true");
+      // The form keeps its last good value and is told the field is unreadable, so its save
+      // waits. Reporting 0 here is what let every form save $0.00 silently.
+      expect(cents()).toBe("500");
+      expect(valid()).toBe("false");
+      // Blur leaves the text alone so the person can see what to fix.
+      fireEvent.blur(field());
+      expect(field().value).toBe(value);
+    }
   });
 
   it("reports 0 for an emptied field rather than keeping the old value", () => {
     render(<Harness initial={9_500} />);
     fireEvent.change(field(), { target: { value: "" } });
     expect(cents()).toBe("0");
+    // Empty is an answer, not an error.
+    expect(valid()).toBe("true");
+  });
+
+  it("never calls onCentsChange with unreadable text, and recovers when it is fixed", () => {
+    const onCents = vi.fn();
+    const onValid = vi.fn();
+    render(<MoneyInput cents={1_000} onCentsChange={onCents} onValidityChange={onValid} id="price" />);
+    expect(onValid).toHaveBeenLastCalledWith(true);
+
+    fireEvent.change(field(), { target: { value: "12.345" } });
+    expect(onCents).not.toHaveBeenCalled();
+    expect(onValid).toHaveBeenLastCalledWith(false);
+
+    fireEvent.change(field(), { target: { value: "12.34" } });
+    expect(onCents).toHaveBeenLastCalledWith(1_234);
+    expect(onValid).toHaveBeenLastCalledWith(true);
+  });
+
+  it("calls onClear, not onCentsChange, for an emptied field that has one", () => {
+    const onCents = vi.fn();
+    const onClear = vi.fn();
+    const onValid = vi.fn();
+    render(<MoneyInput cents={1_000} onCentsChange={onCents} onClear={onClear} onValidityChange={onValid} id="price" />);
+    fireEvent.change(field(), { target: { value: "1.250" } });
+    expect(onValid).toHaveBeenLastCalledWith(false);
+    fireEvent.change(field(), { target: { value: "" } });
+    expect(onClear).toHaveBeenCalledTimes(1);
+    expect(onCents).not.toHaveBeenCalled();
+    expect(onValid).toHaveBeenLastCalledWith(true);
+  });
+
+  it("stops blocking the form when an unreadable field goes away", () => {
+    const onValid = vi.fn();
+    const { unmount } = render(<MoneyInput cents={0} onCentsChange={() => undefined} onValidityChange={onValid} id="price" />);
+    fireEvent.change(field(), { target: { value: "1,2,3" } });
+    expect(onValid).toHaveBeenLastCalledWith(false);
+    unmount();
+    expect(onValid).toHaveBeenLastCalledWith(true);
   });
 
   it("normalises to two decimals on blur", () => {

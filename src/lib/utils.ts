@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format as fnsFormat, parseISO } from "date-fns";
+import { formatMajor } from "./billing-currency";
 
 /** Merge conditional class names, de-duping conflicting Tailwind utilities. */
 export function cn(...inputs: ClassValue[]) {
@@ -28,12 +29,18 @@ export function formatDate(
   return d ? fnsFormat(d, fmt) : fallback;
 }
 
-/** Format cents (the API stores money as integer cents) as USD. */
-export function formatMoney(cents: number | null | undefined, opts?: { cents?: boolean }) {
+/**
+ * Format minor units (the API stores money as integer cents) in the organization's billing
+ * currency. `currency` overrides the active one: pass "usd" for AerScheduler's own plan price,
+ * which is billed in USD whatever the school bills its members in.
+ */
+export function formatMoney(
+  cents: number | null | undefined,
+  opts?: { cents?: boolean; currency?: string | null }
+) {
   const n = (cents ?? 0) / 100;
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
+  return formatMajor(n, {
+    currency: opts?.currency,
     minimumFractionDigits: opts?.cents === false ? 0 : 2,
     maximumFractionDigits: opts?.cents === false ? 0 : 2,
   });

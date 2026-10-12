@@ -1,3 +1,4 @@
+import { billingCurrencyLabel, parseMoneyInput } from "@/lib/billing-currency";
 import * as React from "react";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { useQueryClient } from "@tanstack/react-query";
@@ -38,11 +39,10 @@ function errMessage(e: unknown): string {
 }
 
 function parseDollarsToCents(raw: string): number | null {
-  const cleaned = raw.trim().replace(/[$,]/g, "");
-  if (!cleaned) return null;
-  const n = Number(cleaned);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return Math.round(n * 100);
+  // The shared parser: ignores "£" / "$", reads "12,50" as 12.50 (not 1250.00), and refuses
+  // "1,2,3" instead of guessing. A top-up is never zero or negative.
+  const cents = parseMoneyInput(raw);
+  return cents != null && cents > 0 ? cents : null;
 }
 
 /** Mirror server `computeTopUpCardCharge` for the amount step preview. */
@@ -56,7 +56,7 @@ function previewTopUpCharge(
   return { creditCents, feeCents, chargeCents: creditCents + feeCents };
 }
 
-/** e.g. "50% + $1.00" from org fee settings. */
+/** e.g. "50% + $1.00" from org fee settings (in the billing currency). */
 function formatTopUpFeeRecipe(fees: {
   topUpCardFeePercent: number | null;
   topUpCardFeeFlatCents: number | null;
@@ -276,7 +276,7 @@ export function AddFundsDialog({
               ))}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="add-funds-amount">Credit amount (USD)</Label>
+              <Label htmlFor="add-funds-amount">Credit amount ({billingCurrencyLabel()})</Label>
               <Input
                 id="add-funds-amount"
                 inputMode="decimal"
@@ -284,7 +284,7 @@ export function AddFundsDialog({
                 onChange={(e) => setDollars(e.target.value)}
                 placeholder="100.00"
               />
-              <p className="text-xs text-muted-foreground">Minimum $1.00 credited</p>
+              <p className="text-xs text-muted-foreground">Minimum {formatMoney(100)} credited</p>
             </div>
 
             {breakdown && breakdown.feeCents > 0 && (
@@ -387,7 +387,7 @@ export function AddFundsDialog({
               onClick={() => {
                 const cents = parseDollarsToCents(dollars);
                 if (cents == null || cents < 100) {
-                  setError("Enter at least $1.00");
+                  setError(`Enter at least ${formatMoney(100)}`);
                   return;
                 }
                 void startTopUp(cents);

@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -55,7 +56,7 @@ export function LedgerReverseDialog({
 
   //A charge is stored negative (it draws the balance down), so the credit going back is its
   //absolute value. Showing the signed figure here read as taking money away again.
-  const amount = Math.abs(entry.amountCents ?? 0) / 100;
+  const amountCents = Math.abs(entry.amountCents ?? 0);
 
   async function submit() {
     if (!entry) return;
@@ -80,7 +81,7 @@ export function LedgerReverseDialog({
         <DialogHeader>
           <DialogTitle>Reverse this charge?</DialogTitle>
           <DialogDescription>
-            {`$${amount.toFixed(2)} goes back on the member's balance.`}
+            {`${formatMoney(amountCents)} goes back on the member's balance.`}
           </DialogDescription>
         </DialogHeader>
 

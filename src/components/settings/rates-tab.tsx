@@ -113,6 +113,8 @@ function AddRatingModal({
   const create = useCreateRating();
   const [name, setName] = useState("");
   const [rateCents, setRateCents] = useState(0);
+  // False while the rate field holds text that is not an amount; its own message explains.
+  const [rateValid, setRateValid] = useState(true);
   const [errors, setErrors] = useState<{ name?: string }>({});
 
   function reset() {
@@ -123,7 +125,7 @@ function AddRatingModal({
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (create.isPending) return;
+    if (create.isPending || !rateValid) return;
     // Tell the user what's missing instead of silently disabling the button.
     if (name.trim().length === 0) {
       setErrors({ name: "Name is required" });
@@ -159,7 +161,7 @@ function AddRatingModal({
               Cancel
             </Button>
             <Button type="submit"
-                form="modal-rates-tab" disabled={create.isPending}>
+                form="modal-rates-tab" disabled={create.isPending || !rateValid}>
               {create.isPending && <Loader2 className="size-4 animate-spin" />}
               Add rating
             </Button>
@@ -193,7 +195,7 @@ function AddRatingModal({
           htmlFor="rating-rate"
           hint="Charged per hour of instruction for this rating."
         >
-          <MoneyInput id="rating-rate" cents={rateCents} onCentsChange={setRateCents} />
+          <MoneyInput id="rating-rate" cents={rateCents} onCentsChange={setRateCents} onValidityChange={setRateValid} />
         </Field>
       </form>
     </ResponsiveModal>

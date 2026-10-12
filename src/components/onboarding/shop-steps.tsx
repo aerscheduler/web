@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { isTechnician } from "@/lib/permissions";
 import { api, apiList, ApiError } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 import { track } from "@/lib/analytics";
 import { trackAdConversion } from "@/lib/ads";
 import { attributionChannel } from "@/lib/attribution";
@@ -61,6 +61,10 @@ export function ShopRatesStep({ onBack, onDone }: { onBack: () => void; onDone: 
   const q = useWorkOrderSettings();
   const save = useSetWorkOrderSettings();
   const [rate, setRate] = React.useState<number | undefined>(undefined);
+  // False while the rate field holds text that is not an amount; its own message explains.
+  // It used to report 0 and be refused as "enter your rate"; now it keeps the last good value,
+  // so Continue must wait for it.
+  const [rateValid, setRateValid] = React.useState(true);
   const [parts, setParts] = React.useState("15");
   const [outside, setOutside] = React.useState("15");
   const [showErrors, setShowErrors] = React.useState(false);
@@ -77,10 +81,11 @@ export function ShopRatesStep({ onBack, onDone }: { onBack: () => void; onDone: 
 
   const partsBps = bpsFrom(parts);
   const outsideBps = bpsFrom(outside);
-  const rateErr = rate == null || rate <= 0 ? "Enter your hourly labor rate, or skip this for now." : rate > 100_000_000 ? "At most $1,000,000.00 an hour." : "";
+  const rateErr = rate == null || rate <= 0 ? "Enter your hourly labor rate, or skip this for now." : rate > 100_000_000 ? `At most ${formatMoney(100_000_000)} an hour.` : "";
   const markupErr = partsBps === undefined || outsideBps === undefined ? "A markup is a percentage from 0 to 1000, like 15." : "";
 
   async function submit() {
+    if (!rateValid) return;
     if (rateErr || markupErr) {
       setShowErrors(true);
       document.getElementById(rateErr ? "shop-rate" : "shop-parts")?.focus();
@@ -100,7 +105,7 @@ export function ShopRatesStep({ onBack, onDone }: { onBack: () => void; onDone: 
       sub="Every labor line on a work order starts at your rate, and parts and outside work at cost plus your markup. A line keeps the price it was given, so changing these later never reprices a job."
     >
       <Field id="shop-rate" label="Labor rate per hour" error={showErrors ? rateErr : ""}>
-        <MoneyInput id="shop-rate" cents={rate} onCentsChange={setRate} onClear={() => setRate(undefined)} placeholder="125.00" />
+        <MoneyInput id="shop-rate" cents={rate} onCentsChange={setRate} onClear={() => setRate(undefined)} onValidityChange={setRateValid} placeholder="125.00" />
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field id="shop-parts" label="Markup on parts">
@@ -115,7 +120,7 @@ export function ShopRatesStep({ onBack, onDone }: { onBack: () => void; onDone: 
         Technicians log their hours at this rate; only an admin changes a price. Outside work is a
         prop overhaul or a radio repair you send out. Change any of it later in Settings, Shop rates.
       </p>
-      <Nav onBack={onBack} onNext={submit} busy={save.isPending} onSkip={onDone} />
+      <Nav onBack={onBack} onNext={submit} nextDisabled={!rateValid} busy={save.isPending} onSkip={onDone} />
     </Step>
   );
 }

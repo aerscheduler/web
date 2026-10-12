@@ -1,3 +1,4 @@
+import { moneySymbol, parseMoneyInput } from "@/lib/billing-currency";
 import { useState } from "react";
 import { Receipt } from "lucide-react";
 import type { Course } from "@/types/api";
@@ -33,11 +34,11 @@ export function CourseFeeEditor({ course }: { course: Course }) {
   const [label, setLabel] = useState(course.enrollmentFeeLabel ?? "");
 
   const trimmed = dollars.trim();
-  const parsed = trimmed === "" ? null : Number.parseFloat(trimmed);
-  const cents = parsed == null ? null : Math.round(parsed * 100);
+  // The shared parser, so "12,50" is 12.50 (parseFloat read it as 12). NaN marks "typed but
+  // not an amount" so `invalid` catches it.
+  const cents = trimmed === "" ? null : (parseMoneyInput(trimmed) ?? Number.NaN);
 
-  const invalid =
-    parsed != null && (!Number.isFinite(parsed) || parsed <= 0);
+  const invalid = cents != null && (!Number.isFinite(cents) || cents <= 0);
   const dirty =
     cents !== (course.enrollmentFeeCents ?? null) ||
     label.trim() !== (course.enrollmentFeeLabel ?? "");
@@ -59,7 +60,7 @@ export function CourseFeeEditor({ course }: { course: Course }) {
           <Label htmlFor="fee-amount">Amount</Label>
           <div className="relative">
             <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-              $
+              {moneySymbol()}
             </span>
             <Input
               id="fee-amount"
@@ -99,7 +100,9 @@ export function CourseFeeEditor({ course }: { course: Course }) {
 
       {invalid ? (
         <p className="mt-2 text-sm text-destructive">
-          A fee has to be more than zero. Leave it empty for a free course.
+          {cents != null && Number.isNaN(cents)
+            ? "Enter an amount like 12.50 or 12,50."
+            : "A fee has to be more than zero. Leave it empty for a free course."}
         </p>
       ) : cents != null ? (
         <p className="mt-2 text-xs text-muted-foreground">

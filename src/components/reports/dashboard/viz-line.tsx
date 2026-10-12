@@ -48,6 +48,7 @@ import { formatReportValue, formatWindow } from "@/lib/report-format";
 import { wallClockInZone } from "@/lib/timezone";
 import type { ReportColumn } from "@/types/reports";
 import { cn } from "@/lib/utils";
+import { formatMajor } from "@/lib/billing-currency";
 
 const SERIES_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)"];
 const PAD = { top: 10, right: 60, bottom: 24, left: 50 };
@@ -106,11 +107,7 @@ function niceTicks(max: number, count = 4): number[] {
 /** Axis ticks are rounded, so they never need cents. */
 function axisLabel(value: number, type: ReportColumn["type"]): string {
   if (type === "money") {
-    return (value / 100).toLocaleString("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: 0,
-    });
+    return formatMajor(value / 100, { maximumFractionDigits: 0 });
   }
   if (type === "hours") return `${(value / 10).toFixed(0)} h`;
   return formatReportValue(value, type);

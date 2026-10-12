@@ -2,9 +2,10 @@ import { useMemo } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { api, apiList, apiRaw, ApiError, raw, type PaginationMeta } from "@/lib/api";
 import { track } from "@/lib/analytics";
-import { isOutsideOwnerSync } from "@/lib/auth";
+import { isOutsideOwnerSync, useAuth } from "@/lib/auth";
 import type { Paged, PagingState } from "@/lib/paging";
-import type { AircraftHistoryEntry, AircraftHistoryKind, AircraftInvoice, CustomerFile, OwnFile } from "@/types/api";
+import type { AircraftHistoryEntry, AircraftHistoryKind, AircraftInvoice, CustomerFile, OrganizationBillingCurrency, OwnFile } from "@/types/api";
+import { setActiveBillingCurrency } from "@/lib/billing-currency";
 import type { InvoiceFile } from "@/types/api";
 import { outstandingHolds } from "@/lib/outstanding-holds";
 import type { CurrencyRuleDetail, CurrencyRuleStanding } from "@/types/currency-rule";
@@ -1850,6 +1851,52 @@ export function useCreateRating() {
         body: { anyInstructorCanTeach: true, ...input },
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["ratings"] }),
+  });
+}
+
+/**
+ * The organization's BILLING currency (what every price and balance is in), with the options
+ * and whether it is locked. Any member may read. Not pilot currency, see useCurrencyTypes.
+ */
+export function useBillingCurrency(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["billingCurrency"],
+    queryFn: () =>
+      api<OrganizationBillingCurrency>("/organizations/billingCurrency", {
+        query: { includeStripe: "true" },
+      }),
+    ...opts,
+  });
+}
+
+/**
+ * Change the billing currency (owner only; 409 once money is recorded). On success the session
+ * is rehydrated so `organization.billingCurrency`, and with it every formatted amount, follows.
+ */
+export function useSetBillingCurrency() {
+  const qc = useQueryClient();
+  const { rehydrate, reconcileBillingCurrency } = useAuth();
+  return useMutation({
+    mutationFn: (currency: string) =>
+      api<OrganizationBillingCurrency>("/organizations/billingCurrency", {
+        method: "PUT",
+        body: { currency },
+      }),
+    onSuccess: async (data) => {
+      qc.setQueryData(["billingCurrency"], data);
+      // If the session cannot be re-read, still format in the currency the server just saved.
+      const user = await rehydrate();
+      if (!user) {
+        setActiveBillingCurrency(data.currency);
+        // And into the stored session, or the next render would put the old one back.
+        await reconcileBillingCurrency(data.currency);
+      }
+      // Every cached amount renders through the new currency; refetch so nothing stale shows.
+      await qc.invalidateQueries();
+    },
+    // A 409 means the currency was locked (money recorded) since the card loaded, or changed
+    // underneath it. Refetch so the card shows the locked reason and disables the picker.
+    onError: () => qc.invalidateQueries({ queryKey: ["billingCurrency"] }),
   });
 }
 

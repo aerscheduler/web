@@ -19,6 +19,7 @@ import { dateKeyInZone } from "@/lib/timezone";
 import { cn, formatMoney } from "@/lib/utils";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { MoneyInput } from "@/components/money-input";
+import { useMoneyFieldsValid } from "@/hooks/use-money-fields-valid";
 import { Field } from "@/components/settings/parts";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -148,6 +149,9 @@ export function WorkOrderLineModal({
   const [discount, setDiscount] = React.useState("");
   const [itemId, setItemId] = React.useState<string>(NONE);
   const [showErrors, setShowErrors] = React.useState(false);
+  // The rate, cost and price fields each say when their text is not an amount; while any does,
+  // Save waits (the field's own message explains) rather than saving the last good value.
+  const money = useMoneyFieldsValid();
   const seeded = React.useRef<string | null>(null);
 
   React.useEffect(() => {
@@ -266,6 +270,7 @@ export function WorkOrderLineModal({
   const pending = add.isPending || update.isPending;
 
   async function submit() {
+    if (!money.allValid) return;
     if (invalid) {
       setShowErrors(true);
       return;
@@ -351,7 +356,7 @@ export function WorkOrderLineModal({
             <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={pending}>
               Cancel
             </Button>
-            <Button onClick={submit} disabled={pending}>
+            <Button onClick={submit} disabled={pending || !money.allValid}>
               {pending ? "Saving…" : editing ? "Save" : "Add line"}
             </Button>
           </span>
@@ -395,6 +400,7 @@ export function WorkOrderLineModal({
                 cents={effectiveRate}
                 onCentsChange={setRate}
                 onClear={() => setRate(undefined)}
+                onValidityChange={money.report("rate")}
                 placeholder={settings?.laborRateCents != null ? (settings.laborRateCents / 100).toFixed(2) : "0.00"}
                 disabled={!mayPrice}
               />
@@ -409,7 +415,7 @@ export function WorkOrderLineModal({
             </Field>
             {marksUp && (
               <Field label="Cost each" htmlFor="wo-line-cost" hint="What the shop paid.">
-                <MoneyInput id="wo-line-cost" cents={cost} onCentsChange={setCost} onClear={() => setCost(undefined)} />
+                <MoneyInput id="wo-line-cost" cents={cost} onCentsChange={setCost} onClear={() => setCost(undefined)} onValidityChange={money.report("cost")} />
               </Field>
             )}
             {/* A part or outside work: the price follows the cost at the markup, shown greyed in
@@ -447,6 +453,7 @@ export function WorkOrderLineModal({
                       }
                     : undefined
                 }
+                onValidityChange={money.report("price")}
                 disabled={!mayPrice && marksUp}
               />
             </Field>
@@ -607,7 +614,7 @@ export function WorkOrderLineModal({
                     : errors.markup
                       ? "The markup is a percentage from 0 to 1000, like 15."
                       : errors.tooBig
-                        ? "A line can be at most $999,999.99."
+                        ? `A line can be at most ${formatMoney(99_999_999)}.`
                         : errors.discount
                           ? "A discount is a percentage from 0 to 100, like 10."
                         : "Give the line a price, or a cost to mark up."}
@@ -672,7 +679,7 @@ function DiscountChip({
           <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-sm text-muted-foreground">%</span>
         </div>
         <p className="text-xs text-muted-foreground">
-          {invalid ? "A percentage from 0 to 100, like 10." : "Off the whole line, before tax. At 100% the line still shows, at $0.00."}
+          {invalid ? "A percentage from 0 to 100, like 10." : `Off the whole line, before tax. At 100% the line still shows, at ${formatMoney(0)}.`}
         </p>
       </PopoverContent>
     </Popover>

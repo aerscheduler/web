@@ -37,6 +37,9 @@ export function FacilityFormModal({
   const [hobbs, setHobbs] = React.useState("");
   const [tach, setTach] = React.useState("");
   const [rateCents, setRateCents] = React.useState<number>(0);
+  // False while the rate field holds text that is not an amount; its own message explains.
+  // Only the simulator has the field; a room never mounts it, so this stays true.
+  const [rateValid, setRateValid] = React.useState(true);
   const [billByHobbs, setBillByHobbs] = React.useState(true);
   const [locationId, setLocationId] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -72,7 +75,7 @@ export function FacilityFormModal({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (pending) return;
+    if (pending || !rateValid) return;
     // Instead of a silently-disabled button, tell the user exactly what's missing.
     const firstInvalid = [
       { err: errName, id: "sim-name" },
@@ -123,7 +126,7 @@ export function FacilityFormModal({
               Cancel
             </Button>
             <Button type="submit"
-                form="modal-facility-form" disabled={pending}>
+                form="modal-facility-form" disabled={pending || !rateValid}>
               {pending ? "Adding…" : kind === "simulator" ? "Add simulator" : "Add room"}
             </Button>
         </div>
@@ -159,7 +162,7 @@ export function FacilityFormModal({
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="sim-rate">Rate (per hour)</Label>
-                <MoneyInput id="sim-rate" cents={rateCents} onCentsChange={setRateCents} />
+                <MoneyInput id="sim-rate" cents={rateCents} onCentsChange={setRateCents} onValidityChange={setRateValid} />
               </div>
               <div className="flex items-end justify-between gap-2 pb-2">
                 <Label htmlFor="sim-billby" className="leading-tight">

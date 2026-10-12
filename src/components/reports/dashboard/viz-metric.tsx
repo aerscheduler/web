@@ -14,6 +14,7 @@ import { Minus, TrendingDown, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EMPTY_CELL, formatReportValue } from "@/lib/report-format";
 import type { ReportColumn, ReportColumnType } from "@/types/reports";
+import { moneySymbol } from "@/lib/billing-currency";
 
 /** Metrics where "up" is bad. Everything else is neutral or good-when-higher. */
 const LOWER_IS_BETTER = new Set([
@@ -31,7 +32,10 @@ const LOWER_IS_BETTER = new Set([
 /** Money baselines get compact so they fit beside a three-digit delta. */
 function compact(value: number | null, type: ReportColumnType): string {
   if (value == null) return EMPTY_CELL;
-  if (type === "money" && Math.abs(value) >= 100_000) return `$${(value / 100_000).toFixed(1)}k`;
+  // Sign before the symbol ("-£12.5k"), the way formatMoney writes a negative.
+  if (type === "money" && Math.abs(value) >= 100_000) {
+    return `${value < 0 ? "-" : ""}${moneySymbol()}${(Math.abs(value) / 100_000).toFixed(1)}k`;
+  }
   return formatReportValue(value, type);
 }
 

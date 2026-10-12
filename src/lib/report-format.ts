@@ -14,6 +14,7 @@ import { addDays, format, parseISO, startOfMonth, startOfYear } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import type { ReportColumn, ReportColumnType, ReportDefaultRange } from "@/types/reports";
 import { wallClockInZone, zonedWallClockToUtc } from "@/lib/timezone";
+import { formatMajor } from "@/lib/billing-currency";
 
 export const EMPTY_CELL = "–";
 
@@ -24,9 +25,7 @@ export function formatReportValue(value: unknown, type: ReportColumnType): strin
     case "money": {
       if (typeof value !== "number") return EMPTY_CELL;
       const dollars = value / 100;
-      return dollars.toLocaleString("en-US", {
-        style: "currency",
-        currency: "USD",
+      return formatMajor(dollars, {
         // Whole dollars for anything four figures and up, a revenue table is
         // read as a ranking, and trailing cents just add noise to scan past.
         minimumFractionDigits: Math.abs(dollars) >= 1000 ? 0 : 2,

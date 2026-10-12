@@ -1,3 +1,4 @@
+import { moneySymbol, parseMoneyInput } from "@/lib/billing-currency";
 import * as React from "react";
 import { toast } from "sonner";
 import { TriangleAlert } from "lucide-react";
@@ -43,20 +44,20 @@ import { confirmationCount, reviewerCount, hasInstruction } from "./close-out";
  * rate card for that side"which is exactly what a null column means to the pricing code.
  */
 
-/** Keep only digits and a single decimal point. */
+/**
+ * Keep only digits and the two separators. The comma stays: a euro school types "12,50", and
+ * stripping it read 1250.00. `toCents` decides what it means.
+ */
 function sanitizeDecimal(v: string): string {
-  const cleaned = v.replace(/[^0-9.]/g, "");
-  const parts = cleaned.split(".");
-  return parts.length <= 2 ? cleaned : parts[0] + "." + parts.slice(1).join("");
+  return v.replace(/[^0-9.,]/g, "");
 }
 
-/** Dollars as typed to whole cents. Null for blank, undefined for unparseable. */
+/** The rate as typed to whole cents. Null for blank, undefined for unparseable. */
 function toCents(v: string): number | null | undefined {
-  const t = v.trim();
-  if (t === "") return null;
-  const n = Number(t);
-  if (!Number.isFinite(n) || n < 0) return undefined;
-  return Math.round(n * 100);
+  if (v.trim() === "") return null;
+  const cents = parseMoneyInput(v);
+  if (cents == null || cents < 0) return undefined;
+  return cents;
 }
 
 const centsToDollars = (cents: number | null | undefined): string =>
@@ -305,7 +306,7 @@ function RateField({
       <Label htmlFor={id}>{label}</Label>
       <div className="relative">
         <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-          $
+          {moneySymbol()}
         </span>
         <Input
           id={id}

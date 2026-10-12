@@ -110,7 +110,7 @@ export function ResourceWorkOrders({ resource }: { resource: Resource }) {
           ) : w.chargesCents ? (
             <span className="font-medium">{formatMoney(w.chargesCents)}</span>
           ) : (
-            <span className="text-muted-foreground">$0.00</span>
+            <span className="text-muted-foreground">{formatMoney(0)}</span>
           ),
       },
     });

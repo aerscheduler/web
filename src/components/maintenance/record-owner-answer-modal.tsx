@@ -55,6 +55,8 @@ export function RecordOwnerAnswerModal({
   const [contactedAt, setContactedAt] = React.useState("");
   const [whenEdited, setWhenEdited] = React.useState(false);
   const [limit, setLimit] = React.useState<number | undefined>(undefined);
+  // False while the limit field holds text that is not an amount; its own message explains.
+  const [limitValid, setLimitValid] = React.useState(true);
   const [notes, setNotes] = React.useState("");
   const [answers, setAnswers] = React.useState<Record<number, Answer | undefined>>({});
   const [showErrors, setShowErrors] = React.useState(false);
@@ -85,6 +87,7 @@ export function RecordOwnerAnswerModal({
   const noAnswers = chosen.length === 0;
 
   async function submit() {
+    if (!limitValid) return;
     if (nameError || noAnswers) {
       setShowErrors(true);
       return;
@@ -123,7 +126,7 @@ export function RecordOwnerAnswerModal({
           <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={record.isPending}>
             Cancel
           </Button>
-          <Button onClick={submit} disabled={record.isPending}>
+          <Button onClick={submit} disabled={record.isPending || !limitValid}>
             {record.isPending ? "Saving…" : "Record answer"}
           </Button>
         </div>
@@ -148,7 +151,7 @@ export function RecordOwnerAnswerModal({
           </Field>
         </div>
         <Field label="Spend limit (optional)" htmlFor="wo-answer-limit" hint="The most they said you can spend without calling again.">
-          <MoneyInput id="wo-answer-limit" cents={limit} onCentsChange={setLimit} onClear={() => setLimit(undefined)} className="w-40" placeholder="No limit" />
+          <MoneyInput id="wo-answer-limit" cents={limit} onCentsChange={setLimit} onClear={() => setLimit(undefined)} onValidityChange={setLimitValid} className="w-40" placeholder="No limit" />
         </Field>
 
         <div className="space-y-2">

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  Banknote,
   CreditCard,
   ExternalLink,
   Loader2,
@@ -9,7 +10,15 @@ import {
   UserRoundCog,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useBilling, useConnectStripe, useUpdateBilling, useOrgLedgerSettings, useUpdateOrgLedgerSettings } from "@/features/queries";
+import {
+  useBilling,
+  useBillingCurrency,
+  useConnectStripe,
+  useSetBillingCurrency,
+  useUpdateBilling,
+  useOrgLedgerSettings,
+  useUpdateOrgLedgerSettings,
+} from "@/features/queries";
 import type { OrganizationBillingSettings } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -43,6 +52,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ErrorState } from "@/components/states";
 import { MoneyInput } from "@/components/money-input";
+import { formatMoney } from "@/lib/utils";
+import {
+  BILLING_CURRENCIES,
+  billingCurrencyOptionLabel,
+  moneySymbol,
+  normalizeBillingCurrency,
+} from "@/lib/billing-currency";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Field, PreferenceToggle } from "@/components/settings/parts";
 
 /** serviceFeePercent is stored as hundredths of a percent (500 = 5%, 50 = 0.5%). */
@@ -140,6 +163,7 @@ function BillingPage({
         billingOn={billingOn}
         onBillingOnChange={setBillingOn}
       />
+      <BillingCurrencyCard />
       <BillingModePicker mode={ledgerMode} loadError={loadError} onRetry={onRetry} />
       {ledgerMode === "ledger" && (
         <>
@@ -181,6 +205,8 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
   const canEdit = canManageBillingSettings(roles);
 
   const [rateCents, setRateCents] = useState(billing.defaultInstructorRate);
+  // False while the rate field holds text that is not an amount; its own message explains.
+  const [rateValid, setRateValid] = useState(true);
   const [feeText, setFeeText] = useState(feeToText(billing.serviceFeePercent));
   const [feeLabel, setFeeLabel] = useState(billing.serviceFeeLabel ?? "");
   const [overnightText, setOvernightText] = useState(
@@ -243,7 +269,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!dirty || !canEdit) return;
+    if (!dirty || !canEdit || !rateValid) return;
     update.mutate(
       {
         defaultInstructorRate: rateCents,
@@ -288,6 +314,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
                     id="billing-rate"
                     cents={rateCents}
                     onCentsChange={setRateCents}
+                    onValidityChange={setRateValid}
                   />
                 </Field>
                 <Field
@@ -391,7 +418,7 @@ function BillingForms({ billing }: { billing: OrganizationBillingSettings }) {
               </fieldset>
             </CardContent>
             <CardFooter className="justify-end gap-2">
-              <Button type="submit" disabled={!canEdit || !dirty || update.isPending}>
+              <Button type="submit" disabled={!canEdit || !dirty || !rateValid || update.isPending}>
                 {update.isPending && <Loader2 className="size-4 animate-spin" />}
                 Save changes
               </Button>
@@ -596,7 +623,7 @@ function TopUpCardFeeCard({
           </CardTitle>
           <CardDescription>
             Recover Stripe processing when members add funds by card. Desk cash and check
-            credit stay dollar-for-dollar. Leave blank if the organization absorbs card fees.
+            are credited in full. Leave blank if the organization absorbs card fees.
           </CardDescription>
         </div>
       </CardHeader>
@@ -628,11 +655,11 @@ function TopUpCardFeeCard({
             <Field
               label="Plus flat"
               htmlFor="ledger-topup-fee-flat"
-              hint="e.g. 0.30 per top-up. Blank or 0.00 = none. Max $100.00."
+              hint={`e.g. 0.30 per top-up. Blank or 0.00 = none. Max ${formatMoney(10_000)}.`}
             >
               <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  $
+                  {moneySymbol()}
                 </span>
                 <Input
                   id="ledger-topup-fee-flat"
@@ -650,7 +677,7 @@ function TopUpCardFeeCard({
           </div>
           <p className="text-xs text-muted-foreground">
             {hasFee && parsedPct.ok && parsedFlat.ok
-              ? `Example: pay $${(previewCharge / 100).toFixed(2)} → $${(previewCredit / 100).toFixed(2)} credited on a $100 top-up.`
+              ? `Example: pay ${formatMoney(previewCharge)} → ${formatMoney(previewCredit)} credited on a ${formatMoney(previewCredit, { cents: false })} top-up.`
               : "No surcharge. Members are charged exactly what they credit."}
           </p>
           {!canEdit && (
@@ -771,7 +798,7 @@ function LateFeeCard({
             >
               <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  $
+                  {moneySymbol()}
                 </span>
                 <Input
                   id="ledger-late-fee-flat"
@@ -838,7 +865,7 @@ function parseLateFeeFlatDollars(
   const trimmed = text.trim();
   if (trimmed === "") return { ok: true, value: null };
   if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) {
-    return { ok: false, error: "Flat fee must be dollars and cents, like 10.00" };
+    return { ok: false, error: "Flat fee must be an amount like 10.00" };
   }
   const cents = Math.round(Number(trimmed) * 100);
   if (cents > 100_000_000) return { ok: false, error: "Flat fee is too large" };
@@ -879,14 +906,14 @@ function parseTopUpFeePercent(
   return { ok: true, value: bps };
 }
 
-/** Blank/0 → null. Dollars → cents. Max $100.00 to match the server. */
+/** Blank/0 → null. Major units → minor units. Max 100.00 to match the server. */
 function parseTopUpFeeFlatDollars(
   text: string
 ): { ok: true; value: number | null } | { ok: false; error: string } {
   const trimmed = text.trim();
   if (trimmed === "") return { ok: true, value: null };
   if (!/^\d+(\.\d{1,2})?$/.test(trimmed)) {
-    return { ok: false, error: "Flat fee must be dollars and cents, like 0.30" };
+    return { ok: false, error: "Flat fee must be an amount like 0.30" };
   }
   const dollars = Number(trimmed);
   if (!Number.isFinite(dollars) || dollars < 0) {
@@ -894,7 +921,7 @@ function parseTopUpFeeFlatDollars(
   }
   const cents = Math.round(dollars * 100);
   if (cents > 10_000) {
-    return { ok: false, error: "Flat fee can't be more than $100.00" };
+    return { ok: false, error: `Flat fee can't be more than ${formatMoney(10_000)}` };
   }
   if (cents === 0) return { ok: true, value: null };
   return { ok: true, value: cents };
@@ -1034,6 +1061,113 @@ function BillingConnectCard({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+const KNOWN_BILLING_CURRENCY_CODES = new Set<string>(BILLING_CURRENCIES.map((c) => c.code));
+
+/**
+ * The organization's billing currency: what every price, invoice and balance is in. Not pilot
+ * currency. Owner-only write, like How members pay. Once money has been recorded the server
+ * locks it (409) and says why, so the select is disabled with that reason rather than offered
+ * and refused.
+ */
+function BillingCurrencyCard() {
+  const { roles, organization, reconcileBillingCurrency } = useAuth();
+  const q = useBillingCurrency();
+  const update = useSetBillingCurrency();
+  const isOwner = canManageBillingSettings(roles);
+  const current = normalizeBillingCurrency(q.data?.currency ?? organization?.billingCurrency);
+  const [selected, setSelected] = useState<string>(current);
+
+  useEffect(() => {
+    setSelected(current);
+  }, [current]);
+
+  // This card can learn of a change (the Stripe webhook, another tab) before the session does.
+  // When it disagrees with the session, bring the session and every formatted amount along.
+  const serverCurrency = q.data?.currency ? normalizeBillingCurrency(q.data.currency) : null;
+  const sessionCurrency = normalizeBillingCurrency(organization?.billingCurrency);
+  useEffect(() => {
+    if (serverCurrency && serverCurrency !== sessionCurrency) void reconcileBillingCurrency(serverCurrency);
+  }, [serverCurrency, sessionCurrency, reconcileBillingCurrency]);
+
+  if (q.isError) {
+    return (
+      <Card data-doc-shot="billing-currency-card">
+        <ErrorState error={q.error} onRetry={() => void q.refetch()} />
+      </Card>
+    );
+  }
+
+  // Only codes this console can format. An option the server adds before the console knows it
+  // is skipped rather than shown, since normalizing it would map it to (and select) usd.
+  const knownOptions = (q.data?.options ?? []).filter((o) => KNOWN_BILLING_CURRENCY_CODES.has(o.code.toLowerCase()));
+  const options = knownOptions.length
+    ? knownOptions
+    : BILLING_CURRENCIES.map((c) => ({ code: c.code, name: c.name }));
+  const lockedReason = q.data?.lockedReason ?? null;
+  const disabled = !isOwner || lockedReason != null || update.isPending || q.isLoading;
+  const stripeCurrency = q.data?.stripeAccountCurrency?.toLowerCase() ?? null;
+  const showStripeNote = stripeCurrency != null && stripeCurrency !== selected;
+
+  function change(next: string) {
+    if (disabled || next === selected) return;
+    const previous = selected;
+    setSelected(next);
+    update.mutate(next, {
+      onSuccess: () => toast.success(`Billing in ${next.toUpperCase()}`),
+      onError: (err) => {
+        setSelected(previous);
+        toast.error(err instanceof ApiError ? err.message : "Couldn't change the billing currency");
+      },
+    });
+  }
+
+  return (
+    <Card data-doc-shot="billing-currency-card">
+      <CardHeader className="flex-row items-start gap-2.5">
+        <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+          <Banknote className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <CardTitle className="inline-flex items-center gap-1.5">
+            Currency
+            <DocsHint topic="billing-currency" />
+          </CardTitle>
+          <CardDescription>
+            Every price, invoice and balance is in this currency. It is set when you connect
+            Stripe and can&apos;t change once you have billed anyone.
+          </CardDescription>
+        </div>
+        {update.isPending && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Select value={selected} onValueChange={change} disabled={disabled}>
+          <SelectTrigger id="billing-currency" aria-label="Billing currency" className="w-full sm:w-72">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((o) => (
+              <SelectItem key={o.code} value={normalizeBillingCurrency(o.code)}>
+                {billingCurrencyOptionLabel(o.code, o.name)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {lockedReason ? (
+          <p className="text-xs text-muted-foreground">{lockedReason}</p>
+        ) : !isOwner ? (
+          <p className="text-xs text-muted-foreground">Only the organization owner can change this.</p>
+        ) : null}
+        {showStripeNote && (
+          <p className="rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground" role="status">
+            Your Stripe account pays out in {stripeCurrency.toUpperCase()}. Bills are in{" "}
+            {selected.toUpperCase()}, so Stripe converts each payment.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

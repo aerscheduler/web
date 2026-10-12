@@ -1512,6 +1512,8 @@ function AircraftStep({
   const [hobbs, setHobbs] = React.useState("0");
   const [tach, setTach] = React.useState("0");
   const [rate, setRate] = React.useState(rateOptional ? 0 : 16500);
+  // False while the rate field holds text that is not an amount; its own message explains.
+  const [rateValid, setRateValid] = React.useState(true);
   const [rateBasis, setRateBasis] = React.useState<"wet" | "dry">(rateOptional ? "dry" : "wet");
   const [billByHobbs, setBillByHobbs] = React.useState(true);
   const [make, setMake] = React.useState("");
@@ -1552,6 +1554,7 @@ function AircraftStep({
   const modelErr = model.trim() ? "" : "Enter the model.";
 
   async function submit() {
+    if (!rateValid) return;
     const firstInvalid = tailErr ? "ac-tail" : yearErr ? "ac-year" : makeErr ? "ac-make" : modelErr ? "ac-model" : "";
     if (firstInvalid) {
       setShowErrors(true);
@@ -1753,7 +1756,7 @@ function AircraftStep({
       {!meterless && (
         <>
           <Field id="ac-rate" label="Rate">
-            <MoneyInput id="ac-rate" cents={rate} onCentsChange={setRate} />
+            <MoneyInput id="ac-rate" cents={rate} onCentsChange={setRate} onValidityChange={setRateValid} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
             <Field id="ac-basis" label="Rate basis" hint={<DocsHint topic="rate-basis" />}>
@@ -1801,7 +1804,7 @@ function AircraftStep({
         This is enough to put it on the schedule. On Aircraft you can add serial, fuel,
         seats, engine and gear, flying day, and inspections.
       </p>
-      <Nav onBack={onBack} onNext={submit} nextLabel="Add aircraft" busy={busy} onSkip={onSkip} />
+      <Nav onBack={onBack} onNext={submit} nextLabel="Add aircraft" nextDisabled={!rateValid} busy={busy} onSkip={onSkip} />
     </Step>
   );
 }

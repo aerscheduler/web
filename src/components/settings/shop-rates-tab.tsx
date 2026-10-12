@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/utils";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useSetWorkOrderSettings, useWorkOrderSettings } from "@/features/queries";
@@ -33,6 +34,8 @@ export function ShopRatesTab() {
   const { roles } = useAuth();
   const canEdit = canManageBilling(roles);
   const [rate, setRate] = useState<number | undefined>(undefined);
+  // False while the rate field holds text that is not an amount; its own message explains.
+  const [rateValid, setRateValid] = useState(true);
   const [parts, setParts] = useState("");
   const [outside, setOutside] = useState("");
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
@@ -51,7 +54,7 @@ export function ShopRatesTab() {
   const outsideBps = bpsFrom(outside);
   // The server's bounds, checked here so the answer is in dollars and percent, not cents.
   const rateTooBig = rate != null && rate > 100_000_000;
-  const invalid = partsBps === undefined || outsideBps === undefined || rateTooBig;
+  const invalid = partsBps === undefined || outsideBps === undefined || rateTooBig || !rateValid;
 
   async function submit() {
     if (invalid) return;
@@ -80,7 +83,7 @@ export function ShopRatesTab() {
         ) : (
           <>
             <Field label="Labor rate per hour" htmlFor="shop-labor-rate" docs="shop-labor-rate" hint="Fills in each labor entry. Only an admin changes the rate on an entry.">
-              <MoneyInput id="shop-labor-rate" cents={rate} onCentsChange={setRate} onClear={() => setRate(undefined)} className="w-40" disabled={!canEdit} placeholder="No rate" />
+              <MoneyInput id="shop-labor-rate" cents={rate} onCentsChange={setRate} onClear={() => setRate(undefined)} onValidityChange={setRateValid} className="w-40" disabled={!canEdit} placeholder="No rate" />
             </Field>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Markup on parts" htmlFor="shop-parts-markup" docs="shop-parts-markup" hint="Added to what the shop paid, for example 15.">
@@ -97,7 +100,7 @@ export function ShopRatesTab() {
               </Field>
             </div>
             {(partsBps === undefined || outsideBps === undefined) && <p className="text-xs text-destructive">A markup is a percentage from 0 to 1000, like 15.</p>}
-            {rateTooBig && <p className="text-xs text-destructive">The labor rate can be at most $1,000,000.00 an hour.</p>}
+            {rateTooBig && <p className="text-xs text-destructive">The labor rate can be at most {formatMoney(100_000_000)} an hour.</p>}
             {canEdit ? (
               <div className="flex justify-end">
                 <Button onClick={submit} disabled={save.isPending || invalid}>

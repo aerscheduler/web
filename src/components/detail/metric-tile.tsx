@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 
 /**
  * The number row at the top of a record page.
@@ -87,15 +87,10 @@ export function hoursValue(deciHours: number | null | undefined): string {
   return `${(deciHours / 10).toFixed(1)} h`;
 }
 
-/** Integer cents ⇒ "$1,234". Whole dollars: a tile is scanned, not reconciled. */
+/** Integer cents ⇒ "$1,234" (in the billing currency). Whole units: a tile is scanned, not reconciled. */
 export function moneyValue(cents: number | null | undefined): string {
   if (typeof cents !== "number" || !Number.isFinite(cents)) return "–";
-  return (cents / 100).toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
+  return formatMoney(cents, { cents: false });
 }
 
 export function countValue(n: number | null | undefined): string {

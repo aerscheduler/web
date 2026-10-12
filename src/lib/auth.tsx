@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -44,6 +45,7 @@ import {
 } from "@/types/api";
 import { queryClient } from "./query";
 import { clearOnboardingSticky } from "./onboarding-sticky";
+import { normalizeBillingCurrency, setActiveBillingCurrency } from "./billing-currency";
 
 interface AuthEnvelope {
   auth: { accessToken: string };
@@ -85,6 +87,15 @@ function loadSession(): SessionState {
     /* ignore */
   }
   return { user: null, organization: null, organizations: [] };
+}
+
+// First paint must already format money in the stored organization's billing currency,
+// before AuthProvider renders (router guards and loaders run earlier than that). Guarded:
+// storage can be missing (tests, a locked-down browser), and usd is the right fallback.
+try {
+  setActiveBillingCurrency(getToken() ? loadSession().organization?.billingCurrency : null);
+} catch {
+  setActiveBillingCurrency(null);
 }
 
 function saveSession(s: SessionState) {
@@ -259,6 +270,12 @@ interface AuthContextValue extends SessionState {
   /** Re-reads the session; resolves to the signed-in user, or null. */
   rehydrate: () => Promise<User | null>;
   /**
+   * Make the session organization's billing currency match the server's. Pass the currency
+   * when it is already known (a fresh `GET /organizations/billingCurrency`); omit it to fetch.
+   * Never throws.
+   */
+  reconcileBillingCurrency: (known?: string | null) => Promise<void>;
+  /**
    * An aircraft owner signed in from outside the organization (`orgUser.external`): they see
    * their own aircraft, jobs and bills and nothing else. The server refuses them everything
    * else regardless; this keeps the console from offering it.
@@ -300,6 +317,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState>(() =>
     getToken() ? loadSession() : { user: null, organization: null, organizations: [] }
   );
+
+  // The billing currency follows the session organization. Assigned during render (it is
+  // idempotent) rather than in an effect, so the children rendered from this same pass,
+  // after a sign-in, org switch, rehydrate or sign-out, already format in the new currency.
+  setActiveBillingCurrency(session.organization?.billingCurrency);
 
   /**
    * Re-resolve permissions when the app boots on a session that already existed.
@@ -486,6 +508,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
   }, [apply]);
+
+  /**
+   * The billing currency can change without this tab doing it: the Stripe webhook sets it when
+   * the school connects Stripe, and an owner can change it from another tab or browser. The
+   * console only knows it from the stored session, so without this a tab kept formatting
+   * every amount in the old currency until the next sign-in.
+   *
+   * Cheap on purpose: the plain `GET /organizations/billingCurrency` (no Stripe lookup). Only
+   * when it disagrees is the session rehydrated; if that fails the currency is patched into the
+   * stored session directly, so the amounts on screen are right either way.
+   */
+  const reconcileBillingCurrency = useCallback(
+    async (known?: string | null): Promise<void> => {
+      try {
+        if (!getToken() || isTokenExpired()) return;
+        const org = loadSession().organization;
+        if (!org) return;
+
+        let serverCurrency = known ?? null;
+        if (!serverCurrency) {
+          const res = await apiRaw<{ data?: { currency?: string | null } }>("/organizations/billingCurrency");
+          serverCurrency = res?.data?.currency ?? null;
+        }
+        if (!serverCurrency) return;
+        const next = normalizeBillingCurrency(serverCurrency);
+
+        // Re-read after the await: a sign-out or org switch in the meantime wins.
+        const stored = loadSession().organization;
+        if (!getToken() || !stored || stored.id !== org.id) return;
+        if (normalizeBillingCurrency(stored.billingCurrency) === next) return;
+
+        const user = await rehydrate();
+        const after = loadSession().organization;
+        if (user && after?.id === org.id && normalizeBillingCurrency(after.billingCurrency) === next) return;
+        if (!getToken() || (after != null && after.id !== org.id)) return;
+
+        // Rehydrate failed (or the session it returned still disagrees): patch it in.
+        setActiveBillingCurrency(next);
+        setSession((prev) => {
+          if (!prev.organization || prev.organization.id !== org.id) return prev;
+          const organization = { ...prev.organization, billingCurrency: next };
+          const patched: SessionState = {
+            ...prev,
+            organization,
+            organizations: prev.organizations.map((o) => (o.id === org.id ? { ...o, billingCurrency: next } : o)),
+          };
+          saveSession(patched);
+          return patched;
+        });
+      } catch {
+        /* best effort: the stored currency stays until the next check */
+      }
+    },
+    [rehydrate]
+  );
+
+  // On boot (and on every sign-in or org switch), then whenever the tab comes back into view,
+  // at most once a minute.
+  const lastCurrencyCheck = useRef(0);
+  const sessionOrgId = session.organization?.id ?? null;
+  useEffect(() => {
+    if (sessionOrgId == null) return;
+    lastCurrencyCheck.current = Date.now();
+    void reconcileBillingCurrency();
+  }, [sessionOrgId, reconcileBillingCurrency]);
+
+  useEffect(() => {
+    const onReturn = () => {
+      if (document.visibilityState === "hidden") return;
+      const now = Date.now();
+      if (now - lastCurrencyCheck.current < 60_000) return;
+      lastCurrencyCheck.current = now;
+      void reconcileBillingCurrency();
+    };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, [reconcileBillingCurrency]);
 
   /**
    * Keep analytics pointed at whoever is actually signed in.
@@ -740,6 +843,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         joinByCode,
         resendVerificationEmail,
         rehydrate,
+        reconcileBillingCurrency,
         loginAs,
         stopImpersonating,
         demo,

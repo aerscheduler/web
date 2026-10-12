@@ -27,7 +27,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
+import { moneySymbol, parseMoneyInput } from "@/lib/billing-currency";
 
 type SlotOfferPolicyPatch = Partial<
   Pick<
@@ -66,15 +67,33 @@ const MAX_LEDGER_GATE_DOLLARS = 1_000_000;
 
 function parseLedgerGateDollars(
   raw: string
-): { cents: number } | { clear: true } | { error: string } {
+): { cents: number } | { clear: true } | { unreadable: true } | { error: string } {
   const trimmed = raw.trim();
   if (trimmed === "") return { clear: true };
-  const dollars = Number(trimmed);
-  if (!Number.isFinite(dollars) || dollars < 0) return { clear: true };
-  if (dollars > MAX_LEDGER_GATE_DOLLARS) {
-    return { error: "Must be $0–$1,000,000, or leave it off." };
+  // Read like every other money field, so "25,00" is 25.00. Unreadable text is held, not
+  // saved: these were number inputs, where a browser turned "25,00" into an empty value and
+  // the gate was quietly switched off.
+  const cents = parseMoneyInput(trimmed);
+  if (cents == null) return { unreadable: true };
+  if (cents < 0 || cents > MAX_LEDGER_GATE_DOLLARS * 100) {
+    return {
+      error: `Must be ${formatMoney(0, { cents: false })}–${formatMoney(MAX_LEDGER_GATE_DOLLARS * 100, { cents: false })}, or leave it off.`,
+    };
   }
-  return { cents: Math.round(dollars * 100) };
+  return { cents };
+}
+
+/** Typed text that is not an amount. Empty is not unreadable: it means off. */
+const moneyUnreadable = (raw: string) => raw.trim() !== "" && parseMoneyInput(raw) == null;
+
+/** The field's own explanation for unreadable text; it is also why nothing was saved. */
+function MoneyFieldError({ id, raw }: { id: string; raw: string }) {
+  if (!moneyUnreadable(raw)) return null;
+  return (
+    <p id={id} className="text-xs text-destructive">
+      Enter an amount like 25 or 12,50. Nothing is saved until it reads as one.
+    </p>
+  );
 }
 
 function BookingPreferencesCard({ organization }: { organization: Organization }) {
@@ -916,21 +935,22 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
 
             <div className="space-y-2">
               <div className="flex items-center gap-1.5">
-                <Label className="text-xs font-medium text-muted-foreground">
+                <Label htmlFor="booking-late-fee" className="text-xs font-medium text-muted-foreground">
                   Late-cancel fee (optional)
                 </Label>
                 <DocsHint topic="booking-policy-rules" />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">$</span>
+                <span className="text-sm text-muted-foreground">{moneySymbol()}</span>
                 <Input
-                  type="number"
-                  min={0}
-                  step="1"
+                  id="booking-late-fee"
+                  inputMode="decimal"
                   placeholder="Off"
-                  className="max-w-[8rem]"
+                  className="max-w-[8rem] tnum"
                   value={lateFeeDollars}
                   disabled={rulesDisabled || !lockEnabled || !stripeReady}
+                  aria-invalid={moneyUnreadable(lateFeeDollars) || undefined}
+                  aria-describedby={moneyUnreadable(lateFeeDollars) ? "booking-late-fee-error" : undefined}
                   onChange={(e) => setLateFeeDollars(e.target.value)}
                   onBlur={() => {
                     const raw = lateFeeDollars.trim();
@@ -938,16 +958,19 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                       saveBookingRules({ lateCancelFeeCents: null });
                       return;
                     }
-                    const dollars = Number(raw);
-                    if (!Number.isFinite(dollars) || dollars <= 0) {
+                    const cents = parseMoneyInput(raw);
+                    // Unreadable: held, with the field's message, rather than saved as no fee.
+                    if (cents == null) return;
+                    if (cents <= 0) {
                       setLateFeeDollars("");
                       saveBookingRules({ lateCancelFeeCents: null });
                       return;
                     }
-                    saveBookingRules({ lateCancelFeeCents: Math.round(dollars * 100) });
+                    saveBookingRules({ lateCancelFeeCents: cents });
                   }}
                 />
               </div>
+              <MoneyFieldError id="booking-late-fee-error" raw={lateFeeDollars} />
               <p className="text-xs text-muted-foreground">
                 {!lockEnabled
                   ? "Turn on the cancel and edit lock first. Inside that window, members can cancel by agreeing to this fee."
@@ -1218,24 +1241,26 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">
+                  <Label htmlFor="ledger-min-credit" className="text-xs font-medium text-muted-foreground">
                     Minimum credit to self-book
                   </Label>
                   <DocsHint topic="ledger-booking-gates" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">$</span>
+                  <span className="text-sm text-muted-foreground">{moneySymbol()}</span>
                   <Input
-                    type="number"
-                    min={0}
-                    step="1"
+                    id="ledger-min-credit"
+                    inputMode="decimal"
                     placeholder="Off"
-                    className="max-w-[8rem]"
+                    className="max-w-[8rem] tnum"
                     value={minCreditDollars}
                     disabled={rulesDisabled}
+                    aria-invalid={moneyUnreadable(minCreditDollars) || undefined}
+                    aria-describedby={moneyUnreadable(minCreditDollars) ? "ledger-min-credit-error" : undefined}
                     onChange={(e) => setMinCreditDollars(e.target.value)}
                     onBlur={() => {
                       const parsed = parseLedgerGateDollars(minCreditDollars);
+                      if ("unreadable" in parsed) return;
                       if ("error" in parsed) {
                         toast.error(parsed.error);
                         setMinCreditDollars(
@@ -1254,32 +1279,35 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                     }}
                   />
                 </div>
+                <MoneyFieldError id="ledger-min-credit-error" raw={minCreditDollars} />
                 <p className="text-xs text-muted-foreground">
                   Students and renters on the booking need this much credit.
-                  $0 means they cannot book while owing. Staff and instructor-led
+                  {formatMoney(0, { cents: false })} means they cannot book while owing. Staff and instructor-led
                   bookings skip this. On a shared flight every billed seat is checked.
                 </p>
               </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">
+                  <Label htmlFor="ledger-max-owed" className="text-xs font-medium text-muted-foreground">
                     Maximum owing to self-book
                   </Label>
                   <DocsHint topic="ledger-booking-gates" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">$</span>
+                  <span className="text-sm text-muted-foreground">{moneySymbol()}</span>
                   <Input
-                    type="number"
-                    min={0}
-                    step="1"
+                    id="ledger-max-owed"
+                    inputMode="decimal"
                     placeholder="Off"
-                    className="max-w-[8rem]"
+                    className="max-w-[8rem] tnum"
                     value={maxOwedDollars}
                     disabled={rulesDisabled}
+                    aria-invalid={moneyUnreadable(maxOwedDollars) || undefined}
+                    aria-describedby={moneyUnreadable(maxOwedDollars) ? "ledger-max-owed-error" : undefined}
                     onChange={(e) => setMaxOwedDollars(e.target.value)}
                     onBlur={() => {
                       const parsed = parseLedgerGateDollars(maxOwedDollars);
+                      if ("unreadable" in parsed) return;
                       if ("error" in parsed) {
                         toast.error(parsed.error);
                         setMaxOwedDollars(
@@ -1298,8 +1326,9 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                     }}
                   />
                 </div>
+                <MoneyFieldError id="ledger-max-owed-error" raw={maxOwedDollars} />
                 <p className="text-xs text-muted-foreground">
-                  Block self-book once they owe more than this. $0 means any
+                  Block self-book once they owe more than this. {formatMoney(0, { cents: false })} means any
                   negative balance is refused. Same staff bypass as payment method.
                 </p>
               </div>
@@ -1310,24 +1339,26 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">
+                  <Label htmlFor="dispatch-min-credit" className="text-xs font-medium text-muted-foreground">
                     Minimum credit to dispatch
                   </Label>
                   <DocsHint topic="ledger-dispatch-gates" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">$</span>
+                  <span className="text-sm text-muted-foreground">{moneySymbol()}</span>
                   <Input
-                    type="number"
-                    min={0}
-                    step="1"
+                    id="dispatch-min-credit"
+                    inputMode="decimal"
                     placeholder="Off"
-                    className="max-w-[8rem]"
+                    className="max-w-[8rem] tnum"
                     value={dispatchMinDollars}
                     disabled={rulesDisabled}
+                    aria-invalid={moneyUnreadable(dispatchMinDollars) || undefined}
+                    aria-describedby={moneyUnreadable(dispatchMinDollars) ? "dispatch-min-credit-error" : undefined}
                     onChange={(e) => setDispatchMinDollars(e.target.value)}
                     onBlur={() => {
                       const parsed = parseLedgerGateDollars(dispatchMinDollars);
+                      if ("unreadable" in parsed) return;
                       if ("error" in parsed) {
                         toast.error(parsed.error);
                         setDispatchMinDollars(
@@ -1346,6 +1377,7 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                     }}
                   />
                 </div>
+                <MoneyFieldError id="dispatch-min-credit-error" raw={dispatchMinDollars} />
                 <p className="text-xs text-muted-foreground">
                   Checked at ramp-out, not when they book. Leave blank to skip
                   (book gates are not re-applied). Owners and admins still
@@ -1355,24 +1387,26 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <Label className="text-xs font-medium text-muted-foreground">
+                  <Label htmlFor="dispatch-max-owed" className="text-xs font-medium text-muted-foreground">
                     Maximum owing to dispatch
                   </Label>
                   <DocsHint topic="ledger-dispatch-gates" />
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">$</span>
+                  <span className="text-sm text-muted-foreground">{moneySymbol()}</span>
                   <Input
-                    type="number"
-                    min={0}
-                    step="1"
+                    id="dispatch-max-owed"
+                    inputMode="decimal"
                     placeholder="Off"
-                    className="max-w-[8rem]"
+                    className="max-w-[8rem] tnum"
                     value={dispatchMaxOwedDollars}
                     disabled={rulesDisabled}
+                    aria-invalid={moneyUnreadable(dispatchMaxOwedDollars) || undefined}
+                    aria-describedby={moneyUnreadable(dispatchMaxOwedDollars) ? "dispatch-max-owed-error" : undefined}
                     onChange={(e) => setDispatchMaxOwedDollars(e.target.value)}
                     onBlur={() => {
                       const parsed = parseLedgerGateDollars(dispatchMaxOwedDollars);
+                      if ("unreadable" in parsed) return;
                       if ("error" in parsed) {
                         toast.error(parsed.error);
                         setDispatchMaxOwedDollars(
@@ -1391,6 +1425,7 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                     }}
                   />
                 </div>
+                <MoneyFieldError id="dispatch-max-owed-error" raw={dispatchMaxOwedDollars} />
                 <p className="text-xs text-muted-foreground">
                   Block ramp-out once they owe more than this. Independent of the
                   self-book ceiling.

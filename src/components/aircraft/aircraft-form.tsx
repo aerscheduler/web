@@ -212,6 +212,8 @@ export function AircraftFormModal({
   // MoneyInput keeps its own text state and only re-syncs across undefined⇄number.
   // Bump this key to remount it whenever we set the rate programmatically.
   const [rateKey, setRateKey] = React.useState(0);
+  // False while the rate field holds text that is not an amount; its own message explains.
+  const [rateValid, setRateValid] = React.useState(true);
   // Surfaced only after a submit attempt, so we don't nag on a pristine form.
   const [showErrors, setShowErrors] = React.useState(false);
   // A customer's aircraft: who owns it, and, when the new person's address turned out to be
@@ -423,7 +425,7 @@ export function AircraftFormModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (pending || ownerPending) return;
+    if (pending || ownerPending || !rateValid) return;
     // Added already. With the owner's question still open, Save means "without an owner"; once
     // the owner was changed after it (a typo fixed, somebody picked), Save adds that owner.
     if (addedAwaitingOwner) {
@@ -549,7 +551,7 @@ export function AircraftFormModal({
               Cancel
             </Button>
             <Button type="submit"
-                form="modal-aircraft-form" disabled={pending}>
+                form="modal-aircraft-form" disabled={pending || !rateValid}>
               {pending || ownerPending
                 ? "Saving…"
                 : addedAwaitingOwner
@@ -810,6 +812,7 @@ export function AircraftFormModal({
                 id="ac-rate"
                 cents={form.rateCents}
                 onCentsChange={(c) => set("rateCents", c)}
+                onValidityChange={setRateValid}
               />
             </div>
             <p className="text-xs text-muted-foreground">

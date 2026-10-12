@@ -436,7 +436,7 @@ function OpenJobsList({
             promised: w.promisedOn ? (
               <span className={late ? "font-medium text-warning" : "text-muted-foreground"}>{formatDate(`${w.promisedOn}T12:00:00`, "MMM d", "")}</span>
             ) : null,
-            charges: w.chargesCents ? <span className="font-medium">{formatMoney(w.chargesCents)}</span> : <span className="text-muted-foreground">$0.00</span>,
+            charges: w.chargesCents ? <span className="font-medium">{formatMoney(w.chargesCents)}</span> : <span className="text-muted-foreground">{formatMoney(0)}</span>,
           },
         };
       }),

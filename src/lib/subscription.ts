@@ -141,6 +141,13 @@ export function formatFreeUntil(d: Date | null, opts: { year?: boolean } = {}): 
   });
 }
 
+/*
+ * USD ON PURPOSE. These two format AerScheduler's own plan price, which the school pays us in
+ * US dollars whatever currency it bills its own members in (see lib/billing-currency.ts). Do
+ * not route them through formatMoney without `currency: "usd"`, or an AUD school would see
+ * its AerScheduler plan in AUD.
+ */
+
 /** "$40/mo", "$0/mo", dollars from cents, no trailing .00 clutter. */
 export function formatMonthly(cents: number): string {
   const dollars = cents / 100;

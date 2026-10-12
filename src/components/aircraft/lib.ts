@@ -73,9 +73,12 @@ export function fuelToDisplay(stored: number | null | undefined): number | null 
   return stored / 100;
 }
 
-/** Inverse of `fuelToDisplay`. Truncates, matching the app's `decimalToInt`. */
+/**
+ * Inverse of `fuelToDisplay`. Rounds, matching the app's `decimalToInt`: `4.35 * 100` is
+ * 434.99999999999994 in binary floating point, so truncating stored a typed 4.35 gallons as 434.
+ */
 export function fuelToStored(display: number): number {
-  return Math.trunc(display * 100);
+  return Math.round(display * 100);
 }
 
 export type PlaneTemplate = {

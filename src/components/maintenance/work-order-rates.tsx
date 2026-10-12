@@ -49,12 +49,15 @@ function RatesFields({
   onChange,
   fallback,
   fallbackLabel,
+  onLaborValidityChange,
 }: {
   idPrefix: string;
   value: { labor: number | undefined; parts: string; outside: string };
   onChange: (v: { labor: number | undefined; parts: string; outside: string }) => void;
   fallback: Partial<ShopRates> | null | undefined;
   fallbackLabel: (key: Key) => string;
+  /** False while the labor field holds text that is not an amount; the owner holds its Save. */
+  onLaborValidityChange: (valid: boolean) => void;
 }) {
   const hint = (key: Key) => {
     const t = rateText(key, fallback?.[key] ?? null);
@@ -71,6 +74,7 @@ function RatesFields({
           cents={value.labor}
           onCentsChange={(c) => onChange({ ...value, labor: c })}
           onClear={() => onChange({ ...value, labor: undefined })}
+          onValidityChange={onLaborValidityChange}
           placeholder={fallback?.laborRateCents != null ? (fallback.laborRateCents / 100).toFixed(2) : "0.00"}
           className="h-8"
         />
@@ -176,6 +180,7 @@ export function JobRatesRows({ workOrder: w, editable }: { workOrder: WorkOrder;
   const reprice = useRepriceOffer(w);
   const [open, setOpen] = React.useState(false);
   const [draft, setDraft] = React.useState(draftFrom(w.ownRates));
+  const [laborValid, setLaborValid] = React.useState(true);
   const customerName = w.billTo?.name ?? null;
   if (!rates) return null;
   const parsed = ratesFrom(draft);
@@ -236,6 +241,7 @@ export function JobRatesRows({ workOrder: w, editable }: { workOrder: WorkOrder;
               onChange={setDraft}
               fallback={w.inheritedRates}
               fallbackLabel={(k) => sourceText(w.inheritedRates?.from[k], customerName) ?? "Shop rate"}
+              onLaborValidityChange={setLaborValid}
             />
             {!parsed && <p className="text-xs text-destructive">A markup is a percentage from 0 to 1000, like 15.</p>}
             <div className="flex items-center justify-between gap-2">
@@ -251,7 +257,7 @@ export function JobRatesRows({ workOrder: w, editable }: { workOrder: WorkOrder;
                 <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
                   Cancel
                 </Button>
-                <Button size="sm" disabled={!parsed || update.isPending} onClick={() => parsed && void save(parsed)}>
+                <Button size="sm" disabled={!parsed || !laborValid || update.isPending} onClick={() => parsed && laborValid && void save(parsed)}>
                   {update.isPending ? "Saving…" : "Save"}
                 </Button>
               </div>
@@ -275,6 +281,7 @@ export function CustomerRatesCard({ orgUserId, name, editable }: { orgUserId: nu
   const save = useUpdateCustomerProfile(orgUserId);
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(draftFrom(null));
+  const [laborValid, setLaborValid] = React.useState(true);
   const profile = q.data;
   const shop = shopQ.data ?? null;
   const parsed = ratesFrom(draft);
@@ -316,13 +323,13 @@ export function CustomerRatesCard({ orgUserId, name, editable }: { orgUserId: nu
     >
       {q.isLoading ? null : editing ? (
         <div className="space-y-3">
-          <RatesFields idPrefix="customer-rate" value={draft} onChange={setDraft} fallback={shop} fallbackLabel={() => "Shop rate"} />
+          <RatesFields idPrefix="customer-rate" value={draft} onChange={setDraft} fallback={shop} fallbackLabel={() => "Shop rate"} onLaborValidityChange={setLaborValid} />
           {!parsed && <p className="text-xs text-destructive">A markup is a percentage from 0 to 1000, like 15.</p>}
           <div className="flex justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
               Cancel
             </Button>
-            <Button size="sm" disabled={!parsed || save.isPending} onClick={() => parsed && void submit(parsed)}>
+            <Button size="sm" disabled={!parsed || !laborValid || save.isPending} onClick={() => parsed && laborValid && void submit(parsed)}>
               {save.isPending ? "Saving…" : "Save"}
             </Button>
           </div>

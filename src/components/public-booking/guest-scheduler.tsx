@@ -28,7 +28,8 @@ import {
 } from "@/components/ui/select";
 import { ApiError } from "@/lib/api";
 import { track } from "@/lib/analytics";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
+import { normalizeBillingCurrency } from "@/lib/billing-currency";
 import { isValidTimeZone } from "@/lib/timezone";
 import { LogoMark } from "@/components/logo";
 import {
@@ -75,8 +76,12 @@ export type SchedulerView = "column" | "heatmap" | "week";
 
 const MARKETING_URL = "https://www.aerscheduler.com";
 
-function formatPackagePrice(cents: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+/**
+ * An anonymous page: there is no session, so the active billing currency means nothing here.
+ * The page's own organization says which currency it bills in (missing means usd).
+ */
+function formatPackagePrice(cents: number, page: PublicBookingPage) {
+  return formatMoney(cents, { currency: normalizeBillingCurrency(page.organization.billingCurrency) });
 }
 
 function requestCopy(page: PublicBookingPage) {
@@ -557,7 +562,7 @@ export function GuestScheduler({
         </li>
         {page.offering.collectionStyle === "prepaid_fixed" && page.offering.prepaidAmountCents ? (
           <li className="font-medium text-foreground">
-            {formatPackagePrice(page.offering.prepaidAmountCents)} package, invoiced when approved
+            {formatPackagePrice(page.offering.prepaidAmountCents, page)} package, invoiced when approved
           </li>
         ) : null}
       </ul>
@@ -1341,7 +1346,7 @@ function DetailsStep({
       <p className="text-base font-medium sm:text-sm">{when}</p>
       {page.offering.collectionStyle === "prepaid_fixed" && page.offering.prepaidAmountCents ? (
         <p className="text-xs text-muted-foreground">
-          {formatPackagePrice(page.offering.prepaidAmountCents)} package, invoiced when the desk approves
+          {formatPackagePrice(page.offering.prepaidAmountCents, page)} package, invoiced when the desk approves
         </p>
       ) : null}
       {slot.resourceLabel ? (

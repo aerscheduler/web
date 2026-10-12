@@ -1,3 +1,4 @@
+import { moneySymbol, billingCurrencyLabel, parseMoneyInput } from "@/lib/billing-currency";
 import * as React from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -29,11 +30,9 @@ function errMessage(e: unknown): string {
 }
 
 function parseDollarsToCents(raw: string): number | null {
-  const cleaned = raw.trim().replace(/[$,]/g, "");
-  if (!cleaned) return null;
-  const n = Number(cleaned);
-  if (!Number.isFinite(n)) return null;
-  return Math.round(n * 100);
+  // The shared parser: ignores "£" / "$", reads "12,50" as 12.50 (not 1250.00), and refuses
+  // "1,2,3" instead of guessing.
+  return parseMoneyInput(raw);
 }
 
 export function LedgerAddCreditDialog({
@@ -111,7 +110,7 @@ export function LedgerAddCreditDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="credit-amount">Amount (USD)</Label>
+            <Label htmlFor="credit-amount">Amount ({billingCurrencyLabel()})</Label>
             <Input
               id="credit-amount"
               inputMode="decimal"
@@ -199,7 +198,7 @@ export function LedgerAdjustmentDialog({
         
         <div className="space-y-3">
           <div className="space-y-2">
-            <Label htmlFor="adj-amount">Amount (USD, signed)</Label>
+            <Label htmlFor="adj-amount">Amount ({billingCurrencyLabel()}, signed)</Label>
             <Input
               id="adj-amount"
               inputMode="decimal"
@@ -303,7 +302,7 @@ export function LedgerRefundDialog({
       open={open} onOpenChange={onOpenChange}
       title={<>Refund
             <DocsHint topic="ledger-refund" /></>}
-      description="Pay them back from this balance, down to $0.00."
+      description={`Pay them back from this balance, down to ${formatMoney(0)}.`}
       size="sm"
       footer={<><Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
@@ -420,7 +419,7 @@ export function LedgerRefundDialog({
               <Label htmlFor="refund-amount">Amount</Label>
               <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                  $
+                  {moneySymbol()}
                 </span>
                 <Input placeholder="25.00"
                   id="refund-amount"

@@ -4,6 +4,8 @@ export type PublicBookingPage = {
     slug: string | null;
     logo: string | null;
     timeZone: string | null;
+    /** Lowercase ISO 4217 billing currency; missing means "usd". */
+    billingCurrency?: string | null;
     privacyUrl?: string | null;
     embedHosts: string[];
     brand?: {

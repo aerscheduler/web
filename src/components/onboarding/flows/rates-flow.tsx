@@ -14,7 +14,7 @@ import { ApiError } from "@/lib/api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/money-input";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
 import { FlowClose, FlowDone, FlowModal, FlowNav, type FlowProps } from "./flow-shell";
 
 /** The certificates a school sells first. "Other" hands over to a free-text name. */
@@ -26,11 +26,14 @@ export function RatesFlow({ onClose }: FlowProps) {
   const [pick, setPick] = React.useState("Private Pilot");
   const [custom, setCustom] = React.useState("");
   const [rate, setRate] = React.useState(6500);
+  // False while the rate field holds text that is not an amount; its own message explains.
+  const [rateValid, setRateValid] = React.useState(true);
 
   const isOther = pick === "Other";
   const name = (isOther ? custom : pick).trim();
 
   async function save() {
+    if (!rateValid) return;
     try {
       await create.mutateAsync({
         name: name || "Flight Instruction",
@@ -58,7 +61,7 @@ export function RatesFlow({ onClose }: FlowProps) {
           <FlowNav
             onNext={save}
             nextLabel="Save rate"
-            nextDisabled={isOther && !custom.trim()}
+            nextDisabled={(isOther && !custom.trim()) || !rateValid}
             busy={create.isPending}
             onSkip={onClose}
             skipLabel="Cancel"
@@ -69,7 +72,7 @@ export function RatesFlow({ onClose }: FlowProps) {
       {done ? (
         <FlowDone
           headline="Lessons are priceable."
-          body={`${name} is set at $${(rate / 100).toFixed(2)}/hour. Close-outs will bill instruction automatically.`}
+          body={`${name} is set at ${formatMoney(rate)}/hour. Close-outs will bill instruction automatically.`}
         />
       ) : (
         <div className="space-y-4">
@@ -110,7 +113,7 @@ export function RatesFlow({ onClose }: FlowProps) {
 
           <div className="space-y-1.5">
             <Label htmlFor="rf-rate">Instructor rate, per hour</Label>
-            <MoneyInput id="rf-rate" cents={rate} onCentsChange={setRate} />
+            <MoneyInput id="rf-rate" cents={rate} onCentsChange={setRate} onValidityChange={setRateValid} />
           </div>
         </div>
       )}

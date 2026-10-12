@@ -188,6 +188,12 @@ export const DOCS_TOPICS = {
       "Your own surcharge, not AerScheduler's and not Stripe's, added as a line on every invoice you raise. A booking split between three people carries it three times, once on each person's invoice.",
     href: "billing/turn-on-invoicing-and-card-payments",
   },
+  "billing-currency": {
+    title: "Billing currency",
+    summary:
+      "Every price, invoice and balance in your organization is in this one currency. Only the owner can change it, and only before anyone has been billed.",
+    href: "billing/choose-your-billing-currency",
+  },
   "how-members-pay": {
     title: "How members pay",
     summary:
@@ -197,7 +203,7 @@ export const DOCS_TOPICS = {
   "ledger-topup-card-fee": {
     title: "Card fee on account top-ups",
     summary:
-      "Optional percent and/or flat fee when members add funds by card. They pay a little more and still get the credit they asked for. Desk cash and check stay dollar-for-dollar.",
+      "Optional percent and/or flat fee when members add funds by card. They pay a little more and still get the credit they asked for. Desk cash and check are credited in full.",
     href: "billing/set-a-card-fee-on-account-top-ups",
   },
   "post-to-ledger": {
@@ -275,7 +281,7 @@ export const DOCS_TOPICS = {
   "unpaid-invoice-grounding": {
     title: "Grounding for unpaid invoices",
     summary:
-      "A count of unpaid invoices, not days late and not dollars owed. A member at or over this number cannot book an aircraft until they pay, and ground school, simulators and rooms are never blocked.",
+      "A count of unpaid invoices, not days late and not the amount owed. A member at or over this number cannot book an aircraft until they pay, and ground school, simulators and rooms are never blocked.",
     href: "billing/chase-unpaid-invoices",
   },
   "cost-splitting": {
@@ -649,7 +655,7 @@ export const DOCS_TOPICS = {
   "shop-parts-markup": {
     title: "Markup on parts",
     summary:
-      "A part is billed at what the shop paid plus this percentage: 15 bills a $100 part at $115. An admin can type a different price on one line. The owner sees only the price, never your cost or markup.",
+      "A part is billed at what the shop paid plus this percentage: 15 bills a part that cost 100.00 at 115.00. An admin can type a different price on one line. The owner sees only the price, never your cost or markup.",
     href: "maintenance/run-a-work-order#labor-and-parts",
     linkLabel: "Labor and parts",
   },

@@ -99,6 +99,11 @@ export interface Organization {
   /** The school's primary IANA zone; the fallback for a location that has none. */
   timeZone?: string | null;
   /**
+   * Lowercase ISO 4217 code every price, invoice and balance is in (usd, cad, aud, nzd, gbp,
+   * eur). Missing or unknown reads as "usd". Not pilot currency: see lib/billing-currency.ts.
+   */
+  billingCurrency?: string;
+  /**
    * When set, the school will be hard-deleted at this time. Null / absent means no
    * countdown is running. Owners schedule via DELETE /organizations; admins cancel
    * via POST /organizations/cancelDeletion.
@@ -131,6 +136,28 @@ export interface Organization {
   bookingPolicy?: OrganizationBookingPolicy;
   slotOfferSettings?: OrganizationSlotOfferSettings;
   details?: OrganizationDetails;
+}
+
+/** One billing currency the server accepts (GET /organizations/billingCurrency). */
+export interface BillingCurrencyOption {
+  /** Lowercase ISO 4217, e.g. "aud". */
+  code: string;
+  name: string;
+  symbol: string;
+  /** Stripe's smallest charge in this currency, in minor units. */
+  minimumChargeMinor: number;
+}
+
+/**
+ * The organization's billing currency and whether it can still change. Not pilot currency.
+ * `lockedReason` is set once money has been recorded; `stripeAccountCurrency` is the
+ * connected Stripe account's payout currency, when known.
+ */
+export interface OrganizationBillingCurrency {
+  currency: string;
+  lockedReason: string | null;
+  stripeAccountCurrency: string | null;
+  options: BillingCurrencyOption[];
 }
 
 /**

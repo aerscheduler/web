@@ -368,7 +368,7 @@ export function OwnerWorkOrdersList({ rows, loading }: { rows: WorkOrder[]; load
           {done ? formatDate(finishedOn(w), "MMM d", "") : w.promisedOn ? formatDate(`${w.promisedOn}T12:00:00`, "MMM d", "") : ""}
         </span>
       ),
-      charges: w.chargesCents ? <span className="font-medium">{formatMoney(w.chargesCents)}</span> : <span className="text-muted-foreground">$0.00</span>,
+      charges: w.chargesCents ? <span className="font-medium">{formatMoney(w.chargesCents)}</span> : <span className="text-muted-foreground">{formatMoney(0)}</span>,
     },
   });
   const groups: ListTableGroup[] = [

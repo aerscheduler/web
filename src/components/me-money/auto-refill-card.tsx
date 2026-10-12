@@ -1,3 +1,4 @@
+import { moneySymbol, parseMoneyInput } from "@/lib/billing-currency";
 import { useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -58,12 +59,18 @@ function dollarsFromCents(cents: number | null): string {
 }
 
 function parseDollars(raw: string): number | null {
-  const trimmed = raw.trim();
-  if (trimmed === "") return null;
-  const n = Number(trimmed);
-  if (!Number.isFinite(n) || n < 0) return null;
-  return Math.round(n * 100);
+  const cents = parseMoneyInput(raw);
+  return cents != null && cents >= 0 ? cents : null;
 }
+
+/**
+ * Typed text that is not an amount. Empty is not unreadable: it means none. These used to be
+ * number inputs, where a browser turns "25,00" into an empty value, so the floor saved as none
+ * with nothing on screen to say so. Text inputs keep what was typed and say when it is unreadable.
+ */
+const unreadable = (raw: string) => raw.trim() !== "" && parseDollars(raw) == null;
+
+const AMOUNT_HINT = "Enter an amount like 200 or 12,50.";
 
 export function AutoRefillCard({
   orgUserId,
@@ -123,6 +130,9 @@ export function AutoRefillCard({
   }
 
   const pauseNote = pausedCopy(row?.pausedReason ?? null);
+  // Only a field on screen can hold the save: a hidden one is not the member's to fix.
+  const thresholdBad = mode === "under_threshold" && unreadable(threshold);
+  const chargeBad = (mode === "under_threshold" || mode === "fixed_amount") && unreadable(charge);
 
   return (
     <Card data-doc-shot="ledger-auto-refill">
@@ -193,40 +203,48 @@ export function AutoRefillCard({
         <div className="grid gap-4 sm:grid-cols-2">
           {mode === "under_threshold" && (
             <div className="space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground">
+              <Label htmlFor="auto-refill-threshold" className="text-xs font-medium text-muted-foreground">
                 When balance is under
               </Label>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">$</span>
+                <span className="text-sm text-muted-foreground">{moneySymbol()}</span>
                 <Input
-                  type="number"
-                  min={0}
-                  step="1"
+                  id="auto-refill-threshold"
+                  inputMode="decimal"
                   value={threshold}
                   disabled={save.isPending}
                   onChange={(e) => setThreshold(e.target.value)}
                   placeholder="200"
-                  className="max-w-[8rem]"
+                  className="max-w-[8rem] tnum"
+                  aria-invalid={thresholdBad || undefined}
+                  aria-describedby={thresholdBad ? "auto-refill-threshold-error" : undefined}
                 />
               </div>
+              {thresholdBad && (
+                <p id="auto-refill-threshold-error" className="text-xs text-destructive">{AMOUNT_HINT}</p>
+              )}
             </div>
           )}
           {(mode === "under_threshold" || mode === "fixed_amount") && (
             <div className="space-y-2">
-              <Label className="text-xs font-medium text-muted-foreground">Charge</Label>
+              <Label htmlFor="auto-refill-charge" className="text-xs font-medium text-muted-foreground">Charge</Label>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">$</span>
+                <span className="text-sm text-muted-foreground">{moneySymbol()}</span>
                 <Input
-                  type="number"
-                  min={1}
-                  step="1"
+                  id="auto-refill-charge"
+                  inputMode="decimal"
                   value={charge}
                   disabled={save.isPending}
                   onChange={(e) => setCharge(e.target.value)}
                   placeholder="150"
-                  className="max-w-[8rem]"
+                  className="max-w-[8rem] tnum"
+                  aria-invalid={chargeBad || undefined}
+                  aria-describedby={chargeBad ? "auto-refill-charge-error" : undefined}
                 />
               </div>
+              {chargeBad && (
+                <p id="auto-refill-charge-error" className="text-xs text-destructive">{AMOUNT_HINT}</p>
+              )}
             </div>
           )}
           {cadence === "monthly" && (
@@ -247,8 +265,10 @@ export function AutoRefillCard({
 
         <Button
           size="sm"
-          disabled={save.isPending}
+          disabled={save.isPending || thresholdBad || chargeBad}
           onClick={() =>
+            !thresholdBad &&
+            !chargeBad &&
             void persist({
               enabled,
               mode,

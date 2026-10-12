@@ -173,6 +173,7 @@ function actionLabel(action: string): string {
     "organization.bookingPolicyChanged": "Booking policy changed",
     "organization.preferencesChanged": "Preferences changed",
     "organization.timeZoneChanged": "Time zone changed",
+    "organization.billingCurrencyChanged": "Billing currency changed",
 
     //Standby
     "standby.created": "Joined standby",

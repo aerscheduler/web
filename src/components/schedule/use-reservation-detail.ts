@@ -49,6 +49,13 @@ export function useReservationDetail(
       reservations.find((x) => x.id === selectedId) ??
       (opened?.id === selectedId ? opened : null);
     if (!fromList) return fullQ.data?.id === selectedId ? fullQ.data : null;
+    //A STUB ROW IS NOT A BOOKING. The reports page lists bookings as bare `{ id }` stubs
+    //(only so ↑/↓ can walk them), and overlaying the detail's resource and payers onto a
+    //stub still left no `review`: the close-out flow read every report-opened booking as
+    //not yet flown and offered Ramp out on flights that had long landed. Pressed on one at
+    //NexwingAero (2026-10-12), it marked the aircraft out again and stranded it. A stub
+    //waits for the real record instead.
+    if (!("start" in fromList)) return fullQ.data?.id === selectedId ? fullQ.data : null;
     // Overlay what only `GET /reservations/:id` carries. The list select omits the full
     // resource (so no Hobbs/tach to ramp out against) and omits `paymentOverrides`
     // entirely, which is why a booking priced by hand looked unpriced on the board.

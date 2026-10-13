@@ -33,6 +33,7 @@ import { useTimeZone } from "@/lib/use-timezone";
 import { OvernightMinimumNotice } from "./overnight-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ExplainedButton } from "@/components/explained-button";
 import { Separator } from "@/components/ui/separator";
 import { DocsHint } from "@/components/docs-hint";
 import { formatMoney } from "@/lib/utils";
@@ -109,6 +110,13 @@ export function CloseOutSection({
   const tz = useTimeZone();
   const r = reservation;
   const step = closeOutStep(r);
+  //THE AIRCRAFT IS STILL OUT ON ANOTHER BOOKING. Ramp out could only fail ("already ramped
+  //out"), and at NexwingAero it failed again and again with nothing saying why. Say it on
+  //the button instead. The server names the booking if one is pressed anyway.
+  const planeState = (r.resource as { type?: { plane?: { rampedIn?: boolean; tailNumber?: string } | null } | null } | null)
+    ?.type?.plane;
+  const aircraftOut = planeState?.rampedIn === false;
+  const aircraftOutReason = `${planeState?.tailNumber ?? "This aircraft"} is still out on another booking. Ramp it in there first, then ramp this one out.`;
   //Only needed while there is still a minimum to disclose; once billed the invoice speaks.
   const billingQ = useBilling({ enabled: step !== "invoiced" });
   //`enabled` + `stripeEnabled` decide whether a rate override or a manual invoice can do
@@ -340,6 +348,7 @@ export function CloseOutSection({
     icon: React.ReactNode;
     onClick: () => void;
     disabled?: boolean;
+    explain?: string;
   } | null = (() => {
     if (step === "rampOut" && canRamp) {
       return noMeters
@@ -352,6 +361,8 @@ export function CloseOutSection({
             label: "Ramp out",
             icon: <PlaneTakeoff className="size-4" />,
             onClick: () => setRampMode("out"),
+            disabled: aircraftOut,
+            explain: aircraftOut ? aircraftOutReason : undefined,
           };
     }
     if (step === "rampIn" && canRamp) {
@@ -502,10 +513,16 @@ export function CloseOutSection({
         {actionSlot &&
           panelAction &&
           createPortal(
-            <Button className="w-full" onClick={panelAction.onClick} disabled={panelAction.disabled}>
+            <ExplainedButton
+              className="w-full"
+              onClick={panelAction.onClick}
+              disabled={panelAction.disabled}
+              explain={panelAction.explain}
+              summary={panelAction.explain}
+            >
               {panelAction.icon}
               {panelAction.label}
-            </Button>,
+            </ExplainedButton>,
             actionSlot
           )}
 
@@ -551,9 +568,16 @@ export function CloseOutSection({
               <p className="text-sm text-muted-foreground">
                 {noMeters
                   ? "Record the instruction time once the lesson is done."
-                  : "Ready to dispatch. Ramp out when the aircraft departs."}
+                  : aircraftOut
+                    ? aircraftOutReason
+                    : "Ready to dispatch. Ramp out when the aircraft departs."}
               </p>
-              <Button className="w-full sm:w-auto" onClick={() => setRampMode("out")}>
+              <ExplainedButton
+                className="w-full sm:w-auto"
+                onClick={() => setRampMode("out")}
+                disabled={!noMeters && aircraftOut}
+                explain={!noMeters && aircraftOut ? aircraftOutReason : undefined}
+              >
                 {noMeters ? (
                   <>
                     <ClipboardCheck className="size-4" /> Review times
@@ -563,7 +587,7 @@ export function CloseOutSection({
                     <PlaneTakeoff className="size-4" /> Ramp out
                   </>
                 )}
-              </Button>
+              </ExplainedButton>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">Not started yet.</p>

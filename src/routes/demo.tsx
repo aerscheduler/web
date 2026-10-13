@@ -197,7 +197,7 @@ function DemoEntry() {
         ) : null}
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          {roles.map(({ role, title, blurb, icon: Icon }, i) => (
+          {roles.map(({ role, title, blurb, icon: Icon }) => (
             <button
               key={role}
               type="button"
@@ -206,8 +206,6 @@ function DemoEntry() {
               disabled={starting != null}
               className={cn(
                 "flex items-start gap-3 rounded-xl border p-4 text-left transition-colors hover:border-primary/50 hover:bg-accent/40 disabled:cursor-default",
-                // An odd card out takes the whole row rather than sitting alone in half of it.
-                roles.length % 2 === 1 && i === roles.length - 1 && "sm:col-span-2",
                 starting === role && "border-primary bg-primary/5 ring-1 ring-primary",
                 starting != null && starting !== role && "opacity-50"
               )}

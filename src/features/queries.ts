@@ -4700,6 +4700,10 @@ export type GoogleCalendarStatus = {
   /** Google's id for the calendar events are written to; "primary" is the default. */
   calendarId: string;
   calendarSummary: string | null;
+  /** Google refused the connection; sync is paused until the member reconnects. */
+  needsReconnect: boolean;
+  /** "permission" (calendar access removed) or "expired" (sign-in revoked or expired). */
+  needsReconnectReason: "permission" | "expired" | null;
 };
 
 export function useGoogleCalendarStatus(opts?: QueryOpts) {
@@ -4709,17 +4713,28 @@ export function useGoogleCalendarStatus(opts?: QueryOpts) {
       try {
         // apiRaw, not api: the calendar selection rides beside the `data` flag and
         // the unwrapping helper would throw it away.
-        const body = await apiRaw<{ calendarId?: string; calendarSummary?: string | null }>(
-          "/integrations/googleCalendar"
-        );
+        const body = await apiRaw<{
+          calendarId?: string;
+          calendarSummary?: string | null;
+          needsReconnect?: boolean;
+          needsReconnectReason?: "permission" | "expired" | null;
+        }>("/integrations/googleCalendar");
         return {
           connected: true,
           calendarId: body?.calendarId || "primary",
           calendarSummary: body?.calendarSummary ?? null,
+          needsReconnect: body?.needsReconnect === true,
+          needsReconnectReason: body?.needsReconnectReason ?? null,
         };
       } catch (e) {
         if (e instanceof ApiError && e.status === 404) {
-          return { connected: false, calendarId: "primary", calendarSummary: null };
+          return {
+            connected: false,
+            calendarId: "primary",
+            calendarSummary: null,
+            needsReconnect: false,
+            needsReconnectReason: null,
+          };
         }
         throw e;
       }

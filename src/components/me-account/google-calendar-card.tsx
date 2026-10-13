@@ -46,7 +46,9 @@ export function GoogleCalendarCard() {
   const rotateFeed = useRotateCalendarFeed();
   const [connecting, setConnecting] = React.useState(false);
   const connected = status.data?.connected === true;
-  const calendars = useGoogleCalendarList(connected);
+  //Google refused the connection: nothing reaches the member's calendar until they reconnect.
+  const paused = connected && status.data?.needsReconnect === true;
+  const calendars = useGoogleCalendarList(connected && status.data?.needsReconnect !== true);
   const selectCalendar = useSelectGoogleCalendar();
   const calendarId = status.data?.calendarId ?? "primary";
   // A connection made before the calendar-list scope existed cannot list calendars.
@@ -141,7 +143,9 @@ export function GoogleCalendarCard() {
             <div className="flex items-center gap-2">
               <CardTitle>Google Calendar</CardTitle>
               <DocsHint topic="personal-calendar-sync" />
-              {connected ? (
+              {paused ? (
+                <Badge variant="warning">Needs reconnecting</Badge>
+              ) : connected ? (
                 <Badge variant="success" className="gap-1">
                   <Check className="size-3" /> Connected
                 </Badge>
@@ -157,7 +161,18 @@ export function GoogleCalendarCard() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          {connected && (
+          {paused && (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm" role="status">
+              <p className="font-medium">Sync is paused</p>
+              <p className="mt-0.5 text-muted-foreground">
+                {status.data?.needsReconnectReason === "permission"
+                  ? "Google no longer lets AerScheduler add bookings to your calendar. Reconnect and allow calendar access to pick up where it left off."
+                  : "Your Google sign-in for calendar sync was signed out or expired. Reconnect to pick up where it left off."}{" "}
+                Your upcoming bookings are added again when you do.
+              </p>
+            </div>
+          )}
+          {connected && !paused && (
             <div className="space-y-2">
               <div className="text-sm font-medium">Sync to this calendar</div>
               {needsReconnectForList ? (
@@ -213,7 +228,7 @@ export function GoogleCalendarCard() {
           )}
           <div className="flex flex-wrap gap-2">
           <Button
-            variant={connected ? "outline" : "default"}
+            variant={connected && !paused ? "outline" : "default"}
             size="sm"
             onClick={() => void onConnect()}
             disabled={connecting || status.isLoading || disconnect.isPending}

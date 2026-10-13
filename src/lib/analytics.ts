@@ -480,6 +480,28 @@ export function clearBookConfirmToken(): void {
   }
 }
 
+let lastViewedHref: string | null = null;
+
+/**
+ * Is this resolved location a new screen, or the same one resolving again?
+ *
+ * A navigation can land on the SAME href (an effect re-applying search params it already
+ * has), and the router fires onResolved for it like any other. Counting those made one
+ * admin's session log bursts of ten pageviews a second, restarted the dwell clock each
+ * time, and recorded every half-filled form on the page as abandoned (NexwingAero,
+ * 2026-10-12: 285 phantom views, 111 "abandoned" forms).
+ */
+export function isNewView(href: string): boolean {
+  if (href === lastViewedHref) return false;
+  lastViewedHref = href;
+  return true;
+}
+
+/** Tests only. */
+export function resetViewTrackingForTests(): void {
+  lastViewedHref = null;
+}
+
 export function trackPageview(path: string, search?: Record<string, unknown>): void {
   if (isPublicGuestBookingPath(path) && !guestBookingHtmlWasLoaded()) return;
   track("$pageview", {

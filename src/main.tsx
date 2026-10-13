@@ -16,6 +16,7 @@ import {
   startDwell,
   trackFilters,
   trackPageview,
+  isNewView,
 } from "./lib/analytics";
 import { onNavigation, startInteractionTracking } from "./lib/interaction-tracking";
 import { startFormFocus } from "./lib/form-focus";
@@ -77,6 +78,8 @@ router.subscribe("onResolved", ({ toLocation }) => {
     startAds();
     resumeAnalyticsAfterGuestSpa();
   }
+  // A re-resolve of the same href is not a new view (see isNewView).
+  if (!isNewView(toLocation.href)) return;
   const search = toLocation.search as Record<string, unknown> | undefined;
   // Before the pageview: leaving a screen closes any half-filled form on it as an
   // abandonment, and that belongs to the screen being left, not the one arriving.

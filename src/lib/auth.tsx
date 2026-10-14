@@ -139,6 +139,10 @@ export function grantsFromSession(): Set<GrantName> | null {
  * their own pages.
  */
 export async function refreshPermissions(): Promise<SessionPermissions | null> {
+  //Somebody signed in but not in an organization yet (just signed up, or between an
+  //invite and joining) has no permissions to read: the server refuses them, and it did
+  //about 40 times in a week (2026-10-14). Their pages are onboarding, which needs none.
+  if (!loadSession().organization) return null;
   try {
     const res = await apiRaw<{ data: SessionPermissions }>("/me/permissions");
     const next = { ...loadSession(), permissions: res.data };

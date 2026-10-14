@@ -1,6 +1,7 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { ClipboardCheck } from "lucide-react";
+import { ClipboardCheck, TriangleAlert } from "lucide-react";
+import { loggedNoTime } from "./close-out";
 import { useConfirmReview } from "@/features/queries";
 import type { Reservation } from "@/types/api";
 import { ApiError } from "@/lib/api";
@@ -24,10 +25,13 @@ export function ConfirmReviewModal({
   open,
   onOpenChange,
   reservation,
+  canCorrect = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   reservation: Reservation | null;
+  /** May this viewer use Correct times? Decides what the no-time notice tells them to do. */
+  canCorrect?: boolean;
 }) {
   const confirmReview = useConfirmReview(reservation?.id ?? 0);
   const [pin, setPin] = React.useState("");
@@ -37,12 +41,13 @@ export function ConfirmReviewModal({
   }, [open]);
 
   const valid = pin.length === PIN_LENGTH;
+  const noTime = reservation != null && loggedNoTime(reservation);
 
   async function submit() {
     if (!reservation || !valid) return;
     try {
       await confirmReview.mutateAsync({ pin });
-      toast.success("Review confirmed");
+      toast.success(noTime ? "Review confirmed. Nothing billed: no time logged" : "Review confirmed");
       onOpenChange(false);
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Couldn't confirm the review");
@@ -109,14 +114,30 @@ export function ConfirmReviewModal({
           </p>
         </div>
 
-        <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          <ClipboardCheck className="mt-0.5 size-4 shrink-0" />
-          <span>
-            Your PIN is your signature on this flight record. Once every assigned pilot has
-            signed off, the invoice is generated automatically. It can be reopened before
-            then, by an admin or the instructor on the booking.
-          </span>
-        </div>
+        {noTime ? (
+          <div
+            role="note"
+            className="flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+          >
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span>
+              <span className="font-medium">No flight time logged.</span> The readings in
+              match the readings out, so signing off bills nothing.{" "}
+              {canCorrect
+                ? "If it flew, close this and use Correct times (under Adjustments) first."
+                : "If it flew, ask an admin or the instructor to correct the times first."}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+            <ClipboardCheck className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Your PIN is your signature on this flight record. Once every assigned pilot has
+              signed off, the invoice is generated automatically. It can be reopened before
+              then, by an admin or the instructor on the booking.
+            </span>
+          </div>
+        )}
 
       </form>
     </ResponsiveModal>

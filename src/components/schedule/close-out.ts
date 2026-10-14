@@ -176,6 +176,28 @@ export function hasInstruction(r: Reservation): boolean {
 }
 
 /**
+ * Ramped in with the readings in equal to the readings out, and no briefing to bill:
+ * signing this off bills nothing, so no invoice or account charge is coming.
+ *
+ * A scrubbed flight looks like this (ramped out, came back without flying), and a
+ * ramped-out booking can no longer be cancelled, so closing it out at zero is the right
+ * way through. It is also what a typo looks like. Murray had 20 of these in 90 days
+ * (2026-10-13). Every recorded meter pair must match, so a flight that moved either meter
+ * never reads as zero. Same rule as `Reservation.loggedNoTime` in the app.
+ */
+export function loggedNoTime(r: Reservation): boolean {
+  if (!readsMeters(r)) return false;
+  const rev = r.review;
+  if (!rev) return false;
+  const hobbs = rev.hobbsTimeIn != null && rev.hobbsTimeOut != null;
+  const tach = rev.tachTimeIn != null && rev.tachTimeOut != null;
+  if (!hobbs && !tach) return false;
+  if (hobbs && rev.hobbsTimeIn !== rev.hobbsTimeOut) return false;
+  if (tach && rev.tachTimeIn !== rev.tachTimeOut) return false;
+  return !(hasInstruction(r) && (rev.briefing ?? 0) > 0);
+}
+
+/**
  * Which meter does this booking's aircraft bill on?
  *
  * `PlaneCost.billByHobbsTime` / `SimulatorCost.billByHobbsTime`, defaulting to Hobbs, which

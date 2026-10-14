@@ -8,6 +8,7 @@ import {
   isRampedIn,
   isRampedOut,
   hasStarted,
+  loggedNoTime,
   readsMeters,
   usesBriefingNotMeters,
   waivedPayerHoldsLiveMoney,
@@ -404,5 +405,43 @@ describe("contract: money on a payer nobody is waiting to bill", () => {
 
   it("ignores an unwaived payer holding live money", () => {
     expect(waivedPayerHoldsLiveMoney(res({ payers: [{ waived: false, invoice: { voidedAt: null } }] }))).toBe(false);
+  });
+});
+
+/**
+ * Readings in equal to readings out: signing off bills nothing, so the sign-off says so.
+ * Murray had 20 of these in 90 days (2026-10-13), almost all scrubbed flights. Mirrors
+ * `Reservation.loggedNoTime` in the app.
+ */
+describe("loggedNoTime", () => {
+  const solo = (over: Parameters<typeof booking>[0] = {}) =>
+    booking({ type: "solo", resource: "plane", students: 1, ...over });
+
+  it("a solo whose Hobbs did not move logged no time", () => {
+    expect(loggedNoTime(solo({ hobbsOut: 3053, hobbsIn: 3053 }))).toBe(true);
+  });
+
+  it("a flight that moved the meter is not zero", () => {
+    expect(loggedNoTime(solo({ hobbsOut: 3053, hobbsIn: 3054 }))).toBe(false);
+  });
+
+  it("not before ramp-in", () => {
+    expect(loggedNoTime(solo({ hobbsOut: 3053 }))).toBe(false);
+  });
+
+  it("a dual with a briefing still bills the briefing", () => {
+    expect(
+      loggedNoTime(booking({ type: "dual", resource: "plane", instructors: 1, students: 1, hobbsOut: 3053, hobbsIn: 3053, briefing: 5 }))
+    ).toBe(false);
+  });
+
+  it("a dual with no briefing logged no time", () => {
+    expect(
+      loggedNoTime(booking({ type: "dual", resource: "plane", instructors: 1, students: 1, hobbsOut: 3053, hobbsIn: 3053 }))
+    ).toBe(true);
+  });
+
+  it("a glider has no readings to compare", () => {
+    expect(loggedNoTime(solo({ meterMode: "none", rampedOutAt: "2026-08-26T19:00:00Z", rampedInAt: "2026-08-26T20:00:00Z" }))).toBe(false);
   });
 });

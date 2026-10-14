@@ -39,6 +39,7 @@ import { DocsHint } from "@/components/docs-hint";
 import { formatMoney } from "@/lib/utils";
 import {
   canCorrectReviewTimes,
+  loggedNoTime,
   canCreateReservationInvoice,
   canOverridePricesInOrg,
   canOverrideReservationPayment,
@@ -173,6 +174,7 @@ export function CloseOutSection({
   // mirrors the server guard it will meet (see close-out.ts).
   const canOverride = canOverrideReservationPayment(r, roles, organization?.preferences, billing, orgUserId);
   const canCorrect = canCorrectReviewTimes(r, roles, orgUserId);
+  const noTime = loggedNoTime(r);
   const canInvoice = canCreateReservationInvoice(r, roles, billing);
   const canReopen = canReopenCloseOut(r, roles, orgUserId);
   // Somebody who could have adjusted this booking, on a booking the BILL has now closed.
@@ -532,7 +534,7 @@ export function CloseOutSection({
           reservation={r}
           mode={rampMode ?? "out"}
         />
-        <ConfirmReviewModal open={confirmOpen} onOpenChange={setConfirmOpen} reservation={r} />
+        <ConfirmReviewModal open={confirmOpen} onOpenChange={setConfirmOpen} reservation={r} canCorrect={canCorrect} />
         <ConfirmGuestReviewModal
           open={guestConfirmOpen}
           onOpenChange={setGuestConfirmOpen}
@@ -806,6 +808,13 @@ export function CloseOutSection({
                     carried this carve-out all along, in `expectsLedgerCharge`. */}
                 {r.type === "maintenance"
                   ? "Maintenance complete. This booking isn't billed."
+                  : //Readings in equal readings out: there is nothing to bill, and Create
+                    //invoice would only be refused for a zero total. Usually a scrubbed
+                    //flight (Murray, 20 in 90 days to 2026-10-13).
+                    noTime
+                    ? canCorrect
+                      ? "Review complete. Nothing billed: no flight time was logged. If it flew, use Correct times under Adjustments and sign off again; it bills then."
+                      : "Review complete. Nothing billed: no flight time was logged."
                   : canInvoice
                     ? expectsLedger
                       ? "Review complete, and this flight has no ledger charge yet. Post one when you're ready."
@@ -825,7 +834,7 @@ export function CloseOutSection({
                 here reviewed and unbilled, and until now the only way to bill it was the
                 phone. Admin only, because the endpoint is. Ledger mode posts a
                 flight_charge through the same route — label must not say "invoice". */}
-            {canInvoice && (
+            {canInvoice && !noTime && (
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 text-sm font-medium">
                   {expectsLedger ? "Post to ledger" : "Create invoice"}
@@ -880,7 +889,7 @@ export function CloseOutSection({
         reservation={r}
         mode={rampMode ?? "out"}
       />
-      <ConfirmReviewModal open={confirmOpen} onOpenChange={setConfirmOpen} reservation={r} />
+      <ConfirmReviewModal open={confirmOpen} onOpenChange={setConfirmOpen} reservation={r} canCorrect={canCorrect} />
       <ConfirmGuestReviewModal
         open={guestConfirmOpen}
         onOpenChange={setGuestConfirmOpen}

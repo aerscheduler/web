@@ -453,11 +453,18 @@ export function canCancelReservation(
 export function canRampReservation(
   r: Reservation,
   roles: Role[],
-  orgUserId: number | null
+  orgUserId: number | null,
+  //The caller's resolved grants (`grantsFromSession()`), or null when unknown. A school can
+  //give anybody "Ramp any flight out and in" (`dispatchAnyFlight`), which the server honours
+  //in orgUserCanRampOut / orgUserCanRampIn since 2026-10-14. Null falls back to the roles.
+  grants: ReadonlySet<string> | null = null
 ): boolean {
   if (r.cancelledAt) return false;
   return (
-    isStaff(roles) || isReservationPersonnel(r, orgUserId) || isReservationCreator(r, orgUserId)
+    isStaff(roles) ||
+    grants?.has("dispatchAnyFlight") === true ||
+    isReservationPersonnel(r, orgUserId) ||
+    isReservationCreator(r, orgUserId)
   );
 }
 
@@ -631,13 +638,14 @@ export function canOverrideReservationPayment(
 export function canCorrectReviewTimes(
   r: Reservation,
   roles: Role[],
-  orgUserId: number | null
+  orgUserId: number | null,
+  grants: ReadonlySet<string> | null = null
 ): boolean {
   if (r.cancelledAt) return false;
   if (!isRampedIn(r)) return false;
   if (!hasCorrectableReadings(r)) return false;
   if (hasLiveBill(r)) return false;
-  if (!canRampReservation(r, roles, orgUserId)) return false;
+  if (!canRampReservation(r, roles, orgUserId, grants)) return false;
   if (erasesAnotherSignOff(r, orgUserId)) return canReopenInOrg(r, roles, orgUserId);
   return true;
 }

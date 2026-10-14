@@ -663,6 +663,7 @@ export type GrantName =
   | "configureCompliance"
   | "configureTraining"
   | "createInvoice"
+  | "dispatchAnyFlight"
   | "editMemberContacts"
   | "groundMembers"
   | "groundResource"

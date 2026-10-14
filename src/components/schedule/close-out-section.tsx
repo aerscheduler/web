@@ -107,7 +107,12 @@ export function CloseOutSection({
    */
   actionSlot?: HTMLElement | null;
 }) {
-  const { orgUserId, roles, isStaff, organization } = useAuth();
+  const { orgUserId, roles, isStaff, organization, permissions } = useAuth();
+  //"Ramp any flight out and in" can be given to anybody (`dispatchAnyFlight`).
+  const grants = React.useMemo(
+    () => (permissions?.granted ? new Set<string>(permissions.granted) : null),
+    [permissions?.granted]
+  );
   const tz = useTimeZone();
   const r = reservation;
   const step = closeOutStep(r);
@@ -160,9 +165,9 @@ export function CloseOutSection({
   // counterpart rather than being offered a button that can only 400.
   const alreadyConfirmed = hasConfirmedReview(r, orgUserId);
   const canConfirm = isReservationPersonnel(r, orgUserId) && !alreadyConfirmed;
-  // Ramp out/in mirrors Flutter's !viewOnly: staff (admin/dispatcher) or a pilot
-  // assigned to this reservation.
-  const canRamp = canRampReservation(r, roles, orgUserId);
+  // Ramp out/in mirrors Flutter's !viewOnly: staff (admin/dispatcher), a pilot
+  // assigned to this reservation, or anybody given "Ramp any flight out and in".
+  const canRamp = canRampReservation(r, roles, orgUserId, grants);
   const isAdmin = roles.some((role) => role === "owner" || role === "admin");
   const canConfirmGuest = canReviewGuest(r, orgUserId, isAdmin);
   const guestName = r.personnel?.guests?.[0]?.name ?? "the guest";
@@ -173,7 +178,7 @@ export function CloseOutSection({
   // fix a reading, and bill a flight that closed out without an invoice. Each predicate
   // mirrors the server guard it will meet (see close-out.ts).
   const canOverride = canOverrideReservationPayment(r, roles, organization?.preferences, billing, orgUserId);
-  const canCorrect = canCorrectReviewTimes(r, roles, orgUserId);
+  const canCorrect = canCorrectReviewTimes(r, roles, orgUserId, grants);
   const noTime = loggedNoTime(r);
   const canInvoice = canCreateReservationInvoice(r, roles, billing);
   const canReopen = canReopenCloseOut(r, roles, orgUserId);
@@ -192,7 +197,7 @@ export function CloseOutSection({
   //watched "Correct times" disappear the moment the flight was billed with nothing saying
   //why, which reads as a permissions problem rather than as a rule.
   const couldHaveAdjusted =
-    canOverridePricesInOrg(roles, organization?.preferences) || canRampReservation(r, roles, orgUserId);
+    canOverridePricesInOrg(roles, organization?.preferences) || canRampReservation(r, roles, orgUserId, grants);
   const pricesLocked =
     step === "invoiced" &&
     !canOverride &&

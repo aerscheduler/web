@@ -32,10 +32,13 @@ function personName(
 }
 
 /** Meter readings alongside a ramp event, when there are any: "Hobbs 1204.8 · Tach 1102.3". */
+//Readings are stored in TENTHS (16429 is 1642.9 h), the same as close-out-readings.tsx shows
+//them. This printed the raw column, so a ramp-in read "Hobbs 36048" here while the close-out
+//above it said 3604.8 (seen 2026-10-14).
 function meters(hobbs: number | null | undefined, tach: number | null | undefined): string | null {
   const parts: string[] = [];
-  if (hobbs != null) parts.push(`Hobbs ${hobbs}`);
-  if (tach != null) parts.push(`Tach ${tach}`);
+  if (hobbs != null) parts.push(`Hobbs ${(hobbs / 10).toFixed(1)}`);
+  if (tach != null) parts.push(`Tach ${(tach / 10).toFixed(1)}`);
   return parts.length ? parts.join(" · ") : null;
 }
 

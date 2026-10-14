@@ -46,3 +46,26 @@ describe("canRampReservation", () => {
     expect(canRampReservation(r, TECHNICIAN, 7)).toBe(false);
   });
 });
+
+/**
+ * "Ramp any flight out and in" (`dispatchAnyFlight`): a member given it ramps bookings they
+ * are not on, as the server allows since 2026-10-14. NexwingAero's CFIs could not.
+ */
+describe("the ramp grant", () => {
+  const INSTRUCTOR = ["instructor"] as Role[];
+  const renterBooking = { id: 1, personnel: { renters: [{ id: 7 }] }, createdBy: { id: 5 } } as unknown as Reservation;
+
+  it("an instructor not on the booking cannot ramp it without the grant", () => {
+    expect(canRampReservation(renterBooking, INSTRUCTOR, 99)).toBe(false);
+    expect(canRampReservation(renterBooking, INSTRUCTOR, 99, new Set())).toBe(false);
+  });
+
+  it("can with it", () => {
+    expect(canRampReservation(renterBooking, INSTRUCTOR, 99, new Set(["dispatchAnyFlight"]))).toBe(true);
+  });
+
+  it("still never ramps a cancelled booking", () => {
+    const cancelled = { ...renterBooking, cancelledAt: "2026-10-14T00:00:00Z" } as unknown as Reservation;
+    expect(canRampReservation(cancelled, INSTRUCTOR, 99, new Set(["dispatchAnyFlight"]))).toBe(false);
+  });
+});

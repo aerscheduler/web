@@ -9,6 +9,7 @@ import { EmptyState, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BookingForm } from "@/components/book/booking-form";
+import { OpenSlotsCard } from "@/components/slot-offers/open-slots-card";
 
 export const Route = createFileRoute("/_authed/me/book")({
   component: Book,
@@ -138,7 +139,10 @@ function Book() {
           </CardContent>
         </Card>
       ) : (
-        <BookingForm orgUserId={orgUserId} userId={userId} />
+        <div className="space-y-5">
+          <OpenSlotsCard />
+          <BookingForm orgUserId={orgUserId} userId={userId} />
+        </div>
       )}
     </div>
   );

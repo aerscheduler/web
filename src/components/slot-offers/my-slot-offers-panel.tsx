@@ -1,9 +1,10 @@
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
 import { formatDistanceToNowStrict } from "date-fns";
-import { CalendarClock, Check, Settings2, Sparkles, X } from "lucide-react";
+import { BellRing, CalendarClock, Check, Settings2, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import {
+  markSlotOfferViewed,
   useAcceptSlotOffer,
   useDeclineSlotOffer,
   useMySlotOffers,
@@ -14,7 +15,7 @@ import { useOrgUserPreferences } from "@/features/queries";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { resourceLabel, type ReservationType, type Resource } from "@/types/api";
-import { isSuggestedOffer, type SlotOffer } from "@/types/slot-offers";
+import { isAskedOffer, isSuggestedOffer, type SlotOffer } from "@/types/slot-offers";
 import {
   FirstDibsDialog,
   firstDibsDismissed,
@@ -44,6 +45,9 @@ export function MySlotOffersPanel() {
   );
 
   const pending = (offersQuery.data ?? []).filter((offer) => offer.status === "pending");
+  React.useEffect(() => {
+    for (const offer of pending) markSlotOfferViewed(offer.id);
+  }, [pending]);
   const notificationPreferences = preferencesQuery.data?.notificationPreferences;
   const notificationsOff =
     pending.some((offer) => offer.notificationDelivery?.anyChannelEnabled === false) ||
@@ -60,11 +64,13 @@ export function MySlotOffersPanel() {
   const act = async (offer: SlotOffer, action: "accept" | "decline") => {
     try {
       if (action === "accept") {
-        await accept.mutateAsync(offer.id);
+        const result = await accept.mutateAsync(offer.id);
         toast.success(
           offer.purpose === "instructor_confirm"
             ? "Confirmed. Eligible members can now be offered this slot."
-            : "Slot accepted. Your reservation is booked."
+            : result?.bookingRequestId
+              ? "Sent to the desk for approval. You'll hear when they decide."
+              : "Booked. It's on your schedule."
         );
         if (offer.purpose === "claim" && !hasPreference && interests.isSuccess && !firstDibsDismissed(orgUserId)) {
           setFirstDibs(
@@ -173,6 +179,7 @@ function OfferCard({
   onStopSuggesting: () => void;
 }) {
   const suggested = isSuggestedOffer(offer);
+  const asked = isAskedOffer(offer);
   const expired = new Date(offer.holdUntil).getTime() <= Date.now();
   const resource = offer.resource
     ? resourceLabel(offer.resource as Resource).name
@@ -198,17 +205,22 @@ function OfferCard({
         <div className="flex flex-wrap gap-2">
           {instructorConfirm && <Badge variant="secondary">Instructor confirm</Badge>}
           {suggested && <Badge variant="secondary">Suggested for you</Badge>}
+          {asked && <Badge variant="secondary">You asked for this</Badge>}
           <Badge variant="outline">
             {typeLabel(offer.reservationType as ReservationType)}
           </Badge>
         </div>
       </CardHeader>
-      {suggested ? (
+      {suggested || (asked && offer.rankSnapshot?.reason) ? (
         <CardContent className="pt-0">
           <div className="flex items-start gap-2 rounded-md bg-primary/5 p-3 text-sm" data-testid="suggestion-reason">
-            <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
+            {asked ? (
+              <BellRing className="mt-0.5 size-4 shrink-0 text-primary" />
+            ) : (
+              <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
+            )}
             <p>
-              <span className="font-medium">Why you: </span>
+              {suggested ? <span className="font-medium">Why you: </span> : null}
               {offer.rankSnapshot?.reason ?? "It fits how you usually fly."}
             </p>
           </div>
@@ -220,8 +232,9 @@ function OfferCard({
             ? "This offer has expired."
             : instructorConfirm
               ? `Confirm within ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`
-              : offer.holdsSlot === false && (offer.rankSnapshot?.roundSize ?? 0) > 1
-                ? `Offered to a few members. The first to accept books it. Open for ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`
+              : offer.holdsSlot === false
+                ? //Holds nothing since 2026-10-14: open until shortly before the slot, first to book wins.
+                  `${(offer.rankSnapshot?.roundSize ?? 0) > 1 ? "Others were told too, and the first to book it gets it. " : ""}Open until ${formatClose(offer)}.`
                 : `Accept within ${formatDistanceToNowStrict(new Date(offer.holdUntil))}.`}
         </p>
         <div className="flex gap-2">
@@ -229,7 +242,7 @@ function OfferCard({
             <X className="size-4" /> Decline
           </Button>
           <Button disabled={busy || expired} onClick={onAccept}>
-            <Check className="size-4" /> {instructorConfirm ? "Confirm" : "Accept"}
+            <Check className="size-4" /> {instructorConfirm ? "Confirm" : "Book it"}
           </Button>
         </div>
       </CardContent>
@@ -267,4 +280,13 @@ function formatWindow(offer: SlotOffer): string {
   return `${formatter.format(new Date(offer.start))} to ${endFormatter.format(
     new Date(offer.end)
   )}`;
+}
+
+function formatClose(offer: SlotOffer): string {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: offer.timeZoneName,
+  }).format(new Date(offer.holdUntil));
 }

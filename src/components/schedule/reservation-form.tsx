@@ -87,6 +87,7 @@ import {
 import { cn, formatMoney } from "@/lib/utils";
 import { dateKeyInZone, zonedWallClockToUtc } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
+import { NotifyIfOpens } from "@/components/slot-offers/notify-if-opens";
 import { DOT_CLASS, typeLabel } from "./meta";
 import { SmartTimeRange } from "./smart-time-range";
 import { OvernightMinimumNotice } from "./overnight-notice";
@@ -1656,6 +1657,21 @@ export function ReservationForm({
           excludeReservationId={editing?.id ?? null}
           locationId={bookingLocationId}
         />
+
+        {isSelf && !editing ? (
+          <NotifyIfOpens
+            date={date}
+            timeZone={tz.zone}
+            resourceId={resourceId ? Number(resourceId) : null}
+            resourceName={selectedResource ? resourceLabel(selectedResource).name : null}
+            instructorOrgUserId={
+              TYPE_REQUIREMENTS[type].allows.includes("instructors") && effectiveInstructorId
+                ? Number(effectiveInstructorId)
+                : null
+            }
+            reservationType={type}
+          />
+        ) : null}
 
         <fieldset disabled={rampedOutLock} className="space-y-4 disabled:opacity-60">
         {isGuest ? (

@@ -398,13 +398,13 @@ export const DOCS_TOPICS = {
   "slot-offers": {
     title: "Offers",
     summary:
-      "Accept before the offer ends to book the time, or decline so the next eligible member can be offered. Dual recoveries ask the instructor to confirm first. Organizations set offer window length, quiet hours, pending caps, and decline cooldown under Booking preferences. Turn on Offers & standby notifications so you do not miss the window.",
+      "When a time you asked for opens, everyone who asked is told at once and the first to book it gets it. Nothing is held, and it stays bookable until 30 minutes before the slot. If your bookings need approval, booking it sends a request. Organizations set quiet hours, decline cooldown and whether to suggest slots to members who didn't ask under Booking preferences.",
     href: "scheduling/standby-and-slot-offers",
   },
   "slot-offer-quiet-hours": {
     title: "Quiet hours",
     summary:
-      "During this local window, cancel recovery waits before creating a new offer so a late-night cancel does not reserve the aircraft overnight. Uses the airport time zone, then the organization zone. Desk offers still go out immediately.",
+      "During this local window, cancel recovery waits before telling anyone, so a late-night cancel does not wake people up. Uses the airport time zone, then the organization zone. Desk offers still go out immediately.",
     href: "scheduling/standby-and-slot-offers#quiet-hours",
   },
   "slot-offer-decline-cooldown": {
@@ -413,35 +413,17 @@ export const DOCS_TOPICS = {
       "After someone declines or lets an offer expire, they are not offered another overlapping window on that same aircraft for this long. It is not limited to one cancelled booking.",
     href: "scheduling/standby-and-slot-offers#decline-cooldown",
   },
-  "slot-offer-max-pending": {
-    title: "Max pending offers",
-    summary:
-      "A pending offer reserves the aircraft for the offered window. This organization-wide cap limits how many can be open at once, so the board does not fill with locked time.",
-    href: "scheduling/standby-and-slot-offers#max-pending-offers",
-  },
   "slot-offer-max-pending-per-member": {
     title: "Max pending offers per person",
     summary:
-      "Limits how many pending offers one member can hold at once (default 2). Stops a broad standby preference from filling one inbox and soft-holding that person across many windows.",
+      "Limits how many open desk offers and suggestions one member can have at once (default 2), so one inbox does not fill up. Slots a member asked for are not counted.",
     href: "scheduling/standby-and-slot-offers#max-pending-offers-per-person",
-  },
-  "slot-offer-hold-urgent": {
-    title: "Offer window when the slot is soon",
-    summary:
-      "When the slot starts within 24 hours, the offer reserves the aircraft for this long. Keep it short so a last-minute recovery does not lock the plane for hours.",
-    href: "scheduling/standby-and-slot-offers#offer-window-when-slot-is-within-24-hours",
   },
   "slot-offer-ai-scanner": {
     title: "Fill idle time automatically",
     summary:
-      "AerScheduler AI watches flying-day open aircraft time that matches standing preferences and sends timed offers. Off by default. Respects gap cooldown and a daily offer budget. Nobody is booked until they accept.",
+      "AerScheduler AI watches flying-day open aircraft time that matches standing preferences and sends offers. Off by default. Respects gap cooldown and a daily offer budget. Nobody is booked until they accept.",
     href: "scheduling/standby-and-slot-offers#fill-idle-time-automatically",
-  },
-  "slot-offer-hold-normal": {
-    title: "Offer window when the slot is further out",
-    summary:
-      "When the slot starts more than 24 hours from now, the offer reserves the aircraft for this long so the member has time to see the notification and respond.",
-    href: "scheduling/standby-and-slot-offers#offer-window-when-slot-is-further-out",
   },
   "slot-offer-scanner-min-gap": {
     title: "Minimum idle gap",
@@ -464,8 +446,8 @@ export const DOCS_TOPICS = {
   "pending-slot-offers": {
     title: "Pending offers",
     summary:
-      "Offers currently open after a cancel, desk send, or AerScheduler AI. They also appear as dashed pending offers on the day and week boards. Instructor confirms appear first on duals. Withdraw frees the window and stops the chain so it can be booked by hand. Instructors see and can withdraw the offers holding their own time.",
-    href: "scheduling/standby-and-slot-offers#rebook-a-slot-you-just-cancelled",
+      "Offers made before 14 October 2026 that still hold time on the schedule, shown as dashed blocks on the day and week boards. Offers no longer hold anything, so this list empties as those end. Withdraw frees the window so it can be booked by hand. Instructors see and can withdraw the offers holding their own time.",
+    href: "scheduling/standby-and-slot-offers#offers-that-still-hold-time",
   },
   "aircraft-category-class": {
     title: "Category and class",

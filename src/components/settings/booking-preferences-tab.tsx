@@ -35,11 +35,9 @@ type SlotOfferPolicyPatch = Partial<
     OrganizationSlotOfferSettings,
     | "quietHoursStartMinute"
     | "quietHoursEndMinute"
-    | "maxPendingOffers"
     | "maxPendingOffersPerMember"
     | "declineCooldownHours"
-    | "holdUrgentMinutes"
-    | "holdNormalMinutes"
+    | "suggestionsEnabled"
     | "scannerEnabled"
     | "scannerMinGapMinutes"
     | "scannerHorizonDays"
@@ -189,20 +187,14 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   >(null);
 
   const [quietKey, setQuietKey] = useState(() => quietHoursKey(slotOfferSettings));
-  const [maxPending, setMaxPending] = useState(
-    String(slotOfferSettings?.maxPendingOffers ?? 10)
-  );
   const [maxPendingPerMember, setMaxPendingPerMember] = useState(
     String(slotOfferSettings?.maxPendingOffersPerMember ?? 2)
   );
   const [cooldownHours, setCooldownHours] = useState(
     String(slotOfferSettings?.declineCooldownHours ?? 48)
   );
-  const [holdUrgent, setHoldUrgent] = useState(
-    String(slotOfferSettings?.holdUrgentMinutes ?? 30)
-  );
-  const [holdNormal, setHoldNormal] = useState(
-    String(slotOfferSettings?.holdNormalMinutes ?? 120)
+  const [suggestionsEnabled, setSuggestionsEnabled] = useState(
+    slotOfferSettings?.suggestionsEnabled === true
   );
   const [scannerEnabled, setScannerEnabled] = useState(
     slotOfferSettings?.scannerEnabled === true
@@ -266,12 +258,10 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
         : ""
     );
     setQuietKey(quietHoursKey(slotOfferSettings));
-    setMaxPending(String(slotOfferSettings?.maxPendingOffers ?? 10));
     setMaxPendingPerMember(String(slotOfferSettings?.maxPendingOffersPerMember ?? 2));
     setCooldownHours(String(slotOfferSettings?.declineCooldownHours ?? 48));
-    setHoldUrgent(String(slotOfferSettings?.holdUrgentMinutes ?? 30));
-    setHoldNormal(String(slotOfferSettings?.holdNormalMinutes ?? 120));
     setScannerEnabled(slotOfferSettings?.scannerEnabled === true);
+    setSuggestionsEnabled(slotOfferSettings?.suggestionsEnabled === true);
     setScannerMinGap(String(slotOfferSettings?.scannerMinGapMinutes ?? 90));
     setScannerHorizon(String(slotOfferSettings?.scannerHorizonDays ?? 14));
     setScannerMaxDay(String(slotOfferSettings?.scannerMaxPerDay ?? 20));
@@ -281,12 +271,10 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
     slotOfferSettings?.enabled,
     slotOfferSettings?.quietHoursStartMinute,
     slotOfferSettings?.quietHoursEndMinute,
-    slotOfferSettings?.maxPendingOffers,
     slotOfferSettings?.maxPendingOffersPerMember,
     slotOfferSettings?.declineCooldownHours,
-    slotOfferSettings?.holdUrgentMinutes,
-    slotOfferSettings?.holdNormalMinutes,
     slotOfferSettings?.scannerEnabled,
+    slotOfferSettings?.suggestionsEnabled,
     slotOfferSettings?.scannerMinGapMinutes,
     slotOfferSettings?.scannerHorizonDays,
     slotOfferSettings?.scannerMaxPerDay,
@@ -585,7 +573,7 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
         <PreferenceToggle
           label="Offer open slots after a cancel"
           docs="slot-offers"
-          description="When a booking cancels, send timed offers to members on standby (instructor confirm first on duals). On by default. Turn off to stop new offers; existing pending offers are unchanged."
+          description="When a booking cancels, tell the members who asked for that time. Nothing is held: the first to book it gets it. On by default. Turn off to stop new offers and hide Notify me; existing offers are unchanged."
           checked={slotOffers}
           disabled={pending !== null}
           saving={pending === "slotOffersEnabled"}
@@ -602,17 +590,30 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
               )}
             </div>
             <p className="text-xs text-muted-foreground">
-              Quiet hours use each airport&apos;s time zone (then the organization's zone). A
-              pending offer reserves the aircraft until someone accepts, declines, or
-              the offer ends. Decline cooldown stops re-offering the same person an
-              overlapping window on that aircraft after they decline or let an offer
-              expire.
+              Quiet hours use each airport&apos;s time zone (then the organization's zone). An
+              open offer reserves nothing; it stays bookable until 30 minutes before the slot.
+              Decline cooldown stops re-offering the same person an overlapping window on that
+              aircraft after they decline or let an offer lapse.
             </p>
+
+            <PreferenceToggle
+              label="Suggest open slots to members who didn't ask"
+              docs="slot-offers"
+              description="When nobody asked for a freed slot, list it under Open slots for you for up to three members who fly that aircraft or instructor often, with the reason. Never sent as a notification and never held. Off by default."
+              checked={suggestionsEnabled}
+              disabled={policyDisabled}
+              saving={pending === "slotOfferPolicy" && suggestionsEnabled !== (slotOfferSettings?.suggestionsEnabled === true)}
+              onCheckedChange={(value) => {
+                const previous = suggestionsEnabled;
+                setSuggestionsEnabled(value);
+                saveSlotOfferPolicy({ suggestionsEnabled: value }, () => setSuggestionsEnabled(previous));
+              }}
+            />
 
             <PreferenceToggle
               label="Fill idle time automatically"
               docs="slot-offer-ai-scanner"
-              description="AerScheduler AI looks for open aircraft time that matches standing preferences and sends timed offers. Off by default. Nobody is booked until they accept."
+              description="AerScheduler AI looks for open aircraft time that matches standing preferences and sends offers. Off by default. Nobody is booked until they accept."
               checked={scannerEnabled}
               disabled={policyDisabled}
               saving={pending === "slotOfferPolicy" && scannerEnabled !== (slotOfferSettings?.scannerEnabled === true)}
@@ -734,27 +735,6 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                 ]}
               />
               <PolicySelect
-                label="Max pending offers"
-                docs="slot-offer-max-pending"
-                value={maxPending}
-                disabled={policyDisabled}
-                onValueChange={(value) => {
-                  const previous = maxPending;
-                  setMaxPending(value);
-                  saveSlotOfferPolicy(
-                    { maxPendingOffers: Number(value) },
-                    () => setMaxPending(previous)
-                  );
-                }}
-                options={[
-                  { value: "5", label: "5" },
-                  { value: "10", label: "10" },
-                  { value: "15", label: "15" },
-                  { value: "20", label: "20" },
-                  { value: "50", label: "50" },
-                ]}
-              />
-              <PolicySelect
                 label="Max pending offers per person"
                 docs="slot-offer-max-pending-per-member"
                 value={maxPendingPerMember}
@@ -773,47 +753,6 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
                   { value: "3", label: "3" },
                   { value: "5", label: "5" },
                   { value: "10", label: "10" },
-                ]}
-              />
-              <PolicySelect
-                label="Offer window when slot is within 24 hours"
-                docs="slot-offer-hold-urgent"
-                value={holdUrgent}
-                disabled={policyDisabled}
-                onValueChange={(value) => {
-                  const previous = holdUrgent;
-                  setHoldUrgent(value);
-                  saveSlotOfferPolicy(
-                    { holdUrgentMinutes: Number(value) },
-                    () => setHoldUrgent(previous)
-                  );
-                }}
-                options={[
-                  { value: "15", label: "15 minutes" },
-                  { value: "30", label: "30 minutes" },
-                  { value: "45", label: "45 minutes" },
-                  { value: "60", label: "60 minutes" },
-                ]}
-              />
-              <PolicySelect
-                label="Offer window when slot is further out"
-                docs="slot-offer-hold-normal"
-                value={holdNormal}
-                disabled={policyDisabled}
-                onValueChange={(value) => {
-                  const previous = holdNormal;
-                  setHoldNormal(value);
-                  saveSlotOfferPolicy(
-                    { holdNormalMinutes: Number(value) },
-                    () => setHoldNormal(previous)
-                  );
-                }}
-                options={[
-                  { value: "30", label: "30 minutes" },
-                  { value: "60", label: "1 hour" },
-                  { value: "120", label: "2 hours" },
-                  { value: "180", label: "3 hours" },
-                  { value: "240", label: "4 hours" },
                 ]}
               />
             </div>

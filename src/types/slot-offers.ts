@@ -57,6 +57,8 @@ export type CreateStandbyInterestInput = {
   resourceId?: number | null;
   instructorOrgUserId?: number | null;
   criteria?: StandingCriteria | null;
+  /** When the request lapses by itself: "Notify me" sets the end of the day it names. */
+  expiresAt?: string | null;
   orgUserId?: number;
   priority?: number;
   source?: StandbyInterest["source"];
@@ -86,6 +88,8 @@ export type SlotOffer = {
   instructorOrgUser?: Pick<OrganizationUser, "id" | "user"> | null;
   sourceReservation?: Pick<Reservation, "id" | "cancelledAt"> | null;
   resultingReservation?: Pick<Reservation, "id" | "start" | "end" | "type"> | null;
+  /** Set on the accept response when the member's bookings need approval: it became a request. */
+  bookingRequestId?: number;
   notificationDelivery?: NotificationDelivery;
   /**
    * How the recipient was chosen. `source: "inferred"` means they never stood by for it
@@ -97,7 +101,13 @@ export type SlotOffer = {
    * first to accept books it if it is still free. Absent from older servers, meaning true.
    */
   holdsSlot?: boolean;
+  /** When the recipient first opened it. Null until then; absent from older servers. */
+  viewedAt?: string | null;
 };
+
+/** A claim the member asked for: their standby matched (since 2026-10-14, everyone who asked at once). */
+export const isAskedOffer = (offer: Pick<SlotOffer, "rankSnapshot" | "purpose">) =>
+  offer.purpose === "claim" && offer.rankSnapshot?.source === "standby";
 
 export const isSuggestedOffer = (offer: Pick<SlotOffer, "rankSnapshot" | "purpose">) =>
   offer.purpose === "claim" && offer.rankSnapshot?.source === "inferred";

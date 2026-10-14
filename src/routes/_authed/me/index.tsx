@@ -30,6 +30,7 @@ import {
 import type { Reservation, Role } from "@/types/api";
 import { resourceLabel } from "@/types/api";
 import { PageHeader } from "@/components/page-header";
+import { OpenSlotsCard } from "@/components/slot-offers/open-slots-card";
 import { StatCard, StatGrid } from "@/components/stat-card";
 import { CalendarGridSkeleton, EmptyState, ErrorState } from "@/components/states";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -435,6 +436,9 @@ function MyDayPage() {
           </>
         )}
       </StatGrid>
+
+      {/* Hidden for anyone with nothing open, and for organizations with slot offers off. */}
+      <OpenSlotsCard className="mt-5" />
 
       {announcements.length > 0 && (
         <div className="mt-5 space-y-3">

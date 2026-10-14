@@ -126,3 +126,13 @@ export function useSetSlotSuggestions() {
   });
 }
 
+/**
+ * Tell the server the member has seen this offer, once. Fire and forget: it feeds the
+ * offered, seen, booked funnel and must never get in the way of the page (2026-10-14).
+ */
+const markedViewed = new Set<number>();
+export function markSlotOfferViewed(id: number): void {
+  if (markedViewed.has(id)) return;
+  markedViewed.add(id);
+  void api(`/slot-offers/${id}/viewed`, { method: "POST" }).catch(() => markedViewed.delete(id));
+}

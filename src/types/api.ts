@@ -459,6 +459,8 @@ export interface OrganizationSlotOfferSettings {
   holdUrgentMinutes?: number;
   /** Hold minutes when the slot starts more than 24h out (default 120). */
   holdNormalMinutes?: number;
+  /** Jev suggestions to members who did not ask (Open slots for you). Default off. */
+  suggestionsEnabled?: boolean;
   /** AerScheduler AI empty-window scanner. Default off. */
   scannerEnabled?: boolean;
   scannerMinGapMinutes?: number;

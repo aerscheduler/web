@@ -51,7 +51,7 @@ export function PendingOffersSheet({
           <DocsHint topic="pending-slot-offers" />
         </span>
       }
-      description="Offers currently open for members. Instructor confirms come first on duals. Withdraw frees the window and stops the chain."
+      description="Offers made before 14 October 2026 that still hold time. New offers hold nothing. Withdraw frees the window."
     >
       {offersQuery.isPending ? (
         <p className="py-6 text-center text-sm text-muted-foreground">Loading offers...</p>

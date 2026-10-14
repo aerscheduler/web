@@ -1,5 +1,6 @@
 import { test, expect, type APIRequestContext } from "@playwright/test";
 import { ACCOUNTS, TEST_PASSWORD, apiProxyTarget } from "../helpers/env";
+import { dismissCookieBanner } from "../helpers/airworthiness";
 
 /**
  * A flight that has come back must never be ramped out again.
@@ -35,11 +36,16 @@ test.describe("A flown booking", () => {
     const me = ((users.data ?? users) as any[]).find((u) => u?.user?.email === ACCOUNTS.student);
     expect(me, "need the test student").toBeTruthy();
 
-    // A flight earlier today, so the report window includes it.
+    // A flight in the past two weeks. A flown booking can't be cancelled, so the cleanup
+    // never frees the time an earlier run used, and it is the STUDENT's time that runs out
+    // (one test student, bookable only inside opening hours). Hourly slots back two weeks
+    // leave room for hundreds of runs. The report below is filtered to this booking's day.
+    const hoursAgoSlots = Array.from({ length: 14 * 24 }, (_, i) => 3 + i);
     let id: number | null = null;
     let plane: any = null;
+    let startedAt: Date | null = null;
     for (const p of planes) {
-      for (const hoursAgo of [5, 7, 9, 11]) {
+      for (const hoursAgo of hoursAgoSlots) {
         const start = new Date(Date.now() - hoursAgo * 3600_000);
         const res = await request.post(`${owner.base}/reservations/`, {
           headers: owner.headers,
@@ -58,15 +64,19 @@ test.describe("A flown booking", () => {
           const body = (await res.json()) as any;
           id = (body.data ?? body).id;
           plane = p;
+          startedAt = start;
           break;
         }
       }
       if (id) break;
     }
-    test.skip(!id, "no free aircraft slot earlier today");
+    test.skip(!id, "no free slot for the test student in the past two weeks");
 
-    const h = plane.type.plane.hobbsTime as number;
-    const t = plane.type.plane.tachTime as number;
+    // Readings of this run's own, so its Flight log row can be told apart from earlier
+    // runs' identical "Test Student, N46132, 1.0 h" rows on the same day.
+    const bump = 1 + Math.floor(Math.random() * 1500);
+    const h = (plane.type.plane.hobbsTime as number) + bump;
+    const t = (plane.type.plane.tachTime as number) + bump;
     const post = (who: typeof owner, path: string, data: unknown) =>
       request.post(`${who.base}${path}`, { headers: who.headers, data });
     expect((await post(student, `/reservations/${id}/rampOut`, { hobbsTimeOut: h, tachTimeOut: t })).ok()).toBeTruthy();
@@ -80,12 +90,18 @@ test.describe("A flown booking", () => {
     const again = ((after.data ?? after) as any[]).find((r) => r.id === plane.id);
     expect(again.type.plane.rampedIn).toBe(true);
 
-    // The Flight log panel shows the real booking, with no Ramp out.
-    const from = new Date(Date.now() - 864e5).toISOString();
-    const to = new Date().toISOString();
+    // The Flight log panel shows the real booking, with no Ramp out. The page widens the
+    // window to whole days, so the row is picked by this run's Hobbs out cell, not "1.0 h":
+    // the first 1.0 h row was often an earlier run's booking.
+    const from = new Date(startedAt!.getTime() - 60_000).toISOString();
+    const to = new Date(startedAt!.getTime() + 60_000).toISOString();
     await page.goto(`/reports?report=flights&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
-    const row = page.getByRole("row").filter({ hasText: "1.0 h" }).first();
-    await row.click();
+    const hobbsOutCell = page.getByText(`${(h / 10).toFixed(1)} h`, { exact: true }).first();
+    await expect(hobbsOutCell).toBeVisible({ timeout: 15_000 });
+    // A fresh browser shows the cookie banner. Headless, the row click then opened no panel
+    // (a real browser opens it either way), so dismiss it the way the airworthiness specs do.
+    await dismissCookieBanner(page);
+    await hobbsOutCell.click();
     await expect(page.getByText("E2E-Flown solo").first()).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole("button", { name: /^Ramp out$/ })).toHaveCount(0);
   });

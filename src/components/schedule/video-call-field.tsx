@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ExternalLink, Video } from "lucide-react";
+import { DocsHint } from "@/components/docs-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -31,10 +32,13 @@ export function VideoCallField({
 
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="res-video-call" className="flex items-center gap-1.5">
-        <Video className="size-3.5 text-muted-foreground" aria-hidden />
-        Video call
-      </Label>
+      <div className="flex items-center gap-1.5">
+        <Label htmlFor="res-video-call" className="flex items-center gap-1.5">
+          <Video className="size-3.5 text-muted-foreground" aria-hidden />
+          Video call
+        </Label>
+        <DocsHint topic="video-call" />
+      </div>
       <Select
         value={selectValue}
         onValueChange={(v) => {

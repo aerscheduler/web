@@ -341,6 +341,12 @@ export const DOCS_TOPICS = {
       "The type decides what resource is booked, who may be on it, how many, and who gets the invoice. Dual is an instructor with a student, solo is one pilot alone, and a shared flight is two or more pilots with no instructor.",
     href: "scheduling/reservation-types",
   },
+  "video-call": {
+    title: "Video call",
+    summary:
+      "Hold a ground lesson over Zoom, Google Meet or any https link. With a call the room is optional, and everyone on the booking gets a Join link, in the app and in their calendar.",
+    href: "scheduling/remote-ground-lessons",
+  },
   "available-times": {
     title: "Available times",
     summary:

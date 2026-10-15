@@ -350,7 +350,7 @@ export const DOCS_TOPICS = {
   "video-call": {
     title: "Video call",
     summary:
-      "Hold a ground lesson over Zoom, Google Meet or any https link. With a call the room is optional, and everyone on the booking gets a Join link, in the app and in their calendar.",
+      "Hold a ground lesson over Google Meet or Zoom, made on your own connected account. With a call the room is optional, and everyone on the booking gets a Join link, in the app and in their calendar.",
     href: "scheduling/remote-ground-lessons",
   },
   "available-times": {

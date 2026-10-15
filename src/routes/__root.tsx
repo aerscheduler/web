@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
 import { SessionWatcher } from "@/components/session-watcher";
+import { ReservationTypeColorStyle } from "@/components/reservation-type-color-style";
 import { DemoWatcher } from "@/components/demo/demo-watcher";
 import { ConsentBanner } from "@/components/consent-banner";
 import { isOutsideOwnerSync } from "@/lib/auth";
@@ -81,6 +82,7 @@ function RootLayout() {
       <TooltipProvider delayDuration={200}>
         <RouteTitle />
         <SessionWatcher />
+        <ReservationTypeColorStyle />
         <DemoWatcher />
         <Outlet />
         <ConsentBanner />

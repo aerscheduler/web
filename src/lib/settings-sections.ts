@@ -1,4 +1,4 @@
-import { BadgeCheck, BadgeDollarSign, Building2, CalendarRange, CreditCard, FileCog, GraduationCap, KeyRound, Layers, Percent, Puzzle, ShieldCheck, SlidersHorizontal, Split, Wrench, type LucideIcon } from "lucide-react";
+import { BadgeCheck, BadgeDollarSign, Building2, CalendarRange, CreditCard, FileCog, GraduationCap, KeyRound, Layers, Palette, Percent, Puzzle, ShieldCheck, SlidersHorizontal, Split, Wrench, type LucideIcon } from "lucide-react";
 
 /**
  * Every section of Settings, in the order the page's left rail shows them.
@@ -47,6 +47,13 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
         label: "Booking preferences",
         icon: SlidersHorizontal,
         keywords: ["booking policy", "multi-day", "overnight", "payment method required", "rules", "approved resources", "checkout"],
+      },
+      {
+        value: "schedule-colors",
+        label: "Schedule colors",
+        icon: Palette,
+        keywords: ["colors", "colours", "reservation type color", "calendar colors", "legend"],
+        adminOnly: true,
       },
       {
         value: "booking-offerings",

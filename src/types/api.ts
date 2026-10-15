@@ -119,6 +119,8 @@ export interface Organization {
   /** Origins allowed to iframe /book pages. Empty means the share link only. */
   publicBookingEmbedHosts?: string[];
   publicBookingAccentHex?: string | null;
+  /** The organization's own reservation type colors ({ ground: "#2D8CFF" }); null = defaults. */
+  reservationTypeColors?: Partial<Record<"dual" | "solo" | "shared" | "ground" | "sim" | "rental" | "guest" | "maintenance", string>> | null;
   publicBookingAppearance?: "light" | "dark" | "system";
   publicBookingDensity?: "compact" | "comfortable";
   publicBookingCornerStyle?: "rounded" | "sharp";

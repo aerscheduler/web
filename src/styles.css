@@ -77,6 +77,8 @@
   --res-ground: #5b6472;
   --res-sim: #9a6a45;
   --res-rental: #17876f;
+  /* A shared flight is drawn like a rental unless the organization gives it its own color. */
+  --res-shared: var(--res-rental);
   --res-guest: #7256b0;
   --res-maintenance: #5e7290; /* steel-blue, legible + distinct from ground */
 
@@ -189,6 +191,7 @@
   --res-ground: #9ca1a9;
   --res-sim: #c08a63;
   --res-rental: #4cb782;
+  --res-shared: var(--res-rental);
   --res-guest: #a08bd6;
   --res-maintenance: #6f7a8a;
 
@@ -242,6 +245,7 @@
   --color-res-ground: var(--res-ground);
   --color-res-sim: var(--res-sim);
   --color-res-rental: var(--res-rental);
+  --color-res-shared: var(--res-shared);
   --color-res-guest: var(--res-guest);
   --color-res-maintenance: var(--res-maintenance);
 

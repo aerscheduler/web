@@ -341,6 +341,12 @@ export const DOCS_TOPICS = {
       "The type decides what resource is booked, who may be on it, how many, and who gets the invoice. Dual is an instructor with a student, solo is one pilot alone, and a shared flight is two or more pilots with no instructor.",
     href: "scheduling/reservation-types",
   },
+  "schedule-colors": {
+    title: "Schedule colors",
+    summary:
+      "Pick the color each reservation type has on the schedule. It applies to everyone in the organization, on the web and in the app. Colors must be dark enough to read on white.",
+    href: "scheduling/schedule-colors",
+  },
   "video-call": {
     title: "Video call",
     summary:

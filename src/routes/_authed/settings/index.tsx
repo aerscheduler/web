@@ -12,6 +12,7 @@ import { RAIL_ROW, SectionRail, type RailSection } from "@/components/section-ra
 import { OrganizationTab } from "@/components/settings/organization-tab";
 import { BookingOfferingsTab } from "@/components/settings/booking-offerings-tab";
 import { BookingPreferencesTab } from "@/components/settings/booking-preferences-tab";
+import { ScheduleColorsTab } from "@/components/settings/schedule-colors-tab";
 import { AdTrackingTab } from "@/components/settings/ad-tracking-tab";
 import { PlanTab } from "@/components/settings/plan-tab";
 import { BillingTab } from "@/components/settings/billing-tab";
@@ -100,6 +101,7 @@ function SettingsPage() {
           {active === "organization" && <OrganizationTab />}
           {active === "security" && <OrganizationSecurityTab />}
           {active === "booking-preferences" && <BookingPreferencesTab />}
+          {active === "schedule-colors" && <ScheduleColorsTab />}
           {active === "booking-offerings" && <BookingOfferingsTab />}
           {active === "ad-tracking" && <AdTrackingTab />}
           {active === "plan" && <PlanTab />}

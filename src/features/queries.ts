@@ -2148,6 +2148,21 @@ export function useUpdateOrgLogo() {
   });
 }
 
+/**
+ * The organization's own reservation type colors. Read on its own, and again whenever the
+ * window regains focus, because the signed-in session only refreshes at sign-in: without
+ * this, a color an admin changed reached other members only after they signed in again.
+ */
+export function useReservationTypeColors(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["organization", "reservationTypeColors"],
+    queryFn: () => api<Organization["reservationTypeColors"]>("/organizations/reservationTypeColors"),
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    ...opts,
+  });
+}
+
 /** PATCH the current org, used for preferences (e.g. newOrgOnboardingComplete) and org fields. */
 export function useUpdateOrganization() {
   const qc = useQueryClient();

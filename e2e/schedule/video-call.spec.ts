@@ -57,14 +57,16 @@ async function openGroundForm(page: Page) {
   await page.goto("/schedule");
   await expect(page).not.toHaveURL(/\/login/);
   await dismissCookieBanner(page);
-  //A click that lands before the board has finished loading opens nothing, so retry it.
+  //A click that lands while the board is still settling can open nothing, or a form that is
+  //replaced a moment later, so the whole open-and-pick-Ground step is retried.
   await expect(async () => {
-    await page.getByRole("button", { name: /\+?\s*New reservation/i }).first().click();
-    await expect(page.locator("#res-type")).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await page.locator("#res-type").click();
-  await page.getByRole("option", { name: /^Ground$/i }).click();
-  await expect(page.locator("#res-video-call")).toBeVisible();
+    if (!(await page.locator("#res-type").isVisible())) {
+      await page.getByRole("button", { name: /\+?\s*New reservation/i }).first().click();
+    }
+    await page.locator("#res-type").click({ timeout: 2_000 });
+    await page.getByRole("option", { name: /^Ground$/i }).click({ timeout: 2_000 });
+    await expect(page.locator("#res-video-call")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
 }
 
 const isReservationPost = (r: { request(): { method(): string }; url(): string }) =>
@@ -84,8 +86,9 @@ test.describe("Video call on a ground lesson", () => {
     await page.locator("#res-video-call").click();
     const meet = page.getByRole("option", { name: /Add Google Meet/ });
     await expect(meet).toBeVisible();
-    await expect(meet).toHaveAttribute("aria-disabled", "true");
-    await expect(meet).toContainText(/connect Google Calendar first/i);
+    //Not greyed out: picking it connects Google right here.
+    await expect(meet).not.toHaveAttribute("aria-disabled", "true");
+    await expect(meet).toContainText(/Connects your Google account first/i);
     await expect(page.getByRole("option", { name: /Paste a link/i })).toHaveCount(0);
     await page.keyboard.press("Escape");
 
@@ -126,6 +129,105 @@ test.describe("Video call on a ground lesson", () => {
     // The server really checks the connection, and refuses before anything is saved.
     expect(res.status()).toBe(400);
     await expect(page.getByText(/Connect Google Calendar first/i).first()).toBeVisible();
+  });
+
+  test("picking Google Meet with nothing connected connects Google in place, then picks it", async ({ page }) => {
+    //Google's consent popup, stood in for: it hands back a code as the real one does.
+    await page.addInitScript(() => {
+      (window as unknown as { google: unknown }).google = {
+        accounts: {
+          oauth2: {
+            initTokenClient: () => ({ requestAccessToken: () => undefined }),
+            initCodeClient: (cfg: { callback: (r: { code: string }) => void }) => ({
+              requestCode: () => setTimeout(() => cfg.callback({ code: "e2e-google-code" }), 50),
+            }),
+          },
+        },
+      };
+    });
+    let connected = false;
+    let sentCode: unknown = null;
+    await page.route("**/integrations/googleCalendar", (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      sentCode = (route.request().postDataJSON() as { serverAuthCode?: string }).serverAuthCode;
+      connected = true;
+      return route.fulfill({ json: { data: { connected: true } } });
+    });
+    await page.route("**/integrations/meetings**", (route) =>
+      route.fulfill({
+        json: {
+          data: {
+            googleMeet: connected
+              ? { connected: true, host: { who: "you", name: null }, youConnected: true }
+              : { connected: false, host: null, youConnected: false },
+            zoom: { available: false, connected: false, email: null, host: null, youConnected: false },
+          },
+        },
+      })
+    );
+    await openGroundForm(page);
+    await page.locator("#res-title").fill("E2E-typed-before-connecting");
+    await page.locator("#res-video-call").click();
+    await page.getByRole("option", { name: /^Add Google Meet$/ }).click();
+
+    await expect(page.locator("#res-video-call")).toHaveText(/Add Google Meet/);
+    expect(sentCode).toBe("e2e-google-code");
+    await expect(page.getByText(/made on your Google account when you save/i)).toBeVisible();
+    //The form never left: what was typed is still there.
+    await expect(page.locator("#res-title")).toHaveValue("E2E-typed-before-connecting");
+  });
+
+  test("picking Zoom with nothing connected opens Zoom in a small window and picks Zoom when it reports back", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __opened: string[]; open: typeof window.open };
+      w.__opened = [];
+      w.open = ((_url?: string, name?: string) => {
+        w.__opened.push(name ?? "");
+        const fake = { location: { href: "" }, close: () => undefined, closed: false };
+        return fake as unknown as Window;
+      }) as typeof window.open;
+    });
+    let connected = false;
+    await page.route("**/integrations/zoom/authorize-url", (route) =>
+      route.fulfill({ json: { data: { url: "https://zoom.us/oauth/authorize?e2e=1" } } })
+    );
+    await page.route("**/integrations/meetings**", (route) =>
+      route.fulfill({
+        json: {
+          data: {
+            googleMeet: { connected: false, host: null, youConnected: false },
+            zoom: {
+              available: true,
+              connected,
+              email: connected ? "pilot@example.com" : null,
+              host: connected ? { who: "you", name: null } : null,
+              youConnected: connected,
+            },
+          },
+        },
+      })
+    );
+    await openGroundForm(page);
+    await page.locator("#res-video-call").click();
+    const zoom = page.getByRole("option", { name: /^Add Zoom meeting$/ });
+    await expect(zoom).toContainText(/Connects your Zoom account first/i);
+    await zoom.click();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual([
+      "aerscheduler-zoom",
+    ]);
+    await expect(page.locator("#res-video-call")).toContainText(/Connecting Zoom/);
+
+    //What the callback page says once Zoom is connected.
+    connected = true;
+    await page.evaluate(() => {
+      const c = new BroadcastChannel("aerscheduler:zoom-connect");
+      c.postMessage({ connected: true, email: "pilot@example.com" });
+      c.close();
+    });
+    await expect(page.locator("#res-video-call")).toHaveText(/Add Zoom meeting/);
+    await expect(page.getByText(/made on your Zoom account when you save/i)).toBeVisible();
   });
 
   test("with an instructor on the lesson, the form asks about them and names them as the host", async ({ page }) => {

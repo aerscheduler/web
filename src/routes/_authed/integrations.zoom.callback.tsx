@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useConnectZoom } from "@/features/queries";
 import { ApiError } from "@/lib/api";
+import { announceZoomConnect } from "@/lib/zoom-connect";
 
 /**
  * Where Zoom returns a member after they approve AerScheduler on their account.
@@ -12,6 +13,9 @@ import { ApiError } from "@/lib/api";
  * builds it as `${FRONTEND_URL}/integrations/zoom/callback`. This page hands Zoom's code
  * and the signed state back to the API, which checks the state was issued to THIS signed-in
  * member, then lands them back on the Calendar tab where they started.
+ *
+ * Started from a booking form's Video call menu, this page is a small window: it tells the
+ * form how it went (the form then picks Zoom) and closes itself instead.
  */
 export const Route = createFileRoute("/_authed/integrations/zoom/callback")({
   validateSearch: (s: Record<string, unknown>): { code?: string; state?: string; error?: string } => ({
@@ -32,18 +36,29 @@ function ZoomCallbackPage() {
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    const back = () => void navigate({ to: "/me/profile", search: { tab: "calendar" }, replace: true });
+    const popup = window.name === "aerscheduler-zoom" || !!window.opener;
+    const finish = (result: { connected: boolean; email: string | null }) => {
+      announceZoomConnect(result);
+      //A window the booking form opened closes; if the browser refuses, it falls through to Calendar.
+      if (popup) window.close();
+      void navigate({ to: "/me/profile", search: { tab: "calendar" }, replace: true });
+    };
 
     if (error || !code || !state) {
       toast.info(error === "access_denied" ? "Zoom wasn't connected." : "Zoom didn't finish connecting. Try again.");
-      back();
+      finish({ connected: false, email: null });
       return;
     }
     connect
       .mutateAsync({ code, state })
-      .then((r) => toast.success(r.email ? `Zoom connected as ${r.email}` : "Zoom connected"))
-      .catch((err) => toast.error(err instanceof ApiError ? err.message : "Couldn't connect Zoom. Try again."))
-      .finally(back);
+      .then((r) => {
+        toast.success(r.email ? `Zoom connected as ${r.email}` : "Zoom connected");
+        finish({ connected: true, email: r.email });
+      })
+      .catch((err) => {
+        toast.error(err instanceof ApiError ? err.message : "Couldn't connect Zoom. Try again.");
+        finish({ connected: false, email: null });
+      });
   }, [code, state, error, connect, navigate]);
 
   return (

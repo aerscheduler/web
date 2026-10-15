@@ -41,6 +41,10 @@ function gsi(): GoogleGsi | undefined {
 }
 
 let loader: Promise<void> | null = null;
+/** Loads Google's script ahead of a click, so the consent popup opens inside the click's user gesture. */
+export function preloadGoogle(): void {
+  void loadGis().catch(() => undefined);
+}
 function loadGis(): Promise<void> {
   if (gsi()?.accounts?.oauth2) return Promise.resolve();
   if (loader) return loader;

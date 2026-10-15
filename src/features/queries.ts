@@ -4871,7 +4871,8 @@ export function useConnectGoogleCalendar() {
         method: "POST",
         body: { serverAuthCode, web: true },
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["integration", "googleCalendar"] }),
+    //Everything under "integration", the video call options included.
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["integration"] }),
   });
 }
 
@@ -4879,7 +4880,7 @@ export function useDisconnectGoogleCalendar() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api("/integrations/googleCalendar", { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["integration", "googleCalendar"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["integration"] }),
   });
 }
 

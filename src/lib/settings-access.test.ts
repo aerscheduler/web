@@ -117,7 +117,10 @@ describe("the registry itself", () => {
     //                change it, like the billing settings beside it.
     //   shop-rates   the labor rate and markups every later work order is priced at. The shop
     //                reads them on the job; only an admin changes them.
+    //   schedule-colors  what every member sees a booking type as, on the console and the
+    //                app. It is saved through PATCH /organizations, which is admin-only, so
+    //                an office manager would only meet a refusal.
     const adminOnly = SETTINGS_TABS.filter((t) => t.adminOnly).map((t) => t.value);
-    expect(adminOnly).toEqual(["booking-offerings", "ad-tracking", "plan", "sales-tax", "shop-rates", "security"]);
+    expect(adminOnly).toEqual(["schedule-colors", "booking-offerings", "ad-tracking", "plan", "sales-tax", "shop-rates", "security"]);
   });
 });

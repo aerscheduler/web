@@ -12,6 +12,7 @@ import {
 import { ApiError } from "@/lib/api";
 import type { ApproveBookingRequestInput, BookingRequest } from "@/types/booking-requests";
 import { resourceLabel, type Resource } from "@/types/api";
+import { JoinCallLink } from "@/components/schedule/video-call-field";
 import { DetailPanel } from "@/components/detail-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,8 +46,9 @@ export function PendingBookingRequestsSheet({
   ) => {
     try {
       if (action === "approve") {
-        await approve.mutateAsync({ id: request.id, input: input ?? {} });
+        const approved = await approve.mutateAsync({ id: request.id, input: input ?? {} });
         toast.success("Request approved and booked");
+        if (approved.meetingError) toast.warning(`The video call wasn't made: ${approved.meetingError}`);
       } else {
         await reject.mutateAsync({ id: request.id });
         toast.success("Request declined");
@@ -196,6 +198,15 @@ function RequestHeader({ request, badge }: { request: BookingRequest; badge: str
       <p className="mt-1 text-xs text-muted-foreground">
         Submitted {formatDistanceToNowStrict(new Date(request.createdAt))} ago
       </p>
+      {request.meetingUrl ? (
+        <p className="mt-1 text-xs">
+          <JoinCallLink url={request.meetingUrl} />
+        </p>
+      ) : request.meetingCreate ? (
+        <p className="mt-1 text-xs text-muted-foreground">
+          Video call: a {request.meetingCreate === "zoom" ? "Zoom meeting" : "Google Meet"} is made when you approve
+        </p>
+      ) : null}
       {request.notes ? (
         <p className="mt-2 text-sm text-muted-foreground">{request.notes}</p>
       ) : null}

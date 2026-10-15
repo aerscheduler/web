@@ -1,20 +1,75 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 import { apiLogin, cleanupE2eReservations } from "../helpers/api";
 import { ACCOUNTS, apiProxyTarget } from "../helpers/env";
-import {
-  dismissCookieBanner,
-  pickByPlaceholder,
-  pickNextBookableSlot,
-  submitBookReservation,
-} from "../helpers/reservation-form";
+import { dismissCookieBanner, pickByPlaceholder, pickNextBookableSlot } from "../helpers/reservation-form";
 
 /**
- * A ground lesson held over a video call: the "Video call" row on the booking form, a
- * room that becomes optional once there is a call, and the Join link on the record page.
+ * A ground lesson held over a video call. The call is one of the integrations we support
+ * (Google Meet, Zoom), never a pasted link; with one, the room is optional; the booking
+ * page shows Join.
  *
- * Google Meet and Zoom creation need a real connected account, so they are covered by the
- * server's unit tests; this drives everything a school can do without one.
+ * The test accounts have no real Google or Zoom connection, so making the meeting is
+ * covered by the server's unit tests; here the browser is told Google is connected and the
+ * server, which really checks, refuses with its reason.
  */
+
+const base = () => apiProxyTarget().replace(/\/$/, "");
+
+async function ownerToken(request: APIRequestContext) {
+  return (await apiLogin(request, ACCOUNTS.owner)).auth.accessToken as string;
+}
+
+async function personId(request: APIRequestContext, token: string, role: "student" | "instructor", name: RegExp) {
+  const res = await request.get(`${base()}/orgUsers?${role}=true&limit=100`, { headers: { Authorization: `Bearer ${token}` } });
+  const person = ((await res.json()).data as { id: number; user?: { name?: string } }[]).find((u) => name.test(u.user?.name ?? ""));
+  expect(person, `seeded ${name}`).toBeTruthy();
+  return person!.id;
+}
+
+let lessonDayOffset = Math.floor(Math.random() * 5) * 3;
+
+/** A remote ground lesson three weeks out, made through the API (which still accepts a link). */
+async function remoteLessonViaApi(request: APIRequestContext, meetingUrl: string) {
+  const token = await ownerToken(request);
+  const student = await personId(request, token, "student", /Test Student/);
+  //Its own day per call, so two lessons in one run never clash on the student.
+  lessonDayOffset += 1;
+  const day = new Date(Date.now() + (20 + lessonDayOffset) * 864e5).toISOString().slice(0, 10);
+  const minute = 10 + Math.floor(Math.random() * 30);
+  const made = await request.post(`${base()}/reservations`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      type: "ground",
+      title: `E2E-UI-video-${Date.now()}`,
+      notes: "E2E-UI-video",
+      start: `${day}T19:${minute}:00Z`,
+      end: `${day}T19:${minute + 20}:00Z`,
+      timeZoneName: "America/Denver",
+      meetingUrl,
+      personnel: { students: [{ id: student }] },
+    },
+  });
+  expect(made.status(), await made.text()).toBe(201);
+  return ((await made.json()).data as { id: number }).id;
+}
+
+async function openGroundForm(page: Page) {
+  await page.goto("/schedule");
+  await expect(page).not.toHaveURL(/\/login/);
+  await dismissCookieBanner(page);
+  //A click that lands before the board has finished loading opens nothing, so retry it.
+  await expect(async () => {
+    await page.getByRole("button", { name: /\+?\s*New reservation/i }).first().click();
+    await expect(page.locator("#res-type")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await page.locator("#res-type").click();
+  await page.getByRole("option", { name: /^Ground$/i }).click();
+  await expect(page.locator("#res-video-call")).toBeVisible();
+}
+
+const isReservationPost = (r: { request(): { method(): string }; url(): string }) =>
+  r.request().method() === "POST" && /\/reservations\/?$/.test(new URL(r.url()).pathname);
+
 test.describe("Video call on a ground lesson", () => {
   test.use({ storageState: ".auth/owner.json" });
 
@@ -22,127 +77,148 @@ test.describe("Video call on a ground lesson", () => {
     await cleanupE2eReservations(request);
   });
 
-  async function openGroundForm(page: Page) {
-    await page.goto("/schedule");
-    await expect(page).not.toHaveURL(/\/login/);
-    await dismissCookieBanner(page);
-    await page.getByRole("button", { name: /\+?\s*New reservation/i }).first().click();
-    await expect(page.locator("#res-type")).toBeVisible({ timeout: 15_000 });
-    await page.locator("#res-type").click();
-    await page.getByRole("option", { name: /^Ground$/i }).click();
-    await expect(page.locator("#res-video-call")).toBeVisible();
-  }
-
-  test("books a remote lesson with a pasted link and no room, then shows Join", async ({ page }) => {
-    const marker = `E2E-UI-video-${Date.now()}`;
+  test("offers the integrations only, never a pasted link; without a call a room is required", async ({ page }) => {
     await openGroundForm(page);
-
-    // Without a call, a ground lesson still needs a room.
     await expect(page.locator("#res-video-call")).toHaveText(/No video call/);
 
-    // Google Meet is offered but greyed until Google Calendar is connected, with the reason.
     await page.locator("#res-video-call").click();
     const meet = page.getByRole("option", { name: /Add Google Meet/ });
     await expect(meet).toBeVisible();
     await expect(meet).toHaveAttribute("aria-disabled", "true");
     await expect(meet).toContainText(/connect Google Calendar first/i);
-    await page.getByRole("option", { name: /^Paste a link$/ }).click();
-
-    await page.locator("#res-video-call-link").fill("us02web.zoom.us/j/84512345678?pwd=Ground1");
-    // The room picker now offers "No room" and settles on it.
-    await expect(page.locator("#res-resource")).toContainText(/No room/);
+    await expect(page.getByRole("option", { name: /Paste a link/i })).toHaveCount(0);
+    await page.keyboard.press("Escape");
 
     await pickByPlaceholder(page, /Assign student/i, /Test Student/, /Search students/i);
     await pickNextBookableSlot(page);
-    await page.locator("#res-title").fill(marker);
-    await page.locator("#res-notes").fill(marker);
-
-    const posted = await submitBookReservation(page);
-    const sent = posted.request().postDataJSON() as { meetingUrl?: string; resource?: unknown; type: string };
-    expect(sent.type).toBe("ground");
-    expect(sent.meetingUrl).toBe("us02web.zoom.us/j/84512345678?pwd=Ground1");
-    expect(sent.resource).toBeUndefined();
-
-    const saved = (await posted.json()).data as { id: number; meetingUrl: string | null; resource: unknown };
-    expect(saved.meetingUrl).toBe("https://us02web.zoom.us/j/84512345678?pwd=Ground1");
-    expect(saved.resource ?? null).toBeNull();
-
-    await page.goto(`/schedule/reservations/${saved.id}`);
-    const join = page.getByRole("link", { name: /Join Zoom/ });
-    await expect(join).toBeVisible({ timeout: 15_000 });
-    await expect(join).toHaveAttribute("href", "https://us02web.zoom.us/j/84512345678?pwd=Ground1");
-    await expect(join).toHaveAttribute("target", "_blank");
-    await expect(page.getByText("None, video call")).toBeVisible();
-
-  });
-
-  test("an empty pasted link is caught before anything is sent", async ({ page }) => {
-    await openGroundForm(page);
-    await page.locator("#res-video-call").click();
-    await page.getByRole("option", { name: /^Paste a link$/ }).click();
-    await pickByPlaceholder(page, /Assign student/i, /Test Student/, /Search students/i);
-    await pickNextBookableSlot(page);
-    await page.locator("#res-title").fill(`E2E-UI-video-empty-${Date.now()}`);
-
+    await page.locator("#res-title").fill(`E2E-UI-video-noroom-${Date.now()}`);
     let posted = false;
     page.on("request", (r) => {
       if (r.method() === "POST" && /\/reservations\/?$/.test(new URL(r.url()).pathname)) posted = true;
     });
     await page.getByRole("button", { name: /^Book reservation$/i }).click();
-    await expect(page.getByText(/Paste the meeting link, or choose No video call/i).first()).toBeVisible();
-    await expect(page.locator("#res-video-call-link")).toHaveAttribute("aria-invalid", "true");
+    await expect(page.getByText(/Ground reservations need a room/i).first()).toBeVisible();
     expect(posted).toBe(false);
   });
 
-  test("editing keeps the link, refuses a lesson with neither room nor call, and swaps links", async ({ page, request }) => {
-    const base = apiProxyTarget().replace(/\/$/, "");
-    const token = (await apiLogin(request, ACCOUNTS.owner)).auth.accessToken as string;
-    const headers = { Authorization: `Bearer ${token}` };
-    const people = await request.get(`${base}/orgUsers?student=true&limit=100`, { headers });
-    const student = ((await people.json()).data as { id: number; user?: { name?: string } }[]).find((u) =>
-      /Test Student/.test(u.user?.name ?? "")
+  test("Add Google Meet asks the server to make the meeting and the room becomes optional", async ({ page }) => {
+    await page.route("**/integrations/meetings", (route) =>
+      route.fulfill({
+        json: { data: { googleMeet: { connected: true }, zoom: { available: false, connected: false, email: null } } },
+      })
     );
-    expect(student, "seeded Test Student").toBeTruthy();
-    // Three weeks out, at a minute no other spec uses, so nothing has started or clashes.
-    const day = new Date(Date.now() + 21 * 864e5).toISOString().slice(0, 10);
-    const made = await request.post(`${base}/reservations`, {
-      headers,
-      data: {
-        type: "ground",
-        title: `E2E-UI-video-edit-${Date.now()}`,
-        notes: "E2E-UI-video edit",
-        start: `${day}T19:10:00Z`,
-        end: `${day}T19:55:00Z`,
-        timeZoneName: "America/Denver",
-        meetingUrl: "https://meet.google.com/abc-defg-hij",
-        personnel: { students: [{ id: student!.id }] },
-      },
-    });
-    expect(made.status(), await made.text()).toBe(201);
-    const id = ((await made.json()).data as { id: number }).id;
+    await openGroundForm(page);
+    await page.locator("#res-video-call").click();
+    await page.getByRole("option", { name: /^Add Google Meet$/ }).click();
+    await expect(page.getByText(/made on your Google account when you save/i)).toBeVisible();
+    await expect(page.locator("#res-resource")).toContainText(/No room/);
 
+    await pickByPlaceholder(page, /Assign student/i, /Test Student/, /Search students/i);
+    await pickNextBookableSlot(page);
+    await page.locator("#res-title").fill(`E2E-UI-video-meet-${Date.now()}`);
+    const posted = page.waitForResponse(isReservationPost);
+    await page.getByRole("button", { name: /^Book reservation$/i }).click();
+    const res = await posted;
+    const sent = res.request().postDataJSON() as { meeting?: { create: string }; meetingUrl?: string; resource?: unknown };
+    expect(sent.meeting).toEqual({ create: "google_meet" });
+    expect(sent.meetingUrl).toBeUndefined();
+    expect(sent.resource).toBeUndefined();
+    // The server really checks the connection, and refuses before anything is saved.
+    expect(res.status()).toBe(400);
+    await expect(page.getByText(/Connect Google Calendar first/i).first()).toBeVisible();
+  });
+
+  test("a booking with a call shows Join and None for the room", async ({ page, request }) => {
+    const id = await remoteLessonViaApi(request, "https://us02web.zoom.us/j/84512345678?pwd=Ground1");
+    await page.goto(`/schedule/reservations/${id}`);
+    await dismissCookieBanner(page);
+    const join = page.getByRole("link", { name: /Join Zoom/ });
+    await expect(join).toBeVisible({ timeout: 15_000 });
+    await expect(join).toHaveAttribute("href", "https://us02web.zoom.us/j/84512345678?pwd=Ground1");
+    await expect(join).toHaveAttribute("target", "_blank");
+    await expect(page.getByText("None, video call")).toBeVisible();
+  });
+
+  test("editing keeps the call, and turning it off asks for a room again", async ({ page, request }) => {
+    const id = await remoteLessonViaApi(request, "https://meet.google.com/abc-defg-hij");
     await page.goto(`/schedule/reservations/${id}`);
     await dismissCookieBanner(page);
     await expect(page.getByRole("link", { name: /Join Google Meet/ })).toBeVisible({ timeout: 15_000 });
     await page.getByRole("button", { name: /Edit reservation/ }).click();
-    await expect(page.locator("#res-video-call")).toContainText(/Google Meet \(current link\)/);
+    await expect(page.locator("#res-video-call")).toContainText(/Google Meet \(current call\)/);
     await expect(page.locator("#res-resource")).toContainText(/No room/);
 
-    // Off: a ground lesson with nowhere to happen is refused before it is sent.
     await page.locator("#res-video-call").click();
     await page.getByRole("option", { name: /^No video call$/ }).click();
     await page.getByRole("button", { name: /^Save changes$/ }).click();
     await expect(page.getByText(/Ground reservations need a room/i).first()).toBeVisible();
+  });
+});
 
-    // A new pasted link replaces the old one.
-    await page.locator("#res-video-call").click();
-    await page.getByRole("option", { name: /^Paste a link$/ }).click();
-    await page.locator("#res-video-call-link").fill("https://zoom.us/j/99887766554");
-    const patched = page.waitForResponse((r) => r.request().method() === "PATCH" && r.url().includes(`/reservations/${id}`));
-    await page.getByRole("button", { name: /^Save changes$/ }).click();
-    const res = await patched;
-    expect(res.ok(), await res.text()).toBeTruthy();
-    expect(((await res.json()).data as { meetingUrl: string }).meetingUrl).toBe("https://zoom.us/j/99887766554");
-    await expect(page.getByRole("link", { name: /Join Zoom/ })).toBeVisible({ timeout: 15_000 });
+test.describe("Video call on a booking request", () => {
+  test.afterAll(async ({ request }) => {
+    const token = await ownerToken(request);
+    await request.patch(`${base()}/organizations/`, {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { bookingPolicy: { bookingApprovalRequiredRoles: [] } },
+    });
+    await cleanupE2eReservations(request);
+  });
+
+  test("the desk sees the call on the request, and approval books it with no room", async ({ browser, request }) => {
+    const owner = await ownerToken(request);
+    await request.patch(`${base()}/organizations/`, {
+      headers: { Authorization: `Bearer ${owner}` },
+      data: { bookingPolicy: { bookingApprovalRequiredRoles: ["student"] } },
+    });
+    const instructor = await personId(request, owner, "instructor", /Test Instructor/);
+    const student = (await apiLogin(request, ACCOUNTS.student)).auth.accessToken as string;
+
+    //A weekday morning in Denver, inside the seeded instructor's hours.
+    const day = new Date(Date.now() + 22 * 864e5);
+    while (day.getUTCDay() === 0 || day.getUTCDay() === 6) day.setUTCDate(day.getUTCDate() + 1);
+    const ymd = day.toISOString().slice(0, 10);
+    const marker = `E2E-UI-video-request-${Date.now()}`;
+    const res = await request.post(`${base()}/booking-requests`, {
+      headers: { Authorization: `Bearer ${student}` },
+      data: {
+        type: "ground",
+        start: `${ymd}T16:00:00Z`,
+        end: `${ymd}T17:00:00Z`,
+        timeZoneName: "America/Denver",
+        notes: marker,
+        meetingUrl: "https://meet.google.com/abc-defg-hij",
+        personnel: { instructors: [{ id: instructor }], students: [] },
+      },
+    });
+    expect(res.status(), await res.text()).toBe(201);
+    const created = (await res.json()).data as { id: number; meetingUrl: string | null; resource: unknown };
+    expect(created.meetingUrl).toBe("https://meet.google.com/abc-defg-hij");
+    expect(created.resource ?? null).toBeNull();
+
+    const desk = await browser.newContext({ storageState: ".auth/owner.json" });
+    const page = await desk.newPage();
+    await page.goto("/schedule");
+    await dismissCookieBanner(page);
+    await page.getByRole("button", { name: /Booking requests/i }).click();
+    await expect(page.getByRole("link", { name: /Join Google Meet/ }).first()).toBeVisible({ timeout: 15_000 });
+    await desk.close();
+
+    const approve = await request.post(`${base()}/booking-requests/${created.id}/approve`, {
+      headers: { Authorization: `Bearer ${owner}` },
+      data: {},
+    });
+    expect(approve.ok(), await approve.text()).toBeTruthy();
+
+    const list = await request.get(
+      `${base()}/reservations?startDate=${new Date(Date.now() - 864e5).toISOString()}&endDate=${new Date(Date.now() + 60 * 864e5).toISOString()}`,
+      { headers: { Authorization: `Bearer ${owner}` } }
+    );
+    const items = ((await list.json()).data ?? []) as { notes?: string; meetingUrl?: string | null; resource?: unknown; type: string }[];
+    const booked = items.find((r) => String(r.notes ?? "").includes(marker));
+    expect(booked, "approved request is on the schedule").toBeTruthy();
+    expect(booked!.type).toBe("ground");
+    expect(booked!.meetingUrl).toBe("https://meet.google.com/abc-defg-hij");
+    expect(booked!.resource ?? null).toBeNull();
   });
 });

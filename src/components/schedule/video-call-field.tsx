@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ExternalLink, Video } from "lucide-react";
 import { DocsHint } from "@/components/docs-hint";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useMeetingOptions } from "@/features/queries";
@@ -9,7 +8,9 @@ import type { MeetingCreator } from "@/types/api";
 import { NO_VIDEO_CALL, videoCallProviderLabel, type VideoCallChoice } from "@/components/schedule/video-call";
 
 /**
- * "Video call" on a booking: none, make a Google Meet or Zoom meeting, or paste any link.
+ * "Video call" on a booking: none, or a Google Meet or Zoom meeting made on the booker's own
+ * account. There is deliberately no "paste a link": a call is one of the integrations we
+ * support, as in a calendar app, so every link on a booking is one we made and can trust.
  *
  * Making one needs that account connected (Profile & account, Calendar). An option that can't
  * work is shown greyed with the reason rather than hidden, so people learn it exists and
@@ -42,9 +43,8 @@ export function VideoCallField({
       <Select
         value={selectValue}
         onValueChange={(v) => {
-          if (v === "keep" && value.mode === "keep") return;
-          if (v === "link") onChange({ mode: "link", url: value.mode === "keep" ? value.url : "" });
-          else onChange(v === "none" ? NO_VIDEO_CALL : { mode: v as MeetingCreator });
+          if (v === "keep") return;
+          onChange(v === "none" ? NO_VIDEO_CALL : { mode: v as MeetingCreator });
         }}
       >
         <SelectTrigger id="res-video-call" className="w-full" aria-invalid={invalid}>
@@ -52,7 +52,7 @@ export function VideoCallField({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="none">No video call</SelectItem>
-          {value.mode === "keep" && <SelectItem value="keep">{videoCallProviderLabel(value.url)} (current link)</SelectItem>}
+          {value.mode === "keep" && <SelectItem value="keep">{videoCallProviderLabel(value.url)} (current call)</SelectItem>}
           <SelectItem value="google_meet" disabled={!google}>
             {google ? "Add Google Meet" : "Add Google Meet (connect Google Calendar first)"}
           </SelectItem>
@@ -61,23 +61,9 @@ export function VideoCallField({
               {zoom.connected ? "Add Zoom meeting" : "Add Zoom meeting (connect Zoom first)"}
             </SelectItem>
           )}
-          <SelectItem value="link">Paste a link</SelectItem>
         </SelectContent>
       </Select>
 
-      {value.mode === "link" && (
-        <Input
-          id="res-video-call-link"
-          aria-label="Meeting link"
-          aria-invalid={invalid}
-          inputMode="url"
-          autoComplete="off"
-          placeholder="https://zoom.us/j/… or meet.google.com/…"
-          value={value.url}
-          maxLength={500}
-          onChange={(e) => onChange({ mode: "link", url: e.target.value })}
-        />
-      )}
       {value.mode === "keep" && (
         <a
           href={value.url}

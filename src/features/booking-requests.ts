@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { api, apiRaw } from "@/lib/api";
 import type {
   ApproveBookingRequestInput,
   BookingRequest,
@@ -72,8 +72,14 @@ export function useApproveBookingRequest() {
 export function useApproveBookingRequestWithBody() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, input }: { id: number; input: ApproveBookingRequestInput }) =>
-      api<BookingRequest>(`/booking-requests/${id}/approve`, { method: "POST", body: input }),
+    //Raw, to keep `meetingError` (the approval stands even if the requested call could not be made).
+    mutationFn: async ({ id, input }: { id: number; input: ApproveBookingRequestInput }) => {
+      const body = await apiRaw<{ data: BookingRequest; meetingError?: string }>(`/booking-requests/${id}/approve`, {
+        method: "POST",
+        body: input,
+      });
+      return { ...body.data, meetingError: body.meetingError };
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["booking-requests"] });
       void queryClient.invalidateQueries({ queryKey: ["reservations"] });

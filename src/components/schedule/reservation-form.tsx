@@ -1186,9 +1186,8 @@ export function ReservationForm({
   //"Select resource" in the field, which reads as a required choice (a school reported that
   //rescheduling one "asks to put a resource in"), and once a tail was picked it could not
   //be cleared. Same words as the app's plane picker.
-  //A ground lesson held over a video call needs no classroom. Booking requests don't carry
-  //a call yet, so a lesson that needs approval still asks for a room.
-  const offersVideoCall = type === "ground" && !requiresApproval;
+  //A ground lesson held over a video call needs no classroom, booked or requested.
+  const offersVideoCall = type === "ground";
   const remoteLesson = offersVideoCall && hasVideoCall(videoCall);
   const resourceOptional = !TYPE_REQUIREMENTS[type].resourceRequired || remoteLesson;
   const resourceChoices: ComboOption[] = resourceOptional
@@ -1336,9 +1335,6 @@ export function ReservationForm({
             : `res-primary-${side}`;
         return fail(message, control);
       }
-      if (offersVideoCall && videoCall.mode === "link" && !videoCall.url.trim()) {
-        return fail("Paste the meeting link, or choose No video call.", "res-video-call-link");
-      }
       if (req.resourceRequired && !selectedResource && !remoteLesson) {
         return fail(
           `${typeLabel(type)} reservations need ${
@@ -1389,7 +1385,7 @@ export function ReservationForm({
       //An explicit null is how an edit lets a remote lesson give up the room it had;
       //anything else without a resource leaves the stored one alone.
       if (editing && remoteLesson && !selectedResource && editing.resource) input.resource = null;
-    } else if (editing?.meetingUrl && type !== "ground") {
+    } else if (editing?.meetingUrl) {
       //A lesson moved off ground takes its call with it: only ground offers one.
       input.meetingUrl = null;
     }
@@ -1434,7 +1430,9 @@ export function ReservationForm({
           title: input.title,
           timeZoneName: input.timeZoneName,
           notes: input.notes,
-          resource: input.resource,
+          meetingUrl: input.meetingUrl ?? undefined,
+          meeting: input.meeting,
+          resource: input.resource ?? undefined,
           location: input.location,
           rating: input.rating,
           personnel: input.personnel,

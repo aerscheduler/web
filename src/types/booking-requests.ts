@@ -20,6 +20,10 @@ export interface BookingRequest {
   end: string;
   timeZoneName: string;
   notes?: string | null;
+  /** A pasted video call (ground lessons), carried onto the booking when approved. */
+  meetingUrl?: string | null;
+  /** "google_meet" | "zoom": made on the requester's account once approved. */
+  meetingCreate?: string | null;
   personnel?: Record<string, unknown> | null;
   decidedAt?: string | null;
   decisionReason?: string | null;
@@ -66,6 +70,8 @@ export type CreateBookingRequestInput = {
   title?: string | null;
   timeZoneName?: string | null;
   notes?: string | null;
+  meetingUrl?: string | null;
+  meeting?: { create: "google_meet" | "zoom" };
   resource?: { id: number } | null;
   location?: { id: number } | null;
   rating?: { id: number } | null;

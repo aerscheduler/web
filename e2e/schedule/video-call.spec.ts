@@ -128,6 +128,30 @@ test.describe("Video call on a ground lesson", () => {
     await expect(page.getByText(/Connect Google Calendar first/i).first()).toBeVisible();
   });
 
+  test("with an instructor on the lesson, the form asks about them and names them as the host", async ({ page }) => {
+    const asked: string[] = [];
+    await page.route("**/integrations/meetings**", (route) => {
+      asked.push(route.request().url());
+      const withInstructor = /instructorOrgUserId=\d+/.test(route.request().url());
+      return route.fulfill({
+        json: {
+          data: {
+            googleMeet: withInstructor
+              ? { connected: true, host: { who: "instructor", name: "Test Instructor" }, youConnected: false }
+              : { connected: false, host: null, youConnected: false },
+            zoom: { available: false, connected: false, email: null, host: null, youConnected: false },
+          },
+        },
+      });
+    });
+    await openGroundForm(page);
+    await pickByPlaceholder(page, /Assign instructor/i, /Test Instructor/, /Search instructors/i);
+    await expect.poll(() => asked.some((u) => /instructorOrgUserId=\d+/.test(u))).toBe(true);
+    await page.locator("#res-video-call").click();
+    await page.getByRole("option", { name: /^Add Google Meet$/ }).click();
+    await expect(page.getByText(/made on Test Instructor's Google account when you save/i)).toBeVisible();
+  });
+
   test("a booking with a call shows Join and None for the room", async ({ page, request }) => {
     const id = await remoteLessonViaApi(request, "https://us02web.zoom.us/j/84512345678?pwd=Ground1");
     await page.goto(`/schedule/reservations/${id}`);
@@ -144,7 +168,10 @@ test.describe("Video call on a ground lesson", () => {
     await page.goto(`/schedule/reservations/${id}`);
     await dismissCookieBanner(page);
     await expect(page.getByRole("link", { name: /Join Google Meet/ })).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("button", { name: /Edit reservation/ }).click();
+    await expect(async () => {
+      await page.getByRole("button", { name: /Edit reservation/ }).click();
+      await expect(page.locator("#res-video-call")).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.locator("#res-video-call")).toContainText(/Google Meet \(current call\)/);
     await expect(page.locator("#res-resource")).toContainText(/No room/);
 

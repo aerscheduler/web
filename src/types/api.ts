@@ -779,9 +779,22 @@ export type ReservationType =
 export type MeetingCreator = "google_meet" | "zoom";
 
 /** What the booking form can offer under "Video call", from GET /integrations/meetings. */
+/** Whose account a meeting would be made on: the instructor's when connected, else yours. */
+export interface MeetingHost {
+  who: "instructor" | "you";
+  name: string | null;
+}
+
 export interface MeetingOptions {
-  googleMeet: { connected: boolean };
-  zoom: { available: boolean; connected: boolean; email: string | null };
+  /** `connected`: a Meet can be made for this booking, on `host`'s account. */
+  googleMeet: { connected: boolean; host?: MeetingHost | null; youConnected?: boolean };
+  zoom: {
+    available: boolean;
+    connected: boolean;
+    email: string | null;
+    host?: MeetingHost | null;
+    youConnected?: boolean;
+  };
 }
 
 export interface Reservation {

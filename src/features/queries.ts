@@ -1015,10 +1015,14 @@ async function withMeetingError(request: Promise<MeetingEnvelope>): Promise<Rese
 }
 
 /** What "Video call" can offer this member: Google Meet, Zoom, or only a pasted link. */
-export function useMeetingOptions(opts?: QueryOpts) {
+export function useMeetingOptions(instructorOrgUserId?: number | null, opts?: QueryOpts) {
   return useQuery({
-    queryKey: ["integration", "meetings"],
-    queryFn: () => api<MeetingOptions>("/integrations/meetings"),
+    queryKey: ["integration", "meetings", instructorOrgUserId ?? null],
+    //The instructor matters: the meeting is made on their account when they are connected.
+    queryFn: () =>
+      api<MeetingOptions>(
+        instructorOrgUserId ? `/integrations/meetings?instructorOrgUserId=${instructorOrgUserId}` : "/integrations/meetings"
+      ),
     staleTime: 0,
     ...opts,
   });

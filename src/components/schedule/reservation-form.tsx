@@ -1604,6 +1604,7 @@ export function ReservationForm({
               }
             }}
             invalid={errorField === "res-video-call-link"}
+            instructorOrgUserId={effectiveInstructorId ? Number(effectiveInstructorId) : null}
           />
         )}
 

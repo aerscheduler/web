@@ -20,14 +20,19 @@ export function VideoCallField({
   value,
   onChange,
   invalid,
+  instructorOrgUserId,
 }: {
   value: VideoCallChoice;
   onChange: (next: VideoCallChoice) => void;
   invalid?: boolean;
+  /** The booking's instructor: the meeting is hosted on their account when they are connected. */
+  instructorOrgUserId?: number | null;
 }) {
-  const options = useMeetingOptions();
+  const options = useMeetingOptions(instructorOrgUserId);
   const google = options.data?.googleMeet.connected ?? false;
   const zoom = options.data?.zoom;
+  const host = value.mode === "zoom" ? zoom?.host : value.mode === "google_meet" ? options.data?.googleMeet.host : null;
+  const hostAccount = host?.who === "instructor" && host.name ? `${host.name}'s` : "your";
 
   const selectValue = value.mode === "keep" ? "keep" : value.mode;
 
@@ -76,13 +81,13 @@ export function VideoCallField({
       )}
       {(value.mode === "google_meet" || value.mode === "zoom") && (
         <p className="text-xs text-muted-foreground">
-          The link is made on your {value.mode === "zoom" ? "Zoom" : "Google"} account when you save, and everyone on the
-          booking sees it.
+          The meeting is made on {hostAccount} {value.mode === "zoom" ? "Zoom" : "Google"} account when you save, and
+          everyone on the booking can join it.
         </p>
       )}
       {!google && !zoom?.connected && value.mode === "none" && options.isSuccess && (
         <p className="text-xs text-muted-foreground">
-          To make meetings from here, connect an account in{" "}
+          To add a call, you or the lesson's instructor connect Google Calendar (or Zoom) in{" "}
           <Link
             to="/me/profile"
             search={{ tab: "calendar" }}

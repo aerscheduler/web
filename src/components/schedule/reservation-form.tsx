@@ -88,6 +88,8 @@ import { cn, formatMoney } from "@/lib/utils";
 import { dateKeyInZone, zonedWallClockToUtc } from "@/lib/timezone";
 import { useTimeZone } from "@/lib/use-timezone";
 import { NotifyIfOpens } from "@/components/slot-offers/notify-if-opens";
+import { VideoCallField } from "@/components/schedule/video-call-field";
+import { hasVideoCall, NO_VIDEO_CALL, videoCallInput, type VideoCallChoice } from "@/components/schedule/video-call";
 import { DOT_CLASS, typeLabel } from "./meta";
 import { SmartTimeRange } from "./smart-time-range";
 import { OvernightMinimumNotice } from "./overnight-notice";
@@ -781,6 +783,7 @@ export function ReservationForm({
   const [collectionStyle, setCollectionStyle] = React.useState<"close_out" | "prepaid_fixed">("close_out");
   const [packageDollars, setPackageDollars] = React.useState("");
   const [notes, setNotes] = React.useState("");
+  const [videoCall, setVideoCall] = React.useState<VideoCallChoice>(NO_VIDEO_CALL);
   const [error, setError] = React.useState<string | null>(null);
   /**
    * Which control the message above is about.
@@ -1078,6 +1081,7 @@ export function ReservationForm({
         setGuestEmail(guest?.email ?? "");
         setGuestPhone(guest?.phone ?? "");
         setNotes(editing.notes ?? "");
+        setVideoCall(editing.meetingUrl ? { mode: "keep", url: editing.meetingUrl } : NO_VIDEO_CALL);
       } else {
         //A draft's "HH:mm" comes from clicking the grid, which is ruled in AIRPORT time.
         //so it has to be interpreted there too. `new Date("2026-07-28T09:00")` parses in the
@@ -1111,6 +1115,7 @@ export function ReservationForm({
         setGuestEmail("");
         setGuestPhone("");
         setNotes("");
+        setVideoCall(NO_VIDEO_CALL);
       }
       //A repeat rule must never survive from one booking to the next.
       setRecurrence(defaultRecurrence(null, format(draft.date, "yyyy-MM-dd")));
@@ -1181,9 +1186,18 @@ export function ReservationForm({
   //"Select resource" in the field, which reads as a required choice (a school reported that
   //rescheduling one "asks to put a resource in"), and once a tail was picked it could not
   //be cleared. Same words as the app's plane picker.
-  const resourceOptional = !TYPE_REQUIREMENTS[type].resourceRequired;
+  //A ground lesson held over a video call needs no classroom. Booking requests don't carry
+  //a call yet, so a lesson that needs approval still asks for a room.
+  const offersVideoCall = type === "ground" && !requiresApproval;
+  const remoteLesson = offersVideoCall && hasVideoCall(videoCall);
+  const resourceOptional = !TYPE_REQUIREMENTS[type].resourceRequired || remoteLesson;
   const resourceChoices: ComboOption[] = resourceOptional
-    ? [...resourceOptions, { value: NOT_LISTED, label: "Not listed", hint: "No aircraft" }]
+    ? [
+        ...resourceOptions,
+        remoteLesson
+          ? { value: NOT_LISTED, label: "No room", hint: "Video call only" }
+          : { value: NOT_LISTED, label: "Not listed", hint: "No aircraft" },
+      ]
     : resourceOptions;
 
   const selectedResource = eligibleResources.find((r) => String(r.id) === resourceId);
@@ -1322,7 +1336,10 @@ export function ReservationForm({
             : `res-primary-${side}`;
         return fail(message, control);
       }
-      if (req.resourceRequired && !selectedResource) {
+      if (offersVideoCall && videoCall.mode === "link" && !videoCall.url.trim()) {
+        return fail("Paste the meeting link, or choose No video call.", "res-video-call-link");
+      }
+      if (req.resourceRequired && !selectedResource && !remoteLesson) {
         return fail(
           `${typeLabel(type)} reservations need ${
             req.resource === "Aircraft" ? "an aircraft" : `a ${req.resource.toLowerCase()}`
@@ -1367,6 +1384,15 @@ export function ReservationForm({
       collectionStyle: editing ? undefined : effectiveCollection,
       prepaidAmountCents: editing ? undefined : prepaidAmountCents,
     });
+    if (offersVideoCall) {
+      Object.assign(input, videoCallInput(videoCall, !!editing?.meetingUrl));
+      //An explicit null is how an edit lets a remote lesson give up the room it had;
+      //anything else without a resource leaves the stored one alone.
+      if (editing && remoteLesson && !selectedResource && editing.resource) input.resource = null;
+    } else if (editing?.meetingUrl && type !== "ground") {
+      //A lesson moved off ground takes its call with it: only ground offers one.
+      input.meetingUrl = null;
+    }
 
     //Repeating booking. Editing never carries a rule: changing one occurrence is an
     //ordinary edit, and the server ignores `recurrence` on PATCH anyway.
@@ -1393,8 +1419,9 @@ export function ReservationForm({
 
     try {
       if (editing) {
-        await update.mutateAsync({ id: editing.id, input });
+        const updated = await update.mutateAsync({ id: editing.id, input });
         toast.success("Reservation updated");
+        if (updated?.meetingError) toast.warning(`Saved, but the video call wasn't made: ${updated.meetingError}`);
         await linkJob(editing.id, editing.type === "maintenance" ? (bookingJob.job?.id ?? null) : null);
         closeModal(false);
         return;
@@ -1424,6 +1451,7 @@ export function ReservationForm({
       toast.success(
         input.recurrence ? "Repeating booking created" : "Reservation booked"
       );
+      if (created?.meetingError) toast.warning(`Booked, but the video call wasn't made: ${created.meetingError}`);
       if (!input.recurrence && created?.id != null) await linkJob(created.id, null);
       if (isSelf && asPage) {
         await navigate({ to: "/me/schedule" });
@@ -1566,6 +1594,20 @@ export function ReservationForm({
             )}
           </div>
         </div>
+
+        {offersVideoCall && (
+          <VideoCallField
+            value={videoCall}
+            onChange={(next) => {
+              setVideoCall(next);
+              if (errorField === "res-video-call-link") {
+                setError(null);
+                setErrorField(null);
+              }
+            }}
+            invalid={errorField === "res-video-call-link"}
+          />
+        )}
 
         {/* Which seat the member is in, when they hold both roles. Dispatch never
             asks, it names both people outright. */}

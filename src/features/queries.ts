@@ -76,6 +76,8 @@ import type {
   CreateReminderTemplateInput,
   ReminderSteps,
   CreateReservationInput,
+  MeetingCreator,
+  MeetingOptions,
   CreateRoomResourceInput,
   CreateSimulatorResourceInput,
   Currency,
@@ -999,11 +1001,78 @@ export function useUpdateRoles(userId: number) {
   });
 }
 
+type MeetingEnvelope = { data: Reservation; meetingError?: string };
+
+/**
+ * The saved booking, carrying `meetingError` when a video call it asked for couldn't be
+ * made. The server saves the booking anyway and says so beside `data`, so the form can tell
+ * the person rather than pretend the call exists.
+ */
+async function withMeetingError(request: Promise<MeetingEnvelope>): Promise<Reservation & { meetingError?: string }> {
+  const body = await request;
+  const data = (body?.data ?? {}) as Reservation & { meetingError?: string };
+  return body?.meetingError ? { ...data, meetingError: body.meetingError } : data;
+}
+
+/** What "Video call" can offer this member: Google Meet, Zoom, or only a pasted link. */
+export function useMeetingOptions(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["integration", "meetings"],
+    queryFn: () => api<MeetingOptions>("/integrations/meetings"),
+    staleTime: 0,
+    ...opts,
+  });
+}
+
+/** Add a Google Meet or Zoom meeting to a booking that already exists. */
+export function useAddReservationMeeting() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, provider }: { id: number; provider: MeetingCreator }) =>
+      api<{ meetingUrl: string }>(`/reservations/${id}/meeting`, { method: "POST", body: { provider } }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["reservations"] }),
+  });
+}
+
+export type ZoomStatus = { available: boolean; connected: boolean; email: string | null };
+
+export function useZoomStatus(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["integration", "zoom"],
+    queryFn: () => api<ZoomStatus>("/integrations/zoom"),
+    ...opts,
+  });
+}
+
+/** Where to send the member to approve AerScheduler on their Zoom account. */
+export function useZoomAuthorizeUrl() {
+  return useMutation({
+    mutationFn: () => api<{ url: string }>("/integrations/zoom/authorize-url"),
+  });
+}
+
+/** The callback page posts Zoom's code and state back here. */
+export function useConnectZoom() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { code: string; state: string }) =>
+      api<{ connected: boolean; email: string | null }>("/integrations/zoom", { method: "POST", body: input }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["integration"] }),
+  });
+}
+
+export function useDisconnectZoom() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api("/integrations/zoom", { method: "DELETE" }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["integration"] }),
+  });
+}
+
 export function useCreateReservation() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateReservationInput) =>
-      api<Reservation>("/reservations", { method: "POST", body: input }),
+    mutationFn: (input: CreateReservationInput) => withMeetingError(apiRaw<MeetingEnvelope>("/reservations", { method: "POST", body: input })),
     onSuccess: () => {
       // The deepest activation signal there is: a school that books flights is a school
       // using the product. Tracked here rather than at the several forms that create a
@@ -1026,7 +1095,7 @@ export function useUpdateReservation() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: number; input: CreateReservationInput }) =>
-      api<Reservation>(`/reservations/${id}`, { method: "PATCH", body: input }),
+      withMeetingError(apiRaw<MeetingEnvelope>(`/reservations/${id}`, { method: "PATCH", body: input })),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["reservations"] });
       void qc.invalidateQueries({ queryKey: ["availability"] });

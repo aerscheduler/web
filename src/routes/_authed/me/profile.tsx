@@ -18,6 +18,7 @@ import { AppearanceCard } from "@/components/settings/appearance-card";
 import { MyTimeZoneCard } from "@/components/settings/time-zone-card";
 import { SecurityCard } from "@/components/me-account/security-card";
 import { GoogleCalendarCard } from "@/components/me-account/google-calendar-card";
+import { ZoomCard } from "@/components/me-account/zoom-card";
 import { AvailabilityEditor } from "@/components/me-account/availability-editor";
 import { StandbyPreferencesPanel } from "@/components/slot-offers/standby-preferences-panel";
 import { PaymentMethodsPanel } from "@/components/me-money/payment-methods-panel";
@@ -118,7 +119,12 @@ function ProfilePage() {
               <LeaveOrganizationCard />
             </>
           )}
-          {active === "calendar" && <GoogleCalendarCard />}
+          {active === "calendar" && (
+            <>
+              <GoogleCalendarCard />
+              <ZoomCard />
+            </>
+          )}
           {active === "availability" && allowed.has("availability") && <AvailabilityEditor />}
           {active === "standby" && allowed.has("standby") && <StandbyPreferencesPanel />}
           {active === "payments" && <PaymentMethodsPanel />}

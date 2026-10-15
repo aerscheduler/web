@@ -61,6 +61,7 @@ import { Route as AuthedTrainingCourseIdRouteImport } from './routes/_authed/tra
 import { Route as BookOrgSlugOfferingSlugRouteImport } from './routes/book.$orgSlug.$offeringSlug'
 import { Route as AuthedComplianceRulesCurrencyTypeIdRouteImport } from './routes/_authed/compliance_.rules.$currencyTypeId'
 import { Route as AuthedDeveloperOrganizationsOrgIdRouteImport } from './routes/_authed/developer_.organizations.$orgId'
+import { Route as AuthedIntegrationsZoomCallbackRouteImport } from './routes/_authed/integrations.zoom.callback'
 import { Route as AuthedMaintenanceInspectionsInspectionIdRouteImport } from './routes/_authed/maintenance_.inspections.$inspectionId'
 import { Route as AuthedMaintenanceSquawksSquawkIdRouteImport } from './routes/_authed/maintenance_.squawks.$squawkId'
 import { Route as AuthedMaintenanceWorkOrdersWorkOrderIdRouteImport } from './routes/_authed/maintenance_.work-orders.$workOrderId'
@@ -338,6 +339,12 @@ const AuthedDeveloperOrganizationsOrgIdRoute =
     path: '/developer/organizations/$orgId',
     getParentRoute: () => AuthedRoute,
   } as any)
+const AuthedIntegrationsZoomCallbackRoute =
+  AuthedIntegrationsZoomCallbackRouteImport.update({
+    id: '/integrations/zoom/callback',
+    path: '/integrations/zoom/callback',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedMaintenanceInspectionsInspectionIdRoute =
   AuthedMaintenanceInspectionsInspectionIdRouteImport.update({
     id: '/maintenance_/inspections/$inspectionId',
@@ -443,6 +450,7 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthedSettingsIndexRoute
   '/compliance/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
   '/developer/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
+  '/integrations/zoom/callback': typeof AuthedIntegrationsZoomCallbackRoute
   '/maintenance/inspections/$inspectionId': typeof AuthedMaintenanceInspectionsInspectionIdRoute
   '/maintenance/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/maintenance/work-orders/$workOrderId': typeof AuthedMaintenanceWorkOrdersWorkOrderIdRoute
@@ -505,6 +513,7 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthedSettingsIndexRoute
   '/compliance/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
   '/developer/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
+  '/integrations/zoom/callback': typeof AuthedIntegrationsZoomCallbackRoute
   '/maintenance/inspections/$inspectionId': typeof AuthedMaintenanceInspectionsInspectionIdRoute
   '/maintenance/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/maintenance/work-orders/$workOrderId': typeof AuthedMaintenanceWorkOrdersWorkOrderIdRoute
@@ -569,6 +578,7 @@ export interface FileRoutesById {
   '/_authed/settings/': typeof AuthedSettingsIndexRoute
   '/_authed/compliance_/rules/$currencyTypeId': typeof AuthedComplianceRulesCurrencyTypeIdRoute
   '/_authed/developer_/organizations/$orgId': typeof AuthedDeveloperOrganizationsOrgIdRoute
+  '/_authed/integrations/zoom/callback': typeof AuthedIntegrationsZoomCallbackRoute
   '/_authed/maintenance_/inspections/$inspectionId': typeof AuthedMaintenanceInspectionsInspectionIdRoute
   '/_authed/maintenance_/squawks/$squawkId': typeof AuthedMaintenanceSquawksSquawkIdRoute
   '/_authed/maintenance_/work-orders/$workOrderId': typeof AuthedMaintenanceWorkOrdersWorkOrderIdRoute
@@ -633,6 +643,7 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/compliance/rules/$currencyTypeId'
     | '/developer/organizations/$orgId'
+    | '/integrations/zoom/callback'
     | '/maintenance/inspections/$inspectionId'
     | '/maintenance/squawks/$squawkId'
     | '/maintenance/work-orders/$workOrderId'
@@ -695,6 +706,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/compliance/rules/$currencyTypeId'
     | '/developer/organizations/$orgId'
+    | '/integrations/zoom/callback'
     | '/maintenance/inspections/$inspectionId'
     | '/maintenance/squawks/$squawkId'
     | '/maintenance/work-orders/$workOrderId'
@@ -758,6 +770,7 @@ export interface FileRouteTypes {
     | '/_authed/settings/'
     | '/_authed/compliance_/rules/$currencyTypeId'
     | '/_authed/developer_/organizations/$orgId'
+    | '/_authed/integrations/zoom/callback'
     | '/_authed/maintenance_/inspections/$inspectionId'
     | '/_authed/maintenance_/squawks/$squawkId'
     | '/_authed/maintenance_/work-orders/$workOrderId'
@@ -1152,6 +1165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedDeveloperOrganizationsOrgIdRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/integrations/zoom/callback': {
+      id: '/_authed/integrations/zoom/callback'
+      path: '/integrations/zoom/callback'
+      fullPath: '/integrations/zoom/callback'
+      preLoaderRoute: typeof AuthedIntegrationsZoomCallbackRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/maintenance_/inspections/$inspectionId': {
       id: '/_authed/maintenance_/inspections/$inspectionId'
       path: '/maintenance/inspections/$inspectionId'
@@ -1257,6 +1277,7 @@ interface AuthedRouteChildren {
   AuthedSettingsIndexRoute: typeof AuthedSettingsIndexRoute
   AuthedComplianceRulesCurrencyTypeIdRoute: typeof AuthedComplianceRulesCurrencyTypeIdRoute
   AuthedDeveloperOrganizationsOrgIdRoute: typeof AuthedDeveloperOrganizationsOrgIdRoute
+  AuthedIntegrationsZoomCallbackRoute: typeof AuthedIntegrationsZoomCallbackRoute
   AuthedMaintenanceInspectionsInspectionIdRoute: typeof AuthedMaintenanceInspectionsInspectionIdRoute
   AuthedMaintenanceSquawksSquawkIdRoute: typeof AuthedMaintenanceSquawksSquawkIdRoute
   AuthedMaintenanceWorkOrdersWorkOrderIdRoute: typeof AuthedMaintenanceWorkOrdersWorkOrderIdRoute
@@ -1309,6 +1330,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
     AuthedComplianceRulesCurrencyTypeIdRoute,
   AuthedDeveloperOrganizationsOrgIdRoute:
     AuthedDeveloperOrganizationsOrgIdRoute,
+  AuthedIntegrationsZoomCallbackRoute: AuthedIntegrationsZoomCallbackRoute,
   AuthedMaintenanceInspectionsInspectionIdRoute:
     AuthedMaintenanceInspectionsInspectionIdRoute,
   AuthedMaintenanceSquawksSquawkIdRoute: AuthedMaintenanceSquawksSquawkIdRoute,

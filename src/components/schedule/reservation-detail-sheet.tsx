@@ -12,9 +12,11 @@ import {
   Plane,
   UserRound,
   Users,
+  Video,
   Wrench,
 } from "lucide-react";
 import { resourceLabel, type Reservation } from "@/types/api";
+import { JoinCallLink } from "@/components/schedule/video-call-field";
 import { DetailPanel } from "@/components/detail-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,7 +82,7 @@ export function ReservationDetailSheet({
   const canCancel = r ? canCancelReservation(r, roles, orgUserId) : false;
   const canEdit = r != null && onEdit != null && canEditReservation(r, roles, orgUserId);
   const res = r?.resource ? resourceLabel(r.resource) : null;
-  const ResourceIcon = r?.resource ? resourceIcon(r.resource) : Plane;
+  const ResourceIcon = r?.resource ? resourceIcon(r.resource) : r?.meetingUrl ? Video : Plane;
   const people = r ? personnelEntries(r) : [];
   // A maintenance booking seats nobody; its job says who is on it, for those who may see jobs.
   const held = useBookingJob(r?.type === "maintenance" ? r.id : null);
@@ -196,10 +198,16 @@ export function ReservationDetailSheet({
                   <span className="font-medium">{res.name}</span>
                 )
               ) : (
-                <span className="text-muted-foreground">Unassigned</span>
+                <span className="text-muted-foreground">{r.meetingUrl ? "None, video call" : "Unassigned"}</span>
               )}
               {res && <span className="ml-2 text-muted-foreground">{res.kind}</span>}
             </SheetDetailField>
+
+            {r.meetingUrl && (
+              <SheetDetailField icon={Video} label="Video call">
+                <JoinCallLink url={r.meetingUrl} />
+              </SheetDetailField>
+            )}
 
             {(reservationLocation?.name ?? r.resource?.location?.name) && (
               <SheetDetailField icon={MapPin} label="Location">

@@ -208,7 +208,14 @@ export function LaneGrid({
     rows.push({ key: "other", resource: null, items: leftovers });
   }
   // Only "Unassigned" when it really is: an off-lane booking does have a resource.
-  const leftoverLabel = offLane.length > 0 ? "Other" : "Unassigned";
+  //A ground lesson held over a video call has no room on purpose, so a lane of nothing
+  //but those is not "unassigned", it is where the remote lessons are.
+  const leftoverLabel =
+    offLane.length > 0
+      ? "Other"
+      : unassigned.length > 0 && unassigned.every((r) => !!r.meetingUrl)
+        ? "Video calls"
+        : "Unassigned";
 
   // Widened past the default 6a–10p by whatever this day's reservations need, so an early or
   // late booking gets its own hour instead of collapsing onto the edge of the ruler, then

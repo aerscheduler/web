@@ -51,7 +51,7 @@ export const PROFILE_TABS: ProfileTabDef[] = [
     value: "calendar",
     label: "Calendar",
     icon: CalendarClock,
-    keywords: ["google calendar", "sync calendar", "external calendar"],
+    keywords: ["google calendar", "sync calendar", "external calendar", "zoom", "google meet", "video call"],
   },
   {
     value: "availability",

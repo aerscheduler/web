@@ -773,8 +773,19 @@ export type ReservationType =
   | "guest"
   | "maintenance";
 
+/** The services the server can make a meeting on, through the booker's own connection. */
+export type MeetingCreator = "google_meet" | "zoom";
+
+/** What the booking form can offer under "Video call", from GET /integrations/meetings. */
+export interface MeetingOptions {
+  googleMeet: { connected: boolean };
+  zoom: { available: boolean; connected: boolean; email: string | null };
+}
+
 export interface Reservation {
   id: number;
+  /** The booking's video call, when it has one. A ground lesson with one may have no room. */
+  meetingUrl?: string | null;
   createdAt: string;
   /** Last change of any kind, rescheduling, personnel, notes. */
   updatedAt?: string;
@@ -2027,9 +2038,14 @@ export interface CreateReservationInput {
   end: string;
   timeZoneName: string;
   notes?: string;
+  /** A video call link (https). `null` clears it on an edit; left out, an edit keeps it. */
+  meetingUrl?: string | null;
+  /** Make a video call on the booker's own connected account, after the save. */
+  meeting?: { create: MeetingCreator };
   rrule?: string;
   location?: { id: number };
-  resource?: { id: number };
+  /** `null` on an edit lets a ground lesson that is a video call give up its room. */
+  resource?: { id: number } | null;
   rating?: { id: number };
   personnel?: {
     instructors?: PersonRef[];

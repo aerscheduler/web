@@ -56,6 +56,7 @@ Defaults: `VITE_API_PROXY=http://127.0.0.1:5001`, Playwright starts Vite on
 | `e2e/auth/login.spec.ts` | Real login + bad password |
 | `e2e/schedule/journeys.spec.ts` | Schedule loads; create affordance |
 | `e2e/schedule/ui-create.spec.ts` | Owner: New reservation form through POST /reservations |
+| `e2e/schedule/video-call.spec.ts` | Owner: remote ground lesson with a pasted video call link and no room, Join on the record page, edit keeps/swaps/clears the link |
 | `e2e/schedule/me-book-create.spec.ts` | Student: /me/book solo self-serve booking |
 | `e2e/schedule/booking-request.spec.ts` | Student submits booking request; owner approves from desk queue |
 | `e2e/schedule/public-booking.spec.ts` | Guest `/book/{slug}/{offering}` picker (desktop Day card + rail month + AerScheduler link; Week calendar full-bleed with heatmap pills; Week times; phone is day view only, page scroll, no card); form hidden until a start time is picked; submit stays unverified until email confirm; confirm token promotes to desk queue; junk confirm token; embed `?embed=1` with no cookie banner; foreign iframe blocked until Websites that may embed lists the parent; same-origin preview still loads; owner Settings public-link/embed-host save plus Offerings public-link copy; student `/me/book` is still reservation types |

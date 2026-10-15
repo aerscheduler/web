@@ -1,6 +1,7 @@
 import * as React from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Ban, CalendarClock, MapPin, Pencil, Plane, Users } from "lucide-react";
+import { Ban, CalendarClock, MapPin, Pencil, Plane, Users, Video } from "lucide-react";
+import { JoinCallLink } from "@/components/schedule/video-call-field";
 import { useReservation } from "@/features/queries";
 import { useAuth } from "@/lib/auth";
 import { guardRoute } from "@/lib/permissions";
@@ -130,7 +131,7 @@ function ReservationBody({ reservation: r }: { reservation: Reservation }) {
   useDetailTitle(title);
 
   const res = r.resource ? resourceLabel(r.resource) : null;
-  const ResourceIcon = r.resource ? resourceIcon(r.resource) : Plane;
+  const ResourceIcon = r.resource ? resourceIcon(r.resource) : r.meetingUrl ? Video : Plane;
   const people = personnelEntries(r);
   const canEdit = canEditReservation(r, roles, orgUserId);
   const canCancel = canCancelReservation(r, roles, orgUserId);
@@ -276,8 +277,13 @@ function ReservationBody({ reservation: r }: { reservation: Reservation }) {
                 <KeyValue label="Date">{tz.date(r.start, "short")}</KeyValue>
                 <KeyValue label="Type">{typeLabel(r.type)}</KeyValue>
                 <KeyValue label="Resource" mono>
-                  {res ? `${res.name}` : "Unassigned"}
+                  {res ? `${res.name}` : r.meetingUrl ? "None, video call" : "Unassigned"}
                 </KeyValue>
+                {r.meetingUrl && (
+                  <KeyValue label="Video call">
+                    <JoinCallLink url={r.meetingUrl} />
+                  </KeyValue>
+                )}
                 {locationName && <KeyValue label="Location">{locationName}</KeyValue>}
                 {r.type === "maintenance" ? (
                   <>

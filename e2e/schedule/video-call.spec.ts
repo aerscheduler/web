@@ -88,7 +88,7 @@ test.describe("Video call on a ground lesson", () => {
     await expect(meet).toBeVisible();
     //Not greyed out: picking it connects Google right here.
     await expect(meet).not.toHaveAttribute("aria-disabled", "true");
-    await expect(meet).toContainText(/Connects your Google account first/i);
+    await expect(meet).toContainText(/Connects Google first/i);
     await expect(page.getByRole("option", { name: /Paste a link/i })).toHaveCount(0);
     await page.keyboard.press("Escape");
 
@@ -212,7 +212,7 @@ test.describe("Video call on a ground lesson", () => {
     await openGroundForm(page);
     await page.locator("#res-video-call").click();
     const zoom = page.getByRole("option", { name: /^Add Zoom meeting$/ });
-    await expect(zoom).toContainText(/Connects your Zoom account first/i);
+    await expect(zoom).toContainText(/Connects Zoom first/i);
     await zoom.click();
     await expect.poll(() => page.evaluate(() => (window as unknown as { __opened: string[] }).__opened)).toEqual([
       "aerscheduler-zoom",
@@ -303,17 +303,18 @@ test.describe("Video call on a booking request", () => {
     const instructor = await personId(request, owner, "instructor", /Test Instructor/);
     const student = (await apiLogin(request, ACCOUNTS.student)).auth.accessToken as string;
 
-    //A weekday morning in Denver, inside the seeded instructor's hours.
+    //Late morning Tuesday to Friday in Denver, inside every one of the seeded instructor's
+    //days (they are off on Mondays).
     const day = new Date(Date.now() + 22 * 864e5);
-    while (day.getUTCDay() === 0 || day.getUTCDay() === 6) day.setUTCDate(day.getUTCDate() + 1);
+    while (![2, 3, 4, 5].includes(day.getUTCDay())) day.setUTCDate(day.getUTCDate() + 1);
     const ymd = day.toISOString().slice(0, 10);
     const marker = `E2E-UI-video-request-${Date.now()}`;
     const res = await request.post(`${base()}/booking-requests`, {
       headers: { Authorization: `Bearer ${student}` },
       data: {
         type: "ground",
-        start: `${ymd}T16:00:00Z`,
-        end: `${ymd}T17:00:00Z`,
+        start: `${ymd}T18:00:00Z`,
+        end: `${ymd}T19:00:00Z`,
         timeZoneName: "America/Denver",
         notes: marker,
         meetingUrl: "https://meet.google.com/abc-defg-hij",
@@ -329,8 +330,11 @@ test.describe("Video call on a booking request", () => {
     const page = await desk.newPage();
     await page.goto("/schedule");
     await dismissCookieBanner(page);
-    await page.getByRole("button", { name: /Booking requests/i }).click();
-    await expect(page.getByRole("link", { name: /Join Google Meet/ }).first()).toBeVisible({ timeout: 15_000 });
+    //A click that lands before the board has finished loading opens nothing, so retry it.
+    await expect(async () => {
+      await page.getByRole("button", { name: /Booking requests/i }).click();
+      await expect(page.getByRole("link", { name: /Join Google Meet/ }).first()).toBeVisible({ timeout: 4_000 });
+    }).toPass({ timeout: 30_000 });
     await desk.close();
 
     const approve = await request.post(`${base()}/booking-requests/${created.id}/approve`, {

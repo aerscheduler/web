@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ExternalLink, Loader2, Video } from "lucide-react";
 import { toast } from "sonner";
+import { GoogleMeetLogo, ZoomLogo } from "@/components/brand-logos";
 import { DocsHint } from "@/components/docs-hint";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -131,16 +132,32 @@ export function VideoCallField({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="none">No video call</SelectItem>
-          {value.mode === "keep" && <SelectItem value="keep">{videoCallProviderLabel(value.url)} (current call)</SelectItem>}
+          {value.mode === "keep" && (
+            <SelectItem value="keep">
+              <ProviderLabel url={value.url}>{videoCallProviderLabel(value.url)} (current call)</ProviderLabel>
+            </SelectItem>
+          )}
           <SelectItem
             value="google_meet"
-            description={google || !options.isSuccess ? undefined : "Connects your Google account first"}
+            //The second line lines up with the name, past the logo.
+            className="[&>span[aria-hidden]]:pl-6"
+            description={google || !options.isSuccess ? undefined : "Connects Google first"}
           >
-            Add Google Meet
+            <span className="inline-flex items-center gap-2">
+              <GoogleMeetLogo />
+              Add Google Meet
+            </span>
           </SelectItem>
           {zoom?.available && (
-            <SelectItem value="zoom" description={zoom.connected ? undefined : "Connects your Zoom account first"}>
-              Add Zoom meeting
+            <SelectItem
+              value="zoom"
+              className="[&>span[aria-hidden]]:pl-6"
+              description={zoom.connected ? undefined : "Connects Zoom first"}
+            >
+              <span className="inline-flex items-center gap-2">
+                <ZoomLogo />
+                Add Zoom meeting
+              </span>
             </SelectItem>
           )}
         </SelectContent>
@@ -166,6 +183,21 @@ export function VideoCallField({
   );
 }
 
+/** A call's label with its service's mark in front, when it is Meet or Zoom. */
+function ProviderLabel({ url, children }: { url: string; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <ProviderMark url={url} />
+      {children}
+    </span>
+  );
+}
+
+function ProviderMark({ url }: { url: string }) {
+  const provider = videoCallProviderLabel(url);
+  return provider === "Google Meet" ? <GoogleMeetLogo /> : provider === "Zoom" ? <ZoomLogo /> : null;
+}
+
 /** "Join Zoom" on a booking: opens the call in a new tab. */
 export function JoinCallLink({ url }: { url: string }) {
   return (
@@ -173,8 +205,9 @@ export function JoinCallLink({ url }: { url: string }) {
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="inline-flex items-center gap-1 font-medium text-primary underline-offset-2 hover:underline"
+      className="inline-flex items-center gap-1.5 font-medium text-primary underline-offset-2 hover:underline"
     >
+      <ProviderMark url={url} />
       Join {videoCallProviderLabel(url)}
       <ExternalLink className="size-3" aria-hidden />
     </a>

@@ -1,4 +1,5 @@
-import { Check, Loader2, Video } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
+import { ZoomLogo } from "@/components/brand-logos";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -41,7 +42,7 @@ export function ZoomCard() {
     <Card>
       <CardHeader className="flex-row items-start gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
-          <Video className="size-4" />
+          <ZoomLogo className="size-6" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

@@ -65,11 +65,20 @@ export function AddInspectionsModal({
   open,
   onOpenChange,
   fixedResource,
+  initialAd,
+  onAdded,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Opened from one aircraft: that tail is the answer, not a default to be edited away. */
   fixedResource?: Resource | null;
+  /**
+   * Opened to track one AD (from the aircraft's ADs tab): a recurring rule with the source set
+   * to that AD, so the look-up fills in its name, revision and link.
+   */
+  initialAd?: string | null;
+  /** Saved: the AD tab marks the AD as applying once its inspection exists. */
+  onAdded?: () => void;
 }) {
   const presetsQ = useInspectionPresets({ enabled: open });
   //Customer aircraft included: tracking an inspection on one is the whole point.
@@ -157,6 +166,13 @@ export function AddInspectionsModal({
 
   // Default the AVIATES set to all-selected: "the standard set" is the whole point of the
   // tab, and a mechanic who wants six of seven can untick faster than tick seven.
+  React.useEffect(() => {
+    if (open && initialAd) {
+      setMode("recurring");
+      setSource({ ...EMPTY_SOURCE, sourceType: "ad", sourceRef: initialAd });
+    }
+  }, [open, initialAd]);
+
   React.useEffect(() => {
     if (open && presets.length && chosen.length === 0) {
       setChosen(presets.filter((p) => p.letter != null).map((p) => p.id));
@@ -366,6 +382,7 @@ export function AddInspectionsModal({
       }
       reset();
       onOpenChange(false);
+      onAdded?.();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't add that.");
     } finally {

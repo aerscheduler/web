@@ -13,6 +13,7 @@ import {
   Pencil,
   PlaneTakeoff,
   Receipt,
+  ShieldCheck,
   Undo2,
   UserCheck,
   UserRound,
@@ -21,6 +22,7 @@ import {
 import { toast } from "sonner";
 import type { Resource } from "@/types/api";
 import {
+  useAdMode,
   useLocations,
   useCheckoutRosterCount,
   useMaintenanceReminders,
@@ -52,6 +54,7 @@ import { AircraftPhoto } from "@/components/aircraft/detail/aircraft-photo";
 import { ResourceWorkOrders, WorkOrdersIcon } from "@/components/aircraft/detail/resource-work-orders";
 import { ResourceHistory } from "@/components/aircraft/detail/resource-history";
 import { ResourceInvoices } from "@/components/aircraft/detail/resource-invoices";
+import { ResourceAds } from "@/components/aircraft/detail/resource-ads";
 import { useCurrentJobs } from "@/features/queries";
 import { DateRangePicker } from "@/components/billing/date-range-picker";
 import {
@@ -190,7 +193,7 @@ function AircraftDetailPage() {
 
 function sectionsFor(
   access: ResourceViewAccess,
-  opts: { hasBookerPapers: boolean; isPlane: boolean; isShop: boolean; maySeeShop: boolean; mayOpenWorkOrders: boolean }
+  opts: { hasBookerPapers: boolean; isPlane: boolean; isShop: boolean; maySeeShop: boolean; mayOpenWorkOrders: boolean; adsTab: boolean }
 ): RailSection[] {
   const items = [
     { value: "overview", label: "Overview", icon: PlaneTakeoff },
@@ -218,6 +221,9 @@ function sectionsFor(
       : []),
     //Jobs carry the owner and money, so the shop roles only, on fleet aircraft too.
     ...(opts.isPlane && opts.mayOpenWorkOrders ? [{ value: "work-orders", label: "Work orders", icon: WorkOrdersIcon }] : []),
+    //The ADs that name it, for the people who sign maintenance off, when the organization
+    //chose "Find them for me" in Settings. Another mode means nobody asked for the list.
+    ...(opts.isPlane && opts.mayOpenWorkOrders && opts.adsTab ? [{ value: "ads", label: "ADs", icon: ShieldCheck }] : []),
     //Every bill tied to it. Admin only, like every organization-wide invoice list.
     ...(opts.isPlane && access.money ? [{ value: "invoices", label: "Invoices", icon: Receipt }] : []),
   ];
@@ -235,6 +241,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
   const { tab } = Route.useSearch();
 
   const plane = resource.type?.plane ?? null;
+  const adMode = useAdMode({ enabled: !!plane && canOpenWorkOrders(roles) });
   const jobs = useCurrentJobs({ enabled: resource.use === "shop" && canOpenWorkOrders(roles) });
   const status = plane
     ? planeStatus(plane, resource.use, resource.use === "shop" && jobs ? (jobs.get(resource.id) ?? null) : undefined)
@@ -253,6 +260,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
     isShop: resource.use === "shop",
     maySeeShop: canSeeShop(roles),
     mayOpenWorkOrders: canOpenWorkOrders(roles),
+    adsTab: adMode.data?.mode === "catalogue",
   });
   const allowed = sections.flatMap((s) => s.items.map((i) => i.value));
   const active = tab && allowed.includes(tab) ? tab : "overview";
@@ -507,6 +515,8 @@ function ResourceBody({ resource }: { resource: Resource }) {
           {active === "owners" && <ResourceOwners resource={resource} canManage={access.manage} />}
 
           {active === "work-orders" && <ResourceWorkOrders resource={resource} />}
+
+          {active === "ads" && <ResourceAds resource={resource} onEditAircraft={access.manage ? () => setEditing(true) : undefined} />}
 
           {active === "history" && <ResourceHistory resourceId={resource.id} mayOpenWorkOrders={canOpenWorkOrders(roles)} />}
 

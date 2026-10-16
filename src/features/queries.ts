@@ -418,6 +418,9 @@ export type RegistryMatch = {
   engineType: string | null;
   gearType: string | null;
   seats: number | null;
+  /** The engine on the registration, for engine ADs. Null when the file does not say. */
+  engineMake?: string | null;
+  engineModel?: string | null;
   /** @deprecated Derived from the pair above. */
   categoryClass: string | null;
 };
@@ -6811,6 +6814,41 @@ export function useAdLookup(adNumber: string | null) {
         if (err instanceof ApiError && err.status === 404) return null;
         throw err;
       }
+    },
+  });
+}
+
+/** The organization's AD mode, readable by any member (the full readout is admin-only). */
+export function useAdMode(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["ad-mode"],
+    queryFn: () => api<{ mode: import("@/types/api").AdTrackingMode; externalSystem: string | null }>("/maintenance/ad-tracking-mode"),
+    staleTime: 5 * 60_000,
+    ...opts,
+  });
+}
+
+/** The ADs to review for one aircraft, with the decisions made. */
+export function useAircraftAds(resourceId: number, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["aircraft-ads", resourceId],
+    queryFn: () => api<import("@/types/api").AircraftAdList>(`/maintenance/resources/${resourceId}/airworthiness-directives`),
+    ...opts,
+  });
+}
+
+/** Decide an AD for an aircraft, or (with `undo`) put it back to review. Answers with the new list. */
+export function useDecideAircraftAd(resourceId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { adNumber: string; undo?: boolean; status?: "applies" | "not_applicable"; reason?: string | null; note?: string | null }) =>
+      api<import("@/types/api").AircraftAdList>(
+        `/maintenance/resources/${resourceId}/airworthiness-directives/${encodeURIComponent(input.adNumber)}`,
+        input.undo ? { method: "DELETE" } : { method: "PUT", body: { status: input.status, reason: input.reason ?? null, note: input.note ?? null } }
+      ),
+    onSuccess: (data) => {
+      qc.setQueryData(["aircraft-ads", resourceId], data);
+      void qc.invalidateQueries({ queryKey: ["audit"] });
     },
   });
 }

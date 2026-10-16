@@ -25,14 +25,11 @@ import type { AdTrackingMode, AircraftAdReadiness, Resource } from "@/types/api"
  * be actively harmed by a wall of candidate directives they did not ask for.
  */
 /**
- * Modes with nothing behind them yet.
- *
- * "Watch for new ones" describes a catalogue that does not exist. A school that chose it would
- * believe it was being warned about newly published directives, stop watching for them itself,
- * and be wrong until somebody noticed. Shown but not selectable, so the plan is visible and the
- * promise is not made. The server refuses it too; this card is not the only door.
+ * Modes with nothing behind them yet: shown but not selectable, so a plan is visible without
+ * the promise being made. Empty since 2026-10-16, when "Find them for me" got the AD library
+ * behind it. The server holds the same list (AD_TRACKING_MODES_NOT_YET_AVAILABLE).
  */
-const NOT_YET: AdTrackingMode[] = ["catalogue"];
+const NOT_YET: AdTrackingMode[] = [];
 
 const MODES: { value: AdTrackingMode; label: string; blurb: string; detail: string }[] = [
   {
@@ -51,10 +48,10 @@ const MODES: { value: AdTrackingMode; label: string; blurb: string; detail: stri
   },
   {
     value: "catalogue",
-    label: "Watch for new ones",
-    blurb: "Not available yet. Keep watching for new ADs the way you do now.",
+    label: "Find them for me",
+    blurb: "We list the ADs that name each aircraft. You decide which apply.",
     detail:
-      "This is not built. When it is, it will read newly published Airworthiness Directives and flag the ones naming your make, model or serial, and somebody at your organization will decide for each one whether it applies. Until then nothing here watches for new directives, so whatever you use today to find out about them, keep using it.",
+      "Each aircraft gets an ADs tab listing the Airworthiness Directives published in the Federal Register since 1995 that name its make and model, its engine or its propeller. Owners, admins and technicians decide each one: it applies (and is tracked like any AD inspection), or it does not and why. Nothing is decided for you, and ADs from before 1995 are not in the list, so an older airframe still needs those found by hand. Everything from \"I track them here\" still works.",
   },
   {
     value: "external",
@@ -168,8 +165,8 @@ export function AdTrackingTab() {
           </CardTitle>
           <p className="text-sm text-muted-foreground">
             An Airworthiness Directive is binding under 14 CFR Part 39, and how much of that you
-            want us involved in is your call. Nothing here is on by default, and nothing here
-            tells you a directive exists: finding the ones that apply to your fleet is still
+            want us involved in is your call. Nothing here is on by default. Only <em>Find them for
+            me</em> lists directives for you, and even then deciding which apply to your fleet is
             yours to do.
           </p>
         </CardHeader>
@@ -254,10 +251,10 @@ export function AdTrackingTab() {
               Saying so here is better than letting an admin fill in eleven serial numbers and
               go hunting for the screen that changed. */}
           <p className="text-sm text-muted-foreground">
-            Matching is what <em>Watch for new ones</em> will do, and that is not built yet, so
-            nothing in the product proposes a directive to you today. A serial number recorded
-            now is worth having, and it also prints on the aircraft record for whoever is
-            reading an AD against your fleet by hand.
+            With <em>Find them for me</em> on, this is how precisely each aircraft&rsquo;s ADs tab
+            can be read. A serial number does not narrow the list (applicability is free text),
+            but it is what you check an AD&rsquo;s serial range against, and it prints on the
+            aircraft record for whoever is reading an AD by hand.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -271,9 +268,9 @@ export function AdTrackingTab() {
 
           {counts?.model ? (
             <p className="text-xs text-muted-foreground">
-              An aeroplane matched by model only will be proposed more ADs than actually apply to
-              it, because we cannot check the serial number range. Adding a serial number is the
-              single thing that improves this.
+              An aeroplane without a serial number cannot be checked against the serial range an
+              AD names, so ruling its ADs out takes a trip to the data plate. Recording the serial
+              once saves that every time.
             </p>
           ) : null}
 

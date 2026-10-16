@@ -105,6 +105,7 @@ function actionLabel(action: string): string {
     "joinRequest.declined": "Join request declined",
     "resource.grounded": "Aircraft grounded",
     "resource.ungrounded": "Returned to service",
+    "resource.adReviewed": "AD reviewed",
     "squawk.created": "Squawk filed",
     "squawk.resolved": "Squawk resolved",
     "squawk.verified": "Squawk verified",

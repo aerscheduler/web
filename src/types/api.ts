@@ -1081,6 +1081,11 @@ export interface Plane {
    * the owner in an afternoon, which is why the FAA does not identify aircraft by it.
    */
   serialNumber: string | null;
+  /** Engine and propeller, which engine and propeller ADs are matched against. */
+  engineMake?: string | null;
+  engineModel?: string | null;
+  propellerMake?: string | null;
+  propellerModel?: string | null;
   tachTime: number;
   hobbsTime: number;
   make: string;
@@ -1850,6 +1855,11 @@ export interface CreatePlaneResourceInput {
       tailNumber: string;
       /** From the data plate. Optional; the server stores null when it is absent. */
       serialNumber?: string;
+      /** Engine and propeller, for engine and propeller ADs. Optional. */
+      engineMake?: string;
+      engineModel?: string;
+      propellerMake?: string;
+      propellerModel?: string;
       make?: string;
       model?: string;
       /** REQUIRED by the server, must be exactly 4 digits, e.g. "2018". */
@@ -4222,4 +4232,52 @@ export interface AirworthinessDirective {
   supersedes: string[];
   /** Later ADs that supersede or revise this one; present on a single look-up. */
   supersededBy?: string[];
+}
+
+/** One AD on an aircraft's review list (server: services/aircraftAd.service.ts). */
+export interface AircraftAdItem {
+  ad: {
+    adNumber: string;
+    title: string | null;
+    manufacturer: string | null;
+    productType: AirworthinessDirective["productType"] | null;
+    effectiveOn: string | null;
+    subject: string | null;
+    applicability: string | null;
+    summary: string | null;
+    supersedes: string[];
+    url: string | null;
+    /** False for one tracked here that the library does not hold (published before 1995). */
+    inLibrary: boolean;
+  };
+  match: { on: "airframe" | "engine" | "propeller"; token: string; strength: "model" | "range" | "family" } | null;
+  review: {
+    status: "applies" | "not_applicable";
+    reason: AdNotApplicableReason | null;
+    note: string | null;
+    decidedAt: string;
+    decidedBy: { id: number; name: string | null } | null;
+  } | null;
+  tracked: { templateId: number; reminderId: number; name: string } | null;
+  state: "to_review" | "applies" | "not_applicable";
+}
+
+export type AdNotApplicableReason = "serial_outside" | "not_installed" | "terminated" | "other";
+
+export interface AircraftAdList {
+  aircraft: {
+    id: number;
+    tailNumber: string;
+    make: string | null;
+    model: string | null;
+    serialNumber: string | null;
+    engineMake: string | null;
+    engineModel: string | null;
+    propellerMake: string | null;
+    propellerModel: string | null;
+  };
+  missing: ("engine" | "propeller" | "serialNumber")[];
+  coverage: { count: number; oldest: string | null; newest: string | null; complete: boolean };
+  counts: { toReview: number; applies: number; notApplicable: number };
+  items: AircraftAdItem[];
 }

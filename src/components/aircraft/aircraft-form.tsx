@@ -45,6 +45,10 @@ const NONE = "none";
 type FormState = {
   tailNumber: string;
   serialNumber: string;
+  engineMake: string;
+  engineModel: string;
+  propellerMake: string;
+  propellerModel: string;
   make: string;
   model: string;
   year: string;
@@ -108,6 +112,10 @@ function emptyState(): FormState {
   return {
     tailNumber: "",
     serialNumber: "",
+    engineMake: "",
+    engineModel: "",
+    propellerMake: "",
+    propellerModel: "",
     make: "",
     model: "",
     year: "",
@@ -138,6 +146,10 @@ function stateFromResource(r: Resource): FormState {
   return {
     tailNumber: p?.tailNumber ?? "",
     serialNumber: p?.serialNumber ?? "",
+    engineMake: p?.engineMake ?? "",
+    engineModel: p?.engineModel ?? "",
+    propellerMake: p?.propellerMake ?? "",
+    propellerModel: p?.propellerModel ?? "",
     make: p?.make ?? "",
     model: p?.model ?? "",
     year: p?.year ?? "",
@@ -297,6 +309,9 @@ export function AircraftFormModal({
       //null, since the import NULLIFs the blank column, so what this has to guarantee is only
       //that a missing serial keeps whatever was already read off the plate.
       serialNumber: match.serialNumber || f.serialNumber,
+      //The engine on the registration, for engine ADs. The propeller is not in the file.
+      engineMake: match.engineMake || f.engineMake,
+      engineModel: match.engineModel || f.engineModel,
       make: match.make || f.make,
       model: match.model || f.model,
       year: match.year ? String(match.year) : f.year,
@@ -471,6 +486,11 @@ export function AircraftFormModal({
             plane: {
               tailNumber: tail,
               serialNumber: form.serialNumber.trim(),
+              //"" clears, the same rule as the serial.
+              engineMake: form.engineMake.trim(),
+              engineModel: form.engineModel.trim(),
+              propellerMake: form.propellerMake.trim(),
+              propellerModel: form.propellerModel.trim(),
               make: form.make.trim() || null,
               model: form.model.trim() || null,
               year: form.year.trim(),
@@ -516,6 +536,10 @@ export function AircraftFormModal({
           //saved as blank and the aeroplane arrived in the AD readiness panel as "model only".
           //Silent: the field kept what you typed until the modal closed.
           serialNumber: form.serialNumber.trim() || undefined,
+          engineMake: form.engineMake.trim() || undefined,
+          engineModel: form.engineModel.trim() || undefined,
+          propellerMake: form.propellerMake.trim() || undefined,
+          propellerModel: form.propellerModel.trim() || undefined,
           make: form.make.trim() || undefined,
           model: form.model.trim() || undefined,
           year: form.year.trim(),
@@ -850,6 +874,33 @@ export function AircraftFormModal({
           </p>
         </div>
 
+        {/* Engine and propeller ADs name these, not the airframe: a Lycoming connecting-rod AD
+            applies to every O-360 whatever it is bolted to. The tail-number lookup fills the
+            engine in; the propeller is not in the FAA's file. */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <PartFields
+            label="Engine (optional)"
+            idPrefix="ac-engine"
+            make={form.engineMake}
+            model={form.engineModel}
+            makePlaceholder="Lycoming"
+            modelPlaceholder="O-360-A4M"
+            onMake={(v) => set("engineMake", v)}
+            onModel={(v) => set("engineModel", v)}
+          />
+          <PartFields
+            label="Propeller (optional)"
+            idPrefix="ac-prop"
+            make={form.propellerMake}
+            model={form.propellerModel}
+            makePlaceholder="Sensenich"
+            modelPlaceholder="76EM8S14-0-62"
+            onMake={(v) => set("propellerMake", v)}
+            onModel={(v) => set("propellerModel", v)}
+          />
+          <p className="text-xs text-muted-foreground sm:col-span-2">Used to find engine and propeller ADs.</p>
+        </div>
+
         <div className="space-y-1.5" id="ac-home-base">
           <Label htmlFor="ac-location">Home base</Label>
           <Combobox
@@ -1084,4 +1135,35 @@ function flyingDayPayload(key: string): {
   const opt = PLANE_FLYING_DAY_OPTIONS.find((o) => o.key === key);
   if (!opt) return { flyingDayStartMinute: null, flyingDayEndMinute: null };
   return { flyingDayStartMinute: opt.start, flyingDayEndMinute: opt.end };
+}
+
+/** An engine or propeller as make and model, side by side under one label. */
+function PartFields({
+  label,
+  idPrefix,
+  make,
+  model,
+  makePlaceholder,
+  modelPlaceholder,
+  onMake,
+  onModel,
+}: {
+  label: string;
+  idPrefix: string;
+  make: string;
+  model: string;
+  makePlaceholder: string;
+  modelPlaceholder: string;
+  onMake: (v: string) => void;
+  onModel: (v: string) => void;
+}) {
+  return (
+    <fieldset className="space-y-1.5">
+      <legend className="mb-1.5 text-sm font-medium">{label}</legend>
+      <div className="grid grid-cols-2 gap-2">
+        <Input id={`${idPrefix}-make`} aria-label={`${label.replace(" (optional)", "")} make`} placeholder={makePlaceholder} value={make} onChange={(e) => onMake(e.target.value)} maxLength={60} autoCorrect="off" spellCheck={false} />
+        <Input id={`${idPrefix}-model`} aria-label={`${label.replace(" (optional)", "")} model`} placeholder={modelPlaceholder} value={model} onChange={(e) => onModel(e.target.value)} maxLength={60} autoCorrect="off" spellCheck={false} />
+      </div>
+    </fieldset>
+  );
 }

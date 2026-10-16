@@ -827,6 +827,12 @@ export const DOCS_TOPICS = {
       "A copy of the airworthiness certificate and the registration, the current POH and weight and balance for this tail. Members who can book it can open the ones marked for bookers; staff can replace a stale file.",
     href: "maintenance/aircraft-papers",
   },
+  "aircraft-ads": {
+    title: "ADs for this aircraft",
+    summary:
+      "Airworthiness Directives published since 1995 that name this aircraft's airframe, engine or propeller. A match means read it, not that it applies: decide each one, and say why when it does not. ADs from before 1995 are not in the list.",
+    href: "maintenance/review-the-ads-for-an-aircraft",
+  },
   "aircraft-components": {
     title: "Life-limited components",
     summary:

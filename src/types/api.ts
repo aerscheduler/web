@@ -4247,6 +4247,8 @@ export interface AircraftAdItem {
     summary: string | null;
     supersedes: string[];
     url: string | null;
+    /** Applicability and required actions as readable structure, once the library has read it. */
+    details: AdDetails | null;
     /** False for one tracked here that the library does not hold (published before 1995). */
     inLibrary: boolean;
   };
@@ -4263,6 +4265,18 @@ export interface AircraftAdItem {
 }
 
 export type AdNotApplicableReason = "serial_outside" | "not_installed" | "terminated" | "other";
+
+/** An AD's text as readable structure (server: utils/adBlocks.ts). */
+export type AdBlock =
+  | { t: "p"; text: string; level: number }
+  | { t: "h"; text: string }
+  | { t: "note"; text: string }
+  | { t: "table"; title: string | null; head: string[]; rows: string[][] };
+export interface AdDetails {
+  v: 1;
+  applicability: AdBlock[];
+  actions: { heading: string; blocks: AdBlock[] }[];
+}
 
 export interface AircraftAdList {
   aircraft: {

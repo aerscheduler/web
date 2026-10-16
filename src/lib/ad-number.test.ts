@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adInspectionName, normalizeAdNumber } from "./ad-number";
+import { adInspectionName, adSubjectWords, normalizeAdNumber } from "./ad-number";
 
 describe("normalizeAdNumber", () => {
   it.each([
@@ -26,5 +26,20 @@ describe("adInspectionName", () => {
 
   it("keeps to the 60 characters an inspection name holds", () => {
     expect(adInspectionName({ adNumber: "2026-20-11", manufacturer: "Rolls-Royce Deutschland Ltd & Co KG and a very long certificate holder", subject: null }).length).toBeLessThanOrEqual(60);
+  });
+});
+
+describe("adSubjectWords", () => {
+  it.each([
+    ["Joint Aircraft System Component (JASC)/Air Transport Association (ATA) of America Code 7931, Engine Oil Pressure.", "Engine oil pressure"],
+    ["Joint Aircraft Service Component (JASC) Code: 2620: Extinguishing System. (i) Material Incorporated by Reference", "Extinguishing system"],
+    ["Air Transport Association (ATA) of America Code 5415; Nacelles/Pylons.", "Nacelles/pylons"],
+    ["Joint Aircraft System Component (JASC) Code 3700, VACUUM SYSTEM.", "Vacuum system"],
+    ["Joint Aircraft Service Component (JASC) Code: 2500, Equipment/ Furnishings.", "Equipment/furnishings"],
+  ])("%s", (subject, want) => expect(adSubjectWords(subject)).toBe(want));
+
+  it("is null with no subject or no system", () => {
+    expect(adSubjectWords(null)).toBeNull();
+    expect(adSubjectWords("Code 28.")).toBeNull();
   });
 });

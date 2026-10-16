@@ -305,6 +305,8 @@ export function CloseOutSection({
   // the way through this section rather than being told to wait for an aeroplane that
   // isn't on the booking. Same helper the ramp modal and the Flutter app key on.
   const noMeters = usesBriefingNotMeters(r);
+  const railKind =
+    r.type === "maintenance" ? "maintenance" : r.type === "sim" || r.resource?.type?.simulator ? "simulator" : "flight";
 
   // Before the aircraft is ramped out the flight is simply scheduled, frame it
   // as "Dispatch", not "Close-out" (which only makes sense once it has flown).
@@ -472,7 +474,7 @@ export function CloseOutSection({
             {step === "invoiced" && <MoneyBadge r={r} invoice={invoice} />}
           </div>
 
-          <CloseOutRail step={step} noMeters={noMeters} />
+          <CloseOutRail step={step} noMeters={noMeters} kind={railKind} />
 
           <div
             data-doc-shot={step === "confirm" ? "reservation-detail-awaiting-signoff" : undefined}
@@ -564,7 +566,7 @@ export function CloseOutSection({
           {step === "invoiced" && <MoneyBadge r={r} invoice={invoice} />}
         </div>
 
-        <CloseOutRail step={step} noMeters={noMeters} />
+        <CloseOutRail step={step} noMeters={noMeters} kind={railKind} />
 
         {/* What is on the record so far. Renders nothing before the booking has flown. */}
         <CloseOutReadings r={r} />

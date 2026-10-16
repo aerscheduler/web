@@ -27,6 +27,23 @@ const FLIGHT_STOPS: Stop[] = [
   { key: "invoiced", label: "Billed" },
 ];
 
+/**
+ * Only an aircraft on a flight is "In flight" (the phone's ReservationLifecycle makes the same
+ * call). A maintenance block is out of service, is never reviewed by PIN and is never billed,
+ * so it has the two stops it really has; a simulator session runs rather than flies.
+ */
+const MAINTENANCE_STOPS: Stop[] = [
+  { key: "rampOut", label: "Dispatch" },
+  { key: "rampIn", label: "In maintenance" },
+];
+
+const SIM_STOPS: Stop[] = [
+  { key: "rampOut", label: "Dispatch" },
+  { key: "rampIn", label: "In session" },
+  { key: "confirm", label: "Review" },
+  { key: "invoiced", label: "Billed" },
+];
+
 const GROUND_STOPS: Stop[] = [
   { key: "rampOut", label: "Times" },
   { key: "confirm", label: "Review" },
@@ -59,18 +76,32 @@ const GROUND_POSITION: Record<CloseOutStep, number> = {
 export function CloseOutRail({
   step,
   noMeters,
+  kind = "flight",
   className,
 }: {
   step: CloseOutStep;
   /** A booking with nothing to ramp: a ground lesson, or anything with no aircraft. */
   noMeters: boolean;
+  /** What departs: an aircraft flying, an aircraft going into the shop, or a simulator. */
+  kind?: "flight" | "maintenance" | "simulator";
   className?: string;
 }) {
-  const stops = noMeters ? GROUND_STOPS : FLIGHT_STOPS;
-  const at = (noMeters ? GROUND_POSITION : POSITION)[step];
+  const stops = noMeters
+    ? GROUND_STOPS
+    : kind === "maintenance"
+      ? MAINTENANCE_STOPS
+      : kind === "simulator"
+        ? SIM_STOPS
+        : FLIGHT_STOPS;
+  //Maintenance is done once it is back: anything past ramp-in is the end of its rail.
+  const at =
+    kind === "maintenance" && !noMeters
+      ? Math.min(POSITION[step], MAINTENANCE_STOPS.length)
+      : (noMeters ? GROUND_POSITION : POSITION)[step];
   // Signed off, no money yet. `reviewed` maps onto the Billed index so Review
   // can tick; lighting Billed as live read as "this flight is billed".
-  const awaitingBill = step === "reviewed";
+  //Maintenance is never billed, so a reviewed one is simply finished.
+  const awaitingBill = step === "reviewed" && kind !== "maintenance";
 
   return (
     <ol

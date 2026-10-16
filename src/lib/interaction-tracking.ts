@@ -381,6 +381,29 @@ function sessionRoot(element: Element): Element | null {
   return element.closest('[role="dialog"], [role="alertdialog"], form');
 }
 
+/**
+ * A search or filter box is not a form: typing in Search fleet and moving on is
+ * browsing, and counting it filled `form_abandoned` with about 250 non-events a month.
+ */
+function isSearchField(element: Element): boolean {
+  if (element.getAttribute("type") === "search") return true;
+  if (element.closest('[role="search"], [cmdk-root]')) return true;
+  const hint = `${element.getAttribute("placeholder") ?? ""} ${element.getAttribute("aria-label") ?? ""}`;
+  return /^\s*(search|filter)\b/i.test(hint);
+}
+
+/**
+ * A field in a picker opened FROM the form on screen (Assign renter, Select resource):
+ * Radix portals those popovers outside the dialog, so they look like a second form.
+ * Treating them as one closed the booking form as "switched" while it was still open,
+ * so most of its `form_abandoned` events were people who went on to book.
+ */
+function isNestedInOpenForm(root: Element | null): boolean {
+  const open = session;
+  if (!open || open.submitted || !open.root?.isConnected) return false;
+  return root !== open.root && !(root && open.root.contains(root));
+}
+
 function openSession(form: string, root: Element | null = null): FormSession {
   if (session && session.form === form && !session.submitted) return session;
   closeSession("switched");
@@ -455,10 +478,13 @@ function onFocusIn(event: Event): void {
 
   const type = fieldType(target);
   if (SECRET_TYPES.has(type)) return;
+  if (isSearchField(target)) return;
+  const root = sessionRoot(target);
+  if (isNestedInOpenForm(root)) return;
 
   const field = fieldName(target);
   const form = formName(target);
-  const open = openSession(form, sessionRoot(target));
+  const open = openSession(form, root);
   open.lastField = field;
   open.touched.add(field);
 
@@ -475,12 +501,15 @@ function onChange(event: Event): void {
 
   const type = fieldType(target);
   if (SECRET_TYPES.has(type)) return;
+  if (isSearchField(target)) return;
+  const root = sessionRoot(target);
+  if (isNestedInOpenForm(root)) return;
 
   const field = fieldName(target);
   const form = formName(target);
   const filled = isFilled(target);
 
-  const open = openSession(form, sessionRoot(target));
+  const open = openSession(form, root);
   open.lastField = field;
   open.touched.add(field);
   if (filled) open.filled.add(field);

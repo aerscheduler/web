@@ -221,7 +221,7 @@ export function VizTile({
         {editing && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="size-6 shrink-0">
+              <Button variant="ghost" size="icon" className="size-6 shrink-0" aria-label="Tile actions">
                 <MoreVertical className="size-3.5" />
               </Button>
             </DropdownMenuTrigger>

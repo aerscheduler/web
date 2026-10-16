@@ -201,7 +201,7 @@ export function SchedulesPage() {
                     />
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8">
+                        <Button variant="ghost" size="icon" className="size-8" aria-label={`Actions for ${schedule.reportName}`}>
                           {sendingId === schedule.id ? (
                             <Loader2 className="size-4 animate-spin" />
                           ) : (

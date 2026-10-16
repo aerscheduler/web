@@ -1262,10 +1262,10 @@ export function ReservationForm({
     setError(null);
     setErrorField(null);
 
-    //A member never sees a title field, naming the booking is dispatch's job, and
-    //"N172TS · Dual" is what they would have typed anyway.
-    const effectiveTitle = isSelf ? autoTitle(selectedResource, type) : title.trim();
-    if (!effectiveTitle) return fail("Give the reservation a title.", "res-title");
+    //A member never sees a title field, and dispatch may leave it blank: either way
+    //"N172TS · Dual" is what they would have typed anyway. Requiring it was the most
+    //common reason a staff Book failed (PostHog, Oct 2026).
+    const effectiveTitle = (isSelf ? "" : title.trim()) || autoTitle(selectedResource, type);
     if (!date) return fail("Pick a date.", "smart-date");
     const timeError = validateTimeRange(startAt, endAt);
     // One message covers both bounds, so name the one that is actually empty. Pointing
@@ -1524,16 +1524,22 @@ export function ReservationForm({
             and the type, see autoTitle. */}
         {!isSelf && (
           <div className="space-y-1.5">
-            <Label htmlFor="res-title">Title</Label>
+            <Label htmlFor="res-title">
+              Title <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
             <Input
               id="res-title"
               aria-invalid={errorField === "res-title"}
+              aria-describedby="res-title-hint"
               value={title}
               maxLength={50}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Pattern work in N12345"
+              placeholder={autoTitle(selectedResource, type)}
               autoFocus
             />
+            <p id="res-title-hint" className="text-xs text-muted-foreground">
+              Left blank, it's called "{autoTitle(selectedResource, type)}".
+            </p>
           </div>
         )}
 

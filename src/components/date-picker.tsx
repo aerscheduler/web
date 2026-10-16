@@ -56,6 +56,12 @@ export function DatePickerField({
   const minDate = min ? safeParse(min) : undefined;
   const maxDate = max ? safeParse(max) : undefined;
 
+  // The calendar's month and year menus span the allowed range, else ten years either
+  // side of today, widened to include whatever date is already set.
+  const today = new Date();
+  const startMonth = earliest(minDate ?? new Date(today.getFullYear() - 10, 0, 1), selected);
+  const endMonth = latest(maxDate ?? new Date(today.getFullYear() + 10, 11, 31), selected);
+
   const matchers: Matcher[] = [];
   if (minDate) matchers.push({ before: minDate });
   if (maxDate) matchers.push({ after: maxDate });
@@ -86,6 +92,8 @@ export function DatePickerField({
           mode="single"
           selected={selected}
           defaultMonth={selected ?? minDate}
+          startMonth={startMonth}
+          endMonth={endMonth}
           disabled={matchers.length ? matchers : undefined}
           onSelect={(d) => {
             if (d) onChange(format(d, "yyyy-MM-dd"));
@@ -112,6 +120,14 @@ export function DatePickerField({
       </PopoverContent>
     </Popover>
   );
+}
+
+function earliest(d: Date, other: Date | undefined): Date {
+  return other && other < d ? other : d;
+}
+
+function latest(d: Date, other: Date | undefined): Date {
+  return other && other > d ? other : d;
 }
 
 function safeParse(s: string): Date | undefined {

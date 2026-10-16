@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { CircleAlert, Loader2 } from "lucide-react";
 import { useAuth, postLoginPath } from "@/lib/auth";
 import { ApiError } from "@/lib/api";
+import { handOverResetEmail } from "@/lib/reset-email";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,11 @@ function LoginPage() {
   const { error: oauthError, redirect } = Route.useSearch();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // A 401 is three different situations the server deliberately answers the same way
+  // (no account, an account made with Google or Apple that has no password, a wrong
+  // password), so instead of a bare error the page offers the two ways out. 13 people
+  // in 30 days got this and never got in (PostHog, Oct 2026).
+  const [mismatch, setMismatch] = useState(false);
   const [error, setError] = useState<string | null>(
     oauthError ? "Google sign-in didn't complete. Please try again." : null
   );
@@ -39,6 +45,7 @@ function LoginPage() {
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    setMismatch(false);
     setBusy(true);
     try {
       await login(email.trim(), password);
@@ -52,6 +59,10 @@ function LoginPage() {
         await navigate({ to: next });
       }
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        setMismatch(true);
+        return;
+      }
       setError(
         err instanceof ApiError
           ? err.message
@@ -123,6 +134,26 @@ function LoginPage() {
           <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
           </p>
+        )}
+
+        {mismatch && (
+          // Plain text under the fields, no box: what happened, the Google/Apple case,
+          // and the one way out. Never says whether the email has an account.
+          <div role="alert" className="flex gap-2.5 text-sm leading-relaxed">
+            <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <p className="text-muted-foreground">
+              <span className="font-medium text-foreground">That email and password don&rsquo;t match.</span>{" "}
+              Joined with Google or Apple? Use those buttons above. Otherwise,{" "}
+              <Link
+                to="/forgot-password"
+                onClick={() => handOverResetEmail(email.trim())}
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                reset your password
+              </Link>
+              .
+            </p>
+          </div>
         )}
 
         <Button type="submit" size="lg" className={`w-full ${AUTH_CONTROL}`} disabled={busy}>

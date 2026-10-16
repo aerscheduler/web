@@ -29,16 +29,18 @@ test.describe("Schedule UI create", () => {
       timeout: 15_000,
     });
 
-    await pickByPlaceholder(page, /Select resource/i, /N172TS/, /Search fleet/i);
-
-    // Solo + student: the seeded renter is often grounded locally (Medical lapsed).
+    // Type first: since the "Not listed" aircraft option (Sep 28), a Dual opens with
+    // the aircraft already reading "Not listed", so there is no "Select resource" until
+    // the type changes. Solo + student: the seeded renter is often grounded locally.
     await page.locator("#res-type").click();
     await page.getByRole("option", { name: /^Solo$/i }).click();
+    await pickByPlaceholder(page, /Select resource/i, /N172TS/, /Search fleet/i);
     await pickByPlaceholder(page, /Assign student/i, /Test Student/, /Search students/i);
 
     await pickNextBookableSlot(page);
 
-    await page.locator("#res-title").fill(marker);
+    // Title left blank on purpose: it is optional for staff and names itself.
+    await expect(page.locator("#res-title")).toHaveAttribute("placeholder", "N172TS · Solo");
     await page.locator("#res-notes").fill(marker);
 
     await submitBookReservation(page);
@@ -58,11 +60,8 @@ test.describe("Schedule UI create", () => {
     expect(list.ok()).toBeTruthy();
     const body = await list.json();
     const items = Array.isArray(body) ? body : (body.data ?? []);
-    const found = items.some(
-      (r: { notes?: string; title?: string }) =>
-        String(r.notes ?? "").includes(marker) ||
-        String(r.title ?? "").includes(marker),
-    );
+    const found = items.find((r: { notes?: string }) => String(r.notes ?? "").includes(marker));
     expect(found, `Booked but not listed for marker=${marker}`).toBeTruthy();
+    expect(found.title).toBe("N172TS · Solo");
   });
 });

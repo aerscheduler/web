@@ -13,19 +13,30 @@ import {
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
 
+// Month and year menus by default: the console's rage clicks (Oct 2026) were people
+// pressing "Go to the Previous Month" over and over in Billing, Maintenance and Reports
+// date pickers to reach a date months away. The menus need a range; ten years either
+// side of today unless the caller gives one.
+const YEARS_EITHER_SIDE = 10
+
 function Calendar({
   className,
   classNames,
   showOutsideDays = true,
-  captionLayout = "label",
+  captionLayout = "dropdown",
   buttonVariant = "ghost",
   formatters,
   components,
+  startMonth,
+  endMonth,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
   const defaultClassNames = getDefaultClassNames()
+  const thisYear = new Date().getFullYear()
+  startMonth ??= new Date(thisYear - YEARS_EITHER_SIDE, 0, 1)
+  endMonth ??= new Date(thisYear + YEARS_EITHER_SIDE, 11, 31)
 
   return (
     <DayPicker
@@ -37,6 +48,8 @@ function Calendar({
         className
       )}
       captionLayout={captionLayout}
+      startMonth={startMonth}
+      endMonth={endMonth}
       formatters={{
         formatMonthDropdown: (date) =>
           date.toLocaleString("default", { month: "short" }),

@@ -223,6 +223,53 @@ describe("dismissal", () => {
   });
 });
 
+describe("what is not an abandonment", () => {
+  // Oct 2026: most New reservation "abandons" were this. Radix portals the Assign renter
+  // picker outside the dialog, so its search box looked like a second form.
+  it("keeps the form open while a picker portaled out of it is used", async () => {
+    document.body.innerHTML = `
+      <div role="dialog"><h2 data-slot="dialog-title">New reservation</h2>
+        <label for="res-title">Title</label><input id="res-title" /></div>
+      <div role="dialog" id="picker"><input id="renter-search" /></div>`;
+    (document.getElementById("res-title") as HTMLInputElement).focus();
+    (document.getElementById("renter-search") as HTMLInputElement).focus();
+    document.getElementById("picker")!.remove();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(captured.find((e) => e.event === "form_abandoned")).toBeUndefined();
+
+    document.querySelector("form, [role='dialog']")!.dispatchEvent(new Event("submit", { bubbles: true }));
+    expect(captured.find((e) => e.event === "form_submitted")?.props).toMatchObject({
+      form: "New reservation",
+    });
+  });
+
+  it("does not treat a search box as a form", () => {
+    mount(`<div><input placeholder="Search fleet…" /></div>`);
+    const input = document.querySelector("input") as HTMLInputElement;
+    input.focus();
+    input.value = "N17";
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    onNavigation();
+
+    expect(captured.find((e) => e.event === "form_abandoned")).toBeUndefined();
+  });
+
+  it("still reports the form when it really is closed half-filled", async () => {
+    document.body.innerHTML = `
+      <div role="dialog" id="form"><h2 data-slot="dialog-title">New reservation</h2>
+        <label for="res-title">Title</label><input id="res-title" /></div>`;
+    (document.getElementById("res-title") as HTMLInputElement).focus();
+    document.getElementById("form")!.remove();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(captured.find((e) => e.event === "form_abandoned")?.props).toMatchObject({
+      form: "New reservation",
+      reason: "dismissed",
+    });
+  });
+});
+
 describe("links named after a record", () => {
   it("names an aircraft card by its destination, not by the tail number on it", () => {
     const el = mount(`<a href="/aircraft/1906">N1906V (Lucy)</a>`);

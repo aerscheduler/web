@@ -909,6 +909,7 @@ function MiniMonth({
       timeZone={zone}
       month={monthCursor}
       startMonth={startOfMonth(new Date(), zone)}
+      captionLayout="label"
       onMonthChange={(m) => onMonth(startOfMonth(m, zone))}
       selected={selected}
       onSelect={(d) => {

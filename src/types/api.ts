@@ -801,6 +801,11 @@ export interface Reservation {
   id: number;
   /** The booking's video call, when it has one. A ground lesson with one may have no room. */
   meetingUrl?: string | null;
+  /**
+   * The technicians on a maintenance booking: whose calendar it is on. Not personnel (nobody
+   * flies or pays on maintenance). Empty on every other type, and missing from an older API.
+   */
+  technicians?: { id: number; user?: { id: number; name: string | null } | null }[];
   createdAt: string;
   /** Last change of any kind, rescheduling, personnel, notes. */
   updatedAt?: string;
@@ -2057,6 +2062,8 @@ export interface CreateReservationInput {
   meetingUrl?: string | null;
   /** Make a video call on the booker's own connected account, after the save. */
   meeting?: { create: MeetingCreator };
+  /** Maintenance only: the whole list of technicians. Left out, an edit keeps them. */
+  technicianOrgUserIds?: number[];
   rrule?: string;
   location?: { id: number };
   /** `null` on an edit lets a ground lesson that is a video call give up its room. */

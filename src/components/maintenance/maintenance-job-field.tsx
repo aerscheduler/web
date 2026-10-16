@@ -10,13 +10,16 @@ import { WorkspaceUserAvatars } from "@/components/workspace-user-avatar";
 import { Label } from "@/components/ui/label";
 
 /**
- * A maintenance booking and the job it holds (Tony, 2026-10-01). A booking has nobody on it: the
- * aircraft is what is busy. The people doing the work, what they are doing and what it costs
+ * A maintenance booking and the job it holds (Tony, 2026-10-01). What is done and what it costs
  * live on the work order, so the booking links one (an open job on that aircraft, or a new one
- * opened with it) instead of growing a technician list of its own. Only for people who may open
- * work orders: a dispatcher books the hangar time and never sees the job behind it.
+ * opened with it). Only for people who may open work orders: a dispatcher books the hangar time
+ * and never sees the job behind it.
+ *
+ * The booking has technicians of its own since 2026-10-15 (Tony: "the default assigned mechanic
+ * is the work order mechanic"): whose calendar the block is on. See BookingTechniciansField. A
+ * new job opens with them; picking a job fills them from it when none are chosen yet.
  */
-export type MaintenanceJobChoice = { mode: "none" } | { mode: "existing"; jobId: number } | { mode: "new"; technicianIds: string[] };
+export type MaintenanceJobChoice = { mode: "none" } | { mode: "existing"; jobId: number } | { mode: "new" };
 
 const NONE = "none";
 const NEW = "new";
@@ -41,14 +44,14 @@ export function MaintenanceJobField({
 }: {
   resourceId: number | null;
   value: MaintenanceJobChoice;
-  onChange: (v: MaintenanceJobChoice) => void;
+  /** `job` is the job picked, when an existing one is: its technicians fill the booking's. */
+  onChange: (v: MaintenanceJobChoice, job?: WorkOrder) => void;
   /** The job the booking already holds, when editing one. */
   linked: WorkOrder | null;
   /** How a job's other booking reads ("Oct 3, 9:00 AM"), in the airport's zone. */
   formatBooking?: (iso: string) => string;
 }) {
   const jobsQ = useWorkOrders({ state: "open", resourceId: resourceId ?? undefined }, { enabled: resourceId != null });
-  const membersQ = useMembers(undefined, { enabled: value.mode === "new" });
   const jobs = React.useMemo(() => {
     const open = (jobsQ.data ?? []).filter(isOpenWorkOrder);
     return linked && !open.some((j) => j.id === linked.id) ? [linked, ...open] : open;
@@ -65,9 +68,6 @@ export function MaintenanceJobField({
       };
     }),
   ];
-  const technicianOptions: ComboOption[] = (membersQ.data ?? [])
-    .filter((m) => !m.external && m.technicianRole)
-    .map((m) => ({ value: String(m.id), label: m.user?.name ?? `Member #${m.id}` }));
   const chosen = value.mode === "existing" ? jobs.find((j) => j.id === value.jobId) ?? null : null;
   const selectValue = value.mode === "existing" ? String(value.jobId) : value.mode === "new" ? NEW : NONE;
 
@@ -79,45 +79,61 @@ export function MaintenanceJobField({
           id="res-work-order"
           options={value.mode === "new" ? [{ value: NEW, label: "A new work order", hint: "Opened with this booking" }, ...options] : options}
           value={selectValue}
-          onChange={(v) => onChange(v === NONE ? { mode: "none" } : v === NEW ? { mode: "new", technicianIds: [] } : { mode: "existing", jobId: Number(v) })}
+          onChange={(v) =>
+            v === NONE ? onChange({ mode: "none" }) : v === NEW ? onChange({ mode: "new" }) : onChange({ mode: "existing", jobId: Number(v) }, jobs.find((j) => j.id === Number(v)))
+          }
           placeholder={resourceId == null ? "Pick the aircraft first" : "No work order"}
           searchPlaceholder="Search jobs…"
           emptyText="No open jobs on this aircraft."
           disabled={resourceId == null}
-          action={{ label: "Open a new work order", onSelect: () => onChange({ mode: "new", technicianIds: [] }) }}
+          action={{ label: "Open a new work order", onSelect: () => onChange({ mode: "new" }) }}
         />
         <p className="text-xs text-muted-foreground">
           {value.mode === "new"
-            ? "Opened with this booking. What you write in the notes below becomes the job's request."
+            ? "Opened with this booking and its technicians. What you write in the notes below becomes the job's request."
             : chosen?.booking && !chosen.booking.cancelled && chosen.id !== linked?.id
               ? "This job holds another booking. Saving moves it to this one."
               : chosen
                 ? "The booking holds this job on the schedule."
-                : "The job holds who does the work, what is done, and the bill."}
+                : "The job holds what is done and the bill."}
         </p>
       </div>
-      {value.mode === "new" && (
-        <div className="space-y-1.5">
-          <Label>Technicians</Label>
-          <MultiCombobox
-            options={technicianOptions}
-            values={value.technicianIds}
-            onChange={(ids) => onChange({ mode: "new", technicianIds: ids })}
-            placeholder="Who is doing the work"
-            searchPlaceholder="Search technicians…"
-            emptyText="Nobody has the technician role."
-          />
-        </div>
-      )}
       {chosen && (
         <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <span>Technicians:</span>
+          <span>On the job:</span>
           {chosen.technicians.length ? <WorkspaceUserAvatars people={chosen.technicians} /> : <span>nobody assigned yet</span>}
           <Link to="/maintenance/work-orders/$workOrderId" params={{ workOrderId: String(chosen.id) }} className="text-foreground underline-offset-2 hover:underline">
             Open {chosen.label}
           </Link>
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Who does the work on a maintenance booking: people with the technician role. The block goes on
+ * their calendar and Home, and they are told. Anyone who can book maintenance can set it,
+ * dispatchers included; the work order is what stays with the shop roles.
+ */
+export function BookingTechniciansField({ value, onChange }: { value: string[]; onChange: (ids: string[]) => void }) {
+  const membersQ = useMembers();
+  const options: ComboOption[] = (membersQ.data ?? [])
+    .filter((m) => !m.external && m.technicianRole)
+    .map((m) => ({ value: String(m.id), label: m.user?.name ?? `Member #${m.id}` }));
+  return (
+    <div className="space-y-1.5">
+      <Label>Technicians (optional)</Label>
+      <MultiCombobox
+        options={options}
+        values={value}
+        onChange={onChange}
+        placeholder="Who is doing the work"
+        searchPlaceholder="Search technicians…"
+        emptyText="Nobody has the technician role."
+        className="h-9 w-full max-w-none"
+      />
+      <p className="text-xs text-muted-foreground">It goes on their calendar, and they are told.</p>
     </div>
   );
 }
@@ -136,8 +152,11 @@ export function useApplyMaintenanceJob() {
     request,
     previousJobId,
     startsAt,
+    technicianIds,
   }: {
     choice: MaintenanceJobChoice;
+    /** The booking's technicians: a new job opens with them. */
+    technicianIds: number[];
     bookingId: number;
     resourceId: number;
     request: string;
@@ -163,7 +182,7 @@ export function useApplyMaintenanceJob() {
         // Booked ahead is Scheduled; a booking that has already started has the aircraft here.
         status: startsAt.getTime() > Date.now() ? "scheduled" : "received",
         complaint: request.trim() || null,
-        technicianOrgUserIds: choice.technicianIds.map(Number),
+        technicianOrgUserIds: technicianIds,
       });
       await release();
       return opened;

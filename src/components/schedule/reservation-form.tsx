@@ -44,6 +44,7 @@ import {
   type ReservationType,
   type Resource,
   type Squawk,
+  type WorkOrder,
 } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -61,6 +62,7 @@ import {
   selfBookableTypes,
 } from "@/lib/permissions";
 import {
+  BookingTechniciansField,
   MaintenanceJobField,
   useApplyMaintenanceJob,
   useBookingJob,
@@ -825,6 +827,13 @@ export function ReservationForm({
   // The job a maintenance booking holds (see maintenance-job-field.tsx). Only for the people
   // who may open work orders; a dispatcher's maintenance booking is the hangar time alone.
   const [jobChoice, setJobChoice] = React.useState<MaintenanceJobChoice>({ mode: "none" });
+  // The booking's own technicians (BookingTechniciansField), organization-user ids.
+  const [technicianIds, setTechnicianIds] = React.useState<string[]>([]);
+  // A job picked fills them from its own, when nobody is chosen yet (Tony, 2026-10-15).
+  const pickJob = React.useCallback((choice: MaintenanceJobChoice, job?: WorkOrder) => {
+    setJobChoice(choice);
+    if (job?.technicians.length) setTechnicianIds((now) => (now.length ? now : job.technicians.map((t) => String(t.id))));
+  }, []);
   const bookingJob = useBookingJob(editing?.type === "maintenance" ? editing.id : null);
   const applyJob = useApplyMaintenanceJob();
   // Which booking the job choice was filled in for. The edit form can mount before the job has
@@ -1082,6 +1091,7 @@ export function ReservationForm({
         setGuestPhone(guest?.phone ?? "");
         setNotes(editing.notes ?? "");
         setVideoCall(editing.meetingUrl ? { mode: "keep", url: editing.meetingUrl } : NO_VIDEO_CALL);
+        setTechnicianIds((editing.technicians ?? []).map((t) => String(t.id)));
       } else {
         //A draft's "HH:mm" comes from clicking the grid, which is ruled in AIRPORT time.
         //so it has to be interpreted there too. `new Date("2026-07-28T09:00")` parses in the
@@ -1115,6 +1125,7 @@ export function ReservationForm({
         setGuestEmail("");
         setGuestPhone("");
         setNotes("");
+        setTechnicianIds([]);
         setVideoCall(NO_VIDEO_CALL);
       }
       //A repeat rule must never survive from one booking to the next.
@@ -1250,6 +1261,7 @@ export function ReservationForm({
         request: notes || title,
         previousJobId,
         startsAt: startAt,
+        technicianIds: technicianIds.map(Number),
       });
       if (job && choice.mode === "new") toast.success(`${job.label} opened for this booking`);
     } catch (err) {
@@ -1380,6 +1392,9 @@ export function ReservationForm({
       collectionStyle: editing ? undefined : effectiveCollection,
       prepaidAmountCents: editing ? undefined : prepaidAmountCents,
     });
+    // The whole list on maintenance; another type carries none (the server clears them when a
+    // maintenance booking becomes something else).
+    if (type === "maintenance") input.technicianOrgUserIds = technicianIds.map(Number);
     if (offersVideoCall) {
       Object.assign(input, videoCallInput(videoCall, !!editing?.meetingUrl));
       //An explicit null is how an edit lets a remote lesson give up the room it had;
@@ -1780,18 +1795,21 @@ export function ReservationForm({
             </p>
           </div>
         ) : type === "maintenance" ? (
-          // Nobody is seated on maintenance (the server refuses personnel on it): the people,
-          // the work and the bill are the work order's, which the booking links instead. A
-          // repeating booking links none: one job is one visit.
-          canOpenWorkOrders(roles) && !recurrence.enabled ? (
-            <MaintenanceJobField
-              resourceId={resourceId ? Number(resourceId) : null}
-              value={jobChoice}
-              onChange={setJobChoice}
-              linked={bookingJob.job}
-              formatBooking={(iso) => `${tz.date(new Date(iso), "short")}, ${tz.time(new Date(iso))}`}
-            />
-          ) : null
+          // Nobody is seated on maintenance (the server refuses personnel on it). The work and
+          // the bill are the work order's, which the booking links; who does it is the
+          // booking's technicians. A repeating booking links no job: one job is one visit.
+          <div className="space-y-3">
+            {canOpenWorkOrders(roles) && !recurrence.enabled ? (
+              <MaintenanceJobField
+                resourceId={resourceId ? Number(resourceId) : null}
+                value={jobChoice}
+                onChange={pickJob}
+                linked={bookingJob.job}
+                formatBooking={(iso) => `${tz.date(new Date(iso), "short")}, ${tz.time(new Date(iso))}`}
+              />
+            ) : null}
+            <BookingTechniciansField value={technicianIds} onChange={setTechnicianIds} />
+          </div>
         ) : (
           <div className="grid gap-3 sm:grid-cols-2">
             {/* A member is already on one side of this booking, so they pick only

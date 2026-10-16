@@ -459,7 +459,9 @@ test("the job links the maintenance booking holding its hangar slot", async ({ p
 
 test("a maintenance booking opens its work order with technicians, and the booking shows the job", async ({ page, request }) => {
   const start = new Date(Date.now() + 9 * 864e5);
-  start.setUTCMinutes(0, 0, 0);
+  // Mid-morning at the field, not "this hour": run at 3 AM and the edit form has no end time
+  // inside the flying day to offer, so it cannot save.
+  start.setUTCHours(16, 0, 0, 0);
   const end = new Date(start.getTime() + 3 * 36e5);
   const made = await request.post(`${base()}/reservations`, {
     headers: owner,

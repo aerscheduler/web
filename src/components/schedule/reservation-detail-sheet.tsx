@@ -265,6 +265,25 @@ export function ReservationDetailSheet({
               </SheetDetailField>
             )}
 
+            {/* Who does the work: the booking's own technicians, not personnel. */}
+            {r.type === "maintenance" && (
+              <SheetDetailField icon={Users} label="Technicians">
+                {r.technicians?.length ? (
+                  <ul className="space-y-0.5">
+                    {r.technicians.map((t) => (
+                      <li key={t.id}>
+                        <Link to="/people/$orgUserId" params={{ orgUserId: String(t.id) }} className="underline-offset-2 hover:underline">
+                          {t.user?.name ?? `Member #${t.id}`}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <span className="text-muted-foreground">No one assigned</span>
+                )}
+              </SheetDetailField>
+            )}
+
             {r.type !== "maintenance" && <SheetDetailField icon={Users} label="Personnel">
               {people.length > 0 ? (
                 <ul className="space-y-0.5">

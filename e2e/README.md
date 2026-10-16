@@ -56,6 +56,7 @@ Defaults: `VITE_API_PROXY=http://127.0.0.1:5001`, Playwright starts Vite on
 | `e2e/auth/login.spec.ts` | Real login + bad password |
 | `e2e/schedule/journeys.spec.ts` | Schedule loads; create affordance |
 | `e2e/schedule/ui-create.spec.ts` | Owner: New reservation form through POST /reservations |
+| `e2e/schedule/maintenance-technicians.spec.ts` | Owner: a Maintenance booking takes the picked job's technicians; the technician has it on their own schedule |
 | `e2e/schedule/video-call.spec.ts` | Owner: remote ground lesson with a pasted video call link and no room, Join on the record page, edit keeps/swaps/clears the link |
 | `e2e/settings/schedule-colors.spec.ts` | Owner: Settings, Schedule colors picks a Ground color, saves it (PATCH body), the console redraws through --res-*; back to default; students have no such setting |
 | `e2e/schedule/me-book-create.spec.ts` | Student: /me/book solo self-serve booking |

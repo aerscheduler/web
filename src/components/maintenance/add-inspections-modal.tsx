@@ -49,6 +49,7 @@ import {
   sourceIsIncomplete,
   type InspectionSource,
 } from "@/components/maintenance/inspection-source-fields";
+import { adInspectionName } from "@/lib/ad-number";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 
@@ -82,6 +83,8 @@ export function AddInspectionsModal({
 
   // Custom / one-off fields.
   const [name, setName] = React.useState("");
+  // The name the AD look-up last filled in, so a second look-up may replace it (see onAdFound).
+  const adNameFilled = React.useRef<string | null>(null);
   const [basis, setBasis] = React.useState<"days" | "hours" | "both">("days");
   //A one-off is due on a DATE or at a METER READING. An enormous share of Airworthiness
   //Directives read "within the next 50 hours time in service", and until this existed the
@@ -676,6 +679,14 @@ export function AddInspectionsModal({
             value={source}
             onChange={setSource}
             docShot="add-inspections-source"
+            // A blank name takes the AD's own ("AD 2013-11-11 Engine oil pressure"), and so does
+            // one an earlier look-up filled in; a name somebody typed is kept.
+            onAdFound={(ad) => {
+              const named = adInspectionName(ad);
+              const before = adNameFilled.current;
+              adNameFilled.current = named;
+              setName((now) => (!now.trim() || now === before ? named : now));
+            }}
           />
         )}
 

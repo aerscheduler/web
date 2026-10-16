@@ -6793,3 +6793,24 @@ export function useRemoveOwnFile() {
     onSettled: () => void qc.invalidateQueries({ queryKey: ["owner", "files"] }),
   });
 }
+
+/**
+ * One AD from the library by number, for the AD number field. `null` data means it is not in
+ * the library (published before 1995, or not yet), which is an ordinary answer, not an error.
+ */
+export function useAdLookup(adNumber: string | null) {
+  return useQuery({
+    queryKey: ["ad-library", adNumber],
+    enabled: !!adNumber,
+    staleTime: 60 * 60_000,
+    retry: false,
+    queryFn: async () => {
+      try {
+        return await api<import("@/types/api").AirworthinessDirective>(`/maintenance/airworthiness-directives/${encodeURIComponent(adNumber!)}`);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) return null;
+        throw err;
+      }
+    },
+  });
+}

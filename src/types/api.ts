@@ -4204,3 +4204,22 @@ export interface ShopJobSummary {
   label?: string;
   request?: string | null;
 }
+
+/** One published AD from the library (server: services/adLibrary.service.ts), 1995 on. */
+export interface AirworthinessDirective {
+  adNumber: string;
+  amendment: string | null;
+  url: string;
+  publishedOn: string;
+  effectiveOn: string | null;
+  title: string;
+  manufacturer: string;
+  productType: "airplane" | "rotorcraft" | "engine" | "propeller" | "glider" | "balloon" | "appliance" | "various";
+  applicability: string;
+  subject: string | null;
+  unsafeCondition: string | null;
+  summary: string | null;
+  supersedes: string[];
+  /** Later ADs that supersede or revise this one; present on a single look-up. */
+  supersededBy?: string[];
+}

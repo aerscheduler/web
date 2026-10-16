@@ -9,8 +9,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import * as React from "react";
 import { SOURCE_TYPE_LABELS } from "@/lib/maintenance";
-import type { MaintenanceSourceType } from "@/types/api";
+import { normalizeAdNumber } from "@/lib/ad-number";
+import { useAdLookup } from "@/features/queries";
+import type { AirworthinessDirective, MaintenanceSourceType } from "@/types/api";
 
 export type InspectionSource = {
   sourceType: MaintenanceSourceType | "";
@@ -48,9 +51,12 @@ export function InspectionSourceFields({
   onChange,
   idPrefix = "insp",
   docShot,
+  onAdFound,
 }: {
   value: InspectionSource;
   onChange: (next: InspectionSource) => void;
+  /** The AD number matched one in the library: the form may fill in a name of its own. */
+  onAdFound?: (ad: AirworthinessDirective) => void;
   /** Ids must be unique when two of these can be mounted on one page. */
   idPrefix?: string;
   /** Set only on the instance the docs screenshot, so the shot is never ambiguous. */
@@ -58,6 +64,33 @@ export function InspectionSourceFields({
 }) {
   const set = <K extends keyof InspectionSource>(key: K, v: InspectionSource[K]) =>
     onChange({ ...value, [key]: v });
+
+  // An AD number that is in the library fills in the revision, its date and the link. Only
+  // fields that are empty, or that still hold what an earlier look-up put there, change: a
+  // value somebody typed is never overwritten. Change the number and the earlier AD's values
+  // go with it, so the note under the field never credits one AD with another's dates.
+  const adNumber = value.sourceType === "ad" ? normalizeAdNumber(value.sourceRef) : null;
+  const lookup = useAdLookup(adNumber);
+  const found = adNumber && lookup.data && lookup.data.adNumber === adNumber ? lookup.data : null;
+  const filled = React.useRef<{ adNumber: string; revision: string; revisionDate: string; sourceUrl: string } | null>(null);
+  React.useEffect(() => {
+    const prev = filled.current;
+    if (found ? prev?.adNumber === found.adNumber : !prev || prev.adNumber === adNumber) return;
+    const next = found
+      ? {
+          adNumber: found.adNumber,
+          revision: found.amendment ? `Amdt ${found.amendment}` : "",
+          revisionDate: (found.effectiveOn ?? "").slice(0, 10),
+          sourceUrl: found.url,
+        }
+      : null;
+    const take = (key: "revision" | "revisionDate" | "sourceUrl") =>
+      !value[key] || value[key] === prev?.[key] ? (next?.[key] ?? "") : value[key];
+    filled.current = next;
+    onChange({ ...value, revision: take("revision"), revisionDate: take("revisionDate"), sourceUrl: take("sourceUrl") });
+    if (found) onAdFound?.(found);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [found, adNumber, lookup.isFetching]);
 
   return (
     <div
@@ -118,6 +151,9 @@ export function InspectionSourceFields({
               </p>
             )}
           </div>
+          {adNumber && (found || lookup.data === null) && (
+            <AdLookupNote ad={found} className="sm:col-span-2" />
+          )}
           <div className="space-y-1">
             <Label htmlFor={`${idPrefix}-revision`}>Revision</Label>
             <Input
@@ -163,6 +199,40 @@ export function InspectionSourceFields({
             />
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What the library knows about the AD number typed, under the field. Plain text, no box: the
+ * note says where the filled-in values came from, or that this AD has to be entered by hand.
+ */
+function AdLookupNote({ ad, className }: { ad: AirworthinessDirective | null; className?: string }) {
+  if (!ad) {
+    return (
+      <p className={`text-xs text-muted-foreground ${className ?? ""}`}>
+        Not in the AD library, which has ADs published since 1995. Fill in the rest by hand.
+      </p>
+    );
+  }
+  const effective = ad.effectiveOn
+    ? new Date(`${ad.effectiveOn.slice(0, 10)}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })
+    : null;
+  return (
+    <div className={`space-y-1 text-xs ${className ?? ""}`}>
+      <p className="text-muted-foreground">
+        <span className="font-medium text-foreground">AD {ad.adNumber}</span>, {ad.manufacturer}
+        {effective ? `, effective ${effective}` : ""}. Filled in from the{" "}
+        <a href={ad.url} target="_blank" rel="noreferrer" className="underline underline-offset-2">
+          Federal Register
+        </a>
+        .
+      </p>
+      {ad.supersededBy && ad.supersededBy.length > 0 && (
+        <p className="text-amber-700 dark:text-amber-400">
+          Superseded by AD {ad.supersededBy.join(", AD ")}. Track the one in force.
+        </p>
       )}
     </div>
   );

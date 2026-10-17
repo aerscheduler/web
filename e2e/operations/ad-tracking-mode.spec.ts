@@ -33,19 +33,33 @@ async function dismissCookieBanner(page: import("@playwright/test").Page) {
  * the whole stack, not of one function. So these tests assert the DEFAULT as hard as they assert
  * the behaviour.
  */
+/**
+ * The test organization is seeded with "Find them for me" on (seed-test-ad-library.sql), because
+ * the AD specs under e2e/maintenance need it. These tests start each case from "Not here" and
+ * put back whatever mode they found, so running this file never switches the ADs tab off for the
+ * next spec. That "off" is the default for a new organization is the column default
+ * (`adTrackingMode @default("off")`) and test/unit/adTrackingMode.test.ts on the server.
+ */
+let found: { mode: string; externalSystem: string | null } | null = null;
+
+test.beforeAll(async ({ request }) => {
+  const { base, headers } = await ownerHeaders(request);
+  const { data } = await (await request.get(`${base}/organizations/adTracking`, { headers })).json();
+  found = { mode: data.mode, externalSystem: data.externalSystem ?? null };
+});
+
+test.afterAll(async ({ request }) => {
+  if (!found) return;
+  const { base, headers } = await ownerHeaders(request);
+  const back = await request.patch(`${base}/organizations/adTracking`, { headers, data: found });
+  expect(back.ok(), `restoring the AD mode failed: ${await back.text()}`).toBeTruthy();
+});
+
 test.describe("AD tracking mode", () => {
-  test.afterEach(async ({ request }) => {
-    // Back to the default, or the next test in this file inherits a mode it did not set.
+  test.beforeEach(async ({ request }) => {
+    // Each case starts from "Not here", whatever the last one (or the seed) left.
     const { base, headers } = await ownerHeaders(request);
     await request.patch(`${base}/organizations/adTracking`, { headers, data: { mode: "off" } });
-  });
-
-  test("is off unless somebody turns it on", async ({ request }) => {
-    const { base, headers } = await ownerHeaders(request);
-    const res = await request.get(`${base}/organizations/adTracking`, { headers });
-    expect(res.ok()).toBeTruthy();
-    const { data } = await res.json();
-    expect(data.mode, "a school must not be opted in to AD proposals by default").toBe("off");
   });
 
   test("reports what could be matched for each aeroplane, honestly", async ({ request }) => {
@@ -159,14 +173,12 @@ test.describe("AD tracking mode", () => {
   });
 
   /**
-   * The mode that promises something nothing does.
-   *
-   * "Watch for new ones" describes a catalogue that is not built. A school that chose it would
-   * believe it was being warned about newly published directives and stop watching for them
-   * itself. Refused at the API and not selectable in the console, and this test holds both
-   * halves shut: when the catalogue ships, both assertions have to be changed on purpose.
+   * "Find them for me" was held shut until the AD library existed (it promised a catalogue that
+   * was not built). Since 2026-10-16 the library is behind it, so it is chosen like any mode,
+   * stored, and offered in the console. If a mode is ever held back again, the refusal lives in
+   * AD_TRACKING_MODES_NOT_YET_AVAILABLE on the server and NOT_YET in the settings tab.
    */
-  test("the catalogue cannot be turned on while there is nothing behind it", async ({
+  test("Find them for me can be chosen now that the AD library is behind it", async ({
     page,
     request,
   }) => {
@@ -176,18 +188,17 @@ test.describe("AD tracking mode", () => {
       headers,
       data: { mode: "catalogue" },
     });
-    expect(res.status()).toBe(400);
-    expect((await res.json()).message).toMatch(/cannot watch for newly published/i);
+    expect(res.status(), await res.text()).toBe(200);
 
     const after = await (await request.get(`${base}/organizations/adTracking`, { headers })).json();
-    expect(after.data.mode, "a refused mode must not be stored").toBe("off");
+    expect(after.data.mode).toBe("catalogue");
 
     await page.goto("/settings?tab=ad-tracking");
     await dismissCookieBanner(page);
-    const card = page.getByRole("button", { name: /Watch for new ones/ });
-    await expect(card).toBeVisible();
-    await expect(card, "the console must not offer a mode the server refuses").toBeDisabled();
-    await expect(page.getByText(/Not available yet/i)).toBeVisible();
+    const card = page.getByRole("button", { name: /Find them for me/ });
+    await expect(card).toBeEnabled();
+    await expect(card).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByText(/Not available yet/i)).toHaveCount(0);
   });
 
   test("an unknown mode is refused rather than stored", async ({ request }) => {
@@ -208,7 +219,7 @@ test.describe("AD tracking mode", () => {
 
     await expect(page.getByRole("button", { name: /Not here/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /I track them here/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /Watch for new ones/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Find them for me/ })).toBeVisible();
     await expect(page.getByRole("button", { name: /Somewhere else/ })).toBeVisible();
 
     await expect(page.getByRole("button", { name: /Not here/ })).toHaveAttribute("aria-pressed", "true");
@@ -244,7 +255,7 @@ test.describe("AD tracking mode", () => {
  * complete AD status.
  */
 test.describe("Somewhere else names the system on the document", () => {
-  test.afterEach(async ({ request }) => {
+  test.beforeEach(async ({ request }) => {
     const { base, headers } = await ownerHeaders(request);
     await request.patch(`${base}/organizations/adTracking`, { headers, data: { mode: "off" } });
   });

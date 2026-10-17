@@ -938,7 +938,7 @@ export const DOCS_TOPICS = {
   "compliance-log-scope": {
     title: "The compliance log",
     summary:
-      "Every inspection signed off here, newest first. It records the ADs you entered; it does not tell you which ADs apply to your aircraft, so it is evidence of what was done rather than a complete AD status.",
+      "Every inspection signed off here, newest first: evidence of what was done. Which ADs apply to each aircraft is in Maintenance > Fleet ADs and the AD status report.",
     href: "maintenance/track-airworthiness-directives",
   },
   "aircraft-serial-number": {

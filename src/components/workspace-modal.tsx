@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -16,9 +16,22 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
  *  - The size above, no title row (`title` is for screen readers only), and one close button
  *    in the top-right corner. Escape and the backdrop close it too, except while focus is in
  *    something marked `data-keeps-escape` (an inline editor cancelling itself).
+ *  - A link clicked inside it (a mention, a profile, a booking) goes to that page, and the
+ *    modal steps aside so you see it: `onLeave`, or closing when there is none. This covers
+ *    popovers and menus the content opens too (React events bubble through their portals).
  *  - A padded flex column the content fills (panes inside scroll on their own), inset so
  *    nothing sits under the close button: a right gutter on a desktop, a top one on a phone.
  */
+
+/**
+ * Whether a click follows an in-app link in this tab (the router will navigate). A click meant
+ * for a new tab or window, or an outside link, does not count.
+ */
+export function followsInAppLink(e: MouseEvent): boolean {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
+  const a = (e.target as Element | null)?.closest?.("a[href]");
+  return a instanceof HTMLAnchorElement && a.target !== "_blank" && a.origin === window.location.origin;
+}
 
 export function WorkspaceModal({
   open,
@@ -27,6 +40,7 @@ export function WorkspaceModal({
   description,
   children,
   className,
+  onLeave,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -35,7 +49,15 @@ export function WorkspaceModal({
   description?: string;
   children: ReactNode;
   className?: string;
+  /** A link inside was followed. Messages shrinks back to its dock; default is to close. */
+  onLeave?: () => void;
 }) {
+  const onClickCapture = (e: MouseEvent) => {
+    if (!followsInAppLink(e)) return;
+    if (onLeave) onLeave();
+    else onOpenChange(false);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -55,7 +77,9 @@ export function WorkspaceModal({
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <DialogDescription className="sr-only">{description ?? title}</DialogDescription>
-        <div className="flex min-h-0 flex-1 flex-col p-4 pr-14 max-sm:pr-4 max-sm:pt-14">{children}</div>
+        <div onClickCapture={onClickCapture} className="flex min-h-0 flex-1 flex-col p-4 pr-14 max-sm:pr-4 max-sm:pt-14">
+          {children}
+        </div>
         <button
           type="button"
           onClick={() => onOpenChange(false)}

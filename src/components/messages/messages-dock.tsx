@@ -6,7 +6,7 @@ import { useConversation, useConversations, useUnreadMessageCount } from "@/feat
 import type { ConversationSummary } from "@/types/messages";
 import { PersonAvatar } from "@/components/workspace-user-avatar";
 import { DETAIL_PANEL_WIDTH, useDetailPanelDocked } from "@/components/detail-panel";
-import { WorkspaceModal } from "@/components/workspace-modal";
+import { WorkspaceModal, followsInAppLink } from "@/components/workspace-modal";
 import { Thread } from "@/components/messages/thread";
 import { ComposeView } from "@/components/messages/compose-view";
 import { ConversationGlyph, ConversationRow, ConversationTitle, MessagesWorkspace } from "@/components/messages/messages-page";
@@ -22,6 +22,9 @@ import { ConversationGlyph, ConversationRow, ConversationTitle, MessagesWorkspac
 //
 // There is no Messages page; routes/_authed/messages*.tsx only open the modal.
 //---------------------------------------------------------------------------------
+
+/** Below Tailwind's `md`, where the open panel takes the whole screen. */
+const isPhone = () => typeof window !== "undefined" && !window.matchMedia("(min-width: 768px)").matches;
 
 /** -1 is the new-message view, wherever a conversation id goes. */
 export const COMPOSE_ID = -1;
@@ -121,6 +124,10 @@ function MessagesDock({ state, setState }: { state: DockState; setState: React.D
       <WorkspaceModal
         open={state.expanded}
         onOpenChange={(o) => !o && setState(closed)}
+        // A link followed from the big view: go to the page, Messages back to its panel on the
+        // same conversation (a new message in progress is dropped). On a phone the panel would
+        // cover the page too, so there it closes to the launcher.
+        onLeave={() => setState((s) => ({ ...closed(s), open: !isPhone() }))}
         title="Messages"
         description="Your conversations"
       >
@@ -214,10 +221,17 @@ function DockPanel({
     }
   };
 
+  // On a phone the panel covers the page, so following a link (a mention, a profile) closes it
+  // to show the page. On a desktop the page is beside it and the panel stays.
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (isPhone() && followsInAppLink(e)) onClose();
+  };
+
   return (
     <section
       aria-label="Messages"
       onKeyDown={onKeyDown}
+      onClickCapture={onClickCapture}
       className={cn(
         "fixed z-40 flex flex-col overflow-hidden bg-background",
         // A phone gets the whole screen, over the sticky top bar (z-50 too, so later in the DOM

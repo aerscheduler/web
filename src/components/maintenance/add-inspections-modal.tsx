@@ -296,18 +296,24 @@ export function AddInspectionsModal({
     </div>
   );
 
-  /** A number box with its unit written after it, so "Warn me 30 days before" reads as one. */
+  /**
+   * A number box with its unit written after it, so "Warn me 30 days before" reads as one.
+   * `name` is the box's accessible name WITH the unit ("Warn me (hours out)"): the unit is
+   * plain text beside the box, which a screen reader does not tie to it.
+   */
   const numberWithUnit = (
     id: string,
     value: string,
     onChange: (v: string) => void,
     unit: React.ReactNode,
     placeholder: string,
+    name?: string,
     numeric = false
   ) => (
     <div className="flex items-center gap-2">
       <Input
         id={id}
+        aria-label={name}
         inputMode={numeric ? "numeric" : "decimal"}
         value={value}
         onChange={(e) => onChange(e.target.value.replace(numeric ? /[^0-9]/g : /[^0-9.]/g, ""))}
@@ -558,7 +564,8 @@ export function AddInspectionsModal({
                               applyDefaults(u);
                             })
                           : "hours",
-                        basis === "days" ? "12" : "100"
+                        basis === "days" ? "12" : "100",
+                        basis === "days" ? undefined : "Every (hours)"
                       )}
                     </div>
                     <div className="space-y-1.5">
@@ -573,7 +580,8 @@ export function AddInspectionsModal({
                           setWarn(v);
                         },
                         basis === "days" ? "days before" : "hours before",
-                        basis === "days" ? "30" : "10"
+                        basis === "days" ? "30" : "10",
+                        basis === "days" ? "Warn me (days out)" : "Warn me (hours out)"
                       )}
                     </div>
                     {basis !== "days" && meterField}
@@ -597,7 +605,7 @@ export function AddInspectionsModal({
                         <Label htmlFor="insp-warn-days" className="text-xs">
                           Warn me
                         </Label>
-                        {numberWithUnit("insp-warn-days", warnDays, setWarnDays, "days before", "30")}
+                        {numberWithUnit("insp-warn-days", warnDays, setWarnDays, "days before", "30", "Warn me (days out)")}
                       </div>
                     </div>
                   )}
@@ -639,7 +647,7 @@ export function AddInspectionsModal({
                         <Label htmlFor="insp-warn-once" className="text-xs">
                           Warn me
                         </Label>
-                        {numberWithUnit("insp-warn-once", warn, setWarn, "days before", "30", true)}
+                        {numberWithUnit("insp-warn-once", warn, setWarn, "days before", "30", "Warn me (days out)", true)}
                       </div>
                     </div>
                   ) : (
@@ -664,7 +672,7 @@ export function AddInspectionsModal({
                         <Label htmlFor="insp-warn-at-hours" className="text-xs">
                           Warn me
                         </Label>
-                        {numberWithUnit("insp-warn-at-hours", warn, setWarn, "hours before", "10")}
+                        {numberWithUnit("insp-warn-at-hours", warn, setWarn, "hours before", "10", "Warn me (hours out)")}
                       </div>
                       {/* Which clock. Without it the reading is measured against whatever
                           `meter` happened to be. */}

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useConversationMessages, threadMessages, useLeaveConversation, useMuteConversation } from "@/features/messages";
 import type { ConversationSummary, MessageRef } from "@/types/messages";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PersonAvatar } from "@/components/workspace-user-avatar";
 import { useConfirm } from "@/components/confirm-dialog";
 import { refLink } from "@/components/messages/message-body";
@@ -34,8 +34,9 @@ const REF_ICON = {
  * who it is with at the top, a row of actions, then the people and the records mentioned.
  * No dialog and no tabs; it closes when you click away.
  *
- * `anchor` is the header's name button. Pass `open`/`onOpenChange` so the faces button can
- * open the same popover.
+ * `children` is the header's name button. Pass `open`/`onOpenChange` so the faces button can
+ * open the same popover. `underHeader` (the narrow dock panel) hangs it centered under the whole
+ * header instead of from the name, which sits too far right for it to fit inside the panel.
  */
 export function ConversationInfo({
   c,
@@ -43,6 +44,7 @@ export function ConversationInfo({
   open,
   onOpenChange,
   onLeft,
+  underHeader = false,
   children,
 }: {
   c: ConversationSummary;
@@ -50,6 +52,7 @@ export function ConversationInfo({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   onLeft?: () => void;
+  underHeader?: boolean;
   /** The element the popover hangs under (the header's name). */
   children: React.ReactNode;
 }) {
@@ -57,6 +60,20 @@ export function ConversationInfo({
   const mute = useMuteConversation(c.id);
   const leave = useLeaveConversation();
   const confirm = useConfirm();
+  const ownRef = React.useRef<HTMLSpanElement>(null);
+  // The enclosing <header>, measured when the popover opens (a virtual anchor, so the name
+  // keeps its own layout).
+  const headerAnchor = React.useMemo(
+    () => ({
+      current: {
+        getBoundingClientRect: () => {
+          const el = ownRef.current?.closest("header") ?? ownRef.current?.parentElement;
+          return el ? el.getBoundingClientRect() : new DOMRect();
+        },
+      },
+    }),
+    []
+  );
   const others = c.participants.filter((p) => p.orgUserId !== me);
   const other = c.kind === "direct" ? others[0] : null;
 
@@ -92,8 +109,17 @@ export function ConversationInfo({
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverAnchor asChild>{children}</PopoverAnchor>
-      <PopoverContent align="start" sideOffset={8} className="w-[320px] p-0">
+      {underHeader ? (
+        <>
+          <PopoverAnchor virtualRef={headerAnchor} />
+          <span ref={ownRef} className="contents">
+            {children}
+          </span>
+        </>
+      ) : (
+        <PopoverAnchor asChild>{children}</PopoverAnchor>
+      )}
+      <PopoverContent align={underHeader ? "center" : "start"} sideOffset={underHeader ? 6 : 8} className="w-[320px] p-0">
         {/* Who it is with. */}
         <div className="flex flex-col items-center gap-2 px-5 pb-4 pt-5 text-center">
           {c.kind === "direct" ? (
@@ -133,22 +159,7 @@ export function ConversationInfo({
 
         {c.kind !== "direct" && (
           <Section title={`People · ${c.participants.length}`}>
-            <ul className="max-h-48 overflow-y-auto">
-              {c.participants.map((p) => (
-                <li key={p.orgUserId}>
-                  <Link
-                    to="/people/$orgUserId"
-                    params={{ orgUserId: String(p.orgUserId) }}
-                    onClick={() => onOpenChange(false)}
-                    className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent"
-                  >
-                    <PersonAvatar name={p.name} image={p.profileImage} size="sm" />
-                    <span className="min-w-0 flex-1 truncate text-sm">{p.orgUserId === me ? `${p.name} (you)` : p.name}</span>
-                    <span className="shrink-0 text-xs text-muted-foreground">{p.roles.map((r) => ROLE_WORD[r] ?? r)[0] ?? ""}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <PeopleList c={c} me={me} onDone={() => onOpenChange(false)} />
           </Section>
         )}
 
@@ -186,6 +197,45 @@ export function ConversationInfo({
         )}
       </PopoverContent>
     </Popover>
+  );
+}
+
+/**
+ * Just the people in a group or booking conversation, from the faces button at the right of
+ * its header: a short list hung under that button, each row opening the person's profile.
+ * The name's popover is the place for everything else.
+ */
+export function ConversationPeople({ c, me, children }: { c: ConversationSummary; me: number | null; children: React.ReactNode }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>{children}</PopoverTrigger>
+      <PopoverContent align="end" sideOffset={8} className="w-[280px] p-2">
+        <p className="px-2 pb-1 pt-0.5 text-xs font-medium text-muted-foreground">People · {c.participants.length}</p>
+        <PeopleList c={c} me={me} onDone={() => setOpen(false)} />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function PeopleList({ c, me, onDone }: { c: ConversationSummary; me: number | null; onDone: () => void }) {
+  return (
+    <ul className="max-h-64 overflow-y-auto">
+      {c.participants.map((p) => (
+        <li key={p.orgUserId}>
+          <Link
+            to="/people/$orgUserId"
+            params={{ orgUserId: String(p.orgUserId) }}
+            onClick={onDone}
+            className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-accent"
+          >
+            <PersonAvatar name={p.name} image={p.profileImage} size="sm" />
+            <span className="min-w-0 flex-1 truncate text-sm">{p.orgUserId === me ? `${p.name} (you)` : p.name}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">{p.roles.map((r) => ROLE_WORD[r] ?? r)[0] ?? ""}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 

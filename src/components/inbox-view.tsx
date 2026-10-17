@@ -1,4 +1,5 @@
 import * as React from "react";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FILL_BODY_MIN } from "@/components/table-view";
@@ -83,6 +84,11 @@ export type InboxViewProps<T> = {
   detailLabel?: string;
   /** Pinned above the list: search, filters. */
   toolbar?: React.ReactNode;
+  /**
+   * Right-click menu for a row: return its items (ContextMenuItem, ContextMenuSeparator), or
+   * null for no menu on that row. The whole row is the target, padding included.
+   */
+  renderContextMenu?: (item: T) => React.ReactNode;
   /** Pinned below the list: pagination. */
   listFooter?: React.ReactNode;
   /** Shown in the record pane with nothing open. Desktop only; see the mobile note below. */
@@ -115,6 +121,7 @@ export function InboxView<T>({
   listLabel,
   detailLabel,
   toolbar,
+  renderContextMenu,
   listFooter,
   placeholder,
   empty,
@@ -286,6 +293,7 @@ export function InboxView<T>({
               const selected = key === activeKey;
               return (
                 <li key={key}>
+                  <RowMenu menu={renderContextMenu?.(item)}>
                   <button
                     ref={(el) => {
                       if (el) optionRefs.current.set(key, el);
@@ -311,6 +319,7 @@ export function InboxView<T>({
                   >
                     {renderItem(item, { selected })}
                   </button>
+                  </RowMenu>
                 </li>
               );
             })}
@@ -401,5 +410,16 @@ export function InboxPlaceholder({
         {body && <p className="mt-1 text-xs text-muted-foreground">{body}</p>}
       </div>
     </div>
+  );
+}
+
+/** A row with a right-click menu when it has one, the bare row when not. */
+function RowMenu({ menu, children }: { menu: React.ReactNode; children: React.ReactElement }) {
+  if (menu == null || menu === false) return children;
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent>{menu}</ContextMenuContent>
+    </ContextMenu>
   );
 }

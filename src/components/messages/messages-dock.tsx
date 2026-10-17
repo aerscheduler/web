@@ -1,4 +1,6 @@
 import * as React from "react";
+import { flushSync } from "react-dom";
+import { useRouter } from "@tanstack/react-router";
 import { ChevronDown, ChevronLeft, Maximize2, Search, SquarePen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -9,6 +11,8 @@ import { DETAIL_PANEL_WIDTH, useDetailPanelDocked } from "@/components/detail-pa
 import { WorkspaceModal, followsInAppLink } from "@/components/workspace-modal";
 import { Thread } from "@/components/messages/thread";
 import { ComposeView } from "@/components/messages/compose-view";
+import { ConversationMenuItems } from "@/components/messages/conversation-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { ConversationGlyph, ConversationRow, ConversationTitle, MessagesWorkspace } from "@/components/messages/messages-page";
 
 //---------------------------------------------------------------------------------
@@ -21,7 +25,49 @@ import { ConversationGlyph, ConversationRow, ConversationTitle, MessagesWorkspac
 //              Expand or from a /messages link. Closing it lands you where you were.
 //
 // There is no Messages page; routes/_authed/messages*.tsx only open the modal.
+//
+// Moving between the three MORPHS: the launcher, the panel and the modal each carry the
+// view-transition-name `messages-surface` (only one is on screen at a time), and every change
+// of state runs inside document.startViewTransition, so the browser grows the launcher into the
+// panel, the panel into the modal, and back. The motion is in index.css. Without View
+// Transitions, or with reduced motion, the change is simply instant.
 //---------------------------------------------------------------------------------
+
+const SURFACE = "messages-surface";
+
+/**
+ * Moving between screens INSIDE Messages slides: forward (list to a conversation or a new
+ * message) pushes in from the right, back pops out to the right, and swapping one conversation
+ * for another cross-fades. Whatever carries `data-messages-screen` is the screen; it is only
+ * named for the transition while `html[data-messages-nav]` is set, so a launcher-to-panel morph
+ * moves it with the panel instead of on its own.
+ */
+type Nav = "forward" | "back" | "swap";
+function slide(nav: Nav, update: () => void) {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (typeof document.startViewTransition !== "function" || reduce) return update();
+  const root = document.documentElement;
+  root.dataset.messagesNav = nav;
+  const t = document.startViewTransition(update);
+  void t.finished.finally(() => {
+    if (root.dataset.messagesNav === nav) delete root.dataset.messagesNav;
+  });
+}
+
+/**
+ * Run a state change as a morph. `update` must change the DOM synchronously (flushSync) or
+ * return a promise that settles once it has; the browser animates from before to after.
+ */
+function morph(update: () => void | Promise<void>) {
+  const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (typeof document.startViewTransition !== "function" || reduce) {
+    void update();
+    return;
+  }
+  document.startViewTransition(async () => {
+    await update();
+  });
+}
 
 /** Below Tailwind's `md`, where the open panel takes the whole screen. */
 const isPhone = () => typeof window !== "undefined" && !window.matchMedia("(min-width: 768px)").matches;
@@ -83,8 +129,12 @@ export function MessagesDockProvider({ children }: { children: React.ReactNode }
   const value = React.useMemo<DockCtx>(
     () => ({
       openMessages: (conversationId, opts) =>
-        setState({ open: !opts?.expanded, expanded: opts?.expanded === true, conversationId: conversationId ?? null }),
-      closeMessages: () => setState(closed),
+        morph(() =>
+          flushSync(() =>
+            setState({ open: !opts?.expanded, expanded: opts?.expanded === true, conversationId: conversationId ?? null })
+          )
+        ),
+      closeMessages: () => morph(() => flushSync(() => setState(closed))),
     }),
     []
   );
@@ -98,36 +148,59 @@ export function MessagesDockProvider({ children }: { children: React.ReactNode }
 }
 
 function MessagesDock({ state, setState }: { state: DockState; setState: React.Dispatch<React.SetStateAction<DockState>> }) {
+  const router = useRouter();
   const panelDocked = useDetailPanelDocked();
   // A docked record owns the right-hand column; the dock moves to its left rather than
   // covering the record's own footer button.
   const right = panelDocked ? `calc(${DETAIL_PANEL_WIDTH} + 1.5rem)` : "1.5rem";
-  const select = (id: number | null) => setState((s) => ({ ...s, conversationId: id }));
+  const select = (id: number | null) => {
+    if (id === state.conversationId) return;
+    const nav: Nav = id == null ? "back" : state.conversationId == null ? "forward" : "swap";
+    slide(nav, () => flushSync(() => setState((s) => ({ ...s, conversationId: id }))));
+  };
+  /** A change of state (launcher, panel, modal), morphed. */
+  const change = (next: (s: DockState) => DockState) => morph(() => flushSync(() => setState(next)));
+  /**
+   * A link followed from inside: Messages steps to `next` and the page changes underneath, in
+   * one morph. The router's own transition is off for this navigation (a second transition
+   * would cancel ours), and a slow page gets 400ms before the animation goes on without it.
+   */
+  const leave = (href: string, next: (s: DockState) => DockState) =>
+    morph(async () => {
+      flushSync(() => setState(next));
+      await Promise.race([router.navigate({ href, viewTransition: false }), new Promise((r) => setTimeout(r, 400))]);
+    });
 
   return (
     // One custom property carries the right offset; below md the dock ignores it (a phone has
     // no docked record column, and the open panel takes the whole screen).
     <div style={{ ["--dock-right" as string]: right }}>
       {!state.open && !state.expanded && (
-        <div className="fixed bottom-4 right-4 z-40 transition-[right] duration-200 ease-out motion-reduce:transition-none md:bottom-6 md:right-[var(--dock-right)]">
-          <Launcher onOpen={() => setState((s) => ({ ...s, open: true }))} />
+        <div
+          style={{ viewTransitionName: SURFACE }}
+          className="fixed bottom-4 right-4 z-40 rounded-full transition-[right] duration-200 ease-out motion-reduce:transition-none md:bottom-6 md:right-[var(--dock-right)]"
+        >
+          <Launcher onOpen={() => change((s) => ({ ...s, open: true }))} />
         </div>
       )}
       {state.open && (
         <DockPanel
           conversationId={state.conversationId}
           onSelect={select}
-          onExpand={() => setState((s) => ({ ...s, open: false, expanded: true }))}
-          onClose={() => setState(closed)}
+          onExpand={() => change((s) => ({ ...s, open: false, expanded: true }))}
+          onClose={() => change(closed)}
+          // On a phone the panel covers the page, so a followed link closes it to show the page.
+          onLeave={(href) => leave(href, closed)}
         />
       )}
       <WorkspaceModal
         open={state.expanded}
-        onOpenChange={(o) => !o && setState(closed)}
+        onOpenChange={(o) => !o && change(closed)}
         // A link followed from the big view: go to the page, Messages back to its panel on the
         // same conversation (a new message in progress is dropped). On a phone the panel would
         // cover the page too, so there it closes to the launcher.
-        onLeave={() => setState((s) => ({ ...closed(s), open: !isPhone() }))}
+        onLeave={(href) => leave(href, (s) => ({ ...closed(s), open: !isPhone() }))}
+        viewTransitionName={SURFACE}
         title="Messages"
         description="Your conversations"
       >
@@ -205,11 +278,13 @@ function DockPanel({
   onSelect,
   onExpand,
   onClose,
+  onLeave,
 }: {
   conversationId: number | null;
   onSelect: (id: number | null) => void;
   onExpand: () => void;
   onClose: () => void;
+  onLeave: (href: string) => void;
 }) {
   // Escape steps back (conversation or new message to the list, list to closed), unless a
   // popover or menu inside has it first.
@@ -224,7 +299,10 @@ function DockPanel({
   // On a phone the panel covers the page, so following a link (a mention, a profile) closes it
   // to show the page. On a desktop the page is beside it and the panel stays.
   const onClickCapture = (e: React.MouseEvent) => {
-    if (isPhone() && followsInAppLink(e)) onClose();
+    const href = isPhone() ? followsInAppLink(e) : null;
+    if (!href) return;
+    e.preventDefault();
+    onLeave(href);
   };
 
   return (
@@ -232,6 +310,7 @@ function DockPanel({
       aria-label="Messages"
       onKeyDown={onKeyDown}
       onClickCapture={onClickCapture}
+      style={{ viewTransitionName: SURFACE }}
       className={cn(
         "fixed z-40 flex flex-col overflow-hidden bg-background",
         // A phone gets the whole screen, over the sticky top bar (z-50 too, so later in the DOM
@@ -240,13 +319,15 @@ function DockPanel({
         "transition-[right] duration-200 ease-out motion-reduce:transition-none md:bottom-6 md:right-[var(--dock-right)] md:h-[min(600px,calc(100svh-6rem))] md:w-[380px] md:rounded-[14px] md:border md:shadow-[0_16px_48px_rgba(48,49,61,0.2)]"
       )}
     >
-      {conversationId == null ? (
-        <DockList onSelect={onSelect} onExpand={onExpand} onClose={onClose} />
-      ) : conversationId === COMPOSE_ID ? (
-        <DockCompose onBack={() => onSelect(null)} onCreated={onSelect} onClose={onClose} />
-      ) : (
-        <DockThread id={conversationId} onBack={() => onSelect(null)} onExpand={onExpand} onClose={onClose} />
-      )}
+      <div data-messages-screen className="flex min-h-0 flex-1 flex-col bg-background">
+        {conversationId == null ? (
+          <DockList onSelect={onSelect} onExpand={onExpand} onClose={onClose} />
+        ) : conversationId === COMPOSE_ID ? (
+          <DockCompose onBack={() => onSelect(null)} onCreated={onSelect} onClose={onClose} />
+        ) : (
+          <DockThread id={conversationId} onBack={() => onSelect(null)} onExpand={onExpand} onClose={onClose} />
+        )}
+      </div>
     </section>
   );
 }
@@ -313,13 +394,20 @@ function DockList({ onSelect, onExpand, onClose }: { onSelect: (id: number) => v
         ) : (
           rows.map((c) => (
             <li key={c.id}>
-              <button
-                type="button"
-                onClick={() => onSelect(c.id)}
-                className="w-full px-3.5 py-2.5 text-left hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none"
-              >
-                <ConversationRow c={c} me={me} />
-              </button>
+              <ContextMenu>
+                <ContextMenuTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(c.id)}
+                    className="w-full px-3.5 py-2.5 text-left hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:outline-none data-[state=open]:bg-accent/50"
+                  >
+                    <ConversationRow c={c} me={me} />
+                  </button>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <ConversationMenuItems c={c} me={me} />
+                </ContextMenuContent>
+              </ContextMenu>
             </li>
           ))
         )}

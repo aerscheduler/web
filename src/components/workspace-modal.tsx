@@ -17,20 +17,25 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
  *    in the top-right corner. Escape and the backdrop close it too, except while focus is in
  *    something marked `data-keeps-escape` (an inline editor cancelling itself).
  *  - A link clicked inside it (a mention, a profile, a booking) goes to that page, and the
- *    modal steps aside so you see it: `onLeave`, or closing when there is none. This covers
- *    popovers and menus the content opens too (React events bubble through their portals).
+ *    modal steps aside so you see it. With no `onLeave` the modal closes and the link navigates
+ *    as usual; with one, the click is handed over (`onLeave(href)`) and the caller navigates,
+ *    so it can animate the two together. This covers popovers and menus the content opens too
+ *    (React events bubble through their portals).
+ *  - `viewTransitionName` makes the modal one end of a View Transition morph (Messages grows
+ *    its floating panel into it). The modal's own zoom is then off so the two don't fight.
  *  - A padded flex column the content fills (panes inside scroll on their own), inset so
  *    nothing sits under the close button: a right gutter on a desktop, a top one on a phone.
  */
 
 /**
- * Whether a click follows an in-app link in this tab (the router will navigate). A click meant
- * for a new tab or window, or an outside link, does not count.
+ * The in-app path a click follows in this tab (the router will navigate), or null. A click
+ * meant for a new tab or window, or an outside link, does not count.
  */
-export function followsInAppLink(e: MouseEvent): boolean {
-  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
+export function followsInAppLink(e: MouseEvent): string | null {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return null;
   const a = (e.target as Element | null)?.closest?.("a[href]");
-  return a instanceof HTMLAnchorElement && a.target !== "_blank" && a.origin === window.location.origin;
+  if (!(a instanceof HTMLAnchorElement) || a.target === "_blank" || a.origin !== window.location.origin) return null;
+  return a.pathname + a.search + a.hash;
 }
 
 export function WorkspaceModal({
@@ -41,6 +46,7 @@ export function WorkspaceModal({
   children,
   className,
   onLeave,
+  viewTransitionName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -49,19 +55,23 @@ export function WorkspaceModal({
   description?: string;
   children: ReactNode;
   className?: string;
-  /** A link inside was followed. Messages shrinks back to its dock; default is to close. */
-  onLeave?: () => void;
+  /** A link inside was followed; navigate to `href` yourself. Default: close, link navigates. */
+  onLeave?: (href: string) => void;
+  viewTransitionName?: string;
 }) {
   const onClickCapture = (e: MouseEvent) => {
-    if (!followsInAppLink(e)) return;
-    if (onLeave) onLeave();
-    else onOpenChange(false);
+    const href = followsInAppLink(e);
+    if (!href) return;
+    if (!onLeave) return onOpenChange(false);
+    e.preventDefault();
+    onLeave(href);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
+        style={viewTransitionName ? { viewTransitionName } : undefined}
         // An element marked `data-keeps-escape` (an inline edit) uses Escape to cancel itself;
         // the modal must not close underneath it.
         onEscapeKeyDown={(e) => {
@@ -72,6 +82,10 @@ export function WorkspaceModal({
           // Desktop: 90% of the window. Phone: the whole screen, no rounding or border.
           "h-[90vh] w-[90vw] max-w-none sm:max-w-none",
           "max-sm:h-[100dvh] max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:border-0",
+          // `!`: tw-animate's animate-in/out are not merged away by cn, and a closing zoom keeps
+          // the dialog mounted, so it and the launcher would share a transition name and the
+          // browser would skip the morph.
+          viewTransitionName && "data-[state=closed]:animate-none! data-[state=open]:animate-none!",
           className
         )}
       >

@@ -12,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/workspace-user-avatar";
 import { Thread } from "@/components/messages/thread";
 import { ComposeView } from "@/components/messages/compose-view";
-import { ConversationInfo } from "@/components/messages/conversation-info";
+import { ConversationInfo, ConversationPeople } from "@/components/messages/conversation-info";
+import { ConversationMenuItems } from "@/components/messages/conversation-menu";
 
 /** "9:41 AM" today, "Tue" this week, "Oct 3" before that: the list's right-hand time. */
 function listTime(iso: string): string {
@@ -91,7 +92,8 @@ export function ConversationRow({ c, me }: { c: ConversationSummary; me: number 
 
 /**
  * The name at the top of a conversation. A click opens its info popover (people, mute, leave,
- * what was mentioned); so does the faces button beside it. Used on the full view and in the dock.
+ * what was mentioned). The faces button beside it opens just the people, hung under itself.
+ * Used on the full view and in the dock.
  */
 export function ConversationTitle({
   c,
@@ -108,7 +110,7 @@ export function ConversationTitle({
   const others = c.participants.filter((p) => p.orgUserId !== me);
   return (
     <>
-      <ConversationInfo c={c} me={me} open={open} onOpenChange={setOpen} onLeft={onLeft}>
+      <ConversationInfo c={c} me={me} open={open} onOpenChange={setOpen} onLeft={onLeft} underHeader={compact}>
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -123,29 +125,39 @@ export function ConversationTitle({
           <span className="block truncate text-xs text-muted-foreground">{conversationSubtitle(c, me)}</span>
         </button>
       </ConversationInfo>
-      {!compact && c.kind !== "direct" && others.length > 0 && <MemberFaces people={c.participants} onClick={() => setOpen(true)} />}
+      {!compact && c.kind !== "direct" && others.length > 0 && (
+        <ConversationPeople c={c} me={me}>
+          <MemberFaces people={c.participants} />
+        </ConversationPeople>
+      )}
     </>
   );
 }
 
-/** Up to three faces and the head count, like Slack's channel header. Opens the info popover. */
-function MemberFaces({ people, onClick }: { people: ConversationSummary["participants"]; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={`${people.length} people`}
-      className="flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-1.5 text-xs font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-    >
-      <span className="flex">
-        {people.slice(0, 3).map((p, i) => (
-          <PersonAvatar key={p.orgUserId} name={p.name} image={p.profileImage} size="xs" className={cn("ring-2 ring-background", i > 0 && "-ml-1.5")} />
-        ))}
-      </span>
-      {people.length}
-    </button>
-  );
-}
+/** Up to three faces and the head count, like Slack's channel header. Opens the people popover. */
+const MemberFaces = React.forwardRef<HTMLButtonElement, { people: ConversationSummary["participants"] } & React.ComponentProps<"button">>(
+  function MemberFaces({ people, className, ...props }, ref) {
+    return (
+      <button
+        ref={ref}
+        type="button"
+        aria-label={`${people.length} people`}
+        {...props}
+        className={cn(
+          "flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-1.5 text-xs font-medium hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-accent",
+          className
+        )}
+      >
+        <span className="flex">
+          {people.slice(0, 3).map((p, i) => (
+            <PersonAvatar key={p.orgUserId} name={p.name} image={p.profileImage} size="xs" className={cn("ring-2 ring-background", i > 0 && "-ml-1.5")} />
+          ))}
+        </span>
+        {people.length}
+      </button>
+    );
+  }
+);
 
 /** "New message" in the list stands for the compose view in the conversation pane. */
 const COMPOSE = { id: -1, compose: true } as const;
@@ -217,16 +229,19 @@ export function MessagesWorkspace({ selectedId, onSelect }: { selectedId: number
         ) : undefined
       }
       renderItem={(c) => (isCompose(c) ? null : <ConversationRow c={c} me={me} />)}
+      renderContextMenu={(c) =>
+        isCompose(c) ? null : <ConversationMenuItems c={c} me={me} onLeft={() => selectedId === c.id && select(null)} />
+      }
       renderDetail={(c) =>
         isCompose(c) ? (
-          <Card className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0">
+          <Card data-messages-screen className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0">
             <div className="flex shrink-0 items-center border-b px-4 py-3 sm:px-6">
               <p className="text-[15px] font-semibold">New message</p>
             </div>
             <ComposeView onCreated={(id) => select(id)} />
           </Card>
         ) : (
-          <Card className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0">
+          <Card data-messages-screen className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden p-0">
             <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3 sm:px-6">
               <ConversationGlyph c={c} me={me} />
               <ConversationTitle c={c} me={me} onLeft={() => select(null)} />

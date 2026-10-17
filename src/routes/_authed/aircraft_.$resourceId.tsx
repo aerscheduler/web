@@ -433,7 +433,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
           data-doc-shot={active === "maintenance" ? "aircraft-maintenance-tab" : undefined}
           className={
             //The paged lists own their scroll, so their pager and headers stay put.
-            active === "history" || active === "invoices"
+            active === "history" || active === "invoices" || active === "ads" || active === "work-orders"
               ? "flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden"
               : "min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto"
           }

@@ -154,7 +154,8 @@ export function ResourceWorkOrders({ resource }: { resource: Resource }) {
   );
 
   return (
-    <div data-doc-shot="aircraft-work-orders">
+    // Owns its scroll, like the ADs tab: the toolbar and the column labels stay put.
+    <div data-doc-shot="aircraft-work-orders" className="flex min-h-0 flex-1 flex-col pb-4">
       {q.isLoading || q.isError ? (
         // The button stays reachable while the list loads or fails: opening a job needs no list.
         <div className="space-y-3">
@@ -164,6 +165,8 @@ export function ResourceWorkOrders({ resource }: { resource: Resource }) {
       ) : (
         <ListTable
           label="Work orders on this aircraft"
+          fill
+          className="min-h-0"
           columns={COLUMNS}
           narrowAt={NARROW_AT}
           groups={groups}

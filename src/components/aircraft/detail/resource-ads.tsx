@@ -10,6 +10,7 @@ import { adSubjectWords } from "@/lib/ad-number";
 import { DetailPanel } from "@/components/detail-panel";
 import { DocsHint } from "@/components/docs-hint";
 import { ErrorState } from "@/components/states";
+import { ListSearch } from "@/components/list-search";
 import { ListTable, ListTableSkeleton, ListTag, type ListTableColumn, type ListTableGroup, type ListTableRow } from "@/components/list-table";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { AddInspectionsModal } from "@/components/maintenance/add-inspections-modal";
@@ -80,14 +81,24 @@ function matchWords(m: NonNullable<AircraftAdItem["match"]>): string {
 
 const partOf = (i: AircraftAdItem): Part => i.match?.on ?? "other";
 
+/** A search over what a person would type: the number, the maker, the subject, the models. */
+function matches(i: AircraftAdItem, query: string): boolean {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const hay = [i.ad.adNumber, i.ad.title, i.ad.subject, i.ad.manufacturer, i.ad.applicability, i.tracked?.name].filter(Boolean).join(" ").toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
 export function ResourceAds({ resource, onEditAircraft }: { resource: Resource; onEditAircraft?: () => void }) {
   const q = useAircraftAds(resource.id);
   const decide = useDecideAircraftAd(resource.id);
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [ruling, setRuling] = React.useState<AircraftAdItem | null>(null);
   const [tracking, setTracking] = React.useState<string | null>(null);
+  const [search, setSearch] = React.useState("");
 
   const data = q.data;
+  const items = React.useMemo(() => (data?.items ?? []).filter((i) => matches(i, search)), [data, search]);
   const run = React.useCallback(
     async (input: Parameters<typeof decide.mutateAsync>[0], done: string) => {
       try {
@@ -104,9 +115,8 @@ export function ResourceAds({ resource, onEditAircraft }: { resource: Resource; 
 
   // The order rows appear in, for stepping through them from the panel.
   const ordered = React.useMemo(() => {
-    const items = data?.items ?? [];
     return STATES.flatMap((s) => PARTS.flatMap((p) => items.filter((i) => i.state === s.id && partOf(i) === p.id)));
-  }, [data]);
+  }, [items]);
   const open = ordered.find((i) => i.ad.adNumber === openId) ?? null;
 
   const busyOn = decide.isPending ? decide.variables?.adNumber : undefined;
@@ -126,7 +136,6 @@ export function ResourceAds({ resource, onEditAircraft }: { resource: Resource; 
   );
 
   const groups = React.useMemo<ListTableGroup[]>(() => {
-    const items = data?.items ?? [];
     const row = (i: AircraftAdItem): ListTableRow => ({
       id: i.ad.adNumber,
       testId: `ad-${i.ad.adNumber}`,
@@ -172,14 +181,16 @@ export function ResourceAds({ resource, onEditAircraft }: { resource: Resource; 
         }).filter((g) => g.rows.length > 0),
       };
     });
-  }, [data, openId, actionsFor]);
+  }, [items, openId, actionsFor]);
 
+  // Kept short: it stays put above the rows. What the list is lives in the docs hint and the
+  // help article; the notes say only what is missing.
   const toolbar = (
     <div className="w-full space-y-1.5">
-      <p className="inline-flex items-center gap-1 text-[13px] text-muted-foreground">
-        ADs published since 1995 that name this aircraft&apos;s airframe, engine or propeller. Open one to read it and decide; nothing is decided for you.
+      <div className="flex items-center gap-2">
+        <ListSearch value={search} onChange={setSearch} placeholder="Search number, maker, subject, model…" />
         <DocsHint topic="aircraft-ads" />
-      </p>
+      </div>
       {data && <MissingNotes missing={data.missing} coverage={data.coverage} onEditAircraft={onEditAircraft} />}
     </div>
   );
@@ -191,7 +202,9 @@ export function ResourceAds({ resource, onEditAircraft }: { resource: Resource; 
   };
 
   return (
-    <div data-doc-shot="aircraft-ads">
+    // The list owns its scroll (the record page gives this tab a bounded column), so the search,
+    // the column labels and the group headers stay put while the rows move.
+    <div data-doc-shot="aircraft-ads" className="flex min-h-0 flex-1 flex-col pb-4">
       {q.isLoading ? (
         <ListTableSkeleton columns={COLUMNS} groups={2} rows={3} toolbar narrowAt={NARROW_AT} />
       ) : q.isError || !data ? (
@@ -199,6 +212,8 @@ export function ResourceAds({ resource, onEditAircraft }: { resource: Resource; 
       ) : (
         <ListTable
           label="Airworthiness Directives for this aircraft"
+          fill
+          className="min-h-0"
           columns={COLUMNS}
           narrowAt={NARROW_AT}
           groups={groups}
@@ -206,7 +221,11 @@ export function ResourceAds({ resource, onEditAircraft }: { resource: Resource; 
           showHeader
           toolbar={toolbar}
           childNoun="AD"
-          empty={<p className="px-4 py-6 text-[13px] text-muted-foreground">No ADs in the library name this aircraft&apos;s make and model.</p>}
+          empty={
+            <p className="px-4 py-6 text-[13px] text-muted-foreground">
+              {search.trim() ? "No ADs match that search." : "No ADs in the library name this aircraft\u2019s make and model."}
+            </p>
+          }
         />
       )}
 
@@ -265,20 +284,19 @@ function DecideMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        {toReview ? (
-          <Button size={compact ? "sm" : "default"} variant={compact ? "outline" : "default"} className={compact ? "h-7" : "w-full"} disabled={busy}>
+        {compact ? (
+          // The list's action column is an icon wide: a worded button there runs over the title.
+          <Button size="icon" variant="ghost" className="size-7" aria-label={`${toReview ? "Decide on" : "Change the decision on"} AD ${item.ad.adNumber}`} disabled={busy}>
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <MoreHorizontal className="size-4" />}
+          </Button>
+        ) : toReview ? (
+          <Button className="w-full" disabled={busy}>
             {busy && <Loader2 className="size-4 animate-spin" />}
             Decide <ChevronDown className="size-3.5" />
           </Button>
         ) : (
-          <Button
-            size={compact ? "icon" : "default"}
-            variant={compact ? "ghost" : "outline"}
-            className={compact ? "size-7" : "w-full"}
-            aria-label={`Change the decision on AD ${item.ad.adNumber}`}
-            disabled={busy}
-          >
-            {compact ? <MoreHorizontal className="size-4" /> : "Change the decision"}
+          <Button variant="outline" className="w-full" disabled={busy}>
+            Change the decision
           </Button>
         )}
       </DropdownMenuTrigger>
@@ -311,7 +329,7 @@ function MissingNotes({
   if (parts.length) {
     lines.push(
       <>
-        No {parts.join(" or ")} make and model recorded, so {parts.length > 1 ? "their" : "its"} ADs are not listed.
+        No {parts.join(" or ")} recorded, so {parts.length > 1 ? "their" : "its"} ADs are not listed.
         {onEditAircraft && (
           <>
             {" "}
@@ -323,15 +341,20 @@ function MissingNotes({
       </>
     );
   }
-  if (missing.includes("serialNumber")) lines.push(<>No serial number recorded. Many ADs apply to a range of serial numbers, and you need it to rule them out.</>);
-  if (!coverage.complete) lines.push(<>The AD library is still loading ({coverage.count.toLocaleString()} ADs so far). More appear here as it fills.</>);
+  if (missing.includes("serialNumber")) lines.push(<>No serial number recorded, which most ADs need to be ruled out.</>);
+  if (!coverage.complete) lines.push(<>The AD library is still loading ({coverage.count.toLocaleString()} so far).</>);
   if (!lines.length) return null;
+  // One run of short sentences: this sits above the rows and stays put, so every line it takes
+  // is a row the list cannot show.
   return (
-    <div className="space-y-0.5 text-[12px] text-muted-foreground">
+    <p className="text-[12px] text-muted-foreground">
       {lines.map((l, i) => (
-        <p key={i}>{l}</p>
+        <React.Fragment key={i}>
+          {i > 0 && " "}
+          {l}
+        </React.Fragment>
       ))}
-    </div>
+    </p>
   );
 }
 

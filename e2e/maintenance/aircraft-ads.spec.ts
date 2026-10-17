@@ -57,6 +57,16 @@ test.describe("ADs tab", () => {
     await expect(page.getByTestId("ad-2013-11-11")).toBeVisible();
     await expect(page.getByTestId("ad-2008-03-02")).toHaveCount(0);
 
+    // The search narrows the list in place; the groups keep their headers.
+    const search = tab.getByRole("textbox", { name: /Search number, maker/ });
+    await search.fill("lycoming");
+    await expect(page.getByTestId("ad-2015-19-07")).toBeVisible();
+    await expect(page.getByTestId("ad-2013-11-11")).toHaveCount(0);
+    await search.fill("no such AD anywhere");
+    await expect(tab.getByText("No ADs match that search.")).toBeVisible();
+    await search.fill("");
+    await expect(page.getByTestId("ad-2013-11-11")).toBeVisible();
+
     // ---- The panel reads as the AD does: applicability, the summary, the required actions ----
     await page.getByTestId("ad-2013-11-11").click();
     const panel = page.locator('[data-doc-shot="aircraft-ad-panel"]');
@@ -86,14 +96,14 @@ test.describe("ADs tab", () => {
     await expect(panel).toContainText("Not applicable: serial number outside the range");
 
     // ---- Back to review ----
-    await panelOf(page, "2013-11-11").getByRole("button", { name: "Change the decision on AD 2013-11-11" }).click();
+    await panelOf(page, "2013-11-11").getByRole("button", { name: "Change the decision" }).click();
     const undo = page.waitForResponse((r) => r.url().endsWith("/airworthiness-directives/2013-11-11") && r.request().method() === "DELETE");
     await page.getByRole("menuitem", { name: "Back to review" }).click();
     expect((await undo).status()).toBe(200);
     await page.keyboard.press("Escape");
 
     // ---- Applies, nothing to track, from the row's own menu ----
-    await page.getByTestId("ad-2015-19-07").getByRole("button", { name: "Decide" }).click();
+    await page.getByTestId("ad-2015-19-07").getByRole("button", { name: "Decide on AD 2015-19-07" }).click();
     const applies = page.waitForResponse((r) => r.url().endsWith("/airworthiness-directives/2015-19-07") && r.request().method() === "PUT");
     await page.getByRole("menuitem", { name: "Applies: nothing to track" }).click();
     const appliesRes = await applies;

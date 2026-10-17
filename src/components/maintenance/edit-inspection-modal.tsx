@@ -106,6 +106,7 @@ export function EditInspectionModal({
 
   return (
     <ResponsiveModal
+      size="2xl"
       open={open}
       onOpenChange={onOpenChange}
       title="Edit inspection"
@@ -144,7 +145,9 @@ export function EditInspectionModal({
           />
         </div>
 
-        <InspectionSourceFields value={source} onChange={setSource} idPrefix="edit-insp" />
+        <div className="border-t border-border pt-4">
+          <InspectionSourceFields value={source} onChange={setSource} idPrefix="edit-insp" />
+        </div>
 
         {template && (
           <div className="space-y-2 border-t border-border pt-4">

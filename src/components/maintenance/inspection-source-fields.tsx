@@ -92,114 +92,112 @@ export function InspectionSourceFields({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [found, adNumber, lookup.isFetching]);
 
+  // A section, not a box: the forms holding it separate their sections with a rule, and a
+  // bordered card inside a modal read as a second form. What each field means is in the info
+  // popovers, not in paragraphs under every box.
   return (
-    <div
-      data-doc-shot={docShot}
-      className="space-y-3 rounded-lg border border-border p-3"
-    >
-      <div className="space-y-0.5">
-        <Label htmlFor={`${idPrefix}-source-type`} className="inline-flex items-center gap-1.5">
-          Where this comes from
-          <DocsHint topic="inspection-source" />
-        </Label>
-        <p className="text-xs text-muted-foreground">
-          Optional. An Airworthiness Directive is binding under 14 CFR Part 39; a Service
-          Bulletin is the manufacturer&rsquo;s advice.
-        </p>
-      </div>
+    <div data-doc-shot={docShot} className="space-y-3">
+      <p className="flex items-center gap-1.5 text-sm font-medium">
+        Where this comes from
+        <DocsHint topic="inspection-source" />
+      </p>
 
-      <Select
-        value={value.sourceType || "none"}
-        onValueChange={(v) =>
-          set("sourceType", v === "none" ? "" : (v as MaintenanceSourceType))
-        }
-      >
-        <SelectTrigger id={`${idPrefix}-source-type`} data-testid={`${idPrefix}-source-type`}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">Not specified</SelectItem>
-          {(["ad", "sb", "manufacturer", "shop", "other"] as const).map((t) => (
-            <SelectItem key={t} value={t}>
-              {SOURCE_TYPE_LABELS[t]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-source-type`} className="text-xs">
+            Source
+          </Label>
+          <Select
+            value={value.sourceType || "none"}
+            onValueChange={(v) =>
+              set("sourceType", v === "none" ? "" : (v as MaintenanceSourceType))
+            }
+          >
+            <SelectTrigger id={`${idPrefix}-source-type`} data-testid={`${idPrefix}-source-type`} className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not specified</SelectItem>
+              {(["ad", "sb", "manufacturer", "shop", "other"] as const).map((t) => (
+                <SelectItem key={t} value={t}>
+                  {SOURCE_TYPE_LABELS[t]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-      {/* Revealed only once a source is chosen: otherwise every oil change grows three
-          empty boxes for a question nobody asked. */}
-      {value.sourceType && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor={`${idPrefix}-source-ref`}>
-              Document number
-              {value.sourceType === "ad" && <span className="text-destructive"> *</span>}
-            </Label>
-            <Input
-              id={`${idPrefix}-source-ref`}
-              value={value.sourceRef}
-              onChange={(e) => set("sourceRef", e.target.value)}
-              placeholder="2015-19-07"
-              autoCapitalize="characters"
-              autoCorrect="off"
-              maxLength={32}
-            />
+        {/* Revealed only once a source is chosen: otherwise every oil change grows four
+            empty boxes for a question nobody asked. */}
+        {value.sourceType && (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${idPrefix}-source-ref`} className="text-xs">
+                Document number
+                {value.sourceType === "ad" && <span className="text-destructive"> *</span>}
+              </Label>
+              <Input
+                id={`${idPrefix}-source-ref`}
+                value={value.sourceRef}
+                onChange={(e) => set("sourceRef", e.target.value)}
+                placeholder="2015-19-07"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                maxLength={32}
+                aria-invalid={sourceIsIncomplete(value) || undefined}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor={`${idPrefix}-revision`} className="text-xs">
+                Revision
+              </Label>
+              <Input
+                id={`${idPrefix}-revision`}
+                value={value.revision}
+                onChange={(e) => set("revision", e.target.value)}
+                placeholder="Amdt 39-23424"
+                maxLength={16}
+              />
+            </div>
             {sourceIsIncomplete(value) && (
-              <p className="text-xs text-destructive">
+              <p className="text-xs text-destructive sm:col-span-3">
                 An AD needs its number, or nothing can find it later.
               </p>
             )}
-          </div>
-          {adNumber && (found || lookup.data === null) && (
-            <AdLookupNote ad={found} className="sm:col-span-2" />
-          )}
-          <div className="space-y-1">
-            <Label htmlFor={`${idPrefix}-revision`}>Revision</Label>
-            <Input
-              id={`${idPrefix}-revision`}
-              value={value.revision}
-              onChange={(e) => set("revision", e.target.value)}
-              placeholder="Amdt 39-23424"
-              maxLength={16}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              The amendment number, if you have it.
-            </p>
-          </div>
-          {/* THE FIELD THE REGULATION NAMES. 14 CFR 91.417(a)(2)(v) asks for "the AD or safety
-              directive number and revision date". We shipped only a free-text revision box
-              placeholdered "2", so a school filling it in exactly as prompted did not have the
-              thing the rule asks for. */}
-          <div className="space-y-1">
-            <Label htmlFor={`${idPrefix}-revision-date`} className="inline-flex items-center gap-1.5">
-              Revision date
-              <DocsHint topic="ad-revision-date" />
-            </Label>
-            <DatePickerField
-              id={`${idPrefix}-revision-date`}
-              value={value.revisionDate}
-              onChange={(v) => set("revisionDate", v)}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              {value.sourceType === "ad"
-                ? "The effective date of the version you complied with. This is the field 14 CFR 91.417 asks for."
-                : "The effective date of the version you complied with."}
-            </p>
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor={`${idPrefix}-source-url`}>Link</Label>
-            <Input
-              id={`${idPrefix}-source-url`}
-              type="url"
-              value={value.sourceUrl}
-              onChange={(e) => set("sourceUrl", e.target.value)}
-              placeholder="https://drs.faa.gov/…"
-              maxLength={500}
-            />
-          </div>
-        </div>
-      )}
+            {adNumber && (found || lookup.data === null) && (
+              <AdLookupNote ad={found} className="sm:col-span-3" />
+            )}
+            {/* THE FIELD THE REGULATION NAMES. 14 CFR 91.417(a)(2)(v) asks for "the AD or safety
+                directive number and revision date". We shipped only a free-text revision box
+                placeholdered "2", so a school filling it in exactly as prompted did not have the
+                thing the rule asks for. Its popover says so. */}
+            <div className="space-y-1.5">
+              <Label htmlFor={`${idPrefix}-revision-date`} className="inline-flex items-center gap-1.5 text-xs">
+                Revision date
+                <DocsHint topic="ad-revision-date" />
+              </Label>
+              <DatePickerField
+                id={`${idPrefix}-revision-date`}
+                value={value.revisionDate}
+                onChange={(v) => set("revisionDate", v)}
+              />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor={`${idPrefix}-source-url`} className="text-xs">
+                Link
+              </Label>
+              <Input
+                id={`${idPrefix}-source-url`}
+                type="url"
+                value={value.sourceUrl}
+                onChange={(e) => set("sourceUrl", e.target.value)}
+                placeholder="https://drs.faa.gov/…"
+                maxLength={500}
+              />
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

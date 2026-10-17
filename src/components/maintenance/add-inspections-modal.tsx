@@ -256,36 +256,65 @@ export function AddInspectionsModal({
   );
 
   /**
-   * The one thing somebody has to understand about picking months.
-   *
-   * A calendar month is not 30 days and it is not an anniversary. Said here rather than left
-   * for a mechanic to discover from a due date that looks a fortnight off.
+   * Which meter an hours clock counts. A select beside the interval, not a pair of buttons on a
+   * row of their own: it is one more property of the same interval.
    */
-  const monthNote = (
-    <p className="text-xs text-muted-foreground">
-      A calendar month runs to the END of the month, which is what 14 CFR 91.409(a) and the
-      other calendar inspections mean. Signed any day in February, a 12 month interval is due
-      on the last day of February the following year.
-    </p>
+  const meterField = (
+    <div className="space-y-1.5">
+      <Label htmlFor="insp-meter" className="text-xs">
+        Counted on
+      </Label>
+      <Select value={meter} onValueChange={(v) => setMeter(v as "tach" | "hobbs")}>
+        <SelectTrigger id="insp-meter" className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="tach">Tach time</SelectItem>
+          <SelectItem value="hobbs">Hobbs time</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
   );
 
-  /** One control, rendered by both the recurring form and the one-off meter deadline. */
-  const meterPicker = (
-    <div className="grid gap-1.5 sm:grid-cols-2">
-      {(["tach", "hobbs"] as const).map((m) => (
+  /** A row of mutually exclusive choices: the interval's clock, or a one-off's deadline. */
+  const choices = <T extends string>(options: readonly { value: T; label: string }[], value: T, onPick: (v: T) => void) => (
+    <div className="grid w-full grid-flow-col auto-cols-fr gap-1 rounded-lg bg-muted p-1 sm:inline-grid sm:w-auto sm:auto-cols-auto">
+      {options.map((option) => (
         <button
-          key={m}
+          key={option.value}
           type="button"
-          onClick={() => setMeter(m)}
-          aria-pressed={meter === m}
+          aria-pressed={value === option.value}
+          onClick={() => onPick(option.value)}
           className={cn(
-            "rounded-lg border px-3 py-2 text-left text-[13px] capitalize transition-colors",
-            meter === m ? "border-primary bg-primary/5" : "hover:bg-accent/50"
+            "rounded-md px-2 py-1.5 text-center text-[13px] leading-tight transition-colors sm:px-3",
+            value === option.value ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground"
           )}
         >
-          Count {m} time
+          {option.label}
         </button>
       ))}
+    </div>
+  );
+
+  /** A number box with its unit written after it, so "Warn me 30 days before" reads as one. */
+  const numberWithUnit = (
+    id: string,
+    value: string,
+    onChange: (v: string) => void,
+    unit: React.ReactNode,
+    placeholder: string,
+    numeric = false
+  ) => (
+    <div className="flex items-center gap-2">
+      <Input
+        id={id}
+        inputMode={numeric ? "numeric" : "decimal"}
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(numeric ? /[^0-9]/g : /[^0-9.]/g, ""))}
+        placeholder={placeholder}
+        className="tnum w-24"
+      />
+      {typeof unit === "string" ? <span className="text-sm text-muted-foreground">{unit}</span> : unit}
     </div>
   );
 
@@ -390,16 +419,20 @@ export function AddInspectionsModal({
     }
   }
 
+  const section = "space-y-3 border-t border-border pt-4";
+  const heading = "flex items-center gap-1.5 text-sm font-medium";
+
   return (
     <ResponsiveModal
+      size="2xl"
       footer={
         <div className="flex justify-end gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={submit} disabled={!canSubmit}>
-              {busy ? "Adding…" : "Add"}
-            </Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={submit} disabled={!canSubmit}>
+            {busy ? "Adding…" : "Add"}
+          </Button>
         </div>
       }
       open={open}
@@ -447,7 +480,7 @@ export function AddInspectionsModal({
         )}
 
         {mode !== "standard" && (
-          <div data-doc-shot="add-inspections-recurring" className="space-y-3">
+          <>
             <div className="space-y-1.5">
               <Label htmlFor="insp-name">Name</Label>
               <Input
@@ -460,270 +493,210 @@ export function AddInspectionsModal({
               />
             </div>
 
-            {mode === "recurring" ? (
-              <>
-                {/* Three ways an interval is written. "Whichever comes first" is how most
-                    recurring ADs read, and how an oil change usually reads too. */}
-                <div className="grid gap-1.5 sm:grid-cols-3">
-                  {(
-                    [
-                      { value: "days", label: "On the calendar" },
-                      { value: "hours", label: "On the meter" },
-                      { value: "both", label: "Whichever comes first" },
-                    ] as const
-                  ).map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      onClick={() => {
-                        setBasis(option.value);
+            {/* WHERE THE RULE COMES FROM, before the interval: opened from an AD, the AD is
+                what the rest is filled in from. Not offered on the standard set: that mode is
+                multi-select and its payloads are the server's, so one AD number applied to
+                seven ticked presets would be wrong by construction. */}
+            <div className="border-t border-border pt-4">
+              <InspectionSourceFields
+                value={source}
+                onChange={setSource}
+                docShot="add-inspections-source"
+                // A blank name takes the AD's own ("AD 2013-11-11 Engine oil pressure"), and so
+                // does one an earlier look-up filled in; a name somebody typed is kept.
+                onAdFound={(ad) => {
+                  const named = adInspectionName(ad);
+                  const before = adNameFilled.current;
+                  adNameFilled.current = named;
+                  setName((now) => (!now.trim() || now === before ? named : now));
+                }}
+              />
+            </div>
+
+            <div data-doc-shot="add-inspections-recurring" className={section}>
+              {mode === "recurring" ? (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className={heading}>
+                      Comes due
+                      {basis !== "hours" && <DocsHint topic="calendar-interval-unit" />}
+                    </p>
+                    {/* Three ways an interval is written. "Whichever comes first" is how most
+                        recurring ADs read, and how an oil change usually reads too. */}
+                    {choices(
+                      [
+                        { value: "days", label: "On the calendar" },
+                        { value: "hours", label: "On the meter" },
+                        { value: "both", label: "Whichever comes first" },
+                      ] as const,
+                      basis,
+                      (v) => {
+                        setBasis(v);
                         //The shared boxes now belong to a different clock: 100 hours, or 12
                         //calendar months. "Whichever comes first" puts hours in the shared
                         //pair and the calendar in its own, so it defaults like hours.
-                        applyDefaults(option.value === "days" ? everyUnit : "hours");
-                      }}
-                      aria-pressed={basis === option.value}
-                      className={cn(
-                        "rounded-lg border px-3 py-2 text-left text-[13px] transition-colors",
-                        basis === option.value ? "border-primary bg-primary/5" : "hover:bg-accent/50"
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="insp-every" className="inline-flex items-center gap-1.5 text-xs">
-                      Every {basis === "days" ? "" : "(hours)"}
-                      {basis === "days" && <DocsHint topic="calendar-interval-unit" />}
-                    </Label>
-                    <div className="flex gap-2">
-                      <Input placeholder="100"
-                        id="insp-every"
-                        inputMode="decimal"
-                        value={every}
-                        onChange={(e) => {
-                          everyTouched.current = true;
-                          setEvery(e.target.value.replace(/[^0-9.]/g, ""));
-                        }}
-                        className="tnum"
-                      />
-                      {basis === "days" &&
-                        unitPicker("insp-every-unit", everyUnit, (u) => {
-                          setEveryUnit(u);
-                          applyDefaults(u);
-                        })}
-                    </div>
+                        applyDefaults(v === "days" ? everyUnit : "hours");
+                      }
+                    )}
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="insp-warn" className="text-xs">
-                      Warn me ({basis === "days" ? "days" : "hours"} out)
-                    </Label>
-                    <Input placeholder="10"
-                      id="insp-warn"
-                      inputMode="decimal"
-                      value={warn}
-                      onChange={(e) => {
-                        warnTouched.current = true;
-                        setWarn(e.target.value.replace(/[^0-9.]/g, ""));
-                      }}
-                      className="tnum"
-                    />
-                  </div>
-                </div>
 
-                {basis === "days" && everyUnit === "months" && monthNote}
-
-                {basis === "both" && (
-                  <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <div className="space-y-1.5">
-                      <Label htmlFor="insp-every-days" className="inline-flex items-center gap-1.5 text-xs">
-                        or every
-                        <DocsHint topic="calendar-interval-unit" />
+                      <Label htmlFor="insp-every" className="text-xs">
+                        Every
                       </Label>
-                      <div className="flex gap-2">
-                        <Input placeholder="365"
-                          id="insp-every-days"
-                          inputMode="decimal"
-                          value={everyDays}
-                          onChange={(e) => setEveryDays(e.target.value.replace(/[^0-9.]/g, ""))}
-                          className="tnum"
-                        />
-                        {unitPicker("insp-every-days-unit", everyDaysUnit, setEveryDaysUnit)}
+                      {numberWithUnit(
+                        "insp-every",
+                        every,
+                        (v) => {
+                          everyTouched.current = true;
+                          setEvery(v);
+                        },
+                        basis === "days"
+                          ? unitPicker("insp-every-unit", everyUnit, (u) => {
+                              setEveryUnit(u);
+                              applyDefaults(u);
+                            })
+                          : "hours",
+                        basis === "days" ? "12" : "100"
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="insp-warn" className="text-xs">
+                        Warn me
+                      </Label>
+                      {numberWithUnit(
+                        "insp-warn",
+                        warn,
+                        (v) => {
+                          warnTouched.current = true;
+                          setWarn(v);
+                        },
+                        basis === "days" ? "days before" : "hours before",
+                        basis === "days" ? "30" : "10"
+                      )}
+                    </div>
+                    {basis !== "days" && meterField}
+                  </div>
+
+                  {basis === "both" && (
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="insp-every-days" className="text-xs">
+                          or every
+                        </Label>
+                        {numberWithUnit(
+                          "insp-every-days",
+                          everyDays,
+                          setEveryDays,
+                          unitPicker("insp-every-days-unit", everyDaysUnit, setEveryDaysUnit),
+                          "12"
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="insp-warn-days" className="text-xs">
+                          Warn me
+                        </Label>
+                        {numberWithUnit("insp-warn-days", warnDays, setWarnDays, "days before", "30")}
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="insp-warn-days" className="text-xs">
-                        Warn me (days out)
-                      </Label>
-                      <Input placeholder="30"
-                        id="insp-warn-days"
-                        inputMode="decimal"
-                        value={warnDays}
-                        onChange={(e) => setWarnDays(e.target.value.replace(/[^0-9.]/g, ""))}
-                        className="tnum"
-                      />
-                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className={heading}>
+                      Comes due
+                      {onceOn === "hours" && <DocsHint topic="one-off-at-hours" />}
+                    </p>
+                    {/* A one-off is due on a date OR at a meter reading. "Comply within the
+                        next 50 hours" is how a large share of ADs are written, and it has no
+                        date. */}
+                    {choices(
+                      [
+                        { value: "date", label: "On a date" },
+                        { value: "hours", label: "At an hour reading" },
+                      ] as const,
+                      onceOn,
+                      setOnceOn
+                    )}
                   </div>
-                )}
 
-                {basis === "both" && everyDaysUnit === "months" && monthNote}
+                  {onceOn === "date" ? (
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="insp-date" className="text-xs">
+                          Due on
+                        </Label>
+                        <DatePickerField
+                          id="insp-date"
+                          value={date}
+                          onChange={setDate}
+                          min={format(new Date(), "yyyy-MM-dd")}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="insp-warn-once" className="text-xs">
+                          Warn me
+                        </Label>
+                        {numberWithUnit("insp-warn-once", warn, setWarn, "days before", "30", true)}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {/* The reading itself, not "50 hours from now": the label says AT, and
+                          the popover beside the heading says it in full. */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="insp-at-hours" className="text-xs">
+                          Due at reading
+                        </Label>
+                        <Input
+                          id="insp-at-hours"
+                          data-testid="insp-at-hours"
+                          inputMode="decimal"
+                          value={atHours}
+                          onChange={(e) => setAtHours(e.target.value.replace(/[^0-9.]/g, ""))}
+                          placeholder="1250.0"
+                          className="tnum"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="insp-warn-at-hours" className="text-xs">
+                          Warn me
+                        </Label>
+                        {numberWithUnit("insp-warn-at-hours", warn, setWarn, "hours before", "10")}
+                      </div>
+                      {/* Which clock. Without it the reading is measured against whatever
+                          `meter` happened to be. */}
+                      {meterField}
+                    </div>
+                  )}
+                </>
+              )}
 
-                {basis !== "days" && meterPicker}
-              </>
-            ) : (
-              <div className="space-y-3">
-                {/* A one-off is due on a date OR at a meter reading. "Comply within the next
-                    50 hours" is how a large share of ADs are written, and it has no date. */}
-                <div className="flex gap-2">
-                  {(
-                    [
-                      { value: "date", label: "On a date" },
-                      { value: "hours", label: "At an hour reading" },
-                    ] as const
-                  ).map((option) => (
-                    <button
-                      key={option.value}
-                      type="button"
-                      aria-pressed={onceOn === option.value}
-                      onClick={() => setOnceOn(option.value)}
-                      className={cn(
-                        "flex-1 rounded-lg border border-border px-3 py-2 text-xs transition-colors",
-                        onceOn === option.value ? "border-primary bg-primary/5" : "hover:bg-accent/50"
-                      )}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-
-                {onceOn === "date" ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="insp-date" className="text-xs">
-                        Due on
-                      </Label>
-                      <DatePickerField
-                        id="insp-date"
-                        value={date}
-                        onChange={setDate}
-                        min={format(new Date(), "yyyy-MM-dd")}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="insp-warn-once" className="text-xs">
-                        Warn me (days out)
-                      </Label>
-                      <Input placeholder="30"
-                        id="insp-warn-once"
-                        inputMode="numeric"
-                        value={warn}
-                        onChange={(e) => setWarn(e.target.value.replace(/[^0-9]/g, ""))}
-                        className="tnum"
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="insp-at-hours" className="inline-flex items-center gap-1.5 text-xs">
-                        Due at ({meter})
-                        <DocsHint topic="one-off-at-hours" />
-                      </Label>
-                      <Input
-                        id="insp-at-hours"
-                        data-testid="insp-at-hours"
-                        inputMode="decimal"
-                        value={atHours}
-                        onChange={(e) => setAtHours(e.target.value.replace(/[^0-9.]/g, ""))}
-                        placeholder="1250.0"
-                        className="tnum"
-                      />
-                      {/* The reading itself, not "50 hours from now". Said plainly because
-                          the recurring form above this one asks for an interval, and the two
-                          fields look identical. */}
-                      <p className="text-[11px] text-muted-foreground">
-                        The reading it comes due AT, not how many hours from now.
-                      </p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="insp-warn-at-hours" className="text-xs">
-                        Warn me (hours out)
-                      </Label>
-                      <Input placeholder="10"
-                        id="insp-warn-at-hours"
-                        inputMode="decimal"
-                        value={warn}
-                        onChange={(e) => setWarn(e.target.value.replace(/[^0-9.]/g, ""))}
-                        className="tnum"
-                      />
-                    </div>
-                    {/* Which clock, same control as the recurring form. Without it the
-                        reading above is measured against whatever `meter` happened to be. */}
-                    <div className="sm:col-span-2">{meterPicker}</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-1.5">
-                  <Label htmlFor="insp-grounds">Grounds the aircraft</Label>
+              <div className="flex items-center justify-between gap-4 pt-1">
+                <Label htmlFor="insp-grounds" className="inline-flex items-center gap-1.5">
+                  Ground the aircraft when it comes due
                   <DocsHint topic="inspection-grounds" />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Takes this tail off the line the moment it comes due.
-                </p>
+                </Label>
+                <Switch id="insp-grounds" checked={grounds} onCheckedChange={setGrounds} />
               </div>
-              <Switch id="insp-grounds" checked={grounds} onCheckedChange={setGrounds} />
             </div>
-          </div>
-        )}
-
-        {/* WHERE THE RULE COMES FROM.
-            Not offered on the standard set: that mode is multi-select and its payloads are
-            the server's, so one AD number applied to seven ticked presets would be wrong by
-            construction. If an AVIATES preset ever needs a source it belongs in the preset. */}
-        {/* WHERE THE RULE COMES FROM.
-            Not offered on the standard set: that mode is multi-select and its payloads are
-            the server's, so one AD number applied to seven ticked presets would be wrong by
-            construction. If an AVIATES preset ever needs a source it belongs in the preset. */}
-        {mode !== "standard" && (
-          <InspectionSourceFields
-            value={source}
-            onChange={setSource}
-            docShot="add-inspections-source"
-            // A blank name takes the AD's own ("AD 2013-11-11 Engine oil pressure"), and so does
-            // one an earlier look-up filled in; a name somebody typed is kept.
-            onAdFound={(ad) => {
-              const named = adInspectionName(ad);
-              const before = adNameFilled.current;
-              adNameFilled.current = named;
-              setName((now) => (!now.trim() || now === before ? named : now));
-            }}
-          />
+          </>
         )}
 
         {/* The difference between a useful reminder and a wrong one on an existing fleet.
-            Optional, and the helper says exactly what leaving it blank means, because the
-            default is right for a new aircraft and wrong for one that has been flying. */}
+            Optional; blank is right for a new aircraft and wrong for one that has been flying,
+            which the placeholders and the popover say. */}
         {mode !== "oneOff" && (
-          <div data-doc-shot="add-inspections-last-done" className="rounded-lg border border-border p-3">
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs">When was it last done?</Label>
+          <div data-doc-shot="add-inspections-last-done" className={section}>
+            <p className={heading}>
+              When was it last done?
               <DocsHint topic="inspection-last-done" />
-            </div>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">
-              Leave blank if the work was just done, the countdown starts today at the
-              current meter. On an aircraft already partway through its interval, fill this
-              in or the first reminder lands late.
             </p>
-            <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <Label htmlFor="insp-last-date" className="text-[11px] text-muted-foreground">
+                <Label htmlFor="insp-last-date" className="text-xs">
                   Date
                 </Label>
                 <DatePickerField
@@ -735,7 +708,7 @@ export function AddInspectionsModal({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="insp-last-hours" className="text-[11px] text-muted-foreground">
+                <Label htmlFor="insp-last-hours" className="text-xs">
                   Meter reading
                 </Label>
                 <Input
@@ -751,23 +724,23 @@ export function AddInspectionsModal({
             {/* One reading across several tails is almost never right, their meters
                 differ. Say so rather than letting it produce quietly wrong countdowns. */}
             {lastDoneHours !== "" && targets.length > 1 && (
-              <p className="mt-2 flex items-start gap-1 text-[11px] text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
+              <p className="flex items-start gap-1 text-[11px] text-[color-mix(in_oklch,var(--warning)_70%,var(--foreground))]">
                 <AlertTriangle className="mt-px size-3 shrink-0" />
-                That reading is applied to all {targets.length} aircraft. Their meters differ
-               , add them one tail at a time, or fix each from its own page after.
+                That reading is applied to all {targets.length} aircraft. Their meters differ, so
+                add them one tail at a time, or fix each from its own page after.
               </p>
             )}
           </div>
         )}
 
         {!fixedResource && (
-          <div className="space-y-1.5">
-            <Label className="text-xs">Applies to</Label>
+          <div className={section}>
+            <p className={heading}>Aircraft</p>
             {planesQ.isPending ? (
               <Skeleton className="h-8 w-full" />
             ) : fleet.length === 0 ? (
               <p className="text-[13px] text-muted-foreground">
-                No aircraft yet, add a tail first and these will have something to hang off.
+                No aircraft yet. Add a tail first and these will have something to hang off.
               </p>
             ) : (
               <>
@@ -796,14 +769,13 @@ export function AddInspectionsModal({
                     like it worked and then never fires. Say so before they submit. */}
                 {tails.length === 0 && (
                   <p className="text-[11px] text-muted-foreground">
-                    Pick at least one aircraft, an inspection with no tails never comes due.
+                    Pick at least one aircraft. An inspection with no tails never comes due.
                   </p>
                 )}
               </>
             )}
           </div>
         )}
-
       </div>
     </ResponsiveModal>
   );
@@ -877,6 +849,7 @@ function Group({
       <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         {title}
       </div>
+      <div className="grid gap-1.5 sm:grid-cols-2">
       {items.map((p) => {
         const on = chosen.includes(p.id);
         return (
@@ -916,6 +889,7 @@ function Group({
           </button>
         );
       })}
+      </div>
     </div>
   );
 }

@@ -245,10 +245,13 @@ export function useAdDecider(resourceFor: (resourceId: number) => Resource | und
   const [tracking, setTracking] = React.useState<{ adNumber: string; resourceId: number } | null>(null);
 
   const run = React.useCallback(
-    async (input: Parameters<typeof decide.mutateAsync>[0], done: string) => {
+    async (input: Parameters<typeof decide.mutateAsync>[0], done: string, undo?: string) => {
       try {
         await decide.mutateAsync(input);
-        toast.success(done);
+        // A decision is one click from the menu, so it is one click back: Undo returns the AD to
+        // review, the same as Back to review.
+        const back = { resourceId: input.resourceId, adNumber: input.adNumber, undo: true as const };
+        toast.success(done, undo ? { action: { label: "Undo", onClick: () => void run(back, undo) } } : undefined);
         return true;
       } catch (err) {
         toast.error(err instanceof ApiError ? err.message : "Couldn't save that. Try again.");
@@ -270,7 +273,7 @@ export function useAdDecider(resourceFor: (resourceId: number) => Resource | und
           compact={compact}
           busy={busyKey === `${target.resourceId}:${n}`}
           onTrack={() => setTracking({ adNumber: n, resourceId: target.resourceId })}
-          onApplies={() => void run({ resourceId: target.resourceId, adNumber: n, status: "applies" }, `AD ${n} marked as applying${on}.`)}
+          onApplies={() => void run({ resourceId: target.resourceId, adNumber: n, status: "applies" }, `AD ${n} marked as applying${on}.`, `AD ${n} is back to review${on}.`)}
           onNotApplicable={() => setRuling({ item, target })}
           onUndo={() => void run({ resourceId: target.resourceId, adNumber: n, undo: true }, `AD ${n} is back to review${on}.`)}
         />
@@ -289,7 +292,8 @@ export function useAdDecider(resourceFor: (resourceId: number) => Resource | und
           onOpenChange={(o) => !o && setRuling(null)}
           onSave={async (reason, note) => {
             const n = ruling.item.ad.adNumber;
-            if (await run({ resourceId: ruling.target.resourceId, adNumber: n, status: "not_applicable", reason, note }, `AD ${n} marked not applicable.`)) setRuling(null);
+            const on = ruling.target.tail ? ` on ${ruling.target.tail}` : "";
+            if (await run({ resourceId: ruling.target.resourceId, adNumber: n, status: "not_applicable", reason, note }, `AD ${n} marked not applicable${on}.`, `AD ${n} is back to review${on}.`)) setRuling(null);
           }}
           saving={decide.isPending}
         />

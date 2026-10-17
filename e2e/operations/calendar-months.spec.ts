@@ -91,7 +91,8 @@ test.describe("Calendar month intervals", () => {
     // And the number beside it matches the unit. It was 100, the meter clock's default, so the
     // form opened reading "Every 100 months".
     await expect(page.locator("#insp-every")).toHaveValue("12");
-    await expect(page.getByText(/A calendar month runs to the END of the month/)).toBeVisible();
+    // What a calendar month means is in the popover beside the heading, not a paragraph.
+    await expect(page.getByRole("button", { name: "About Days, weeks or calendar months" })).toBeVisible();
 
     await page.locator("#insp-every-unit").click();
     for (const unit of ["days", "weeks", "months"]) {

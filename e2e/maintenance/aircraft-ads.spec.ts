@@ -114,6 +114,15 @@ test.describe("ADs tab", () => {
     expect(after.find((i) => i.ad.adNumber === "2013-11-11")?.state).toBe("to_review");
     await expect(page.getByTestId("ad-2015-19-07").getByRole("button", { name: "Change the decision on AD 2015-19-07" })).toBeVisible();
 
+    // ---- Undo on the toast puts it straight back to review ----
+    const toastFor = page.locator("[data-sonner-toast]").filter({ hasText: "AD 2015-19-07 marked as applying" });
+    const undone = page.waitForResponse((r) => r.url().endsWith("/airworthiness-directives/2015-19-07") && r.request().method() === "DELETE");
+    await toastFor.getByRole("button", { name: "Undo" }).click();
+    expect((await undone).status()).toBe(200);
+    await expect(page.getByTestId("ad-2015-19-07").getByRole("button", { name: "Decide on AD 2015-19-07" })).toBeVisible();
+    const reverted = ((await (await request.get(base, { headers: tech })).json()).data.items ?? []) as Item[];
+    expect(reverted.find((i) => i.ad.adNumber === "2015-19-07")?.state).toBe("to_review");
+
     for (const n of SEEDED) await request.delete(`${base}/${n}`, { headers: tech }).catch(() => undefined);
   });
 });

@@ -676,7 +676,7 @@ export function AddInspectionsModal({
 
               <div className="flex items-center justify-between gap-4 pt-1">
                 <Label htmlFor="insp-grounds" className="inline-flex items-center gap-1.5">
-                  Ground the aircraft when it comes due
+                  Grounds the aircraft
                   <DocsHint topic="inspection-grounds" />
                 </Label>
                 <Switch id="insp-grounds" checked={grounds} onCheckedChange={setGrounds} />
@@ -735,7 +735,7 @@ export function AddInspectionsModal({
 
         {!fixedResource && (
           <div className={section}>
-            <p className={heading}>Aircraft</p>
+            <p className={heading}>Applies to</p>
             {planesQ.isPending ? (
               <Skeleton className="h-8 w-full" />
             ) : fleet.length === 0 ? (

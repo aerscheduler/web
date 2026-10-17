@@ -106,7 +106,7 @@ export function WorkOrderItemModal({
         const [kind, id] = attach === NONE ? [null, null] : attach.split(":");
         // Findings already waiting to be sent: Notify owner sends them all, this one with them.
         const unsentBefore = (qc.getQueryData<WorkOrderItem[]>(["workOrders", "items", workOrder.id]) ?? []).filter(
-          (i) => i.source === "found" && !i.decision && !i.done && !i.sentToOwnerAt
+          (i) => i.source === "found" && !i.decision && !i.done && !i.sentToOwnerAt && !i.ad
         ).length;
         await add.mutateAsync({
           workOrderId: workOrder.id,

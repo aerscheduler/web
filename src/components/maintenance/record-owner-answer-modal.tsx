@@ -75,7 +75,8 @@ export function RecordOwnerAnswerModal({
   // Undecided found items first: those are the reason for the call.
   const ordered = React.useMemo(
     () =>
-      [...items].sort((a, b) => {
+      // An AD review is the shop's own research: nothing for the owner to answer.
+      [...items.filter((i) => !i.ad)].sort((a, b) => {
         const rank = (i: WorkOrderItem) => (i.source === "found" && !i.decision ? 0 : i.decision ? 2 : 1);
         return rank(a) - rank(b) || a.position - b.position;
       }),

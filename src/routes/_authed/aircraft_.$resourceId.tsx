@@ -98,8 +98,10 @@ import { Skeleton } from "@/components/ui/skeleton";
  * page can grow without stacking every card into one scroll.
  */
 export const Route = createFileRoute("/_authed/aircraft_/$resourceId")({
-  validateSearch: (s: Record<string, unknown>): { tab?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { tab?: string; ad?: string } => ({
     tab: typeof s.tab === "string" ? s.tab : undefined,
+    // The AD open on the ADs tab: a job's "Decide AD x" and a new-AD alert land on it.
+    ad: typeof s.ad === "string" ? s.ad : undefined,
   }),
   component: AircraftDetailPage,
 });
@@ -238,7 +240,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
   const qc = useQueryClient();
   const locationsQ = useLocations({ enabled: access.manage });
   const navigate = Route.useNavigate();
-  const { tab } = Route.useSearch();
+  const { tab, ad: openAd } = Route.useSearch();
 
   const plane = resource.type?.plane ?? null;
   const adMode = useAdMode({ enabled: !!plane && canOpenWorkOrders(roles) });
@@ -516,7 +518,7 @@ function ResourceBody({ resource }: { resource: Resource }) {
 
           {active === "work-orders" && <ResourceWorkOrders resource={resource} />}
 
-          {active === "ads" && <ResourceAds resource={resource} onEditAircraft={access.manage ? () => setEditing(true) : undefined} />}
+          {active === "ads" && <ResourceAds resource={resource} initialAd={openAd} onEditAircraft={access.manage ? () => setEditing(true) : undefined} />}
 
           {active === "history" && <ResourceHistory resourceId={resource.id} mayOpenWorkOrders={canOpenWorkOrders(roles)} />}
 

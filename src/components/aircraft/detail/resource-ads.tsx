@@ -46,10 +46,10 @@ function matches(i: AircraftAdItem, query: string): boolean {
   return words.every((w) => hay.includes(w));
 }
 
-export function ResourceAds({ resource, onEditAircraft }: { resource: Resource; onEditAircraft?: () => void }) {
+export function ResourceAds({ resource, initialAd, onEditAircraft }: { resource: Resource; initialAd?: string; onEditAircraft?: () => void }) {
   const q = useAircraftAds(resource.id);
   const decider = useAdDecider(() => resource);
-  const [openId, setOpenId] = React.useState<string | null>(null);
+  const [openId, setOpenId] = React.useState<string | null>(initialAd ?? null);
   const [search, setSearch] = React.useState("");
 
   const data = q.data;

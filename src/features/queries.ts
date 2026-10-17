@@ -6174,6 +6174,13 @@ export function useAddWorkOrderItem() {
   );
 }
 
+/** "ADs to review": the aircraft's undecided ADs and its due AD inspections, as items. */
+export function useAddWorkOrderAdItems() {
+  return useWorkOrderWrite(({ workOrderId }: { workOrderId: number }) =>
+    api<{ added: number; items: WorkOrderItem[] }>(`/work-orders/${workOrderId}/items/ads`, { method: "POST" })
+  );
+}
+
 /**
  * Optimistic: ticking an item done shows at once, and goes back with the server's error if the
  * server says no. A tick that waited a round trip read as a click that had not landed.
@@ -6863,6 +6870,8 @@ export function useDecideAd() {
     onSuccess: (data, input) => {
       qc.setQueryData(["aircraft-ads", input.resourceId], data);
       void qc.invalidateQueries({ queryKey: ["aircraft-ads", "fleet"] });
+      // Deciding an AD completes its "Review AD" item on an open job for the aircraft.
+      void qc.invalidateQueries({ queryKey: ["workOrders"] });
       void qc.invalidateQueries({ queryKey: ["audit"] });
     },
   });

@@ -85,6 +85,55 @@ test.describe("Fleet ADs and the AD library", () => {
   });
 });
 
+test.describe("ADs to review on a work order", () => {
+  test.use({ storageState: ".auth/technician.json" });
+
+  test("Add puts the undecided ADs on the job, the owner is never asked, and deciding completes the item", async ({ page, request }) => {
+    const owner = await auth(request, ACCOUNTS.owner);
+    const tech = await auth(request, ACCOUNTS.technician);
+    const id = await n172ts(request, tech);
+    const base = `${api()}/maintenance/resources/${id}/airworthiness-directives`;
+    for (const n of SEEDED) await request.delete(`${base}/${n}`, { headers: tech }).catch(() => undefined);
+    const made = await request.post(`${api()}/work-orders`, { headers: owner, data: { resourceId: id, status: "in_progress", complaint: "E2E-AD annual" } });
+    expect(made.ok()).toBeTruthy();
+    const jobId = (await made.json()).data.id as number;
+    try {
+      await page.goto(`/maintenance/work-orders/${jobId}`);
+      await dismissCookieBanner(page);
+      await page.getByRole("button", { name: /^Add$/ }).click();
+      const added = page.waitForResponse((r) => r.url().endsWith(`/work-orders/${jobId}/items/ads`) && r.request().method() === "POST");
+      await page.getByRole("option", { name: /ADs to review/ }).click();
+      const body = (await (await added).json()).data;
+      expect(body.added).toBe(3);
+      const adItems = body.items.filter((i: { ad: { adNumber: string } | null }) => i.ad).map((i: { ad: { adNumber: string } }) => i.ad.adNumber);
+      // The three seeded ADs that name N172TS; 2008-03-02 is superseded by 2012-02-02.
+      expect(adItems.sort()).toEqual(["2012-02-02", "2013-11-11", "2015-19-07"]);
+
+      // A second press adds nothing.
+      const again = await request.post(`${api()}/work-orders/${jobId}/items/ads`, { headers: tech });
+      expect((await again.json()).data.added).toBe(0);
+      // The owner is never asked about AD research: nothing to send.
+      const send = await request.post(`${api()}/work-orders/${jobId}/send-to-owner`, { headers: owner });
+      expect(send.ok()).toBeFalsy();
+
+      // Decide from the item: the link opens that AD on the aircraft.
+      await page.getByRole("link", { name: "Decide AD 2013-11-11" }).click();
+      await expect(page).toHaveURL(/tab=ads.*ad=2013-11-11/);
+      const panel = page.getByRole("region", { name: "AD 2013-11-11", exact: true }).or(page.getByRole("dialog", { name: "AD 2013-11-11", exact: true }));
+      await panel.getByRole("button", { name: "Decide" }).click();
+      await page.getByRole("menuitem", { name: "Applies: nothing to track" }).click();
+      await expect(page.locator("[data-sonner-toast]").first()).toContainText("marked as applying");
+
+      const items = (await (await request.get(`${api()}/work-orders/${jobId}/items`, { headers: tech })).json()).data;
+      expect(items.find((i: { ad: { adNumber: string } | null }) => i.ad?.adNumber === "2013-11-11")).toMatchObject({ done: true, doneVia: "ad" });
+      expect(items.find((i: { ad: { adNumber: string } | null }) => i.ad?.adNumber === "2015-19-07")).toMatchObject({ done: false });
+    } finally {
+      await request.delete(`${api()}/work-orders/${jobId}`, { headers: owner }).catch(() => undefined);
+      for (const n of SEEDED) await request.delete(`${base}/${n}`, { headers: tech }).catch(() => undefined);
+    }
+  });
+});
+
 test.describe("Fleet ADs, for a student", () => {
   test.use({ storageState: ".auth/student.json" });
 

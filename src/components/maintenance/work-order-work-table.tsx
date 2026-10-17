@@ -2,8 +2,10 @@ import * as React from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Check, Clock, MoreHorizontal, Paperclip, Pencil, Phone, Plus, Receipt, ScanSearch, Send, Trash2, UserRound, X } from "lucide-react";
+import { Check, Clock, MoreHorizontal, Paperclip, Pencil, Phone, Plus, Receipt, ScanSearch, Send, ShieldCheck, Trash2, UserRound, X } from "lucide-react";
 import {
+  useAdMode,
+  useAddWorkOrderAdItems,
   useBilling,
   useRecordOwnerAnswer,
   useRemoveWorkOrderItem,
@@ -106,7 +108,7 @@ function itemStatus(i: WorkOrderItem, customer: boolean): WorkStatus {
   if (i.done) return "done";
   if (i.decision === "declined") return "declined";
   if (i.decision === "deferred") return "deferred";
-  if (i.inspection || i.squawk) return "progress";
+  if (i.inspection || i.squawk || i.ad) return "progress";
   if (i.decision === "approved") return "approved";
   if (i.source === "found" && customer) return "notAsked";
   return "todo";
@@ -162,6 +164,21 @@ export function WorkOrderWorkTable({
   const [editingLine, setEditingLine] = React.useState<WorkOrderLine | null>(null);
   const [raising, setRaising] = React.useState(false);
   const updateItem = useUpdateWorkOrderItem();
+  // "ADs to review" (AD library phase 4): only while the organization finds ADs for itself.
+  const adMode = useAdMode();
+  const addAds = useAddWorkOrderAdItems();
+  async function addAdsToReview() {
+    try {
+      const out = await addAds.mutateAsync({ workOrderId: w.id });
+      toast.success(
+        out.added
+          ? `Added ${out.added} AD item${out.added === 1 ? "" : "s"}.`
+          : `Nothing to add: every AD on ${w.aircraft.tailNumber ?? "this aircraft"} is decided or already on the job, and no AD inspection is due.`
+      );
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't add the ADs. Try again.");
+    }
+  }
   const removeItem = useRemoveWorkOrderItem();
   const removeLine = useRemoveWorkOrderLine();
   const confirm = useConfirm();
@@ -174,7 +191,8 @@ export function WorkOrderWorkTable({
   const subtotal = lines.reduce((sum, l) => sum + chargeOf(l), 0);
   // A finding still to be answered is either not sent to the owners yet (the shop's own) or sent
   // and waiting. Done is done: nothing to ask.
-  const pending = items.filter((i) => i.source === "found" && !i.decision && !i.done);
+  // An AD review is the shop's own research, never a question for the owner.
+  const pending = items.filter((i) => i.source === "found" && !i.decision && !i.done && !i.ad);
   const unsent = pending.filter((i) => !i.sentToOwnerAt);
   const waiting = pending.length - unsent.length;
   const [sending, setSending] = React.useState(false);
@@ -338,7 +356,8 @@ export function WorkOrderWorkTable({
         <>
           {/* The owner's answer, or the place to give it. On the organization's own aircraft only
               a decision not to do it (declined, put off) shows: a finding is otherwise just work. */}
-          {(customer ? item.decision || item.source === "found" : item.decision === "declined" || item.decision === "deferred") &&
+          {!item.ad &&
+            (customer ? item.decision || item.source === "found" : item.decision === "declined" || item.decision === "deferred") &&
             (mayDecide ? (
               <DecisionMenu customer={customer} item={item} onPick={(d) => void decide(item, d)} onFullCall={customer ? () => setAnswering(true) : undefined} />
             ) : (
@@ -352,6 +371,14 @@ export function WorkOrderWorkTable({
             </ListTag>
           )}
           {item.squawk && <ListTag>Squawk</ListTag>}
+          {/* Done when the AD is decided on the aircraft, which is where it is read and decided. */}
+          {item.ad && !item.done && (
+            <Button size="sm" variant="outline" className="h-6 px-2 text-[12px]" asChild>
+              <Link to="/aircraft/$resourceId" params={{ resourceId: String(w.aircraft.id) }} search={{ tab: "ads", ad: item.ad.adNumber }}>
+                Decide AD {item.ad.adNumber}
+              </Link>
+            </Button>
+          )}
           {linked && !item.done && maySignOff && (
             <Button size="sm" variant="outline" className="h-6 px-2 text-[12px]" onClick={() => setSigning(item)}>
               <Check className="size-3" /> {item.inspection ? "Sign off" : "Resolve"}
@@ -362,7 +389,7 @@ export function WorkOrderWorkTable({
       subtitle:
         item.done && item.doneAt
           ? `Done ${formatDate(item.doneAt, "MMM d", "")}${item.doneBy?.name ? ` by ${item.doneBy.name}` : ""}${
-              item.doneVia === "inspection" ? ", signed off" : item.doneVia === "squawk" ? ", squawk resolved" : ""
+              item.doneVia === "inspection" ? ", signed off" : item.doneVia === "squawk" ? ", squawk resolved" : item.doneVia === "ad" ? ", AD decided" : ""
             }`
           : item.squawk
             ? item.squawk.title
@@ -536,6 +563,7 @@ export function WorkOrderWorkTable({
         lineHint={LINE_HINT}
         onItem={(source) => setAddingItem(source)}
         onLine={(kind) => setAddingLine({ kind, itemId: null })}
+        onAds={adMode.data?.mode === "catalogue" && !w.closedAt ? () => void addAdsToReview() : undefined}
       />
     </>
   );
@@ -920,6 +948,7 @@ function AddMenu({
   lineHint,
   onItem,
   onLine,
+  onAds,
 }: {
   frozen: boolean;
   /** A customer's aircraft, where the owner asks for work; the organization's own just has requests. */
@@ -927,6 +956,8 @@ function AddMenu({
   lineHint: Partial<Record<WorkOrderLineCategory, string>>;
   onItem: (source: WorkOrderItem["source"]) => void;
   onLine: (kind: WorkOrderLineCategory) => void;
+  /** "ADs to review": the aircraft's undecided ADs and due AD inspections, as items. */
+  onAds?: () => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const pick = (fn: () => void) => {
@@ -954,6 +985,11 @@ function AddMenu({
               <CommandItem value="finding something the shop found found" onSelect={() => pick(() => onItem("found"))}>
                 <MenuChoice icon={ScanSearch} title="Finding" />
               </CommandItem>
+              {onAds && (
+                <CommandItem value="ADs to review airworthiness directives AD research annual" onSelect={() => pick(onAds)}>
+                  <MenuChoice icon={ShieldCheck} title="ADs to review" />
+                </CommandItem>
+              )}
             </CommandGroup>
             {!frozen && (
               <CommandGroup heading="Charges" className={STICKY_GROUP_CLASS}>

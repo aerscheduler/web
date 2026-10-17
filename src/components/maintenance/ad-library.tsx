@@ -141,7 +141,7 @@ function LibraryAdPanel({ adNumber, onOpenChange }: { adNumber: string | null; o
                 <ul className="divide-y rounded-md border text-[13px]">
                   {onFleet.map((i) => (
                     <li key={i.resourceId} className="px-3 py-2">
-                      <Link to="/aircraft/$resourceId" params={{ resourceId: String(i.resourceId) }} search={{ tab: "ads" }} className="font-medium underline-offset-2 hover:underline">
+                      <Link to="/aircraft/$resourceId" params={{ resourceId: String(i.resourceId) }} search={{ tab: "ads", ad: adNumber ?? undefined }} className="font-medium underline-offset-2 hover:underline">
                         {tails.get(i.resourceId)}
                       </Link>{" "}
                       <span className="text-muted-foreground">

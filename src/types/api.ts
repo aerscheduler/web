@@ -2804,8 +2804,10 @@ export interface WorkOrderItem {
   done: boolean;
   doneAt: string | null;
   doneBy: { id: number; name: string | null } | null;
-  /** Where done is read from: the item, its inspection's sign-off, or its squawk. */
-  doneVia: "item" | "inspection" | "squawk";
+  /** Where done is read from: the item, its inspection's sign-off, its squawk, or the AD it reviews being decided. */
+  doneVia: "item" | "inspection" | "squawk" | "ad";
+  /** The AD this item reviews ("Add ADs to review"): done when the AD is decided on the aircraft. */
+  ad?: { adNumber: string } | null;
   inspection: { id: number; name: string | null; signedOff: boolean } | null;
   squawk: { id: number; title: string; resolved: boolean } | null;
   approval: { id: number; contactName: string; contactedAt: string } | null;

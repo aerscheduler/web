@@ -33,7 +33,13 @@ import { ConversationGlyph, ConversationRow, ConversationTitle, MessagesWorkspac
 // Transitions, or with reduced motion, the change is simply instant.
 //---------------------------------------------------------------------------------
 
-const SURFACE = "messages-surface";
+/**
+ * The surface's transition name, through a custom property: while a screen slides inside
+ * Messages (`html[data-messages-nav]`, styles.css sets it to `none`), the surface is not a
+ * transition group of its own, so the panel or modal holds still instead of cross-fading with
+ * itself (it read as the whole modal refreshing on every conversation you picked).
+ */
+const SURFACE = "var(--messages-surface-name, messages-surface)";
 
 /**
  * Moving between screens INSIDE Messages slides: forward (list to a conversation or a new

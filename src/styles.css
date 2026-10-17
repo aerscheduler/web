@@ -435,6 +435,10 @@
 html[data-messages-nav] [data-messages-screen] {
   view-transition-name: messages-screen;
 }
+/* Only the screen moves: the panel or modal around it is no transition group meanwhile. */
+html[data-messages-nav] {
+  --messages-surface-name: none;
+}
 ::view-transition-group(messages-screen) {
   animation-duration: 340ms;
   animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
@@ -455,11 +459,13 @@ html[data-messages-nav="back"]::view-transition-old(messages-screen) {
 html[data-messages-nav="back"]::view-transition-new(messages-screen) {
   animation: messages-screen-return 340ms cubic-bezier(0.32, 0.72, 0, 1) both;
 }
+/* Swap: the new conversation fades in OVER the old one, which stays solid underneath, so
+   nothing dips or flashes. */
 html[data-messages-nav="swap"]::view-transition-old(messages-screen) {
-  animation: messages-morph-out 160ms ease-out both;
+  animation: none;
 }
 html[data-messages-nav="swap"]::view-transition-new(messages-screen) {
-  animation: messages-morph-in 220ms ease-out both;
+  animation: messages-morph-in 180ms ease-out both;
 }
 @keyframes messages-screen-enter {
   from { transform: translateX(100%); }

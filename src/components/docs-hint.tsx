@@ -1,3 +1,4 @@
+import type * as React from "react";
 import { ExternalLink, Info } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DOCS_TOPICS, docsUrl, type DocsTopicKey } from "@/lib/docs-links";
@@ -19,9 +20,12 @@ export function DocsHint({
   className,
   side = "top",
   align = "center",
+  children,
 }: {
   topic: DocsTopicKey;
   className?: string;
+  /** Said about this one record, under the topic's summary: what is missing, what is still loading. */
+  children?: React.ReactNode;
   side?: "top" | "right" | "bottom" | "left";
   align?: "start" | "center" | "end";
 }) {
@@ -51,6 +55,7 @@ export function DocsHint({
       <PopoverContent side={side} align={align} className="w-72 p-3">
         <p className="text-sm font-medium text-foreground">{entry.title}</p>
         <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">{entry.summary}</p>
+        {children && <div className="mt-2 border-t pt-2 text-[13px] leading-relaxed text-muted-foreground">{children}</div>}
         <a
           href={docsUrl(entry.href)}
           target="_blank"

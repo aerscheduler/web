@@ -183,15 +183,16 @@ export function ResourceAds({ resource, onEditAircraft }: { resource: Resource; 
     });
   }, [items, openId, actionsFor]);
 
-  // Kept short: it stays put above the rows. What the list is lives in the docs hint and the
-  // help article; the notes say only what is missing.
+  // One row: it stays put above the rows. What the list is, and what is missing for this
+  // aircraft, are in the info button beside the search (Tony, 2026-10-16: no text block).
   const toolbar = (
-    <div className="w-full space-y-1.5">
-      <div className="flex items-center gap-2">
-        <ListSearch value={search} onChange={setSearch} placeholder="Search number, maker, subject, model…" />
-        <DocsHint topic="aircraft-ads" />
-      </div>
-      {data && <MissingNotes missing={data.missing} coverage={data.coverage} onEditAircraft={onEditAircraft} />}
+    <div className="flex w-full items-center gap-2">
+      <ListSearch value={search} onChange={setSearch} placeholder="Search number, maker, subject, model…" />
+      <DocsHint topic="aircraft-ads" side="bottom" align="start">
+        {data && (data.missing.length > 0 || !data.coverage.complete) ? (
+          <MissingNotes missing={data.missing} coverage={data.coverage} onEditAircraft={onEditAircraft} />
+        ) : null}
+      </DocsHint>
     </div>
   );
 
@@ -344,17 +345,12 @@ function MissingNotes({
   if (missing.includes("serialNumber")) lines.push(<>No serial number recorded, which most ADs need to be ruled out.</>);
   if (!coverage.complete) lines.push(<>The AD library is still loading ({coverage.count.toLocaleString()} so far).</>);
   if (!lines.length) return null;
-  // One run of short sentences: this sits above the rows and stays put, so every line it takes
-  // is a row the list cannot show.
   return (
-    <p className="text-[12px] text-muted-foreground">
+    <div className="space-y-1">
       {lines.map((l, i) => (
-        <React.Fragment key={i}>
-          {i > 0 && " "}
-          {l}
-        </React.Fragment>
+        <p key={i}>{l}</p>
       ))}
-    </p>
+    </div>
   );
 }
 

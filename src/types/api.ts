@@ -4232,7 +4232,12 @@ export interface AirworthinessDirective {
   supersedes: string[];
   /** Later ADs that supersede or revise this one; present on a single look-up. */
   supersededBy?: string[];
+  /** Applicability and required actions as readable structure; present on a single look-up. */
+  details?: AdDetails | null;
 }
+
+/** A library search row: no text (open one with the single look-up to read it). */
+export type AdLibraryRow = Pick<AirworthinessDirective, "adNumber" | "amendment" | "title" | "manufacturer" | "productType" | "publishedOn" | "effectiveOn" | "subject" | "supersedes" | "url">;
 
 /** One AD on an aircraft's review list (server: services/aircraftAd.service.ts). */
 export interface AircraftAdItem {
@@ -4294,4 +4299,20 @@ export interface AircraftAdList {
   coverage: { count: number; oldest: string | null; newest: string | null; complete: boolean };
   counts: { toReview: number; applies: number; notApplicable: number };
   items: AircraftAdItem[];
+}
+
+/** Every aircraft's ADs at once (server: AircraftAdService.fleet). Items carry no AD text. */
+export interface FleetAds {
+  coverage: AircraftAdList["coverage"];
+  aircraft: {
+    id: number;
+    tailNumber: string;
+    make: string | null;
+    model: string | null;
+    /** A customer's aircraft in the shop. */
+    inShop: boolean;
+    missing: AircraftAdList["missing"];
+    counts: AircraftAdList["counts"];
+  }[];
+  items: (AircraftAdItem & { resourceId: number })[];
 }

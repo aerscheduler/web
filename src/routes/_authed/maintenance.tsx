@@ -32,6 +32,8 @@ import { WorkOrderTable } from "@/components/maintenance/work-order-table";
 import { ShopSetupCallout } from "@/components/onboarding/shop-setup-guide";
 import { WorkOrderFormModal } from "@/components/maintenance/work-order-form-modal";
 import { ComplianceLog } from "@/components/maintenance/compliance-log";
+import { FleetAds } from "@/components/maintenance/fleet-ads";
+import { AD_PRODUCT_TYPES, AdLibrary } from "@/components/maintenance/ad-library";
 import { ReminderFilesSheet } from "@/components/maintenance/reminder-files-sheet";
 import {
   BandDot,
@@ -79,8 +81,11 @@ export const FACET_KEYS = [
   "billToOrgUserId",
   "technicianOrgUserId",
   "assigned",
+  // The AD library: what kind of product, and the AD open beside it (by number).
+  "productType",
+  "ad",
 ] as const;
-const TRANSIENT_FACET_KEYS = ["open"];
+const TRANSIENT_FACET_KEYS = ["open", "ad"];
 
 /**
  * Set when a technician clears "Assigned: To me", so the board stops putting it back. Per
@@ -208,6 +213,7 @@ function MaintenancePage() {
 
   const showsSquawks = view === "open" || view === "resolved";
   const showsWorkOrders = view === "work-orders" || view === "work-orders-closed";
+  const showsAds = view === "ads" || view === "ad-library";
   // Which record the inbox has open. In the URL rather than in state: a notification links
   // straight to one, and closing it has to be an ordinary Back.
   // A number, not a string: it goes into the URL bare (`open=2251`) rather than JSON
@@ -223,7 +229,7 @@ function MaintenancePage() {
     // The tail filter is meaningless on Inspection rules, which lists rules rather than
     // anything belonging to an aircraft. Offering it there would be a control that
     // silently does nothing.
-    if (view !== "templates") {
+    if (view !== "templates" && view !== "ad-library") {
       defs.push({
         kind: "select",
         key: "resourceId",
@@ -322,6 +328,10 @@ function MaintenancePage() {
       );
     }
 
+    if (view === "ad-library") {
+      defs.push({ kind: "select", key: "productType", label: "Type", allLabel: "Any type", multiple: true, options: AD_PRODUCT_TYPES });
+    }
+
     return defs;
   }, [planesQ.data, view, inspectionGroup, showsWorkOrders, membersQ.data, locationsQ.data]);
 
@@ -336,6 +346,10 @@ function MaintenancePage() {
             ? "Search jobs, tails, owners…"
             : view === "compliance"
             ? "Search records, AD numbers, mechanics…"
+            : view === "ads"
+            ? "Search ADs or tails…"
+            : view === "ad-library"
+            ? "Search an AD number, maker, model or any word…"
             : "Search aircraft or inspections…"
       }
       aria-label="Search maintenance"
@@ -357,12 +371,12 @@ function MaintenancePage() {
                   squawk queue was an action for a different screen sitting directly above
                   that screen's own buttons, which is most of why the two rows read as a
                   pile rather than a hierarchy. */}
-              {canManage && !showsSquawks && !showsWorkOrders && (
+              {canManage && !showsSquawks && !showsWorkOrders && !showsAds && (
                 <Button variant="outline" onClick={() => setAddOpen(true)}>
                   <Wrench className="size-4" /> Add inspections
                 </Button>
               )}
-              {showsWorkOrders ? (
+              {showsAds ? null : showsWorkOrders ? (
                 <Button onClick={() => setWorkOrderOpen(true)}>
                   <Plus className="size-4" /> Open a work order
                 </Button>
@@ -422,6 +436,15 @@ function MaintenancePage() {
             ))}
           {view === "compliance" && (
             <ComplianceLog q={q} resourceId={resourceIds} openId={openId} onOpenId={setOpenId} />
+          )}
+          {view === "ads" && <FleetAds q={q} resourceId={resourceIds} />}
+          {view === "ad-library" && (
+            <AdLibrary
+              q={q}
+              productType={asFacetStrings(facets.productType)}
+              openId={typeof facets.ad === "string" ? facets.ad : null}
+              onOpenId={(n) => setFacets({ ...facets, ad: n ?? undefined })}
+            />
           )}
           {view === "templates" && (
             <TableView.Body className="flex flex-col">

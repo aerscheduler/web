@@ -6837,17 +6837,32 @@ export function useAircraftAds(resourceId: number, opts?: QueryOpts) {
   });
 }
 
-/** Decide an AD for an aircraft, or (with `undo`) put it back to review. Answers with the new list. */
-export function useDecideAircraftAd(resourceId: number) {
+/** Every aircraft's ADs, for Maintenance > Fleet ADs. Under `aircraft-ads` so a decision refreshes it. */
+export function useFleetAds(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["aircraft-ads", "fleet"],
+    queryFn: () => api<import("@/types/api").FleetAds>("/maintenance/airworthiness-directives/fleet"),
+    ...opts,
+  });
+}
+
+/** The AD library, searched and paged on the server (Maintenance > AD library). */
+export function useAdLibraryPage(filter: { q?: string; productType?: string } | undefined, paging: PagingState, opts?: QueryOpts) {
+  return usePagedList<import("@/types/api").AdLibraryRow>(["ad-library-search"], "/maintenance/airworthiness-directives", paging, filter, opts);
+}
+
+/** Decide an AD for an aircraft, or (with `undo`) put it back to review. Answers with that aircraft's new list. */
+export function useDecideAd() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { adNumber: string; undo?: boolean; status?: "applies" | "not_applicable"; reason?: string | null; note?: string | null }) =>
+    mutationFn: (input: { resourceId: number; adNumber: string; undo?: boolean; status?: "applies" | "not_applicable"; reason?: string | null; note?: string | null }) =>
       api<import("@/types/api").AircraftAdList>(
-        `/maintenance/resources/${resourceId}/airworthiness-directives/${encodeURIComponent(input.adNumber)}`,
+        `/maintenance/resources/${input.resourceId}/airworthiness-directives/${encodeURIComponent(input.adNumber)}`,
         input.undo ? { method: "DELETE" } : { method: "PUT", body: { status: input.status, reason: input.reason ?? null, note: input.note ?? null } }
       ),
-    onSuccess: (data) => {
-      qc.setQueryData(["aircraft-ads", resourceId], data);
+    onSuccess: (data, input) => {
+      qc.setQueryData(["aircraft-ads", input.resourceId], data);
+      void qc.invalidateQueries({ queryKey: ["aircraft-ads", "fleet"] });
       void qc.invalidateQueries({ queryKey: ["audit"] });
     },
   });

@@ -50,6 +50,8 @@ export type NotificationHref = string;
 const EXACT: Record<string, NotificationHref | undefined> = {
   "/personnel": "/people",
   "/resources": "/aircraft",
+  //A new-AD alert about more than one aircraft (linksFor `fleetAds`).
+  "/maintenance/ads": "/maintenance?view=ads",
   "/reservations": "/schedule",
   //Announcements live under Operations in the console. Open to any member, same as the
   //notice itself.
@@ -182,6 +184,11 @@ export function notificationHref(link: string | null | undefined): NotificationH
   if (exact) return exact;
 
   const segments = trimmed.split("/").filter(Boolean);
+  //An aircraft's ADs (a new-AD alert about one aircraft): the app's /resources/:id/ads.
+  if (segments.length === 3 && segments[0] === "resources" && segments[2] === "ads") {
+    const id = parseId(segments[1]);
+    if (id != null) return `/aircraft/${id}?tab=ads`;
+  }
   if (segments.length === 2) {
     const build = WITH_ID[`/${segments[0]}`];
     const id = parseId(segments[1]);

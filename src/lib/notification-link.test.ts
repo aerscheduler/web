@@ -53,6 +53,12 @@ describe("maintenance shop notification links", () => {
     expect(notificationHref("/")).toBe("/me");
   });
 
+  it("opens the aircraft's ADs, or Fleet ADs, from a new-AD alert", () => {
+    expect(notificationHref("/resources/131/ads")).toBe("/aircraft/131?tab=ads");
+    expect(notificationHref("/maintenance/ads")).toBe("/maintenance?view=ads");
+    expect(notificationHref("/resources/abc/ads")).toBeNull();
+  });
+
   it("opens the inspection itself from the shop's notice on a customer aircraft", () => {
     expect(notificationHref("/reminders/31")).toBe("/maintenance/inspections/31");
   });

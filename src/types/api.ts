@@ -206,6 +206,8 @@ export interface ChannelNotificationPreferences {
   shopJobActivity?: boolean;
   /** An aircraft owner's: findings sent, scheduled, received, ready, the promised date. */
   ownerJobUpdates?: boolean;
+  /** A newly published AD naming one of the organization's aircraft. Null until set: on. */
+  newAds?: boolean | null;
   grounded?: boolean;
   /**
    * Onboarding and activation nudges from AerScheduler itself, not from the school.

@@ -15,6 +15,7 @@ import {
   useConfirmSmsVerification,
   useOrgUserPreferences,
   useOwnerAircraft,
+  useAdMode,
   useSmsOptOut,
   useSmsStatus,
   useStartSmsVerification,
@@ -185,6 +186,17 @@ const MAINTENANCE_ROWS: PrefRow[] = [
   },
 ];
 
+/**
+ * New-AD alerts (AD library, phase 3), shown when the organization finds ADs for itself. Unset
+ * is on: owners, admins and technicians decide ADs. Email and push only; never by text.
+ */
+const NEW_AD_ROW: PrefRow = {
+  key: "newAds",
+  label: "New ADs for our aircraft",
+  hint: "When a newly published Airworthiness Directive names one of the organization's aircraft.",
+  defaultOn: true,
+};
+
 const MAINTENANCE_ROWS_WITH_SHOP: PrefRow[] = [
   {
     key: "maintenanceReminders",
@@ -263,6 +275,7 @@ export function NotificationPreferencesPanel() {
   const { roles, outsideOwner } = useAuth();
   const prefsQ = useOrgUserPreferences();
   const ownedQ = useOwnerAircraft();
+  const adModeQ = useAdMode();
   const smsQ = useSmsStatus();
   const update = useUpdateOrgUserPreferences();
   const startVerify = useStartSmsVerification();
@@ -345,7 +358,7 @@ export function NotificationPreferencesPanel() {
     maintenance: showMaintenance,
     endorsements: showEndorsements,
     shop: showShop ? shopRows(technician, noTechnicians) : null,
-    maintenanceRows: showShop ? MAINTENANCE_ROWS_WITH_SHOP : MAINTENANCE_ROWS,
+    maintenanceRows: [...(showShop ? MAINTENANCE_ROWS_WITH_SHOP : MAINTENANCE_ROWS), ...(adModeQ.data?.mode === "catalogue" ? [NEW_AD_ROW] : [])],
     owner: showOwner ? ownerRows(!showMaintenance) : null,
   };
   // Set: what they chose. Unset: what the server does for them here (their role's default, which

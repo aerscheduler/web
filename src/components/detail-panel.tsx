@@ -77,6 +77,19 @@ export function DetailPanelProvider({ children }: { children: React.ReactNode })
 }
 
 /**
+ * Whether a record is docked in the right-hand column right now (wide screens only; below
+ * the breakpoint a record is a modal sheet). The Messages dock moves left of it.
+ */
+export function useDetailPanelDocked(): boolean {
+  const ctx = React.useContext(DetailPanelCtx);
+  const wide = useMediaQuery(DOCK_QUERY);
+  return wide && ctx?.active != null;
+}
+
+/** The docked column's width, for anything that has to sit beside it. */
+export const DETAIL_PANEL_WIDTH = PANEL_WIDTH;
+
+/**
  * The column a docked panel renders into. Lives in the app shell, OUTSIDE the
  * content's `max-w-[1280px]` wrapper, so on a wide monitor the panel spends the
  * empty gutter instead of eating the list. It is always in the DOM, the portal

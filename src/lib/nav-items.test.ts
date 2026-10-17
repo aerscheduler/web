@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { youNav } from "./nav-items";
+import { pageForPath, youNav } from "./nav-items";
 
 // Tony, 2026-10-01: an aircraft owner's page is their HOME, not "My aircraft". An owner from
 // outside the organization gets Home and Invoices and nothing else; a member who owns an
@@ -11,6 +11,13 @@ describe("the personal menu", () => {
       ["/me", "Home"],
       ["/me/invoices", "Invoices"],
     ]);
+  });
+
+  it("keeps Messages out of the rail (the dock is the way in) but findable by name", () => {
+    for (const roles of [["student"], ["instructor"], ["dispatcher"], ["admin"]]) {
+      expect(youNav(roles).some((i) => i.to === "/messages")).toBe(false);
+    }
+    expect(pageForPath("/messages/12")?.label).toBe("Messages");
   });
 
   it("never offers a separate My aircraft page, to anybody", () => {

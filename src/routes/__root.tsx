@@ -41,6 +41,7 @@ const TITLES: Array<[string, string]> = [
   ["/maintenance", "Maintenance"],
   ["/operations/cancellations", "Cancellations"],
   ["/notifications", "Notifications"],
+  ["/messages", "Messages"],
   ["/settings/integrations/quickbooks", "QuickBooks"],
   ["/settings", "Settings"],
   ["/onboarding", "Get started"],
@@ -86,7 +87,8 @@ function RootLayout() {
         <DemoWatcher />
         <Outlet />
         <ConsentBanner />
-        <Toaster closeButton position="bottom-right" />
+        {/* Above the Messages launcher (bottom-right, 48px tall at 24px in), not on top of it. */}
+        <Toaster closeButton position="bottom-right" offset={{ bottom: 88, right: 24 }} mobileOffset={{ bottom: 88 }} />
       </TooltipProvider>
     </ThemeProvider>
   );

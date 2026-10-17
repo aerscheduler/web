@@ -10,6 +10,7 @@ import {
   Home,
   LayoutDashboard,
   Megaphone,
+  MessagesSquare,
   MonitorPlay,
   PlaneTakeoff,
   Receipt,
@@ -184,11 +185,24 @@ export function youNav(
 }
 
 /**
+ * Messages (2026-10-16). Not in the rail: the launcher in the bottom-right corner of every page
+ * is the way in (components/messages/messages-dock.tsx). Listed off-rail so the command menu
+ * still finds it; /messages opens the Messages modal over the current page.
+ */
+const MESSAGES: NavItem = {
+  to: "/messages",
+  label: "Messages",
+  icon: MessagesSquare,
+  keywords: ["chat", "dm", "direct message", "conversation", "talk to", "message instructor"],
+};
+
+/**
  * Destinations that never appear in the rail but that a user can land on and
  * want back quickly, this is most of what makes "Recent" worth having, since
  * the rail itself already holds the org pages.
  */
 const OFF_RAIL: NavItem[] = [
+  MESSAGES,
   { to: "/settings", label: "Settings", icon: Settings, keywords: ["preferences", "config", "organization", "school"] },
   {
     to: "/me/training",

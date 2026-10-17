@@ -16,7 +16,7 @@ import { safeSetTimeout } from "./safe-timeout";
 // Auth uses a short-lived ticket + first-frame auth (no ticket in the WS URL).
 //---------------------------------------------------------------------------------
 
-export type RealtimeChannel = "schedule" | "notifications" | "billing";
+export type RealtimeChannel = "schedule" | "notifications" | "billing" | "messages";
 
 type TicketResponse = {
   ticket: string;

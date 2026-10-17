@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { MessagesDockProvider } from "@/components/messages/messages-dock";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -103,7 +104,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   useOpenBookingOnDoubleClick();
   useRealtime({
     enabled: organization?.id != null,
-    channels: ["notifications", "billing"],
+    // `messages`: addressed per person on the server, so this socket hears only its own conversations.
+    channels: ["notifications", "billing", "messages"],
     orgId: organization?.id ?? null,
   });
 
@@ -112,6 +114,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       <CommandMenuProvider>
         <QuickCreateProvider>
          <DetailPanelProvider>
+          {/* Messages: the launcher and floating panel in the bottom-right of every page. */}
+          <MessagesDockProvider>
           <SidebarProvider className="h-svh overflow-hidden">
             <AppSidebar />
             <SidebarEdgeToggle />
@@ -190,6 +194,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
             </SidebarInset>
           </SidebarProvider>
+          </MessagesDockProvider>
          </DetailPanelProvider>
         </QuickCreateProvider>
       </CommandMenuProvider>

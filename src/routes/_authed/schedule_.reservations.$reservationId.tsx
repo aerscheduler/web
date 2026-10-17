@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils";
 import { useBookingJob } from "@/components/maintenance/maintenance-job-field";
 import { GroundedMark } from "@/components/schedule/shop-job";
 import { WorkspaceUserAvatars } from "@/components/workspace-user-avatar";
+import { BookingConversation } from "@/components/messages/booking-conversation";
 
 /**
  * One booking, in full.
@@ -250,6 +251,9 @@ function ReservationBody({ reservation: r }: { reservation: Reservation }) {
                 <LessonSection reservation={r} />
               </Card>
             )}
+
+            {/* Messages (2026-10-16): talk about this booking with the people on it. */}
+            <BookingConversation reservationId={r.id} />
 
             {r.notes && (
               <DetailCard title="Notes" description="What the booking was written up with.">

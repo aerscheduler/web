@@ -29,6 +29,7 @@ import { Route as AuthedDashboardRouteImport } from './routes/_authed/dashboard'
 import { Route as AuthedDeveloperRouteImport } from './routes/_authed/developer'
 import { Route as AuthedFacilitiesRouteImport } from './routes/_authed/facilities'
 import { Route as AuthedMaintenanceRouteImport } from './routes/_authed/maintenance'
+import { Route as AuthedMessagesRouteImport } from './routes/_authed/messages'
 import { Route as AuthedNotificationsRouteImport } from './routes/_authed/notifications'
 import { Route as AuthedOfferingsRouteImport } from './routes/_authed/offerings'
 import { Route as AuthedOrganizationSettingsRouteImport } from './routes/_authed/organization-settings'
@@ -52,6 +53,7 @@ import { Route as AuthedMeProfileRouteImport } from './routes/_authed/me/profile
 import { Route as AuthedMeScheduleRouteImport } from './routes/_authed/me/schedule'
 import { Route as AuthedMeSlotOffersRouteImport } from './routes/_authed/me/slot-offers'
 import { Route as AuthedMeTrainingRouteImport } from './routes/_authed/me.training'
+import { Route as AuthedMessagesConversationIdRouteImport } from './routes/_authed/messages_.$conversationId'
 import { Route as AuthedOperationsAnnouncementsRouteImport } from './routes/_authed/operations/announcements'
 import { Route as AuthedOperationsCancellationsRouteImport } from './routes/_authed/operations/cancellations'
 import { Route as AuthedPeopleOrgUserIdRouteImport } from './routes/_authed/people_.$orgUserId'
@@ -172,6 +174,11 @@ const AuthedMaintenanceRoute = AuthedMaintenanceRouteImport.update({
   path: '/maintenance',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMessagesRoute = AuthedMessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => AuthedRoute,
+} as any)
 const AuthedNotificationsRoute = AuthedNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -290,6 +297,12 @@ const AuthedMeTrainingRoute = AuthedMeTrainingRouteImport.update({
   path: '/me/training',
   getParentRoute: () => AuthedRoute,
 } as any)
+const AuthedMessagesConversationIdRoute =
+  AuthedMessagesConversationIdRouteImport.update({
+    id: '/messages_/$conversationId',
+    path: '/messages/$conversationId',
+    getParentRoute: () => AuthedRoute,
+  } as any)
 const AuthedOperationsAnnouncementsRoute =
   AuthedOperationsAnnouncementsRouteImport.update({
     id: '/operations/announcements',
@@ -418,6 +431,7 @@ export interface FileRoutesByFullPath {
   '/developer': typeof AuthedDeveloperRoute
   '/facilities': typeof AuthedFacilitiesRoute
   '/maintenance': typeof AuthedMaintenanceRoute
+  '/messages': typeof AuthedMessagesRoute
   '/notifications': typeof AuthedNotificationsRoute
   '/offerings': typeof AuthedOfferingsRoute
   '/organization-settings': typeof AuthedOrganizationSettingsRoute
@@ -440,6 +454,7 @@ export interface FileRoutesByFullPath {
   '/me/schedule': typeof AuthedMeScheduleRoute
   '/me/slot-offers': typeof AuthedMeSlotOffersRoute
   '/me/training': typeof AuthedMeTrainingRoute
+  '/messages/$conversationId': typeof AuthedMessagesConversationIdRoute
   '/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/people/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
@@ -481,6 +496,7 @@ export interface FileRoutesByTo {
   '/developer': typeof AuthedDeveloperRoute
   '/facilities': typeof AuthedFacilitiesRoute
   '/maintenance': typeof AuthedMaintenanceRoute
+  '/messages': typeof AuthedMessagesRoute
   '/notifications': typeof AuthedNotificationsRoute
   '/offerings': typeof AuthedOfferingsRoute
   '/organization-settings': typeof AuthedOrganizationSettingsRoute
@@ -503,6 +519,7 @@ export interface FileRoutesByTo {
   '/me/schedule': typeof AuthedMeScheduleRoute
   '/me/slot-offers': typeof AuthedMeSlotOffersRoute
   '/me/training': typeof AuthedMeTrainingRoute
+  '/messages/$conversationId': typeof AuthedMessagesConversationIdRoute
   '/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/people/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
@@ -546,6 +563,7 @@ export interface FileRoutesById {
   '/_authed/developer': typeof AuthedDeveloperRoute
   '/_authed/facilities': typeof AuthedFacilitiesRoute
   '/_authed/maintenance': typeof AuthedMaintenanceRoute
+  '/_authed/messages': typeof AuthedMessagesRoute
   '/_authed/notifications': typeof AuthedNotificationsRoute
   '/_authed/offerings': typeof AuthedOfferingsRoute
   '/_authed/organization-settings': typeof AuthedOrganizationSettingsRoute
@@ -568,6 +586,7 @@ export interface FileRoutesById {
   '/_authed/me/schedule': typeof AuthedMeScheduleRoute
   '/_authed/me/slot-offers': typeof AuthedMeSlotOffersRoute
   '/_authed/me/training': typeof AuthedMeTrainingRoute
+  '/_authed/messages_/$conversationId': typeof AuthedMessagesConversationIdRoute
   '/_authed/operations/announcements': typeof AuthedOperationsAnnouncementsRoute
   '/_authed/operations/cancellations': typeof AuthedOperationsCancellationsRoute
   '/_authed/people_/$orgUserId': typeof AuthedPeopleOrgUserIdRoute
@@ -611,6 +630,7 @@ export interface FileRouteTypes {
     | '/developer'
     | '/facilities'
     | '/maintenance'
+    | '/messages'
     | '/notifications'
     | '/offerings'
     | '/organization-settings'
@@ -633,6 +653,7 @@ export interface FileRouteTypes {
     | '/me/schedule'
     | '/me/slot-offers'
     | '/me/training'
+    | '/messages/$conversationId'
     | '/operations/announcements'
     | '/operations/cancellations'
     | '/people/$orgUserId'
@@ -674,6 +695,7 @@ export interface FileRouteTypes {
     | '/developer'
     | '/facilities'
     | '/maintenance'
+    | '/messages'
     | '/notifications'
     | '/offerings'
     | '/organization-settings'
@@ -696,6 +718,7 @@ export interface FileRouteTypes {
     | '/me/schedule'
     | '/me/slot-offers'
     | '/me/training'
+    | '/messages/$conversationId'
     | '/operations/announcements'
     | '/operations/cancellations'
     | '/people/$orgUserId'
@@ -738,6 +761,7 @@ export interface FileRouteTypes {
     | '/_authed/developer'
     | '/_authed/facilities'
     | '/_authed/maintenance'
+    | '/_authed/messages'
     | '/_authed/notifications'
     | '/_authed/offerings'
     | '/_authed/organization-settings'
@@ -760,6 +784,7 @@ export interface FileRouteTypes {
     | '/_authed/me/schedule'
     | '/_authed/me/slot-offers'
     | '/_authed/me/training'
+    | '/_authed/messages_/$conversationId'
     | '/_authed/operations/announcements'
     | '/_authed/operations/cancellations'
     | '/_authed/people_/$orgUserId'
@@ -941,6 +966,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedMaintenanceRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/messages': {
+      id: '/_authed/messages'
+      path: '/messages'
+      fullPath: '/messages'
+      preLoaderRoute: typeof AuthedMessagesRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/notifications': {
       id: '/_authed/notifications'
       path: '/notifications'
@@ -1102,6 +1134,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthedMeTrainingRouteImport
       parentRoute: typeof AuthedRoute
     }
+    '/_authed/messages_/$conversationId': {
+      id: '/_authed/messages_/$conversationId'
+      path: '/messages/$conversationId'
+      fullPath: '/messages/$conversationId'
+      preLoaderRoute: typeof AuthedMessagesConversationIdRouteImport
+      parentRoute: typeof AuthedRoute
+    }
     '/_authed/operations/announcements': {
       id: '/_authed/operations/announcements'
       path: '/operations/announcements'
@@ -1248,6 +1287,7 @@ interface AuthedRouteChildren {
   AuthedDeveloperRoute: typeof AuthedDeveloperRoute
   AuthedFacilitiesRoute: typeof AuthedFacilitiesRoute
   AuthedMaintenanceRoute: typeof AuthedMaintenanceRoute
+  AuthedMessagesRoute: typeof AuthedMessagesRoute
   AuthedNotificationsRoute: typeof AuthedNotificationsRoute
   AuthedOfferingsRoute: typeof AuthedOfferingsRoute
   AuthedOrganizationSettingsRoute: typeof AuthedOrganizationSettingsRoute
@@ -1268,6 +1308,7 @@ interface AuthedRouteChildren {
   AuthedMeScheduleRoute: typeof AuthedMeScheduleRoute
   AuthedMeSlotOffersRoute: typeof AuthedMeSlotOffersRoute
   AuthedMeTrainingRoute: typeof AuthedMeTrainingRoute
+  AuthedMessagesConversationIdRoute: typeof AuthedMessagesConversationIdRoute
   AuthedOperationsAnnouncementsRoute: typeof AuthedOperationsAnnouncementsRoute
   AuthedOperationsCancellationsRoute: typeof AuthedOperationsCancellationsRoute
   AuthedPeopleOrgUserIdRoute: typeof AuthedPeopleOrgUserIdRoute
@@ -1299,6 +1340,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedDeveloperRoute: AuthedDeveloperRoute,
   AuthedFacilitiesRoute: AuthedFacilitiesRoute,
   AuthedMaintenanceRoute: AuthedMaintenanceRoute,
+  AuthedMessagesRoute: AuthedMessagesRoute,
   AuthedNotificationsRoute: AuthedNotificationsRoute,
   AuthedOfferingsRoute: AuthedOfferingsRoute,
   AuthedOrganizationSettingsRoute: AuthedOrganizationSettingsRoute,
@@ -1319,6 +1361,7 @@ const AuthedRouteChildren: AuthedRouteChildren = {
   AuthedMeScheduleRoute: AuthedMeScheduleRoute,
   AuthedMeSlotOffersRoute: AuthedMeSlotOffersRoute,
   AuthedMeTrainingRoute: AuthedMeTrainingRoute,
+  AuthedMessagesConversationIdRoute: AuthedMessagesConversationIdRoute,
   AuthedOperationsAnnouncementsRoute: AuthedOperationsAnnouncementsRoute,
   AuthedOperationsCancellationsRoute: AuthedOperationsCancellationsRoute,
   AuthedPeopleOrgUserIdRoute: AuthedPeopleOrgUserIdRoute,

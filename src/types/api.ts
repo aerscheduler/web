@@ -208,6 +208,8 @@ export interface ChannelNotificationPreferences {
   ownerJobUpdates?: boolean;
   /** A newly published AD naming one of the organization's aircraft. Null until set: on. */
   newAds?: boolean | null;
+  /** Messages. Push on and email off to start; email is an unread roundup, never one per message. */
+  messages?: boolean | null;
   grounded?: boolean;
   /**
    * Onboarding and activation nudges from AerScheduler itself, not from the school.

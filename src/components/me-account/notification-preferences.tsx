@@ -149,6 +149,30 @@ const STATUS_ROWS: PrefRow[] = [
   },
 ];
 
+/**
+ * Messages. The two channels mean different things, so each has its own wording and default:
+ * push is the live one (on, and quiet on the phone while you use the console); email is a
+ * roundup of what is still unread 15 minutes on (off). See server/src/services/messageEmailDigest.ts.
+ */
+const MESSAGE_ROWS: Record<"email" | "push", PrefRow[]> = {
+  push: [
+    {
+      key: "messages",
+      label: "New messages",
+      hint: "A new message or mention. Not sent to your phone while you are using the console.",
+      defaultOn: true,
+    },
+  ],
+  email: [
+    {
+      key: "messages",
+      label: "Unread messages",
+      hint: "One email with what you have not read 15 minutes after it arrived. Nothing if you read it first.",
+      defaultOn: false,
+    },
+  ],
+};
+
 const ANNOUNCEMENT_ROWS: PrefRow[] = [
   {
     key: "announcements",
@@ -722,6 +746,9 @@ function ChannelCard({
             )}
             {sections.member && (
               <PrefSection channel={channel} title="Reservations" rows={RESERVATION_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
+            )}
+            {channel !== "sms" && (
+              <PrefSection channel={channel} title="Messages" rows={MESSAGE_ROWS[channel]} prefs={prefs} saving={saving} onChange={onPrefChange} />
             )}
             <PrefSection channel={channel} title="Billing" rows={BILLING_ROWS} prefs={prefs} saving={saving} onChange={onPrefChange} />
             {sections.owner && (

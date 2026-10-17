@@ -106,6 +106,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     enabled: organization?.id != null,
     // `messages`: addressed per person on the server, so this socket hears only its own conversations.
     channels: ["notifications", "billing", "messages"],
+    // While this console is in use, message pushes to the same person's phone hold off.
+    presence: true,
     orgId: organization?.id ?? null,
   });
 

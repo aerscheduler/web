@@ -39,7 +39,31 @@ type Options = {
   shouldApply?: () => boolean;
   /** Called when the socket is (re)connected after hello. */
   onConnected?: () => void;
+  /**
+   * Tell the server whether this console is in use (tab in front, touched in the last few
+   * minutes), so message pushes to the person's PHONE hold off while they are here
+   * (server/src/realtime/presence.ts). Only the app shell's socket sets this.
+   */
+  presence?: boolean;
 };
+
+/** "In use": the tab is in front and somebody touched it in the last five minutes. */
+const IN_USE_MS = 5 * 60_000;
+let lastInputAt = Date.now();
+let inputTracked = false;
+function trackInput() {
+  if (inputTracked || typeof window === "undefined") return;
+  inputTracked = true;
+  const mark = () => {
+    lastInputAt = Date.now();
+  };
+  for (const type of ["pointerdown", "keydown", "wheel", "pointermove", "touchstart"]) {
+    window.addEventListener(type, mark, { passive: true, capture: true });
+  }
+}
+function consoleInUse() {
+  return document.visibilityState === "visible" && Date.now() - lastInputAt < IN_USE_MS;
+}
 
 /** Serialize ticket mints across concurrent hook mounts / reconnect storms. */
 let ticketInFlight: Promise<TicketResponse> | null = null;
@@ -122,6 +146,7 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
     orgId = null,
     shouldApply,
     onConnected,
+    presence = false,
   } = options;
   const queryClient = useQueryClient();
   const [connected, setConnected] = React.useState(false);
@@ -167,6 +192,17 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
     let stableTimer: number | undefined;
     let attempt = 0;
     let authed = false;
+
+    if (presence) trackInput();
+    /** Presence rides the heartbeat: on hello, every ping, and when the tab hides or returns. */
+    const sendPresence = () => {
+      if (!presence || !ws || ws.readyState !== WebSocket.OPEN || !authed) return;
+      try {
+        ws.send(JSON.stringify({ v: 1, type: "presence", active: consoleInUse() }));
+      } catch {
+        /* the reconnect path owns a broken socket */
+      }
+    };
 
     const clearTimers = () => {
       if (pingTimer != null) window.clearInterval(pingTimer);
@@ -340,8 +376,10 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
             pingTimer = window.setInterval(() => {
               if (ws?.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ v: 1, type: "ping" }));
+                sendPresence();
               }
             }, interval);
+            sendPresence();
             onConnectedRef.current?.();
             flushPending();
             return;
@@ -402,7 +440,11 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
     };
 
     const onVisibility = () => {
-      if (document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") {
+        // Hidden: tell the server now, so the phone takes over without waiting out the TTL.
+        sendPresence();
+        return;
+      }
       if (cancelled) return;
       if (!getToken() || isTokenExpired()) {
         disconnect();
@@ -414,6 +456,7 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
       }
       try {
         ws.send(JSON.stringify({ v: 1, type: "ping" }));
+        sendPresence();
       } catch {
         scheduleReconnect(true);
       }
@@ -472,7 +515,7 @@ export function useRealtime(options: Options = {}): { connected: boolean } {
       window.removeEventListener("aer:token-change", onTokenChange);
       disconnect();
     };
-  }, [enabled, orgId, channelsKey, queryClient, flushPending]);
+  }, [enabled, orgId, channelsKey, queryClient, flushPending, presence]);
 
   return { connected };
 }

@@ -97,13 +97,12 @@ export function ComplianceLog({
     // A bounded column, so the table fills the space below the caption and scrolls inside it
     // rather than growing the page (DataTable `fill` needs its parent to set the height).
     <div data-doc-shot="compliance-log" className="flex min-h-0 flex-1 flex-col pb-4">
-      {/* SAID HERE, not in a footnote. The industry phrase "AD tracking" means a catalogue
-          that answers "which ADs apply to this serial number", and we do not have one. A
-          school that believes this log IS their AD status is the one failure in this feature
-          that could actually hurt somebody. */}
+      {/* SAID HERE, not in a footnote. A school that believes this log IS their AD status is
+          the one failure in this feature that could actually hurt somebody. Since the AD library
+          (2026-10-16) the status is Fleet ADs and the AD status report; this log is the history. */}
       <p className="flex shrink-0 items-center gap-1.5 px-0.5 pb-2 text-xs text-muted-foreground">
-        Every inspection signed off here, newest first. This records the ADs you enter; it does
-        not tell you which ADs apply to your aircraft.
+        Every inspection signed off here, newest first. This is the history; which ADs apply to
+        each aircraft is in Fleet ADs and the AD status report.
         <DocsHint topic="compliance-log-scope" />
       </p>
       <DataTable

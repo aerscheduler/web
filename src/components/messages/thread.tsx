@@ -9,6 +9,7 @@ import {
   useDeleteMessage,
   useEditMessage,
   useMarkConversationRead,
+  useLiveThread,
   useSendMessage,
 } from "@/features/messages";
 import type { ConversationMessage, ConversationPerson, ConversationSummary } from "@/types/messages";
@@ -19,6 +20,7 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
+  useMessageScroller,
 } from "@/components/ui/message-scroller";
 import { Message, MessageAvatar, MessageContent, MessageHeader } from "@/components/ui/message";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
@@ -79,6 +81,7 @@ export function Thread({
 }) {
   const { orgUserId } = useAuth();
   const q = useConversationMessages(conversation.id);
+  useLiveThread(conversation.id);
   const send = useSendMessage(conversation.id);
   const markRead = useMarkConversationRead(conversation.id);
   const [pending, setPending] = React.useState<Pending[]>([]);
@@ -111,15 +114,16 @@ export function Thread({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [newestFromOthers, conversation.isParticipant, conversation.lastReadMessageId]);
 
+  // One at a time, in the order you pressed Enter. Sent side by side, fast messages reached the
+  // server in any order and were numbered that way ("3, 4, 1, 2"). A failed one does not hold
+  // up the rest; it waits for Try again.
+  const queue = React.useRef<Promise<unknown>>(Promise.resolve());
   const deliver = (p: Pending) => {
-    send.mutate(
-      { body: p.body, clientId: p.clientId },
-      {
-        onError: (e) => {
-          setPending((all) => all.map((x) => (x.clientId === p.clientId ? { ...x, failed: true } : x)));
-          toast.error(e instanceof Error ? e.message : "That message didn't send.");
-        },
-      }
+    queue.current = queue.current.then(() =>
+      send.mutateAsync({ body: p.body, clientId: p.clientId }).catch((e: unknown) => {
+        setPending((all) => all.map((x) => (x.clientId === p.clientId ? { ...x, failed: true } : x)));
+        toast.error(e instanceof Error ? e.message : "That message didn't send.");
+      })
     );
   };
 
@@ -141,13 +145,16 @@ export function Thread({
     conversation.kind === "direct" ? `Message ${conversation.title}` : conversation.kind === "reservation" ? "Message everyone on this booking" : `Message ${conversation.title}`;
 
   return (
+    // No scroll anchors: those pin each message you send to the TOP of the view (an AI chat's
+    // "prompt, then room for the answer"). A conversation follows the bottom instead: new
+    // messages keep you at the end while you are there, and sending always takes you there.
+    <MessageScrollerProvider autoScroll defaultScrollPosition="end">
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       {q.isError ? (
         <div className="flex min-h-0 flex-1">
           <ErrorState error={q.error} onRetry={() => q.refetch()} />
         </div>
       ) : (
-        <MessageScrollerProvider autoScroll defaultScrollPosition="end">
           <MessageScroller className="flex-1">
             <MessageScrollerViewport preserveScrollOnPrepend aria-label="Messages">
               <MessageScrollerContent className="gap-0 px-4 py-4 sm:px-6">
@@ -178,12 +185,26 @@ export function Thread({
             </MessageScrollerViewport>
             <MessageScrollerButton />
           </MessageScroller>
-        </MessageScrollerProvider>
       )}
       <div className="shrink-0 border-t bg-background px-4 pb-4 pt-3 sm:px-6">
-        <Composer placeholder={placeholder} onSend={onSend} autoFocus={autoFocus} />
+        <ThreadComposer placeholder={placeholder} onSend={onSend} autoFocus={autoFocus} />
       </div>
     </div>
+    </MessageScrollerProvider>
+  );
+}
+
+/** The composer, which also takes you to the newest message whenever you send. */
+function ThreadComposer({ onSend, ...props }: React.ComponentProps<typeof Composer>) {
+  const { scrollToEnd } = useMessageScroller();
+  return (
+    <Composer
+      {...props}
+      onSend={(body) => {
+        onSend(body);
+        scrollToEnd({ behavior: "auto" });
+      }}
+    />
   );
 }
 
@@ -242,11 +263,13 @@ function Rows({
         next.authorKind === "system" ||
         next.authorOrgUserId !== m.authorOrgUserId ||
         new Date(next.createdAt).getTime() - at.getTime() > GROUP_GAP_MS;
-      rows.push({ kind: "message", key: `m${m.id}`, m, first: startsGroup, last: endsGroup });
+      // Your own message keeps the key its pending bubble had, so delivery updates that bubble in
+      // place instead of swapping one element for another (which made the list jump).
+      rows.push({ kind: "message", key: m.clientId ? `c${m.clientId}` : `m${m.id}`, m, first: startsGroup, last: endsGroup });
     }
     prev = m;
   });
-  for (const p of pending) rows.push({ kind: "pending", key: `p${p.clientId}`, p });
+  for (const p of pending) rows.push({ kind: "pending", key: `c${p.clientId}`, p });
 
   return (
     <>
@@ -271,7 +294,7 @@ function Rows({
         }
         if (row.kind === "pending") {
           return (
-            <MessageScrollerItem key={row.key} scrollAnchor className="pt-0.5">
+            <MessageScrollerItem key={row.key} messageId={row.key} className="pt-0.5">
               <Message align="end">
                 <MessageContent>
                   <Bubble align="end" className={cn("max-w-[75%]", !row.p.failed && "opacity-60")}>
@@ -299,7 +322,7 @@ function Rows({
         const author = m.authorOrgUserId != null ? people.get(m.authorOrgUserId) : undefined;
         const name = agent ? "Assistant" : (author?.name ?? "A former member");
         return (
-          <MessageScrollerItem key={row.key} messageId={String(m.id)} scrollAnchor={mine} className={cn(first ? "pt-2" : "pt-0.5")}>
+          <MessageScrollerItem key={row.key} messageId={row.key} className={cn(first ? "pt-2" : "pt-0.5")}>
             <Message align={mine ? "end" : "start"} className="group/row">
               {!mine && showNames && (
                 <MessageAvatar className={cn("size-7 min-w-7 bg-transparent", !last && "invisible")}>

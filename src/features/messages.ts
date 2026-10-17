@@ -1,4 +1,5 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import { apiRaw, api } from "@/lib/api";
 import type {
   ConversationListPage,
@@ -10,7 +11,15 @@ import type {
 //---------------------------------------------------------------------------------
 // Messages (2026-10-16). Everything lives under the "conversations" root, which is also the
 // one root the realtime `messages` channel invalidates: a new message for this member
-// refetches their list, the badge and any open thread, over REST, where the read rules are.
+// refetches their list, the badge and the open conversation's summary, over REST, where the
+// read rules are.
+//
+// Except the THREAD itself, which sits outside that root ("conversation-thread") on purpose.
+// Refetching an infinite query reloads every page it holds, so each message (yours included,
+// typed fast) reloaded the whole conversation and the list jumped. Instead the thread is
+// written in place: what you send, edit or delete goes straight into the cache from the
+// server's reply, and a socket event fetches only the newest page and merges it
+// (useLiveThread, mergeIntoThread).
 //---------------------------------------------------------------------------------
 
 export const conversationKeys = {
@@ -18,7 +27,8 @@ export const conversationKeys = {
   list: (q: string) => ["conversations", "list", q] as const,
   unread: ["conversations", "unread"] as const,
   one: (id: number) => ["conversations", "one", id] as const,
-  messages: (id: number) => ["conversations", "messages", id] as const,
+  /** Outside the "conversations" root on purpose; see the note at the top. */
+  messages: (id: number) => ["conversation-thread", id] as const,
   reservation: (reservationId: number) => ["conversations", "reservation", reservationId] as const,
 };
 
@@ -101,12 +111,106 @@ export function useSendMessage(conversationId: number) {
   return useMutation({
     mutationFn: (input: { body: string; clientId: string }) =>
       api<ConversationMessage>(`/conversations/${conversationId}/messages`, { method: "POST", body: input }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: conversationKeys.messages(conversationId) });
+    onSuccess: (m) => {
+      putInThread(qc, conversationId, [m]);
       void qc.invalidateQueries({ queryKey: ["conversations", "list"] });
       void qc.invalidateQueries({ queryKey: ["conversations", "reservation"] });
     },
   });
+}
+
+type ThreadData = InfiniteData<MessagesPage, number | null>;
+
+/**
+ * Fold `incoming` into a cached thread: a message already there is replaced when it changed
+ * (an edit, a delete), a new one joins the newest page in id order. Returns the same object
+ * when nothing changed, so nothing re-renders.
+ */
+export function mergeIntoThread(
+  data: ThreadData | undefined,
+  incoming: ConversationMessage[],
+  authors: MessagesPage["authors"] = {}
+): ThreadData | undefined {
+  if (!data || !data.pages.length || !incoming.length) return data;
+  const byId = new Map(incoming.map((m) => [m.id, m]));
+  let changed = false;
+  const pages = data.pages.map((p) => {
+    let pageChanged = false;
+    const next = p.data.map((m) => {
+      const n = byId.get(m.id);
+      if (!n) return m;
+      byId.delete(m.id);
+      if (n.body === m.body && n.editedAt === m.editedAt && n.deletedAt === m.deletedAt) return m;
+      pageChanged = true;
+      return n;
+    });
+    if (!pageChanged) return p;
+    changed = true;
+    return { ...p, data: next };
+  });
+  const fresh = [...byId.values()];
+  const newAuthors = Object.keys(authors).some((k) => !(k in pages[0]!.authors));
+  if (fresh.length || newAuthors) {
+    changed = true;
+    const p0 = pages[0]!;
+    pages[0] = { ...p0, data: [...p0.data, ...fresh].sort((a, b) => a.id - b.id), authors: { ...p0.authors, ...authors } };
+  }
+  return changed ? { ...data, pages } : data;
+}
+
+function putInThread(qc: QueryClient, conversationId: number, messages: ConversationMessage[], authors?: MessagesPage["authors"]) {
+  qc.setQueryData<ThreadData>(conversationKeys.messages(conversationId), (old) => mergeIntoThread(old, messages, authors));
+}
+
+/**
+ * Keep an open thread live without reloading it. Any refresh of the "conversations" root (a
+ * socket event, a read receipt) fetches the newest page once and merges it; events that land
+ * while that fetch runs coalesce into one more. If the newest page does not reach back to what
+ * is cached (a long time offline), the thread is reloaded properly instead.
+ */
+export function useLiveThread(conversationId: number | null) {
+  const qc = useQueryClient();
+  useEffect(() => {
+    if (conversationId == null) return;
+    let timer: number | undefined;
+    let running = false;
+    let again = false;
+    let disposed = false;
+    const run = async () => {
+      if (running) return void (again = true);
+      running = true;
+      try {
+        const page = await apiRaw<MessagesPage>(`/conversations/${conversationId}/messages`, { query: { limit: 50 } });
+        if (disposed) return;
+        const cached = qc.getQueryData<ThreadData>(conversationKeys.messages(conversationId));
+        const newestCached = cached?.pages[0]?.data.at(-1)?.id ?? 0;
+        const oldestFetched = page.data[0]?.id ?? 0;
+        if (cached && page.hasMore && oldestFetched > newestCached) {
+          void qc.invalidateQueries({ queryKey: conversationKeys.messages(conversationId) });
+        } else {
+          putInThread(qc, conversationId, page.data, page.authors);
+        }
+      } catch {
+        /* the next event, or reopening the conversation, tries again */
+      } finally {
+        running = false;
+        if (again && !disposed) {
+          again = false;
+          void run();
+        }
+      }
+    };
+    const unsubscribe = qc.getQueryCache().subscribe((e) => {
+      if (e.type !== "updated" || e.action.type !== "invalidate" || e.query.queryKey[0] !== "conversations") return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void run(), 50);
+    });
+    return () => {
+      disposed = true;
+      unsubscribe();
+      window.clearTimeout(timer);
+    };
+  }, [conversationId, qc]);
 }
 
 export function useMarkConversationRead(conversationId: number) {
@@ -151,7 +255,7 @@ export function useEditMessage(conversationId: number) {
   return useMutation({
     mutationFn: (input: { id: number; body: string }) =>
       api<ConversationMessage>(`/conversations/messages/${input.id}`, { method: "PATCH", body: { body: input.body } }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: conversationKeys.messages(conversationId) }),
+    onSuccess: (m) => putInThread(qc, conversationId, [m]),
   });
 }
 
@@ -159,8 +263,8 @@ export function useDeleteMessage(conversationId: number) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => api<ConversationMessage>(`/conversations/messages/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: conversationKeys.messages(conversationId) });
+    onSuccess: (m) => {
+      putInThread(qc, conversationId, [m]);
       void qc.invalidateQueries({ queryKey: ["conversations", "list"] });
     },
   });

@@ -87,8 +87,15 @@ function RootLayout() {
         <DemoWatcher />
         <Outlet />
         <ConsentBanner />
-        {/* Above the Messages launcher (bottom-right, 48px tall at 24px in), not on top of it. */}
-        <Toaster closeButton position="bottom-right" offset={{ bottom: 88, right: 24 }} mobileOffset={{ bottom: 88 }} />
+        {/* Above the Messages launcher (bottom-right, 48px tall at 24px in), not on top of it.
+            While the Messages panel is open the dock moves them beside it (or above its
+            composer on a phone) through these variables (components/messages/messages-dock.tsx). */}
+        <Toaster
+          closeButton
+          position="bottom-right"
+          offset={{ bottom: "var(--dock-toast-bottom, 88px)", right: "var(--dock-toast-right, 24px)" }}
+          mobileOffset={{ bottom: "var(--dock-toast-bottom-mobile, 88px)" }}
+        />
       </TooltipProvider>
     </ThemeProvider>
   );

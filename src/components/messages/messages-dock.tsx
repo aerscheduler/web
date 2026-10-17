@@ -105,12 +105,16 @@ export function useMessagesDock(): DockCtx {
   return ctx;
 }
 
-const STORAGE_KEY = "messagesDock";
+/**
+ * Where Messages was, per membership (person in an organization), so a reload keeps the
+ * conversation you had open, and switching organization or demo role never reopens somebody
+ * else's (it did: the key was one per tab). Never a half-written new message.
+ */
+const storageKey = (orgUserId: number | null) => `messagesDock:${orgUserId ?? "none"}`;
 
-/** Where Messages was, so a reload keeps the conversation you had open (never a half-written new one). */
-function readSaved(): DockState {
+function readSaved(key: string): DockState {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
+    const raw = sessionStorage.getItem(key);
     if (raw) {
       const v = JSON.parse(raw) as Partial<DockState>;
       const id = typeof v.conversationId === "number" && v.conversationId > 0 ? v.conversationId : null;
@@ -123,14 +127,23 @@ function readSaved(): DockState {
 }
 
 export function MessagesDockProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = React.useState<DockState>(readSaved);
+  const { orgUserId } = useAuth();
+  const key = storageKey(orgUserId);
+  const [state, setState] = React.useState<DockState>(() => readSaved(key));
+  // A different membership (organization switch, demo role switch): its own saved place.
+  const [loadedKey, setLoadedKey] = React.useState(key);
+  if (loadedKey !== key) {
+    setLoadedKey(key);
+    setState(readSaved(key));
+  }
   React.useEffect(() => {
+    if (loadedKey !== key) return;
     try {
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      sessionStorage.setItem(key, JSON.stringify(state));
     } catch {
       /* fine: Messages just forgets on reload */
     }
-  }, [state]);
+  }, [state, key, loadedKey]);
 
   const value = React.useMemo<DockCtx>(
     () => ({
@@ -159,6 +172,21 @@ function MessagesDock({ state, setState }: { state: DockState; setState: React.D
   // A docked record owns the right-hand column; the dock moves to its left rather than
   // covering the record's own footer button.
   const right = panelDocked ? `calc(${DETAIL_PANEL_WIDTH} + 1.5rem)` : "1.5rem";
+  // Toasts stay clear of the open panel: to its left on a desktop, above its composer on a
+  // phone (the panel is the whole screen there). Read by the Toaster in routes/__root.tsx.
+  React.useEffect(() => {
+    if (!state.open) return;
+    const root = document.documentElement.style;
+    root.setProperty("--dock-toast-right", `calc(${right} + 380px + 12px)`);
+    root.setProperty("--dock-toast-bottom", "24px");
+    root.setProperty("--dock-toast-bottom-mobile", "96px");
+    return () => {
+      root.removeProperty("--dock-toast-right");
+      root.removeProperty("--dock-toast-bottom");
+      root.removeProperty("--dock-toast-bottom-mobile");
+    };
+  }, [state.open, right]);
+
   const select = (id: number | null) => {
     if (id === state.conversationId) return;
     const nav: Nav = id == null ? "back" : state.conversationId == null ? "forward" : "swap";

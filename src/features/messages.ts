@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
-import { apiRaw, api } from "@/lib/api";
+import { apiRaw, api, ApiError } from "@/lib/api";
 import type {
   ConversationListPage,
   ConversationMessage,
@@ -53,11 +53,16 @@ export function useUnreadMessageCount(opts?: { enabled?: boolean }) {
   });
 }
 
+/** A refusal (left, deleted, another organization's) is final: show it, do not retry it. */
+const retryUnlessRefused = (failures: number, error: unknown) =>
+  !(error instanceof ApiError && error.status >= 400 && error.status < 500) && failures < 3;
+
 export function useConversation(id: number | null) {
   return useQuery({
     queryKey: conversationKeys.one(id ?? 0),
     queryFn: () => api<ConversationSummary>(`/conversations/${id}`),
     enabled: id != null,
+    retry: retryUnlessRefused,
   });
 }
 

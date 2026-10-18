@@ -63,6 +63,11 @@ export type WhatsNewFeed = {
   entries: WhatsNewEntry[];
   /** The update the rail card shows, or null for no card. */
   cardId: string | null;
+  /**
+   * The card and every other update waiting behind it, newest first. More than one draws a single
+   * stacked card ("4 new updates") that opens or dismisses them all at once.
+   */
+  stackIds: string[];
   unreadCount: number;
   /** Cards still to come after this one, drawn as an edge peeking out under the card. */
   waitingCount: number;

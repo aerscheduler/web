@@ -39,6 +39,7 @@ export function useWhatsNewEvent() {
         return {
           entries,
           cardId: retiredCard ? null : feed.cardId,
+          stackIds: retiredCard ? [] : feed.stackIds,
           unreadCount: entries.filter((e) => !e.read).length,
           waitingCount: retiredCard ? 0 : feed.waitingCount,
         };
@@ -49,6 +50,24 @@ export function useWhatsNewEvent() {
     onSettled: (_data, _err, { event }) => {
       if (event !== "shown" && event !== "action") void qc.invalidateQueries({ queryKey: KEY });
     },
+  });
+}
+
+/**
+ * Close every update waiting for a card at once: the stacked card's × and opening the stack.
+ * They stay unread, so the window still marks them New. `POST /whats-new/dismiss-all`.
+ */
+export function useWhatsNewDismissAll() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ surface }: { surface: WhatsNewSurface }) =>
+      api<{ dismissed: string[] }>("/whats-new/dismiss-all", { method: "POST", body: { surface, platform: "web" } }),
+    onMutate: ({ surface }) => {
+      const feed = qc.getQueryData<WhatsNewFeed>(KEY);
+      track("whats_new_dismissed_all", { count: feed?.stackIds?.length ?? 0, surface });
+      qc.setQueryData<WhatsNewFeed>(KEY, (f) => (f ? { ...f, cardId: null, stackIds: [], waitingCount: 0 } : f));
+    },
+    onSettled: () => void qc.invalidateQueries({ queryKey: KEY }),
   });
 }
 

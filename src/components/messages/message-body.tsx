@@ -15,7 +15,8 @@ export const REF_LETTER: Record<MessageRefType, string> = {
   squawk: "s",
 };
 
-const ICON: Partial<Record<MessageRefType, LucideIcon>> = {
+/** The glyph each kind of mention wears, in a sent message and as a pill in the composer. */
+export const MENTION_ICON: Partial<Record<MessageRefType, LucideIcon>> = {
   resource: PlaneTakeoff,
   reservation: CalendarDays,
   workOrder: Hammer,
@@ -63,7 +64,7 @@ export function MessageBody({ body, refs, mine }: { body: string; refs: Record<s
 function MentionChip({ refValue, mine }: { refValue: MessageRef | undefined; mine: boolean }) {
   if (!refValue) return <span>a record</span>;
   const link = refLink(refValue);
-  const Icon = ICON[refValue.type];
+  const Icon = MENTION_ICON[refValue.type];
   const label = refValue.type === "person" && !refValue.hidden ? `@${refValue.label}` : refValue.label;
   if (!link) return <span className={cn(!mine && "text-muted-foreground")}>{label}</span>;
   return (
@@ -81,13 +82,4 @@ function MentionChip({ refValue, mine }: { refValue: MessageRef | undefined; min
       <span className="truncate">{label}</span>
     </Link>
   );
-}
-
-/** The body as plain words, for an edit box or a preview. */
-export function bodyAsText(body: string, refs: Record<string, MessageRef>): string {
-  return body.replace(TOKEN_RE, (_m, t: string, id: string) => {
-    const ref = refs[`${t}:${id}`];
-    if (!ref) return "a record";
-    return ref.type === "person" && !ref.hidden ? `@${ref.label}` : ref.label;
-  });
 }

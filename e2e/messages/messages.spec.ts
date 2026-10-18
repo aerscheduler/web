@@ -6,9 +6,10 @@ import { dismissCookieBanner } from "../helpers/reservation-form";
 /**
  * Messages in the console, end to end, as a student and an instructor in two browsers:
  * the launcher opens the panel, a new message is written on a To: line, it arrives live on
- * the other side, edit happens in place, delete takes it away, a right-click mutes the
- * conversation, Expand grows the same panel (and is not offered on a phone), and a link followed
- * from the bigger panel lands on the page with Messages back to its normal size. Every write is checked on the wire, not just on screen.
+ * the other side, edit happens in place, delete takes it away, a picked mention is one pill that
+ * goes out as its token, a right-click mutes the conversation, Expand grows the same panel (and
+ * is not offered on a phone), and a link followed from the bigger panel lands on the page with
+ * Messages back to its normal size. Every write is checked on the wire, not just on screen.
  *
  * Text carries a per-run E2E- prefix, and every message sent here is deleted at the end.
  */
@@ -55,7 +56,8 @@ test.describe.serial("Messages", () => {
 
   test("a new message is written on a To: line and opens the conversation", async () => {
     await openPanel(student);
-    await panel(student).getByRole("button", { name: "New message", exact: true }).click();
+    // The header's pencil; an empty list offers a second "New message" button in its empty state.
+    await panel(student).getByRole("button", { name: "New message", exact: true }).first().click();
     await panel(student).getByRole("textbox", { name: "To", exact: true }).fill("Test Instructor");
     await panel(student).getByRole("option", { name: /Test Instructor/ }).click();
 
@@ -120,6 +122,33 @@ test.describe.serial("Messages", () => {
     // No confirmation, and no "Message deleted" left behind.
     await expect(panel(student).getByText(edited)).toHaveCount(0);
     await expect(panel(student).getByText("Message deleted", { exact: true })).toHaveCount(0);
+  });
+
+  test("a picked mention is one pill: one Backspace removes it, and it goes out as its token", async () => {
+    const box = panel(student).getByRole("textbox", { name: "Message Test Instructor" });
+    await box.click();
+    await box.pressSequentially(`${run} pill @N17`);
+    await panel(student).getByRole("option").first().waitFor();
+    await box.press("Enter");
+    const pill = panel(student).locator("[data-mention-pill]");
+    await expect(pill).toHaveCount(1);
+
+    // Backspace over the space after it, then once more: the whole pill goes, not one letter.
+    await box.press("Backspace");
+    await box.press("Backspace");
+    await expect(pill).toHaveCount(0);
+
+    await box.pressSequentially("@N17");
+    await panel(student).getByRole("option").first().waitFor();
+    await box.press("Enter");
+    await box.pressSequentially("now");
+    const posted = student.waitForResponse(isPost(/\/conversations\/\d+\/messages$/));
+    await box.press("Enter");
+    const res = await posted;
+    const sentBody = (res.request().postDataJSON() as { body: string }).body;
+    expect(sentBody).toMatch(new RegExp(`^${run} pill \\{r:\\d+\\} now$`));
+    sent.push(((await res.json()).data as { id: number }).id);
+    await expect(pill).toHaveCount(0);
   });
 
   test("right-click a conversation to mute it, and again to unmute", async () => {

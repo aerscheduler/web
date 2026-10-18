@@ -479,3 +479,16 @@ html[data-messages-nav="swap"]::view-transition-new(messages-screen) {
 @keyframes messages-screen-return {
   from { transform: translateX(-30%); opacity: 0.4; }
 }
+
+/* Messages' text box (components/messages/mention-editor.tsx): Tiptap draws the placeholder as
+   a data attribute on the empty first paragraph; paragraphs sit flush like the textarea did. */
+.messages-editor p {
+  margin: 0;
+}
+.messages-editor p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--muted-foreground);
+}

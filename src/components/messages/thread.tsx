@@ -36,7 +36,8 @@ import {
 import { ErrorState } from "@/components/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Composer } from "@/components/messages/composer";
-import { MessageBody, bodyAsText } from "@/components/messages/message-body";
+import { MentionEditor, type MentionEditorHandle } from "@/components/messages/mention-editor";
+import { MessageBody } from "@/components/messages/message-body";
 
 /** Edits are allowed for this long after sending; the server enforces the same. */
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
@@ -400,33 +401,13 @@ function OwnMessageMenu({ message, conversationId, onEdit }: { message: Conversa
  */
 function InlineEdit({ message, conversationId, onDone }: { message: ConversationMessage; conversationId: number; onDone: () => void }) {
   const edit = useEditMessage(conversationId);
-  const [text, setText] = React.useState(() => bodyAsText(message.body, message.refs));
-  const ref = React.useRef<HTMLTextAreaElement>(null);
+  const ref = React.useRef<MentionEditorHandle>(null);
+  const [empty, setEmpty] = React.useState(false);
 
-  React.useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.focus();
-    el.setSelectionRange(el.value.length, el.value.length);
-  }, []);
-  React.useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }, [text]);
-
-  const save = () => {
-    const trimmed = text.trim();
-    if (!trimmed || edit.isPending) return;
-    // Put the mentions back: each label the message had becomes its token again.
-    let body = trimmed;
-    const refs = Object.entries(message.refs).sort((a, b) => b[1].label.length - a[1].label.length);
-    for (const [key, r] of refs) {
-      if (r.hidden) continue;
-      const label = r.type === "person" ? `@${r.label}` : r.label;
-      body = body.split(label).join(`{${key}}`);
-    }
+  // The words come back with their mentions as pills, each still its token underneath, so an
+  // edit keeps every mention it does not remove (even one this writer can no longer open).
+  const save = (body: string) => {
+    if (edit.isPending) return;
     if (body === message.body) return onDone();
     edit.mutate(
       { id: message.id, body },
@@ -434,28 +415,19 @@ function InlineEdit({ message, conversationId, onDone }: { message: Conversation
     );
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-      e.preventDefault();
-      save();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      e.stopPropagation();
-      onDone();
-    }
-  };
-
   return (
-    <div className="flex w-full max-w-[85%] flex-col gap-1 self-end">
-      <textarea
+    <div className="flex w-full max-w-[85%] flex-col gap-1 self-end" data-keeps-escape>
+      <MentionEditor
         ref={ref}
-        data-keeps-escape
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={onKeyDown}
-        rows={1}
-        aria-label="Edit message"
-        className="max-h-48 w-full resize-none rounded-[18px] border border-ring bg-background px-3.5 py-2 text-[15px] leading-[21px] outline-none ring-2 ring-ring/30"
+        autoFocus
+        placeholder="Edit message"
+        ariaLabel="Edit message"
+        initial={{ body: message.body, refs: message.refs }}
+        onSubmit={save}
+        onEscape={onDone}
+        onEmptyChange={setEmpty}
+        pickerClassName="bottom-auto top-full mb-0 mt-2"
+        editorClassName="messages-editor max-h-48 w-full overflow-y-auto rounded-[18px] border border-ring bg-background px-3.5 py-2 text-[15px] leading-[21px] ring-2 ring-ring/30"
       />
       <p className="self-end px-1 text-[11px] text-muted-foreground">
         Escape to{" "}
@@ -463,7 +435,7 @@ function InlineEdit({ message, conversationId, onDone }: { message: Conversation
           cancel
         </button>
         {" · "}Enter to{" "}
-        <button type="button" onClick={save} disabled={!text.trim() || edit.isPending} className="font-medium text-foreground hover:underline disabled:opacity-50">
+        <button type="button" onClick={() => ref.current?.submit()} disabled={empty || edit.isPending} className="font-medium text-foreground hover:underline disabled:opacity-50">
           save
         </button>
       </p>

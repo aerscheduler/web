@@ -396,7 +396,7 @@ function OwnMessageMenu({ message, conversationId, onEdit }: { message: Conversa
 /**
  * Editing a message where it sits: the bubble becomes a text box with the words in it.
  * Enter saves, Shift+Enter is a new line, Escape cancels (and only cancels: it does not also
- * close the dock or the Messages modal, see `data-keeps-escape`).
+ * close the Messages panel, see `data-keeps-escape`).
  */
 function InlineEdit({ message, conversationId, onDone }: { message: ConversationMessage; conversationId: number; onDone: () => void }) {
   const edit = useEditMessage(conversationId);

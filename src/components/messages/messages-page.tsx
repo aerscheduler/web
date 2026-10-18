@@ -166,8 +166,9 @@ const isCompose = (p: Pane): p is typeof COMPOSE => "compose" in p;
 
 /**
  * Messages as a whole tool: your conversations down the left, the open one (or a new message)
- * filling the rest (InboxView; on a phone they take turns). Rendered inside a <WorkspaceModal>
- * by the dock's Expand and by /messages links (components/messages/messages-dock.tsx).
+ * filling the rest (InboxView; on a phone they take turns). Rendered in the dock's panel when it
+ * is expanded (Expand, or a /messages link), which then grows taller and wider in place
+ * (components/messages/messages-dock.tsx).
  *
  * `selectedId` -1 is the compose view.
  */

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { MessagesDockProvider } from "@/components/messages/messages-dock";
+import { InboxMenu } from "@/components/nav/inbox-menu";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -497,11 +498,7 @@ function Topbar() {
         >
           <CircleHelp className="size-4" />
         </Button>
-        <Button asChild variant="ghost" size="icon" aria-label="Notifications">
-          <Link to="/notifications">
-            <Bell className="size-4" />
-          </Link>
-        </Button>
+        <InboxMenu />
         {isAdmin(roles) && (
           <Button asChild variant="ghost" size="icon" aria-label="Settings">
             <Link to="/settings">

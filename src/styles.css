@@ -395,8 +395,8 @@
   animation: onboard-step-in 280ms ease-out;
 }
 
-/* Messages morph (components/messages/messages-dock.tsx): the launcher, the floating panel and
-   the expanded modal share the view-transition-name `messages-surface`, so the browser grows
+/* Messages morph (components/messages/messages-dock.tsx): the launcher and the floating panel
+   (normal or expanded) share the view-transition-name `messages-surface`, so the browser grows
    one into the next. The group moves and resizes on a soft spring; the two pictures fill it
    and cross-fade, the outgoing one quickly, so the shape reads as one surface changing. */
 ::view-transition-group(messages-surface) {

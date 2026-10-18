@@ -28,6 +28,9 @@ const TITLES: Array<[string, string]> = [
   ["/me/availability", "Availability"],
   ["/me/profile", "Profile"],
   ["/me/notifications", "Notification settings"],
+  // Without it My training fell through to "/me" and read "Home", in the tab and on the
+  // Back link of the training record you open from it.
+  ["/me/training", "My training"],
   ["/me", "Home"],
   ["/dashboard", "Dashboard"],
   ["/schedule", "Calendar"],

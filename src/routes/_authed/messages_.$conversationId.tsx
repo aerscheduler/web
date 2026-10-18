@@ -3,7 +3,7 @@ import { OpenMessages } from "@/components/messages/open-messages";
 
 /**
  * Where a push or an email about a message lands: `linksFor({ kind: "conversation" })` on the
- * server builds `/messages/:id`. Not a page: it opens that conversation in the Messages modal.
+ * server builds `/messages/:id`. Not a page: it opens that conversation in Messages, expanded.
  */
 export const Route = createFileRoute("/_authed/messages_/$conversationId")({
   component: OpenConversation,

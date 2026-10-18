@@ -7,8 +7,8 @@ import { dismissCookieBanner } from "../helpers/reservation-form";
  * Messages in the console, end to end, as a student and an instructor in two browsers:
  * the launcher opens the panel, a new message is written on a To: line, it arrives live on
  * the other side, edit happens in place, delete takes it away, a right-click mutes the
- * conversation, Expand opens the big view, and a link followed from there lands on the page
- * with Messages back in its panel. Every write is checked on the wire, not just on screen.
+ * conversation, Expand grows the same panel (and is not offered on a phone), and a link followed
+ * from the bigger panel lands on the page with Messages back to its normal size. Every write is checked on the wire, not just on screen.
  *
  * Text carries a per-run E2E- prefix, and every message sent here is deleted at the end.
  */
@@ -142,18 +142,27 @@ test.describe.serial("Messages", () => {
     await expect(row.getByLabel("Muted")).toHaveCount(0);
   });
 
-  test("Expand opens the big view; a link from it lands on the page with Messages back in its panel", async () => {
+  test("Expand makes the panel bigger in place; a link from it lands on the page with the panel back to normal", async () => {
     await panel(instructor).getByRole("button", { name: "Expand" }).click();
-    const dialog = instructor.getByRole("dialog", { name: "Messages" });
-    await expect(dialog).toBeVisible();
-    await expect(panel(instructor)).toHaveCount(0);
+    // The same panel, grown: no dialog, no second surface.
+    await expect(panel(instructor)).toHaveAttribute("data-expanded", "true");
+    await expect(instructor.getByRole("dialog", { name: "Messages" })).toHaveCount(0);
+    const box = await panel(instructor).boundingBox();
+    expect(box!.width).toBeGreaterThan(380);
 
     // The conversation's name opens its info; Profile is a link to the person.
-    await dialog.getByRole("button", { name: /Test Student/ }).last().click();
+    await panel(instructor).getByRole("button", { name: /Test Student/ }).last().click();
     await instructor.getByRole("link", { name: "Profile" }).click();
 
     await expect(instructor).toHaveURL(/\/people\/\d+/);
-    await expect(dialog).toHaveCount(0);
     await expect(panel(instructor)).toBeVisible();
+    await expect(panel(instructor)).not.toHaveAttribute("data-expanded", "true");
+  });
+
+  test("on a phone there is no Expand: the panel is already the whole screen", async () => {
+    await instructor.setViewportSize({ width: 375, height: 812 });
+    await expect(panel(instructor)).toBeVisible();
+    await expect(panel(instructor).getByRole("button", { name: "Expand" })).toBeHidden();
+    await instructor.setViewportSize({ width: 1280, height: 720 });
   });
 });

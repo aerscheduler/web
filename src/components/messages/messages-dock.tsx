@@ -1,14 +1,13 @@
 import * as React from "react";
 import { flushSync } from "react-dom";
 import { useRouter } from "@tanstack/react-router";
-import { ChevronDown, ChevronLeft, Maximize2, Search, SquarePen } from "lucide-react";
+import { ChevronDown, ChevronLeft, Maximize2, MessageCircle, Minimize2, Search, SquarePen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useConversation, useConversations, useUnreadMessageCount } from "@/features/messages";
 import type { ConversationSummary } from "@/types/messages";
-import { PersonAvatar } from "@/components/workspace-user-avatar";
 import { DETAIL_PANEL_WIDTH, useDetailPanelDocked } from "@/components/detail-panel";
-import { WorkspaceModal, followsInAppLink } from "@/components/workspace-modal";
+import { useMediaQuery } from "@/hooks/use-mobile";
 import { Thread } from "@/components/messages/thread";
 import { ComposeView } from "@/components/messages/compose-view";
 import { ConversationMenuItems } from "@/components/messages/conversation-menu";
@@ -21,23 +20,25 @@ import { ConversationGlyph, ConversationRow, ConversationTitle, MessagesWorkspac
 //   closed     a launcher in the bottom-right corner of every page
 //   open       a floating panel over the page: the list, a conversation, or a new message.
 //              A mention clicked inside opens the record on the page behind; the panel stays.
-//   expanded   the whole tool in a <WorkspaceModal> (90% of the window), from the panel's
-//              Expand or from a /messages link. Closing it lands you where you were.
+//   expanded   the same panel, bigger (up to 1080 by 860), with the list and the conversation
+//              side by side; from the panel's Expand or a /messages link. Desktop only: a phone's
+//              panel is already the whole screen, so there "expanded" is just the panel.
+//              (It was a 90% modal for a day; Tony: its close button added a whole column.)
 //
-// There is no Messages page; routes/_authed/messages*.tsx only open the modal.
+// There is no Messages page; routes/_authed/messages*.tsx only open the expanded panel.
 //
-// Moving between the three MORPHS: the launcher, the panel and the modal each carry the
-// view-transition-name `messages-surface` (only one is on screen at a time), and every change
-// of state runs inside document.startViewTransition, so the browser grows the launcher into the
-// panel, the panel into the modal, and back. The motion is in index.css. Without View
+// Moving between the three MORPHS: the launcher and the panel carry the view-transition-name
+// `messages-surface` (only one is on screen at a time), and every change of state runs inside
+// document.startViewTransition, so the browser grows the launcher into the panel, the panel
+// into its bigger self, and back. The motion is in index.css. Without View
 // Transitions, or with reduced motion, the change is simply instant.
 //---------------------------------------------------------------------------------
 
 /**
  * The surface's transition name, through a custom property: while a screen slides inside
  * Messages (`html[data-messages-nav]`, styles.css sets it to `none`), the surface is not a
- * transition group of its own, so the panel or modal holds still instead of cross-fading with
- * itself (it read as the whole modal refreshing on every conversation you picked).
+ * transition group of its own, so the panel holds still instead of cross-fading with
+ * itself (it read as the whole panel refreshing on every conversation you picked).
  */
 const SURFACE = "var(--messages-surface-name, messages-surface)";
 
@@ -75,6 +76,21 @@ function morph(update: () => void | Promise<void>) {
   });
 }
 
+/**
+ * The in-app path a click follows in this tab (the router will navigate), or null. A click
+ * meant for a new tab or window, or an outside link, does not count.
+ */
+function followsInAppLink(e: React.MouseEvent): string | null {
+  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return null;
+  const a = (e.target as Element | null)?.closest?.("a[href]");
+  if (!(a instanceof HTMLAnchorElement) || a.target === "_blank" || a.origin !== window.location.origin) return null;
+  return a.pathname + a.search + a.hash;
+}
+
+/** The expanded panel's width; toasts step left of it, so it leaves them 26rem, but it is never
+ *  narrower than the normal panel (at 800px wide, the 26rem alone made it SMALLER). */
+const EXPANDED_W = "max(380px, min(1080px, calc(100vw - 26rem)))";
+
 /** Below Tailwind's `md`, where the open panel takes the whole screen. */
 const isPhone = () => typeof window !== "undefined" && !window.matchMedia("(min-width: 768px)").matches;
 
@@ -91,12 +107,46 @@ const closed = (s: DockState): DockState => ({
 });
 
 type DockCtx = {
-  /** Open Messages: the panel, or with `expanded` the full modal; on one conversation or the list. */
+  /** Open Messages: the panel, or with `expanded` the bigger panel; on one conversation or the list. */
   openMessages: (conversationId?: number | null, opts?: { expanded?: boolean }) => void;
   closeMessages: () => void;
 };
 
 const Ctx = React.createContext<DockCtx | null>(null);
+
+/**
+ * ON A PHONE THE KEYBOARD MUST NOT COVER THE COMPOSER. The panel is `fixed; inset: 0`, sized to
+ * the layout viewport, and iOS Safari opens the keyboard OVER the layout viewport (only the
+ * visual viewport shrinks), so the field you were typing in sat under the keys with Send out of
+ * reach. While on a phone, this sizes the panel to the visual viewport instead: its top at the
+ * viewport's offset (Safari scrolls the page to reveal a focused field) and its height the part
+ * of the screen the keyboard leaves, so the composer rides on top of the keyboard. Chrome on
+ * Android resizes for the keyboard already, and there this is the same box.
+ */
+function useKeyboardBox(enabled: boolean): React.CSSProperties {
+  const [box, setBox] = React.useState<{ top: number; height: number } | null>(null);
+  React.useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!enabled || !vv) {
+      setBox(null);
+      return;
+    }
+    const update = () => {
+      // Only while the keyboard (or anything) has taken part of the screen: at full height the
+      // class's inset: 0 is already right, and leaving it alone keeps the morph's geometry.
+      const covered = window.innerHeight - vv.height > 1;
+      setBox(covered ? { top: vv.offsetTop, height: vv.height } : null);
+    };
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [enabled]);
+  return box ? { top: box.top, height: box.height, bottom: "auto" } : {};
+}
 
 /** Open Messages from anywhere in the console ("Message" on a person, a /messages link). */
 export function useMessagesDock(): DockCtx {
@@ -169,15 +219,19 @@ export function MessagesDockProvider({ children }: { children: React.ReactNode }
 function MessagesDock({ state, setState }: { state: DockState; setState: React.Dispatch<React.SetStateAction<DockState>> }) {
   const router = useRouter();
   const panelDocked = useDetailPanelDocked();
+  const wide = useMediaQuery("(min-width: 768px)");
+  const showPanel = state.open || state.expanded;
+  // Expanded is a desktop size; a phone's panel is the whole screen already.
+  const big = state.expanded && wide;
   // A docked record owns the right-hand column; the dock moves to its left rather than
   // covering the record's own footer button.
   const right = panelDocked ? `calc(${DETAIL_PANEL_WIDTH} + 1.5rem)` : "1.5rem";
   // Toasts stay clear of the open panel: to its left on a desktop, above its composer on a
   // phone (the panel is the whole screen there). Read by the Toaster in routes/__root.tsx.
   React.useEffect(() => {
-    if (!state.open) return;
+    if (!showPanel) return;
     const root = document.documentElement.style;
-    root.setProperty("--dock-toast-right", `calc(${right} + 380px + 12px)`);
+    root.setProperty("--dock-toast-right", `calc(${right} + ${big ? EXPANDED_W : "380px"} + 12px)`);
     root.setProperty("--dock-toast-bottom", "24px");
     root.setProperty("--dock-toast-bottom-mobile", "96px");
     return () => {
@@ -185,14 +239,14 @@ function MessagesDock({ state, setState }: { state: DockState; setState: React.D
       root.removeProperty("--dock-toast-bottom");
       root.removeProperty("--dock-toast-bottom-mobile");
     };
-  }, [state.open, right]);
+  }, [showPanel, big, right]);
 
   const select = (id: number | null) => {
     if (id === state.conversationId) return;
     const nav: Nav = id == null ? "back" : state.conversationId == null ? "forward" : "swap";
     slide(nav, () => flushSync(() => setState((s) => ({ ...s, conversationId: id }))));
   };
-  /** A change of state (launcher, panel, modal), morphed. */
+  /** A change of state (launcher, panel, bigger panel), morphed. */
   const change = (next: (s: DockState) => DockState) => morph(() => flushSync(() => setState(next)));
   /**
    * A link followed from inside: Messages steps to `next` and the page changes underneath, in
@@ -209,7 +263,7 @@ function MessagesDock({ state, setState }: { state: DockState; setState: React.D
     // One custom property carries the right offset; below md the dock ignores it (a phone has
     // no docked record column, and the open panel takes the whole screen).
     <div style={{ ["--dock-right" as string]: right }}>
-      {!state.open && !state.expanded && (
+      {!showPanel && (
         <div
           style={{ viewTransitionName: SURFACE }}
           className="fixed bottom-4 right-4 z-40 rounded-full transition-[right] duration-200 ease-out motion-reduce:transition-none md:bottom-6 md:right-[var(--dock-right)]"
@@ -217,89 +271,46 @@ function MessagesDock({ state, setState }: { state: DockState; setState: React.D
           <Launcher onOpen={() => change((s) => ({ ...s, open: true }))} />
         </div>
       )}
-      {state.open && (
+      {showPanel && (
         <DockPanel
+          expanded={big}
           conversationId={state.conversationId}
           onSelect={select}
           onExpand={() => change((s) => ({ ...s, open: false, expanded: true }))}
+          onCollapse={() => change((s) => ({ ...s, open: true, expanded: false }))}
           onClose={() => change(closed)}
-          // On a phone the panel covers the page, so a followed link closes it to show the page.
-          onLeave={(href) => leave(href, closed)}
+          // Bigger panel: go to the page, Messages back to its usual size on the same
+          // conversation. Phone: the panel covers the page, so it closes to show it.
+          onLeave={(href) => leave(href, big ? (s) => ({ ...closed(s), open: true }) : closed)}
         />
       )}
-      <WorkspaceModal
-        open={state.expanded}
-        onOpenChange={(o) => !o && change(closed)}
-        // A link followed from the big view: go to the page, Messages back to its panel on the
-        // same conversation (a new message in progress is dropped). On a phone the panel would
-        // cover the page too, so there it closes to the launcher.
-        onLeave={(href) => leave(href, (s) => ({ ...closed(s), open: !isPhone() }))}
-        viewTransitionName={SURFACE}
-        title="Messages"
-        description="Your conversations"
-      >
-        <MessagesWorkspace selectedId={state.conversationId} onSelect={select} />
-      </WorkspaceModal>
     </div>
   );
 }
 
 /**
- * The closed dock: the faces of whoever is waiting on you, "Messages", and the unread count.
- * Faces rather than a speech bubble, so it does not read as a chat with AerScheduler support.
+ * The closed dock: a round chat button, and the unread count when there is one. Quiet on
+ * purpose (Tony, 2026-10-17): not everybody uses Messages, and a "Messages" pill with faces in
+ * the corner of every page was a standing interruption for them.
  */
 function Launcher({ onOpen }: { onOpen: () => void }) {
-  const { orgUserId: me } = useAuth();
   const unread = useUnreadMessageCount();
-  const list = useConversations("");
   const n = unread.data ?? 0;
-
-  const faces = React.useMemo(() => {
-    const rows = list.data?.pages.flatMap((p) => p.data) ?? [];
-    const waiting = rows.filter((c) => c.unreadCount > 0);
-    const source = waiting.length ? waiting : rows;
-    const seen = new Set<number>();
-    const out: { id: number; name: string; image: string | null }[] = [];
-    for (const c of source) {
-      for (const p of c.participants) {
-        if (p.orgUserId === me || seen.has(p.orgUserId)) continue;
-        seen.add(p.orgUserId);
-        out.push({ id: p.orgUserId, name: p.name, image: p.profileImage });
-        break;
-      }
-      if (out.length === 3) break;
-    }
-    return out;
-  }, [list.data, me]);
 
   return (
     <button
       type="button"
       onClick={onOpen}
       aria-label={n > 0 ? `Messages, ${n} unread` : "Messages"}
+      title="Messages"
       className={cn(
-        "relative flex h-12 items-center gap-2.5 rounded-full border bg-background shadow-[0_6px_20px_rgba(48,49,61,0.16)]",
-        "transition-transform hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        faces.length ? "pl-2 pr-4" : "px-4",
-        "max-md:size-14 max-md:justify-center max-md:p-0"
+        "relative flex size-12 items-center justify-center rounded-full border bg-background text-foreground shadow-[0_6px_20px_rgba(48,49,61,0.16)]",
+        "transition-transform hover:-translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       )}
     >
-      {faces.length > 0 && (
-        <span className="flex">
-          {faces.map((f, i) => (
-            <PersonAvatar
-              key={f.id}
-              name={f.name}
-              image={f.image}
-              size="md"
-              className={cn("size-[30px] ring-2 ring-background", i > 0 && "-ml-2.5", i > 1 && "max-md:hidden")}
-            />
-          ))}
-        </span>
-      )}
-      <span className="text-sm font-semibold max-md:sr-only">Messages</span>
+      <MessageCircle className="size-5" aria-hidden />
       {n > 0 && (
-        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground max-md:absolute max-md:-right-1 max-md:-top-1 max-md:ring-2 max-md:ring-background">
+        <span className="absolute -right-1 -top-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-bold text-primary-foreground ring-2 ring-background">
           {n > 99 ? "99+" : n}
         </span>
       )}
@@ -308,51 +319,77 @@ function Launcher({ onOpen }: { onOpen: () => void }) {
 }
 
 function DockPanel({
+  expanded,
   conversationId,
   onSelect,
   onExpand,
+  onCollapse,
   onClose,
   onLeave,
 }: {
+  expanded: boolean;
   conversationId: number | null;
   onSelect: (id: number | null) => void;
   onExpand: () => void;
+  onCollapse: () => void;
   onClose: () => void;
   onLeave: (href: string) => void;
 }) {
-  // Escape steps back (conversation or new message to the list, list to closed), unless a
-  // popover or menu inside has it first.
+  // Escape steps back: the bigger panel to its usual size; a conversation or a new message to
+  // the list; the list to closed. Unless a popover or menu inside has it first.
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape" && !e.defaultPrevented) {
       e.preventDefault();
-      if (conversationId != null) onSelect(null);
+      if (expanded) onCollapse();
+      else if (conversationId != null) onSelect(null);
       else onClose();
     }
   };
 
-  // On a phone the panel covers the page, so following a link (a mention, a profile) closes it
-  // to show the page. On a desktop the page is beside it and the panel stays.
+  // Following a link (a mention, a profile) shows the page: the bigger panel steps back to its
+  // usual size, and a phone's full-screen panel closes. A desktop's usual panel stays, the page
+  // is beside it.
   const onClickCapture = (e: React.MouseEvent) => {
-    const href = isPhone() ? followsInAppLink(e) : null;
+    const href = expanded || isPhone() ? followsInAppLink(e) : null;
     if (!href) return;
     e.preventDefault();
     onLeave(href);
   };
+
+  const keyboardBox = useKeyboardBox(!useMediaQuery("(min-width: 768px)"));
 
   return (
     <section
       aria-label="Messages"
       onKeyDown={onKeyDown}
       onClickCapture={onClickCapture}
-      style={{ viewTransitionName: SURFACE }}
+      style={{ viewTransitionName: SURFACE, ...keyboardBox }}
       className={cn(
         "fixed z-40 flex flex-col overflow-hidden bg-background",
         // A phone gets the whole screen, over the sticky top bar (z-50 too, so later in the DOM
         // wins; popovers portal later still and open above it). A desktop gets a floating panel.
         "max-md:inset-0 max-md:z-50",
-        "transition-[right] duration-200 ease-out motion-reduce:transition-none md:bottom-6 md:right-[var(--dock-right)] md:h-[min(600px,calc(100svh-6rem))] md:w-[380px] md:rounded-[14px] md:border md:shadow-[0_16px_48px_rgba(48,49,61,0.2)]"
+        "transition-[right] duration-200 ease-out motion-reduce:transition-none md:bottom-6 md:right-[var(--dock-right)] md:rounded-[14px] md:border md:shadow-[0_16px_48px_rgba(48,49,61,0.2)]",
+        expanded ? "md:h-[min(860px,calc(100svh-6rem))] md:w-[max(380px,min(1080px,calc(100vw-26rem)))]" : "md:h-[min(600px,calc(100svh-6rem))] md:w-[380px]"
       )}
+      data-expanded={expanded || undefined}
     >
+      {expanded ? (
+        <div data-messages-screen className="flex min-h-0 flex-1 flex-col bg-background">
+          <header className="flex shrink-0 items-center gap-1 border-b py-2.5 pl-4 pr-2">
+            <h2 className="flex-1 text-[17px] font-semibold">Messages</h2>
+            <IconButton label="Collapse" onClick={onCollapse}>
+              <Minimize2 className="size-4" />
+            </IconButton>
+            <IconButton label="Minimize" onClick={onClose}>
+              <ChevronDown className="size-4" />
+            </IconButton>
+          </header>
+          <div className="flex min-h-0 flex-1 flex-col p-3">
+            <MessagesWorkspace selectedId={conversationId} onSelect={onSelect} />
+          </div>
+        </div>
+      ) : (
       <div data-messages-screen className="flex min-h-0 flex-1 flex-col bg-background">
         {conversationId == null ? (
           <DockList onSelect={onSelect} onExpand={onExpand} onClose={onClose} />
@@ -362,18 +399,22 @@ function DockPanel({
           <DockThread id={conversationId} onBack={() => onSelect(null)} onExpand={onExpand} onClose={onClose} />
         )}
       </div>
+      )}
     </section>
   );
 }
 
-function IconButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+function IconButton({ label, onClick, children, className }: { label: string; onClick: () => void; children: React.ReactNode; className?: string }) {
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
       onClick={onClick}
-      className="inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn(
+        "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        className
+      )}
     >
       {children}
     </button>
@@ -398,7 +439,7 @@ function DockList({ onSelect, onExpand, onClose }: { onSelect: (id: number) => v
         <IconButton label="New message" onClick={() => onSelect(COMPOSE_ID)}>
           <SquarePen className="size-4" />
         </IconButton>
-        <IconButton label="Expand" onClick={onExpand}>
+        <IconButton label="Expand" onClick={onExpand} className="max-md:hidden">
           <Maximize2 className="size-4" />
         </IconButton>
         <IconButton label="Minimize" onClick={onClose}>
@@ -492,7 +533,7 @@ function DockThread({ id, onBack, onExpand, onClose }: { id: number; onBack: () 
         ) : (
           <p className="flex-1 truncate text-sm font-semibold">Conversation</p>
         )}
-        <IconButton label="Expand" onClick={onExpand}>
+        <IconButton label="Expand" onClick={onExpand} className="max-md:hidden">
           <Maximize2 className="size-4" />
         </IconButton>
         <IconButton label="Minimize" onClick={onClose}>

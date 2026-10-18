@@ -136,6 +136,8 @@ export const MentionEditor = React.forwardRef<
     /** Seed for an edit: the stored body and the refs that name its tokens. */
     initial?: { body: string; refs: Record<string, MessageRef> };
     onSubmit: (body: string) => void;
+    /** Submit even with no words (a message of only photos). */
+    allowEmptySubmit?: boolean;
     onEscape?: () => void;
     onEmptyChange?: (empty: boolean) => void;
     className?: string;
@@ -145,7 +147,7 @@ export const MentionEditor = React.forwardRef<
     pickerClassName?: string;
   }
 >(function MentionEditor(
-  { placeholder, ariaLabel, disabled, autoFocus, initial, onSubmit, onEscape, onEmptyChange, className, editorClassName, pickerClassName },
+  { placeholder, ariaLabel, disabled, autoFocus, initial, onSubmit, allowEmptySubmit, onEscape, onEmptyChange, className, editorClassName, pickerClassName },
   handle
 ) {
   const [suggest, setSuggest] = React.useState<Suggest | null>(null);
@@ -162,8 +164,8 @@ export const MentionEditor = React.forwardRef<
 
   // The editor is built once; everything it calls back into goes through refs so it always
   // sees this render's values.
-  const live = React.useRef({ options, active, suggest, onSubmit, onEscape, onEmptyChange, placeholder, disabled });
-  live.current = { options, active, suggest, onSubmit, onEscape, onEmptyChange, placeholder, disabled };
+  const live = React.useRef({ options, active, suggest, onSubmit, onEscape, onEmptyChange, placeholder, disabled, allowEmptySubmit });
+  live.current = { options, active, suggest, onSubmit, onEscape, onEmptyChange, placeholder, disabled, allowEmptySubmit };
 
   const pick = React.useCallback((r: SearchResult) => {
     const s = live.current.suggest;
@@ -245,7 +247,7 @@ export const MentionEditor = React.forwardRef<
   function submit() {
     if (!editor || live.current.disabled) return;
     const body = docToBody(editor.getJSON()).trim();
-    if (!body) return;
+    if (!body && !live.current.allowEmptySubmit) return;
     live.current.onSubmit(body);
   }
 

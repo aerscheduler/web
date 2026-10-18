@@ -7,9 +7,10 @@ import { dismissCookieBanner } from "../helpers/reservation-form";
  * Messages in the console, end to end, as a student and an instructor in two browsers:
  * the launcher opens the panel, a new message is written on a To: line, it arrives live on
  * the other side, edit happens in place, delete takes it away, a picked mention is one pill that
- * goes out as its token, a right-click mutes the conversation, Expand grows the same panel (and
- * is not offered on a phone), and a link followed from the bigger panel lands on the page with
- * Messages back to its normal size. Every write is checked on the wire, not just on screen.
+ * goes out as its token, a photo and a file go with a message and arrive live, a right-click
+ * mutes the conversation, Expand grows the same panel (and is not offered on a phone), and a
+ * link followed from the bigger panel lands on the page with Messages back to its normal size.
+ * Every write is checked on the wire, not just on screen.
  *
  * Text carries a per-run E2E- prefix, and every message sent here is deleted at the end.
  */
@@ -149,6 +150,43 @@ test.describe.serial("Messages", () => {
     expect(sentBody).toMatch(new RegExp(`^${run} pill \\{r:\\d+\\} now$`));
     sent.push(((await res.json()).data as { id: number }).id);
     await expect(pill).toHaveCount(0);
+  });
+
+  test("a photo and a PDF upload as they are picked, go with the message, and arrive live", async () => {
+    // A real PNG (1x1) and a minimal PDF, picked through the paperclip's file input.
+    const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64");
+    const pdf = Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF");
+    const slots = student.waitForResponse(isPost(/\/conversations\/attachments$/));
+    await panel(student).getByTestId("message-attach-input").setInputFiles([
+      { name: "cowling.png", mimeType: "image/png", buffer: png },
+      { name: "annual.pdf", mimeType: "application/pdf", buffer: pdf },
+    ]);
+    expect((await slots).status()).toBe(201);
+    await expect(panel(student).locator('[data-attachment-draft="ready"]')).toHaveCount(2);
+
+    const text = `${run} with files`;
+    const box = panel(student).getByRole("textbox", { name: "Message Test Instructor" });
+    await box.click();
+    await box.pressSequentially(text);
+    const posted = student.waitForResponse(isPost(/\/conversations\/\d+\/messages$/));
+    await box.press("Enter");
+    const res = await posted;
+    expect(res.status()).toBe(201);
+    expect((res.request().postDataJSON() as { attachmentIds: number[] }).attachmentIds).toHaveLength(2);
+    const message = (await res.json()).data as { id: number; attachments: { fileName: string; isImage: boolean; url: string }[] };
+    sent.push(message.id);
+    expect(message.attachments.map((a) => [a.fileName, a.isImage])).toEqual([
+      ["cowling.png", true],
+      ["annual.pdf", false],
+    ]);
+    // The signed link really serves the bytes.
+    expect((await student.request.get(message.attachments[0]!.url)).status()).toBe(200);
+    await expect(panel(student).locator('[data-attachment-draft]')).toHaveCount(0);
+
+    // The other side gets the picture and the file card, live.
+    const row = panel(instructor).locator("[data-message-id]").filter({ hasText: text });
+    await expect(row.getByRole("img", { name: "cowling.png" })).toBeVisible({ timeout: 15_000 });
+    await expect(row.getByText("annual.pdf")).toBeVisible();
   });
 
   test("right-click a conversation to mute it, and again to unmute", async () => {

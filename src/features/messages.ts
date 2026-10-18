@@ -114,7 +114,7 @@ export function threadMessages(data: InfiniteData<MessagesPage> | undefined) {
 export function useSendMessage(conversationId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { body: string; clientId: string }) =>
+    mutationFn: (input: { body: string; clientId: string; attachmentIds?: number[] }) =>
       api<ConversationMessage>(`/conversations/${conversationId}/messages`, { method: "POST", body: input }),
     onSuccess: (m) => {
       putInThread(qc, conversationId, [m]);

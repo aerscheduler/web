@@ -66,14 +66,14 @@ export function ComposeView({ onCreated, compact = false }: { onCreated: (conver
     if (e.key === "Enter" && query.trim()) (e.preventDefault(), add(options[active]!));
   };
 
-  const send = async (body: string) => {
+  const send = async (body: string, attachmentIds: number[] = []) => {
     if (!picked.length || sending) return;
     setSending(true);
     try {
       const ids = picked.map((p) => p.id);
       const c: ConversationSummary =
         ids.length === 1 ? await direct.mutateAsync(ids[0]!) : await group.mutateAsync({ title: title.trim() || undefined, orgUserIds: ids });
-      await api(`/conversations/${c.id}/messages`, { method: "POST", body: { body, clientId: crypto.randomUUID() } });
+      await api(`/conversations/${c.id}/messages`, { method: "POST", body: { body, clientId: crypto.randomUUID(), attachmentIds } });
       await qc.invalidateQueries({ queryKey: conversationKeys.all });
       onCreated(c.id);
     } catch (e) {
@@ -160,7 +160,7 @@ export function ComposeView({ onCreated, compact = false }: { onCreated: (conver
       <div className={cn("shrink-0 border-t bg-background", compact ? "px-3 pb-3 pt-2.5" : "px-4 pb-4 pt-3 sm:px-6")}>
         <Composer
           placeholder={picked.length ? "Write a message" : "Add someone above first"}
-          onSend={(b) => void send(b)}
+          onSend={(b, ids) => void send(b, ids)}
           disabled={!picked.length || sending}
         />
       </div>

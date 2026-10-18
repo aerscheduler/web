@@ -62,6 +62,17 @@ export type ConversationMessage = {
   action: unknown;
   clientId: string | null;
   refs: Record<string, MessageRef>;
+  /** Photos and files on the message (2026-10-17). Absent from an older server. */
+  attachments?: MessageAttachment[];
+};
+
+/** A photo or file on a message. `url` is a 15-minute signed link; `isImage` draws it inline. */
+export type MessageAttachment = {
+  id: number;
+  fileName: string;
+  contentType: string;
+  isImage: boolean;
+  url: string | null;
 };
 
 export type MessagesPage = {

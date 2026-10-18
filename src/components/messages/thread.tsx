@@ -36,6 +36,7 @@ import {
 import { ErrorState } from "@/components/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Composer } from "@/components/messages/composer";
+import { MessageAttachments, type DraftAttachment } from "@/components/messages/attachments";
 import { MentionEditor, type MentionEditorHandle } from "@/components/messages/mention-editor";
 import { MessageBody } from "@/components/messages/message-body";
 
@@ -46,7 +47,15 @@ const GROUP_GAP_MS = 5 * 60 * 1000;
 /** A gap this long puts a time between messages, like a new day does. */
 const TIME_GAP_MS = 60 * 60 * 1000;
 
-type Pending = { clientId: string; body: string; failed: boolean; createdAt: string };
+type Pending = {
+  clientId: string;
+  body: string;
+  failed: boolean;
+  createdAt: string;
+  attachmentIds: number[];
+  /** The composer's own previews, drawn faded until the server's copy arrives. */
+  attachments: DraftAttachment[];
+};
 
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -121,15 +130,15 @@ export function Thread({
   const queue = React.useRef<Promise<unknown>>(Promise.resolve());
   const deliver = (p: Pending) => {
     queue.current = queue.current.then(() =>
-      send.mutateAsync({ body: p.body, clientId: p.clientId }).catch((e: unknown) => {
+      send.mutateAsync({ body: p.body, clientId: p.clientId, attachmentIds: p.attachmentIds }).catch((e: unknown) => {
         setPending((all) => all.map((x) => (x.clientId === p.clientId ? { ...x, failed: true } : x)));
         toast.error(e instanceof Error ? e.message : "That message didn't send.");
       })
     );
   };
 
-  const onSend = (body: string) => {
-    const p: Pending = { clientId: crypto.randomUUID(), body, failed: false, createdAt: new Date().toISOString() };
+  const onSend = (body: string, attachmentIds: number[] = [], attachments: DraftAttachment[] = []) => {
+    const p: Pending = { clientId: crypto.randomUUID(), body, failed: false, createdAt: new Date().toISOString(), attachmentIds, attachments };
     setPending((all) => [...all, p]);
     deliver(p);
   };
@@ -201,8 +210,8 @@ function ThreadComposer({ onSend, ...props }: React.ComponentProps<typeof Compos
   return (
     <Composer
       {...props}
-      onSend={(body) => {
-        onSend(body);
+      onSend={(body, ids, drafts) => {
+        onSend(body, ids, drafts);
         scrollToEnd({ behavior: "auto" });
       }}
     />
@@ -298,11 +307,20 @@ function Rows({
             <MessageScrollerItem key={row.key} messageId={row.key} className="pt-0.5">
               <Message align="end">
                 <MessageContent>
-                  <Bubble align="end" className={cn("max-w-[75%]", !row.p.failed && "opacity-60")}>
-                    <BubbleContent className="rounded-[18px] px-3.5 py-2 text-[15px] leading-[21px]">
-                      <MessageBody body={row.p.body} refs={{}} mine />
-                    </BubbleContent>
-                  </Bubble>
+                  {row.p.attachments.length > 0 && (
+                    <MessageAttachments
+                      mine
+                      local
+                      attachments={row.p.attachments.map((d) => ({ id: d.key, fileName: d.file.name, isImage: !!d.previewUrl, url: d.previewUrl }))}
+                    />
+                  )}
+                  {row.p.body && (
+                    <Bubble align="end" className={cn("max-w-[75%]", !row.p.failed && "opacity-60")}>
+                      <BubbleContent className="rounded-[18px] px-3.5 py-2 text-[15px] leading-[21px]">
+                        <MessageBody body={row.p.body} refs={{}} mine />
+                      </BubbleContent>
+                    </Bubble>
+                  )}
                   {row.p.failed && (
                     <button
                       type="button"
@@ -342,14 +360,22 @@ function Rows({
                   <InlineEdit message={m} conversationId={conversationId} onDone={() => setEditingId(null)} />
                 ) : (
                   <div className={cn("flex items-center gap-1", mine && "flex-row-reverse")}>
-                    <Bubble align={mine ? "end" : "start"} variant={mine ? "default" : agent ? "outline" : "muted"} className="max-w-[75%]">
-                      <BubbleContent
-                        title={new Date(m.createdAt).toLocaleString()}
-                        className="rounded-[18px] px-3.5 py-2 text-[15px] leading-[21px]"
-                      >
-                        <MessageBody body={m.body} refs={m.refs} mine={mine} />
-                      </BubbleContent>
-                    </Bubble>
+                    {/* Photos and files above the words, as their own pieces; a message can be only them. */}
+                    <div className={cn("flex min-w-0 max-w-full flex-1 flex-col gap-1", mine ? "items-end" : "items-start")}>
+                      {(m.attachments?.length ?? 0) > 0 && (
+                        <MessageAttachments attachments={m.attachments!} conversationId={conversationId} mine={mine} />
+                      )}
+                      {m.body && (
+                        <Bubble align={mine ? "end" : "start"} variant={mine ? "default" : agent ? "outline" : "muted"} className="max-w-[75%]">
+                          <BubbleContent
+                            title={new Date(m.createdAt).toLocaleString()}
+                            className="rounded-[18px] px-3.5 py-2 text-[15px] leading-[21px]"
+                          >
+                            <MessageBody body={m.body} refs={m.refs} mine={mine} />
+                          </BubbleContent>
+                        </Bubble>
+                      )}
+                    </div>
                     {mine && (
                       <OwnMessageMenu message={m} conversationId={conversationId} onEdit={() => setEditingId(m.id)} />
                     )}
@@ -424,6 +450,7 @@ function InlineEdit({ message, conversationId, onDone }: { message: Conversation
         ariaLabel="Edit message"
         initial={{ body: message.body, refs: message.refs }}
         onSubmit={save}
+        allowEmptySubmit={(message.attachments?.length ?? 0) > 0}
         onEscape={onDone}
         onEmptyChange={setEmpty}
         pickerClassName="bottom-auto top-full mb-0 mt-2"

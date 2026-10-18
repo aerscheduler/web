@@ -22,11 +22,11 @@ export function BookingConversation({ reservationId }: { reservationId: number }
   const qc = useQueryClient();
   const [sending, setSending] = React.useState(false);
 
-  const first = async (body: string) => {
+  const first = async (body: string, attachmentIds: number[] = []) => {
     setSending(true);
     try {
       const c = await start.mutateAsync();
-      await api(`/conversations/${c.id}/messages`, { method: "POST", body: { body, clientId: crypto.randomUUID() } });
+      await api(`/conversations/${c.id}/messages`, { method: "POST", body: { body, clientId: crypto.randomUUID(), attachmentIds } });
       await qc.invalidateQueries({ queryKey: conversationKeys.all });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "That message didn't send.");

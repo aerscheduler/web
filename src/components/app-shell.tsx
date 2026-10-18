@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { MessagesDockProvider } from "@/components/messages/messages-dock";
+import { COMPOSE_ID, MessagesDockProvider, useMessagesDock } from "@/components/messages/messages-dock";
 import { InboxMenu } from "@/components/nav/inbox-menu";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import {
   PlaneTakeoff,
   ChevronsUpDown,
   LogOut,
+  MessageCircle,
   Menu,
   Monitor,
   Moon,
@@ -445,6 +446,7 @@ function OrgSwitcher() {
 
 function Topbar() {
   const { roles, outsideOwner } = useAuth();
+  const { openMessages } = useMessagesDock();
   const { toggleSidebar } = useSidebar();
   const { openNewReservation } = useQuickCreate();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -521,6 +523,13 @@ function Topbar() {
               <RequestWorkItems aircraft={askable} onPick={setAsking} />
             ) : (
             <>
+            {/* Messages is every member's, and the most everyday thing to start, so it leads,
+                as in the app's + menu. Opens the panel on New message. */}
+            <DropdownMenuItem onClick={() => openMessages(COMPOSE_ID)}>
+              <MessageCircle />
+              New message
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             {(make.reservation || (make.book && canCreateReservation(roles))) && (
               <>
                 <DropdownMenuLabel className="text-xs text-muted-foreground">Schedule</DropdownMenuLabel>

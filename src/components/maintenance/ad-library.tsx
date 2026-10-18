@@ -14,7 +14,8 @@ import { AD_SECTION_HEADING, AD_STATES, AdReading, adDay, adHeadline, matchWords
 /**
  * MAINTENANCE > AD LIBRARY: every Airworthiness Directive in the library
  * (services/adLibrary.service.ts), searched and paged on the server. The page's
- * search box searches it: an AD number or its start ("2013-11"), or words anywhere in it.
+ * search box searches it: an AD number or its start ("2013-11"), or words, best match first
+ * (the server's one library search, AdLibraryService.rank, the public website's too).
  *
  * Opening one reads it, and, when the organization finds ADs for its aircraft, says which of
  * them it names and where each stands, from the same fleet list as Fleet ADs.
@@ -56,7 +57,7 @@ export function AdLibrary({ q, productType, openId, onOpenId }: { q?: string; pr
   return (
     <div data-doc-shot="maintenance-ad-library" className="flex min-h-0 flex-1 flex-col pb-4">
       <p className="flex shrink-0 items-center gap-1.5 px-0.5 pb-2 text-xs text-muted-foreground">
-        {total.toLocaleString()} AD{total === 1 ? "" : "s"}, newest first.
+        {total.toLocaleString()} AD{total === 1 ? "" : "s"}, {q ? "best match first" : "newest first"}.
         <DocsHint topic="ad-library" />
       </p>
       <DataTable

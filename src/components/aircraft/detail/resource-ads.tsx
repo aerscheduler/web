@@ -11,7 +11,7 @@ import { AD_REASON_LABEL, AD_STATES, AdDecision, AdReading, adDay, adHeadline, m
 /**
  * AIRWORTHINESS DIRECTIVES on the aircraft page (AD library, phase 2): the published ADs that
  * name this aircraft's airframe, engine or propeller, for somebody to decide. Owners, admins and
- * technicians, on an organization whose AD mode is "Find them for me" (catalogue).
+ * technicians, on an organization that has Find the ADs for our aircraft turned on.
  *
  * A ListTable like the aircraft's Work orders tab: grouped by what was decided, then by the part
  * the AD names. A row opens the AD in the detail panel, its applicability and required actions

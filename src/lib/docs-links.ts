@@ -880,17 +880,10 @@ export const DOCS_TOPICS = {
   /* ── Airworthiness Directives ─────────────────────────────────────────── */
 
   "ad-tracking-mode": {
-    title: "How much we do about ADs",
+    title: "Find the ADs for our aircraft",
     summary:
-      "Nothing here is on by default. Choose whether AerScheduler ignores Airworthiness Directives, keeps the records for the ones you enter, or stays out of the way because you track them in ADlog or AVTRAK. Nothing here watches for newly published directives yet.",
+      "Off by default. On, AerScheduler lists every AD published since 1995 that names each aircraft's make and model, engine or propeller, alerts you when a new one is published, and keeps the AD status report. A person decides whether each one applies; AerScheduler never does.",
     href: "maintenance/choose-how-we-handle-airworthiness-directives",
-  },
-  "ad-match-quality": {
-    title: "What we could match",
-    summary:
-      "An AD names the aircraft it applies to by make, model and usually a serial number range. This is how well we could narrow one, for when matching exists. Nothing proposes directives today, so a serial number is worth adding rather than urgent.",
-    href: "maintenance/choose-how-we-handle-airworthiness-directives",
-    linkLabel: "What a serial number buys you",
   },
   "inspection-source": {
     title: "Where this comes from",

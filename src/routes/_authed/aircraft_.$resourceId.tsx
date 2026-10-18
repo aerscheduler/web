@@ -224,7 +224,7 @@ function sectionsFor(
     //Jobs carry the owner and money, so the shop roles only, on fleet aircraft too.
     ...(opts.isPlane && opts.mayOpenWorkOrders ? [{ value: "work-orders", label: "Work orders", icon: WorkOrdersIcon }] : []),
     //The ADs that name it, for the people who sign maintenance off, when the organization
-    //chose "Find them for me" in Settings. Another mode means nobody asked for the list.
+    //turned on Find the ADs for our aircraft in Settings. Off means nobody asked for the list.
     ...(opts.isPlane && opts.mayOpenWorkOrders && opts.adsTab ? [{ value: "ads", label: "ADs", icon: ShieldCheck }] : []),
     //Every bill tied to it. Admin only, like every organization-wide invoice list.
     ...(opts.isPlane && access.money ? [{ value: "invoices", label: "Invoices", icon: Receipt }] : []),

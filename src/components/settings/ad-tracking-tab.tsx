@@ -1,423 +1,66 @@
-import * as React from "react";
-import { DocsHint } from "@/components/docs-hint";
-import { Loader2, Pencil, Plane, Search, ShieldCheck } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
-import {
-  useAdTracking,
-  useLocations,
-  useResource,
-  useSetAdTracking,
-} from "@/features/queries";
-import { AircraftFormModal } from "@/components/aircraft/aircraft-form";
+import { useAdTracking, useSetAdTracking } from "@/features/queries";
+import { PreferenceToggle } from "@/components/settings/parts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
-import type { AdTrackingMode, AircraftAdReadiness, Resource } from "@/types/api";
 
 /**
- * The four places a school actually sits on Airworthiness Directives.
+ * Settings, Airworthiness Directives: one switch (2026-10-17).
  *
- * Written as choices a person recognises rather than as feature toggles. "Off" is first and is
- * the default, because plenty of schools use this product for oil changes and annuals and would
- * be actively harmed by a wall of candidate directives they did not ask for.
+ * It was four choices (Not here, I track them here, Find them for me, Somewhere else) and a
+ * "What we could match" panel grading each aircraft on serial numbers. Only Find them for me
+ * changed anything, and the library matches by make and model, never by serial, so the panel
+ * graded something nothing used. What is missing on an aircraft is said on its ADs tab.
+ *
+ * Off by default, and saved the moment it is flipped, as every other preference toggle here.
  */
-/**
- * Modes with nothing behind them yet: shown but not selectable, so a plan is visible without
- * the promise being made. Empty since 2026-10-16, when "Find them for me" got the AD library
- * behind it. The server holds the same list (AD_TRACKING_MODES_NOT_YET_AVAILABLE).
- */
-const NOT_YET: AdTrackingMode[] = [];
-
-const MODES: { value: AdTrackingMode; label: string; blurb: string; detail: string }[] = [
-  {
-    value: "off",
-    label: "Not here",
-    blurb: "We do nothing about Airworthiness Directives.",
-    detail:
-      "Maintenance works exactly as it does now. You can still label an inspection as coming from an AD if you want the record, but nothing is proposed, nothing is watched, and nobody is notified.",
-  },
-  {
-    value: "manual",
-    label: "I track them here",
-    blurb: "You enter the ADs. We keep the compliance records.",
-    detail:
-      "The AD badge, the permanent compliance record, the log and the Airworthiness compliance report. We do not tell you which ADs apply to your aircraft; you add the ones your IA or your AD subscription identifies.",
-  },
-  {
-    value: "catalogue",
-    label: "Find them for me",
-    blurb: "We list the ADs that name each aircraft. You decide which apply.",
-    detail:
-      "Each aircraft gets an ADs tab listing the Airworthiness Directives published in the Federal Register since 1995 that name its make and model, its engine or its propeller. Owners, admins and technicians decide each one: it applies (and is tracked like any AD inspection), or it does not and why. Nothing is decided for you, and ADs from before 1995 are not in the list, so an older airframe still needs those found by hand. Everything from \"I track them here\" still works.",
-  },
-  {
-    value: "external",
-    label: "Somewhere else",
-    blurb: "ADlog, AVTRAK, Tdata, a spreadsheet, your mechanic's subscription.",
-    detail:
-      "We propose nothing and watch nothing. Any AD document we produce says on its face that applicability is tracked in the system you name, so nobody mistakes our records for the authoritative list.",
-  },
-];
-
 export function AdTrackingTab() {
   const q = useAdTracking();
   const save = useSetAdTracking();
+  const enabled = save.isPending && save.variables ? save.variables.enabled : !!q.data?.enabled;
 
-  const data = q.data;
-  const [mode, setMode] = React.useState<AdTrackingMode>("off");
-  const [external, setExternal] = React.useState("");
-  //Fleet filter for the readiness list below. A school with fifty tails was being asked to
-  //find the four missing a serial number by eye.
-  const [fleetQuery, setFleetQuery] = React.useState("");
-  /**
-   * WHICH AEROPLANE THE EDIT FORM IS OPEN ON.
-   *
-   * The readiness list is where a school finds out a tail has no serial number, so it is also
-   * where the serial number should be typed. The row therefore opens the ordinary aircraft
-   * form rather than sending anybody off to the fleet page to find the same aeroplane again.
-   *
-   * The list rows carry only a resourceId, and the form needs the whole record to prefill, so
-   * the resource is fetched on click and the modal stays shut until it lands. Opening it early
-   * would show an EMPTY form in "Add aircraft" mode, which saves a second aeroplane.
-   */
-  const [editingId, setEditingId] = React.useState<number | null>(null);
-  const editingQ = useResource(editingId);
-  const locationsQ = useLocations();
-  /**
-   * THE RECORD THE OPEN FORM IS BOUND TO, FROZEN.
-   *
-   * Not `editingQ.data` directly. The form resets its fields whenever the `resource` object
-   * changes identity, and this query is live: grounding any aircraft invalidates `resources`,
-   * which prefix-matches this one, so a technician grounding a tail across the school would
-   * have wiped a half-typed serial number back to what was saved. A refetch of the SAME
-   * aircraft is therefore ignored while the form is open; picking a different row replaces it.
-   *
-   * It also outlives the close, so the modal can stay mounted and animate out instead of
-   * vanishing, which is how the other two call sites behave.
-   */
-  const [editing, setEditing] = React.useState<Resource | null>(null);
-
-  React.useEffect(() => {
-    const next = editingQ.data;
-    if (!next || next.id !== editingId) return;
-    setEditing((current) => (current?.id === next.id ? current : next));
-  }, [editingQ.data, editingId]);
-
-  /**
-   * A record that will not load leaves a row that looks untouched and does nothing.
-   *
-   * Worse, clicking it again set the same `editingId`, React bailed out, and no refetch was
-   * ever triggered, so the row stayed dead until a reload. Say what happened and let go of the
-   * id, which makes the next click a real state change and a real retry.
-   */
-  React.useEffect(() => {
-    if (!editingQ.isError) return;
-    toast.error("Couldn't open that aircraft. Try again.");
-    setEditingId(null);
-  }, [editingQ.isError]);
-
-  React.useEffect(() => {
-    if (!data) return;
-    setMode(data.mode);
-    setExternal(data.externalSystem ?? "");
-  }, [data?.mode, data?.externalSystem]);
-
-  const dirty = !!data && (mode !== data.mode || (external.trim() || null) !== (data.externalSystem ?? null));
-  const blocked = mode === "external" && !external.trim();
-
-  async function submit() {
+  async function toggle(next: boolean) {
     try {
-      await save.mutateAsync({ mode, externalSystem: mode === "external" ? external.trim() : null });
-      toast.success("Saved.");
+      await save.mutateAsync({ enabled: next });
+      toast.success(next ? "AerScheduler will find the ADs for your aircraft." : "AD finding is off.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't save that.");
     }
   }
 
-  if (q.isLoading) {
-    return (
-      <div className="space-y-4">
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
-
-  const counts = data?.counts;
-  const chosen = MODES.find((m) => m.value === mode);
-
-  const fleet = data?.aircraft ?? [];
-  //Only worth the row of chrome once the list is long enough to hunt through.
-  const searchable = fleet.length > 6;
-  const matches = searchable ? fleet.filter((a) => matchesFleetQuery(a, fleetQuery)) : fleet;
-
   return (
-    <div className="space-y-5">
-      <Card data-doc-shot="ad-tracking-modes">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="size-4 text-muted-foreground" />
-            Airworthiness Directives
-            <DocsHint topic="ad-tracking-mode" />
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            An Airworthiness Directive is binding under 14 CFR Part 39, and how much of that you
-            want us involved in is your call. Nothing here is on by default. Only <em>Find them for
-            me</em> lists directives for you, and even then deciding which apply to your fleet is
-            yours to do.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            {MODES.map((m) => {
-              const unavailable = NOT_YET.includes(m.value);
-              return (
-                <button
-                  key={m.value}
-                  type="button"
-                  disabled={unavailable}
-                  aria-pressed={mode === m.value}
-                  onClick={() => setMode(m.value)}
-                  className={cn(
-                    "rounded-lg border border-border p-3.5 text-left transition-colors",
-                    unavailable && "cursor-not-allowed opacity-60",
-                    mode === m.value ? "border-primary bg-primary/5" : !unavailable && "hover:bg-accent/50"
-                  )}
-                >
-                  <p className="flex items-center gap-2 text-sm font-medium">
-                    {m.label}
-                    {unavailable && (
-                      <span className="rounded border border-border px-1.5 py-px text-[10px] font-normal uppercase tracking-wide text-muted-foreground">
-                        Not yet
-                      </span>
-                    )}
-                  </p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{m.blurb}</p>
-                </button>
-              );
-            })}
-          </div>
-
-          {chosen && (
-            <p className="rounded-lg border border-border bg-muted/40 px-3.5 py-3 text-xs text-muted-foreground">
-              {chosen.detail}
-            </p>
-          )}
-
-          {mode === "external" && (
-            <div className="space-y-1.5">
-              <Label htmlFor="ad-external">Which system?</Label>
-              <Input
-                id="ad-external"
-                value={external}
-                onChange={(e) => setExternal(e.target.value)}
-                placeholder="ADlog"
-                maxLength={60}
-              />
-              <p className="text-xs text-muted-foreground">
-                Printed on the Airworthiness compliance report, so a reader knows where the
-                authoritative list lives.
-              </p>
-            </div>
-          )}
-
-          <div className="flex justify-end">
-            <Button onClick={submit} disabled={!dirty || blocked || save.isPending}>
-              {save.isPending && <Loader2 className="size-4 animate-spin" />}
-              Save
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* WHAT WE COULD ACTUALLY DO, per aeroplane. Shown for every mode, not only when the
-          catalogue is on: a school deciding whether to turn it on needs to see this first, and
-          a school with it on needs to know when a new aeroplane arrives without a serial. */}
-      <Card data-doc-shot="ad-readiness-panel">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plane className="size-4 text-muted-foreground" />
-            What we could match
-            <DocsHint topic="ad-match-quality" />
-          </CardTitle>
-          <p className="text-sm text-muted-foreground">
-            An AD names the aircraft it applies to by make, model and usually a serial number
-            range. This is how precisely we could match each of your aeroplanes.
-          </p>
-          {/* THE QUESTION THIS PANEL KEPT PROVOKING: matched, and then what? Nothing, today.
-              Saying so here is better than letting an admin fill in eleven serial numbers and
-              go hunting for the screen that changed. */}
-          <p className="text-sm text-muted-foreground">
-            With <em>Find them for me</em> on, this is how precisely each aircraft&rsquo;s ADs tab
-            can be read. A serial number does not narrow the list (applicability is free text),
-            but it is what you check an AD&rsquo;s serial range against, and it prints on the
-            aircraft record for whoever is reading an AD by hand.
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {counts && counts.total > 0 && (
-            <div className="grid grid-cols-3 gap-px overflow-hidden rounded-lg border border-border bg-border">
-              <Stat n={counts.serial} label="by serial" tone="good" />
-              <Stat n={counts.model} label="by model only" tone="warn" />
-              <Stat n={counts.none} label="not enough detail" tone={counts.none ? "bad" : "muted"} />
-            </div>
-          )}
-
-          {counts?.model ? (
-            <p className="text-xs text-muted-foreground">
-              An aeroplane without a serial number cannot be checked against the serial range an
-              AD names, so ruling its ADs out takes a trip to the data plate. Recording the serial
-              once saves that every time.
-            </p>
-          ) : null}
-
-          {searchable && (
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={fleetQuery}
-                onChange={(e) => setFleetQuery(e.target.value)}
-                placeholder="Search tail number, make, model or serial"
-                className="pl-9"
-                aria-label="Search this fleet"
-              />
-            </div>
-          )}
-
-          <div className="divide-y divide-border rounded-lg border border-border">
-            {matches.map((a) => {
-              //The click already happened and the record is on its way. Only this row says so.
-              const opening = editingId === a.resourceId && editingQ.isLoading;
-              return (
-                <button
-                  key={a.resourceId}
-                  type="button"
-                  //Drop the previous snapshot before asking for this one. It is what lets the
-                  //frozen record outlive a close (so the modal animates out) without a second
-                  //open on the same row showing what that row looked like before it was saved.
-                  onClick={() => {
-                    setEditing(null);
-                    setEditingId(a.resourceId);
-                  }}
-                  //The row reads out as a tail number and a verdict, neither of which says it
-                  //does anything. The pencil is decorative and cannot say it either.
-                  aria-label={`Edit ${a.tailNumber}`}
-                  className="flex w-full items-center justify-between gap-4 px-3.5 py-2.5 text-left transition-colors hover:bg-accent/50"
-                >
-                  {/* Spans rather than a div and two paragraphs: a button may only contain
-                      phrasing content, and the row is the button. */}
-                  <span className="min-w-0">
-                    <span className="block font-mono text-sm">{a.tailNumber}</span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {[a.make, a.model].filter(Boolean).join(" ") || "No make or model recorded"}
-                      {a.serialNumber ? ` · s/n ${a.serialNumber}` : ""}
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    <QualityTag quality={a.quality} missing={a.missing} />
-                    {opening ? (
-                      <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-                    ) : (
-                      <Pencil className="size-3.5 text-muted-foreground" />
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-            {!fleet.length && (
-              <p className="px-3.5 py-6 text-center text-sm text-muted-foreground">
-                No aircraft yet.
-              </p>
-            )}
-            {!!fleet.length && !matches.length && (
-              <p className="px-3.5 py-6 text-center text-sm text-muted-foreground">
-                No aircraft match "{fleetQuery.trim()}".
-              </p>
-            )}
-          </div>
-
-          {!!matches.length && (
-            <p className="text-xs text-muted-foreground">
-              Choose an aeroplane to edit it. The serial number is near the bottom of that form,
-              under the rate.
-              {matches.length < fleet.length && (
-                //The three figures above are the whole fleet and do not follow the filter, so
-                //say which of the two numbers the list is showing.
-                <> Showing {matches.length} of {fleet.length}.</>
-              )}
-            </p>
-          )}
-
-          {/* The line that has to be here whatever mode is chosen. */}
-          <p className="text-xs text-muted-foreground">
-            However this is set, AerScheduler never decides that an Airworthiness Directive does
-            not apply to your aircraft. That determination belongs to a certificated person.
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* Opened straight from a row above, so a school fixing four missing serial numbers
-          never leaves this page. Editing an aircraft invalidates `ad-tracking`, so the counts
-          and the row's own tag are right again the moment it saves.
-
-          Mounted from the first pick onward and toggled by `open`, rather than mounted and
-          unmounted, so it animates out like every other modal in the console. `editing` is a
-          frozen snapshot; see its declaration for why it is not the query's own object. */}
-      {editing && (
-        <AircraftFormModal
-          open={editing.id === editingId}
-          onOpenChange={(open) => {
-            if (!open) setEditingId(null);
-          }}
-          resource={editing}
-          locations={locationsQ.data ?? []}
-          //The row promised one field. Land on it.
-          focus="serialNumber"
-        />
-      )}
-    </div>
-  );
-}
-
-/** Tail, make, model and serial. Everything the row shows is everything you can search. */
-function matchesFleetQuery(a: AircraftAdReadiness, query: string): boolean {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return true;
-  return [a.tailNumber, a.make, a.model, a.serialNumber]
-    .filter(Boolean)
-    .some((v) => String(v).toLowerCase().includes(needle));
-}
-
-function Stat({ n, label, tone }: { n: number; label: string; tone: "good" | "warn" | "bad" | "muted" }) {
-  return (
-    <div className="bg-card px-3.5 py-3">
-      <p
-        className={cn(
-          "tnum text-xl font-medium",
-          tone === "good" && "text-[var(--success,#1c6b47)]",
-          tone === "warn" && "text-[var(--warning)]",
-          tone === "bad" && "text-destructive",
-          tone === "muted" && "text-muted-foreground"
+    <Card data-doc-shot="ad-tracking-switch">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="size-4 text-muted-foreground" />
+          Airworthiness Directives
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {q.isLoading ? (
+          <Skeleton className="h-12 w-full" />
+        ) : (
+          <PreferenceToggle
+            label="Find the ADs for our aircraft"
+            docs="ad-tracking-mode"
+            description="Lists every AD published since 1995 that names each aircraft's make and model, engine or propeller, for an owner, admin or technician to decide. Alerts when a new one is published."
+            checked={enabled}
+            saving={save.isPending}
+            onCheckedChange={(next) => void toggle(next)}
+          />
         )}
-      >
-        {n}
-      </p>
-      <p className="text-xs text-muted-foreground">{label}</p>
-    </div>
-  );
-}
-
-function QualityTag({ quality, missing }: { quality: "serial" | "model" | "none"; missing: string[] }) {
-  if (quality === "serial") {
-    return <span className="shrink-0 text-xs text-muted-foreground">Matched by serial</span>;
-  }
-  return (
-    <span className="shrink-0 text-xs text-[var(--warning)]">
-      {quality === "model" ? "Model only" : "Not enough detail"}
-      {missing.length ? <span className="text-muted-foreground"> · add {missing.join(", ")}</span> : null}
-    </span>
+        {enabled && (
+          <p className="text-xs text-muted-foreground">
+            They are under{" "}
+            <Link to="/maintenance" search={{ view: "ads" }} className="font-medium text-foreground underline underline-offset-2">
+              Maintenance, Fleet ADs
+            </Link>{" "}
+            and on each aircraft&rsquo;s ADs tab. AerScheduler never decides that an AD applies or does not; a person does.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -1,7 +1,9 @@
 import * as React from "react";
-import { Link } from "@tanstack/react-router";
 import type { AircraftAdItem, FleetAds as FleetAdsData } from "@/types/api";
-import { useAdLookup, useAdMode, useFleetAds, usePlanes } from "@/features/queries";
+import { useAdLookup, useAdMode, useFleetAds, usePlanes, useSetAdTracking } from "@/features/queries";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
 import { DetailPanel } from "@/components/detail-panel";
@@ -67,7 +69,8 @@ function decidedCell(i: AircraftAdItem) {
 export function FleetAds({ q, resourceId }: { q?: string; resourceId?: number[] }) {
   const { roles } = useAuth();
   const mode = useAdMode();
-  const catalogue = mode.data?.mode === "catalogue";
+  const catalogue = !!mode.data?.enabled;
+  const turnOn = useSetAdTracking();
   const fleetQ = useFleetAds({ enabled: catalogue });
   const planesQ = usePlanes({ scope: "all" });
   const decider = useAdDecider((id) => planesQ.data?.find((p) => p.id === id));
@@ -190,15 +193,24 @@ export function FleetAds({ q, resourceId }: { q?: string; resourceId?: number[] 
           title="AerScheduler is not finding ADs for you"
           body={
             isAdmin(roles)
-              ? "Choose Find them for me under Settings, Airworthiness Directives, and each aircraft's ADs are listed here for someone to decide. The AD library works either way."
-              : "An owner or admin chooses Find them for me under Settings, Airworthiness Directives; then each aircraft's ADs are listed here. The AD library works either way."
+              ? "Turn it on and every AD published since 1995 that names each aircraft, its engine or its propeller is listed here for someone to decide. The AD library works either way."
+              : "An owner or admin turns on Find the ADs for our aircraft under Settings, Airworthiness Directives; then each aircraft's ADs are listed here. The AD library works either way."
           }
           docs="aircraft-ads"
           action={
             isAdmin(roles) ? (
-              <Link to="/settings" search={{ tab: "ad-tracking" } as never} className="text-sm font-medium underline underline-offset-2">
-                Open AD settings
-              </Link>
+              <Button
+                disabled={turnOn.isPending}
+                onClick={() =>
+                  turnOn
+                    .mutateAsync({ enabled: true })
+                    .then(() => toast.success("AerScheduler will find the ADs for your aircraft."))
+                    .catch((err) => toast.error(err instanceof Error ? err.message : "Couldn't turn that on."))
+                }
+              >
+                {turnOn.isPending && <Loader2 className="size-4 animate-spin" />}
+                Find the ADs for our aircraft
+              </Button>
             ) : undefined
           }
         />

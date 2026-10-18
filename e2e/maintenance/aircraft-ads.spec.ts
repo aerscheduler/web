@@ -8,7 +8,7 @@ import { dismissCookieBanner } from "../helpers/reservation-form";
  * read in the panel as the Federal Register laid them out, and decided from the row menu and
  * the panel. As the technician, who reviews ADs, and as a student, who never sees the tab.
  *
- * Needs seed-test-ad-library.sql (four real ADs, "Find them for me" on AERTEST01, the
+ * Needs seed-test-ad-library.sql (four real ADs, "Find the ADs for our aircraft" on AERTEST01, the
  * LYCOMING IO-360-L2A on N172TS). Every decision is undone first, so a run that died midway
  * starts clean.
  */

@@ -3858,27 +3858,13 @@ export type MyMembership = {
   charges: MembershipCharge[];
 };
 
-/** Whether a school wants AerScheduler involved in Airworthiness Directives, and how far. */
-export type AdTrackingMode = "off" | "manual" | "catalogue" | "external";
+/**
+ * Whether AerScheduler finds the ADs for the organization's aircraft: one switch since
+ * 2026-10-17. `catalogue` is on; `enabled` says the same thing.
+ */
+export type AdTrackingMode = "off" | "catalogue";
 
-export type AircraftAdReadiness = {
-  resourceId: number;
-  tailNumber: string;
-  make: string | null;
-  model: string | null;
-  serialNumber: string | null;
-  /** How precisely a published AD could be matched to this aeroplane. */
-  quality: "serial" | "model" | "none";
-  /** What somebody could type in to improve it. */
-  missing: string[];
-};
-
-export type AdReadiness = {
-  mode: AdTrackingMode;
-  externalSystem: string | null;
-  aircraft: AircraftAdReadiness[];
-  counts: { total: number; serial: number; model: number; none: number };
-};
+export type AdTrackingState = { mode: AdTrackingMode; enabled: boolean };
 
 /** What the shop keeps about an aircraft (GET /resources/:id/profile). Hours in TENTHS. */
 export interface AircraftProfile {

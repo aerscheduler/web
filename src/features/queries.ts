@@ -40,7 +40,6 @@ import type {
   InvoicePreview,
   SalesTaxSettings,
   TaxExemptReason,
-  AdReadiness,
   AircraftProfile,
   AircraftComponent,
   AircraftComponentInput,
@@ -51,7 +50,7 @@ import type {
   OwnerJob,
   CustomerProfile,
   WorkOrderFile,
-  AdTrackingMode,
+  AdTrackingState,
   AirportMatch,
   Announcement,
   ApiKey,
@@ -6008,17 +6007,11 @@ export function useSetMembershipPlanRate() {
   });
 }
 
-/**
- * The school's Airworthiness Directive posture, and what we could match for each aeroplane.
- *
- * Admin-only on the server. Kept under its own key rather than folded into the organization
- * query, because the readiness figures change whenever an aircraft's serial number is edited
- * and that should not invalidate the whole org.
- */
+/** Whether the organization has AerScheduler find its ADs. Admin-only on the server. */
 export function useAdTracking(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["ad-tracking"],
-    queryFn: () => api<AdReadiness>("/organizations/adTracking"),
+    queryFn: () => api<AdTrackingState>("/organizations/adTracking"),
     ...opts,
   });
 }
@@ -6026,11 +6019,13 @@ export function useAdTracking(opts?: QueryOpts) {
 export function useSetAdTracking() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { mode: AdTrackingMode; externalSystem?: string | null }) =>
-      api<AdReadiness>("/organizations/adTracking", { method: "PATCH", body: input }),
+    mutationFn: (input: { enabled: boolean }) =>
+      api<AdTrackingState>("/organizations/adTracking", { method: "PATCH", body: input }),
     onSuccess: (data) => {
       qc.setQueryData(["ad-tracking"], data);
-      //Maintenance surfaces read the mode to decide what to show, so they go stale too.
+      //Every AD surface reads the setting to decide what to show.
+      qc.setQueryData(["ad-mode"], data);
+      void qc.invalidateQueries({ queryKey: ["aircraft-ads"] });
       void qc.invalidateQueries({ queryKey: ["reminders"] });
       void qc.invalidateQueries({ queryKey: ["reminder-templates"] });
     },
@@ -6825,11 +6820,11 @@ export function useAdLookup(adNumber: string | null) {
   });
 }
 
-/** The organization's AD mode, readable by any member (the full readout is admin-only). */
+/** Whether the organization finds its ADs, readable by any member. */
 export function useAdMode(opts?: QueryOpts) {
   return useQuery({
     queryKey: ["ad-mode"],
-    queryFn: () => api<{ mode: import("@/types/api").AdTrackingMode; externalSystem: string | null }>("/maintenance/ad-tracking-mode"),
+    queryFn: () => api<AdTrackingState>("/maintenance/ad-tracking-mode"),
     staleTime: 5 * 60_000,
     ...opts,
   });

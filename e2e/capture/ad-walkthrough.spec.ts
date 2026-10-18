@@ -108,12 +108,8 @@ test.describe("capture", () => {
     await givenTheFleetIsSetUp(request, auth);
 
     await page.goto("/settings?tab=ad-tracking");
-    await expect(page.getByText("What we could match")).toBeVisible();
+    await expect(page.getByRole("switch", { name: "Find the ADs for our aircraft" })).toBeVisible();
     await shot(page, "01-owner-ad-tracking-choice");
-
-    // The readiness panel, which is the half that answers "should I turn this on".
-    await page.getByText("What we could match").scrollIntoViewIfNeeded();
-    await shot(page, "02-owner-readiness-panel");
   });
 
   test("02 owner adds the directive", async ({ page }) => {

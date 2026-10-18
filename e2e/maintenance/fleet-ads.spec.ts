@@ -9,7 +9,7 @@ import { dismissCookieBanner } from "../helpers/reservation-form";
  * an AD opened with where it stands on the fleet. A student sees neither view, and the fleet
  * roll-up answers 403.
  *
- * Needs seed-test-ad-library.sql (the e2e stack runs it): four real ADs, "Find them for me" on
+ * Needs seed-test-ad-library.sql (the e2e stack runs it): four real ADs, "Find the ADs for our aircraft" on
  * AERTEST01, and the LYCOMING IO-360-L2A on N172TS.
  */
 

@@ -36,42 +36,33 @@ test.afterAll(async ({ request }) => {
 /* ------------------------------------------------------------------------------------- */
 
 test.describe("The owner deciding whether to track ADs at all", () => {
-  test("can turn tracking on, and is told what we could match before deciding", async ({
-    page,
-    request,
-  }) => {
+  test("turns finding ADs on and off with one switch", async ({ page, request }) => {
     const auth = await authAs(request, "owner");
+    const before = (await (await request.get(`${auth.base}/organizations/adTracking`, { headers: auth.headers })).json()).data;
 
-    await page.goto("/settings?tab=ad-tracking");
-    await dismissCookieBanner(page);
+    try {
+      await request.patch(`${auth.base}/organizations/adTracking`, { headers: auth.headers, data: { enabled: false } });
+      await page.goto("/settings?tab=ad-tracking");
+      await dismissCookieBanner(page);
 
-    // THE ORDER MATTERS. The readiness panel is on the same page as the choice, and visible
-    // before anything is switched on, because "should I turn this on" is unanswerable
-    // without knowing how well it could work on this particular fleet.
-    await expect(page.getByText("What we could match")).toBeVisible();
-    await expect(page.getByRole("button", { name: /Not here/ })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+      // One switch. The four choices and the "What we could match" panel are gone (2026-10-17).
+      const toggle = page.getByRole("switch", { name: "Find the ADs for our aircraft" });
+      await expect(toggle).toHaveAttribute("aria-checked", "false");
+      await expect(page.getByText("What we could match")).toHaveCount(0);
 
-    await page.getByRole("button", { name: /I track them here/ }).click();
-    await page.getByRole("button", { name: "Save" }).click();
-    await expect(page.getByText("Saved.")).toBeVisible();
+      const saved = page.waitForResponse((r) => r.url().endsWith("/organizations/adTracking") && r.request().method() === "PATCH");
+      await toggle.click();
+      const res = await saved;
+      expect(res.status()).toBe(200);
+      expect(res.request().postDataJSON()).toEqual({ enabled: true });
+      await expect(toggle).toHaveAttribute("aria-checked", "true");
+      await expect(page.getByRole("link", { name: "Maintenance, Fleet ADs" })).toBeVisible();
 
-    const after = await (
-      await request.get(`${auth.base}/organizations/adTracking`, { headers: auth.headers })
-    ).json();
-    expect(after.data.mode).toBe("manual");
-
-    // The sentence that has to survive every mode, including this one.
-    await expect(
-      page.getByText(/never decides that an Airworthiness Directive does not apply/i)
-    ).toBeVisible();
-
-    await request.patch(`${auth.base}/organizations/adTracking`, {
-      headers: auth.headers,
-      data: { mode: "off" },
-    });
+      const after = (await (await request.get(`${auth.base}/organizations/adTracking`, { headers: auth.headers })).json()).data;
+      expect(after).toEqual({ mode: "catalogue", enabled: true });
+    } finally {
+      await request.patch(`${auth.base}/organizations/adTracking`, { headers: auth.headers, data: { enabled: !!before.enabled } });
+    }
   });
 
   test("adds an AD with the three things that make it citable", async ({ page, request }) => {
@@ -170,14 +161,14 @@ test.describe("The A&P who did the work", () => {
     const tech = await authAs(request, "technician");
     const res = await request.patch(`${tech.base}/organizations/adTracking`, {
       headers: tech.headers,
-      data: { mode: "catalogue" },
+      data: { enabled: true },
     });
-    expect(res.status(), "turning the catalogue on is an owner decision").toBe(403);
+    expect(res.status(), "turning AD finding on is an owner decision").toBe(403);
 
     // And the console does not offer it either, so this is not a door drawn on a wall.
     await page.goto("/settings?tab=ad-tracking");
     await dismissCookieBanner(page);
-    await expect(page.getByRole("button", { name: /I track them here/ })).toHaveCount(0);
+    await expect(page.getByRole("switch", { name: "Find the ADs for our aircraft" })).toHaveCount(0);
   });
 });
 

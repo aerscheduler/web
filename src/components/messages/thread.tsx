@@ -1,5 +1,5 @@
 import * as React from "react";
-import { AlertCircle, Bot, MoreHorizontal } from "lucide-react";
+import { AlertCircle, Bot } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -12,7 +12,7 @@ import {
   useLiveThread,
   useSendMessage,
 } from "@/features/messages";
-import type { ConversationMessage, ConversationPerson, ConversationSummary } from "@/types/messages";
+import type { ConversationMessage, ConversationPerson, ConversationSummary, MessageReplyQuote } from "@/types/messages";
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -27,18 +27,13 @@ import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Marker, MarkerContent } from "@/components/ui/marker";
 import { Button } from "@/components/ui/button";
 import { PersonAvatar } from "@/components/workspace-user-avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { ErrorState } from "@/components/states";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Composer } from "@/components/messages/composer";
 import { MessageAttachments, type DraftAttachment } from "@/components/messages/attachments";
 import { MentionEditor, type MentionEditorHandle } from "@/components/messages/mention-editor";
 import { MessageBody } from "@/components/messages/message-body";
+import { BookingCards, MessageActions, plainBody, ReactionChips, ReplyQuoteView, seenText } from "@/components/messages/message-extras";
 
 /** Edits are allowed for this long after sending; the server enforces the same. */
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
@@ -55,7 +50,12 @@ type Pending = {
   attachmentIds: number[];
   /** The composer's own previews, drawn faded until the server's copy arrives. */
   attachments: DraftAttachment[];
+  /** What it answers, quoted above it while it sends. */
+  replyTo: MessageReplyQuote | null;
 };
+
+/** The message the composer is answering, and how the bar above the text names it. */
+type Replying = { key: number; author: string; preview: string; quote: MessageReplyQuote };
 
 function sameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -95,6 +95,7 @@ export function Thread({
   const send = useSendMessage(conversation.id);
   const markRead = useMarkConversationRead(conversation.id);
   const [pending, setPending] = React.useState<Pending[]>([]);
+  const [replying, setReplying] = React.useState<Replying | null>(null);
   const { messages, authors } = threadMessages(q.data);
 
   // A pending message leaves the list the moment the server's copy of it arrives.
@@ -130,7 +131,7 @@ export function Thread({
   const queue = React.useRef<Promise<unknown>>(Promise.resolve());
   const deliver = (p: Pending) => {
     queue.current = queue.current.then(() =>
-      send.mutateAsync({ body: p.body, clientId: p.clientId, attachmentIds: p.attachmentIds }).catch((e: unknown) => {
+      send.mutateAsync({ body: p.body, clientId: p.clientId, attachmentIds: p.attachmentIds, replyToId: p.replyTo?.id ?? null }).catch((e: unknown) => {
         setPending((all) => all.map((x) => (x.clientId === p.clientId ? { ...x, failed: true } : x)));
         toast.error(e instanceof Error ? e.message : "That message didn't send.");
       })
@@ -138,9 +139,23 @@ export function Thread({
   };
 
   const onSend = (body: string, attachmentIds: number[] = [], attachments: DraftAttachment[] = []) => {
-    const p: Pending = { clientId: crypto.randomUUID(), body, failed: false, createdAt: new Date().toISOString(), attachmentIds, attachments };
+    const p: Pending = {
+      clientId: crypto.randomUUID(),
+      body,
+      failed: false,
+      createdAt: new Date().toISOString(),
+      attachmentIds,
+      attachments,
+      replyTo: replying?.quote ?? null,
+    };
     setPending((all) => [...all, p]);
+    setReplying(null);
     deliver(p);
+  };
+
+  const startReply = (m: ConversationMessage, author: string) => {
+    const preview = plainBody(m) || ((m.attachments?.length ?? 0) > 0 ? (m.attachments!.every((a) => a.isImage) ? "Photo" : "File") : "Message");
+    setReplying({ key: m.id, author, preview, quote: { id: m.id, authorOrgUserId: m.authorOrgUserId, preview, deleted: false } });
   };
 
   const retry = (clientId: string) => {
@@ -187,8 +202,9 @@ export function Thread({
                     participants={conversation.participants}
                     me={orgUserId}
                     showNames={showNames}
-                    conversationId={conversation.id}
+                    conversation={conversation}
                     onRetry={retry}
+                    onReply={startReply}
                   />
                 )}
               </MessageScrollerContent>
@@ -197,7 +213,13 @@ export function Thread({
           </MessageScroller>
       )}
       <div className="shrink-0 border-t bg-background px-4 pb-4 pt-3 sm:px-6">
-        <ThreadComposer placeholder={placeholder} onSend={onSend} autoFocus={autoFocus} />
+        <ThreadComposer
+          placeholder={placeholder}
+          onSend={onSend}
+          autoFocus={autoFocus}
+          replying={replying}
+          onCancelReply={() => setReplying(null)}
+        />
       </div>
     </div>
     </MessageScrollerProvider>
@@ -225,8 +247,9 @@ function Rows({
   participants,
   me,
   showNames,
-  conversationId,
+  conversation,
   onRetry,
+  onReply,
 }: {
   messages: ConversationMessage[];
   pending: Pending[];
@@ -234,9 +257,16 @@ function Rows({
   participants: ConversationPerson[];
   me: number | null;
   showNames: boolean;
-  conversationId: number;
+  conversation: ConversationSummary;
   onRetry: (clientId: string) => void;
+  onReply: (m: ConversationMessage, author: string) => void;
 }) {
+  const conversationId = conversation.id;
+  const del = useDeleteMessage(conversationId);
+  // Deletes at once, no "are you sure" (Slack's way): it is only your own words, and it
+  // leaves the thread for everyone.
+  const remove = (id: number) =>
+    del.mutate(id, { onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't delete that message.") });
   const people = React.useMemo(() => {
     const map = new Map<number, ConversationPerson>();
     for (const p of participants) map.set(p.orgUserId, p);
@@ -281,6 +311,18 @@ function Rows({
   });
   for (const p of pending) rows.push({ kind: "pending", key: `c${p.clientId}`, p });
 
+  // "Seen" goes under your newest message, once, and only while nothing has been sent after it.
+  const newest = shown.at(-1);
+  const seenUnder = !pending.length && newest && newest.authorOrgUserId === me ? newest.id : null;
+  const seen = seenUnder != null ? seenText(seenUnder, conversation.readers, conversation.kind, people) : null;
+
+  // A quote takes you to what it answers, if it is in the loaded thread, and flashes it.
+  const jumpTo = (id: number) => {
+    const el = document.querySelector<HTMLElement>(`[data-mid="${id}"]`);
+    if (!el) return void toast.message("That message is further back. Show earlier messages to find it.");
+    el.scrollIntoView({ block: "center" });
+    el.animate([{ backgroundColor: "color-mix(in oklab, var(--primary) 18%, transparent)" }, { backgroundColor: "transparent" }], { duration: 1200 });
+  };
   return (
     <>
       {rows.map((row) => {
@@ -307,6 +349,7 @@ function Rows({
             <MessageScrollerItem key={row.key} messageId={row.key} className="pt-0.5">
               <Message align="end">
                 <MessageContent>
+                  {row.p.replyTo && <ReplyQuoteView quote={row.p.replyTo} me={me} people={people} mine onJump={jumpTo} />}
                   {row.p.attachments.length > 0 && (
                     <MessageAttachments
                       mine
@@ -340,9 +383,21 @@ function Rows({
         const agent = m.authorKind === "agent";
         const author = m.authorOrgUserId != null ? people.get(m.authorOrgUserId) : undefined;
         const name = agent ? "Assistant" : (author?.name ?? "A former member");
+        const actions = (
+          <MessageActions
+            message={m}
+            conversationId={conversationId}
+            me={me}
+            mine={mine}
+            editable={Date.now() - new Date(m.createdAt).getTime() < EDIT_WINDOW_MS}
+            onReply={() => onReply(m, mine ? "yourself" : name)}
+            onEdit={() => setEditingId(m.id)}
+            onDelete={() => remove(m.id)}
+          />
+        );
         return (
           <MessageScrollerItem key={row.key} messageId={row.key} className={cn(first ? "pt-2" : "pt-0.5")}>
-            <Message align={mine ? "end" : "start"} className="group/row">
+            <Message align={mine ? "end" : "start"} className="group/row rounded-[18px]" data-mid={m.id}>
               {!mine && showNames && (
                 <MessageAvatar className={cn("size-7 min-w-7 bg-transparent", !last && "invisible")}>
                   {agent ? (
@@ -359,13 +414,17 @@ function Rows({
                 {editingId === m.id ? (
                   <InlineEdit message={m} conversationId={conversationId} onDone={() => setEditingId(null)} />
                 ) : (
-                  <div className={cn("flex items-center gap-1", mine && "flex-row-reverse")}>
-                    {/* Photos and files above the words, as their own pieces; a message can be only them. */}
-                    <div className={cn("flex min-w-0 max-w-full flex-1 flex-col gap-1", mine ? "items-end" : "items-start")}>
-                      {(m.attachments?.length ?? 0) > 0 && (
+                  <div className={cn("flex min-w-0 max-w-full flex-col gap-1", mine ? "items-end" : "items-start")}>
+                    {m.replyTo && <ReplyQuoteView quote={m.replyTo} me={me} people={people} mine={mine} onJump={jumpTo} />}
+                    {/* Photos and files above the words, as their own pieces; a message can be only them.
+                        The hover bar sits beside the last of them, so it is next to what it acts on. */}
+                    {(m.attachments?.length ?? 0) > 0 && (
+                      <BesideActions mine={mine} actions={m.body ? null : actions}>
                         <MessageAttachments attachments={m.attachments!} conversationId={conversationId} mine={mine} />
-                      )}
-                      {m.body && (
+                      </BesideActions>
+                    )}
+                    {m.body && (
+                      <BesideActions mine={mine} actions={actions}>
                         <Bubble align={mine ? "end" : "start"} variant={mine ? "default" : agent ? "outline" : "muted"} className="max-w-[75%]">
                           <BubbleContent
                             title={new Date(m.createdAt).toLocaleString()}
@@ -374,14 +433,18 @@ function Rows({
                             <MessageBody body={m.body} refs={m.refs} mine={mine} />
                           </BubbleContent>
                         </Bubble>
-                      )}
-                    </div>
-                    {mine && (
-                      <OwnMessageMenu message={m} conversationId={conversationId} onEdit={() => setEditingId(m.id)} />
+                      </BesideActions>
                     )}
+                    <BookingCards refs={m.refs} mine={mine} />
+                    <ReactionChips message={m} conversationId={conversationId} me={me} people={people} mine={mine} />
                   </div>
                 )}
                 {m.editedAt && editingId !== m.id && <span className={cn("px-3 text-[11px] text-muted-foreground", mine && "self-end")}>Edited</span>}
+                {m.id === seenUnder && seen && (
+                  <span className="self-end px-3 text-[11px] text-muted-foreground" data-seen="">
+                    {seen}
+                  </span>
+                )}
               </MessageContent>
             </Message>
           </MessageScrollerItem>
@@ -391,33 +454,9 @@ function Rows({
   );
 }
 
-/** Edit (for 15 minutes) and Delete, on your own messages. Appears on hover. */
-function OwnMessageMenu({ message, conversationId, onEdit }: { message: ConversationMessage; conversationId: number; onEdit: () => void }) {
-  const del = useDeleteMessage(conversationId);
-  const editable = Date.now() - new Date(message.createdAt).getTime() < EDIT_WINDOW_MS;
-
-  // Deletes at once, no "are you sure" (Slack's way): it is only your own words, and it
-  // leaves the thread for everyone.
-  const remove = () =>
-    del.mutate(message.id, { onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't delete that message.") });
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label="Message options"
-          className="inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground focus-visible:opacity-100 group-hover/row:opacity-100 data-[state=open]:opacity-100"
-        >
-          <MoreHorizontal className="size-4" aria-hidden />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {editable && <DropdownMenuItem onSelect={onEdit}>Edit</DropdownMenuItem>}
-        <DropdownMenuItem onSelect={remove}>Delete</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+/** A piece of a message with the hover bar beside it, on the side away from the edge. */
+function BesideActions({ mine, actions, children }: { mine: boolean; actions: React.ReactNode; children: React.ReactNode }) {
+  return <div className={cn("flex w-full min-w-0 items-center gap-1.5", mine && "flex-row-reverse")}>{children}{actions}</div>;
 }
 
 /**

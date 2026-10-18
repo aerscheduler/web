@@ -114,7 +114,7 @@ export function threadMessages(data: InfiniteData<MessagesPage> | undefined) {
 export function useSendMessage(conversationId: number) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { body: string; clientId: string; attachmentIds?: number[] }) =>
+    mutationFn: (input: { body: string; clientId: string; attachmentIds?: number[]; replyToId?: number | null }) =>
       api<ConversationMessage>(`/conversations/${conversationId}/messages`, { method: "POST", body: input }),
     onSuccess: (m) => {
       putInThread(qc, conversationId, [m]);
@@ -145,7 +145,7 @@ export function mergeIntoThread(
       const n = byId.get(m.id);
       if (!n) return m;
       byId.delete(m.id);
-      if (n.body === m.body && n.editedAt === m.editedAt && n.deletedAt === m.deletedAt) return m;
+      if (sameMessage(m, n)) return m;
       pageChanged = true;
       return n;
     });
@@ -161,6 +161,21 @@ export function mergeIntoThread(
     pages[0] = { ...p0, data: [...p0.data, ...fresh].sort((a, b) => a.id - b.id), authors: { ...p0.authors, ...authors } };
   }
   return changed ? { ...data, pages } : data;
+}
+
+/**
+ * Whether two copies of a message draw the same. A reaction, a quote whose original was edited,
+ * or a booking card whose status moved all change a message without touching its words.
+ */
+function sameMessage(a: ConversationMessage, b: ConversationMessage): boolean {
+  return (
+    a.body === b.body &&
+    a.editedAt === b.editedAt &&
+    a.deletedAt === b.deletedAt &&
+    JSON.stringify(a.reactions ?? []) === JSON.stringify(b.reactions ?? []) &&
+    JSON.stringify(a.replyTo ?? null) === JSON.stringify(b.replyTo ?? null) &&
+    JSON.stringify(a.refs) === JSON.stringify(b.refs)
+  );
 }
 
 function putInThread(qc: QueryClient, conversationId: number, messages: ConversationMessage[], authors?: MessagesPage["authors"]) {
@@ -261,6 +276,19 @@ export function useEditMessage(conversationId: number) {
     mutationFn: (input: { id: number; body: string }) =>
       api<ConversationMessage>(`/conversations/messages/${input.id}`, { method: "PATCH", body: { body: input.body } }),
     onSuccess: (m) => putInThread(qc, conversationId, [m]),
+  });
+}
+
+/** Set your reaction (`emoji`), or with null take it back. The thread updates from the reply. */
+export function useReactToMessage(conversationId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: number; emoji: string | null }) =>
+      api<{ message: ConversationMessage; authors: MessagesPage["authors"] }>(
+        `/conversations/messages/${input.id}/reaction`,
+        input.emoji ? { method: "PUT", body: { emoji: input.emoji } } : { method: "DELETE" }
+      ),
+    onSuccess: (out) => putInThread(qc, conversationId, [out.message], out.authors),
   });
 }
 

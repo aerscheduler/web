@@ -10,7 +10,31 @@ export type ConversationKind = "direct" | "group" | "reservation";
 
 export type MessageRefType = "person" | "resource" | "reservation" | "workOrder" | "squawk";
 
-export type MessageRef = { type: MessageRefType; id: number; label: string; hidden?: true };
+export type MessageRef = { type: MessageRefType; id: number; label: string; hidden?: true; card?: ReservationCard };
+
+/**
+ * A booking mention drawn as a card (2026-10-18). Times are instants; draw them in
+ * `timeZoneName`, the booking's own zone. `status` is the clock and the ramp only.
+ */
+export type ReservationCard = {
+  title: string;
+  type: string;
+  start: string;
+  end: string;
+  timeZoneName: string;
+  resourceName: string | null;
+  people: string[];
+  status: "cancelled" | "upcoming" | "now" | "out" | "past";
+};
+
+/** One emoji and who picked it, in the order they did. One reaction per person per message. */
+export type MessageReaction = { emoji: string; orgUserIds: number[] };
+
+/** The quote above a reply, worded for the reader. Empty `preview` with `deleted` when it was. */
+export type MessageReplyQuote = { id: number; authorOrgUserId: number | null; preview: string; deleted: boolean };
+
+/** The reactions on offer; the server takes only these. */
+export const REACTION_EMOJI = ["\u{1F44D}", "\u2764\uFE0F", "\u{1F602}", "\u{1F62E}", "\u{1F64F}", "\u2705"] as const;
 
 export type ConversationPerson = {
   orgUserId: number;
@@ -40,6 +64,8 @@ export type ConversationSummary = {
   isParticipant: boolean;
   muted: boolean;
   lastReadMessageId: number | null;
+  /** How far everybody else has read (2026-10-18), for "Seen". Absent from an older server. */
+  readers?: Array<{ orgUserId: number; lastReadMessageId: number | null }>;
   unreadCount: number;
   lastMessage: {
     id: number;
@@ -64,6 +90,9 @@ export type ConversationMessage = {
   refs: Record<string, MessageRef>;
   /** Photos and files on the message (2026-10-17). Absent from an older server. */
   attachments?: MessageAttachment[];
+  /** Reactions and the quoted message (2026-10-18). Absent from an older server. */
+  reactions?: MessageReaction[];
+  replyTo?: MessageReplyQuote | null;
 };
 
 /** A photo or file on a message. `url` is a 15-minute signed link; `isImage` draws it inline. */

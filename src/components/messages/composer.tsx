@@ -6,6 +6,7 @@ import { shortcutLabel } from "@/lib/platform";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MentionEditor, type MentionEditorHandle } from "@/components/messages/mention-editor";
 import { ATTACHMENT_ACCEPT, DraftStrip, useDraftAttachments, type DraftAttachment } from "@/components/messages/attachments";
+import { ReplyingBar } from "@/components/messages/message-extras";
 
 /**
  * The text box under a conversation. Typing @ opens a picker of people, aircraft, bookings,
@@ -18,6 +19,8 @@ import { ATTACHMENT_ACCEPT, DraftStrip, useDraftAttachments, type DraftAttachmen
  * so there is no separate @ button. Each file uploads at once and waits above the text; Send
  * waits until they are all up.
  *
+ * Replying to a message shows "Replying to ..." at the top of the card; Escape or its X cancels.
+ *
  * Enter sends, Shift+Enter is a new line.
  */
 export function Composer({
@@ -25,12 +28,17 @@ export function Composer({
   disabled,
   onSend,
   autoFocus,
+  replying,
+  onCancelReply,
 }: {
   placeholder: string;
   disabled?: boolean;
   /** `attachments` are the drafts that went with it, for an optimistic bubble. */
   onSend: (body: string, attachmentIds: number[], attachments: DraftAttachment[]) => void;
   autoFocus?: boolean;
+  /** The message this one will answer, shown above the text until it is sent or cancelled. */
+  replying?: { key: number; author: string; preview: string } | null;
+  onCancelReply?: () => void;
 }) {
   const ref = React.useRef<MentionEditorHandle>(null);
   const fileRef = React.useRef<HTMLInputElement>(null);
@@ -49,6 +57,11 @@ export function Composer({
     onSend(body, ids, files.takeAll());
     ref.current?.clear();
   };
+
+  // Picking Reply puts the caret in the box, ready to answer.
+  React.useEffect(() => {
+    if (replying) ref.current?.focus();
+  }, [replying?.key]);
 
   const pick = (list: FileList | null) => {
     if (!list?.length) return;
@@ -104,6 +117,7 @@ export function Composer({
           e.target.value = "";
         }}
       />
+      {replying && <ReplyingBar author={replying.author} preview={replying.preview} onCancel={() => onCancelReply?.()} />}
       {hasFiles && (
         <div className="px-3 pt-3">
           <DraftStrip drafts={files.drafts} onRemove={files.remove} onRetry={files.retry} />
@@ -115,6 +129,7 @@ export function Composer({
         disabled={disabled}
         autoFocus={autoFocus}
         onSubmit={send}
+        onEscape={replying ? onCancelReply : undefined}
         allowEmptySubmit={files.readyIds.length > 0}
         onEmptyChange={setEmpty}
         className="px-3.5 pt-2"

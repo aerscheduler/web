@@ -8,7 +8,8 @@ import { dismissCookieBanner } from "../helpers/reservation-form";
  * the launcher opens the panel, a new message is written on a To: line, it arrives live on
  * the other side, edit happens in place, delete takes it away, a picked mention is one pill that
  * goes out as its token, a photo and a file go with a message and arrive live, a right-click
- * mutes the conversation, Expand grows the same panel (and is not offered on a phone), and a
+ * mutes the conversation, a reaction and a reply land on the other side with "Seen" under the
+ * reply once it is read, Expand grows the same panel (and is not offered on a phone), and a
  * link followed from the bigger panel lands on the page with Messages back to its normal size.
  * Every write is checked on the wire, not just on screen.
  *
@@ -97,7 +98,7 @@ test.describe.serial("Messages", () => {
   test("edit happens in place, and delete takes the message away", async () => {
     const row = panel(student).locator("[data-message-id]").filter({ hasText: `${run} live` });
     await row.hover();
-    await row.getByRole("button", { name: "Message options" }).click();
+    await row.getByRole("button", { name: "More" }).click();
     await student.getByRole("menuitem", { name: "Edit" }).click();
 
     const editor = panel(student).getByRole("textbox", { name: "Edit message" });
@@ -116,7 +117,7 @@ test.describe.serial("Messages", () => {
 
     const gone = panel(student).locator("[data-message-id]").filter({ hasText: edited });
     await gone.hover();
-    await gone.getByRole("button", { name: "Message options" }).click();
+    await gone.getByRole("button", { name: "More" }).click();
     const deleted = student.waitForResponse((r) => r.request().method() === "DELETE" && /\/conversations\/messages\/\d+$/.test(r.url()));
     await student.getByRole("menuitem", { name: "Delete" }).click();
     expect((await deleted).status()).toBe(200);
@@ -187,6 +188,48 @@ test.describe.serial("Messages", () => {
     const row = panel(instructor).locator("[data-message-id]").filter({ hasText: text });
     await expect(row.getByRole("img", { name: "cowling.png" })).toBeVisible({ timeout: 15_000 });
     await expect(row.getByText("annual.pdf")).toBeVisible();
+  });
+
+  test("a reaction and a reply arrive live, and Seen appears once the other side reads it", async () => {
+    // The instructor reacts to the student's message with a thumbs-up, from the hover bar.
+    const theirs = panel(instructor).locator("[data-message-id]").filter({ hasText: `${run} with files` });
+    await theirs.hover();
+    await theirs.getByRole("button", { name: "React", exact: true }).click();
+    const reacted = instructor.waitForResponse((r) => r.request().method() === "PUT" && /\/conversations\/messages\/\d+\/reaction$/.test(r.url()));
+    await instructor.getByRole("button", { name: "React \u{1F44D}" }).click();
+    const reaction = await reacted;
+    expect(reaction.status()).toBe(200);
+    expect((reaction.request().postDataJSON() as { emoji: string }).emoji).toBe("\u{1F44D}");
+
+    // It shows under the student's message without a reload.
+    const mine = panel(student).locator("[data-message-id]").filter({ hasText: `${run} with files` });
+    await expect(mine.locator("[data-message-reactions]").getByRole("button", { name: /\u{1F44D}/u })).toBeVisible({ timeout: 15_000 });
+
+    // The instructor answers that message; the reply carries the quote.
+    await theirs.hover();
+    await theirs.getByRole("button", { name: "Reply", exact: true }).click();
+    await expect(panel(instructor).locator("[data-replying]")).toContainText("Replying to Test Student");
+    const box = panel(instructor).getByRole("textbox", { name: "Message Test Student" });
+    await expect(box).toBeFocused();
+    const text = `${run} reply`;
+    await box.pressSequentially(text);
+    const posted = instructor.waitForResponse(isPost(/\/conversations\/\d+\/messages$/));
+    await box.press("Enter");
+    const res = await posted;
+    expect(res.status()).toBe(201);
+    const reply = (await res.json()).data as { id: number; replyTo: { id: number; preview: string } };
+    expect(reply.replyTo.preview).toContain(`${run} with files`);
+    await expect(panel(instructor).locator("[data-replying]")).toHaveCount(0);
+
+    // The student sees the reply under its quote, live.
+    const replyRow = panel(student).locator("[data-message-id]").filter({ hasText: text });
+    await expect(replyRow.locator("[data-reply-quote]")).toContainText(`${run} with files`, { timeout: 15_000 });
+
+    // The student has it on screen, so it is read, and the instructor's reply says Seen.
+    await expect(panel(instructor).locator("[data-seen]")).toHaveText("Seen", { timeout: 15_000 });
+
+    const token = (await apiLogin(instructor.request, ACCOUNTS.instructor)).auth.accessToken as string;
+    await instructor.request.delete(`${base()}/conversations/messages/${reply.id}`, { headers: { Authorization: `Bearer ${token}` } });
   });
 
   test("right-click a conversation to mute it, and again to unmute", async () => {

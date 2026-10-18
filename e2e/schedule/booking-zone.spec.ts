@@ -176,6 +176,23 @@ async function declineCookies(page: Page) {
   if (await decline.isVisible().catch(() => false)) await decline.click();
 }
 
+/**
+ * A school made here starts on the card-required trial (2026-10-08), whose wall stands in
+ * front of the dashboard. Answer the browser's subscription read as a running trial, the way
+ * the onboarding specs do after "Add a card", so the page under test is the one shown.
+ */
+async function pastTrialWall(page: Page) {
+  await page.route("**/api/subscription", async (route) => {
+    const res = await route.fetch().catch(() => null);
+    if (!res) return;
+    const body = await res.json();
+    const real = body?.data ?? body;
+    await route
+      .fulfill({ response: res, json: { data: { ...real, state: "active", status: "trialing", hasSubscription: true, blocked: false } } })
+      .catch(() => undefined);
+  });
+}
+
 test.describe("A school with no time zone", () => {
   test.use({ storageState: { cookies: [], origins: [] }, timezoneId: "America/Chicago" });
 
@@ -217,6 +234,7 @@ test.describe("A school with no time zone", () => {
     // 3. The owner sees why on the dashboard and fixes it in one click. "Pasture Strip" is not
     //    an airport we can place, so the offer is this browser's zone (Chicago, via timezoneId).
     await signInAs(page, request, ownerToken);
+    await pastTrialWall(page);
     await page.goto("/dashboard");
     await declineCookies(page);
     const banner = page.getByRole("status").filter({ hasText: "Members can't book online until your organization has a time zone." });
@@ -279,6 +297,7 @@ test.describe("A school whose airport we can place", () => {
     expect(offer.suggestedFrom).toBe("KCUH");
 
     await signInAs(page, request, ownerToken);
+    await pastTrialWall(page);
     await page.goto("/schedule");
     await declineCookies(page);
     const banner = page.getByRole("status").filter({ hasText: "Members can't book online until your organization has a time zone." });

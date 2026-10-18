@@ -38,8 +38,10 @@ test.describe("Training console (owner)", () => {
 
     await page.goto("/training?tab=students");
     await expect(page.getByText(course.name)).toBeVisible({ timeout: 15_000 });
-    // The roster is a grouped list (2026-09-30): rows, labelled "<student>, <course>".
-    await page.getByRole("row", { name: new RegExp(course.name) }).first().click();
+    // The roster is a grouped list (2026-09-30): a header row per course, then a row per
+    // student labelled "<student>, <course>". The header row also carries the course name, and
+    // clicking it folds the group, so open the student's own row.
+    await page.getByRole("row", { name: `Test Student, ${course.name}`, exact: true }).click();
     await expect(page).toHaveURL(/\/training\/enrollments\//);
 
     await page.getByRole("button", { name: /End enrollment/i }).click();
@@ -91,7 +93,8 @@ test.describe("Training console (student)", () => {
     await expect(page).toHaveURL(/\/training\/enrollments\//);
     await expect(page.getByText(course.name)).toBeVisible();
 
-    await page.getByRole("link", { name: /^Training$/ }).click();
+    // Back is named after the page you came from (lib/back-trail.ts): My training.
+    await page.getByRole("link", { name: /^My training$/ }).click();
     await expect(page).toHaveURL(/\/me\/training($|\?)/);
     await expect(page.getByRole("heading", { name: /My training/i })).toBeVisible();
   });

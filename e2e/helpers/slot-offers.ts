@@ -194,3 +194,31 @@ export async function withdrawPendingOffers(
   }
   return n;
 }
+
+/**
+ * Wait for an offer to reach the member it was made to, asked AS that member.
+ *
+ * SINCE 2026-10-14 A RECOVERY OFFER HOLDS NOTHING, so it is not on the desk's
+ * `GET /slot-offers` (that list is only offers holding a slot: the Pending offers sheet, the
+ * board's dashed blocks). The one place every offer shows is the member's own
+ * `GET /slot-offers/me`. The cancel hook is fire-and-forget, hence the poll.
+ */
+export async function waitForMemberOffer(
+  request: APIRequestContext,
+  memberHeaders: Record<string, string>,
+  match: (offer: any) => boolean,
+  tries = 20,
+) {
+  const base = apiBase();
+  for (let i = 0; i < tries; i++) {
+    const list = await request.get(`${base}/slot-offers/me`, { headers: memberHeaders });
+    if (list.ok()) {
+      const body = await list.json();
+      const items = Array.isArray(body) ? body : (body.data ?? []);
+      const hit = items.find(match);
+      if (hit) return hit;
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  }
+  return null;
+}

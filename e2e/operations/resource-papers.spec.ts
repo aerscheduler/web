@@ -223,11 +223,11 @@ test.describe("aircraft papers", () => {
 
     await page.goto(`/aircraft/${plane.id}?tab=papers`);
     await dismissCookieBanner(page);
-    await expect(page.getByRole("button", { name: "Add" })).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("button", { name: "Add" }).click();
+    await expect(page.getByRole("button", { name: "Add", exact: true })).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: "Add", exact: true }).click();
     await expect(page.getByText("You can replace a stale file later.")).toBeVisible();
     await expect(page.getByText("cannot be deleted afterwards")).toHaveCount(0);
-    await page.locator('input[type="file"]').setInputFiles({
+    await page.locator('input[type="file"]:not([data-testid="aircraft-photo-input"])').setInputFiles({
       name: "IMG_1234.HEIC",
       mimeType: "image/heic",
       buffer: tinyJpeg(),
@@ -243,8 +243,8 @@ test.describe("aircraft papers", () => {
 
     await page.goto(`/aircraft/${plane.id}?tab=papers`);
     await dismissCookieBanner(page);
-    await page.getByRole("button", { name: "Add" }).click();
-    await page.locator('input[type="file"]').setInputFiles({
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await page.locator('input[type="file"]:not([data-testid="aircraft-photo-input"])').setInputFiles({
       name: "sheet.HEIC",
       mimeType: "image/heic",
       buffer: fakeHeic,
@@ -323,7 +323,7 @@ test.describe("aircraft papers as student", () => {
     try {
       await page.goto(`/aircraft/${plane.id}?tab=papers`);
       await expect(page.getByText(label)).toBeVisible({ timeout: 15_000 });
-      await expect(page.getByRole("button", { name: "Add" })).toHaveCount(0);
+      await expect(page.getByRole("button", { name: "Add", exact: true })).toHaveCount(0);
     } finally {
       await request.delete(`${owner.base}/resources/${plane.id}/files/${fileId}`, {
         headers: owner.headers,

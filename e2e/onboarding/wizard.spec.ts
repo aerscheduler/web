@@ -104,29 +104,21 @@ async function onboardingComplete(page: Page): Promise<boolean> {
   });
 }
 
-async function finishWizard(
-  page: Page,
-  opts?: { heardFromLabel?: string; heardFromId?: string; tips?: boolean },
-) {
+/** Pick "How did you hear about us?" on the operation page, where the wizard asks it. */
+async function pickHeardFrom(page: Page, label: string) {
+  const pill = page.getByRole("button", { name: label, exact: true });
+  await pill.click();
+  await expect(pill).toHaveAttribute("aria-pressed", "true");
+}
+
+async function finishWizard(page: Page, opts?: { tips?: boolean }) {
   await expect(page.getByRole("heading", { name: /tips while you get going/i })).toBeVisible();
   await acceptCookies(page);
   if (opts?.tips === false) {
     await page.getByRole("checkbox", { name: /Send me those tips/i }).uncheck();
   }
-  if (opts?.heardFromLabel && opts.heardFromId) {
-    const pill = page.getByRole("button", { name: opts.heardFromLabel, exact: true });
-    await pill.click();
-    await expect(pill).toHaveAttribute("aria-pressed", "true");
-  }
-  const heardSave =
-    opts?.heardFromId
-      ? page.waitForResponse((res) => {
-          if (!res.url().includes("/organizations/onboarding")) return false;
-          if (res.request().method() !== "PATCH") return false;
-          const body = res.request().postDataJSON() as { heardFrom?: string } | null;
-          return body?.heardFrom === opts.heardFromId;
-        })
-      : null;
+  // "How did you hear about us?" is asked on the operation page now and saved with the
+  // organization (pickHeardFrom), so the last step only carries the tips choice.
   const completeSave = page.waitForResponse((res) => {
     if (!/\/organizations\/?(\?|$)/.test(res.url())) return false;
     if (res.request().method() !== "PATCH") return false;
@@ -136,17 +128,6 @@ async function finishWizard(
     return body?.preferences?.newOrgOnboardingComplete === true;
   });
   await page.getByRole("button", { name: "Finish" }).click();
-  if (heardSave) {
-    const heardRes = await heardSave;
-    const heardBody = (await heardRes.json()) as { data?: { heardFrom?: string | null }; message?: string };
-    expect(
-      heardRes.ok(),
-      `PATCH /organizations/onboarding ${heardRes.status()} ${JSON.stringify(heardBody).slice(0, 400)}`,
-    ).toBeTruthy();
-    expect(heardBody.data?.heardFrom, "PATCH /organizations/onboarding must persist heardFrom").toBe(
-      opts.heardFromId,
-    );
-  }
   const completeRes = await completeSave;
   expect(completeRes.ok(), await completeRes.text()).toBeTruthy();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 30_000 });
@@ -399,6 +380,7 @@ test.describe("Onboarding wizard", () => {
     await page.getByLabel("Operation name").fill(orgName);
     await pickAirport(page, "KAPA", /KAPA Centennial Airport/i);
     await expect(page.getByLabel("Home airport")).toHaveValue(/Centennial/i);
+    await pickHeardFrom(page, "Google search");
     await page.getByRole("button", { name: "Continue" }).click();
 
     await expect(page.getByRole("heading", { name: /What do you want working first/i })).toBeVisible();
@@ -425,11 +407,7 @@ test.describe("Onboarding wizard", () => {
     await expect(page.getByTestId("onboarding-billing")).toBeVisible({ timeout: 20_000 });
     await page.getByRole("button", { name: "Skip for now" }).click();
 
-    await finishWizard(page, {
-      heardFromLabel: "Google search",
-      heardFromId: "google",
-      tips: false,
-    });
+    await finishWizard(page, { tips: false });
 
     const token = await bearerToken(page);
     const org = await apiAuthOrg(request, token);

@@ -1,7 +1,9 @@
 import * as React from "react";
 import { flushSync } from "react-dom";
 import { useRouter } from "@tanstack/react-router";
-import { ChevronDown, ChevronLeft, Maximize2, MessageCircle, Minimize2, Search, SquarePen } from "lucide-react";
+import { ChevronDown, ChevronLeft, Maximize2, MessageCircle, MessagesSquare, Minimize2, Search, SquarePen } from "lucide-react";
+import { EmptyState } from "@/components/states";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useConversation, useConversations, useUnreadMessageCount } from "@/features/messages";
@@ -12,7 +14,7 @@ import { Thread } from "@/components/messages/thread";
 import { ComposeView } from "@/components/messages/compose-view";
 import { ConversationMenuItems } from "@/components/messages/conversation-menu";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
-import { ConversationGlyph, ConversationRow, ConversationTitle, MessagesWorkspace } from "@/components/messages/messages-page";
+import { ConversationGlyph, ConversationRow, ConversationTitle, MESSAGES_EMPTY, MessagesWorkspace } from "@/components/messages/messages-page";
 
 //---------------------------------------------------------------------------------
 // Messages in the console (2026-10-16). Three states, one place:
@@ -471,9 +473,22 @@ function DockList({ onSelect, onExpand, onClose }: { onSelect: (id: number) => v
         {list.isPending ? (
           <li className="px-4 py-6 text-sm text-muted-foreground">Loading…</li>
         ) : rows.length === 0 ? (
-          <li className="px-6 py-10 text-center text-sm text-muted-foreground">
-            {q ? "Nothing matches that search." : "No messages yet. Start one with the pencil above."}
-          </li>
+          q ? (
+            <li className="px-6 py-10 text-center text-sm text-muted-foreground">Nothing matches that search.</li>
+          ) : (
+            // AN EMPTY STATE IS A WAY IN, not a shrug (Tony: "empty states need to be super
+            // helpful"): what Messages is for, and the button that starts one.
+            <li>
+              <EmptyState
+                compact
+                icon={MessagesSquare}
+                title={MESSAGES_EMPTY.title}
+                body={MESSAGES_EMPTY.body}
+                action={<Button onClick={() => onSelect(COMPOSE_ID)}>New message</Button>}
+                docs="messages"
+              />
+            </li>
+          )
         ) : (
           rows.map((c) => (
             <li key={c.id}>

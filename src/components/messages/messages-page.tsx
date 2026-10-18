@@ -164,6 +164,12 @@ const COMPOSE = { id: -1, compose: true } as const;
 type Pane = ConversationSummary | typeof COMPOSE;
 const isCompose = (p: Pane): p is typeof COMPOSE => "compose" in p;
 
+/** What an empty Messages says, in the panel and expanded alike, above its New message button. */
+export const MESSAGES_EMPTY = {
+  title: "Start your first conversation",
+  body: "Message an instructor about a lesson, the desk about a booking, or a technician about an aircraft. Type @ in a message to point at an aircraft, a booking or a work order, and it opens with a click.",
+};
+
 /**
  * Messages as a whole tool: your conversations down the left, the open one (or a new message)
  * filling the rest (InboxView; on a phone they take turns). Rendered in the dock's panel when it
@@ -257,8 +263,8 @@ export function MessagesWorkspace({ selectedId, onSelect }: { selectedId: number
           <Card className="flex min-h-0 flex-1 flex-col p-0">
             <EmptyState
               icon={MessagesSquare}
-              title="No messages yet"
-              body="Message an instructor about a lesson, the desk about a booking, or a technician about an aircraft. Type @ to point at an aircraft, a booking or a work order."
+              title={MESSAGES_EMPTY.title}
+              body={MESSAGES_EMPTY.body}
               action={<Button onClick={() => select(COMPOSE.id)}>New message</Button>}
               docs="messages"
             />

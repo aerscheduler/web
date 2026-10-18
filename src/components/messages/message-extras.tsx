@@ -219,37 +219,64 @@ export function plainBody(m: Pick<ConversationMessage, "body" | "refs">): string
 }
 
 /**
- * The quote above a reply: who wrote the original and its first line. Click to go to it (when it
- * is still in the loaded thread).
+ * THE QUOTE ABOVE A REPLY, the way a phone's own Messages draws one: a small OUTLINED bubble on
+ * the ORIGINAL author's side (yours on the right, theirs on the left), its first lines in muted
+ * text, and a thin line that leaves its outer edge and runs down into the reply ([ThreadHook]
+ * draws the rest). Click it to open that thread.
  */
-export function ReplyQuoteView({
-  quote,
-  me,
-  people,
-  mine,
-  onJump,
-}: {
-  quote: MessageReplyQuote;
-  me: number | null;
-  people: Map<number, ConversationPerson>;
-  mine: boolean;
-  onJump: (id: number) => void;
-}) {
-  const author = quote.authorOrgUserId == null ? null : quote.authorOrgUserId === me ? "You" : (people.get(quote.authorOrgUserId)?.name ?? "A former member");
+export function ThreadQuote({ quote, originalMine, onOpen }: { quote: MessageReplyQuote; originalMine: boolean; onOpen: (id: number) => void }) {
   const text = quote.deleted ? "Message deleted" : quote.preview || "Message";
+  return (
+    <div className={cn("flex w-full", originalMine ? "justify-end pr-4" : "justify-start pl-4")}>
+      <button
+        type="button"
+        onClick={() => onOpen(quote.id)}
+        disabled={quote.deleted}
+        className="relative mb-1.5 max-w-[60%] rounded-[15px] border border-foreground/20 px-3 py-1.5 text-left text-[13px] leading-[17px] text-muted-foreground transition-colors hover:border-foreground/35 disabled:hover:border-foreground/20"
+        data-reply-quote=""
+      >
+        <span className={cn("line-clamp-2", quote.deleted && "italic")}>{text}</span>
+        {/* Out from the quote's middle to the gutter, then down past its bottom. */}
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute top-1/2 h-[calc(50%+7px)] w-[9px] border-t border-foreground/20",
+            originalMine ? "-right-[10px] rounded-tr-[8px] border-r" : "-left-[10px] rounded-tl-[8px] border-l"
+          )}
+        />
+      </button>
+    </div>
+  );
+}
+
+/** The bottom half of the thread line: down the same gutter, and a short curve toward the reply. */
+export function ThreadHook({ lineOnRight, replyOnRight, children }: { lineOnRight: boolean; replyOnRight: boolean; children: React.ReactNode }) {
+  // A reply on the same side as the line steps in past it, so the curve meets its edge.
+  const sameSide = lineOnRight === replyOnRight;
+  return (
+    <div className={cn("relative flex w-full flex-col gap-1", replyOnRight ? "items-end" : "items-start", sameSide && (lineOnRight ? "pr-4" : "pl-4"))}>
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none absolute -top-1.5 h-[min(50%,22px)] w-[9px] border-b border-foreground/20",
+          lineOnRight ? "right-[6px] rounded-br-[8px] border-r" : "left-[6px] rounded-bl-[8px] border-l"
+        )}
+      />
+      {children}
+    </div>
+  );
+}
+
+/** "1 Reply", "4 Replies" under a message others answered. Opens that thread. */
+export function RepliesLink({ count, mine, onOpen }: { count: number; mine: boolean; onOpen: () => void }) {
   return (
     <button
       type="button"
-      onClick={() => onJump(quote.id)}
-      disabled={quote.deleted}
-      className={cn(
-        "mb-0.5 flex max-w-[75%] min-w-0 flex-col rounded-[14px] border-l-[3px] border-primary/60 bg-muted/60 px-3 py-1.5 text-left text-xs transition-colors hover:bg-muted disabled:hover:bg-muted/60",
-        mine ? "self-end" : "self-start"
-      )}
-      data-reply-quote=""
+      onClick={onOpen}
+      className={cn("px-3 text-xs font-medium text-primary hover:underline", mine ? "self-end" : "self-start")}
+      data-replies-link=""
     >
-      {author && <span className="font-semibold text-foreground">{author}</span>}
-      <span className={cn("line-clamp-2 text-muted-foreground", quote.deleted && "italic")}>{text}</span>
+      {count === 1 ? "1 Reply" : `${count} Replies`}
     </button>
   );
 }

@@ -93,6 +93,8 @@ export type ConversationMessage = {
   /** Reactions and the quoted message (2026-10-18). Absent from an older server. */
   reactions?: MessageReaction[];
   replyTo?: MessageReplyQuote | null;
+  /** How many messages answer this one, for "2 Replies" under it. */
+  replyCount?: number;
 };
 
 /** A photo or file on a message. `url` is a 15-minute signed link; `isImage` draws it inline. */

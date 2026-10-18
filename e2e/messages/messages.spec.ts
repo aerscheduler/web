@@ -208,8 +208,9 @@ test.describe.serial("Messages", () => {
     // The instructor answers that message; the reply carries the quote.
     await theirs.hover();
     await theirs.getByRole("button", { name: "Reply", exact: true }).click();
-    await expect(panel(instructor).locator("[data-replying]")).toContainText("Replying to Test Student");
-    const box = panel(instructor).getByRole("textbox", { name: "Message Test Student" });
+    // The thread comes into focus over the blurred conversation, and the box reads "Reply".
+    await expect(panel(instructor).locator("[data-thread-focus]")).toContainText(`${run} with files`);
+    const box = panel(instructor).getByRole("textbox", { name: "Reply" });
     await expect(box).toBeFocused();
     const text = `${run} reply`;
     await box.pressSequentially(text);
@@ -219,11 +220,13 @@ test.describe.serial("Messages", () => {
     expect(res.status()).toBe(201);
     const reply = (await res.json()).data as { id: number; replyTo: { id: number; preview: string } };
     expect(reply.replyTo.preview).toContain(`${run} with files`);
-    await expect(panel(instructor).locator("[data-replying]")).toHaveCount(0);
+    await expect(panel(instructor).locator("[data-thread-focus]")).toHaveCount(0);
 
-    // The student sees the reply under its quote, live.
-    const replyRow = panel(student).locator("[data-message-id]").filter({ hasText: text });
-    await expect(replyRow.locator("[data-reply-quote]")).toContainText(`${run} with files`, { timeout: 15_000 });
+    // The student sees the reply live. It sits right under what it answers, so (as on a phone)
+    // there is no quote: the original draws the thread line down to it.
+    await expect(panel(student).locator("[data-message-id]").filter({ hasText: text })).toBeVisible({ timeout: 15_000 });
+    await expect(mine.locator("[data-thread-line]")).toHaveCount(1);
+    await expect(panel(student).locator("[data-message-id]").filter({ hasText: text }).locator("[data-reply-quote]")).toHaveCount(0);
 
     // The student has it on screen, so it is read, and the instructor's reply says Seen.
     await expect(panel(instructor).locator("[data-seen]")).toHaveText("Seen", { timeout: 15_000 });

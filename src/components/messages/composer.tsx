@@ -29,6 +29,7 @@ export function Composer({
   onSend,
   autoFocus,
   replying,
+  showReplyBar = true,
   onCancelReply,
 }: {
   placeholder: string;
@@ -38,6 +39,8 @@ export function Composer({
   autoFocus?: boolean;
   /** The message this one will answer, shown above the text until it is sent or cancelled. */
   replying?: { key: number; author: string; preview: string } | null;
+  /** False when the page shows what is being answered itself (the thread in focus). */
+  showReplyBar?: boolean;
   onCancelReply?: () => void;
 }) {
   const ref = React.useRef<MentionEditorHandle>(null);
@@ -117,7 +120,7 @@ export function Composer({
           e.target.value = "";
         }}
       />
-      {replying && <ReplyingBar author={replying.author} preview={replying.preview} onCancel={() => onCancelReply?.()} />}
+      {replying && showReplyBar && <ReplyingBar author={replying.author} preview={replying.preview} onCancel={() => onCancelReply?.()} />}
       {hasFiles && (
         <div className="px-3 pt-3">
           <DraftStrip drafts={files.drafts} onRemove={files.remove} onRetry={files.retry} />

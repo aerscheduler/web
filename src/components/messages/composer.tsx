@@ -1,7 +1,9 @@
 import * as React from "react";
-import { ArrowUp, AtSign, Paperclip } from "lucide-react";
+import { ArrowUp, AtSign, Paperclip, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { shortcutLabel } from "@/lib/platform";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { MentionEditor, type MentionEditorHandle } from "@/components/messages/mention-editor";
 import { ATTACHMENT_ACCEPT, DraftStrip, useDraftAttachments, type DraftAttachment } from "@/components/messages/attachments";
 
@@ -11,8 +13,10 @@ import { ATTACHMENT_ACCEPT, DraftStrip, useDraftAttachments, type DraftAttachmen
  * pill in the text (components/messages/mention-editor.tsx), and the message goes to the server
  * with each pill as its token.
  *
- * Photos and files come in by the paperclip, by dropping them on the box, or by pasting a
- * picture. Each uploads at once and waits above the text; Send waits until they are all up.
+ * One card: the text on top, + and Send under it. The + menu adds photos or files (also Mod+U,
+ * dropping them on the card, or pasting a picture) or starts a mention; typing @ does that too,
+ * so there is no separate @ button. Each file uploads at once and waits above the text; Send
+ * waits until they are all up.
  *
  * Enter sends, Shift+Enter is a new line.
  */
@@ -54,7 +58,17 @@ export function Composer({
 
   return (
     <div
-      className={cn("rounded-[22px] transition-colors", dragging && "bg-primary/5 ring-2 ring-primary/30")}
+      className={cn(
+        "rounded-[22px] border bg-background transition-colors focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15",
+        dragging && "border-primary/50 bg-primary/5 ring-2 ring-primary/30"
+      )}
+      onKeyDownCapture={(e) => {
+        // Mod+U picks files, the same shortcut the + menu shows.
+        if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "u") {
+          e.preventDefault();
+          if (!disabled) fileRef.current?.click();
+        }
+      }}
       onDragOver={(e) => {
         if (disabled || !e.dataTransfer.types.includes("Files")) return;
         e.preventDefault();
@@ -77,66 +91,76 @@ export function Composer({
         files.add(pasted);
       }}
     >
+      <input
+        ref={fileRef}
+        type="file"
+        multiple
+        accept={ATTACHMENT_ACCEPT}
+        className="hidden"
+        aria-label="Add photos or files"
+        data-testid="message-attach-input"
+        onChange={(e) => {
+          pick(e.target.files);
+          e.target.value = "";
+        }}
+      />
       {hasFiles && (
-        <div className="pl-10">
+        <div className="px-3 pt-3">
           <DraftStrip drafts={files.drafts} onRemove={files.remove} onRetry={files.retry} />
         </div>
       )}
-      <div className="flex items-end gap-1.5">
-        <input
-          ref={fileRef}
-          type="file"
-          multiple
-          accept={ATTACHMENT_ACCEPT}
-          className="hidden"
-          aria-label="Attach photos or files"
-          data-testid="message-attach-input"
-          onChange={(e) => {
-            pick(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={disabled}
-          aria-label="Attach photos or files"
-          title="Attach photos or files"
-          className="mb-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-        >
-          <Paperclip className="size-4" aria-hidden />
-        </button>
-        <button
-          type="button"
-          onClick={() => ref.current?.insertAt()}
-          disabled={disabled}
-          aria-label="Mention a person, aircraft, booking or work order"
-          className="mb-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-        >
-          <AtSign className="size-4" aria-hidden />
-        </button>
-        <div className="flex min-w-0 flex-1 items-end rounded-[20px] border bg-background py-1 pl-3.5 pr-1 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/15">
-          <MentionEditor
-            ref={ref}
-            placeholder={placeholder}
-            disabled={disabled}
-            autoFocus={autoFocus}
-            onSubmit={send}
-            allowEmptySubmit={files.readyIds.length > 0}
-            onEmptyChange={setEmpty}
-            className="flex-1"
-            editorClassName={"messages-editor max-h-[200px] min-h-[30px] overflow-y-auto py-1 text-sm leading-[22px]" + (disabled ? " opacity-60" : "")}
-          />
-          <button
-            type="button"
-            onClick={() => ref.current?.submit()}
-            disabled={!canSend}
-            aria-label="Send"
-            className="mb-px ml-1 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-30"
+      <MentionEditor
+        ref={ref}
+        placeholder={placeholder}
+        disabled={disabled}
+        autoFocus={autoFocus}
+        onSubmit={send}
+        allowEmptySubmit={files.readyIds.length > 0}
+        onEmptyChange={setEmpty}
+        className="px-3.5 pt-2"
+        editorClassName={"messages-editor max-h-[200px] min-h-[24px] overflow-y-auto text-sm leading-[22px]" + (disabled ? " opacity-60" : "")}
+      />
+      <div className="flex items-center justify-between px-1.5 pb-1.5">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              disabled={disabled}
+              aria-label="Add photos, files or a mention"
+              title="Add photos, files or a mention"
+              className="inline-flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground disabled:opacity-50"
+            >
+              <Plus className="size-[18px]" aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            side="top"
+            align="start"
+            className="w-60"
+            // Mention moves the caret into the text; do not hand focus back to the +.
+            onCloseAutoFocus={(e) => e.preventDefault()}
           >
-            <ArrowUp className="size-4" strokeWidth={2.5} aria-hidden />
-          </button>
-        </div>
+            <DropdownMenuItem onSelect={() => fileRef.current?.click()}>
+              <Paperclip aria-hidden />
+              Add photos or files
+              <DropdownMenuShortcut>{shortcutLabel("U")}</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => ref.current?.insertAt()}>
+              <AtSign aria-hidden />
+              Mention someone
+              <DropdownMenuShortcut>@</DropdownMenuShortcut>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <button
+          type="button"
+          onClick={() => ref.current?.submit()}
+          disabled={!canSend}
+          aria-label="Send"
+          className="inline-flex size-8 items-center justify-center rounded-full bg-primary text-primary-foreground transition-opacity disabled:opacity-30"
+        >
+          <ArrowUp className="size-4" strokeWidth={2.5} aria-hidden />
+        </button>
       </div>
     </div>
   );

@@ -90,6 +90,8 @@ function followsInAppLink(e: React.MouseEvent): string | null {
 /** The expanded panel's width; toasts step left of it, so it leaves them 26rem, but it is never
  *  narrower than the normal panel (at 800px wide, the 26rem alone made it SMALLER). */
 const EXPANDED_W = "max(380px, min(1080px, calc(100vw - 26rem)))";
+/** The closed launcher's diameter (`size-12`); toasts sit just left of it. */
+const LAUNCHER_SIZE = "48px";
 
 /** Below Tailwind's `md`, where the open panel takes the whole screen. */
 const isPhone = () => typeof window !== "undefined" && !window.matchMedia("(min-width: 768px)").matches;
@@ -226,14 +228,20 @@ function MessagesDock({ state, setState }: { state: DockState; setState: React.D
   // A docked record owns the right-hand column; the dock moves to its left rather than
   // covering the record's own footer button.
   const right = panelDocked ? `calc(${DETAIL_PANEL_WIDTH} + 1.5rem)` : "1.5rem";
-  // Toasts stay clear of the open panel: to its left on a desktop, above its composer on a
-  // phone (the panel is the whole screen there). Read by the Toaster in routes/__root.tsx.
+  // Toasts stay clear of Messages, read by the Toaster in routes/__root.tsx. Open: to the
+  // panel's left on a desktop, above its composer on a phone (the panel is the whole screen
+  // there). Closed: BESIDE the launcher on a desktop, bottoms lined up, not stacked on top of
+  // it (Tony: a toast above the chat button looked odd); a phone keeps them above it, since
+  // its toasts run the full width.
   React.useEffect(() => {
-    if (!showPanel) return;
     const root = document.documentElement.style;
-    root.setProperty("--dock-toast-right", `calc(${right} + ${big ? EXPANDED_W : "380px"} + 12px)`);
+    if (showPanel) {
+      root.setProperty("--dock-toast-right", `calc(${right} + ${big ? EXPANDED_W : "380px"} + 12px)`);
+      root.setProperty("--dock-toast-bottom-mobile", "96px");
+    } else {
+      root.setProperty("--dock-toast-right", `calc(${right} + ${LAUNCHER_SIZE} + 12px)`);
+    }
     root.setProperty("--dock-toast-bottom", "24px");
-    root.setProperty("--dock-toast-bottom-mobile", "96px");
     return () => {
       root.removeProperty("--dock-toast-right");
       root.removeProperty("--dock-toast-bottom");

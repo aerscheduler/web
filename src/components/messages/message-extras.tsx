@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { DEVICE_TIME_ZONE, formatDateInZone, formatTimeRangeInZone } from "@/lib/timezone";
 import { useReactToMessage } from "@/features/messages";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { refLink, TOKEN_RE } from "@/components/messages/message-body";
 import {
@@ -64,21 +65,33 @@ export function ReactionChips({
         const isMine = me != null && r.orgUserIds.includes(me);
         const who = namesList(r.orgUserIds, me, people, 6);
         return (
-          <button
-            key={r.emoji}
-            type="button"
-            onClick={() => toggle(r)}
-            title={`${who} reacted ${r.emoji}`}
-            aria-label={`${r.emoji} ${r.orgUserIds.length}, ${who}${isMine ? ". Click to take yours back." : ""}`}
-            aria-pressed={isMine}
-            className={cn(
-              "relative inline-flex h-6 items-center gap-1 rounded-full border bg-background px-1.5 text-xs shadow-sm transition-colors",
-              isMine ? "border-primary/50 bg-primary/10 text-primary" : "text-muted-foreground hover:border-foreground/30"
-            )}
-          >
-            <span className="text-[13px] leading-none">{r.emoji}</span>
-            {r.orgUserIds.length > 1 && <span className="font-medium tabular-nums">{r.orgUserIds.length}</span>}
-          </button>
+          <Tooltip key={r.emoji}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => toggle(r)}
+                aria-label={`${r.emoji} ${r.orgUserIds.length}, ${who}${isMine ? ". Click to take yours back." : ""}`}
+                aria-pressed={isMine}
+                className={cn(
+                  // A fill and no outline until you hover, the way a reaction should sit under a
+                  // message: present, not boxed. Yours keeps its outline so you can find it.
+                  "relative inline-flex h-6 items-center gap-1 rounded-full border px-1.5 text-xs transition-colors",
+                  isMine
+                    ? "border-primary/50 bg-primary/10 text-primary hover:bg-primary/15"
+                    : "border-transparent bg-muted text-muted-foreground hover:border-foreground/25 hover:bg-background"
+                )}
+              >
+                <span className="text-[13px] leading-none">{r.emoji}</span>
+                {r.orgUserIds.length > 1 && <span className="font-medium tabular-nums">{r.orgUserIds.length}</span>}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" className="flex max-w-56 flex-col items-center gap-1.5 px-3 py-2.5 text-center">
+              <span className="flex size-12 items-center justify-center rounded-lg bg-background text-3xl leading-none">{r.emoji}</span>
+              <span>
+                <span className="font-semibold">{who}</span> reacted
+              </span>
+            </TooltipContent>
+          </Tooltip>
         );
       })}
     </div>

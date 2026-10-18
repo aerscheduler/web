@@ -4207,7 +4207,7 @@ export interface ShopJobSummary {
   request?: string | null;
 }
 
-/** One published AD from the library (server: services/adLibrary.service.ts), 1995 on. */
+/** One published AD from the library (server: services/adLibrary.service.ts). */
 export interface AirworthinessDirective {
   adNumber: string;
   amendment: string | null;
@@ -4246,7 +4246,7 @@ export interface AircraftAdItem {
     url: string | null;
     /** Applicability and required actions as readable structure, once the library has read it. */
     details: AdDetails | null;
-    /** False for one tracked here that the library does not hold (published before 1995). */
+    /** False for one tracked here that the library does not hold. */
     inLibrary: boolean;
   };
   match: { on: "airframe" | "engine" | "propeller"; token: string; strength: "model" | "range" | "family" } | null;

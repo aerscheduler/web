@@ -97,7 +97,7 @@ export function AdReading({
           .join(". ")}
       </p>
       {ad.inLibrary === false ? (
-        <p className="text-[13px] text-muted-foreground">This AD is tracked here but is not in the AD library, which holds ADs published since 1995.</p>
+        <p className="text-[13px] text-muted-foreground">This AD is tracked here but is not in the AD library.</p>
       ) : (
         <>
           <section className="space-y-2">

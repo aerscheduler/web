@@ -193,7 +193,7 @@ export function FleetAds({ q, resourceId }: { q?: string; resourceId?: number[] 
           title="AerScheduler is not finding ADs for you"
           body={
             isAdmin(roles)
-              ? "Turn it on and every AD published since 1995 that names each aircraft, its engine or its propeller is listed here for someone to decide. The AD library works either way."
+              ? "Turn it on and every AD in the library that names each aircraft, its engine or its propeller is listed here for someone to decide. The AD library works either way."
               : "An owner or admin turns on Find the ADs for our aircraft under Settings, Airworthiness Directives; then each aircraft's ADs are listed here. The AD library works either way."
           }
           docs="aircraft-ads"

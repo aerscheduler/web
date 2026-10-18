@@ -12,8 +12,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AD_SECTION_HEADING, AD_STATES, AdReading, adDay, adHeadline, matchWords } from "@/components/maintenance/ad-review";
 
 /**
- * MAINTENANCE > AD LIBRARY: every Airworthiness Directive the Federal Register has published
- * since 1995 (services/adLibrary.service.ts), searched and paged on the server. The page's
+ * MAINTENANCE > AD LIBRARY: every Airworthiness Directive in the library
+ * (services/adLibrary.service.ts), searched and paged on the server. The page's
  * search box searches it: an AD number or its start ("2013-11"), or words anywhere in it.
  *
  * Opening one reads it, and, when the organization finds ADs for its aircraft, says which of

@@ -210,7 +210,7 @@ function AdLookupNote({ ad, className }: { ad: AirworthinessDirective | null; cl
   if (!ad) {
     return (
       <p className={`text-xs text-muted-foreground ${className ?? ""}`}>
-        Not in the AD library, which has ADs published since 1995. Fill in the rest by hand.
+        Not in the AD library. Fill in the rest by hand.
       </p>
     );
   }

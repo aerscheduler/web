@@ -830,18 +830,18 @@ export const DOCS_TOPICS = {
   "aircraft-ads": {
     title: "ADs for this aircraft",
     summary:
-      "Airworthiness Directives published since 1995 that name this aircraft's airframe, engine or propeller. A match means read it, not that it applies: decide each one, and say why when it does not. ADs from before 1995 are not in the list.",
+      "Airworthiness Directives that name this aircraft's airframe, engine or propeller. A match means read it, not that it applies: decide each one, and say why when it does not.",
     href: "maintenance/review-the-ads-for-an-aircraft",
   },  "fleet-ads": {
     title: "Fleet ADs",
     summary:
-      "Every aircraft's Airworthiness Directives in one list: the ADs published since 1995 that name each one's airframe, engine or propeller, grouped by aircraft or by status. Open one to read it and decide it here, the same decision as on the aircraft.",
+      "Every aircraft's Airworthiness Directives in one list: the ADs that name each one's airframe, engine or propeller, grouped by aircraft or by status. Open one to read it and decide it here, the same decision as on the aircraft.",
     href: "maintenance/airworthiness-directives-across-the-fleet",
   },
   "ad-library": {
     title: "AD library",
     summary:
-      "Every Airworthiness Directive the Federal Register has published since 1995, checked for new ones daily. Search by AD number, maker, model or any word in it, and open one to read it laid out as published.",
+      "Every Airworthiness Directive in the library, checked for new ones every hour. Search by AD number, maker, model or any word in it, and open one to read it laid out as published.",
     href: "maintenance/airworthiness-directives-across-the-fleet",
   },
 
@@ -882,7 +882,7 @@ export const DOCS_TOPICS = {
   "ad-tracking-mode": {
     title: "Find the ADs for our aircraft",
     summary:
-      "Off by default. On, AerScheduler lists every AD published since 1995 that names each aircraft's make and model, engine or propeller, alerts you when a new one is published, and keeps the AD status report. A person decides whether each one applies; AerScheduler never does.",
+      "Off by default. On, AerScheduler lists every AD in the library that names each aircraft's make and model, engine or propeller, alerts you when a new one is published, and keeps the AD status report. A person decides whether each one applies; AerScheduler never does.",
     href: "maintenance/choose-how-we-handle-airworthiness-directives",
   },
   "inspection-source": {

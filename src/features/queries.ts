@@ -6801,7 +6801,7 @@ export function useRemoveOwnFile() {
 
 /**
  * One AD from the library by number, for the AD number field. `null` data means it is not in
- * the library (published before 1995, or not yet), which is an ordinary answer, not an error.
+ * the library (not loaded, or not published yet), which is an ordinary answer, not an error.
  */
 export function useAdLookup(adNumber: string | null) {
   return useQuery({

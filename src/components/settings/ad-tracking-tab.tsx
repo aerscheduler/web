@@ -45,7 +45,7 @@ export function AdTrackingTab() {
           <PreferenceToggle
             label="Find the ADs for our aircraft"
             docs="ad-tracking-mode"
-            description="Lists every AD published since 1995 that names each aircraft's make and model, engine or propeller, for an owner, admin or technician to decide. Alerts when a new one is published."
+            description="Lists every AD in the library that names each aircraft's make and model, engine or propeller, for an owner, admin or technician to decide. Alerts when a new one is published."
             checked={enabled}
             saving={save.isPending}
             onCheckedChange={(next) => void toggle(next)}

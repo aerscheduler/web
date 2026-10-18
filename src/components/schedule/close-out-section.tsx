@@ -987,7 +987,6 @@ function PackagePaymentCallout({ r }: { r: Reservation }) {
   const showMissing = missing && canCollect;
   if (!showMissing && !hasStandingPrepaid(r)) return null;
 
-  const warning = showMissing || unpaid;
   const title = showMissing
     ? "Invoice did not go out"
     : unpaid
@@ -1053,11 +1052,7 @@ function PackagePaymentCallout({ r }: { r: Reservation }) {
               ? "package-payment-paid"
               : undefined
       }
-      className={
-        warning
-          ? "rounded-lg border border-warning/40 bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] p-3"
-          : "rounded-lg border border-border bg-muted/40 p-3"
-      }
+      className="rounded-lg border border-border bg-muted/40 p-3"
     >
       <div className="flex items-start gap-2 text-sm">
         <Receipt className="mt-0.5 size-4 shrink-0" />

@@ -117,9 +117,9 @@ export function ConfirmReviewModal({
         {noTime ? (
           <div
             role="note"
-            className="flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm"
+            className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 p-3 text-sm"
           >
-            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <TriangleAlert className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <span>
               <span className="font-medium">No flight time logged.</span> The readings in
               match the readings out, so signing off bills nothing.{" "}

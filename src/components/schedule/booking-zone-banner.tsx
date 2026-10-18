@@ -27,15 +27,15 @@ export type BookingZoneBannerViewProps = {
 export function BookingZoneBannerView({ suggestion, onUse, busy }: BookingZoneBannerViewProps) {
   return (
     <div
-      className="mb-3 flex gap-2.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
+      className="mb-3 flex gap-2.5 rounded-md border border-border bg-card px-3 py-2.5 text-sm"
       role="status"
       data-doc-shot="booking-zone-banner"
     >
-      <Clock className="mt-0.5 size-4 shrink-0" aria-hidden />
+      <Clock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
       <div className="min-w-0 flex-1 space-y-2">
         <div className="space-y-0.5">
           <p className="font-medium">Members can't book online until your organization has a time zone.</p>
-          <p className="text-amber-800 dark:text-amber-200/90">
+          <p className="text-muted-foreground">
             Hours and booking rules are read on your airport's clock, so a member's booking has
             nothing to be checked against yet. You and the front desk can still book for them.
           </p>
@@ -48,7 +48,7 @@ export function BookingZoneBannerView({ suggestion, onUse, busy }: BookingZoneBa
             </Button>
           )}
           {suggestion && (
-            <span className="text-xs text-amber-800 dark:text-amber-200/80">
+            <span className="text-xs text-muted-foreground">
               {suggestion.from ? `The time zone at ${suggestion.from}` : "This computer's time zone"}
             </span>
           )}

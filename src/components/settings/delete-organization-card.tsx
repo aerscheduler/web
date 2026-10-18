@@ -103,9 +103,9 @@ export function DeleteOrganizationCard() {
 
   if (isScheduled && scheduledAt) {
     return (
-      <Card className="border-amber-500/50" data-doc-shot="cancel-organization-deletion-card">
+      <Card data-doc-shot="cancel-organization-deletion-card">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+          <CardTitle className="flex items-center gap-2">
             <TriangleAlert className="size-4" /> Deletion scheduled
             <DocsHint topic="delete-organization" />
           </CardTitle>

@@ -511,7 +511,7 @@ function MetersProperty({
         onFocusOutside={(e) => e.preventDefault()}
       >
         {prompt && (
-          <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-[12px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+          <p className="text-[12px] text-muted-foreground">
             {prompt.side === "out"
               ? "The work is done. Check the readings out against its meters, then save."
               : "The aircraft is here. Check the readings in against its meters, then save."}

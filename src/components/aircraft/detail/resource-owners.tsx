@@ -432,7 +432,7 @@ function AddOwnerDialog({
             />
           </div>
           {conflict && (
-            <div role="alert" className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-900 dark:bg-amber-950/40">
+            <div role="alert" className="space-y-2 rounded-md border border-border bg-muted/40 p-3 text-sm">
               <p>{conflict.message}</p>
               <div className="flex flex-wrap gap-2">
                 {conflict.conflict.kind !== "archived" && (

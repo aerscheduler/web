@@ -632,8 +632,7 @@ function Reference({ data }: { data: SplitRulesDescription }) {
 
         <div
           className={cn(
-            "rounded-lg border p-4 sm:p-5",
-            multiplies && "border-amber-500/40 bg-amber-500/5"
+            "rounded-lg border p-4 sm:p-5"
           )}
         >
           <div className="flex flex-wrap items-start justify-between gap-2">

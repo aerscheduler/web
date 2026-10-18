@@ -57,12 +57,11 @@ export function CloseOutCard({
       <CollapsibleTrigger
         className={cn(
           "flex w-full items-center gap-2 rounded-md border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50",
-          open && "rounded-b-none",
-          attention && "border-amber-500/50 bg-amber-500/5"
+          open && "rounded-b-none"
         )}
       >
         {attention ? (
-          <TriangleAlert className="size-4 shrink-0 text-amber-600 dark:text-amber-500" />
+          <TriangleAlert className="size-4 shrink-0 text-foreground" />
         ) : (
           <Icon className="size-4 shrink-0 text-muted-foreground" />
         )}
@@ -71,7 +70,7 @@ export function CloseOutCard({
           <span
             className={cn(
               "min-w-0 flex-1 truncate text-right text-xs",
-              attention ? "font-medium text-amber-600 dark:text-amber-500" : "text-muted-foreground"
+              attention ? "font-medium text-foreground" : "text-muted-foreground"
             )}
           >
             {summary}

@@ -66,7 +66,7 @@ function OwnerJobPage() {
               <button
                 type="button"
                 onClick={() => document.getElementById("work")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-                className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-[12.5px] font-medium text-amber-900 hover:bg-amber-200 dark:bg-amber-950/60 dark:text-amber-200 dark:hover:bg-amber-900/60"
+                className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-[12.5px] font-medium text-foreground hover:bg-muted/70"
               >
                 <MessageSquareWarning className="size-3.5" />
                 {waiting.length === 1 ? "1 finding waits on your answer" : `${waiting.length} findings wait on your answer`}
@@ -206,11 +206,11 @@ function OwnerWork({ job }: { job: OwnerJob }) {
         )}
 
         {waiting.length > 0 && (
-          <div className="mb-4 overflow-hidden rounded-lg border border-amber-300 dark:border-amber-800" data-doc-shot="owner-waiting-on-you">
-            <div className="flex flex-wrap items-center justify-between gap-2 bg-amber-50 px-3.5 py-2.5 dark:bg-amber-950/40">
+          <div className="mb-4 overflow-hidden rounded-lg border border-border" data-doc-shot="owner-waiting-on-you">
+            <div className="flex flex-wrap items-center justify-between gap-2 bg-muted/40 px-3.5 py-2.5">
               <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-amber-900 dark:text-amber-200">Waiting on your answer</p>
-                <p className="text-[12px] text-amber-900/80 dark:text-amber-200/80">The shop found these while working on the aircraft. Say whether to go ahead.</p>
+                <p className="text-[13px] font-semibold">Waiting on your answer</p>
+                <p className="text-[12px] text-muted-foreground">The shop found these while working on the aircraft. Say whether to go ahead.</p>
               </div>
               {waiting.length > 1 && (
                 <Button size="sm" variant="outline" disabled={busy != null} onClick={() => void approveAll()}>

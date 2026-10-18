@@ -79,7 +79,7 @@ export function AircraftMetersCard({ resource }: { resource: Resource }) {
       ) : (
         <div className="space-y-3">
           {log.stale && (
-            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[13px] text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100">
+            <p className="text-[13px] text-muted-foreground">
               {log.daysSinceRead == null
                 ? "Nobody has recorded this aircraft's times yet. Hour-based due dates are only as current as the last reading."
                 : `Times last read ${log.daysSinceRead} days ago. Hour-based due dates are only as current as the last reading.`}
@@ -88,7 +88,7 @@ export function AircraftMetersCard({ resource }: { resource: Resource }) {
                   {" "}
                   <button
                     type="button"
-                    className="font-medium underline underline-offset-2"
+                    className="font-medium text-primary hover:underline"
                     onClick={() => setRecording(true)}
                   >
                     Record a reading
@@ -449,8 +449,8 @@ export function RecordMeterReadingModal({
           )}
         </div>
         {lower && (
-          <div role="alert" className="space-y-2.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-[13px] dark:border-amber-800 dark:bg-amber-950/40" data-doc-shot="meter-lower-choice">
-            <p className="text-amber-950 dark:text-amber-100">{lower.includes(". Save it") ? `${lower.split(". Save it")[0]}.` : lower} Why is it lower?</p>
+          <div role="alert" className="space-y-2.5 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-[13px]" data-doc-shot="meter-lower-choice">
+            <p>{lower.includes(". Save it") ? `${lower.split(". Save it")[0]}.` : lower} Why is it lower?</p>
             <RadioGroup value={why} onValueChange={(v) => setWhy(v as "typo" | "replaced")} aria-label="Why the reading is lower">
               <div className="flex items-start gap-2">
                 <RadioGroupItem value="typo" id="meter-lower-typo" className="mt-0.5" />

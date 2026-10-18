@@ -1,6 +1,5 @@
 import * as React from "react";
 import {
-  AlertTriangle,
   Check,
   Copy,
   KeyRound,
@@ -379,13 +378,11 @@ function SecretModal({
     >
       {minted && (
         <div className="space-y-4">
-          <div className="flex items-start gap-2.5 rounded-md border border-amber-300/60 bg-amber-50 p-3 text-amber-900">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            <p className="text-sm">
-              Copy this now. Once you close this dialog it cannot be shown again, if you
-              lose it you&rsquo;ll have to revoke this key and create another.
-            </p>
-          </div>
+          <p className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">Copy this now.</span> Once you close this
+            dialog it cannot be shown again, if you lose it you&rsquo;ll have to revoke this key
+            and create another.
+          </p>
 
           <div className="space-y-1.5">
             <Label htmlFor="ak-secret">{minted.name}</Label>

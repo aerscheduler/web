@@ -195,8 +195,8 @@ function EnrollmentPage() {
               </Card>
 
               {p.graduationBlocker ? (
-                <Card className="flex items-start gap-3 border-amber-500/40 bg-amber-500/5 p-4">
-                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
+                <Card className="flex items-start gap-3 p-4">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
                   <div>
                     <div className="text-sm font-medium">Not ready to graduate</div>
                     <p className="text-sm text-muted-foreground">{p.graduationBlocker}</p>

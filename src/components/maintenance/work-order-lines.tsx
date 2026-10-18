@@ -57,15 +57,15 @@ function CannotRaise({ error }: { error: ApiError }) {
   const { roles } = useAuth();
   const taxMissing = (error.body as { code?: string } | null | undefined)?.code === "TAX_RATE_MISSING";
   return (
-    <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="invoice-cannot-raise">
+    <div className="text-sm" data-testid="invoice-cannot-raise">
       <p>{error.message}</p>
       {taxMissing &&
         (isAdmin(roles) ? (
-          <Link to="/settings" search={{ tab: "sales-tax" } as never} className="mt-1.5 inline-block font-medium underline-offset-2 hover:underline">
+          <Link to="/settings" search={{ tab: "sales-tax" } as never} className="mt-1.5 inline-block font-medium text-primary hover:underline">
             Set a sales tax rate
           </Link>
         ) : (
-          <p className="mt-1.5">Ask an admin to set a sales tax rate in Settings, Sales tax.</p>
+          <p className="mt-1.5 text-muted-foreground">Ask an admin to set a sales tax rate in Settings, Sales tax.</p>
         ))}
     </div>
   );
@@ -167,7 +167,7 @@ export function RaiseInvoiceModal({
       }
     >
       {noAddress ? (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="text-sm">
           {stillOwner ? (
             <>
               {w.billTo?.name ?? "The owner"} has no email address to send the invoice to. Add one on the aircraft's{" "}
@@ -229,7 +229,7 @@ export function RaiseInvoiceModal({
           </table>
           {p.exemption && <p className="text-xs text-muted-foreground">{p.exemption.printed}</p>}
           {notTold.length > 0 && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="invoice-not-told">
+            <div className="rounded-md border border-border bg-muted/40 p-3 text-[13px]" data-testid="invoice-not-told">
               <p className="font-medium">
                 {notTold.length === 1 ? "A finding on this bill was never sent to the owner" : `${notTold.length} findings on this bill were never sent to the owner`}
               </p>
@@ -252,7 +252,7 @@ export function RaiseInvoiceModal({
             </div>
           )}
           {unanswered.length > 0 && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-[13px] text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" data-testid="invoice-awaiting-answer">
+            <div className="rounded-md border border-border bg-muted/40 p-3 text-[13px]" data-testid="invoice-awaiting-answer">
               <p className="font-medium">
                 {unanswered.length === 1 ? "A finding on this bill is still waiting on the owner's answer" : `${unanswered.length} findings on this bill are still waiting on the owner's answer`}
               </p>

@@ -696,12 +696,12 @@ export function WorkOrderWorkTable({
       {/* The missing-setting rule: until a labor rate is set, only an admin can enter labor, so
           the admin is told where to set it. */}
       {canInvoice && !frozen && settingsQ.data && settingsQ.data.laborRateCents == null && (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+        <p className="text-sm text-muted-foreground">
           Set a labor rate so technicians can log their hours.{" "}
-          <Link to="/settings" search={{ tab: "shop-rates" } as never} className="font-medium underline-offset-2 hover:underline">
+          <Link to="/settings" search={{ tab: "shop-rates" } as never} className="font-medium text-primary hover:underline">
             Settings, Shop rates
           </Link>
-        </div>
+        </p>
       )}
       {canInvoice && !frozen && w.status === "cancelled" && subtotal > 0 && (
         <p className="text-xs text-muted-foreground">This job was cancelled. Reopen it to raise its invoice.</p>

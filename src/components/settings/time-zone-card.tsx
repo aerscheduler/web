@@ -90,11 +90,8 @@ export function OrganizationTimeZoneCard() {
         </p>
 
         {!current && (
-          <p
-            className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-100"
-            role="status"
-          >
-            Not set, so members can&apos;t book online: there is no clock to check their
+          <p className="text-[13px] text-muted-foreground" role="status">
+            <span className="font-medium text-foreground">Not set,</span> so members can&apos;t book online: there is no clock to check their
             bookings against. Choose where you fly from and they can book straight away.
           </p>
         )}

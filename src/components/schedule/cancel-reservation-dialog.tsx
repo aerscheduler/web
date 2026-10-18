@@ -121,10 +121,10 @@ export function CancelReservationDialog({
         
 
         {blockedWithoutFee && (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+          <p className="text-sm">
             This booking starts in less than {lock.lockHours} hours, so you can&apos;t cancel
             it yourself. Call or message the front desk and they can take it off the board.
-          </div>
+          </p>
         )}
 
         {feeRequired && (

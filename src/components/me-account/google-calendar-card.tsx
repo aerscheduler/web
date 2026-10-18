@@ -162,7 +162,7 @@ export function GoogleCalendarCard() {
         </CardHeader>
         <CardContent className="space-y-4">
           {paused && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm" role="status">
+            <div className="text-sm" role="status">
               <p className="font-medium">Sync is paused</p>
               <p className="mt-0.5 text-muted-foreground">
                 {status.data?.needsReconnectReason === "permission"

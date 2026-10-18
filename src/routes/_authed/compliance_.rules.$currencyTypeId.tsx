@@ -170,8 +170,8 @@ function CurrencyRuleDetailPage() {
       />
 
       {gap && (
-        <div className="flex gap-2 rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
+        <div className="flex gap-2 text-sm text-muted-foreground">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
           <span>{gap}</span>
         </div>
       )}

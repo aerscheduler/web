@@ -290,12 +290,12 @@ function OrgSwitcher() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <SidebarMenuButton
-                className="h-8 gap-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                className="h-8 gap-2 py-1.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               >
                 {/* Always-white tile so the navy wing stays visible in both themes.
                     `onLight` pins the light-surface mark; the default would swap to
                     the white-wing variant under `.dark` and that wing would vanish. */}
-                <div className="flex aspect-square size-4 items-center justify-center overflow-hidden rounded-md border border-sidebar-border bg-white">
+                <div className="flex aspect-square size-5 shrink-0 items-center justify-center overflow-hidden rounded-md border border-sidebar-border bg-white">
                   {organization?.profileImage ? (
                     <img
                       src={organization.profileImage}
@@ -381,8 +381,12 @@ function OrgSwitcher() {
                       onClick={() => void onSwitch(o.id)}
                       className="gap-2"
                     >
-                      <div className="flex size-5 items-center justify-center rounded-md border bg-card text-[10px] font-semibold">
-                        {initials(o.name)}
+                      <div className="flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-card text-[10px] font-semibold">
+                        {o.profileImage ? (
+                          <img src={o.profileImage} alt="" className="size-full object-cover" />
+                        ) : (
+                          initials(o.name)
+                        )}
                       </div>
                       <span className="truncate">{o.name}</span>
                       {o.id === organization?.id && <Check className="ml-auto size-4" />}

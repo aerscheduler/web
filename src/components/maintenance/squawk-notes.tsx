@@ -78,10 +78,14 @@ export function SquawkNotes({
           {list.map((c) => (
             <li key={c.id} className="flex gap-2.5">
               <span
-                className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
+                className="mt-0.5 grid size-7 shrink-0 place-items-center overflow-hidden rounded-full bg-muted text-[10px] font-medium text-muted-foreground"
                 aria-hidden
               >
-                {initials(c.author?.user?.name) || "?"}
+                {c.author?.profileImage ? (
+                  <img src={c.author.profileImage} alt="" className="size-full object-cover" />
+                ) : (
+                  initials(c.author?.user?.name) || "?"
+                )}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2">

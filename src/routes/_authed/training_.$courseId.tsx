@@ -503,7 +503,7 @@ function StudentsView({ courseId }: { courseId: number }) {
           id: `enrollment-${e.id}`,
           testId: `course-enrollment-${e.id}`,
           label: name,
-          leading: e.student ? <WorkspaceUserAvatar person={{ id: e.student.id, name }} /> : undefined,
+          leading: e.student ? <WorkspaceUserAvatar person={{ id: e.student.id, name, profileImage: e.student.profileImage ?? null }} /> : undefined,
           title: name,
           dim: status === "terminated",
           onOpen: () => void navigate({ to: "/training/enrollments/$enrollmentId", params: { enrollmentId: String(e.id) } }),

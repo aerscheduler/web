@@ -11,7 +11,7 @@ import {
 } from "@/features/queries";
 import { ApiError } from "@/lib/api";
 import { useConfirm } from "@/components/confirm-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +36,7 @@ function PersonRow({
   const identity = (
     <>
       <Avatar className="size-8">
+        {person.orgUser?.profileImage && <AvatarImage src={person.orgUser.profileImage} alt="" className="object-cover" />}
         <AvatarFallback className="text-xs">{initials(user?.name)}</AvatarFallback>
       </Avatar>
       <div className="min-w-0 flex-1">

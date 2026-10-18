@@ -2026,7 +2026,7 @@ export interface JoinRequest {
   id: number;
   status?: string;
   createdAt?: string;
-  user: { id: number; name: string; email: string };
+  user: { id: number; name: string; email: string; publicProfileImage?: string | null };
 }
 
 export interface InviteInput {
@@ -2752,8 +2752,8 @@ export interface WorkOrder {
     meterMode: string | null;
   };
   /** `claimed`: an outside owner who has signed in, billed at their own login. */
-  billTo: { id: number; name: string | null; external: boolean; contactEmail: string | null; claimed?: boolean } | null;
-  technicians: { id: number; name: string | null }[];
+  billTo: { id: number; name: string | null; profileImage?: string | null; external: boolean; contactEmail: string | null; claimed?: boolean } | null;
+  technicians: { id: number; name: string | null; profileImage?: string | null }[];
   billing: "none" | "invoiced" | "paid";
   invoice: { id: number; total: number; tax: number | null; paidAt: string | null; dueAt: string | null; number: string | null } | null;
   /** On the single job only. Meters are TENTHS of an hour. */
@@ -2766,7 +2766,7 @@ export interface WorkOrder {
   /** The owners hear nothing about this job's stages until somebody lifts the hold. */
   holdOwnerNotices?: boolean;
   createdAt?: string;
-  createdBy?: { id: number; name: string | null } | null;
+  createdBy?: { id: number; name: string | null; profileImage?: string | null } | null;
   booking?: { id: number; start: string; end: string; cancelled: boolean; moved?: boolean } | null;
   /** Ever billed, voided bills included: such a job can be cancelled, never deleted. */
   hasInvoices?: boolean;
@@ -2840,7 +2840,7 @@ export interface WorkOrderLine {
   hours: string | null;
   rateCents: number | null;
   workedOn: string | null;
-  technician: { id: number; name: string | null } | null;
+  technician: { id: number; name: string | null; profileImage?: string | null } | null;
   partNumber: string | null;
   serialNumber: string | null;
   vendor: string | null;
@@ -3481,7 +3481,7 @@ export type EnrollmentSummary = {
   feeLedgerEntryId?: number | null;
   studentOrgUserId?: number;
   courseVersionId?: number;
-  student?: { id: number; user?: { id: number; name: string; email: string } | null } | null;
+  student?: { id: number; profileImage?: string | null; user?: { id: number; name: string; email: string } | null } | null;
   courseVersion?: {
     id: number;
     label: string;
@@ -3589,7 +3589,7 @@ export type Endorsement = {
   signedByOrgUserId: number;
   enrollmentId: number | null;
   supersedesId: number | null;
-  student?: { id: number; user?: { id: number; name: string; email: string } | null } | null;
+  student?: { id: number; profileImage?: string | null; user?: { id: number; name: string; email: string } | null } | null;
   signedBy?: { id: number; user?: { id: number; name: string } | null } | null;
 };
 
@@ -4162,7 +4162,7 @@ export interface AircraftInvoice {
   status: "paid" | "open" | "overdue" | "void" | "refunded";
   totalCents: number;
   purpose: string;
-  billedTo: { orgUserId: number | null; name: string | null };
+  billedTo: { orgUserId: number | null; name: string | null; profileImage?: string | null };
   for: { kind: "reservation"; id: number; title: string | null; start: string | null } | { kind: "work_order"; id: number; label: string } | null;
 }
 

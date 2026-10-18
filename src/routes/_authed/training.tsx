@@ -479,7 +479,7 @@ function ActiveStudents({ loading }: { loading: boolean }) {
             id: `enrollment-${e.id}`,
             testId: `enrollment-row-${e.id}`,
             label: `${name}, ${g.name}`,
-            leading: e.student ? <WorkspaceUserAvatar person={{ id: e.student.id, name }} /> : undefined,
+            leading: e.student ? <WorkspaceUserAvatar person={{ id: e.student.id, name, profileImage: e.student.profileImage ?? null }} /> : undefined,
             title: name,
             tags: e.courseVersion?.label ? <ListTag>{e.courseVersion.label}</ListTag> : undefined,
             onOpen: () =>

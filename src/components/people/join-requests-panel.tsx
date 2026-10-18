@@ -14,7 +14,7 @@ import type { JoinRequest, Role } from "@/types/api";
 import { ApiError } from "@/lib/api";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -110,6 +110,7 @@ function JoinRequestRow({ request }: { request: JoinRequest }) {
     <li className="flex flex-col gap-3 px-4 py-2.5 sm:flex-row sm:items-center">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <Avatar className="size-9">
+          {request.user.publicProfileImage && <AvatarImage src={request.user.publicProfileImage} alt="" className="object-cover" />}
           <AvatarFallback>{initials(request.user.name)}</AvatarFallback>
         </Avatar>
         <div className="min-w-0">

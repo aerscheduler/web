@@ -199,7 +199,7 @@ function seatedPeople(r: Reservation): { person: WorkspacePerson; seat: string }
   const add = (list: OrganizationUser[] | undefined, seat: string) => {
     for (const ou of list ?? []) {
       if (!out.has(ou.id)) {
-        out.set(ou.id, { person: { id: ou.id, name: ou.user?.name, profileImage: ou.user?.publicProfileImage ?? null }, seat });
+        out.set(ou.id, { person: { id: ou.id, name: ou.user?.name, profileImage: ou.profileImage ?? null }, seat });
       }
     }
   };
@@ -217,7 +217,7 @@ function workspacePeople(r: Reservation): WorkspacePerson[] {
   return [...(p?.instructors ?? []), ...(p?.students ?? []), ...(p?.renters ?? [])].map((ou) => ({
     id: ou.id,
     name: ou.user?.name,
-    profileImage: ou.user?.publicProfileImage ?? null,
+    profileImage: ou.profileImage ?? null,
   }));
 }
 

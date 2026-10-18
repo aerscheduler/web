@@ -322,8 +322,11 @@ export function WorkOrderLineModal({
   const item = items.find((i) => String(i.id) === itemId);
   const tech =
     technicianOptions.find((m) => String(m.id) === technician) ??
-    (editing?.technician && String(editing.technician.id) === technician ? { id: editing.technician.id, user: { name: editing.technician.name } } : null);
+    (editing?.technician && String(editing.technician.id) === technician
+      ? { id: editing.technician.id, user: { name: editing.technician.name }, profileImage: editing.technician.profileImage ?? null }
+      : null);
   const techName = tech ? (tech.user?.name ?? `Member #${tech.id}`) : null;
+  const techImage = tech?.profileImage ?? null;
   const markupPct = effectiveMarkup ? effectiveMarkup / 100 : 0;
   const KindIcon = LINE_KIND_ICON[kind];
 
@@ -513,7 +516,7 @@ export function WorkOrderLineModal({
               <ChipMenu
                 id="wo-line-tech"
                 name="Technician"
-                leading={techName ? <PersonAvatar name={techName} size="xs" className="-ml-0.5 size-4" /> : <UserRound className="size-3.5" />}
+                leading={techName ? <PersonAvatar name={techName} image={techImage} size="xs" className="-ml-0.5 size-4" /> : <UserRound className="size-3.5" />}
                 label={techName ?? "Technician"}
                 set={!!techName}
                 value={technician}

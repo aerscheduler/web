@@ -80,7 +80,7 @@ function columns(): ColumnDef<AircraftInvoice, unknown>[] {
         const b = row.original.billedTo;
         return b.orgUserId != null ? (
           <span onClick={(e) => e.stopPropagation()}>
-            <WorkspaceUserAvatar person={{ id: b.orgUserId, name: b.name }} showName />
+            <WorkspaceUserAvatar person={{ id: b.orgUserId, name: b.name, profileImage: b.profileImage ?? null }} showName />
           </span>
         ) : (
           <span className="text-[13px]">{b.name ?? "A guest"}</span>

@@ -595,6 +595,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [reconcileBillingCurrency]);
 
   /**
+   * The organization and the member row come from the session saved at sign-in, so anything
+   * changed elsewhere (a logo uploaded from the app, a photo another admin set, a rename in
+   * another tab) stayed out of this tab until the next sign-in. Refreshed once when the console
+   * loads, then when the tab comes back into view, at most every five minutes: `/auth/` carries
+   * the whole organization, so it is not something to ask for on every focus.
+   */
+  const lastSessionRefresh = useRef(0);
+  useEffect(() => {
+    //Only a session restored from storage: one that a sign-in just produced is already fresh.
+    lastSessionRefresh.current = Date.now();
+    if (getToken() && !isTokenExpired() && loadSession().user) void rehydrate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the console loads
+  }, []);
+
+  useEffect(() => {
+    const onReturn = () => {
+      if (document.visibilityState === "hidden" || !getToken() || isTokenExpired()) return;
+      const now = Date.now();
+      if (now - lastSessionRefresh.current < 5 * 60_000) return;
+      lastSessionRefresh.current = now;
+      void rehydrate();
+    };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, [rehydrate]);
+
+  /**
    * Keep analytics pointed at whoever is actually signed in.
    *
    * Driven off session state rather than called from each of login/register/OAuth/

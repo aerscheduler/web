@@ -166,7 +166,7 @@ function BillToProperty({ workOrder: w, editable, locked, onSave }: { workOrder:
         <button type="button" className={valueButton} aria-label="Change who pays">
           {w.billTo ? (
             <>
-              <PersonAvatar name={w.billTo.name ?? "Owner"} />
+              <PersonAvatar name={w.billTo.name ?? "Owner"} image={w.billTo.profileImage} />
               <span className="truncate">{w.billTo.name ?? "Owner"}</span>
             </>
           ) : (
@@ -249,7 +249,7 @@ function TechniciansProperty({ workOrder: w, onSave }: { workOrder: WorkOrder; o
             <>
               <span className="flex shrink-0">
                 {w.technicians.slice(0, 3).map((t, i) => (
-                  <PersonAvatar key={t.id} name={t.name ?? "Technician"} className={cn("ring-2 ring-card", i > 0 && "-ml-1.5")} />
+                  <PersonAvatar key={t.id} name={t.name ?? "Technician"} image={t.profileImage} className={cn("ring-2 ring-card", i > 0 && "-ml-1.5")} />
                 ))}
               </span>
               <span className="truncate">{names.join(", ")}</span>

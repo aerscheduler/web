@@ -23,10 +23,9 @@ import { useAuth } from "@/lib/auth";
 import { canOpenWorkOrders, canSeeShop, isAdmin, personViewAccess, type PersonViewAccess } from "@/lib/permissions";
 import { TaxExemptionCard } from "@/components/people/detail/tax-exemption-card";
 import { PersonPermissions } from "@/components/people/detail/person-permissions";
-import { cn, formatDate, initials } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { formatPhone } from "@/lib/phone";
 import { ErrorState } from "@/components/states";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,6 +46,7 @@ import {
 import { useDetailRange } from "@/components/detail/use-detail-range";
 import { EditRolesModal } from "@/components/people/edit-roles-modal";
 import { MemberRowActions } from "@/components/people/member-row-actions";
+import { MemberPhoto } from "@/components/people/member-photo";
 import { MemberInstructionSection } from "@/components/people/member-instruction-section";
 import { PersonMetrics } from "@/components/people/detail/person-metrics";
 import { PersonTraining } from "@/components/people/detail/person-training";
@@ -264,7 +264,7 @@ function PersonBody({
 }) {
   const navigate = useNavigate();
   const routeNavigate = Route.useNavigate();
-  const { roles } = useAuth();
+  const { roles, rehydrate } = useAuth();
   const { tab } = Route.useSearch();
   const { range, setRange, window } = useDetailRange(90);
   const [editingRoles, setEditingRoles] = useState<OrganizationUser | null>(null);
@@ -326,10 +326,15 @@ function PersonBody({
 
         <DetailHeader
           media={
-            <Avatar className="size-16">
-              {ou.profileImage && <AvatarImage src={ou.profileImage} alt={name} />}
-              <AvatarFallback className="text-lg">{initials(name)}</AvatarFallback>
-            </Avatar>
+            <MemberPhoto
+              orgUserId={ou.id}
+              name={name}
+              image={ou.profileImage}
+              editable={(isSelf || isAdmin(roles)) && !ou.archivedAt}
+              className="size-16"
+              fallbackClassName="text-lg"
+              onChanged={isSelf ? rehydrate : undefined}
+            />
           }
           title={name}
           badges={

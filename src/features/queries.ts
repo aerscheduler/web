@@ -2154,6 +2154,43 @@ export function useUpdateOrgLogo() {
   });
 }
 
+/** Image types the server will sign a profile photo upload for. No SVG (public bucket). */
+export const PROFILE_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
+/**
+ * A member's profile photo, by the member or an owner/admin. Upload to the presigned POST,
+ * then record the object URL; the server only accepts a URL it signed for this member.
+ */
+export function useUpdateMemberPhoto(orgUserId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const presigned = await api<PresignedPost>(
+        `/orgUsers/${orgUserId}/profileImage/signedUrl?contentType=${encodeURIComponent(file.type)}`
+      );
+      await uploadToPresignedPost(presigned, file);
+      const profileImageUrl = presignedObjectUrl(presigned);
+      await api<void>(`/orgUsers/${orgUserId}/profileImage`, { method: "PATCH", body: { profileImageUrl } });
+      return profileImageUrl;
+    },
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["members"] });
+      void qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+}
+
+export function useRemoveMemberPhoto(orgUserId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<void>(`/orgUsers/${orgUserId}/profileImage`, { method: "DELETE" }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["members"] });
+      void qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+}
+
 /**
  * The organization's own reservation type colors. Read on its own, and again whenever the
  * window regains focus, because the signed-in session only refreshes at sign-in: without

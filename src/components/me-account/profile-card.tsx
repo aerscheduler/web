@@ -12,7 +12,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { MemberPhoto } from "@/components/people/member-photo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +21,7 @@ import { RoleBadges } from "@/components/role-badges";
 import { initials } from "@/lib/utils";
 
 export function ProfileCard() {
-  const { user, roles, rehydrate } = useAuth();
+  const { user, roles, membership, rehydrate } = useAuth();
   const update = useUpdateProfile();
 
   const initialName = user?.name ?? "";
@@ -55,19 +56,26 @@ export function ProfileCard() {
           </span>
           <div>
             <CardTitle>Profile</CardTitle>
-            <CardDescription>Your name and account details.</CardDescription>
+            <CardDescription>Your photo, name and account details.</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="flex items-center gap-4">
-            <Avatar className="size-14">
-              {user?.publicProfileImage && (
-                <AvatarImage src={user.publicProfileImage} alt={user.name ?? "You"} />
-              )}
-              <AvatarFallback className="text-base">
-                {initials(user?.name)}
-              </AvatarFallback>
-            </Avatar>
+            {membership ? (
+              <MemberPhoto
+                orgUserId={membership.id}
+                name={user?.name}
+                image={membership.profileImage}
+                editable
+                className="size-14"
+                fallbackClassName="text-base"
+                onChanged={rehydrate}
+              />
+            ) : (
+              <Avatar className="size-14">
+                <AvatarFallback className="text-base">{initials(user?.name)}</AvatarFallback>
+              </Avatar>
+            )}
             <div className="min-w-0">
               <div className="truncate text-sm font-medium">{user?.name ?? "–"}</div>
               <div className="truncate text-xs text-muted-foreground">

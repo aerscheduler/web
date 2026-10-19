@@ -30,6 +30,7 @@ import { toast } from "sonner";
 import { canAccess, guardRoute } from "@/lib/permissions";
 import { rolesFromSession, useAuth } from "@/lib/auth";
 import { holdsTrainingGrant } from "@/lib/training";
+import { TrainingTimeline } from "@/components/training/training-timeline";
 import { AddCreditDialog } from "@/components/training/credit-dialog";
 import { TaskGradeList, taskGradeMap, taskGradePayload } from "@/components/training/task-grades";
 import {
@@ -172,27 +173,20 @@ function EnrollmentPage() {
 
           {active === "overview" && (
             <>
-              <Card className="p-4">
-                <div className="mb-2 flex items-baseline justify-between">
+              <Card className="p-4" data-doc-shot="enrollment-timeline">
+                <div className="mb-4 flex items-baseline justify-between">
                   <span className="flex items-center gap-1.5 text-sm font-medium">
-                    Lessons complete
+                    Timeline
                     <DocsHint topic="lessons-vs-hours" />
                   </span>
                   <span className="text-sm tabular-nums text-muted-foreground">
-                    {p.lessonsComplete} of {p.lessonsTotal}
+                    {p.lessonsComplete} of {p.lessonsTotal} lessons
                   </span>
                 </div>
-                <Progress
-                  value={p.lessonsTotal ? (p.lessonsComplete / p.lessonsTotal) * 100 : 0}
-                />
-                {/* Two different numbers on purpose. "12 of 30 lessons" and "18.4 of 40.0 hours"
-                    are different axes, and a student can be a long way along one and short on the
-                    other, which is exactly the question a chief instructor is asking. */}
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Lessons and hours move independently, one flight can credit several
-                  requirements at once.
-                </p>
+                <TrainingTimeline progress={p} />
               </Card>
+
+              <NextAndNeeded progress={p} onRequirements={() => pick("requirements")} />
 
               {p.graduationBlocker ? (
                 <Card className="flex items-start gap-3 p-4">
@@ -243,7 +237,75 @@ function EnrollmentPage() {
   );
 }
 
-function RequirementsProgress({ standings }: { standings: Standing[] }) {
+/**
+ * What happens next and what is still missing, the two things a chief instructor opens a
+ * record to find out. Before, the Overview said "7 of 15" and the reason a student could
+ * not test sat at the bottom of a list of green rows on another tab (Wes, in the demo:
+ * fifteen lessons done and the test preparation stale).
+ */
+function NextAndNeeded({ progress, onRequirements }: { progress: EnrollmentProgress; onRequirements: () => void }) {
+  const e = progress.enrollment;
+  const stages = e.courseVersion.stages;
+  const nextId = nextLessonId(stages, progress.completedLessonIds);
+  const stage = stages.find((st) => st.lessons.some((l) => l.id === nextId));
+  const next = stage?.lessons.find((l) => l.id === nextId);
+  const short = progress.standings.filter((s) => !s.met);
+  if (e.status !== "enrolled") return null;
+
+  return (
+    <Card className="grid gap-4 p-4 sm:grid-cols-2">
+      <div className="min-w-0 space-y-1">
+        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Next up</div>
+        {next ? (
+          <>
+            <p className="text-sm font-medium">{next.name}</p>
+            <p className="text-xs text-muted-foreground">
+              {stage!.name}
+              {next.isStageCheck ? " · stage check" : ""}
+            </p>
+            {next.objectives ? <p className="line-clamp-2 text-sm text-muted-foreground">{next.objectives}</p> : null}
+          </>
+        ) : (
+          <p className="text-sm">Every lesson in the syllabus is complete.</p>
+        )}
+      </div>
+      <div className="min-w-0 space-y-1">
+        <div className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Still needed</div>
+        {short.length === 0 ? (
+          <p className="flex items-center gap-1.5 text-sm">
+            <CheckCircle2 className="size-4 text-success" /> Every hour requirement is met.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {short.slice(0, 4).map((s) => (
+              <li key={s.requirementId} className="text-sm">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="min-w-0 truncate">{s.label}</span>
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {creditedLabel(s)} of {requiredLabel(s)}
+                  </span>
+                </div>
+                {staleExplanation(s) ? <p className="text-xs text-muted-foreground">{staleExplanation(s)}</p> : null}
+              </li>
+            ))}
+            {short.length > 4 ? (
+              <li>
+                <button type="button" onClick={onRequirements} className="text-sm text-primary hover:underline">
+                  and {short.length - 4} more
+                </button>
+              </li>
+            ) : null}
+          </ul>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+function RequirementsProgress({ standings: all }: { standings: Standing[] }) {
+  // Unmet first: the rows that need flying are the reason anyone opens this tab, and a
+  // finished student's single stale requirement used to sit under a dozen green ones.
+  const standings = [...all].sort((a, b) => Number(a.met) - Number(b.met));
   if (standings.length === 0) {
     return <EmptyState graphic="requirements" title="No requirements" body="This syllabus tracks no hour requirements." />;
   }
@@ -958,10 +1020,15 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
 
   const blocked = !!progress.graduationBlocker;
   const is141 = progress.enrollment.courseVersion.course.regulatoryPart === "part141";
+  // Part 61 leaves graduating to the school, so the server allows it with hours still
+  // short. The dialog says what is short rather than closing the record in silence, and
+  // the button is only the page's main action once the course is actually finished.
+  const short = progress.standings.filter((s) => !s.met);
+  const finished = progress.lessonsComplete === progress.lessonsTotal && short.length === 0;
 
   return (
     <>
-      <Button onClick={() => setOpen(true)} disabled={blocked} variant={blocked ? "outline" : "default"}>
+      <Button onClick={() => setOpen(true)} disabled={blocked} variant={blocked || !finished ? "outline" : "default"}>
           <GraduationCap className="size-4" /> Graduate
         </Button>
       <ResponsiveModal
@@ -993,6 +1060,21 @@ function GraduateButton({ progress }: { progress: EnrollmentProgress }) {
     >
 
         
+
+        {!finished ? (
+          <p className="text-sm text-muted-foreground">
+            {progress.lessonsComplete < progress.lessonsTotal
+              ? `${progress.lessonsTotal - progress.lessonsComplete} of ${progress.lessonsTotal} lessons are not complete. `
+              : ""}
+            {short.length
+              ? `${short.length === 1 ? "One requirement is" : `${short.length} requirements are`} not met: ${short
+                  .slice(0, 3)
+                  .map((s) => s.label)
+                  .join(", ")}${short.length > 3 ? `, and ${short.length - 3} more` : ""}. `
+              : ""}
+            Graduating closes the enrollment as it stands.
+          </p>
+        ) : null}
 
         {is141 ? (
           <div className="space-y-1">

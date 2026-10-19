@@ -7,6 +7,8 @@ import {
   useEnrollments,
 } from "@/features/queries";
 import { canAccess } from "@/lib/permissions";
+import { nextLessonId } from "@/lib/training";
+import { TrainingTimeline } from "@/components/training/training-timeline";
 import { Button } from "@/components/ui/button";
 import {
   PART_LABEL,
@@ -172,6 +174,7 @@ function MyEndorsements({ orgUserId }: { orgUserId: number | null }) {
 
 function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
   const progress = useEnrollmentProgress(enrollmentId);
+  const { roles } = useAuth();
   if (progress.isLoading) return <Skeleton className="h-48 w-full" />;
   if (progress.error) {
     return (
@@ -186,6 +189,14 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
 
   const p = progress.data;
   const course = p.enrollment.courseVersion.course;
+  const active = p.enrollment.status === "enrolled";
+  const stages = p.enrollment.courseVersion.stages;
+  const nextId = active ? nextLessonId(stages, p.completedLessonIds) : null;
+  const nextStage = stages.find((st) => st.lessons.some((l) => l.id === nextId));
+  const next = nextStage?.lessons.find((l) => l.id === nextId);
+  // Unmet first, and a finished course's requirements folded away: a graduate's fifteen
+  // green rows used to fill the screen above the course they are on now.
+  const standings = [...p.standings].sort((a, b) => Number(a.met) - Number(b.met));
 
   return (
     <Card data-doc-shot="me-training-progress" className="space-y-4 p-4">
@@ -213,18 +224,39 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
         </div>
       </div>
 
+      {next ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+          <div className="min-w-0">
+            <p className="text-xs text-muted-foreground">Next up{next.isStageCheck ? ", your stage check" : ""}</p>
+            <p className="truncate text-sm font-medium">{next.name}</p>
+          </div>
+          {canAccess("/me/book", roles) ? (
+            <Button asChild size="sm" variant="outline">
+              <Link to="/me/book">Book a lesson</Link>
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+
       <div>
-        <div className="mb-1.5 flex items-baseline justify-between text-sm">
+        <div className="mb-3 flex items-baseline justify-between text-sm">
           <span>Lessons</span>
           <span className="tabular-nums text-muted-foreground">
             {p.lessonsComplete} of {p.lessonsTotal}
           </span>
         </div>
-        <Progress value={p.lessonsTotal ? (p.lessonsComplete / p.lessonsTotal) * 100 : 0} />
+        {active ? (
+          <TrainingTimeline progress={p} />
+        ) : (
+          <Progress value={p.lessonsTotal ? (p.lessonsComplete / p.lessonsTotal) * 100 : 0} />
+        )}
       </div>
 
-      <div className="space-y-2.5">
-        {p.standings.map((s) => {
+      <details className="group space-y-2.5" open={active}>
+        <summary className="cursor-pointer list-none text-sm font-medium text-muted-foreground group-open:mb-2.5">
+          {active ? "Hour requirements" : "Show hour requirements"}
+        </summary>
+        {standings.map((s) => {
           const capped = cappedExplanation(s);
           const stale = staleExplanation(s);
           return (
@@ -255,7 +287,7 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
             </div>
           );
         })}
-      </div>
+      </details>
 
       <ToCountersign progress={p} />
     </Card>

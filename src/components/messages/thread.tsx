@@ -172,7 +172,19 @@ export function Thread({
       // would take the view straight back.
       window.setTimeout(() => {
         el.scrollIntoView({ block: "center" });
-        el.animate([{ backgroundColor: "color-mix(in oklab, var(--primary) 20%, transparent)" }, { backgroundColor: "transparent" }], { duration: 1600 });
+        // The bubble itself pops a little and darkens for a moment, in its own shape, then
+        // settles. Not a tint across the row: that read as a square highlighter stripe.
+        const bubble = el.querySelector<HTMLElement>('[data-slot="bubble-content"]') ?? el;
+        const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        bubble.style.transformOrigin = el.dataset.align === "end" ? "right center" : "left center";
+        bubble.animate(
+          [
+            { transform: "scale(1)", filter: "brightness(1)" },
+            { transform: still ? "scale(1)" : "scale(1.06)", filter: "brightness(0.84)", offset: 0.3, easing: "ease-in-out" },
+            { transform: "scale(1)", filter: "brightness(1)" },
+          ],
+          { duration: 700, easing: "ease-out" }
+        );
       }, 350);
       return;
     }

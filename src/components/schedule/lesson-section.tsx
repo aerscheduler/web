@@ -277,10 +277,9 @@ function LessonGrader({
 
   const [flight, setFlight] = React.useState(() => (flightSeed ? deciHours(flightSeed) : ""));
   const [ground, setGround] = React.useState(() => (groundSeed ? deciHours(groundSeed) : ""));
-  //The course's first mark, which is the pass on every scale we ship and on almost every
-  //scale a school writes. Not the literal "S": that is refused outright by a course that
-  //does not use it.
-  const [grade, setGrade] = React.useState(() => scale[0] ?? "S");
+  //Empty until the instructor picks one. It used to start on the course's first mark (a
+  //pass), so a lesson could be signed with a grade nobody chose.
+  const [grade, setGrade] = React.useState("");
   const [notes, setNotes] = React.useState("");
   const [warning, setWarning] = React.useState<string | null>(null);
   const [done, setDone] = React.useState(alreadySigned);
@@ -417,6 +416,9 @@ function LessonGrader({
             value={grade}
             onChange={(e) => setGrade(e.target.value)}
           >
+            <option value="" disabled>
+              Choose
+            </option>
             {scale.map((g) => (
               <option key={g} value={g}>
                 {g}
@@ -456,7 +458,7 @@ function LessonGrader({
             inputMode="decimal"
             value={sim}
             onChange={(e) => setSim(e.target.value)}
-            placeholder="1.0"
+            placeholder="None"
           />
         </div>
       )}
@@ -518,6 +520,7 @@ function LessonGrader({
           disabled={
             busy ||
             !lessonId ||
+            !grade ||
             (needsNotes && !notes.trim())
           }
           onClick={async () => {

@@ -557,7 +557,9 @@ function GradeDialog({
   //school that had saved a custom scale, which is every school that used the feature.
   const scale = gradeCodesOf(progress.enrollment.courseVersion);
 
-  const [grade, setGrade] = useState(existing?.grade ?? scale[0] ?? "S");
+  //Empty until the instructor chooses, see lesson-section.state.ts: a preset pass let a
+  //lesson be signed with a grade nobody picked.
+  const [grade, setGrade] = useState(existing?.grade ?? "");
   const [flight, setFlight] = useState(
     deciHours(existing?.flightDeciHours ?? lesson.minFlightDeciHours ?? null).replace("–", "")
   );
@@ -587,7 +589,7 @@ function GradeDialog({
   const sign = useSignLessonRecord();
 
   const seedForm = () => {
-    setGrade(existing?.grade ?? scale[0] ?? "S");
+    setGrade(existing?.grade ?? "");
     setFlight(
       deciHours(existing?.flightDeciHours ?? lesson.minFlightDeciHours ?? null).replace("–", "")
     );
@@ -618,7 +620,7 @@ function GradeDialog({
       enrollmentId: progress.enrollment.id,
       lessonId: lesson.id,
       recordId: existing?.id,
-      grade,
+      grade: grade || null,
       notes: notes.trim() || null,
       flightDeciHours: toDeci(flight),
       instructionDeciHours: toDeci(ground),
@@ -672,7 +674,7 @@ function GradeDialog({
             <TooltipTrigger asChild>
               <Button
                 type="button"
-                disabled={busy || (needsNotes && !notes.trim())}
+                disabled={busy || !grade || (needsNotes && !notes.trim())}
                 onClick={() => submit(true)}
               >
                 <FileSignature className="size-4" /> Save and sign
@@ -690,7 +692,7 @@ function GradeDialog({
             <Label>Grade</Label>
             <Select value={grade} onValueChange={setGrade}>
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue placeholder="Choose a grade" />
               </SelectTrigger>
               <SelectContent>
                 {scale.map((g) => (
@@ -753,7 +755,7 @@ function GradeDialog({
                 inputMode="decimal"
                 value={sim}
                 onChange={(e) => setSim(e.target.value)}
-                placeholder="1.0"
+                placeholder="None"
               />
               <p className="text-xs text-muted-foreground">
                 Part of the flight hours above, not extra. Counted against the course&rsquo;s

@@ -138,7 +138,8 @@ describe("seedCloseOutGrader", () => {
       flightSeed: 15,
       groundSeed: 10,
     });
-    expect(seeded.grade).toBe("S");
+    // Never a preset pass: the instructor chooses.
+    expect(seeded.grade).toBe("");
     expect(seeded.notes).toBe("");
     expect(seeded.flight).toBe("1.5");
     expect(seeded.ground).toBe("1.0");

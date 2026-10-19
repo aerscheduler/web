@@ -140,7 +140,10 @@ export function seedCloseOutGrader(params: {
     if (t.grade) taskMarks[t.lessonTaskId] = t.grade;
   }
   return {
-    grade: d?.grade?.trim() || params.scale[0] || "S",
+    // A draft's own grade, or none: the instructor chooses. Prefilling the course's first
+    // mark (a pass) let a lesson be signed without a grade ever being picked, on a record
+    // the FAA reads as the instructor's assessment.
+    grade: d?.grade?.trim() || "",
     notes: d?.notes ?? "",
     flight: hours(d?.flightDeciHours, params.flightSeed),
     ground: hours(d?.instructionDeciHours, params.groundSeed),

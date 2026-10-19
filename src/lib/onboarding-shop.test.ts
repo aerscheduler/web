@@ -7,7 +7,7 @@ const applicable = (orgType: OrgType, source: string | null = null) =>
   CHECKLIST.filter((i) => i.appliesTo?.(orgType, { source }) ?? true).map((i) => i.id);
 
 const SHOP_ITEMS = ["customer-aircraft", "work-order", "shop-rates", "sales-tax", "technicians", "job-invoice"];
-const FLIGHT_ITEMS = ["aircraft", "reservation", "instructors", "students", "rates", "rules", "training", "facilities", "invoice", "groups", "cost-splitting"];
+const FLIGHT_ITEMS = ["aircraft", "reservation", "instructors", "students", "rates", "rules", "training", "enroll", "facilities", "invoice", "groups", "cost-splitting"];
 
 const facts = (overrides: Partial<ChecklistFacts> = {}): ChecklistFacts => ({
   organization: null,
@@ -20,6 +20,8 @@ const facts = (overrides: Partial<ChecklistFacts> = {}): ChecklistFacts => ({
   reminders: 0,
   groups: 0,
   courses: 0,
+  publishedCourses: 0,
+  enrollments: 0,
   stripeConnected: false,
   quickBooksConnected: false,
   splitRulesConfigured: false,
@@ -80,5 +82,31 @@ describe("shop attribution", () => {
 
   it("takes ?src=shop as the shop track", () => {
     expect(resolveSetupSource({ src: "shop" })).toBe("shop");
+  });
+});
+
+describe("the training steps", () => {
+  const item = (id: string) => CHECKLIST.find((i) => i.id === id)!;
+
+  it("reach an independent instructor, who trains students too", () => {
+    // The first training-setup signup (2026-10-19) was a solo CFI and never saw them.
+    const ids = applicable("solo_instructor", "training");
+    expect(ids).toContain("training");
+    expect(ids).toContain("enroll");
+  });
+
+  it("lead the checklist for a school that came for training", () => {
+    const ids = orderForTrack(applicable("flight_school", "training"), "training");
+    expect(ids.slice(0, 2)).toEqual(["training", "enroll"]);
+  });
+
+  it("count a course as set up only once it is published, since a draft takes no enrollment", () => {
+    expect(item("training").isDone(facts({ courses: 1, publishedCourses: 0 }))).toBe(false);
+    expect(item("training").isDone(facts({ courses: 1, publishedCourses: 1 }))).toBe(true);
+  });
+
+  it("finish enrolling at the first enrollment", () => {
+    expect(item("enroll").isDone(facts())).toBe(false);
+    expect(item("enroll").isDone(facts({ enrollments: 1 }))).toBe(true);
   });
 });

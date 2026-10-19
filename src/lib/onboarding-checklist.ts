@@ -60,6 +60,10 @@ export type ChecklistFacts = {
   groups: number;
   /** Published training courses (curriculum). */
   courses: number;
+  /** Courses with a published version: only those can take an enrollment. */
+  publishedCourses: number;
+  /** Enrollments ever opened, any status. */
+  enrollments: number;
   stripeConnected: boolean;
   quickBooksConnected: boolean;
   /**
@@ -318,13 +322,27 @@ export const CHECKLIST: ChecklistItem[] = [
   },
   {
     id: "training",
-    title: "Add a training course",
-    blurb: "A syllabus your instructors grade against, and enrollments your students can see.",
+    title: "Set up a training course",
+    blurb: "Copy a syllabus checked against the regulations, with its hour requirements, and publish it.",
     icon: GraduationCap,
     to: "/training",
-    cta: "Open training",
-    isDone: (f) => f.courses > 0,
-    appliesTo: (t) => !isSoloish(t) && t !== "rental" && !isShopOrg(t),
+    cta: "Set up a course",
+    // Published, not merely created: a draft cannot take an enrollment, and "done" on a
+    // course nobody can be enrolled on left the next step impossible.
+    isDone: (f) => f.publishedCourses > 0,
+    // Independent instructors train students too, and were the ones excluded: the only
+    // training-setup signup so far (2026-10-19) was a solo CFI and never saw this item.
+    appliesTo: (t) => !isPrivateOwner(t) && t !== "rental" && !isShopOrg(t),
+  },
+  {
+    id: "enroll",
+    title: "Enroll your first student",
+    blurb: "Enrolling opens their training record. Each lesson you grade fills it in.",
+    icon: GraduationCap,
+    to: "/training",
+    cta: "Enroll a student",
+    isDone: (f) => f.enrollments > 0,
+    appliesTo: (t) => !isPrivateOwner(t) && t !== "rental" && !isShopOrg(t),
   },
   {
     id: "facilities",

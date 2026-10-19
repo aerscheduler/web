@@ -45,7 +45,7 @@ export const TRACKS: Record<string, Track> = {
   },
   training: {
     caption: "You came in for training records, start here.",
-    lead: ["training", "students", "instructors"],
+    lead: ["training", "enroll", "students", "instructors"],
   },
   reports: {
     caption: "Reports light up once flights are on the board. Start there.",

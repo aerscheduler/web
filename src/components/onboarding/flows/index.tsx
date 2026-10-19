@@ -12,11 +12,13 @@ import type { ComponentType } from "react";
 import type { FlowProps } from "./flow-shell";
 import { BillingFlow } from "./billing-flow";
 import { CostSplittingFlow } from "./cost-splitting-flow";
+import { EnrollFlow } from "./enroll-flow";
 import { InviteFlow } from "./invite-flow";
 import { MaintenanceFlow } from "./maintenance-flow";
 import { OrganizationFlow } from "./organization-flow";
 import { RatesFlow } from "./rates-flow";
 import { RulesFlow } from "./rules-flow";
+import { TrainingFlow } from "./training-flow";
 
 export type { FlowProps };
 
@@ -35,6 +37,8 @@ export const FLOWS: Record<string, ComponentType<FlowProps>> = {
   // difference between "invite your instructors" and "invite your students".
   instructors: (props) => <InviteFlow {...props} defaultWho="instructor" />,
   students: (props) => <InviteFlow {...props} defaultWho="student" />,
+  training: TrainingFlow,
+  enroll: EnrollFlow,
 };
 
 export const flowFor = (itemId: string): ComponentType<FlowProps> | undefined => FLOWS[itemId];

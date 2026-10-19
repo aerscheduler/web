@@ -28,6 +28,7 @@ import {
   useSalesTaxSettings,
   useSimulators,
   useCourses,
+  useEnrollments,
   useUpdateOrgOnboarding,
   useWorkOrders,
   useWorkOrderSettings,
@@ -139,6 +140,7 @@ export function useChecklist(): ChecklistState {
   const reminders = useMaintenanceReminders(undefined, q);
   const groups = useResourceGroups(q);
   const courses = useCourses(undefined, q);
+  const enrollments = useEnrollments(undefined, q);
   const billing = useBilling(q);
   const quickBooks = useQuickBooksSettings(q);
   const splitRules = useSplitRules(q);
@@ -163,6 +165,8 @@ export function useChecklist(): ChecklistState {
     reminders: reminders.data?.length ?? 0,
     groups: groups.data?.length ?? 0,
     courses: courses.data?.length ?? 0,
+    publishedCourses: (courses.data ?? []).filter((c) => !c.archivedAt && c.versions.some((v) => v.publishedAt)).length,
+    enrollments: enrollments.data?.length ?? 0,
     stripeConnected: Boolean(billing.data?.stripeEnabled),
     quickBooksConnected: quickBooks.data?.status === "connected",
     splitRulesConfigured: (splitRules.data?.rules.length ?? 0) > 0,
@@ -180,7 +184,7 @@ export function useChecklist(): ChecklistState {
   const loading =
     onboarding.isLoading ||
     (live &&
-      [planes, members, reservations, invoices, ratings, sims, rooms, reminders, groups, courses, billing, shopPlanes, workOrders, shopRates, salesTax].some(
+      [planes, members, reservations, invoices, ratings, sims, rooms, reminders, groups, courses, enrollments, billing, shopPlanes, workOrders, shopRates, salesTax].some(
         (r) => r.isLoading
       ));
 

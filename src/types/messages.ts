@@ -10,7 +10,50 @@ export type ConversationKind = "direct" | "group" | "reservation";
 
 export type MessageRefType = "person" | "resource" | "reservation" | "workOrder" | "squawk";
 
-export type MessageRef = { type: MessageRefType; id: number; label: string; hidden?: true; card?: ReservationCard };
+/** `card` is a booking's only; an aircraft and a work order have their own (2026-10-18). */
+export type MessageRef = {
+  type: MessageRefType;
+  id: number;
+  label: string;
+  hidden?: true;
+  card?: ReservationCard;
+  aircraft?: AircraftCard;
+  job?: WorkOrderCard;
+};
+
+/** An aircraft mention's card. Meters in TENTHS. `nextInspection` is for staff only. */
+export type AircraftCard = {
+  tailNumber: string;
+  makeModel: string | null;
+  photo: string | null;
+  status: "available" | "out" | "grounded";
+  groundedReason: string | null;
+  meterMode: string;
+  hobbs: number | null;
+  tach: number | null;
+  openSquawks: number;
+  nextInspection: {
+    name: string | null;
+    status: string;
+    dueAt: string | null;
+    daysRemaining: number | null;
+    hoursRemaining: number | null;
+    basis: string | null;
+  } | null;
+};
+
+/** A work order mention's card, for roles that may open it. Billing is read from its invoice. */
+export type WorkOrderCard = {
+  label: string;
+  status: string;
+  statusLabel: string;
+  aircraft: string | null;
+  request: string | null;
+  promisedOn: string | null;
+  billing: "none" | "invoiced" | "paid";
+  totalCents: number | null;
+  currency: string | null;
+};
 
 /**
  * A booking mention drawn as a card (2026-10-18). Times are instants; draw them in
@@ -49,6 +92,8 @@ export type ConversationSummary = {
   /** Named for the reader: the other person, the group's name, or the booking. */
   title: string;
   groupTitle: string | null;
+  /** A group's own photo (2026-10-18); null for the others and for a group without one. */
+  photoUrl?: string | null;
   lastMessageAt: string;
   reservation: {
     id: number;

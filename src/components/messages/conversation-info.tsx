@@ -1,9 +1,12 @@
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
-import { Bell, BellOff, CalendarDays, LogOut, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, BellOff, CalendarDays, Camera, LogOut, Pencil, UserPlus, UserRound, X, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useConversationMessages, threadMessages, useLeaveConversation, useMuteConversation } from "@/features/messages";
+import { useConversationMessages, threadMessages, useEditGroup, useLeaveConversation, useMuteConversation } from "@/features/messages";
+import { PROFILE_PHOTO_TYPES, useMembers } from "@/features/queries";
+import { memberName } from "@/components/people/util";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import type { ConversationSummary, MessageRef } from "@/types/messages";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PersonAvatar } from "@/components/workspace-user-avatar";
@@ -76,6 +79,7 @@ export function ConversationInfo({
   );
   const others = c.participants.filter((p) => p.orgUserId !== me);
   const other = c.kind === "direct" ? others[0] : null;
+  const editable = c.kind === "group" && c.isParticipant;
 
   const mentioned = React.useMemo(() => {
     const { messages } = threadMessages(q.data);
@@ -120,19 +124,17 @@ export function ConversationInfo({
         <PopoverAnchor asChild>{children}</PopoverAnchor>
       )}
       <PopoverContent align={underHeader ? "center" : "start"} sideOffset={underHeader ? 6 : 8} className="w-[320px] p-0">
-        {/* Who it is with. */}
+        {/* Who it is with. A group's photo and name are edited right here, by anybody in it. */}
         <div className="flex flex-col items-center gap-2 px-5 pb-4 pt-5 text-center">
           {c.kind === "direct" ? (
             <PersonAvatar name={other?.name ?? c.title} image={other?.profileImage} size="lg" className="size-14" />
+          ) : editable ? (
+            <GroupPhoto c={c} />
           ) : (
-            <span className="flex">
-              {c.participants.slice(0, 3).map((p, i) => (
-                <PersonAvatar key={p.orgUserId} name={p.name} image={p.profileImage} size="lg" className={cn("ring-2 ring-popover", i > 0 && "-ml-3")} />
-              ))}
-            </span>
+            <GroupFaces c={c} />
           )}
-          <div className="min-w-0">
-            <p className="truncate text-base font-semibold">{c.title}</p>
+          <div className="w-full min-w-0">
+            {editable ? <GroupName c={c} /> : <p className="truncate text-base font-semibold">{c.title}</p>}
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           </div>
         </div>
@@ -159,7 +161,8 @@ export function ConversationInfo({
 
         {c.kind !== "direct" && (
           <Section title={`People · ${c.participants.length}`}>
-            <PeopleList c={c} me={me} onDone={() => onOpenChange(false)} />
+            {editable && <AddPeople c={c} me={me} />}
+            <PeopleList c={c} me={me} onDone={() => onOpenChange(false)} removable={editable} />
           </Section>
         )}
 
@@ -218,11 +221,16 @@ export function ConversationPeople({ c, me, children }: { c: ConversationSummary
   );
 }
 
-function PeopleList({ c, me, onDone }: { c: ConversationSummary; me: number | null; onDone: () => void }) {
+function PeopleList({ c, me, onDone, removable = false }: { c: ConversationSummary; me: number | null; onDone: () => void; removable?: boolean }) {
+  const edit = useEditGroup(c.id);
+  // At once, no "are you sure": they can be added back the same way, and the line in the
+  // conversation says who did it.
+  const remove = (orgUserId: number) =>
+    edit.remove.mutate(orgUserId, { onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't take them out.") });
   return (
     <ul className="max-h-64 overflow-y-auto">
       {c.participants.map((p) => (
-        <li key={p.orgUserId}>
+        <li key={p.orgUserId} className="group/person relative">
           <Link
             to="/people/$orgUserId"
             params={{ orgUserId: String(p.orgUserId) }}
@@ -231,11 +239,202 @@ function PeopleList({ c, me, onDone }: { c: ConversationSummary; me: number | nu
           >
             <PersonAvatar name={p.name} image={p.profileImage} size="sm" />
             <span className="min-w-0 flex-1 truncate text-sm">{p.orgUserId === me ? `${p.name} (you)` : p.name}</span>
-            <span className="shrink-0 text-xs text-muted-foreground">{p.roles.map((r) => ROLE_WORD[r] ?? r)[0] ?? ""}</span>
+            <span className={cn("shrink-0 text-xs text-muted-foreground", removable && p.orgUserId !== me && "group-hover/person:invisible group-focus-within/person:invisible")}>
+              {p.roles.map((r) => ROLE_WORD[r] ?? r)[0] ?? ""}
+            </span>
           </Link>
+          {removable && p.orgUserId !== me && (
+            <button
+              type="button"
+              aria-label={`Remove ${p.name}`}
+              onClick={() => remove(p.orgUserId)}
+              className="absolute right-1.5 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground opacity-0 hover:bg-background hover:text-foreground focus-visible:opacity-100 group-hover/person:opacity-100"
+            >
+              <X className="size-3.5" aria-hidden />
+            </button>
+          )}
         </li>
       ))}
     </ul>
+  );
+}
+
+function GroupFaces({ c }: { c: ConversationSummary }) {
+  if (c.photoUrl) return <img src={c.photoUrl} alt="" className="size-14 rounded-full object-cover" />;
+  return (
+    <span className="flex">
+      {c.participants.slice(0, 3).map((p, i) => (
+        <PersonAvatar key={p.orgUserId} name={p.name} image={p.profileImage} size="lg" className={cn("ring-2 ring-popover", i > 0 && "-ml-3")} />
+      ))}
+    </span>
+  );
+}
+
+/** The group's photo, or its faces, as a button: choose a photo, or take it away. */
+function GroupPhoto({ c }: { c: ConversationSummary }) {
+  const edit = useEditGroup(c.id);
+  const input = React.useRef<HTMLInputElement>(null);
+  const pick = (file: File | undefined) => {
+    if (!file) return;
+    if (!PROFILE_PHOTO_TYPES.includes(file.type)) return void toast.error("Pick a JPG, PNG, WebP or GIF image.");
+    edit.photo.mutate(file, { onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't change the photo.") });
+  };
+  const face = (
+    <span className={cn("relative block rounded-full", edit.photo.isPending && "opacity-60")}>
+      <GroupFaces c={c} />
+      <span className="absolute -bottom-0.5 -right-0.5 flex size-6 items-center justify-center rounded-full border-2 border-popover bg-muted text-muted-foreground">
+        <Camera className="size-3" aria-hidden />
+      </span>
+    </span>
+  );
+  return (
+    <>
+      <input
+        ref={input}
+        type="file"
+        accept={PROFILE_PHOTO_TYPES.join(",")}
+        className="hidden"
+        onChange={(e) => {
+          pick(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      {c.photoUrl ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button" aria-label="Group photo" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              {face}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center">
+            <DropdownMenuItem onSelect={() => input.current?.click()}>Choose a photo</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => edit.photo.mutate(null)}>Remove photo</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : (
+        <button type="button" aria-label="Add a group photo" onClick={() => input.current?.click()} className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {face}
+        </button>
+      )}
+    </>
+  );
+}
+
+/** The group's name, edited in place: click it, type, Enter (Escape puts it back). */
+function GroupName({ c }: { c: ConversationSummary }) {
+  const edit = useEditGroup(c.id);
+  const [editing, setEditing] = React.useState(false);
+  const [value, setValue] = React.useState(c.groupTitle ?? "");
+  React.useEffect(() => {
+    if (!editing) setValue(c.groupTitle ?? "");
+  }, [c.groupTitle, editing]);
+  const save = () => {
+    setEditing(false);
+    if (value.trim() === (c.groupTitle ?? "").trim()) return;
+    edit.rename.mutate(value.trim(), { onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't rename the group.") });
+  };
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={value}
+        maxLength={80}
+        placeholder="Name this group"
+        aria-label="Group name"
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") save();
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            setValue(c.groupTitle ?? "");
+            setEditing(false);
+          }
+        }}
+        className="w-full rounded-md border bg-background px-2 py-1 text-center text-base font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="group/name mx-auto flex max-w-full items-center justify-center gap-1.5 rounded-md px-2 py-0.5 hover:bg-accent"
+    >
+      <span className={cn("truncate text-base font-semibold", !c.groupTitle && "text-muted-foreground")}>{c.groupTitle || "Name this group"}</span>
+      <Pencil className="size-3.5 shrink-0 text-muted-foreground opacity-0 group-hover/name:opacity-100" aria-hidden />
+    </button>
+  );
+}
+
+/** Add people to a group: type a name, pick from the list. */
+function AddPeople({ c, me }: { c: ConversationSummary; me: number | null }) {
+  const members = useMembers();
+  const edit = useEditGroup(c.id);
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState("");
+  const options = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const inIt = new Set(c.participants.map((p) => p.orgUserId));
+    return (members.data ?? [])
+      .filter((m) => m.id !== me && !m.archivedAt && !inIt.has(m.id))
+      .map((m) => ({ id: m.id, name: memberName(m), image: m.profileImage ?? null }))
+      .filter((m) => !q || m.name.toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, 6);
+  }, [members.data, c.participants, query, me]);
+  const add = (id: number) =>
+    edit.add.mutate([id], {
+      onSuccess: () => setQuery(""),
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't add them."),
+    });
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-primary hover:bg-accent">
+        <span className="flex size-6 items-center justify-center rounded-full bg-primary/10">
+          <UserPlus className="size-3.5" aria-hidden />
+        </span>
+        Add people
+      </button>
+    );
+  }
+  return (
+    <div className="px-1 pb-1">
+      <input
+        autoFocus
+        value={query}
+        placeholder="Add a name"
+        aria-label="Add people"
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            setOpen(false);
+          }
+          if (e.key === "Enter" && options[0]) add(options[0].id);
+        }}
+        className="mb-1 h-8 w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      />
+      <ul role="listbox" aria-label="People to add">
+        {options.map((o) => (
+          <li key={o.id}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={false}
+              onClick={() => add(o.id)}
+              className="flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent"
+            >
+              <span aria-hidden className="contents">
+                <PersonAvatar name={o.name} image={o.image} size="sm" />
+              </span>
+              <span className="truncate">{o.name}</span>
+            </button>
+          </li>
+        ))}
+        {options.length === 0 && <li className="px-2 py-1.5 text-sm text-muted-foreground">Nobody else to add.</li>}
+      </ul>
+    </div>
   );
 }
 

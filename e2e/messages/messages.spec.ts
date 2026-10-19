@@ -353,6 +353,87 @@ test.describe.serial("Messages", () => {
     }
   });
 
+  test("a group is renamed, loses a person and gets them back from its name; each change is a line in it", async () => {
+    const token = (await apiLogin(student.request, ACCOUNTS.student)).auth.accessToken as string;
+    const auth = { Authorization: `Bearer ${token}` };
+    const people = ((await (await student.request.get(`${base()}/orgUsers`, { headers: auth })).json()).data ?? []) as Array<{
+      id: number;
+      user?: { name?: string };
+    }>;
+    const idOf = (name: string) => people.find((p) => p.user?.name === name)!.id;
+    const made = await student.request.post(`${base()}/conversations/group`, {
+      headers: auth,
+      data: { title: `${run} crew`, orgUserIds: [idOf("Test Instructor"), idOf("Test Renter")] },
+    });
+    expect(made.ok()).toBeTruthy();
+    const groupId = ((await made.json()).data as { id: number }).id;
+
+    // It arrives in the open list live.
+    await panel(student).locator("li button").filter({ hasText: `${run} crew` }).first().click();
+    await panel(student).getByRole("button", { name: new RegExp(`${run} crew`) }).first().click();
+    const pop = student.locator("[data-radix-popper-content-wrapper]");
+
+    // Rename in place.
+    await pop.getByRole("button", { name: `${run} crew` }).click();
+    const renamed = student.waitForResponse((r) => r.request().method() === "PATCH" && new URL(r.url()).pathname.endsWith(`/conversations/${groupId}`));
+    await pop.getByRole("textbox", { name: "Group name" }).fill(`${run} ramp`);
+    await pop.getByRole("textbox", { name: "Group name" }).press("Enter");
+    expect(((await (await renamed).json()).data as { title: string }).title).toBe(`${run} ramp`);
+
+    // Take the renter out, at once, and add them back.
+    const removed = student.waitForResponse((r) => r.request().method() === "DELETE" && /\/participants\/\d+$/.test(r.url()));
+    await pop.getByRole("button", { name: "Remove Test Renter" }).click();
+    expect((await removed).status()).toBe(200);
+    await expect(pop.getByRole("button", { name: "Remove Test Renter" })).toHaveCount(0);
+    await pop.getByRole("button", { name: "Add people" }).click();
+    await pop.getByRole("textbox", { name: "Add people" }).fill("Test Renter");
+    const added = student.waitForResponse(isPost(/\/conversations\/\d+\/participants$/));
+    await pop.getByRole("option", { name: "Test Renter", exact: true }).click();
+    expect((await added).request().postDataJSON()).toEqual({ orgUserIds: [idOf("Test Renter")] });
+    await student.keyboard.press("Escape");
+
+    // The lines, plain words, never an unread.
+    await expect(panel(student).getByText(`Test Student named the group \u201c${run} ramp\u201d`)).toBeVisible();
+    await expect(panel(student).getByText("Test Student removed Test Renter")).toBeVisible();
+    await expect(panel(student).getByText("Test Student added Test Renter")).toBeVisible();
+    await panel(student).getByRole("button", { name: "Back to conversations" }).click();
+    await student.request.post(`${base()}/conversations/${groupId}/leave`, { headers: auth });
+  });
+
+  test("an aircraft mention carries its card once, under the newest message naming it", async () => {
+    const token = (await apiLogin(instructor.request, ACCOUNTS.instructor)).auth.accessToken as string;
+    const auth = { Authorization: `Bearer ${token}` };
+    const fleet = ((await (await instructor.request.get(`${base()}/resources/aircraft`, { headers: auth })).json()).data ?? []) as Array<{
+      id: number;
+      type?: { plane?: { tailNumber?: string } };
+    }>;
+    const plane = fleet.find((r) => r.type?.plane?.tailNumber === "N172TS")!;
+    const people = ((await (await instructor.request.get(`${base()}/orgUsers`, { headers: auth })).json()).data ?? []) as Array<{
+      id: number;
+      user?: { name?: string };
+    }>;
+    const studentId = people.find((p) => p.user?.name === "Test Student")!.id;
+    const dm = ((await (await instructor.request.post(`${base()}/conversations/direct`, { headers: auth, data: { orgUserId: studentId } })).json()).data as { id: number }).id;
+    // Through the API, so the mention token is exact; the student's panel shows them live.
+    const theirs: number[] = [];
+    for (const n of [1, 2]) {
+      const sent = await instructor.request.post(`${base()}/conversations/${dm}/messages`, {
+        headers: auth,
+        data: { body: `${run} card ${n} {r:${plane.id}}`, clientId: `${run}-card-${n}` },
+      });
+      expect(sent.status()).toBe(201);
+      theirs.push(((await sent.json()).data as { id: number }).id);
+    }
+
+    await panel(student).locator("li button").filter({ hasText: "Test Instructor" }).first().click();
+    const newest = panel(student).locator("[data-message-id]").filter({ hasText: `${run} card 2` });
+    await expect(newest.locator("[data-aircraft-card]")).toContainText("N172TS");
+    await expect(newest.locator("[data-aircraft-card]")).toContainText(/Hobbs \d+\.\d/);
+    await expect(panel(student).locator("[data-message-id]").filter({ hasText: `${run} card 1` }).locator("[data-aircraft-card]")).toHaveCount(0);
+    await panel(student).getByRole("button", { name: "Back to conversations" }).click();
+    for (const id of theirs) await instructor.request.delete(`${base()}/conversations/messages/${id}`, { headers: auth });
+  });
+
   test("Expand makes the panel bigger in place; a link from it lands on the page with the panel back to normal", async () => {
     await panel(instructor).getByRole("button", { name: "Expand" }).click();
     // The same panel, grown: no dialog, no second surface.

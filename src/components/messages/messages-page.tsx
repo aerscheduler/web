@@ -55,6 +55,9 @@ export function ConversationGlyph({ c, me, size = "md" }: { c: ConversationSumma
     const other = c.participants.find((p) => p.orgUserId !== me);
     return <PersonAvatar name={other?.name ?? c.title} image={other?.profileImage} size="lg" className={box} />;
   }
+  if (c.kind === "group" && c.photoUrl) {
+    return <img src={c.photoUrl} alt="" className={cn("shrink-0 rounded-full object-cover", box)} />;
+  }
   const Icon = c.kind === "group" ? Users : CalendarDays;
   return (
     <span className={cn("flex shrink-0 items-center justify-center bg-muted text-muted-foreground", box, c.kind === "group" ? "rounded-full" : "rounded-lg")}>

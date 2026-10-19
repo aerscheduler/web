@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import { apiRaw, api, ApiError } from "@/lib/api";
+import { presignedObjectUrl, uploadToPresignedPost, type PresignedPost } from "@/lib/upload";
 import type {
   ConversationListPage,
   ConversationMessage,
@@ -344,6 +345,40 @@ export function useMessageSearch(q: string) {
  */
 function setCachedConversation(qc: QueryClient, id: number, patch: Partial<ConversationSummary>) {
   qc.setQueryData<ConversationSummary>(conversationKeys.one(id), (old) => (old ? { ...old, ...patch } : old));
+}
+
+/**
+ * Editing a group (2026-10-18): its name, its people and its photo. Each change lands in the
+ * conversation as a line ("Ann added Ben") from the server, and the socket refreshes the rest.
+ */
+export function useEditGroup(conversationId: number) {
+  const qc = useQueryClient();
+  const done = (c: ConversationSummary) => {
+    qc.setQueryData(conversationKeys.one(conversationId), c);
+    void qc.invalidateQueries({ queryKey: conversationKeys.all });
+  };
+  const rename = useMutation({
+    mutationFn: (title: string) => api<ConversationSummary>(`/conversations/${conversationId}`, { method: "PATCH", body: { title } }),
+    onSuccess: done,
+  });
+  const add = useMutation({
+    mutationFn: (orgUserIds: number[]) => api<ConversationSummary>(`/conversations/${conversationId}/participants`, { method: "POST", body: { orgUserIds } }),
+    onSuccess: done,
+  });
+  const remove = useMutation({
+    mutationFn: (orgUserId: number) => api<ConversationSummary>(`/conversations/${conversationId}/participants/${orgUserId}`, { method: "DELETE" }),
+    onSuccess: done,
+  });
+  const photo = useMutation({
+    mutationFn: async (file: File | null) => {
+      if (!file) return api<ConversationSummary>(`/conversations/${conversationId}/photo`, { method: "PATCH", body: { url: null } });
+      const presigned = await api<PresignedPost>(`/conversations/${conversationId}/photo/signedUrl?contentType=${encodeURIComponent(file.type)}`);
+      await uploadToPresignedPost(presigned, file);
+      return api<ConversationSummary>(`/conversations/${conversationId}/photo`, { method: "PATCH", body: { url: presignedObjectUrl(presigned) } });
+    },
+    onSuccess: done,
+  });
+  return { rename, add, remove, photo };
 }
 
 export function usePinConversation(conversationId: number) {

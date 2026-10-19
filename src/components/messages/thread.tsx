@@ -34,7 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Composer } from "@/components/messages/composer";
 import { MessageAttachments, type DraftAttachment } from "@/components/messages/attachments";
 import { MentionEditor, type MentionEditorHandle } from "@/components/messages/mention-editor";
-import { MessageBody } from "@/components/messages/message-body";
+import { MessageBody, TOKEN_RE } from "@/components/messages/message-body";
 import { onJumpRequest, takeJump } from "@/components/messages/jump";
 import { BookingCards, MessageActions, plainBody, ReactionChips, RepliesLink, seenText, ThreadHook, ThreadQuote } from "@/components/messages/message-extras";
 
@@ -509,6 +509,18 @@ function Rows({
   });
   for (const p of pending) rows.push({ kind: "pending", key: `c${p.clientId}`, p });
 
+  // The newest message naming each aircraft and work order carries its card (see BookingCards).
+  const liveCards = new Map<number, Set<string>>();
+  const carded = new Set<string>();
+  for (let i = shown.length - 1; i >= 0; i--) {
+    const m = shown[i]!;
+    for (const [key, r] of Object.entries(m.refs)) {
+      if (carded.has(key) || !(r.aircraft || r.job)) continue;
+      carded.add(key);
+      liveCards.set(m.id, (liveCards.get(m.id) ?? new Set()).add(key));
+    }
+  }
+
   // "Seen" goes under your newest message, once, and only while nothing has been sent after it.
   const newest = shown.at(-1);
   const seenUnder = !pending.length && newest && newest.authorOrgUserId === me ? newest.id : null;
@@ -540,7 +552,7 @@ function Rows({
             <MessageScrollerItem key={row.key} className="py-2">
               <Marker className="justify-center text-xs">
                 <MarkerContent>
-                  <MessageBody body={row.m.body} refs={row.m.refs} mine={false} />
+                  <SystemLine body={row.m.body} refs={row.m.refs} />
                 </MarkerContent>
               </Marker>
             </MessageScrollerItem>
@@ -640,7 +652,7 @@ function Rows({
                       </BesideActions>
                     )}
                     </MaybeHook>
-                    <BookingCards refs={m.refs} mine={mine} />
+                    <BookingCards refs={m.refs} mine={mine} live={liveCards.get(m.id) ?? new Set()} />
                     <ReactionChips message={m} conversationId={conversationId} me={me} people={people} mine={mine} />
                   </div>
                 )}
@@ -658,6 +670,27 @@ function Rows({
       })}
     </>
   );
+}
+
+/**
+ * A line saying what changed ("Ann added Ben"): plain words with the names a little heavier, not
+ * mention chips. It is a status line, not something anybody wrote.
+ */
+function SystemLine({ body, refs }: { body: string; refs: ConversationMessage["refs"] }) {
+  const parts: React.ReactNode[] = [];
+  let at = 0;
+  for (const m of body.matchAll(new RegExp(TOKEN_RE.source, "g"))) {
+    if (m.index! > at) parts.push(body.slice(at, m.index));
+    const ref = refs[`${m[1]}:${m[2]}`];
+    parts.push(
+      <span key={m.index} className="font-medium text-foreground">
+        {ref?.label ?? "someone"}
+      </span>
+    );
+    at = m.index! + m[0].length;
+  }
+  if (at < body.length) parts.push(body.slice(at));
+  return <span className="text-muted-foreground">{parts}</span>;
 }
 
 /**

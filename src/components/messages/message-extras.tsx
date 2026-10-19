@@ -1,8 +1,9 @@
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
-import { CalendarDays, Copy, MoreHorizontal, Pencil, Reply, SmilePlus, Trash2, X } from "lucide-react";
+import { CalendarDays, Copy, MoreHorizontal, Pencil, Plane, Reply, SmilePlus, Trash2, Wrench, X } from "lucide-react";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, formatMoney } from "@/lib/utils";
+import { tenthsLabel } from "@/lib/work-orders";
 import { DEVICE_TIME_ZONE, formatDateInZone, formatTimeRangeInZone } from "@/lib/timezone";
 import { useReactToMessage } from "@/features/messages";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -17,6 +18,8 @@ import {
   type MessageRef,
   type MessageReplyQuote,
   type ReservationCard,
+  type AircraftCard,
+  type WorkOrderCard,
 } from "@/types/messages";
 
 //---------------------------------------------------------------------------------
@@ -310,28 +313,132 @@ const CARD_STATUS: Record<ReservationCard["status"], { label: string; tone: stri
   cancelled: { label: "Cancelled", tone: "bg-muted text-muted-foreground line-through" },
 };
 
-/** One card per booking the message mentions (up to three), each opening the booking. */
-export function BookingCards({ refs, mine }: { refs: Record<string, MessageRef>; mine: boolean }) {
-  const cards = Object.values(refs).filter((r): r is MessageRef & { card: ReservationCard } => r.type === "reservation" && !r.hidden && !!r.card).slice(0, 3);
-  if (!cards.length) return null;
+const CARD_BOX = "flex w-72 max-w-full flex-col gap-1 rounded-[14px] border bg-background px-3 py-2.5 text-left shadow-sm transition-colors hover:border-primary/40";
+const PILL = "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium";
+
+const AIRCRAFT_STATUS: Record<AircraftCard["status"], { label: string; tone: string }> = {
+  available: { label: "Available", tone: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" },
+  out: { label: "Out now", tone: "bg-primary/10 text-primary" },
+  grounded: { label: "Grounded", tone: "bg-destructive/10 text-destructive" },
+};
+
+/** "Annual inspection, due in 12 days", "ELT inspection, 98 days overdue", "100-hour, due in 4.2 hours". */
+export function nextInspectionText(n: NonNullable<AircraftCard["nextInspection"]>): string {
+  const name = n.name?.trim() || "Inspection";
+  if (n.daysRemaining != null) {
+    const d = n.daysRemaining;
+    if (d < 0) return `${name}, ${-d} ${-d === 1 ? "day" : "days"} overdue`;
+    return d === 0 ? `${name}, due today` : `${name}, due in ${d} ${d === 1 ? "day" : "days"}`;
+  }
+  if (n.hoursRemaining != null) {
+    const h = tenthsLabel(Math.abs(n.hoursRemaining));
+    return n.hoursRemaining <= 0 ? `${name}, ${h} hours overdue` : `${name}, due in ${h} hours`;
+  }
+  return n.status === "overdue" ? `${name}, overdue` : name;
+}
+
+function AircraftCardView({ r, c }: { r: MessageRef; c: AircraftCard }) {
+  const link = refLink(r)!;
+  const status = AIRCRAFT_STATUS[c.status];
+  const meters = [c.hobbs != null && `Hobbs ${tenthsLabel(c.hobbs)}`, c.tach != null && `Tach ${tenthsLabel(c.tach)}`].filter(Boolean).join(" · ");
+  return (
+    <Link to={link.to as never} params={link.params as never} className={CARD_BOX} data-aircraft-card={r.id}>
+      <span className="flex items-center gap-2">
+        {c.photo ? (
+          <img src={c.photo} alt="" className="size-7 shrink-0 rounded-md object-cover" />
+        ) : (
+          <Plane className="size-4 shrink-0 text-primary" aria-hidden />
+        )}
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{c.tailNumber}</span>
+        <span className={cn(PILL, status.tone)}>{status.label}</span>
+      </span>
+      {(c.makeModel || c.groundedReason) && (
+        <span className="truncate text-xs text-foreground">{[c.groundedReason, c.makeModel].filter(Boolean).join(" · ")}</span>
+      )}
+      <span className="truncate text-xs text-muted-foreground">
+        {[meters, c.openSquawks > 0 ? `${c.openSquawks} open ${c.openSquawks === 1 ? "squawk" : "squawks"}` : "No open squawks"].filter(Boolean).join(" · ")}
+      </span>
+      {c.nextInspection && (
+        <span className={cn("truncate text-xs", c.nextInspection.status === "overdue" ? "font-medium text-destructive" : "text-muted-foreground")}>
+          Next: {nextInspectionText(c.nextInspection)}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+const JOB_TONE = (status: string) =>
+  status === "ready"
+    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+    : status === "completed" || status === "cancelled" || status === "requested"
+      ? "bg-muted text-muted-foreground"
+      : "bg-primary/10 text-primary";
+
+function WorkOrderCardView({ r, c }: { r: MessageRef; c: WorkOrderCard }) {
+  const link = refLink(r)!;
+  const money =
+    c.billing === "paid"
+      ? `Paid ${formatMoney(c.totalCents, { currency: c.currency })}`
+      : c.billing === "invoiced"
+        ? `Invoiced ${formatMoney(c.totalCents, { currency: c.currency })}, unpaid`
+        : c.status === "completed"
+          ? "Not invoiced"
+          : null;
+  const promised = c.promisedOn
+    ? `Promised ${new Date(`${c.promisedOn}T12:00:00Z`).toLocaleDateString(undefined, { month: "short", day: "numeric", timeZone: "UTC" })}`
+    : null;
+  return (
+    <Link to={link.to as never} params={link.params as never} className={CARD_BOX} data-work-order-card={r.id}>
+      <span className="flex items-center gap-2">
+        <Wrench className="size-4 shrink-0 text-primary" aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold">{c.label}</span>
+        <span className={cn(PILL, JOB_TONE(c.status))}>{c.statusLabel}</span>
+      </span>
+      {c.request && <span className="line-clamp-2 text-xs text-foreground">{c.request}</span>}
+      {(c.aircraft || money || promised) && (
+        <span className="truncate text-xs text-muted-foreground">{[c.aircraft, money, c.status !== "completed" ? promised : null].filter(Boolean).join(" · ")}</span>
+      )}
+    </Link>
+  );
+}
+
+/**
+ * One card per booking, aircraft or work order the message mentions (up to three), each opening
+ * the record. A record the reader may not open has no card (the server sends none).
+ */
+export function BookingCards({ refs, mine, live }: { refs: Record<string, MessageRef>; mine: boolean; live?: Set<string> }) {
+  // An aircraft or a work order is mentioned again and again in a conversation, and its card is
+  // where it stands NOW: drawn once, under the newest message naming it (`live`, from the
+  // thread), the earlier mentions are their chips alone.
+  const all = Object.entries(refs)
+    .filter(
+      ([key, r]) =>
+        !r.hidden &&
+        ((r.type === "reservation" && r.card) || ((r.type === "resource" ? r.aircraft : r.type === "workOrder" ? r.job : null) && (!live || live.has(key))))
+    )
+    .map(([, r]) => r)
+    .slice(0, 3);
+  if (!all.length) return null;
   return (
     <div className={cn("flex w-full max-w-[75%] flex-col gap-1", mine ? "items-end self-end" : "items-start self-start")} data-booking-cards="">
-      {cards.map((r) => {
-        const c = r.card;
+      {all.map((r) => {
+        if (r.type === "resource") return <AircraftCardView key={`r${r.id}`} r={r} c={r.aircraft!} />;
+        if (r.type === "workOrder") return <WorkOrderCardView key={`w${r.id}`} r={r} c={r.job!} />;
+        const c = r.card as ReservationCard;
         const link = refLink(r)!;
         const status = CARD_STATUS[c.status];
         return (
           <Link
-            key={r.id}
+            key={`v${r.id}`}
             to={link.to as never}
             params={link.params as never}
-            className="flex w-72 max-w-full flex-col gap-1 rounded-[14px] border bg-background px-3 py-2.5 text-left shadow-sm transition-colors hover:border-primary/40"
+            className={CARD_BOX}
             data-booking-card={r.id}
           >
             <span className="flex items-center gap-2">
               <CalendarDays className="size-4 shrink-0 text-primary" aria-hidden />
               <span className="min-w-0 flex-1 truncate text-sm font-semibold">{c.title}</span>
-              <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium", status.tone)}>{status.label}</span>
+              <span className={cn(PILL, status.tone)}>{status.label}</span>
             </span>
             <span className="text-xs text-foreground">
               {/* The shared range reads "2:00 PM, 3:00 PM"; on a card "to" says it plainer. */}

@@ -4,7 +4,7 @@
  * The checklist item used to link to /training, an empty page with two buttons, and the
  * only training-setup signup we had (2026-10-19) left from there. A school picking the
  * training setup wants a syllabus it can enroll a student on, so this copies one of the
- * FAA-checked templates and offers to publish it in the same breath.
+ * built-in templates (hour requirements checked against the CFR; lesson order is ours) and offers to publish it in the same breath.
  *
  * Publishing stays a deliberate step on its own screen, as it is everywhere else: a
  * published version is fixed, because students are enrolled against exactly those
@@ -92,7 +92,7 @@ export function TrainingFlow({ onClose }: FlowProps) {
       open
       onOpenChange={(o) => !o && onClose()}
       title="Set up a training course"
-      description="Start from a syllabus checked against the regulations, then make it yours."
+      description="Start from a built-in syllabus whose hour requirements follow the regulations, then make it yours."
       step={step}
       stepCount={3}
       footer={footer}
@@ -113,8 +113,8 @@ export function TrainingFlow({ onClose }: FlowProps) {
               onChange={setPick}
             />
             <p className="text-xs text-muted-foreground">
-              Each one is a Part 61 syllabus with the hour requirements of the regulation it names. You can rename lessons,
-              change hours and add your own before you publish.
+              Each one is a Part 61 syllabus. The hour requirements are the regulation it names; the lesson order is a
+              common progression, not an FAA one. Rename, reorder, change hours and add your own before you publish.
             </p>
           </div>
         ))}

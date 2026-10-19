@@ -232,7 +232,9 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
           </div>
           {canAccess("/me/book", roles) ? (
             <Button asChild size="sm" variant="outline">
-              <Link to="/me/book">Book a lesson</Link>
+              <Link to="/me/book" search={{ lesson: next.name, kind: next.kind }}>
+                Book a lesson
+              </Link>
             </Button>
           ) : null}
         </div>

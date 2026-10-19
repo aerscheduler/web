@@ -1,3 +1,5 @@
+import * as React from "react";
+import type { ReservationType } from "@/types/api";
 import { ReservationForm } from "@/components/schedule/reservation-form";
 
 /**
@@ -20,18 +22,25 @@ import { ReservationForm } from "@/components/schedule/reservation-form";
 export function BookingForm({
   orgUserId,
   userId,
+  lesson,
 }: {
   /** The caller's OrganizationUser.id: goes onto the reservation as the personnel. */
   orgUserId: number;
   /** The caller's User.id: loads their approved fleet and instruction partners. */
   userId: number;
+  /** The lesson this booking is for, from My training's "Book a lesson". */
+  lesson?: { name: string; type?: ReservationType };
 }) {
-  return (
-    <ReservationForm
-      variant="self"
-      self={{ orgUserId, userId }}
-      //A member starts from today with nothing pre-filled; the board passes a slot.
-      draft={{ date: new Date() }}
-    />
+  //Stable across renders, or the form would treat every render as a new draft.
+  const draft = React.useMemo(
+    () => ({
+      date: new Date(),
+      ...(lesson?.type ? { type: lesson.type } : {}),
+      // The lesson's own name: syllabi already name them "Flight 3: Takeoffs and landings".
+      ...(lesson?.name ? { notes: lesson.name } : {}),
+    }),
+    [lesson?.name, lesson?.type]
   );
+  //A member starts from today; the board passes a slot.
+  return <ReservationForm variant="self" self={{ orgUserId, userId }} draft={draft} />;
 }

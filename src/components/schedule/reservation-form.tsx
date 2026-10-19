@@ -133,6 +133,11 @@ export type ReservationDraft = {
    * default stands. See `typeForResource`.
    */
   type?: ReservationType;
+  /**
+   * Notes to start with. My training's "Book a lesson" names the lesson here, so the
+   * instructor sees what the student is coming in for without opening their record.
+   */
+  notes?: string;
 };
 
 /**
@@ -1124,7 +1129,7 @@ export function ReservationForm({
         setGuestName("");
         setGuestEmail("");
         setGuestPhone("");
-        setNotes("");
+        setNotes(draft.notes ?? "");
         setTechnicianIds([]);
         setVideoCall(NO_VIDEO_CALL);
       }
@@ -2021,6 +2026,10 @@ export function ReservationForm({
               maxUpcomingBookings={maxUpcomingBookings}
             />
           )}
+
+          {/* The student's own syllabus position, as dispatch sees it on their side. Renders
+              nothing for someone on no course, which is most members. */}
+          {isSelf && self ? <NextLessonHint orgUserId={self.orgUserId} type={type} self /> : null}
 
           <Label htmlFor="res-notes">Notes</Label>
           <Textarea

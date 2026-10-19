@@ -55,10 +55,13 @@ export function NextLessonHint({
   orgUserId,
   type,
   className,
+  self = false,
 }: {
   orgUserId: number | null;
   type: string;
   className?: string;
+  /** The student booking themself, who does not grade anything. */
+  self?: boolean;
 }) {
   const [expanded, setExpanded] = React.useState(false);
   React.useEffect(() => {
@@ -103,7 +106,9 @@ export function NextLessonHint({
         })}
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <p className="text-[11px] text-muted-foreground">
-          You&rsquo;ll pick and grade the lesson at close-out, once you know how it went.
+          {self
+            ? "Your instructor records the lesson after the flight."
+            : <>You&rsquo;ll pick and grade the lesson at close-out, once you know how it went.</>}
         </p>
         {moreCount > 0 && (
           <button

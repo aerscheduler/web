@@ -2,6 +2,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { Building2, CalendarPlus, PlaneTakeoff } from "lucide-react";
 
 import { useAuth } from "@/lib/auth";
+import type { ReservationType } from "@/types/api";
 import { isAdmin, isStaff, isTechnician, selfBookableTypes } from "@/lib/permissions";
 import { usePlanes, useRooms, useSimulators } from "@/features/queries";
 import { PageHeader } from "@/components/page-header";
@@ -11,12 +12,23 @@ import { Card, CardContent } from "@/components/ui/card";
 import { BookingForm } from "@/components/book/booking-form";
 import { OpenSlotsCard } from "@/components/slot-offers/open-slots-card";
 
+type BookSearch = { lesson?: string; kind?: string };
+
 export const Route = createFileRoute("/_authed/me/book")({
+  validateSearch: (s: Record<string, unknown>): BookSearch => ({
+    lesson: typeof s.lesson === "string" ? s.lesson.slice(0, 120) : undefined,
+    kind: typeof s.kind === "string" ? s.kind : undefined,
+  }),
   component: Book,
 });
 
+/** A syllabus lesson's kind, as the booking type that flies it. */
+const TYPE_FOR_KIND: Record<string, ReservationType> = { flight: "dual", ground: "ground", sim: "sim" };
+
 function Book() {
   const { organization, roles, orgUserId, userId } = useAuth();
+  const { lesson, kind } = Route.useSearch();
+  const lessonDraft = lesson ? { name: lesson, type: kind ? TYPE_FOR_KIND[kind] : undefined } : undefined;
   const planes = usePlanes();
   const simulators = useSimulators();
   const rooms = useRooms();
@@ -141,7 +153,7 @@ function Book() {
       ) : (
         <div className="space-y-5">
           <OpenSlotsCard />
-          <BookingForm orgUserId={orgUserId} userId={userId} />
+          <BookingForm orgUserId={orgUserId} userId={userId} lesson={lessonDraft} />
         </div>
       )}
     </div>

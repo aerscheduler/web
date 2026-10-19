@@ -884,9 +884,10 @@ function LedgerTab({ progress }: { progress: EnrollmentProgress }) {
   );
 
   //`POST /training/credits/{id}/reverse` is hasTrainingGrant("manageEnrollment"), same as
-  //posting one. Fails closed while the grants are in flight.
+  //posting one. Fails closed while the grants are in flight. A closed enrollment (graduated,
+  //ended, transferred) refuses it with a 409, so the button goes with it.
   const mine = useMyTrainingGrants();
-  const canReverse = holdsTrainingGrant(mine.data, "manageEnrollment");
+  const canReverse = progress.enrollment.status === "enrolled" && holdsTrainingGrant(mine.data, "manageEnrollment");
 
   if (rows.length === 0) {
     return (

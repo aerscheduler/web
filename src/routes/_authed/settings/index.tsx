@@ -1,6 +1,8 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useMediaQuery } from "@/hooks/use-mobile";
 import { guardRoute } from "@/lib/permissions";
-import { canSeeSettingsTab, settingsSectionsFor, settingsTabOrDefault } from "@/lib/settings-sections";
+import { canSeeSettingsTab, settingsSectionsFor, settingsTabOrDefault, type SettingsTab } from "@/lib/settings-sections";
 import { orgCan } from "@/lib/entitlements";
 import { useAuth } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
@@ -67,6 +69,9 @@ const sectionsFor = (enterprise: boolean, admin: boolean): RailSection[] =>
     items: section.tabs,
   }));
 
+/** The rail's breakpoint: below it, Settings is a list you open sections from. */
+const WIDE = "(min-width: 1024px)";
+
 function SettingsPage() {
   const navigate = Route.useNavigate();
   const search = Route.useSearch();
@@ -74,6 +79,14 @@ function SettingsPage() {
   const enterprise = orgCan(organization, "api");
   const admin = isAdmin(roles);
   const sections = sectionsFor(enterprise, admin);
+  const groups = settingsSectionsFor(enterprise, admin);
+  const wide = useMediaQuery(WIDE);
+  // On a phone, Settings with no section chosen is the list of sections, the way the
+  // phone's own Settings app works. It used to open straight onto Organization with
+  // every other section hidden in a dropdown, so the gear in the top bar (a link to
+  // /settings) did nothing visible from inside Settings except throw you back to the
+  // first section: a new owner tapped it 26 times on 2026-10-19 looking for something.
+  const phoneIndex = !wide && !search.tab;
   // A section this member cannot see falls back to the default rather than rendering.
   // `?tab=` is a plain query string, so hiding the rail entry is not on its own a gate:
   // /settings?tab=plan typed by hand has to land on Organization, not on the school's
@@ -81,9 +94,15 @@ function SettingsPage() {
   const requested = settingsTabOrDefault(search.tab);
   const active = canSeeSettingsTab(requested, enterprise, admin) ? requested : "organization";
 
+  // The desktop rail swaps panes in place; on a phone, opening a section is a step the
+  // back gesture should undo, so it is a new history entry.
   const pick = (tab: string) => {
-    void navigate({ search: (prev) => ({ ...prev, tab }), replace: true });
+    void navigate({ search: (prev) => ({ ...prev, tab }), replace: wide });
   };
+  const backToList = () => {
+    void navigate({ search: (prev) => ({ ...prev, tab: undefined }) });
+  };
+  const activeTab = groups.flatMap((g) => g.tabs).find((t) => t.value === active);
 
   return (
     <TableView className={cn("gap-5", NARROW_PAGE)}>
@@ -95,31 +114,93 @@ function SettingsPage() {
       </TableView.Header>
 
       <div className={RAIL_ROW}>
-        <SectionRail label="Settings" sections={sections} value={active} onChange={pick} />
+        {wide && <SectionRail label="Settings" sections={sections} value={active} onChange={pick} />}
 
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-          {active === "organization" && <OrganizationTab />}
-          {active === "security" && <OrganizationSecurityTab />}
-          {active === "booking-preferences" && <BookingPreferencesTab />}
-          {active === "schedule-colors" && <ScheduleColorsTab />}
-          {active === "booking-offerings" && <BookingOfferingsTab />}
-          {active === "ad-tracking" && <AdTrackingTab />}
-          {active === "plan" && <PlanTab />}
-          {active === "memberships" && <MembershipsTab />}
-          {active === "billing" && <BillingTab />}
-          {active === "sales-tax" && <SalesTaxTab />}
-          {active === "shop-rates" && <ShopRatesTab />}
-          {active === "cost-splitting" && <CostSplittingTab />}
-          {active === "rates" && <RatesTab />}
-          {active === "documents" && <DocumentTypesTab />}
-          {active === "groups" && <GroupsTab />}
-          {active === "currencies" && <CurrencyTypesTab />}
-          {active === "integrations" && <IntegrationsTab />}
-          {/* Not in the rail without Enterprise, but still reachable by deep link, so it
-              answers with the offer rather than an empty pane. */}
-          {active === "api-keys" && (enterprise ? <ApiKeysTab /> : <EnterpriseUpsell />)}
+          {phoneIndex ? (
+            <SettingsPhoneList groups={groups} onPick={pick} />
+          ) : (
+            <>
+              {!wide && activeTab && (
+                <div className="mb-4 space-y-1">
+                  <button
+                    type="button"
+                    onClick={backToList}
+                    className="-ml-1 inline-flex items-center gap-0.5 rounded-md px-1 py-1 text-sm font-medium text-primary"
+                  >
+                    <ChevronLeft className="size-4" aria-hidden />
+                    All settings
+                  </button>
+                  <h2 className="text-lg font-semibold tracking-tight">{activeTab.label}</h2>
+                </div>
+              )}
+              {active === "organization" && <OrganizationTab />}
+              {active === "security" && <OrganizationSecurityTab />}
+              {active === "booking-preferences" && <BookingPreferencesTab />}
+              {active === "schedule-colors" && <ScheduleColorsTab />}
+              {active === "booking-offerings" && <BookingOfferingsTab />}
+              {active === "ad-tracking" && <AdTrackingTab />}
+              {active === "plan" && <PlanTab />}
+              {active === "memberships" && <MembershipsTab />}
+              {active === "billing" && <BillingTab />}
+              {active === "sales-tax" && <SalesTaxTab />}
+              {active === "shop-rates" && <ShopRatesTab />}
+              {active === "cost-splitting" && <CostSplittingTab />}
+              {active === "rates" && <RatesTab />}
+              {active === "documents" && <DocumentTypesTab />}
+              {active === "groups" && <GroupsTab />}
+              {active === "currencies" && <CurrencyTypesTab />}
+              {active === "integrations" && <IntegrationsTab />}
+              {/* Not in the rail without Enterprise, but still reachable by deep link, so it
+                  answers with the offer rather than an empty pane. */}
+              {active === "api-keys" && (enterprise ? <ApiKeysTab /> : <EnterpriseUpsell />)}
+            </>
+          )}
         </div>
       </div>
     </TableView>
+  );
+}
+
+/**
+ * Settings on a phone: every section this member can open, grouped as on the desktop
+ * rail, each with what is inside it. Same row shape as the owner home's aircraft list.
+ */
+function SettingsPhoneList({
+  groups,
+  onPick,
+}: {
+  groups: { label: string; tabs: SettingsTab[] }[];
+  onPick: (tab: string) => void;
+}) {
+  return (
+    <nav aria-label="Settings sections" className="space-y-6 pb-6">
+      {groups.map((group) => (
+        <section key={group.label} className="space-y-2">
+          <h2 className="px-1 text-xs font-medium tracking-wide text-muted-foreground uppercase">{group.label}</h2>
+          <ul className="divide-y divide-border overflow-hidden rounded-xl border bg-card">
+            {group.tabs.map((tab) => (
+              <li key={tab.value}>
+                <button
+                  type="button"
+                  data-track={`Settings section: ${tab.label}`}
+                  onClick={() => onPick(tab.value)}
+                  className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <tab.icon className="size-4" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-medium">{tab.label}</span>
+                    <span className="block text-xs text-muted-foreground">{tab.hint}</span>
+                  </span>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </nav>
   );
 }

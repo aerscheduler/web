@@ -16,6 +16,12 @@ export type SettingsTab = {
   /** The `?tab=` value. Stable: onboarding deep links and bookmarks point at it. */
   value: string;
   label: string;
+  /**
+   * What is inside, in a few words. The phone shows Settings as a list rather than a
+   * rail, and a list of bare section names left a new owner tapping through them one by
+   * one looking for something (2026-10-19). Never shown on the desktop rail.
+   */
+  hint: string;
   icon: LucideIcon;
   /** Other words for this section, for the palette. See `NavItem.keywords`. */
   keywords?: string[];
@@ -41,16 +47,18 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
   {
     label: "Organization",
     tabs: [
-      { value: "organization", label: "Organization", icon: Building2, keywords: ["school", "name", "logo", "address", "time zone"] },
+      { value: "organization", label: "Organization", hint: "Name, logo, contact details and time zone", icon: Building2, keywords: ["school", "name", "logo", "address", "time zone"] },
       {
         value: "booking-preferences",
         label: "Booking preferences",
+        hint: "Booking rules, checkouts and payment requirements",
         icon: SlidersHorizontal,
         keywords: ["booking policy", "multi-day", "overnight", "payment method required", "rules", "approved resources", "checkout"],
       },
       {
         value: "schedule-colors",
         label: "Schedule colors",
+        hint: "Colors for each kind of booking on the schedule",
         icon: Palette,
         keywords: ["colors", "colours", "reservation type color", "calendar colors", "legend"],
         adminOnly: true,
@@ -58,15 +66,17 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
       {
         value: "booking-offerings",
         label: "Booking links",
+        hint: "Public booking links for new customers",
         icon: CalendarRange,
         keywords: ["booking links", "guest booking", "public booking", "calendar visibility", "embed"],
         adminOnly: true,
       },
-      { value: "groups", label: "Groups", icon: Layers, keywords: ["resource groups", "fleet groups"] },
-      { value: "documents", label: "Document types", icon: FileCog, keywords: ["required documents", "licenses", "expiry"] },
+      { value: "groups", label: "Groups", hint: "Group aircraft and resources for the schedule", icon: Layers, keywords: ["resource groups", "fleet groups"] },
+      { value: "documents", label: "Document types", hint: "Licenses and documents members must keep current", icon: FileCog, keywords: ["required documents", "licenses", "expiry"] },
       {
         value: "ad-tracking",
         label: "Airworthiness Directives",
+        hint: "Airworthiness Directive tracking for the fleet",
         icon: ShieldCheck,
         keywords: ["AD", "ADs", "airworthiness directive", "part 39", "adlog", "avtrak", "tdata", "serial number", "catalogue"],
         //Admin-only: turning the catalogue on changes what every technician at the school is
@@ -81,14 +91,16 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
       {
         value: "plan",
         label: "Plan",
+        hint: "Your AerScheduler plan and what it costs",
         icon: BadgeDollarSign,
         keywords: ["subscription", "price", "per aircraft"],
         adminOnly: true,
       },
-      { value: "billing", label: "Billing", icon: CreditCard, keywords: ["stripe", "connect", "payouts", "fees", "ledger", "invoice"] },
+      { value: "billing", label: "Billing", hint: "Payments, rates and fees, invoices and payouts", icon: CreditCard, keywords: ["stripe", "connect", "payouts", "fees", "ledger", "invoice"] },
       {
         value: "sales-tax",
         label: "Sales tax",
+        hint: "Tax rates for invoices",
         icon: Percent,
         keywords: ["tax", "sales tax", "tax rate", "taxable", "exempt", "resale certificate", "parts", "labor"],
         //Admins read it; only the owner changes it, like the billing settings beside it.
@@ -97,6 +109,7 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
       {
         value: "shop-rates",
         label: "Shop rates",
+        hint: "Labor rate and parts markup for work orders",
         icon: Wrench,
         keywords: ["labor rate", "shop rate", "markup", "parts markup", "work orders", "shop", "maintenance"],
         //The shop reads them to price lines (the server serves them to the shop roles); only an
@@ -106,26 +119,29 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
       {
         value: "memberships",
         label: "Memberships",
+        hint: "Club memberships and monthly dues",
         icon: BadgeCheck,
         keywords: ["dues", "club", "membership", "join fee", "initiation", "monthly dues", "recurring"],
       },
-      { value: "rates", label: "Instruction rates", icon: GraduationCap, keywords: ["hourly rate", "instructor rate", "ratings", "pricing"] },
+      { value: "rates", label: "Instruction rates", hint: "What members pay for instruction", icon: GraduationCap, keywords: ["hourly rate", "instructor rate", "ratings", "pricing"] },
       {
         value: "cost-splitting",
         label: "Cost splitting",
+        hint: "Who pays when a flight is shared",
         icon: Split,
         keywords: ["split billing", "who pays", "shared flight", "apportionment"],
       },
-      { value: "currencies", label: "Currency rules", icon: ShieldCheck, keywords: ["medical", "bfr", "checkout", "expiry rules"] },
+      { value: "currencies", label: "Currency rules", hint: "Medicals, flight reviews and checkouts you track", icon: ShieldCheck, keywords: ["medical", "bfr", "checkout", "expiry rules"] },
     ],
   },
   {
     label: "Connections",
     tabs: [
-      { value: "integrations", label: "Integrations", icon: Puzzle, keywords: ["quickbooks", "google calendar", "sync"] },
+      { value: "integrations", label: "Integrations", hint: "QuickBooks, calendars and other apps", icon: Puzzle, keywords: ["quickbooks", "google calendar", "sync"] },
       {
         value: "api-keys",
         label: "API keys",
+        hint: "Keys for connecting your own software",
         icon: KeyRound,
         keywords: ["api", "token", "credential", "zapier", "developer", "enterprise"],
         enterpriseOnly: true,
@@ -138,6 +154,7 @@ export const SETTINGS_SECTIONS: { label: string; tabs: SettingsTab[] }[] = [
       {
         value: "security",
         label: "Security",
+        hint: "Deleting the organization",
         icon: ShieldCheck,
         keywords: ["organization deletion", "delete organization", "danger zone"],
         adminOnly: true,

@@ -20,7 +20,13 @@ export function useIsMobile() {
 
 /** Generic media-query hook: `useMediaQuery("(min-width: 1024px)")`. */
 export function useMediaQuery(query: string) {
-  const [matches, setMatches] = React.useState(false)
+  // Read the real answer on the first render, so a layout that switches on this does
+  // not draw the wrong one for a frame before the effect corrects it.
+  const [matches, setMatches] = React.useState(() =>
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia(query).matches
+      : false
+  )
 
   React.useEffect(() => {
     const mql = window.matchMedia(query)

@@ -81,7 +81,9 @@ export function SectionRail({
     <>
       <div className={cn("shrink-0 lg:hidden", className)}>
         <Select value={value} onValueChange={pick}>
-          <SelectTrigger>
+          {/* The trigger's visible text is whichever section is open, so analytics would
+              name it after the section. This names the control instead. */}
+          <SelectTrigger data-track={`${label} section picker`}>
             <SelectValue placeholder={placeholder} />
           </SelectTrigger>
           <SelectContent>

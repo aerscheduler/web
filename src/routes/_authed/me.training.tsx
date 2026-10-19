@@ -1,10 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CheckCircle2, Info } from "lucide-react";
 import {
+  useCourses,
   useEndorsements,
   useEnrollmentProgress,
   useEnrollments,
 } from "@/features/queries";
+import { canAccess } from "@/lib/permissions";
+import { Button } from "@/components/ui/button";
 import {
   PART_LABEL,
   STATUS_LABEL,
@@ -62,7 +65,13 @@ export const Route = createFileRoute("/_authed/me/training")({
 function MyTrainingPage() {
   const navigate = Route.useNavigate();
   const { tab } = Route.useSearch();
-  const { orgUserId } = useAuth();
+  const { orgUserId, roles } = useAuth();
+  // Someone who runs training here (an owner, admin or instructor) and lands on their
+  // OWN record, empty because they are not a student, is almost always looking for where
+  // training is set up. A new owner on 2026-10-19 found only "you're not on a course"
+  // and a students' help article, and cancelled soon after. Point them at Training.
+  const runsTraining = canAccess("/training", roles);
+  const courses = useCourses(undefined, { enabled: runsTraining });
   const enrollments = useEnrollments(
     orgUserId != null ? { orgUserId } : undefined,
     { enabled: orgUserId != null },
@@ -93,6 +102,22 @@ function MyTrainingPage() {
           {active === "progress" ? (
             enrollments.isLoading ? (
               <Skeleton className="h-64 w-full" />
+            ) : rows.length === 0 && runsTraining ? (
+              <EmptyState
+                graphic="my-training"
+                title="You're not on a course"
+                body={
+                  (courses.data?.length ?? 0) === 0
+                    ? "This page is your own record as a pilot. To train students, set up a course under Training: start from the built-in Private Pilot syllabus, then enroll your students on it."
+                    : "This page is your own record as a pilot. Your organization's courses, students and their progress are under Training."
+                }
+                action={
+                  <Button asChild>
+                    <Link to="/training">{(courses.data?.length ?? 0) === 0 ? "Set up a course" : "Go to Training"}</Link>
+                  </Button>
+                }
+                docs="what-a-course-is"
+              />
             ) : rows.length === 0 ? (
               <EmptyState
                 graphic="my-training"

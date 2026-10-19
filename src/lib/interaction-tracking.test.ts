@@ -88,6 +88,29 @@ describe("controlContext", () => {
   });
 });
 
+describe("where a click was", () => {
+  it("tells the top bar's Settings gear apart from anything inside Settings", () => {
+    const el = mount(`<header><a href="/settings" aria-label="Settings">gear</a></header>`).querySelector("a")!;
+    expect(controlContext(el)).toBe("top-bar");
+  });
+
+  it("puts a dropdown option in a picker, not loose on the page", () => {
+    const el = mount(`<div role="listbox"><div role="option">Billing</div></div>`).querySelector("[role=option]")!;
+    expect(controlContext(el)).toBe("picker");
+  });
+
+  it("reports the open section from ?tab= and where a link goes", async () => {
+    window.history.replaceState(null, "", "/settings?tab=billing");
+    const el = mount(`<header><a href="/settings" aria-label="Settings">gear</a></header>`).querySelector("a")!;
+    el.addEventListener("click", (e) => e.preventDefault());
+    el.click();
+    await Promise.resolve();
+    const click = captured.find((e) => e.event === "ui_click");
+    expect(click?.props).toMatchObject({ label: "Settings", context: "top-bar", view: "billing", to: "/settings" });
+    window.history.replaceState(null, "", "/");
+  });
+});
+
 describe("fieldName", () => {
   it("prefers the hand-written id, which survives a copy change", () => {
     const el = mount(

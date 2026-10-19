@@ -192,6 +192,13 @@ export function controlContext(element: Element): string {
     return heading ? `dialog:${heading}` : "dialog";
   }
   if (element.closest('[role="menu"], [data-slot="dropdown-menu-content"]')) return "menu";
+  // A dropdown's options render in a portal at the end of <body>, so without this they
+  // read as loose page clicks.
+  if (element.closest('[role="listbox"]')) return "picker";
+  // The top bar is the same on every screen. Its gear is labelled "Settings", which is
+  // also the name of a page, so without this a gear tap on /settings was
+  // indistinguishable from a tap on something inside Settings (2026-10-19: 26 of them).
+  if (element.closest("header")) return "top-bar";
   if (element.closest("thead")) return "table-header";
   if (element.closest("tbody, [role='row']")) return "table-row";
   if (element.closest("nav, [data-slot='sidebar']")) return "nav";
@@ -451,6 +458,23 @@ function closeSession(
 /** Fields already reported this visit, so holding a key is not 40 events. */
 let focusedThisVisit = new Set<string>();
 
+/**
+ * Which part of the page was open, from the URL. Most multi-section pages here keep
+ * the section in the query string (`?tab=billing` on Settings, `?tab=endorsements` on
+ * My training), and the path alone collapses them all into one row.
+ */
+export function currentView(): string | undefined {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("tab") ?? params.get("view") ?? params.get("section") ?? undefined;
+}
+
+/** Where a link goes, as a path in the same `:id` shape as `path`. In-app links only. */
+function destination(element: Element): string | undefined {
+  if (element.tagName !== "A") return undefined;
+  const href = element.getAttribute("href");
+  return href?.startsWith("/") ? normalizePath(href.split("?")[0]) : undefined;
+}
+
 function onClick(event: Event): void {
   const target = event.target;
   if (!(target instanceof Element)) return;
@@ -467,6 +491,8 @@ function onClick(event: Event): void {
       label: controlLabel(control),
       control: controlKind(control),
       context: controlContext(control),
+      view: currentView(),
+      to: destination(control),
       disabled: control.hasAttribute("disabled") || control.getAttribute("aria-disabled") === "true",
     });
   });

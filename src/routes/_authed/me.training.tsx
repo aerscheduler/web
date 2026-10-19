@@ -9,6 +9,7 @@ import {
 import { canAccess } from "@/lib/permissions";
 import { nextLessonId } from "@/lib/training";
 import { TrainingTimeline } from "@/components/training/training-timeline";
+import { CheckrideReadinessCard } from "@/components/training/checkride-readiness-card";
 import { Button } from "@/components/ui/button";
 import {
   PART_LABEL,
@@ -290,6 +291,8 @@ function EnrollmentCard({ enrollmentId }: { enrollmentId: number }) {
           );
         })}
       </details>
+
+      {active ? <CheckrideReadinessCard progress={p} self bare /> : null}
 
       <ToCountersign progress={p} />
     </Card>

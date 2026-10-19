@@ -111,6 +111,12 @@ export const DOCS_TOPICS = {
       "Two different measures: lessons say how far through the syllabus a student is, requirements say whether they have the flight time to test. One flight can credit several requirements at once, so the two move independently.",
     href: "training/read-a-training-record",
   },
+  "checkride-readiness": {
+    title: "Checkride readiness",
+    summary:
+      "What an examiner will ask for: the syllabus finished, every FAA hour minimum met inside its window, the knowledge and practical test endorsements, and an A.1 signed within the two calendar months before the month of the test. It is a checklist; it never blocks anything.",
+    href: "training/read-a-training-record",
+  },
   "amend-signed-lesson": {
     title: "Amending a signed record",
     summary:

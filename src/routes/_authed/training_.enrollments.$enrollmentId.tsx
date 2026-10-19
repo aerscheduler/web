@@ -31,6 +31,7 @@ import { canAccess, guardRoute } from "@/lib/permissions";
 import { rolesFromSession, useAuth } from "@/lib/auth";
 import { holdsTrainingGrant } from "@/lib/training";
 import { TrainingTimeline } from "@/components/training/training-timeline";
+import { CheckrideReadinessCard } from "@/components/training/checkride-readiness-card";
 import { AddCreditDialog } from "@/components/training/credit-dialog";
 import { TaskGradeList, taskGradeMap, taskGradePayload } from "@/components/training/task-grades";
 import {
@@ -187,6 +188,8 @@ function EnrollmentPage() {
               </Card>
 
               <NextAndNeeded progress={p} onRequirements={() => pick("requirements")} />
+
+              <CheckrideReadinessCard progress={p} />
 
               {p.graduationBlocker ? (
                 <Card className="flex items-start gap-3 p-4">

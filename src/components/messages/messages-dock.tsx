@@ -15,6 +15,7 @@ import { ComposeView } from "@/components/messages/compose-view";
 import { ConversationMenuItems } from "@/components/messages/conversation-menu";
 import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "@/components/ui/context-menu";
 import { ConversationGlyph, ConversationRow, ConversationTitle, MESSAGES_EMPTY, MessagesWorkspace } from "@/components/messages/messages-page";
+import { MessageSearchResults } from "@/components/messages/message-search";
 
 //---------------------------------------------------------------------------------
 // Messages in the console (2026-10-16). Three states, one place:
@@ -464,7 +465,7 @@ function DockList({ onSelect, onExpand, onClose }: { onSelect: (id: number) => v
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search people and conversations"
+            placeholder="Search people and messages"
             className="min-w-0 flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground"
           />
         </label>
@@ -474,7 +475,7 @@ function DockList({ onSelect, onExpand, onClose }: { onSelect: (id: number) => v
           <li className="px-4 py-6 text-sm text-muted-foreground">Loading…</li>
         ) : rows.length === 0 ? (
           q ? (
-            <li className="px-6 py-10 text-center text-sm text-muted-foreground">Nothing matches that search.</li>
+            <li className={cn("px-6 text-center text-sm text-muted-foreground", q.length >= 2 ? "py-4" : "py-10")}>No conversations match.</li>
           ) : (
             // AN EMPTY STATE IS A WAY IN, not a shrug (Tony: "empty states need to be super
             // helpful"): what Messages is for, and the button that starts one.
@@ -516,6 +517,9 @@ function DockList({ onSelect, onExpand, onClose }: { onSelect: (id: number) => v
             </button>
           </li>
         )}
+        <li>
+          <MessageSearchResults q={q} onOpen={onSelect} />
+        </li>
       </ul>
     </>
   );

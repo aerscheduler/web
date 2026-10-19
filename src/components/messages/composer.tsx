@@ -29,6 +29,7 @@ export function Composer({
   onSend,
   autoFocus,
   replying,
+  onTyping,
   showReplyBar = true,
   onCancelReply,
 }: {
@@ -39,6 +40,8 @@ export function Composer({
   autoFocus?: boolean;
   /** The message this one will answer, shown above the text until it is sent or cancelled. */
   replying?: { key: number; author: string; preview: string } | null;
+  /** Called on every edit with whether the box has words, for "is typing". */
+  onTyping?: (typing: boolean) => void;
   /** False when the page shows what is being answered itself (the thread in focus). */
   showReplyBar?: boolean;
   onCancelReply?: () => void;
@@ -134,7 +137,10 @@ export function Composer({
         onSubmit={send}
         onEscape={replying ? onCancelReply : undefined}
         allowEmptySubmit={files.readyIds.length > 0}
-        onEmptyChange={setEmpty}
+        onEmptyChange={(e) => {
+          setEmpty(e);
+          onTyping?.(!e);
+        }}
         className="px-3.5 pt-2"
         editorClassName={"messages-editor max-h-[200px] min-h-[24px] overflow-y-auto text-sm leading-[22px]" + (disabled ? " opacity-60" : "")}
       />

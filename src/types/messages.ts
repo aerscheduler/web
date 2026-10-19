@@ -63,6 +63,9 @@ export type ConversationSummary = {
   /** False for staff reading a booking's conversation they have not written in. */
   isParticipant: boolean;
   muted: boolean;
+  /** Pinned to the top of the reader's list; marked unread by them (2026-10-18). */
+  pinned?: boolean;
+  markedUnread?: boolean;
   lastReadMessageId: number | null;
   /** How far everybody else has read (2026-10-18), for "Seen". Absent from an older server. */
   readers?: Array<{ orgUserId: number; lastReadMessageId: number | null }>;
@@ -113,3 +116,7 @@ export type MessagesPage = {
 };
 
 export type ConversationListPage = { data: ConversationSummary[]; nextCursor: string | null };
+
+/** One message found by search, with the title of the conversation it is in. */
+export type MessageSearchHit = { message: ConversationMessage; conversationTitle: string };
+export type MessageSearchPage = { data: MessageSearchHit[]; authors?: Record<string, ConversationPerson>; nextBefore: number | null };

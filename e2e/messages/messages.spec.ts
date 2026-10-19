@@ -9,7 +9,8 @@ import { dismissCookieBanner } from "../helpers/reservation-form";
  * the other side, edit happens in place, delete takes it away, a picked mention is one pill that
  * goes out as its token, a photo and a file go with a message and arrive live, a right-click
  * mutes the conversation, a reaction and a reply land on the other side with "Seen" under the
- * reply once it is read, Expand grows the same panel (and is not offered on a phone), and a
+ * reply once it is read, search finds a message's words, pin and mark as unread work from the
+ * right-click menu, typing shows as dots on the other side, Expand grows the same panel (and is not offered on a phone), and a
  * link followed from the bigger panel lands on the page with Messages back to its normal size.
  * Every write is checked on the wire, not just on screen.
  *
@@ -253,6 +254,67 @@ test.describe.serial("Messages", () => {
     res = await muted;
     expect(res.request().postDataJSON()).toEqual({ muted: false });
     await expect(row.getByLabel("Muted")).toHaveCount(0);
+  });
+
+  test("search finds words inside messages and opens the conversation at the one picked", async () => {
+    const search = panel(student).getByRole("searchbox");
+    const answered = student.waitForResponse((r) => r.request().method() === "GET" && new URL(r.url()).pathname.endsWith("/conversations/search"));
+    await search.fill(`${run} with files`);
+    const res = await answered;
+    expect(res.status()).toBe(200);
+    const hits = (await res.json()).data as { message: { id: number; body: string } }[];
+    expect(hits.some((h) => h.message.body.includes(`${run} with files`))).toBe(true);
+
+    const hit = panel(student).locator("[data-search-hit]").first();
+    await expect(hit).toContainText(`${run} with files`);
+    await hit.click();
+    await expect(panel(student).locator("[data-message-id]").filter({ hasText: `${run} with files` })).toBeVisible();
+
+    await panel(student).getByRole("button", { name: "Back to conversations" }).click();
+    await search.fill("");
+  });
+
+  test("pin keeps a conversation on top; mark as unread shows a dot until it is opened", async () => {
+    const row = panel(student).locator("li button").filter({ hasText: "Test Instructor" }).first();
+
+    await row.click({ button: "right" });
+    const pinned = student.waitForResponse(isPost(/\/conversations\/\d+\/pin$/));
+    await student.getByRole("menuitem", { name: "Pin", exact: true }).click();
+    expect((await pinned).request().postDataJSON()).toEqual({ pinned: true });
+    await expect(row.getByLabel("Pinned")).toBeVisible();
+    await expect(panel(student).locator("li button").first()).toContainText("Test Instructor");
+
+    await row.click({ button: "right" });
+    const marked = student.waitForResponse(isPost(/\/conversations\/\d+\/unread$/));
+    await student.getByRole("menuitem", { name: "Mark as unread" }).click();
+    expect((await marked).request().postDataJSON()).toEqual({ unread: true });
+    await expect(row.locator("[data-marked-unread]")).toBeVisible();
+
+    // Opening it is reading it: the mark goes.
+    const read = student.waitForResponse(isPost(/\/conversations\/\d+\/read$/));
+    await row.click();
+    expect((await read).status()).toBe(200);
+    await panel(student).getByRole("button", { name: "Back to conversations" }).click();
+    await expect(row.locator("[data-marked-unread]")).toHaveCount(0);
+
+    await row.click({ button: "right" });
+    const unpinned = student.waitForResponse(isPost(/\/conversations\/\d+\/pin$/));
+    await student.getByRole("menuitem", { name: "Unpin" }).click();
+    expect((await unpinned).request().postDataJSON()).toEqual({ pinned: false });
+    await expect(row.getByLabel("Pinned")).toHaveCount(0);
+  });
+
+  test("typing shows dots on the other side, and they go when the box is emptied", async () => {
+    await panel(student).locator("li button").filter({ hasText: "Test Instructor" }).first().click();
+    const box = panel(student).getByRole("textbox", { name: "Message Test Instructor" });
+    const typing = student.waitForResponse(isPost(/\/conversations\/\d+\/typing$/));
+    await box.pressSequentially("E2E-typing");
+    expect((await typing).request().postDataJSON()).toEqual({ typing: true });
+    await expect(panel(instructor).locator("[data-typing]")).toBeVisible({ timeout: 15_000 });
+
+    await box.fill("");
+    await expect(panel(instructor).locator("[data-typing]")).toHaveCount(0, { timeout: 15_000 });
+    await panel(student).getByRole("button", { name: "Back to conversations" }).click();
   });
 
   test("Expand makes the panel bigger in place; a link from it lands on the page with the panel back to normal", async () => {

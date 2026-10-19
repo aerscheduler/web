@@ -1,10 +1,11 @@
 import * as React from "react";
-import { BellOff, CalendarDays, ChevronDown, MessagesSquare, SquarePen, Users } from "lucide-react";
+import { BellOff, CalendarDays, ChevronDown, MessagesSquare, Pin, SquarePen, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useConversation, useConversations } from "@/features/messages";
 import type { ConversationSummary } from "@/types/messages";
 import { ListSearch } from "@/components/list-search";
+import { MessageSearchResults } from "@/components/messages/message-search";
 import { InboxPlaceholder, InboxView } from "@/components/inbox-view";
 import { EmptyState } from "@/components/states";
 import { Card } from "@/components/ui/card";
@@ -71,6 +72,7 @@ export function ConversationRow({ c, me }: { c: ConversationSummary; me: number 
         <div className="flex items-baseline gap-2">
           <span className="truncate text-sm font-semibold">{c.title}</span>
           {c.muted && <BellOff className="size-3 shrink-0 text-muted-foreground" aria-label="Muted" />}
+          {c.pinned && <Pin className="size-3 shrink-0 rotate-45 text-muted-foreground" aria-label="Pinned" />}
           <span className="ml-auto shrink-0 text-xs text-muted-foreground">{listTime(c.lastMessage?.createdAt ?? c.lastMessageAt)}</span>
         </div>
         <div className="flex items-center gap-2">
@@ -79,11 +81,15 @@ export function ConversationRow({ c, me }: { c: ConversationSummary; me: number 
               ? `${c.lastMessage.authorName && c.kind !== "direct" ? `${c.lastMessage.authorName}: ` : c.lastMessage.authorName === "You" ? "You: " : ""}${c.lastMessage.preview}`
               : "No messages yet"}
           </p>
-          {unread && (
-            <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
-              {c.unreadCount > 99 ? "99+" : c.unreadCount}
-            </span>
-          )}
+          {unread &&
+            (c.markedUnread && c.unreadCount <= 1 ? (
+              // Marked unread by hand: a dot, not a count of messages nobody sent.
+              <span className="size-2.5 shrink-0 rounded-full bg-primary" aria-label="Marked unread" data-marked-unread="" />
+            ) : (
+              <span className="inline-flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+                {c.unreadCount > 99 ? "99+" : c.unreadCount}
+              </span>
+            ))}
         </div>
       </div>
     </div>
@@ -212,7 +218,7 @@ export function MessagesWorkspace({ selectedId, onSelect }: { selectedId: number
           <ListSearch
             value={search}
             onChange={setSearch}
-            placeholder="Search people and conversations…"
+            placeholder="Search people and messages…"
             aria-label="Search conversations"
             className="min-w-0 flex-1 sm:max-w-none"
           />
@@ -233,6 +239,14 @@ export function MessagesWorkspace({ selectedId, onSelect }: { selectedId: number
           <Button variant="ghost" size="sm" className="w-full" onClick={() => list.fetchNextPage()} disabled={list.isFetchingNextPage}>
             {list.isFetchingNextPage ? "Loading…" : "Show older conversations"}
           </Button>
+        ) : undefined
+      }
+      listAfter={
+        debounced.length >= 2 ? (
+          <>
+            {items.length === 0 && <p className="px-1 pb-1 text-sm text-muted-foreground">No conversations match.</p>}
+            <MessageSearchResults q={debounced} onOpen={(id) => select(id)} />
+          </>
         ) : undefined
       }
       renderItem={(c) => (isCompose(c) ? null : <ConversationRow c={c} me={me} />)}

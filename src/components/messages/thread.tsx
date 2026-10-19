@@ -11,6 +11,8 @@ import {
   useMarkConversationRead,
   useLiveThread,
   useSendMessage,
+  useTypingSignal,
+  useWhoIsTyping,
 } from "@/features/messages";
 import type { ConversationMessage, ConversationPerson, ConversationSummary, MessageReplyQuote } from "@/types/messages";
 import {
@@ -33,6 +35,7 @@ import { Composer } from "@/components/messages/composer";
 import { MessageAttachments, type DraftAttachment } from "@/components/messages/attachments";
 import { MentionEditor, type MentionEditorHandle } from "@/components/messages/mention-editor";
 import { MessageBody } from "@/components/messages/message-body";
+import { onJumpRequest, takeJump } from "@/components/messages/jump";
 import { BookingCards, MessageActions, plainBody, ReactionChips, RepliesLink, seenText, ThreadHook, ThreadQuote } from "@/components/messages/message-extras";
 
 /** Edits are allowed for this long after sending; the server enforces the same. */
@@ -115,19 +118,71 @@ export function Thread({
     return null;
   }, [messages, orgUserId]);
   const readSent = React.useRef<number>(0);
+  // Armed while the conversation is being opened: the copy it opens with can be a cached one
+  // from before it was marked, and the fresh one lands a moment later. After that, a mark made
+  // with the conversation open stays.
+  const openedMarked = React.useRef(true);
   React.useEffect(() => {
-    if (!conversation.isParticipant || newestFromOthers == null) return;
-    if ((conversation.lastReadMessageId ?? 0) >= newestFromOthers || readSent.current >= newestFromOthers) return;
+    const t = window.setTimeout(() => (openedMarked.current = false), 3000);
+    return () => window.clearTimeout(t);
+  }, []);
+  const loaded = q.data !== undefined;
+  const newestAny = messages.length ? messages[messages.length - 1]!.id : 0;
+  React.useEffect(() => {
+    if (!conversation.isParticipant || !loaded) return;
+    // OPENING a conversation marked unread is reading it, even with nothing new in it (or
+    // nothing from anybody else at all); marking the one already open stays marked until it
+    // is opened again.
+    const marked = !!conversation.markedUnread && openedMarked.current;
+    if (marked) openedMarked.current = false;
+    const target = newestFromOthers ?? (marked ? newestAny : null);
+    if (target == null) return;
+    if (!marked && ((conversation.lastReadMessageId ?? 0) >= target || readSent.current >= target)) return;
     const mark = () => {
       if (document.visibilityState !== "visible") return;
-      readSent.current = newestFromOthers;
-      markRead.mutate(newestFromOthers);
+      readSent.current = target;
+      markRead.mutate(target);
     };
     mark();
     document.addEventListener("visibilitychange", mark);
     return () => document.removeEventListener("visibilitychange", mark);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newestFromOthers, conversation.isParticipant, conversation.lastReadMessageId]);
+  }, [loaded, newestFromOthers, conversation.isParticipant, conversation.lastReadMessageId, conversation.markedUnread]);
+
+  // A search hit opened this conversation AT a message: page back until it is loaded, then
+  // bring it into view and flash it.
+  const jumpTarget = React.useRef<number | null>(takeJump(conversation.id));
+  const [jumpTick, setJumpTick] = React.useState(0);
+  React.useEffect(
+    () =>
+      onJumpRequest((id) => {
+        if (id !== conversation.id) return;
+        jumpTarget.current = takeJump(id);
+        setJumpTick((n) => n + 1);
+      }),
+    [conversation.id]
+  );
+  React.useEffect(() => {
+    const target = jumpTarget.current;
+    if (target == null || q.isPending) return;
+    const el = document.querySelector<HTMLElement>(`[data-mid="${target}"]`);
+    if (el) {
+      jumpTarget.current = null;
+      // After the scroller has settled at the end (it scrolls there as a thread opens), or it
+      // would take the view straight back.
+      window.setTimeout(() => {
+        el.scrollIntoView({ block: "center" });
+        el.animate([{ backgroundColor: "color-mix(in oklab, var(--primary) 20%, transparent)" }, { backgroundColor: "transparent" }], { duration: 1600 });
+      }, 350);
+      return;
+    }
+    const oldest = messages[0]?.id ?? 0;
+    if (q.hasNextPage && !q.isFetchingNextPage && oldest > target) void q.fetchNextPage();
+    else if (!q.hasNextPage || oldest <= target) jumpTarget.current = null;
+  }, [messages, q.isPending, q.hasNextPage, q.isFetchingNextPage, jumpTick]);
+
+  const signalTyping = useTypingSignal(conversation.isParticipant || conversation.kind === "reservation" ? conversation.id : null);
+  const typing = useWhoIsTyping(conversation.id);
 
   // One at a time, in the order you pressed Enter. Sent side by side, fast messages reached the
   // server in any order and were numbered that way ("3, 4, 1, 2"). A failed one does not hold
@@ -143,6 +198,7 @@ export function Thread({
   };
 
   const onSend = (body: string, attachmentIds: number[] = [], attachments: DraftAttachment[] = []) => {
+    signalTyping(false);
     const p: Pending = {
       clientId: crypto.randomUUID(),
       body,
@@ -224,6 +280,7 @@ export function Thread({
                     onOpenThread={openThread}
                   />
                 )}
+                {(typing.data?.length ?? 0) > 0 && <TypingDots people={typing.data!} group={showNames} />}
               </MessageScrollerContent>
             </MessageScrollerViewport>
             <MessageScrollerButton />
@@ -242,6 +299,7 @@ export function Thread({
       <div className="shrink-0 border-t bg-background px-4 pb-4 pt-3 sm:px-6">
         <ThreadComposer
           onSend={onSend}
+          onTyping={signalTyping}
           autoFocus={autoFocus}
           placeholder={replying ? "Reply" : placeholder}
           replying={replying}
@@ -251,6 +309,31 @@ export function Thread({
       </div>
     </div>
     </MessageScrollerProvider>
+  );
+}
+
+/**
+ * THE DOTS while somebody else is writing (2026-10-18): a small incoming bubble with three
+ * pulsing dots at the end of the conversation, with who it is in a group.
+ */
+function TypingDots({ people, group }: { people: ConversationPerson[]; group: boolean }) {
+  const names = people.map((p) => p.name.split(" ")[0]);
+  const label = names.length === 1 ? `${names[0]} is typing` : names.length === 2 ? `${names[0]} and ${names[1]} are typing` : "Several people are typing";
+  return (
+    <MessageScrollerItem messageId="typing" className="pt-2">
+      <div className="flex flex-col items-start gap-0.5" role="status" aria-label={label} data-typing="">
+        {group && <span className="px-3 text-xs text-muted-foreground">{label}</span>}
+        <span className="inline-flex h-9 items-center gap-1 rounded-[18px] bg-muted px-3.5">
+          {[0, 1, 2].map((i) => (
+            <span
+              key={i}
+              className="size-2 rounded-full bg-muted-foreground/60 motion-safe:animate-bounce"
+              style={{ animationDelay: `${i * 140}ms`, animationDuration: "1.1s" }}
+            />
+          ))}
+        </span>
+      </div>
+    </MessageScrollerItem>
   );
 }
 

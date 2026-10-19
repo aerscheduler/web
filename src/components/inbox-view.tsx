@@ -91,6 +91,8 @@ export type InboxViewProps<T> = {
   renderContextMenu?: (item: T) => React.ReactNode;
   /** Pinned below the list: pagination. */
   listFooter?: React.ReactNode;
+  /** More of the list, scrolling with it, after the last row (Messages' matching messages). */
+  listAfter?: React.ReactNode;
   /** Shown in the record pane with nothing open. Desktop only; see the mobile note below. */
   placeholder?: React.ReactNode;
   /** Replaces the whole thing when there is nothing to list at all. */
@@ -123,6 +125,7 @@ export function InboxView<T>({
   toolbar,
   renderContextMenu,
   listFooter,
+  listAfter,
   placeholder,
   empty,
   loading,
@@ -323,6 +326,7 @@ export function InboxView<T>({
                 </li>
               );
             })}
+            {listAfter && <li role="presentation">{listAfter}</li>}
           </ul>
         )}
 

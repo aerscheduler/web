@@ -1,10 +1,12 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import { apiRaw, api, ApiError } from "@/lib/api";
 import type {
   ConversationListPage,
   ConversationMessage,
+  ConversationPerson,
   ConversationSummary,
+  MessageSearchPage,
   MessagesPage,
 } from "@/types/messages";
 
@@ -309,4 +311,84 @@ export function useLeaveConversation() {
     mutationFn: (conversationId: number) => api(`/conversations/${conversationId}/leave`, { method: "POST" }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: conversationKeys.all }),
   });
+}
+
+/** Message words across the caller's conversations (2 characters or more), newest first. */
+export function useMessageSearch(q: string) {
+  const term = q.trim();
+  return useInfiniteQuery({
+    queryKey: ["conversations", "search", term],
+    queryFn: ({ pageParam }) =>
+      apiRaw<MessageSearchPage>("/conversations/search", { query: { q: term, before: pageParam ?? undefined } }),
+    initialPageParam: null as number | null,
+    getNextPageParam: (last) => last.nextBefore,
+    enabled: term.length >= 2,
+    placeholderData: (prev) => prev,
+  });
+}
+
+/**
+ * Write the change into the cached conversation too. Opening a conversation shows the cached copy
+ * first while it refetches, and the thread decides on that first copy whether opening it clears
+ * "mark as unread", so a stale copy would leave the mark in place.
+ */
+function setCachedConversation(qc: QueryClient, id: number, patch: Partial<ConversationSummary>) {
+  qc.setQueryData<ConversationSummary>(conversationKeys.one(id), (old) => (old ? { ...old, ...patch } : old));
+}
+
+export function usePinConversation(conversationId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (pinned: boolean) => api(`/conversations/${conversationId}/pin`, { method: "POST", body: { pinned } }),
+    onSuccess: (_r, pinned) => {
+      setCachedConversation(qc, conversationId, { pinned });
+      void qc.invalidateQueries({ queryKey: conversationKeys.all });
+    },
+  });
+}
+
+export function useMarkUnread(conversationId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (unread: boolean) => api(`/conversations/${conversationId}/unread`, { method: "POST", body: { unread } }),
+    onSuccess: (_r, unread) => {
+      setCachedConversation(qc, conversationId, { markedUnread: unread });
+      void qc.invalidateQueries({ queryKey: conversationKeys.all });
+    },
+  });
+}
+
+/**
+ * Who else is typing in a conversation, for the dots. Refetched when the socket says the typing
+ * list changed (its own root, outside "conversations"), and again a few seconds on while anybody
+ * is, so dots never outlive someone who stopped without saying so.
+ */
+export function useWhoIsTyping(conversationId: number) {
+  return useQuery({
+    queryKey: ["conversation-typing", conversationId],
+    queryFn: () => api<ConversationPerson[]>(`/conversations/${conversationId}/typing`),
+    refetchInterval: (q) => ((q.state.data?.length ?? 0) > 0 ? 3000 : false),
+    staleTime: 0,
+  });
+}
+
+/**
+ * Tell the others you are typing: at most every 3 seconds while the box has words, and once
+ * when it empties. Never throws; typing is a courtesy, not something to report failing.
+ */
+export function useTypingSignal(conversationId: number | null) {
+  const last = useRef(0);
+  const on = useRef(false);
+  return useCallback(
+    (typing: boolean) => {
+      if (conversationId == null) return;
+      const now = Date.now();
+      if (typing && on.current && now - last.current < 3000) return;
+      if (!typing && !on.current) return;
+      on.current = typing;
+      last.current = now;
+      void api(`/conversations/${conversationId}/typing`, { method: "POST", body: { typing } }).catch(() => undefined);
+    },
+    [conversationId]
+  );
 }

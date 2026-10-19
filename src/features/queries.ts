@@ -912,6 +912,7 @@ export function useCreateAnnouncement() {
       message: string;
       expireAt?: string | null;
       forRoles?: Role[] | null;
+      forGroupIds?: number[];
     }) => api<Announcement>("/announcements", { method: "POST", body: input }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["announcements"] });
@@ -932,6 +933,7 @@ export function useUpdateAnnouncement() {
       message?: string;
       expireAt?: string | null;
       forRoles?: Role[] | null;
+      forGroupIds?: number[];
     }) => api<Announcement>(`/announcements/${id}`, { method: "PATCH", body: input }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["announcements"] });

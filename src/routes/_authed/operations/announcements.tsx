@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Check, Megaphone, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Check, Megaphone, MoreHorizontal, Pencil, Plus, Trash2, Users } from "lucide-react";
 import { parseISO } from "date-fns";
 import { toast } from "sonner";
 import {
@@ -186,7 +186,7 @@ function AnnouncementCard({
   canManage: boolean;
   onEdit: () => void;
 }) {
-  const { title, message, expireAt, createdAt, forRoles, seenAt } = announcement;
+  const { title, message, expireAt, createdAt, forRoles, forGroups, seenAt } = announcement;
   const remove = useDeleteAnnouncement();
   const markSeen = useMarkAnnouncementSeen();
   const confirm = useConfirm();
@@ -220,7 +220,13 @@ function AnnouncementCard({
             {seenAt && !expired && <Badge variant="secondary">Seen</Badge>}
             {(forRoles ?? []).map((role) => (
               <Badge key={role} variant="secondary">
-                {role}
+                {role.charAt(0).toUpperCase() + role.slice(1).replace(/s?$/, "s")}
+              </Badge>
+            ))}
+            {(forGroups ?? []).map((g) => (
+              <Badge key={`g${g.id}`} variant="secondary" data-announcement-group={g.id}>
+                <Users className="size-3" aria-hidden />
+                {g.name}
               </Badge>
             ))}
           </div>

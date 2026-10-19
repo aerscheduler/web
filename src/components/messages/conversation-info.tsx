@@ -12,6 +12,7 @@ import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/compon
 import { PersonAvatar } from "@/components/workspace-user-avatar";
 import { useConfirm } from "@/components/confirm-dialog";
 import { refLink } from "@/components/messages/message-body";
+import { isAdminSync } from "@/lib/auth";
 import { SEARCH_TYPE_ICON } from "@/lib/search-links";
 
 const ROLE_WORD: Record<string, string> = {
@@ -80,6 +81,9 @@ export function ConversationInfo({
   const others = c.participants.filter((p) => p.orgUserId !== me);
   const other = c.kind === "direct" ? others[0] : null;
   const editable = c.kind === "group" && c.isParticipant;
+  // A conversation that follows a member group: its name and people are the group's, changed in
+  // Settings; only the photo is its own (2026-10-19).
+  const linked = !!c.memberGroup;
 
   const mentioned = React.useMemo(() => {
     const { messages } = threadMessages(q.data);
@@ -134,7 +138,7 @@ export function ConversationInfo({
             <GroupFaces c={c} />
           )}
           <div className="w-full min-w-0">
-            {editable ? <GroupName c={c} /> : <p className="line-clamp-2 break-words text-base font-semibold">{c.title}</p>}
+            {editable && !linked ? <GroupName c={c} /> : <p className="line-clamp-2 break-words text-base font-semibold">{c.title}</p>}
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           </div>
         </div>
@@ -156,13 +160,29 @@ export function ConversationInfo({
           {c.isParticipant && (
             <ActionButton icon={c.muted ? Bell : BellOff} label={c.muted ? "Unmute" : "Mute"} pressed={c.muted} onClick={() => mute.mutate(!c.muted)} />
           )}
-          {c.isParticipant && c.kind !== "direct" && <ActionButton icon={LogOut} label="Leave" onClick={onLeave} />}
+          {c.isParticipant && c.kind !== "direct" && !linked && <ActionButton icon={LogOut} label="Leave" onClick={onLeave} />}
         </div>
 
         {c.kind !== "direct" && (
           <Section title={`People · ${c.participants.length}`}>
-            {editable && <AddPeople c={c} me={me} />}
-            <PeopleList c={c} me={me} onDone={() => onOpenChange(false)} removable={editable} />
+            {linked && (
+              <p className="px-2 pb-1.5 text-xs text-muted-foreground" data-follows-group="">
+                Everyone in the {c.memberGroup!.name} group. People join and leave with the group
+                {isAdminSync() ? (
+                  <>
+                    {" "}
+                    (
+                    <Link to="/settings" search={{ tab: "groups" } as never} onClick={() => onOpenChange(false)} className="text-primary hover:underline">
+                      manage the group
+                    </Link>
+                    )
+                  </>
+                ) : null}
+                .
+              </p>
+            )}
+            {editable && !linked && <AddPeople c={c} me={me} />}
+            <PeopleList c={c} me={me} onDone={() => onOpenChange(false)} removable={editable && !linked} />
           </Section>
         )}
 

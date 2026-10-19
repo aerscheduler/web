@@ -133,25 +133,29 @@ export function MultiCombobox({
           <CommandInput placeholder={searchPlaceholder} />
           <CommandList>
             <CommandEmpty>{emptyText}</CommandEmpty>
-            <CommandGroup>
-              {options.map((o) => (
-                <CommandItem
-                  key={o.value}
-                  value={`${o.value} ${o.label} ${o.hint ?? ""}`}
-                  keywords={o.keywords}
-                  // Stays open: picking several is the whole point of a multi-select.
-                  onSelect={() => toggle(o.value)}
-                >
-                  <Check
-                    className={cn("size-4", selected.has(o.value) ? "opacity-100" : "opacity-0")}
-                  />
-                  <span className="truncate">{o.label}</span>
-                  {o.hint && (
-                    <span className="ml-auto truncate text-xs text-muted-foreground">{o.hint}</span>
-                  )}
-                </CommandItem>
-              ))}
-            </CommandGroup>
+            {/* Headed like the single Combobox when options carry a `group` (roles, then people
+                groups); an ungrouped list renders exactly as before, as one unheaded group. */}
+            {groupOptions(options).map((g) => (
+              <CommandGroup key={g.heading ?? ""} heading={g.heading}>
+                {g.items.map((o) => (
+                  <CommandItem
+                    key={o.value}
+                    value={`${o.value} ${o.label} ${o.hint ?? ""}`}
+                    keywords={o.keywords}
+                    // Stays open: picking several is the whole point of a multi-select.
+                    onSelect={() => toggle(o.value)}
+                  >
+                    <Check
+                      className={cn("size-4", selected.has(o.value) ? "opacity-100" : "opacity-0")}
+                    />
+                    <span className="truncate">{o.label}</span>
+                    {o.hint && (
+                      <span className="ml-auto truncate text-xs text-muted-foreground">{o.hint}</span>
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
         </Command>
       </PopoverContent>

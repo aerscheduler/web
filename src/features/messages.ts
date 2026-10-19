@@ -8,6 +8,7 @@ import type {
   ConversationPerson,
   ConversationSummary,
   MessageSearchPage,
+  MessageableGroup,
   MessagesPage,
 } from "@/types/messages";
 
@@ -271,6 +272,24 @@ export function useOpenDirect() {
   return useMutation({
     mutationFn: (orgUserId: number) => api<ConversationSummary>("/conversations/direct", { method: "POST", body: { orgUserId } }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["conversations", "list"] }),
+  });
+}
+
+/** Member groups the reader may message (every group for the desk, else their own). */
+export function useMemberGroups() {
+  return useQuery({
+    queryKey: ["conversations", "member-groups"],
+    queryFn: () => api<MessageableGroup[]>("/conversations/member-groups"),
+    staleTime: 60_000,
+  });
+}
+
+/** Open a member group's conversation, starting it the first time. */
+export function useOpenMemberGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (groupId: number) => api<ConversationSummary>(`/conversations/member-groups/${groupId}`, { method: "POST" }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: conversationKeys.all }),
   });
 }
 

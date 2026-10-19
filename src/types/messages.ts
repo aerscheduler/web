@@ -92,6 +92,11 @@ export type ConversationSummary = {
   /** Named for the reader: the other person, the group's name, or the booking. */
   title: string;
   groupTitle: string | null;
+  /**
+   * The member group this conversation follows (2026-10-19): its people are the group's members,
+   * kept in step with it, and it is named after it. Null for every other conversation.
+   */
+  memberGroup?: { id: number; name: string } | null;
   /** A group's own photo (2026-10-18); null for the others and for a group without one. */
   photoUrl?: string | null;
   lastMessageAt: string;
@@ -165,3 +170,6 @@ export type ConversationListPage = { data: ConversationSummary[]; nextCursor: st
 /** One message found by search, with the title of the conversation it is in. */
 export type MessageSearchHit = { message: ConversationMessage; conversationTitle: string };
 export type MessageSearchPage = { data: MessageSearchHit[]; authors?: Record<string, ConversationPerson>; nextBefore: number | null };
+
+/** A member group the reader may message: its size, and its conversation once started. */
+export type MessageableGroup = { id: number; name: string; memberCount: number; conversationId: number | null };

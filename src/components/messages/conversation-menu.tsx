@@ -60,7 +60,7 @@ export function ConversationMenuItems({ c, me, onLeft }: { c: ConversationSummar
           <ContextMenuItem onSelect={() => mute.mutate(!c.muted)}>
             {c.muted ? <Bell /> : <BellOff />} {c.muted ? "Unmute" : "Mute"}
           </ContextMenuItem>
-          {c.kind !== "direct" && (
+          {c.kind !== "direct" && !c.memberGroup && (
             <ContextMenuItem onSelect={() => void onLeave()}>
               <LogOut /> {c.kind === "group" ? "Leave group" : "Leave conversation"}
             </ContextMenuItem>

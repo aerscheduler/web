@@ -4,9 +4,11 @@ import { CalendarIcon, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   useCreateAnnouncement,
+  useOrgUserGroups,
   useUpdateAnnouncement,
 } from "@/features/queries";
-import type { Announcement } from "@/types/api";
+import type { Announcement, Role } from "@/types/api";
+import { MultiCombobox, type ComboOption } from "@/components/combobox";
 import { ApiError } from "@/lib/api";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
@@ -21,9 +23,20 @@ import { cn } from "@/lib/utils";
  * Create or edit a school announcement.
  *
  * Same fields the iPhone Create / Edit sheets take: title (60), message (600),
- * optional expiry. Targeting by role exists on the API; the app does not set it
- * on create, and neither does this dialog, so a post reaches the whole school.
+ * optional expiry, and who it is for: roles, member groups, or (neither) everybody. A member
+ * sees a notice addressed to any role they hold or any group they are in; admins see them all.
  */
+
+const AUDIENCE_ROLES: { role: Role; label: string }[] = [
+  { role: "student", label: "Students" },
+  { role: "instructor", label: "Instructors" },
+  { role: "renter", label: "Renters" },
+  { role: "dispatcher", label: "Dispatchers" },
+  { role: "technician", label: "Technicians" },
+];
+
+/** Older rows carry plurals ("instructors"); the server reads both, the picker one. */
+const roleKey = (r: string) => r.trim().toLowerCase().replace(/s$/, "");
 export function AnnouncementFormDialog({
   open,
   onOpenChange,
@@ -43,9 +56,15 @@ export function AnnouncementFormDialog({
   const [expireAt, setExpireAt] = React.useState<Date | undefined>(undefined);
   const [expirePickerOpen, setExpirePickerOpen] = React.useState(false);
   const [showErrors, setShowErrors] = React.useState(false);
+  const [audience, setAudience] = React.useState<string[]>([]);
+  const groups = useOrgUserGroups({ enabled: open });
 
   React.useEffect(() => {
     if (!open) return;
+    setAudience([
+      ...(announcement?.forRoles ?? []).map((r) => `role:${roleKey(r)}`),
+      ...(announcement?.forGroups ?? []).map((g) => `group:${g.id}`),
+    ]);
     setTitle(announcement?.title ?? "");
     setMessage(announcement?.message ?? "");
     setExpireAt(announcement?.expireAt ? new Date(announcement.expireAt) : undefined);
@@ -63,6 +82,11 @@ export function AnnouncementFormDialog({
     message.trim().length > 600 ? "Message must be 600 characters or fewer" : null;
   const busy = create.isPending || update.isPending;
 
+  const audienceOptions: ComboOption[] = [
+    ...AUDIENCE_ROLES.map(({ role, label }) => ({ value: `role:${role}`, label, group: "Roles" })),
+    ...(groups.data ?? []).map((g) => ({ value: `group:${g.id}`, label: g.name, group: "People groups" })),
+  ];
+
   async function submit() {
     if (busy) return;
     if (titleError || messageError) {
@@ -74,6 +98,8 @@ export function AnnouncementFormDialog({
       title: titleTrim,
       message: message.trim(),
       expireAt: expireAt ? expireAt.toISOString() : null,
+      forRoles: audience.filter((v) => v.startsWith("role:")).map((v) => v.slice(5) as Role),
+      forGroupIds: audience.filter((v) => v.startsWith("group:")).map((v) => Number(v.slice(6))),
     };
     try {
       if (editing) {
@@ -165,6 +191,25 @@ export function AnnouncementFormDialog({
             )}
             <p className="text-xs text-muted-foreground tnum">{message.length}/600</p>
           </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label>Who it's for</Label>
+          <div data-announcement-audience>
+            <MultiCombobox
+              options={audienceOptions}
+              values={audience}
+              onChange={setAudience}
+              placeholder="Everyone"
+              searchPlaceholder="Search roles and groups…"
+              emptyText="No role or group by that name."
+              className="h-9 w-full max-w-none"
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Leave it on Everyone, or pick roles and people groups: people see it if they hold any
+            role or are in any group you pick. Admins always see every announcement.
+          </p>
         </div>
 
         <div className="space-y-1.5">

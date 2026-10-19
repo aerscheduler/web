@@ -1421,6 +1421,8 @@ export interface Announcement {
   createdAt: string;
   expireAt: string | null;
   forRoles?: Role[] | null;
+  /** Member groups it is addressed to (2026-10-19). With forRoles empty too, it is for everybody. */
+  forGroups?: { id: number; name: string }[];
   /** When this member tapped Got it. Null until then. */
   seenAt?: string | null;
 }

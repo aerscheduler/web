@@ -1,24 +1,30 @@
 import * as React from "react";
-import { X } from "lucide-react";
+import { Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useMembers } from "@/features/queries";
-import { conversationKeys, useCreateGroup, useOpenDirect } from "@/features/messages";
+import { conversationKeys, useCreateGroup, useMemberGroups, useOpenDirect, useOpenMemberGroup } from "@/features/messages";
 import type { ConversationSummary } from "@/types/messages";
 import { memberName } from "@/components/people/util";
 import { PersonAvatar } from "@/components/workspace-user-avatar";
 import { Composer } from "@/components/messages/composer";
 
 type Pick = { id: number; name: string; image: string | null };
+/** One row of the list: a person to add, or a member group to open (2026-10-19). */
+type Option = ({ kind: "person" } & Pick) | { kind: "group"; id: number; name: string; memberCount: number; conversationId: number | null };
 
 /**
  * A new message, written where the conversation will be: a To: line you add people to as chips,
  * and the message box under it (Slack's and Messages' way; no dialog). One person makes a direct
  * conversation, two or more a group, which may take a name. Sending creates the conversation,
  * posts the message, and hands back its id so the caller opens it.
+ *
+ * MEMBER GROUPS (2026-10-19) are listed above the people while the To: line is empty: picking
+ * one opens the conversation that follows that group (starting it the first time), where its
+ * members already are. It is a destination, not a chip: a group is not mixed with people.
  */
 export function ComposeView({ onCreated, compact = false }: { onCreated: (conversationId: number) => void; compact?: boolean }) {
   const { orgUserId: me } = useAuth();
@@ -26,6 +32,8 @@ export function ComposeView({ onCreated, compact = false }: { onCreated: (conver
   const members = useMembers();
   const direct = useOpenDirect();
   const group = useCreateGroup();
+  const groups = useMemberGroups();
+  const openGroup = useOpenMemberGroup();
   const [picked, setPicked] = React.useState<Pick[]>([]);
   const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState(0);
@@ -36,16 +44,21 @@ export function ComposeView({ onCreated, compact = false }: { onCreated: (conver
 
   React.useEffect(() => inputRef.current?.focus(), []);
 
-  const options = React.useMemo(() => {
+  const options = React.useMemo((): Option[] => {
     const q = query.trim().toLowerCase();
     const taken = new Set(picked.map((p) => p.id));
-    return (members.data ?? [])
+    const people = (members.data ?? [])
       .filter((m) => m.id !== me && !m.archivedAt && !taken.has(m.id))
-      .map((m) => ({ id: m.id, name: memberName(m), image: m.profileImage ?? null }))
+      .map((m) => ({ kind: "person" as const, id: m.id, name: memberName(m), image: m.profileImage ?? null }))
       .filter((m) => !q || m.name.toLowerCase().includes(q))
       .sort((a, b) => a.name.localeCompare(b.name))
       .slice(0, 8);
-  }, [members.data, picked, query, me]);
+    // Groups only before anybody is picked: a member group is where you go, not who you add.
+    const matching = picked.length
+      ? []
+      : (groups.data ?? []).filter((g) => !q || g.name.toLowerCase().includes(q)).slice(0, 5).map((g) => ({ kind: "group" as const, ...g }));
+    return [...matching, ...people];
+  }, [members.data, groups.data, picked, query, me]);
 
   React.useEffect(() => setActive(0), [query]);
 
@@ -53,6 +66,14 @@ export function ComposeView({ onCreated, compact = false }: { onCreated: (conver
     setPicked((all) => [...all, p]);
     setQuery("");
     inputRef.current?.focus();
+  };
+
+  const choose = (o: Option) => {
+    if (o.kind === "person") return add(o);
+    openGroup.mutate(o.id, {
+      onSuccess: (c) => onCreated(c.id),
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't open that group's conversation."),
+    });
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -63,7 +84,7 @@ export function ComposeView({ onCreated, compact = false }: { onCreated: (conver
     if (!options.length) return;
     if (e.key === "ArrowDown") (e.preventDefault(), setActive((i) => (i + 1) % options.length));
     if (e.key === "ArrowUp") (e.preventDefault(), setActive((i) => (i - 1 + options.length) % options.length));
-    if (e.key === "Enter" && query.trim()) (e.preventDefault(), add(options[active]!));
+    if (e.key === "Enter" && query.trim()) (e.preventDefault(), choose(options[active]!));
   };
 
   const send = async (body: string, attachmentIds: number[] = []) => {
@@ -112,7 +133,7 @@ export function ComposeView({ onCreated, compact = false }: { onCreated: (conver
             }}
             onFocus={() => setListOpen(true)}
             onKeyDown={onKeyDown}
-            placeholder={picked.length ? "Add another person" : "Type a name"}
+            placeholder={picked.length ? "Add another person" : "Type a name or a group"}
             aria-label="To"
             className="h-7 min-w-[10rem] flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
           />
@@ -131,24 +152,44 @@ export function ComposeView({ onCreated, compact = false }: { onCreated: (conver
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {showList && (
-          <ul role="listbox" aria-label="People" className="p-2">
+          <ul role="listbox" aria-label="People and groups" className="p-2">
             {members.isPending ? (
               <li className="px-3 py-2 text-sm text-muted-foreground">Loading people…</li>
             ) : options.length === 0 ? (
-              <li className="px-3 py-2 text-sm text-muted-foreground">Nobody by that name.</li>
+              <li className="px-3 py-2 text-sm text-muted-foreground">Nobody and no group by that name.</li>
             ) : (
-              options.map((p, i) => (
-                <li key={p.id}>
+              options.map((o, i) => (
+                <li key={`${o.kind}-${o.id}`}>
                   <button
                     type="button"
                     role="option"
                     aria-selected={i === active}
                     onMouseEnter={() => setActive(i)}
-                    onClick={() => add(p)}
+                    onClick={() => choose(o)}
+                    disabled={o.kind === "group" && openGroup.isPending}
                     className={cn("flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm", i === active && "bg-accent")}
+                    data-member-group={o.kind === "group" ? o.id : undefined}
                   >
-                    <PersonAvatar name={p.name} image={p.image} size="md" />
-                    {p.name}
+                    {o.kind === "group" ? (
+                      <>
+                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground" aria-hidden>
+                          <Users className="size-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{o.name}</span>
+                          <span className="block text-xs text-muted-foreground">
+                            Group · {o.memberCount} {o.memberCount === 1 ? "person" : "people"}
+                          </span>
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span aria-hidden className="contents">
+                          <PersonAvatar name={o.name} image={o.image} size="md" />
+                        </span>
+                        {o.name}
+                      </>
+                    )}
                   </button>
                 </li>
               ))

@@ -71,7 +71,7 @@ function MyTrainingPage() {
   // Someone who runs training here (an owner, admin or instructor) and lands on their
   // OWN record, empty because they are not a student, is almost always looking for where
   // training is set up. A new owner on 2026-10-19 found only "you're not on a course"
-  // and a students' help article, and cancelled soon after. Point them at Training.
+  // and a students' help article, and canceled soon after. Point them at Training.
   const runsTraining = canAccess("/training", roles);
   const courses = useCourses(undefined, { enabled: runsTraining });
   const enrollments = useEnrollments(

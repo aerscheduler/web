@@ -31,7 +31,7 @@ import { cn } from "@/lib/utils";
  * Every task starts UNSET rather than defaulted to a pass. A syllabus lesson routinely
  * covers tasks that were not attempted (weather, a diversion, an examiner's aircraft), and
  * a screen that pre-ticks every one of them produces a record asserting a student was
- * assessed on manoeuvres they never flew. Only the tasks actually marked are sent.
+ * assessed on maneuvers they never flew. Only the tasks actually marked are sent.
  */
 export function TaskGradeList({
   tasks,

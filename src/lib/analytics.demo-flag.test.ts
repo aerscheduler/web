@@ -26,15 +26,21 @@ const registered: Array<Record<string, unknown>> = [];
 const captured: Array<{ event: string; props: Record<string, unknown> }> = [];
 const identifies: string[] = [];
 let resets = 0;
+let userState: "anonymous" | "identified" = "anonymous";
 
 const fakeClient = {
   init: vi.fn(),
   register: (props: Record<string, unknown>) => registered.push(props),
   capture: (event: string, props: Record<string, unknown>) => captured.push({ event, props }),
-  identify: (id: string) => identifies.push(id),
+  identify: (id: string) => {
+    identifies.push(id);
+    userState = "identified";
+  },
+  get_property: (key: string) => (key === "$user_state" ? userState : undefined),
   group: vi.fn(),
   reset: () => {
     resets += 1;
+    userState = "anonymous";
     // The real reset() clears persistence, super properties included.
     registered.length = 0;
   },
@@ -70,6 +76,25 @@ beforeEach(async () => {
   resets = 0;
 });
 
+describe("resetIdentity", () => {
+  it("keeps the anonymous id a visitor brought from the website", () => {
+    // /signup and /login run with no user, and the session effect calls this. Resetting
+    // here is what split every website visitor from the account they created.
+    analytics.track("$pageview");
+    analytics.resetIdentity();
+    expect(resets).toBe(0);
+  });
+
+  it("still forgets a signed-in person on sign-out", () => {
+    analytics.identify(4242, { email: "owner@example.com" }, { id: 77 });
+    analytics.resetIdentity();
+    expect(resets).toBe(1);
+    // And a second call, with nobody signed in any more, does nothing.
+    analytics.resetIdentity();
+    expect(resets).toBe(1);
+  });
+});
+
 describe("is_demo", () => {
   it("is re-registered by identify when the tab became a demo after boot", () => {
     // The demo is entered from inside a console that is already running, so the value
@@ -92,6 +117,7 @@ describe("is_demo", () => {
 
   it("survives a reset, which drops super properties", () => {
     demoTab = true;
+    analytics.identify(1, { email: "owner@demo.aerscheduler.invalid" }, { id: 552 });
     analytics.track("demo_opened");
     expect(currentDemoFlag()).toBe(true);
 

@@ -655,9 +655,23 @@ export function identify(
   });
 }
 
-/** Forget the person on sign-out, so a shared computer doesn't merge two people. */
+/**
+ * Forget the person on sign-out, so a shared computer doesn't merge two people.
+ *
+ * Only when this browser actually holds a signed-in identity. The session effect in
+ * auth.tsx calls this whenever there is no user, which includes every visitor who
+ * opens /signup or /login, and an unconditional reset() there threw away the
+ * anonymous id they brought from www.aerscheduler.com. That id is the only link
+ * between the marketing pages they read and the account they then created, so
+ * every website visitor became two unconnected people: on 2026-10-19 a paid-search
+ * signup's homepage visit and its console session could not be joined, and only 7 of
+ * 28 signups in 90 days connected to a website visit at all. The website never
+ * identifies anyone, so its visitors are always "anonymous" and now pass straight
+ * through; someone who signed in here before is "identified" and is still reset.
+ */
 export function resetIdentity(): void {
   withClient((client) => {
+    if (client.get_property("$user_state") !== "identified") return;
     client.reset();
     // `reset()` clears persistence, super properties included, so the cache of what
     // is registered is now a lie. Dropping it makes the next event re-register.

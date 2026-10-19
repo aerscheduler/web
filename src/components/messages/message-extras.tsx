@@ -355,7 +355,7 @@ function AircraftCardView({ r, c }: { r: MessageRef; c: AircraftCard }) {
       {(c.makeModel || c.groundedReason) && (
         <span className="truncate text-xs text-foreground">{[c.groundedReason, c.makeModel].filter(Boolean).join(" · ")}</span>
       )}
-      <span className="truncate text-xs text-muted-foreground">
+      <span className="text-xs text-muted-foreground">
         {[meters, c.openSquawks > 0 ? `${c.openSquawks} open ${c.openSquawks === 1 ? "squawk" : "squawks"}` : "No open squawks"].filter(Boolean).join(" · ")}
       </span>
       {c.nextInspection && (

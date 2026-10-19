@@ -272,6 +272,11 @@ test.describe.serial("Messages", () => {
     await expect(panel(student).locator("[data-message-id]").filter({ hasText: `${run} with files` })).toBeVisible();
 
     await panel(student).getByRole("button", { name: "Back to conversations" }).click();
+
+    // Nothing found anywhere: one line, not an empty heading per section.
+    await search.fill(`${run} zzqx`);
+    await expect(panel(student).getByText(`Nothing matches \u201c${run} zzqx\u201d.`)).toBeVisible();
+    await expect(panel(student).getByText("No conversations match.")).toHaveCount(0);
     await search.fill("");
   });
 

@@ -1,4 +1,5 @@
 import { useAuth } from "@/lib/auth";
+import { cn } from "@/lib/utils";
 import { useMessageSearch } from "@/features/messages";
 import { requestJump } from "@/components/messages/jump";
 import { plainBody } from "@/components/messages/message-extras";
@@ -17,7 +18,9 @@ function when(iso: string) {
 function Snippet({ text, q }: { text: string; q: string }) {
   const i = text.toLowerCase().indexOf(q.toLowerCase());
   if (i < 0) return <>{text}</>;
-  const start = Math.max(0, i - 24);
+  // Some words of lead-in, starting on a word: "…in N172TS Saturday at", never "…s in".
+  const space = i > 28 ? text.indexOf(" ", i - 28) : -1;
+  const start = space >= 0 && space < i ? space + 1 : i > 28 ? i - 28 : 0;
   return (
     <>
       {start > 0 && "…"}
@@ -33,15 +36,31 @@ function Snippet({ text, q }: { text: string; q: string }) {
  * where, when, and the words with the match picked out. Choosing one opens its conversation at
  * that message. Shown for 2 characters or more.
  */
-export function MessageSearchResults({ q, onOpen }: { q: string; onOpen: (conversationId: number) => void }) {
+export function MessageSearchResults({
+  q,
+  onOpen,
+  noConversations = false,
+}: {
+  q: string;
+  onOpen: (conversationId: number) => void;
+  /** No conversation matched either: one "nothing matches" instead of two empty sections. */
+  noConversations?: boolean;
+}) {
   const { orgUserId: me } = useAuth();
   const term = q.trim();
   const search = useMessageSearch(term);
   if (term.length < 2) return null;
   const hits: MessageSearchHit[] = search.data?.pages.flatMap((p) => p.data) ?? [];
   const authors = Object.assign({}, ...(search.data?.pages.map((p) => p.authors ?? {}) ?? []));
+  if (!search.isPending && hits.length === 0 && noConversations) {
+    return (
+      <p className="px-6 py-6 text-center text-sm text-muted-foreground" data-message-search="">
+        Nothing matches “{term}”.
+      </p>
+    );
+  }
   return (
-    <section aria-label="Messages that match" className="border-t" data-message-search="">
+    <section aria-label="Messages that match" className={cn(!noConversations && "border-t")} data-message-search="">
       <h3 className="px-3.5 pb-1 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Messages</h3>
       {search.isPending ? (
         <p className="px-3.5 py-3 text-sm text-muted-foreground">Searching…</p>

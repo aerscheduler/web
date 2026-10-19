@@ -247,8 +247,7 @@ export function MessagesWorkspace({ selectedId, onSelect }: { selectedId: number
       listAfter={
         debounced.length >= 2 ? (
           <>
-            {items.length === 0 && <p className="px-1 pb-1 text-sm text-muted-foreground">No conversations match.</p>}
-            <MessageSearchResults q={debounced} onOpen={(id) => select(id)} />
+            <MessageSearchResults q={debounced} onOpen={(id) => select(id)} noConversations={items.length === 0} />
           </>
         ) : undefined
       }

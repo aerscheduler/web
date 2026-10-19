@@ -292,7 +292,8 @@ export function Thread({
 
   const showNames = conversation.kind !== "direct";
   const placeholder =
-    conversation.kind === "direct" ? `Message ${conversation.title}` : conversation.kind === "reservation" ? "Message everyone on this booking" : `Message ${conversation.title}`;
+    // A group's name can run to a sentence and the box cut it mid-word; the app says "the group" too.
+    conversation.kind === "direct" ? `Message ${conversation.title}` : conversation.kind === "reservation" ? "Message everyone on this booking" : "Message the group";
 
   return (
     // No scroll anchors: those pin each message you send to the TOP of the view (an AI chat's

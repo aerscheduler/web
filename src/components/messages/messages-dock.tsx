@@ -475,7 +475,8 @@ function DockList({ onSelect, onExpand, onClose }: { onSelect: (id: number) => v
           <li className="px-4 py-6 text-sm text-muted-foreground">Loading…</li>
         ) : rows.length === 0 ? (
           q ? (
-            <li className={cn("px-6 text-center text-sm text-muted-foreground", q.length >= 2 ? "py-4" : "py-10")}>No conversations match.</li>
+            // From two letters the message search below speaks for both.
+            q.length >= 2 ? null : <li className="px-6 py-10 text-center text-sm text-muted-foreground">No conversations match.</li>
           ) : (
             // AN EMPTY STATE IS A WAY IN, not a shrug (Tony: "empty states need to be super
             // helpful"): what Messages is for, and the button that starts one.
@@ -518,7 +519,7 @@ function DockList({ onSelect, onExpand, onClose }: { onSelect: (id: number) => v
           </li>
         )}
         <li>
-          <MessageSearchResults q={q} onOpen={onSelect} />
+          <MessageSearchResults q={q} onOpen={onSelect} noConversations={!list.isPending && rows.length === 0} />
         </li>
       </ul>
     </>

@@ -134,7 +134,7 @@ export function ConversationInfo({
             <GroupFaces c={c} />
           )}
           <div className="w-full min-w-0">
-            {editable ? <GroupName c={c} /> : <p className="truncate text-base font-semibold">{c.title}</p>}
+            {editable ? <GroupName c={c} /> : <p className="line-clamp-2 break-words text-base font-semibold">{c.title}</p>}
             <p className="text-xs text-muted-foreground">{subtitle}</p>
           </div>
         </div>
@@ -361,7 +361,7 @@ function GroupName({ c }: { c: ConversationSummary }) {
       onClick={() => setEditing(true)}
       className="group/name mx-auto flex max-w-full items-center justify-center gap-1.5 rounded-md px-2 py-0.5 hover:bg-accent"
     >
-      <span className={cn("truncate text-base font-semibold", !c.groupTitle && "text-muted-foreground")}>{c.groupTitle || "Name this group"}</span>
+      <span className={cn("line-clamp-2 break-words text-base font-semibold", !c.groupTitle && "text-muted-foreground")}>{c.groupTitle || "Name this group"}</span>
       <Pencil className="size-3.5 shrink-0 text-muted-foreground opacity-0 group-hover/name:opacity-100" aria-hidden />
     </button>
   );

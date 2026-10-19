@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/react-query";
 import { apiRaw, api, ApiError } from "@/lib/api";
 import type {
@@ -192,6 +192,10 @@ function putInThread(qc: QueryClient, conversationId: number, messages: Conversa
  */
 export function useLiveThread(conversationId: number | null) {
   const qc = useQueryClient();
+  // Caught up with what arrived while the thread was closed (nobody merges events then, and a
+  // cached copy under 30 seconds old is shown without a refetch): true once the opening
+  // catch-up below has landed, or at once when there was no cached copy to catch up.
+  const [caughtUp, setCaughtUp] = useState(false);
   useEffect(() => {
     if (conversationId == null) return;
     let timer: number | undefined;
@@ -222,6 +226,11 @@ export function useLiveThread(conversationId: number | null) {
         }
       }
     };
+    if (qc.getQueryData(conversationKeys.messages(conversationId))) {
+      void run().finally(() => !disposed && setCaughtUp(true));
+    } else {
+      setCaughtUp(true);
+    }
     const unsubscribe = qc.getQueryCache().subscribe((e) => {
       if (e.type !== "updated" || e.action.type !== "invalidate" || e.query.queryKey[0] !== "conversations") return;
       window.clearTimeout(timer);
@@ -233,6 +242,7 @@ export function useLiveThread(conversationId: number | null) {
       window.clearTimeout(timer);
     };
   }, [conversationId, qc]);
+  return caughtUp;
 }
 
 export function useMarkConversationRead(conversationId: number) {

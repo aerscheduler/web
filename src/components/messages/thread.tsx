@@ -94,7 +94,7 @@ export function Thread({
 }) {
   const { orgUserId } = useAuth();
   const q = useConversationMessages(conversation.id);
-  useLiveThread(conversation.id);
+  const caughtUp = useLiveThread(conversation.id);
   const send = useSendMessage(conversation.id);
   const markRead = useMarkConversationRead(conversation.id);
   const [pending, setPending] = React.useState<Pending[]>([]);
@@ -193,6 +193,46 @@ export function Thread({
     else if (!q.hasNextPage || oldest <= target) jumpTarget.current = null;
   }, [messages, q.isPending, q.hasNextPage, q.isFetchingNextPage, jumpTick]);
 
+  // NEW MESSAGES (2026-10-18): the first message from somebody else that you had not read when
+  // you opened the conversation gets a "New messages" line above it, kept while it stays open
+  // (reading it does not move the line; sending takes it away). Worked out once, from what you
+  // had read at that moment, after paging back if every loaded message is new. Nothing read
+  // before (a conversation you never opened) draws no line: all of it is new.
+  const readAtOpen = React.useRef<number | undefined>(undefined);
+  const unreadPaged = React.useRef(0);
+  const [unreadFrom, setUnreadFrom] = React.useState<number | null | undefined>(undefined);
+  React.useEffect(() => {
+    // Not from a cached copy while the fresh one is on its way: that copy predates what is new.
+    if (unreadFrom !== undefined || !loaded || !caughtUp || q.isFetching) return;
+    if (readAtOpen.current === undefined) readAtOpen.current = conversation.lastReadMessageId ?? 0;
+    const read = readAtOpen.current;
+    const first = read
+      ? messages.find((m) => m.id > read && !m.deletedAt && m.authorKind !== "system" && m.authorOrgUserId !== orgUserId)
+      : undefined;
+    if (first && first === messages[0] && q.hasNextPage && unreadPaged.current < 4) {
+      if (!q.isFetchingNextPage) {
+        unreadPaged.current++;
+        void q.fetchNextPage();
+      }
+      return;
+    }
+    setUnreadFrom(first?.id ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, caughtUp, messages, q.hasNextPage, q.isFetching, q.isFetchingNextPage]);
+  // More new than fits: open at the line instead of the end (the arrow button goes to the end).
+  React.useEffect(() => {
+    if (!unreadFrom || jumpTarget.current != null) return;
+    const t = window.setTimeout(() => {
+      const line = document.querySelector<HTMLElement>(`[data-unread-line="${conversation.id}"]`);
+      const view = line?.closest<HTMLElement>('[aria-label="Messages"]');
+      if (!line || !view) return;
+      const above = line.getBoundingClientRect().top - view.getBoundingClientRect().top;
+      // A little of what you had read stays in view above the line, for context.
+      if (above < 0) view.scrollTop += above - 56;
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [unreadFrom, conversation.id]);
+
   const signalTyping = useTypingSignal(conversation.isParticipant || conversation.kind === "reservation" ? conversation.id : null);
   const typing = useWhoIsTyping(conversation.id);
 
@@ -211,6 +251,7 @@ export function Thread({
 
   const onSend = (body: string, attachmentIds: number[] = [], attachments: DraftAttachment[] = []) => {
     signalTyping(false);
+    setUnreadFrom(null);
     const p: Pending = {
       clientId: crypto.randomUUID(),
       body,
@@ -290,6 +331,7 @@ export function Thread({
                     onRetry={retry}
                     onReply={startReply}
                     onOpenThread={openThread}
+                    unreadFrom={unreadFrom ?? null}
                   />
                 )}
                 {(typing.data?.length ?? 0) > 0 && <TypingDots people={typing.data!} group={showNames} />}
@@ -374,6 +416,7 @@ function Rows({
   onRetry,
   onReply,
   onOpenThread,
+  unreadFrom,
 }: {
   messages: ConversationMessage[];
   pending: Pending[];
@@ -385,6 +428,7 @@ function Rows({
   onRetry: (clientId: string) => void;
   onReply: (m: ConversationMessage, author: string) => void;
   onOpenThread: (id: number) => void;
+  unreadFrom: number | null;
 }) {
   const conversationId = conversation.id;
   const del = useDeleteMessage(conversationId);
@@ -403,6 +447,7 @@ function Rows({
 
   type Row =
     | { kind: "stamp"; key: string; label: string }
+    | { kind: "unread"; key: string }
     | { kind: "system"; key: string; m: ConversationMessage }
     | { kind: "message"; key: string; m: ConversationMessage; first: boolean; last: boolean; lineOnly: boolean; leads: boolean }
     | { kind: "pending"; key: string; p: Pending };
@@ -414,6 +459,8 @@ function Rows({
   shown.forEach((m, i) => {
     const at = new Date(m.createdAt);
     const gap = prev ? at.getTime() - new Date(prev.createdAt).getTime() : Infinity;
+    // Above the time label, so the time stays with the messages it dates.
+    if (m.id === unreadFrom && prev) rows.push({ kind: "unread", key: "unread" });
     if (!prev || gap > TIME_GAP_MS || !sameDay(at, new Date(prev.createdAt))) {
       rows.push({ kind: "stamp", key: `t${m.id}`, label: stampLabel(m.createdAt) });
     }
@@ -474,6 +521,17 @@ function Rows({
           return (
             <MessageScrollerItem key={row.key} className="py-3">
               <p className="text-center text-xs font-medium text-muted-foreground">{row.label}</p>
+            </MessageScrollerItem>
+          );
+        }
+        if (row.kind === "unread") {
+          return (
+            <MessageScrollerItem key={row.key} className="py-3">
+              <div className="flex items-center gap-3" role="separator" aria-label="New messages" data-unread-line={conversationId}>
+                <span className="h-px flex-1 bg-primary/30" />
+                <span className="text-xs font-medium text-primary">New messages</span>
+                <span className="h-px flex-1 bg-primary/30" />
+              </div>
             </MessageScrollerItem>
           );
         }

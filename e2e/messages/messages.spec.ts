@@ -10,7 +10,8 @@ import { dismissCookieBanner } from "../helpers/reservation-form";
  * goes out as its token, a photo and a file go with a message and arrive live, a right-click
  * mutes the conversation, a reaction and a reply land on the other side with "Seen" under the
  * reply once it is read, search finds a message's words, pin and mark as unread work from the
- * right-click menu, typing shows as dots on the other side, Expand grows the same panel (and is not offered on a phone), and a
+ * right-click menu, typing shows as dots on the other side, a "New messages" line marks what arrived
+ * while it was closed, Expand grows the same panel (and is not offered on a phone), and a
  * link followed from the bigger panel lands on the page with Messages back to its normal size.
  * Every write is checked on the wire, not just on screen.
  *
@@ -315,6 +316,41 @@ test.describe.serial("Messages", () => {
     await box.fill("");
     await expect(panel(instructor).locator("[data-typing]")).toHaveCount(0, { timeout: 15_000 });
     await panel(student).getByRole("button", { name: "Back to conversations" }).click();
+  });
+
+  test('a "New messages" line sits above what arrived while the conversation was closed, until you send', async () => {
+    // The student is on the list; the instructor writes twice.
+    const box = panel(instructor).getByRole("textbox", { name: "Message Test Student" });
+    const theirs: number[] = [];
+    for (const n of [1, 2]) {
+      const posted = instructor.waitForResponse(isPost(/\/conversations\/\d+\/messages$/));
+      await box.fill(`${run} new ${n}`);
+      await box.press("Enter");
+      theirs.push(((await (await posted).json()).data as { id: number }).id);
+    }
+
+    await panel(student).locator("li button").filter({ hasText: "Test Instructor" }).first().click();
+    const line = panel(student).locator("[data-unread-line]");
+    await expect(line).toHaveText("New messages");
+    // Right above the first of them, below what was already read.
+    const first = panel(student).locator("[data-message-id]").filter({ hasText: `${run} new 1` });
+    const lineBox = (await line.boundingBox())!;
+    expect(lineBox.y).toBeLessThan((await first.boundingBox())!.y);
+    expect(lineBox.y).toBeGreaterThan((await panel(student).locator("[data-message-id]").filter({ hasText: `${run} first` }).boundingBox())!.y);
+
+    // Sending takes it away.
+    const reply = student.waitForResponse(isPost(/\/conversations\/\d+\/messages$/));
+    const mine = panel(student).getByRole("textbox", { name: "Message Test Instructor" });
+    await mine.fill(`${run} got them`);
+    await mine.press("Enter");
+    sent.push(((await (await reply).json()).data as { id: number }).id);
+    await expect(line).toHaveCount(0);
+    await panel(student).getByRole("button", { name: "Back to conversations" }).click();
+
+    const token = (await apiLogin(instructor.request, ACCOUNTS.instructor)).auth.accessToken as string;
+    for (const id of theirs) {
+      await instructor.request.delete(`${base()}/conversations/messages/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+    }
   });
 
   test("Expand makes the panel bigger in place; a link from it lands on the page with the panel back to normal", async () => {

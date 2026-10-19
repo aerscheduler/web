@@ -43,6 +43,7 @@ function expiryState(e: Endorsement): { label: string; tone: "danger" | "warning
  */
 export function EndorsementsCard({
   orgUserId,
+  isSelf,
   enrollmentId,
 }: {
   orgUserId: number;
@@ -54,7 +55,9 @@ export function EndorsementsCard({
   //This asked `isStaff`, which includes dispatchers, so the front desk was offered a "Sign
   //one" button that 403s. An endorsement is a signature under somebody's certificate
   //number, which is exactly the thing a dispatcher must not be invited to give.
-  const canSign = isAdmin || roles.includes("instructor");
+  //Never on your own card: the server refuses a self-endorsement (another instructor has to
+  //sign), and `isSelf` was passed here and ignored until 2026-10-18.
+  const canSign = (isAdmin || roles.includes("instructor")) && !isSelf;
   const [open, setOpen] = useState(false);
   const [replacing, setReplacing] = useState<Endorsement | null>(null);
 

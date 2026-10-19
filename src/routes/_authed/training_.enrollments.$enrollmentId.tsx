@@ -211,7 +211,7 @@ function EnrollmentPage() {
 
               <EndorsementsCard
                 orgUserId={e.studentOrgUserId}
-                isSelf={false}
+                isSelf={e.studentOrgUserId === orgUserId}
                 enrollmentId={e.id}
               />
             </>

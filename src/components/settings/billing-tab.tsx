@@ -999,26 +999,33 @@ function BillingConnectCard({
           payoutsReady ? "billing-payouts-connected" : "billing-payouts-not-connected"
         }
       >
-        <CardHeader className="flex-row items-center gap-2.5">
-          <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+        {/* Same shape as every other settings card: icon, title and description in the
+            header, controls in the body. The button and badge used to sit in the header
+            beside the description, which crushed it to one word per line on a phone. */}
+        <CardHeader className="flex-row items-start gap-2.5">
+          <span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
             <Receipt className="size-4" />
           </span>
           <div className="min-w-0 flex-1">
-            <CardTitle>Payouts</CardTitle>
+            <CardTitle className="flex flex-wrap items-center gap-2">
+              Payouts
+              {payoutsReady && (
+                <Badge variant="success">
+                  <ShieldCheck className="size-3" /> Connected
+                </Badge>
+              )}
+            </CardTitle>
             <CardDescription>Collect card and ACH through Stripe. Billing stays off until this is connected.</CardDescription>
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {payoutsReady && (
-              <Badge variant="success">
-                <ShieldCheck className="size-3" /> Connected
-              </Badge>
-            )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-3">
             <Button
               type="button"
               variant={payoutsReady ? "outline" : "default"}
-              size="sm"
               onClick={handleConnect}
               disabled={!canEdit || connect.isPending}
+              className="w-full sm:w-auto"
             >
               {connect.isPending ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -1027,25 +1034,8 @@ function BillingConnectCard({
               )}
               {payoutsReady ? "Manage payouts" : "Connect payouts"}
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-            <PreferenceToggle
-              label="Billing enabled"
-              description={
-                !payoutsReady
-                  ? billingOn
-                    ? "Payouts are not connected. Nothing will be charged until you reconnect."
-                    : "Connect payouts first. Nothing is charged until Stripe is connected."
-                  : "Charge for reservations, fees, and flight time."
-              }
-              checked={billingOn}
-              disabled={!canEdit || update.isPending || (!payoutsReady && !billingOn)}
-              saving={update.isPending}
-              onCheckedChange={requestEnable}
-            />
             {rejected && (
-              <p className="mt-3 text-sm text-muted-foreground" data-testid="billing-payouts-rejected">
+              <p className="text-sm text-muted-foreground" data-testid="billing-payouts-rejected">
                 {/* The server's message carries the account's own Stripe status page. */}
                 {rejected.split(/(https:\/\/[^\s,]*[^\s,.])/).map((part, i) =>
                   part.startsWith("https://") ? (
@@ -1064,6 +1054,23 @@ function BillingConnectCard({
                 )}
               </p>
             )}
+          </div>
+          <div className="border-t pt-4">
+            <PreferenceToggle
+              label="Billing enabled"
+              description={
+                !payoutsReady
+                  ? billingOn
+                    ? "Payouts are not connected. Nothing will be charged until you reconnect."
+                    : "Connect payouts first. Nothing is charged until Stripe is connected."
+                  : "Charge for reservations, fees, and flight time."
+              }
+              checked={billingOn}
+              disabled={!canEdit || update.isPending || (!payoutsReady && !billingOn)}
+              saving={update.isPending}
+              onCheckedChange={requestEnable}
+            />
+          </div>
         </CardContent>
       </Card>
 

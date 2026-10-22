@@ -1046,7 +1046,22 @@ function BillingConnectCard({
             />
             {rejected && (
               <p className="mt-3 text-sm text-muted-foreground" data-testid="billing-payouts-rejected">
-                {rejected}
+                {/* The server's message carries the account's own Stripe status page. */}
+                {rejected.split(/(https:\/\/[^\s,]*[^\s,.])/).map((part, i) =>
+                  part.startsWith("https://") ? (
+                    <a
+                      key={i}
+                      href={part}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="break-all text-primary underline-offset-4 hover:underline"
+                    >
+                      {part}
+                    </a>
+                  ) : (
+                    part
+                  )
+                )}
               </p>
             )}
         </CardContent>

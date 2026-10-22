@@ -180,6 +180,7 @@ function actionLabel(action: string): string {
     "organization.preferencesChanged": "Preferences changed",
     "organization.timeZoneChanged": "Time zone changed",
     "organization.billingCurrencyChanged": "Billing currency changed",
+    "organization.stripeDisconnected": "Stripe disconnected",
 
     //Standby
     "standby.created": "Joined standby",

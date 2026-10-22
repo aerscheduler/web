@@ -68,6 +68,7 @@ import {
 } from "@/components/ui/select";
 import { Field, PreferenceToggle } from "@/components/settings/parts";
 import { HOW_MEMBERS_PAY_ID, PrepaidBlocksCard } from "@/components/settings/prepaid-blocks-card";
+import { StripeDisconnect } from "@/components/settings/stripe-disconnect";
 
 /** serviceFeePercent is stored as hundredths of a percent (500 = 5%, 50 = 0.5%). */
 function feeToText(bps: number | null): string {
@@ -1020,20 +1021,25 @@ function BillingConnectCard({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-3">
-            <Button
-              type="button"
-              variant={payoutsReady ? "outline" : "default"}
-              onClick={handleConnect}
-              disabled={!canEdit || connect.isPending}
-              className="w-full sm:w-auto"
-            >
-              {connect.isPending ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <ExternalLink className="size-4" />
-              )}
-              {payoutsReady ? "Manage payouts" : "Connect payouts"}
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+              <Button
+                type="button"
+                variant={payoutsReady ? "outline" : "default"}
+                onClick={handleConnect}
+                disabled={!canEdit || connect.isPending}
+                className="w-full sm:w-auto"
+              >
+                {connect.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <ExternalLink className="size-4" />
+                )}
+                {payoutsReady ? "Manage payouts" : "Connect payouts"}
+              </Button>
+              {/* Any connected account, verified or not: a rejected one is exactly the
+                  account an organization most needs to replace. */}
+              {canEdit && billing.stripeAccountId && <StripeDisconnect />}
+            </div>
             {rejected && (
               <p className="text-sm text-muted-foreground" data-testid="billing-payouts-rejected">
                 {/* The server's message carries the account's own Stripe status page. */}

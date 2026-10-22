@@ -2342,6 +2342,52 @@ export function useConnectStripe() {
   });
 }
 
+/** An unpaid Stripe invoice that has to be settled before the account can be disconnected. */
+export interface OpenStripeInvoice {
+  id: number;
+  number: string;
+  totalCents: number;
+  payerName: string;
+  createdAt: string;
+  processing: boolean;
+}
+
+/** What disconnecting the Stripe account would involve (`GET /stripe/account/disconnect`). */
+export type StripeDisconnectCheck =
+  | { connected: false }
+  | {
+      connected: true;
+      stripeAccountId: string;
+      stripeEnabled: boolean;
+      openInvoiceCount: number;
+      openInvoices: OpenStripeInvoice[];
+      membersWithCustomer: number;
+      membersOnAutopay: number;
+      /** Invoice each booking: flights closed while disconnected wait under Unbilled reservations. */
+      invoicesEachBooking: boolean;
+    };
+
+export function useStripeDisconnectCheck(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["stripeDisconnectCheck"],
+    queryFn: () => api<StripeDisconnectCheck>("/stripe/account/disconnect"),
+    ...opts,
+  });
+}
+
+/** Disconnect the organization's Stripe account so another can be connected. Owner only. */
+export function useDisconnectStripe() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ disconnected: true }>("/stripe/account/disconnect", { method: "POST" }),
+    onSettled: () => {
+      void qc.invalidateQueries({ queryKey: ["billing"] });
+      void qc.invalidateQueries({ queryKey: ["stripeDisconnectCheck"] });
+      void qc.invalidateQueries({ queryKey: ["billingCurrency"] });
+    },
+  });
+}
+
 // ---------------------------------------------------------------- QuickBooks / org integrations
 
 export type QuickBooksStatus =

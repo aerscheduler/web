@@ -503,6 +503,8 @@ export interface OrganizationBillingSettings {
   serviceFeePercent: number | null;
   serviceFeeLabel: string;
   stripeEnabled: boolean;
+  /** The connected Stripe account, null until one is connected and again after a disconnect. */
+  stripeAccountId?: string | null;
   /**
    * Least billable time per NIGHT an aircraft is kept away, in TENTHS of an hour.
    *

@@ -945,6 +945,9 @@ function BillingConnectCard({
   const canEdit = canManageBillingSettings(roles);
   const payoutsReady = billing.stripeEnabled;
   const [confirmOff, setConfirmOff] = useState(false);
+  //Stripe rejected the connected account. Not a retryable failure, so it stays on the
+  //card instead of in a toast the owner reads once and then presses the button again.
+  const [rejected, setRejected] = useState<string | null>(null);
 
   async function handleConnect() {
     try {
@@ -952,6 +955,11 @@ function BillingConnectCard({
       if (!url) throw new Error("No onboarding URL returned");
       window.location.assign(url);
     } catch (err) {
+      const body = err instanceof ApiError ? (err.body as { code?: string } | undefined) : undefined;
+      if (err instanceof ApiError && body?.code === "STRIPE_ACCOUNT_REJECTED") {
+        setRejected(err.message);
+        return;
+      }
       toast.error(
         err instanceof ApiError ? err.message : "Couldn't start Stripe onboarding"
       );
@@ -1036,6 +1044,11 @@ function BillingConnectCard({
               saving={update.isPending}
               onCheckedChange={requestEnable}
             />
+            {rejected && (
+              <p className="mt-3 text-sm text-muted-foreground" data-testid="billing-payouts-rejected">
+                {rejected}
+              </p>
+            )}
         </CardContent>
       </Card>
 

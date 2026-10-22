@@ -181,6 +181,7 @@ function actionLabel(action: string): string {
     "organization.timeZoneChanged": "Time zone changed",
     "organization.billingCurrencyChanged": "Billing currency changed",
     "organization.stripeDisconnected": "Stripe disconnected",
+    "organization.stripeConnected": "Existing Stripe account connected",
 
     //Standby
     "standby.created": "Joined standby",

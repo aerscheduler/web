@@ -60,7 +60,7 @@ export function StripeDisconnect() {
     setError(null);
     try {
       await disconnect.mutateAsync();
-      toast.success("Stripe disconnected. Connect payouts to set up the new account.");
+      toast.success("Stripe disconnected. Connect the account you want to use next.");
       close(false);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't disconnect Stripe. Try again.");
@@ -88,8 +88,8 @@ export function StripeDisconnect() {
           <AlertDialogHeader>
             <AlertDialogTitle>Disconnect Stripe?</AlertDialogTitle>
             <AlertDialogDescription>
-              Nobody can pay by card or bank until you connect another Stripe account. Then
-              choose Connect payouts to set it up.
+              Nobody can pay by card or bank until you connect another Stripe account, a new
+              one or one you already have.
             </AlertDialogDescription>
           </AlertDialogHeader>
 

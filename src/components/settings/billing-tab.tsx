@@ -4,6 +4,7 @@ import {
   CreditCard,
   ExternalLink,
   Loader2,
+  LogIn,
   Receipt,
   ShieldCheck,
   TriangleAlert,
@@ -13,8 +14,10 @@ import { toast } from "sonner";
 import {
   useBilling,
   useBillingCurrency,
+  useConnectExistingStripe,
   useConnectStripe,
   useSetBillingCurrency,
+  useStripeConnectOptions,
   useUpdateBilling,
   useOrgLedgerSettings,
   useUpdateOrgLedgerSettings,
@@ -943,7 +946,10 @@ function BillingConnectCard({
   const { roles } = useAuth();
   const update = useUpdateBilling();
   const connect = useConnectStripe();
+  const connectExisting = useConnectExistingStripe();
   const canEdit = canManageBillingSettings(roles);
+  const options = useStripeConnectOptions({ enabled: canEdit && !billing.stripeAccountId });
+  const offerExisting = canEdit && !billing.stripeAccountId && options.data?.connectExisting === true;
   const payoutsReady = billing.stripeEnabled;
   const [confirmOff, setConfirmOff] = useState(false);
   //Stripe rejected the connected account. Not a retryable failure, so it stays on the
@@ -964,6 +970,16 @@ function BillingConnectCard({
       toast.error(
         err instanceof ApiError ? err.message : "Couldn't start Stripe onboarding"
       );
+    }
+  }
+
+  async function handleConnectExisting() {
+    try {
+      const { url } = await connectExisting.mutateAsync();
+      if (!url) throw new Error("No Stripe sign-in URL returned");
+      window.location.assign(url);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't open Stripe. Try again.");
     }
   }
 
@@ -1036,10 +1052,34 @@ function BillingConnectCard({
                 )}
                 {payoutsReady ? "Manage payouts" : "Connect payouts"}
               </Button>
+              {/* Only before an account is attached: switching is Disconnect first. */}
+              {offerExisting && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleConnectExisting}
+                  disabled={connectExisting.isPending}
+                  className="w-full sm:w-auto"
+                  data-testid="billing-connect-existing-stripe"
+                >
+                  {connectExisting.isPending ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <LogIn className="size-4" />
+                  )}
+                  Use an existing Stripe account
+                </Button>
+              )}
               {/* Any connected account, verified or not: a rejected one is exactly the
                   account an organization most needs to replace. */}
               {canEdit && billing.stripeAccountId && <StripeDisconnect />}
             </div>
+            {offerExisting && (
+              <p className="text-sm text-muted-foreground">
+                Connect payouts creates a new Stripe account. If you already take payments
+                with Stripe, use that account instead to keep its history.
+              </p>
+            )}
             {rejected && (
               <p className="text-sm text-muted-foreground" data-testid="billing-payouts-rejected">
                 {/* The server's message carries the account's own Stripe status page. */}

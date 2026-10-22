@@ -2375,6 +2375,26 @@ export function useStripeDisconnectCheck(opts?: QueryOpts) {
   });
 }
 
+/** Which ways of connecting Stripe the server offers (an existing account needs its OAuth id). */
+export function useStripeConnectOptions(opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["stripeConnectOptions"],
+    queryFn: () => api<{ connectExisting: boolean }>("/stripe/account/options"),
+    staleTime: 10 * 60_000,
+    ...opts,
+  });
+}
+
+/**
+ * Start connecting a Stripe account the organization already has: returns Stripe's sign-in
+ * page. With credentials, because the server binds the connect to this browser by cookie.
+ */
+export function useConnectExistingStripe() {
+  return useMutation({
+    mutationFn: () => api<{ url: string }>("/oauth2/stripe/authorize", { withCredentials: true }),
+  });
+}
+
 /** Disconnect the organization's Stripe account so another can be connected. Owner only. */
 export function useDisconnectStripe() {
   const qc = useQueryClient();

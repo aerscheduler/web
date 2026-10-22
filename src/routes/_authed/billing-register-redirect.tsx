@@ -26,8 +26,23 @@ import { useBilling } from "@/features/queries";
  * payouts switched off.
  */
 export const Route = createFileRoute("/_authed/billing-register-redirect")({
+  // `stripe` is set when the owner came back from connecting an EXISTING Stripe account
+  // (server services/stripeConnectExisting.ts): "connected", or why nothing was connected.
+  validateSearch: (s: Record<string, unknown>) => (typeof s.stripe === "string" ? { stripe: s.stripe } : {}),
   component: BillingRegisterRedirectPage,
 });
+
+/** Why connecting an existing account attached nothing, in the owner's terms. */
+const EXISTING_REFUSALS: Record<string, string> = {
+  denied: "Stripe connection cancelled. Nothing was changed.",
+  expired: "That Stripe sign-in expired. Choose Use an existing Stripe account again.",
+  browser: "Finish connecting Stripe in the same browser you started in. Nothing was changed.",
+  not_owner: "Only the organization owner can connect Stripe.",
+  already: "A Stripe account is already connected. Disconnect it first, then connect the other one.",
+  taken: "That Stripe account is already connected to another AerScheduler organization.",
+  unavailable: "Connecting an existing Stripe account isn't available right now.",
+  failed: "Stripe didn't confirm the connection. Try again, or contact support@aerscheduler.com.",
+};
 
 /** Give the webhook a moment to land before we believe a "not connected" answer. */
 const MAX_ATTEMPTS = 4;
@@ -36,6 +51,8 @@ const RETRY_DELAY_MS = 1500;
 function BillingRegisterRedirectPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const { stripe } = Route.useSearch() as { stripe?: string };
+  const refusal = stripe && stripe !== "connected" ? EXISTING_REFUSALS[stripe] ?? EXISTING_REFUSALS.failed : null;
   const [attempt, setAttempt] = useState(0);
 
   // No cache to worry about: Stripe sends the browser here as a full page load, so
@@ -48,6 +65,13 @@ function BillingRegisterRedirectPage() {
 
   useEffect(() => {
     if (settled.current) return;
+    // Nothing was connected, so there is nothing to wait for: say why and go back.
+    if (refusal) {
+      settled.current = true;
+      toast.error(refusal);
+      void navigate({ to: "/settings", replace: true });
+      return;
+    }
     if (billing.isPending || billing.isFetching) return;
 
     const connected = billing.data?.stripeEnabled === true;
@@ -77,7 +101,7 @@ function BillingRegisterRedirectPage() {
     }
 
     void navigate({ to: "/settings", replace: true });
-  }, [billing, attempt, navigate, queryClient]);
+  }, [billing, attempt, navigate, queryClient, refusal]);
 
   return (
     <div className="grid min-h-[60vh] place-items-center px-4">

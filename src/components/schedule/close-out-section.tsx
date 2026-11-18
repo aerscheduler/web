@@ -487,7 +487,7 @@ export function CloseOutSection({
             {step === "confirm" && !canConfirm && alreadyConfirmed && (
               <p className="flex items-start gap-2 text-sm text-muted-foreground">
                 <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
-                <span>You&rsquo;ve signed off. Waiting on the other pilot&rsquo;s PIN.</span>
+                <span>You&rsquo;ve signed off. Waiting on the other pilot to sign off.</span>
               </p>
             )}
           </div>
@@ -635,11 +635,11 @@ export function CloseOutSection({
             ) : alreadyConfirmed ? (
               <div className="flex items-start gap-2 text-sm text-muted-foreground">
                 <CircleCheck className="mt-0.5 size-4 shrink-0 text-success" />
-                <span>You&rsquo;ve signed off. Waiting on the other pilot&rsquo;s PIN.</span>
+                <span>You&rsquo;ve signed off. Waiting on the other pilot to sign off.</span>
               </div>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Waiting for the assigned pilot(s) to confirm with their PIN.
+                Waiting for the assigned pilot(s) to sign off.
               </p>
             )}
             {reopenAction}

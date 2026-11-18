@@ -5,6 +5,7 @@ import { loggedNoTime } from "./close-out";
 import { useConfirmReview } from "@/features/queries";
 import type { Reservation } from "@/types/api";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { ResponsiveModal } from "@/components/responsive-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,19 +35,22 @@ export function ConfirmReviewModal({
   canCorrect?: boolean;
 }) {
   const confirmReview = useConfirmReview(reservation?.id ?? 0);
+  const { organization } = useAuth();
+  //A school can turn the PIN off (Settings > Organization > Close-out). Missing reads as on.
+  const pinRequired = organization?.preferences?.requirePinToSignOff !== false;
   const [pin, setPin] = React.useState("");
 
   React.useEffect(() => {
     if (open) setPin("");
   }, [open]);
 
-  const valid = pin.length === PIN_LENGTH;
+  const valid = !pinRequired || pin.length === PIN_LENGTH;
   const noTime = reservation != null && loggedNoTime(reservation);
 
   async function submit() {
     if (!reservation || !valid) return;
     try {
-      await confirmReview.mutateAsync({ pin });
+      await confirmReview.mutateAsync(pinRequired ? { pin } : {});
       toast.success(noTime ? "Review confirmed. Nothing billed: no time logged" : "Review confirmed");
       onOpenChange(false);
     } catch (e) {
@@ -68,14 +72,18 @@ export function ConfirmReviewModal({
             </Button>
             <Button type="submit"
                 form="modal-confirm-review-modal" disabled={!valid || confirmReview.isPending}>
-              {confirmReview.isPending ? "Confirming…" : "Confirm review"}
+              {confirmReview.isPending ? "Confirming…" : pinRequired ? "Confirm review" : "Sign off"}
             </Button>
         </div>
       }
       open={open}
       onOpenChange={onOpenChange}
       title="Confirm review"
-      description="Enter your confirmation PIN to sign off this flight."
+      description={
+        pinRequired
+          ? "Enter your confirmation PIN to sign off this flight."
+          : "Check the readings, then sign off this flight."
+      }
     >
       <form id="modal-confirm-review-modal"
         data-doc-shot="confirm-review-pin-modal"
@@ -85,6 +93,7 @@ export function ConfirmReviewModal({
           void submit();
         }}
       >
+        {pinRequired && (
         <div className="space-y-2">
           {/* `block` matters: the PIN input is only w-28, so an inline <label> would
               let it sit on the same line, jammed against the label text. */}
@@ -113,6 +122,7 @@ export function ConfirmReviewModal({
             Set your {PIN_LENGTH}-character PIN under Account → Security.
           </p>
         </div>
+        )}
 
         {noTime ? (
           <div
@@ -132,7 +142,10 @@ export function ConfirmReviewModal({
           <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
             <ClipboardCheck className="mt-0.5 size-4 shrink-0" />
             <span>
-              Your PIN is your signature on this flight record. Once every assigned pilot has
+              {pinRequired
+                ? "Your PIN is your signature on this flight record. "
+                : "Signing off is your signature on this flight record. "}
+              Once every assigned pilot has
               signed off, the invoice is generated automatically. It can be reopened before
               then, by an admin or the instructor on the booking.
             </span>

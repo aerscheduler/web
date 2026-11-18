@@ -108,6 +108,8 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   const [approvedOnly, setApprovedOnly] = useState(
     prefs?.personnelCanOnlyUseApprovedResources ?? false
   );
+  //Missing reads as ON: every school signed off with a PIN before this switch existed.
+  const [requirePin, setRequirePin] = useState(prefs?.requirePinToSignOff !== false);
   const [slotOffers, setSlotOffers] = useState(slotOfferSettings?.enabled !== false);
   const [requirePaymentMethod, setRequirePaymentMethod] = useState(
     bookingPolicy?.requirePaymentMethod ?? false
@@ -217,6 +219,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   useEffect(() => {
     setOverridePrices(prefs?.instructorsCanOverrideReservationPrices ?? false);
     setApprovedOnly(prefs?.personnelCanOnlyUseApprovedResources ?? false);
+    setRequirePin(prefs?.requirePinToSignOff !== false);
     setSlotOffers(slotOfferSettings?.enabled !== false);
     setRequirePaymentMethod(bookingPolicy?.requirePaymentMethod ?? false);
     setMultiDay(bookingPolicy?.multiDayEnabled ?? false);
@@ -268,6 +271,7 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
   }, [
     prefs?.instructorsCanOverrideReservationPrices,
     prefs?.personnelCanOnlyUseApprovedResources,
+    prefs?.requirePinToSignOff,
     slotOfferSettings?.enabled,
     slotOfferSettings?.quietHoursStartMinute,
     slotOfferSettings?.quietHoursEndMinute,
@@ -300,7 +304,11 @@ function BookingPreferencesCard({ organization }: { organization: Organization }
 
   function savePref(field: PrefField, value: boolean, apply: (v: boolean) => void) {
     const previous =
-      field === "instructorsCanOverrideReservationPrices" ? overridePrices : approvedOnly;
+      field === "instructorsCanOverrideReservationPrices"
+        ? overridePrices
+        : field === "requirePinToSignOff"
+          ? requirePin
+          : approvedOnly;
     apply(value);
     setPending(field);
     update.mutate(
@@ -569,6 +577,15 @@ function saveSlotOfferPolicy(patch: SlotOfferPolicyPatch, revert: () => void) {
           onCheckedChange={(v) =>
             savePref("personnelCanOnlyUseApprovedResources", v, setApprovedOnly)
           }
+        />
+        <PreferenceToggle
+          label="Require a PIN to sign off a flight"
+          docs="confirmation-pin"
+          description="At close-out, each pilot on the booking types their 4-character PIN to sign off. Turn off to let them sign off with one tap instead. Only the people on the booking can sign off either way."
+          checked={requirePin}
+          disabled={pending !== null}
+          saving={pending === "requirePinToSignOff"}
+          onCheckedChange={(v) => savePref("requirePinToSignOff", v, setRequirePin)}
         />
         <PreferenceToggle
           label="Offer open slots after a cancel"
@@ -1615,4 +1632,5 @@ function flyingDayKeyFromPolicy(
 
 type PrefField =
   | "instructorsCanOverrideReservationPrices"
-  | "personnelCanOnlyUseApprovedResources";
+  | "personnelCanOnlyUseApprovedResources"
+  | "requirePinToSignOff";

@@ -335,6 +335,11 @@ export interface OrganizationPreferences {
    * `POST /resources/:id/location` before the meter readings.
    */
   updateResourceLocationOnRampIn?: boolean;
+  /**
+   * Whether a pilot types their PIN to sign off a flight. Missing reads as true, which is
+   * how every school worked before the switch existed (2026-11-17).
+   */
+  requirePinToSignOff?: boolean;
 }
 
 /**
@@ -2264,7 +2269,8 @@ export interface ReservationPaymentOverridesInput {
 
 /** Sign off a flight review with the caller's 4-character PIN. */
 export interface ConfirmReviewInput {
-  pin: string;
+  /** Omitted when the school has turned off "Require a PIN to sign off". */
+  pin?: string;
 }
 
 /**

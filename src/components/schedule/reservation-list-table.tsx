@@ -42,7 +42,7 @@ export function asThenBy(v: unknown, groupBy: ReservationGroupBy): ReservationGr
 }
 
 const BILLING_LABEL = new Map(BILLING_OPTIONS.map((o) => [o.value, o.label]));
-const BILLING_RANK: Record<BillingStatus, number> = { unpaid: 0, notInvoiced: 1, paid: 2, voided: 3 };
+const BILLING_RANK: Record<BillingStatus, number> = { unpaid: 0, notInvoiced: 1, paid: 2, nothingToBill: 3, voided: 4 };
 
 /** A type's hue, for the dot before a booking: the same --res-* token the board paints it with. */
 const TYPE_HUE: Record<Reservation["type"], string> = {

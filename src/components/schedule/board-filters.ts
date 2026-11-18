@@ -1,7 +1,7 @@
 import { resourceLabel, type Reservation, type ReservationType } from "@/types/api";
 import type { ListFilterValues } from "@/components/list-filters";
 import { asFacetStrings } from "@/lib/list-query-state";
-import { closeOutStep, isRampedIn, isRampedOut, liveLedgerStakes } from "./close-out";
+import { closeOutStep, isRampedIn, isRampedOut, liveLedgerStakes, loggedNoTime } from "./close-out";
 import { TYPE_LABEL, personnelNames } from "./meta";
 
 /**
@@ -38,7 +38,12 @@ export const RAMP_OPTIONS: Array<{ value: RampStatus; label: string }> = [
   { value: "closed", label: "Closed out" },
 ];
 
-export type BillingStatus = "notInvoiced" | "unpaid" | "paid" | "voided";
+/**
+ * `nothingToBill`: the flight logged no time (a scrub), so no bill is coming and none is
+ * owed. It used to read "Not billed" for good at a Stripe school (2026-11-18). Same rule as
+ * the server's `loggedNoTime`, which keeps it off Billing -> Unbilled too.
+ */
+export type BillingStatus = "notInvoiced" | "unpaid" | "paid" | "voided" | "nothingToBill";
 
 export const BILLING_OPTIONS: Array<{ value: BillingStatus; label: string }> = [
   // "Not billed" covers invoice mode (no Stripe invoice) and ledger mode (no flight_charge).
@@ -46,6 +51,7 @@ export const BILLING_OPTIONS: Array<{ value: BillingStatus; label: string }> = [
   { value: "unpaid", label: "Unpaid" },
   { value: "paid", label: "Paid" },
   { value: "voided", label: "Voided" },
+  { value: "nothingToBill", label: "No time logged" },
 ];
 
 /**
@@ -85,6 +91,7 @@ export function billingStatus(r: Reservation): BillingStatus {
   const hasLedger = liveLedgerStakes(r).length > 0;
 
   if (!live.length && !hasLedger) {
+    if (loggedNoTime(r)) return "nothingToBill";
     return all.length ? "voided" : "notInvoiced";
   }
 

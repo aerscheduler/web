@@ -82,7 +82,7 @@ export function AgendaRow({
             students have settled is still one the school is chasing. */}
         {(() => {
           const status = billingStatus(r);
-          if (status === "notInvoiced" || status === "voided") return null;
+          if (status === "notInvoiced" || status === "voided" || status === "nothingToBill") return null;
           return status === "paid" ? (
             <Badge variant="success">Paid</Badge>
           ) : (

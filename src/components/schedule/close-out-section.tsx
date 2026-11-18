@@ -818,7 +818,12 @@ export function CloseOutSection({
                   : //Readings in equal readings out: there is nothing to bill, and Create
                     //invoice would only be refused for a zero total. Usually a scrubbed
                     //flight (Murray, 20 in 90 days to 2026-10-13).
-                    noTime
+                    //A LEDGER school closes a zero-time flight with a 0.00 charge (the server
+                    //posts one at sign-off since 2026-11-17). Reaching this line means it has
+                    //not, which is every booking signed off before then: offer the post.
+                    noTime && expectsLedger && canInvoice
+                    ? "Review complete. No flight time was logged. Post it to the ledger at 0.00 to close it out."
+                  : noTime
                     ? canCorrect
                       ? "Review complete. Nothing billed: no flight time was logged. If it flew, use Correct times under Adjustments and sign off again; it bills then."
                       : "Review complete. Nothing billed: no flight time was logged."
@@ -841,7 +846,7 @@ export function CloseOutSection({
                 here reviewed and unbilled, and until now the only way to bill it was the
                 phone. Admin only, because the endpoint is. Ledger mode posts a
                 flight_charge through the same route — label must not say "invoice". */}
-            {canInvoice && !noTime && (
+            {canInvoice && (!noTime || expectsLedger) && (
               <div className="space-y-2">
                 <div className="flex items-center gap-1.5 text-sm font-medium">
                   {expectsLedger ? "Post to ledger" : "Create invoice"}

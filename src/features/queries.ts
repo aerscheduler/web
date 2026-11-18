@@ -34,6 +34,9 @@ import type {
   WorkOrderLine,
   WorkOrderLineInput,
   WorkOrderSettings,
+  ShopPart,
+  ShopPartInput,
+  ShopPartSuggestion,
   WorkOrderInvoicePreview,
   WorkOrderSendAudience,
   RecordOwnerAnswerResult,
@@ -6368,6 +6371,45 @@ export function useRemoveWorkOrderLine() {
 }
 
 /** The shop's rates. Keyed apart from the jobs: a job write does not change them. */
+/** The shop's saved parts, live ones unless `archived`. Every shop role reads them. */
+export function useShopParts(params: { q?: string; archived?: boolean } = {}, opts?: QueryOpts) {
+  return useQuery({
+    queryKey: ["shopParts", params.q ?? "", !!params.archived],
+    queryFn: () => {
+      const search = new URLSearchParams();
+      if (params.q?.trim()) search.set("q", params.q.trim());
+      if (params.archived) search.set("archived", "true");
+      const qs = search.toString();
+      return apiList<ShopPart>(`/work-orders/parts${qs ? `?${qs}` : ""}`).then((r) => r.data);
+    },
+    ...opts,
+  });
+}
+
+function useShopPartWrite<I, O = unknown>(fn: (input: I) => Promise<O>) {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: fn, onSuccess: () => void qc.invalidateQueries({ queryKey: ["shopParts"] }) });
+}
+
+export function useCreateShopPart() {
+  return useShopPartWrite((body: ShopPartInput) => api<ShopPart>("/work-orders/parts", { method: "POST", body }));
+}
+
+export function useUpdateShopPart() {
+  return useShopPartWrite(({ id, ...body }: ShopPartInput & { id: number }) => api<ShopPart>(`/work-orders/parts/${id}`, { method: "PATCH", body }));
+}
+
+/** Parts already used on jobs and not yet saved. Shop pricing only. */
+export function useShopPartSuggestions(opts?: QueryOpts) {
+  return useQuery({ queryKey: ["shopParts", "suggestions"], queryFn: () => api<ShopPartSuggestion[]>("/work-orders/parts/suggestions"), ...opts });
+}
+
+export function useImportShopParts() {
+  return useShopPartWrite((parts: ShopPartInput[]) =>
+    api<{ created: ShopPart[]; skipped: number }>("/work-orders/parts/import", { method: "POST", body: { parts } })
+  );
+}
+
 export function useWorkOrderSettings(opts?: QueryOpts) {
   return useQuery({ queryKey: ["workOrderSettings"], queryFn: () => api<WorkOrderSettings>("/work-orders/settings"), ...opts });
 }

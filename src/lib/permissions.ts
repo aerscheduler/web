@@ -235,6 +235,14 @@ export const canGroundResources = (r: Role[]) => isAdmin(r) || isTechnician(r);
 export const canManageResourcePapers = (r: Role[]) => isStaff(r) || isTechnician(r);
 /** Create/void/mark-paid invoices; view the billing console. Server: admin. */
 export const canManageBilling = isAdmin;
+
+/**
+ * May price shop work: a job line's rate, markup, price, discount, tax and billing, a job's own
+ * rates, and a saved part's cost or price (archiving one too). An admin, or anybody holding the
+ * per-person grant "Shop pricing" (`priceShopWork`), a lead technician. The server's
+ * `mayPriceShopWork`. Who pays and raising the invoice stay `canManageBilling`.
+ */
+export const canPriceShopWork = (r: Role[], grants?: ReadonlySet<string> | null) => isAdmin(r) || grants?.has("priceShopWork") === true;
 /** Billing settings + Stripe connect. Server: owner. */
 export const canManageBillingSettings = isOwner;
 /** Org profile / logo / ratings. Server: admin. */

@@ -7,13 +7,15 @@ import {
   useMembers,
   useUpdateWorkOrderLine,
   useSalesTaxSettings,
+  useShopParts,
   useWorkOrderItems,
   useWorkOrderSettings,
 } from "@/features/queries";
 import { Link } from "@tanstack/react-router";
-import type { WorkOrder, WorkOrderLine, WorkOrderLineCategory, WorkOrderLineInput } from "@/types/api";
+import type { ShopPart, WorkOrder, WorkOrderLine, WorkOrderLineCategory, WorkOrderLineInput } from "@/types/api";
 import { useAuth } from "@/lib/auth";
-import { canManageBilling, isTechnician } from "@/lib/permissions";
+import { isAdmin, isTechnician } from "@/lib/permissions";
+import { useCanPriceShopWork } from "@/lib/use-shop-pricing";
 import { useTimeZone } from "@/lib/use-timezone";
 import { dateKeyInZone } from "@/lib/timezone";
 import { cn, formatMoney } from "@/lib/utils";
@@ -26,6 +28,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 import { PersonAvatar } from "@/components/workspace-user-avatar";
 import { ChipButton, ChipMenu, DateChip } from "@/components/property-chips";
+import { Combobox } from "@/components/combobox";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export const LINE_KINDS: { value: WorkOrderLineCategory; label: string }[] = [
   { value: "labor", label: "Labor" },
@@ -115,15 +119,20 @@ export function WorkOrderLineModal({
   const add = useAddWorkOrderLine();
   const update = useUpdateWorkOrderLine();
   const settingsQ = useWorkOrderSettings({ enabled: open });
-  // Only an admin prices. Anyone else enters work at the shop's rates, so the pricing controls are
-  // shown (they say what the line will charge) but not theirs to change; the server holds the rule.
+  // Shop pricing prices (an admin, or a lead technician given it). Anyone else enters work at the
+  // shop's rates, so the pricing controls are shown (they say what the line will charge) but not
+  // theirs to change; the server holds the rule.
   const { roles, orgUserId: me } = useAuth();
-  const mayPrice = canManageBilling(roles);
+  const mayPrice = useCanPriceShopWork();
   // Only an admin marks a line taxable, and only an admin reads the rates: one marked taxable with
   // no rate to charge it at is said here, not first at Raise invoice (Tony, 2026-10-05).
-  const taxQ = useSalesTaxSettings({ enabled: mayPrice && open });
+  //The sales tax settings are an admin's read (GET /organizations/salesTax), so a lead technician
+  //with Shop pricing is not sent to a 403; they just are not warned about a missing rate.
+  const taxQ = useSalesTaxSettings({ enabled: isAdmin(roles) && open });
   const noTaxRate = !!taxQ.data && !taxQ.data.rates.some((r) => !r.archivedAt);
   const tz = useTimeZone();
+  // Saved parts are offered on a NEW line only: an existing line keeps the figures it has.
+  const partsQ = useShopParts({}, { enabled: open && !editing });
   const membersQ = useMembers(undefined, { enabled: open });
   const itemsQ = useWorkOrderItems(open ? workOrder.id : null);
 
@@ -148,6 +157,9 @@ export function WorkOrderLineModal({
   const [billable, setBillable] = React.useState(true);
   const [discount, setDiscount] = React.useState("");
   const [itemId, setItemId] = React.useState<string>(NONE);
+  // The saved part this new line was picked from (Murray, 2026-11-18), and "Save to parts list".
+  const [pickedPartId, setPickedPartId] = React.useState<number | null>(null);
+  const [saveToParts, setSaveToParts] = React.useState(false);
   const [showErrors, setShowErrors] = React.useState(false);
   // The rate, cost and price fields each say when their text is not an amount; while any does,
   // Save waits (the field's own message explains) rather than saving the last good value.
@@ -201,6 +213,8 @@ export function WorkOrderLineModal({
     setBillable(l?.billable ?? true);
     setDiscount(l?.discountBps ? String(l.discountBps / 100) : "");
     setItemId(l ? (l.itemId ? String(l.itemId) : NONE) : defaultItemId ? String(defaultItemId) : NONE);
+    setPickedPartId(null);
+    setSaveToParts(false);
     setShowErrors(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, editing, defaultKind, defaultItemId]);
@@ -269,6 +283,26 @@ export function WorkOrderLineModal({
   const invalid = Object.values(errors).some(Boolean);
   const pending = add.isPending || update.isPending;
 
+  /**
+   * Fill the form from a saved part. Its cost is marked up by THIS job's markup (shown as the
+   * price below); a part with a fixed price fills that price. Everything stays editable, and the
+   * line keeps its own copy, so changing the saved part later never touches it.
+   */
+  function pickPart(part: ShopPart) {
+    setPickedPartId(part.id);
+    setSaveToParts(false);
+    setKind(part.category);
+    setDescription(part.name);
+    setPartNumber(part.partNumber ?? "");
+    setVendor(part.vendor ?? "");
+    setCost(part.costCents ?? undefined);
+    setMarkup("");
+    const marks = part.category === "part" || part.category === "outside_service";
+    setOwnPrice(marks && part.priceCents != null);
+    setPrice(part.priceCents ?? undefined);
+    setTaxable(part.taxable == null ? RULE : part.taxable ? "yes" : "no");
+  }
+
   async function submit() {
     if (!money.allValid) return;
     if (invalid) {
@@ -283,6 +317,8 @@ export function WorkOrderLineModal({
       ...(mayPrice ? { discountBps: discountBps ?? null } : {}),
       taxable: taxable === RULE ? null : taxable === "yes",
       itemId: itemId === NONE ? null : Number(itemId),
+      ...(!editing && !isLabor && pickedPartId != null ? { shopPartId: pickedPartId } : {}),
+      ...(!editing && !isLabor && pickedPartId == null && saveToParts ? { saveToParts: true } : {}),
     };
     if (isLabor) {
       Object.assign(body, {
@@ -310,7 +346,7 @@ export function WorkOrderLineModal({
     try {
       if (editing) await update.mutateAsync({ workOrderId: workOrder.id, lineId: editing.id, ...body });
       else await add.mutateAsync({ workOrderId: workOrder.id, ...body });
-      toast.success(editing ? "Line saved" : "Line added");
+      toast.success(editing ? "Line saved" : saveToParts && pickedPartId == null && !isLabor ? "Line added and saved to parts" : "Line added");
       onOpenChange(false);
     } catch (e) {
       once.fail();
@@ -367,6 +403,28 @@ export function WorkOrderLineModal({
       }
     >
       <div className="space-y-4">
+        {!editing && !isLabor && (partsQ.data?.length ?? 0) > 0 && (
+          <Field label="Saved part" htmlFor="wo-line-saved-part" hint="Fills the line from the shop's saved parts. Change anything before adding it.">
+            <Combobox
+              id="wo-line-saved-part"
+              value={pickedPartId != null ? String(pickedPartId) : undefined}
+              onChange={(v) => {
+                const part = partsQ.data?.find((p) => String(p.id) === v);
+                if (part) pickPart(part);
+              }}
+              placeholder="Pick a saved part, or type a new one below"
+              searchPlaceholder="Search name, part number or vendor…"
+              emptyText="No saved part matches."
+              options={(partsQ.data ?? []).map((p) => ({
+                value: String(p.id),
+                label: p.name,
+                hint: [p.partNumber, p.priceCents != null ? formatMoney(p.priceCents) : p.costCents != null ? `cost ${formatMoney(p.costCents)}` : null].filter(Boolean).join(" · "),
+                keywords: [p.partNumber ?? "", p.vendor ?? ""],
+                group: LINE_KIND_LABEL[p.category],
+              }))}
+            />
+          </Field>
+        )}
         <Field label={isLabor ? "What was done" : "Description"} htmlFor="wo-line-description">
           <Input
             id="wo-line-description"
@@ -463,7 +521,7 @@ export function WorkOrderLineModal({
           </div>
         )}
         {!mayPrice && (marksUp || isLabor) && (
-          <p className="text-xs text-muted-foreground">Priced at this job's rates. Only an admin changes a line's rate, markup or price.</p>
+          <p className="text-xs text-muted-foreground">Priced at this job's rates. Only an admin, or someone with Shop pricing, changes a line's rate, markup or price.</p>
         )}
         {kind === "part" ? (
           <div className="grid gap-4 sm:grid-cols-3">
@@ -494,7 +552,11 @@ export function WorkOrderLineModal({
             label={LINE_KIND_LABEL[kind]}
             set
             value={kind}
-            onChange={(v) => setKind(v as WorkOrderLineCategory)}
+            onChange={(v) => {
+              setKind(v as WorkOrderLineCategory);
+              //A different kind is no longer the saved part that was picked.
+              setPickedPartId(null);
+            }}
             disabled={!!editing && !mayPrice}
             options={LINE_KINDS.map((k) => ({ value: k.value, label: k.label }))}
           />
@@ -594,6 +656,13 @@ export function WorkOrderLineModal({
             ]}
           />
         </div>
+        {!editing && !isLabor && pickedPartId == null && (
+          <label className="flex items-center gap-2 text-sm" htmlFor="wo-line-save-part">
+            <Checkbox id="wo-line-save-part" checked={saveToParts} onCheckedChange={(v) => setSaveToParts(v === true)} />
+            Save to parts list
+            <span className="text-muted-foreground">so it can be picked next time</span>
+          </label>
+        )}
         {taxable === "yes" && noTaxRate && (
           <p className="text-xs text-muted-foreground" data-testid="wo-line-no-tax-rate">
             There is no sales tax rate yet, so a taxable line cannot be invoiced.{" "}

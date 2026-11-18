@@ -30,6 +30,7 @@ import { FleetStatus } from "@/components/maintenance/fleet-status";
 import { SquawkTable } from "@/components/maintenance/squawk-table";
 import { WorkOrderTable } from "@/components/maintenance/work-order-table";
 import { ShopSetupCallout } from "@/components/onboarding/shop-setup-guide";
+import { SavedParts } from "@/components/maintenance/saved-parts";
 import { WorkOrderFormModal } from "@/components/maintenance/work-order-form-modal";
 import { ComplianceLog } from "@/components/maintenance/compliance-log";
 import { FleetAds } from "@/components/maintenance/fleet-ads";
@@ -147,6 +148,7 @@ function MaintenancePage() {
   const [squawkOpen, setSquawkOpen] = React.useState(false);
   const [addOpen, setAddOpen] = React.useState(false);
   const [workOrderOpen, setWorkOrderOpen] = React.useState(false);
+  const [partOpen, setPartOpen] = React.useState(false);
   // EVERY aeroplane this shop is responsible for, its own and its customers'. This page is
   // the one place the two genuinely belong in the same list: an annual is an annual, and a
   // mechanic working through what is due does not care whose name is on the registration.
@@ -214,6 +216,7 @@ function MaintenancePage() {
   const showsSquawks = view === "open" || view === "resolved";
   const showsWorkOrders = view === "work-orders" || view === "work-orders-closed";
   const showsAds = view === "ads" || view === "ad-library";
+  const showsParts = view === "parts";
   // Which record the inbox has open. In the URL rather than in state: a notification links
   // straight to one, and closing it has to be an ordinary Back.
   // A number, not a string: it goes into the URL bare (`open=2251`) rather than JSON
@@ -229,7 +232,7 @@ function MaintenancePage() {
     // The tail filter is meaningless on Inspection rules, which lists rules rather than
     // anything belonging to an aircraft. Offering it there would be a control that
     // silently does nothing.
-    if (view !== "templates" && view !== "ad-library") {
+    if (view !== "templates" && view !== "ad-library" && view !== "parts") {
       defs.push({
         kind: "select",
         key: "resourceId",
@@ -350,6 +353,8 @@ function MaintenancePage() {
             ? "Search ADs or tails…"
             : view === "ad-library"
             ? "Search an AD number, maker, model or any word…"
+            : showsParts
+            ? "Search name, part number or vendor…"
             : "Search aircraft or inspections…"
       }
       aria-label="Search maintenance"
@@ -371,12 +376,16 @@ function MaintenancePage() {
                   squawk queue was an action for a different screen sitting directly above
                   that screen's own buttons, which is most of why the two rows read as a
                   pile rather than a hierarchy. */}
-              {canManage && !showsSquawks && !showsWorkOrders && !showsAds && (
+              {canManage && !showsSquawks && !showsWorkOrders && !showsAds && !showsParts && (
                 <Button variant="outline" onClick={() => setAddOpen(true)}>
                   <Wrench className="size-4" /> Add inspections
                 </Button>
               )}
-              {showsAds ? null : showsWorkOrders ? (
+              {showsAds ? null : showsParts ? (
+                <Button onClick={() => setPartOpen(true)}>
+                  <Plus className="size-4" /> Save a part
+                </Button>
+              ) : showsWorkOrders ? (
                 <Button onClick={() => setWorkOrderOpen(true)}>
                   <Plus className="size-4" /> Open a work order
                 </Button>
@@ -434,6 +443,7 @@ function MaintenancePage() {
                 onOpenId={setOpenId}
               />
             ))}
+          {showsParts && <SavedParts q={q} newOpen={partOpen} onNewOpenChange={setPartOpen} />}
           {view === "compliance" && (
             <ComplianceLog q={q} resourceId={resourceIds} openId={openId} onOpenId={setOpenId} />
           )}

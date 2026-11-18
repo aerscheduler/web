@@ -645,6 +645,13 @@ export const DOCS_TOPICS = {
     href: "maintenance/run-a-work-order#rates-for-a-customer-or-a-job",
     linkLabel: "Rates for a customer or a job",
   },
+  "saved-parts": {
+    title: "Saved parts",
+    summary:
+      "Parts, supplies and fees the shop uses often, picked onto a job instead of typed. A saved cost is marked up by the job's own markup. Changing one never changes a line already on a job.",
+    href: "maintenance/save-parts-you-use-often",
+    linkLabel: "Save parts you use often",
+  },
   "shop-rates": {
     title: "Shop rates",
     summary: "The labor rate and markups that price new work order lines. Changing them never changes a line already on a job.",

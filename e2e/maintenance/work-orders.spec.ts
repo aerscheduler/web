@@ -539,7 +539,7 @@ test.describe("as a technician", () => {
     const dlg = page.getByRole("dialog").filter({ hasText: "Add part" });
     await expect(dlg.locator("#wo-line-price")).toBeDisabled();
     await expect(dlg.getByRole("button", { name: /^Billing:/ })).toBeDisabled();
-    await expect(dlg.getByText("Only an admin changes a line's rate, markup or price.")).toBeVisible();
+    await expect(dlg.getByText("Only an admin, or someone with Shop pricing, changes a line's rate, markup or price.")).toBeVisible();
     await dlg.getByRole("button", { name: "Cancel" }).click();
 
     // Who pays is shown, not offered: an admin chooses it.

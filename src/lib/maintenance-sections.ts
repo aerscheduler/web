@@ -4,6 +4,7 @@ import {
   ClipboardList,
   FileCheck2,
   Hammer,
+  Package,
   Archive,
   ListChecks,
   ShieldCheck,
@@ -19,7 +20,7 @@ import type { RailSection } from "@/components/section-rail";
  * use it. Adding a view here puts it in the rail AND makes it findable.
  */
 export type MaintenanceView = {
-  value: "aircraft" | "reminders" | "templates" | "compliance" | "ads" | "ad-library" | "open" | "resolved" | "work-orders" | "work-orders-closed";
+  value: "aircraft" | "reminders" | "templates" | "compliance" | "ads" | "ad-library" | "open" | "resolved" | "work-orders" | "work-orders-closed" | "parts";
   label: string;
   icon: LucideIcon;
   keywords?: string[];
@@ -42,6 +43,13 @@ export const MAINTENANCE_SECTIONS: { label: string; items: MaintenanceView[] }[]
         label: "Finished jobs",
         icon: Archive,
         keywords: ["closed work orders", "completed jobs", "job history"],
+      },
+      {
+        //Murray, 2026-11-18: the oil, filters and gaskets used every week, picked onto a job.
+        value: "parts",
+        label: "Saved parts",
+        icon: Package,
+        keywords: ["parts", "parts list", "price list", "catalog", "oil", "filters", "gaskets", "supplies", "part numbers"],
       },
     ],
   },
@@ -131,7 +139,7 @@ export const MAINTENANCE_VIEWS = MAINTENANCE_SECTIONS.flatMap((s) => s.items);
  * The views shown only to somebody who may open work orders (canOpenWorkOrders: owners, admins,
  * technicians): the job boards, and the AD views, which the server gates on the same roles.
  */
-export const WORK_ORDER_VIEWS: readonly string[] = ["work-orders", "work-orders-closed", "ads", "ad-library"];
+export const WORK_ORDER_VIEWS: readonly string[] = ["work-orders", "work-orders-closed", "parts", "ads", "ad-library"];
 
 /** The rail without those views, for a dispatcher. */
 export const maintenanceRailFor = (workOrders: boolean): RailSection[] =>

@@ -700,6 +700,7 @@ export type GrantName =
   | "overrideBookingLocks"
   | "overrideBookingRules"
   | "postAnnouncements"
+  | "priceShopWork"
   | "renewCurrencies"
   | "sendReportsOutside"
   | "setFlightPricing"
@@ -2858,6 +2859,8 @@ export interface WorkOrderLine {
   orderedOn: string | null;
   expectedOn: string | null;
   itemId: number | null;
+  /** The saved part it was picked from. The line keeps its own figures. */
+  shopPartId?: number | null;
   /** Who entered it: somebody who may not set prices changes only their own lines. */
   createdByOrgUserId?: number | null;
 }
@@ -2883,7 +2886,44 @@ export interface WorkOrderLineInput {
   orderedOn?: string | null;
   expectedOn?: string | null;
   itemId?: number | null;
+  /** Pick a saved part (new lines only): it fills whatever this body leaves out. */
+  shopPartId?: number | null;
+  /** Also save this new line to the shop's saved parts. */
+  saveToParts?: boolean;
 }
+
+export type ShopPartCategory = Exclude<WorkOrderLineCategory, "labor">;
+
+/**
+ * A part, supply, outside work or fee the shop uses often, saved to pick onto a job. A template
+ * for a line: picking copies its fields, and a later change never touches a line already made.
+ */
+export interface ShopPart {
+  id: number;
+  createdAt: string;
+  updatedAt: string;
+  category: ShopPartCategory;
+  name: string;
+  partNumber: string | null;
+  vendor: string | null;
+  costCents: number | null;
+  /** A fixed price each; null means the cost plus the job's markup when picked. */
+  priceCents: number | null;
+  taxable: boolean | null;
+  notes: string | null;
+  archivedAt: string | null;
+  timesUsed: number;
+}
+
+export type ShopPartInput = Partial<Pick<ShopPart, "category" | "name" | "partNumber" | "vendor" | "costCents" | "priceCents" | "taxable" | "notes">> & {
+  archived?: boolean;
+};
+
+/** A part the shop has already put on jobs, offered for the saved parts list. */
+export type ShopPartSuggestion = Pick<ShopPart, "category" | "name" | "partNumber" | "vendor" | "costCents" | "priceCents" | "taxable"> & {
+  timesUsed: number;
+  lastUsedAt: string;
+};
 
 /** The shop's defaults for pricing new lines. */
 export interface WorkOrderSettings {

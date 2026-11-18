@@ -29,6 +29,7 @@ import { WorkOrderWorkTable } from "@/components/maintenance/work-order-work-tab
 import { RaiseInvoiceModal } from "@/components/maintenance/work-order-lines";
 import { FinishUnbilledDialog, needsBillingBeforeCompleting } from "@/components/maintenance/finish-unbilled-dialog";
 import { JobRatesRows } from "@/components/maintenance/work-order-rates";
+import { useCanPriceShopWork } from "@/lib/use-shop-pricing";
 import { OwnerNoticesHold } from "@/components/maintenance/owner-notices-hold";
 import {
   CardEmpty,
@@ -220,6 +221,8 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
   // from the Billing card it only bills it.
   const [raising, setRaising] = useState<"complete" | "bill" | null>(null);
   const admin = canManageBilling(roles);
+  //A job's own rates follow "Shop pricing": admins, and a lead technician given it.
+  const mayPriceJob = useCanPriceShopWork();
   // One field at a time, from the cards: the job has no Edit dialog (Tony, 2026-09-30).
   const saveField = async (patch: WorkOrderInput) => {
     try {
@@ -433,7 +436,7 @@ function WorkOrderBody({ workOrder: w }: { workOrder: WorkOrder }) {
                 </CardEmpty>
               )}
               {/* What the next line is priced at: the job's, the customer's or the shop's. */}
-              {!w.invoice && w.rates && <JobRatesRows workOrder={w} editable={admin} />}
+              {!w.invoice && w.rates && <JobRatesRows workOrder={w} editable={mayPriceJob} />}
             </DetailCard>
           </div>
         </div>

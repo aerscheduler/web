@@ -24,6 +24,7 @@ import { ApiError } from "@/lib/api";
 import { ExplainedButton } from "@/components/explained-button";
 import { useAuth } from "@/lib/auth";
 import { canManageBilling, canResolveSquawk, isAdmin } from "@/lib/permissions";
+import { useCanPriceShopWork } from "@/lib/use-shop-pricing";
 import { formatDate, formatMoney } from "@/lib/utils";
 import { useConfirm } from "@/components/confirm-dialog";
 import { DocsHint } from "@/components/docs-hint";
@@ -149,11 +150,13 @@ export function WorkOrderWorkTable({
   const picker = useFilePicker((files) => void attach(files, attachFor.current));
   const { roles, orgUserId, user } = useAuth();
   const canInvoice = canManageBilling(roles);
+  //Changing anybody's line is pricing: admins, and a lead technician given "Shop pricing".
+  const mayPriceLines = useCanPriceShopWork();
   // Signing off an inspection or resolving a squawk is an admin's or a technician's (the server's
   // rule for both), so nobody is offered a button the server then refuses.
   const maySignOff = canResolveSquawk(roles);
-  // An admin changes any line; anyone else only the lines they entered (the server's rule).
-  const mayChange = (l: WorkOrderLine) => canInvoice || (orgUserId != null && l.createdByOrgUserId === orgUserId);
+  // Shop pricing changes any line; anyone else only the lines they entered (the server's rule).
+  const mayChange = (l: WorkOrderLine) => mayPriceLines || (orgUserId != null && l.createdByOrgUserId === orgUserId);
   const frozen = w.invoice != null;
 
   const [addingItem, setAddingItem] = React.useState<WorkOrderItem["source"] | null>(null);

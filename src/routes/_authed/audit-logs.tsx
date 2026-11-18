@@ -89,6 +89,7 @@ function actionLabel(action: string): string {
     "workOrder.invoiced": "Work order invoiced",
     "workOrder.deleted": "Work order deleted",
     "organization.workOrderSettingsChanged": "Shop rates changed",
+    "organization.shopPartChanged": "Saved part changed",
     "invoice.voided": "Invoice voided",
     "invoice.markedPaid": "Marked paid",
     "orgUser.rolesChanged": "Roles changed",
